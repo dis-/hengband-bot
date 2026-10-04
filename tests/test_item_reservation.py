@@ -31,14 +31,14 @@ class ItemReservationTest(unittest.TestCase):
         exec(compile(source, '<5cd05e8e:' + name + '>', 'exec'), namespace)
         return namespace[name]
 
-    def scene(self, enforced=False):
+    def scene(self, enforced=False, slot='q'):
         raw = json.loads(gzip.decompress((Path(__file__).parent /
             'fixtures/s33slice-weight-board.json.gz').read_bytes()))
         board = parse_snapshot(raw)
         policy = HengbotPolicy()
         policy.prime(board)
         policy._town_claim_bar_enforced = enforced
-        target = next(item for item in board.inventory if item.slot == 'q')
+        target = next(item for item in board.inventory if item.slot == slot)
         action = EquipmentTransaction('home_prepare', 'deposit',
             'pack:' + equipment_identity(target) + ':0', None,
             equipment_identity(target), equipment_move_identity(target))
@@ -64,9 +64,7 @@ class ItemReservationTest(unittest.TestCase):
                 "withdrawn": True, "town": policy._effective_town_id(board),
             }
             from hengbot.policy_home import HomeMixin
-            with patch.object(policy, '_retention_reservation', return_value=0), \
-                    patch.object(policy, '_disposal_protected_by_identification', return_value=False), \
-                    patch.object(policy, '_home_full_relief_key', return_value='retry') as retry, \
+            with patch.object(policy, '_home_full_relief_key', return_value='retry') as retry, \
                     patch.object(policy, '_store_sell_key', return_value='sale') as sale:
                 self.assertEqual(self.baseline('_home_full_relief_key')(policy, board), 'sale')
                 sale.assert_called_once()
@@ -84,6 +82,15 @@ class ItemReservationTest(unittest.TestCase):
             self.assertFalse(item_available(policy, board, target, 'home-visit', 'home-full-sale'))
             self.assertEqual(item_reserved_by_other(policy, board, target,
                 ('home-visit', 'home-full-sale')).owner, 'equipment-txn')
+
+    def test_recorded_staff_session_ownership_protects_non_equipment(self):
+        for enforced in (False, True):
+            policy, board, target = self.scene(enforced, 'm')
+            self.assertFalse(target.is_equipment)
+            self.assertTrue(policy._equipment_transaction_deposit_owns_item(target))
+            self.assertFalse(item_available(policy, board, target, 'home-visit', 'deposit'))
+            self.assertEqual(item_reserved_by_other(policy, board, target,
+                ('home-visit', 'weight-deposit')).owner, 'equipment-txn')
 
     def test_owned_transaction_and_unreserved_item_are_allowed(self):
         policy, board, target = self.scene()
@@ -156,8 +163,51 @@ class ItemReservationTest(unittest.TestCase):
         policy._home_atomic_deposit_pending = (((signature, 1, 1),), None, board.turn, 0)
         self.assertFalse(item_available(policy, board, target, 'shop-sell', 'sell'))
 
-    def test_ambiguous_identical_reserved_stacks_are_typed(self):
+    def test_unreferenced_home_catalogue_rows_are_not_evaluated(self):
         policy, board, target = self.scene()
-        board = replace(board, inventory=(*board.inventory, replace(target, slot='z')))
-        verdict = item_reserved_by_other(policy, board, target, ('foreign', 'sell'))
-        self.assertTrue(verdict.ambiguous)
+        policy._home_knowledge_items = (replace(board.inventory[0], slot='z'),)
+        @reservation_decision
+        def decide(policy, board):
+            import hengbot.item_reservation as module
+            with patch.object(module, '_reservation_row', wraps=module._reservation_row) as row:
+                item_available(policy, board, target, 'foreign', 'sell')
+                item_available(policy, board, target, 'foreign', 'deposit')
+                item_available(policy, board, board.inventory[0], 'home-visit', 'deposit')
+                self.assertEqual(row.call_count, 2)
+        decide(policy, board)
+
+    def test_ambiguous_identical_reserved_stacks_are_typed(self):
+        for enforced in (False, True):
+            policy, board, target = self.scene(enforced)
+            board = replace(board, inventory=(*board.inventory, replace(target, slot='z')))
+            verdict = item_reserved_by_other(policy, board, target, ('foreign', 'sell'))
+            self.assertTrue(verdict.ambiguous)
+            @reservation_decision
+            def decide(policy, board):
+                self.assertFalse(item_available(policy, board, target, 'foreign', 'sell'))
+                row = reservation_shadow(policy)[0]
+                self.assertTrue(row['ambiguous'])
+                self.assertEqual(row['would_stop'], 'ownership:item-reserved:sell:equipment-txn')
+                if enforced:
+                    self.assertEqual(policy.last_reason, row['would_stop'])
+            decide(policy, board)
+
+    def test_need_query_skips_foreign_items_without_poisoning_owner_handoff(self):
+        from hengbot.item_reservation import reservation_query
+        for enforced in (False, True):
+            policy, board, target = self.scene(enforced)
+            policy.last_reason = 'equipment-transaction:travel-home'
+            @reservation_query
+            def query():
+                return item_available(policy, board, target, 'home-visit', 'weight-deposit')
+            @reservation_decision
+            def decide(policy, board):
+                self.assertFalse(query())
+                self.assertEqual(policy.last_reason, 'equipment-transaction:travel-home')
+                self.assertEqual(reservation_shadow(policy)[0]['query_skip'],
+                    'ownership:item-reserved:weight-deposit:equipment-txn')
+                self.assertNotIn('would_stop', reservation_shadow(policy)[0])
+                self.assertFalse(item_available(policy, board, target, 'home-visit', 'weight-deposit'))
+                self.assertEqual(reservation_shadow(policy)[1]['would_stop'],
+                    'ownership:item-reserved:weight-deposit:equipment-txn')
+            decide(policy, board)

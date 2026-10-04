@@ -1,7 +1,9 @@
 """Single observation-driven owner for every equipment mutation command."""
 
 from __future__ import annotations
+from hengbot.item_reservation import ReservationVerdict, standalone_verdict, checked_item_command
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -359,11 +361,16 @@ class EquipmentMutationExecutor:
         return None
 
     def _prepare(
-        self, snapshot, goal: str, key: str, effect: tuple | None = None
+        self, snapshot, goal: str, key: str | Callable[[], str | None],
+        effect: tuple | None = None, *, suffix: str = "",
     ) -> EquipmentMutationResult:
         refusal = self._begin(snapshot, goal)
         if refusal is not None:
             return refusal
+        key = key() if callable(key) else key
+        if key is None:
+            return EquipmentMutationResult(None)
+        key += suffix
         self.state = EquipmentMutationState.PREPARED
         self.goal = goal
         self.prepared_key = key
@@ -374,15 +381,21 @@ class EquipmentMutationExecutor:
         self.last_report = None
         return EquipmentMutationResult(key)
 
-    def request_takeoff(self, snapshot, goal: str, slot_key: str) -> EquipmentMutationResult:
+    def request_takeoff(self, snapshot, goal: str, slot_key: str, *,
+                        verdict: ReservationVerdict | None = None, policy=None) -> EquipmentMutationResult:
         slot = _SLOT_BY_KEY.get(slot_key)
+        item = _worn(snapshot, slot) or slot_key
+        if verdict is None:
+            verdict = standalone_verdict("takeoff", item)
         return self._prepare(
-            snapshot, goal, TAKEOFF_KEY + slot_key,
+            snapshot, goal,
+            lambda: checked_item_command(policy, "takeoff", (item, slot_key), verdict),
             _requested_effect(snapshot, "takeoff", slot, _worn(snapshot, slot)),
         )
 
     def request_wield(
-        self, snapshot, goal: str, item, target_slot: str, slot_keys: dict[str, str]
+        self, snapshot, goal: str, item, target_slot: str, slot_keys: dict[str, str],
+        *, verdict: ReservationVerdict | None = None, policy=None,
     ) -> EquipmentMutationResult:
         if target_slot not in slot_keys:
             return EquipmentMutationResult(None, "unknown-equipment-slot")
@@ -419,9 +432,13 @@ class EquipmentMutationExecutor:
                 suffix = slot_keys[target_slot]
         elif tval == TVAL_RING:
             suffix = "(" if target_slot == "main_ring" else ")"
+        if verdict is None:
+            verdict = standalone_verdict("wield", item)
         return self._prepare(
-            snapshot, goal, WIELD_KEY + item.slot + suffix,
+            snapshot, goal,
+            lambda: checked_item_command(policy, "wield", item, verdict),
             _requested_effect(snapshot, "wield", target_slot, item),
+            suffix=suffix,
         )
 
     def confirm_posted(self, key: str) -> bool:

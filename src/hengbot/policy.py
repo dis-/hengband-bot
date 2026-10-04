@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, reservation_shadow, item_available
 
 from collections import Counter, deque
@@ -6920,7 +6921,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Detect a producer that escaped the town entry gate."""
         if not (snapshot.in_town or snapshot.store is not None):
             return key
-        if getattr(self, "_town_claim_bar_enforced", False) and reservation_shadow(self):
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and any(row.get("would_stop") for row in reservation_shadow(self))):
             stop = self._town_final_declaration_stop(snapshot, key, None)
             if stop is not None:
                 self.last_reason = stop
@@ -12275,7 +12277,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if refused_superior
                 else reason
             )
-            key = self._destroy_item_key(disposable)
+            key = self._destroy_item_key(disposable, snapshot, owner, policy=self)
             self._offer_execution(
                 key, producer="identification",
                 work_id=f"verified-destroy:{self._item_signature(disposable)}",
@@ -15486,7 +15488,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             cleaned = stale_tag.inscription.replace(HEAVY_CURSE_TAG, "").strip()
             if not cleaned:
                 self.last_reason = "equipment:clear-heavy-curse-tag"
-                key = UNINSCRIBE_KEY + "/" + slot_key
+                key = reserved_item_command(self, snapshot, "uninscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
+                if key is None:
+                    return None
                 self._offer_execution(
                     key, producer="equipment-txn", work_id="heavy-curse-tag",
                     next_step="equipment.clear-heavy-curse-tag",
@@ -15494,7 +15498,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 return key
             self.last_reason = "equipment:remove-heavy-curse-tag"
-            key = INSCRIBE_KEY + "/" + slot_key + cleaned + "\r"
+            prefix = reserved_item_command(self, snapshot, "inscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
+            if prefix is None:
+                return None
+            key = prefix + cleaned + "\r"
             self._offer_execution(
                 key, producer="equipment-txn", work_id="heavy-curse-tag",
                 next_step="equipment.remove-heavy-curse-tag",
@@ -15544,7 +15551,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # end and switches to insert mode before the persistent marker is added.
         suffix = "\x05 " + HEAVY_CURSE_TAG
         self.last_reason = "equipment:mark-heavy-curse"
-        key = INSCRIBE_KEY + "/" + slot_key + suffix + "\r"
+        prefix = reserved_item_command(self, snapshot, "inscribe-equipped", target, "equipment-txn", address=slot_key)
+        if prefix is None:
+            return None
+        key = prefix + suffix + "\r"
         self._offer_execution(
             key, producer="equipment-txn", work_id="heavy-curse-tag",
             next_step="equipment.mark-heavy-curse-tag",

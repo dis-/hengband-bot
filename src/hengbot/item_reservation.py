@@ -15,6 +15,7 @@ class ReservationVerdict:
     owner: str | None = None
     quantity: int | None = None
     ambiguous: bool = False
+    item_id: int | None = None
 
     @property
     def reason(self):
@@ -22,6 +23,19 @@ class ReservationVerdict:
 
 
 _decision = ContextVar("item_reservation_decision", default=None)
+_query = ContextVar("item_reservation_query", default=False)
+
+
+def reservation_query(function):
+    """Need enumeration filters candidates without issuing an item operation."""
+    @wraps(function)
+    def run(*args, **kwargs):
+        token = _query.set(True)
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _query.reset(token)
+    return run
 
 
 def reservation_decision(function):
@@ -66,7 +80,7 @@ def _reservation_row(policy, snapshot, item, view):
 
 
 def _view(policy, snapshot):
-    """Materialize identity sets once; equivalent synthetic items share rows."""
+    """Materialize identity sets once; compute candidate rows on first use."""
     retry = frozenset(entry[0] for entry in (policy._home_full_retry_deposits or ()))
     deposit = policy._home_atomic_deposit_pending
     deposit_signatures = frozenset(entry[0] for entry in deposit[0]) if deposit else frozenset()
@@ -84,17 +98,23 @@ def _view(policy, snapshot):
             withdraw_signatures = frozenset((signature,))
     view = {"retry": retry, "deposit": deposit_signatures,
             "withdraw": withdraw_signatures, "rows": {}}
-    items = (*snapshot.inventory, *snapshot.equipment, *policy._home_knowledge_items)
-    for item in items:
-        key = _row_key(snapshot, item)
-        if key not in view["rows"]:
-            view["rows"][key] = _reservation_row(policy, snapshot, item, view)
     return view
 
 
 def item_reserved_by_other(policy, snapshot, item, work) -> ReservationVerdict | None:
     """Pure ownership predicate. work is (owner, sink); None means unreserved."""
     owner, sink = work
+    if sink == 'buy':
+        # Merchant stock is external to the bot's reservations. Home stock
+        # is selected with the withdraw sink and retains the ownership check.
+        return None
+    if isinstance(item, str) and sink == 'takeoff':
+        from hengbot.equipment_mutation import _SLOT_BY_KEY
+        slot = _SLOT_BY_KEY.get(item)
+        worn = next((candidate for candidate in snapshot.equipment if candidate.slot == slot), None)
+        if worn is None:
+            return None
+        item = worn
     state = _decision.get()
     if state is not None and state["policy"] is policy:
         if state["view"] is None:
@@ -135,24 +155,93 @@ def reservation_verdict(policy, snapshot, item, owner, sink):
     try:
         denied = item_reserved_by_other(policy, snapshot, item, (owner, sink))
         if denied is not None and denied.owner is not None:
+            if _query.get():
+                _shadow(policy, {"query_skip": denied.reason, "ambiguous": denied.ambiguous})
+                return denied
             _shadow(policy, {"would_stop": denied.reason, "ambiguous": denied.ambiguous})
             if getattr(policy, "_town_claim_bar_enforced", False):
                 policy.last_reason = denied.reason
             return denied
         if denied is not None:
-            return denied
+            return ReservationVerdict(sink, quantity=denied.quantity, item_id=id(item))
         quantity = (policy._retention_surplus(snapshot, item)
                     if sink in {"sell", "deposit", "destroy", "weight-deposit", "home-full-sale"}
                     else None)
-        return ReservationVerdict(sink, quantity=quantity)
+        return ReservationVerdict(sink, quantity=quantity, item_id=id(item))
     except Exception as error:
         if getattr(policy, "_town_claim_bar_enforced", False):
             policy.last_reason = f"ownership:item-reserved:{sink}:predicate-error"
             _shadow(policy, {"would_stop": policy.last_reason, "error": type(error).__name__})
             return ReservationVerdict(sink, "predicate-error")
         _shadow(policy, {"error": type(error).__name__, "sink": sink})
-        return ReservationVerdict(sink)
+        return ReservationVerdict(sink, item_id=id(item))
 
 
 def item_available(policy, snapshot, item, owner, sink):
     return reservation_verdict(policy, snapshot, item, owner, sink).owner is None
+
+
+def standalone_verdict(kind, item):
+    """Compatibility for pinned low-level APIs without a policy decision.
+
+    Production callers must supply the snapshot/verdict; lint checks those
+    adapter calls. Standalone equipment-mutation tests retain their old API.
+    """
+    actual = item[0] if isinstance(item, tuple) else item
+    return ReservationVerdict(kind.split('-')[0], item_id=id(actual))
+
+
+def item_command(kind, item, verdict: ReservationVerdict):
+    """The only serializer of item-command prefixes and selectors.
+
+    A (physical item, observed letter/tag) pair binds an alternative address
+    to the same item for sales and catalogued Home withdrawals.
+    """
+    actual, address = item if isinstance(item, tuple) else (item, None)
+    if not isinstance(verdict, ReservationVerdict):
+        raise TypeError('item command requires ReservationVerdict')
+    if verdict.owner is not None or verdict.item_id != id(actual):
+        raise ValueError('item command has a denied or different-item verdict')
+    if verdict.sink != kind.split('-')[0]:
+        raise ValueError('item command has a different-sink verdict')
+    letter = address if address is not None else (
+        actual if isinstance(actual, str) else getattr(actual, 'slot', None)
+        or getattr(actual, 'letter', None))
+    if not isinstance(letter, str) or len(letter) != 1:
+        raise ValueError('item command requires one observed item selector')
+    prefixes = {'deposit': 'd', 'sell': 'd', 'withdraw': 'p', 'buy': 'p',
+                'wield': 'w', 'takeoff': 't', 'inscribe': '{',
+                'inscribe-equipped': '{/', 'uninscribe-equipped': '}/'}
+    if kind == 'destroy':
+        return f'0{actual.count}k{letter}'
+    return prefixes[kind] + letter
+
+
+_historical_item_command = item_command
+
+
+def checked_item_command(policy, kind, item, verdict: ReservationVerdict):
+    if isinstance(verdict, ReservationVerdict) and verdict.owner is not None:
+        return None
+    try:
+        return item_command(kind, item, verdict)
+    except Exception as error:
+        sink = kind.split('-')[0]
+        if getattr(policy, '_town_claim_bar_enforced', False):
+            reason = f'ownership:item-reserved:{sink}:serializer-error'
+            policy.last_reason = reason
+            _shadow(policy, {'would_stop': reason, 'error': type(error).__name__})
+            return None
+        _shadow(policy, {'sink': sink, 'error': type(error).__name__})
+        # The saved serializer preserves the historical spelling even if the
+        # new checking entry raises. Rebind solely within this exception seam.
+        historical_verdict = standalone_verdict(kind, item)
+        return _historical_item_command(kind, item, historical_verdict)
+
+
+def reserved_item_command(policy, snapshot, kind, item, owner, *, address=None):
+    verdict = reservation_verdict(policy, snapshot, item, owner, kind.split('-')[0])
+    if verdict.owner is not None:
+        return None
+    selected = (item, address) if address is not None else item
+    return checked_item_command(policy, kind, selected, verdict)

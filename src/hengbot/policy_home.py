@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.item_reservation import item_available
+from hengbot.item_reservation import item_available, reserved_item_command
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
@@ -312,7 +312,9 @@ class HomeMixin:
                         self._home_errand.finish()
                         return self._home_full_relief_key(snapshot)
                     posted = relief.get("destroy_posted", False)
-                    key = WAIT_KEY if posted else self._destroy_item_key(target)
+                    key = WAIT_KEY if posted else self._destroy_item_key(target, snapshot, "home-visit", policy=self)
+                    if key is None:
+                        return None
                     self.last_reason = ("home:full-destroy-await-effect" if posted
                                         else "home:full-destroy-surplus")
                     self._offer_execution(
@@ -1788,7 +1790,7 @@ class HomeMixin:
         deposit: InventoryItem,
         *,
         forced_count: int | None = None,
-    ) -> str:
+    ) -> str | None:
         if not item_available(self, snapshot, deposit, "home-visit", "deposit"):
             return LEAVE_STORE_KEY
         sig = (
@@ -1836,7 +1838,10 @@ class HomeMixin:
                 self._inventory_signature_count(snapshot, signature),
             )
         quantity = f"{deposit_count}\r" if deposit.count > 1 else ""
-        key = SELL_KEY + deposit.slot + quantity
+        prefix = reserved_item_command(self, snapshot, "deposit", deposit, "home-visit")
+        if prefix is None:
+            return None
+        key = prefix + quantity
         self._offer_execution(
             key, producer="home-visit",
             work_id=f"home-page-deposit:{self._decision_sequence}:{deposit.slot}",
@@ -2219,13 +2224,10 @@ class HomeMixin:
         # this one-shot entry.  A multi-item stack therefore proves that the
         # quantity prompt will consume this response before the leave key.
         quantity_suffix = f"{take_count}\r" if item.count > 1 else ""
-        operation_key = (
-            (" " * page)
-            + BUY_KEY
-            + letter
-            + quantity_suffix
-            + LEAVE_STORE_KEY
-        )
+        prefix = reserved_item_command(self, snapshot, "withdraw", item, owner, address=letter)
+        if prefix is None:
+            return None
+        operation_key = (" " * page) + prefix + quantity_suffix + LEAVE_STORE_KEY
         batch_entries = ()
         key = WAIT_KEY + operation_key
         if session is not None and action is not None and action.kind == "withdraw":
@@ -2661,7 +2663,10 @@ class HomeMixin:
             # The one-shot transaction observation binds both the pack letter
             # and count used by the operation at this owned Home entry.
             quantity = f"{current.count}\r" if current.count > 1 else ""
-            operation_key = SELL_KEY + current.slot + quantity + LEAVE_STORE_KEY
+            prefix = reserved_item_command(self, snapshot, "deposit", current, "equipment-txn")
+            if prefix is None:
+                return None
+            operation_key = prefix + quantity + LEAVE_STORE_KEY
             key = WAIT_KEY
             observation = replace(
                 observe_equipment_transactions(snapshot), in_home=True
@@ -2749,7 +2754,7 @@ class HomeMixin:
             operation = self._home_deposit_key(
                 snapshot, item, forced_count=deposit_count
             )
-            if operation == LEAVE_STORE_KEY:
+            if operation in (None, LEAVE_STORE_KEY):
                 continue
             operations.append(operation)
             signature = self._item_signature(item)
@@ -2866,7 +2871,7 @@ class HomeMixin:
         ):
             operation = self._home_deposit_key(
                 snapshot, item, forced_count=deposit_count)
-            if operation == LEAVE_STORE_KEY:
+            if operation in (None, LEAVE_STORE_KEY):
                 continue
             operations.append(operation)
             signature = self._item_signature(item)
@@ -3552,7 +3557,8 @@ class HomeMixin:
         return LEAVE_STORE_KEY
 
     @staticmethod
-    def _destroy_item_key(item: InventoryItem) -> str:
+    def _destroy_item_key(item: InventoryItem, snapshot: Snapshot | None = None,
+                          owner: str = "identification", *, policy=None) -> str | None:
         """Force-destroy a whole item stack with no stray keys.
 
         ``0<count>`` primes command_arg, so the original-keyset destroy command
@@ -3560,7 +3566,15 @@ class HomeMixin:
         consumes the same arg (no quantity prompt); the item letter then selects
         the stack. Every key is swallowed by the command, so nothing leaks.
         """
-        return f"0{item.count}{DESTROY_COMMAND}{item.slot}"
+        if snapshot is not None:
+            if policy is None:
+                raise ValueError("a decision destruction requires its policy")
+            return reserved_item_command(policy, snapshot, "destroy", item, owner)
+        # Legacy standalone helper calls are not town decisions. The lint
+        # requires every production caller to provide its snapshot.
+        from hengbot.item_reservation import standalone_verdict, checked_item_command
+        verdict = standalone_verdict("destroy", item)
+        return checked_item_command(policy, "destroy", item, verdict)
 
     def _observe_withdrawal_unsatisfied_pass(self, snapshot: Snapshot) -> None:
         """Flag one requested Home item that repeatedly fails to reach the pack."""
