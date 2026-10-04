@@ -8,6 +8,7 @@ import base64
 import gzip
 import hashlib
 import json
+import os
 from pathlib import Path
 import pickle
 import subprocess
@@ -56,8 +57,13 @@ def worker():
 
 class HomeDepositHangRecordedTest(unittest.TestCase):
     def test_post_purchase_decision_returns_under_hard_timeout(self):
+        root = Path(__file__).resolve().parents[1]
+        # The child runs this file as a script, so its sys.path starts at
+        # tests/; give it the repository root and the runner's import roots.
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+            str(root / part) for part in ('', 'src', 'tests', 'scripts')))
         result = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--worker'],
-            capture_output=True, text=True, timeout=8, cwd=Path(__file__).resolve().parents[1])
+            capture_output=True, text=True, timeout=8, cwd=root, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
         row = json.loads(result.stdout)
         self.assertLess(row['elapsed'], 3)

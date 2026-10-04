@@ -52,6 +52,7 @@ def main():
         for index, line in enumerate(lines):
             board = json.loads(line)
             if board.get('knowledge', {}).get('category') == 'home':
+                # TEST_FAKERY_LINT_ALLOW: private-state-injected: offline replay re-arms the captured Home scan request so the recorded Home knowledge response is consumed as it was live
                 policy._home_knowledge_scan_inflight = True
                 policy._home_knowledge_scan_epoch = policy._town_visit_epoch
             _, snapshots = _consume_response_sequence(

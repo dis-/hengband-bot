@@ -257,7 +257,8 @@ class TestTreeFakeryLint(unittest.TestCase):
     # Retired calibration phases removed seven additional declared sites.
     # S3.3 phase-2 adds two explicitly declared final-fallback seams for the
     # missing B checkpoint; only the ladder's None sentinel is substituted.
-    DECLARED_FINDING_RATCHET = 122
+    # The October 4 Home-hang replay helper declares its captured scan re-arm.
+    DECLARED_FINDING_RATCHET = 123
 
     def test_capture_dependency_lint_rejects_real_directory_not_fixture(self):
         bad = 'capture = Path("incident-captures/evicted/snapshots.jsonl")\n'
