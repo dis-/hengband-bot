@@ -1,0 +1,99 @@
+Completed in C:\hengband\bot-client-starid on branch star-identify-departure-1005,
+base 3b12a514fba7ca59f770a2068e097b8bb88936a5.
+
+The 2026-09-02 candidate-exclusion decision applies. This is optional equipment
+identification, not a supply-only stockout requiring three mining/retry cycles.
+The candidate stays protected by identify-first; unavailable *Identify* does
+not prevent departure with the currently usable equipment.
+
+Recorded evidence (physical lines are one-based within the archived .gz files):
+- autorecover-20261005-070711-...bot-decisions.jsonl.gz: line 266, decision 933,
+  turn 10589702: town:blocked:departure-unsatisfiable, key '5'.
+- autorecover-20261005-071527-...bot-decisions.jsonl.gz: line 286, decision 56,
+  turn 10610395: the same terminal, key '9', after normal Home relief/deposit.
+- autorecover-20261005-071639-...bot-decisions.jsonl.gz: line 267, decision 38,
+  turn 10612593, 07:16:25 JST: the same terminal, key '5', gold 44,015.
+  All three stops have identification_need='full' and the false leaves
+  home_candidate_resolved, identification_need_clear,
+  departure_identification_need_clear. The final stop's only procurement
+  shortage is one *Identify* source (current 0, target 1).
+- Final capture decisions 29-31 (physical lines 258-260, turn 10612257):
+  the Alchemist shelf has nothing wanted, surplus sale and Home scan complete.
+  Decisions 34-37 (lines 263-266): Home deposit 'db2\r\x1b', entrance step-off,
+  complete Home scan, then the departure character dump. Those operations work.
+
+Cause: the early uncomposable-identification retirement in
+_next_required_store_type explicitly excluded 'full'. The carried producer
+also deferred full work only when the Alchemist attempt latch was present;
+fresh negative shelf evidence could remain after that latch ceased to own the
+route. Consequently it recreated a full request for the packed Pike (tval 22,
+sval 8), while Home's candidate-wait latch remained true. The two incomplete
+Home candidates were already deferred in the final capture. No supplier or
+Home operation could clear the resurrected request. The full terminal branch
+otherwise used conquest/fundraising/restock fallbacks instead of unconditional
+candidate exclusion after proved stockout.
+
+Fix:
+- Before projecting the town route, and in terminal settlement, exclude an
+  incomplete Home/pack equipment candidate when this visit's fresh Alchemist
+  shelf proves *Identify* unavailable. Release its source reservation and the
+  stale Home departure latch. Preserve carried and Home sources, affordable
+  stocked sources, unknown/stale/other-town shelf evidence, and worn-item gates.
+- Keep deferred candidates out of the Morivant Library batch for this visit,
+  so the service route cannot immediately reinstate their Home withdrawal.
+- Preserve retry identities. A new town visit checks the Alchemist again,
+  including a single Home-only candidate; an empty shelf ends that check
+  without recreating a mandatory identification need. Buy an affordable
+  *Identify* for excluded candidates when a visited shop stocks it, including
+  Alchemists in other towns and Black Market. Existing cross-town transport
+  is unchanged. Candidate exclusions clear at the existing new-visit boundary.
+- Do not equip, sell, or destroy the unidentified candidate; existing
+  identification protection and optimizer exclusions remain authoritative.
+
+Recorded pin: tests/test_star_identify_departure_recorded.py and
+tests/fixtures/star-identify-departure-20261005.json.gz. Extraction reads only
+archived copies and is reproducible with
+tests/extract_star_identify_departure_fixture.py.
+Fixture SHA256: 5c05a1d4d603c4452cb97a05497fa21b38c7a293a3ea709e00565b716190aa03.
+The declared boundary is the final recorded board (state line 74), complete
+Home knowledge (line 71), and Alchemist shelf (line 63), with recorded deferred
+signatures/store visits and reconstructed carried identification work. It is
+not a full-process replay. Calibration work is outside this boundary; the
+production gate's existing calibration-unavailable movement rule is exercised
+without mocking an optimizer or any departure leaf.
+
+First changed departure command at this boundary: decision 38's recorded
+'5' / town:blocked:departure-unsatisfiable becomes
+'ric' / town:recall-to-alt-dungeon (Orc cave). Before settlement exactly the
+three recorded leaves are false; afterward every recall-departure leaf is true.
+Inventory and Home items are preserved, the target remains not fully known,
+and identification disposal protection stays true. No post-command game board
+is claimed: the pin ends at this first changed command. Later-visit/stock cases
+are explicitly separate model perturbations.
+
+Revert proof: temporarily restored all five modified production files from
+HEAD, ran the recorded departure pin, and restored the fix in a finally block.
+The baseline fails because exactly those three departure leaves remain false.
+The fixed pin passes and emits 'ric'.
+
+Validation: codex runtime Python, PYTHONPATH=src;tests, modules run individually.
+- tests.test_star_identify_departure_recorded: 8 passed.
+- tests.test_policy_identification: 48 passed.
+- tests.test_policy_town: 589 passed (234.160 seconds).
+- tests.test_item_sink_lint: 18 passed.
+- tests.test_town_structure_lint: 19 passed.
+- Changed-name search selected existing shopping/Home tests:
+  tests.test_policy_shop -k full_ident: 5 passed;
+  -k identification: 11 passed; -k purchase: 12 passed;
+  tests.test_policy_home -k identif: 9 passed.
+- Fixture regeneration reproduces the pinned hash; git diff --check passes.
+The town module ran alone locally. Read-only process stack checks showed the
+other full-suite worker on quest approach / recall-stockout modules throughout,
+and the second worker on a purity module; neither ran test_policy_town during
+this run. Existing TemporaryDirectory ResourceWarnings did not fail the suite.
+
+No push. No game/bot start, stop, resume, or runtime edits. No other worktree
+was modified; C:\hengband\bot-client\jsonlog was not accessed. maintenance.hold
+is untouched. SOL-TASK-starid.txt remains untracked and is not part of the commit.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

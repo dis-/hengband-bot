@@ -14938,6 +14938,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             item
             for item in (*snapshot.inventory, *snapshot.equipment)
             if item.known
+            and self._item_signature(item) not in self._deferred_home_items
             and item_requires_full_identification(item)
             and not item.fully_known
         ]

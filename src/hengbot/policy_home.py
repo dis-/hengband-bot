@@ -3665,6 +3665,7 @@ class HomeMixin:
             owned.item
             for owned in self._equipment_catalog.items
             if owned.origin == "home"
+            and self._item_signature(owned.item) not in self._deferred_home_items
             and owned.item.known
             and item_requires_full_identification(owned.item)
             and not owned.item.fully_known

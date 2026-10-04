@@ -602,6 +602,52 @@ class IdentificationMixin:
             "inventory:exchange-cheapest-surplus",
         )
 
+    def _defer_unavailable_equipment_full_identification(self, snapshot: Snapshot) -> bool:
+        """Exclude an equipment candidate once this visit proves its source absent.
+
+        User 2026-09-02: unavailable identification excludes the candidate,
+        rather than requiring an income run or restock wait before departure.
+        Unknown shelves and a source still held at Home retain their owner.
+        """
+        signature = self._identification_candidate
+        if (
+            not snapshot.in_town
+            or self._identification_need != "full"
+            or signature is None
+            or self._home_pending_item is not None
+            or self._identification_source_obtainability(snapshot, full=True)
+            != "unavailable"
+            or not any(
+                owned.origin in {"home", "pack"}
+                and self._item_signature(owned.item) == signature
+                and owned.identification_incomplete
+                for owned in self._equipment_catalog.items
+            )
+            or (
+                self._home_knowledge_current
+                and any(
+                    item.tval == TVAL_SCROLL
+                    and item.sval == SV_SCROLL_STAR_IDENTIFY
+                    and item.count > 0
+                    for item in self._home_knowledge_items[
+                        :self._home_knowledge_valid_before
+                    ]
+                )
+            )
+        ):
+            return False
+        self._defer_full_identification(signature)
+        self._release_stale_home_candidate_waiting(snapshot)
+        return True
+
+    def _full_identification_purchase_wanted(self) -> bool:
+        """Retry excluded full-identify candidates on any observed stocked shop."""
+        return self._identification_need == "full" or any(
+            owned.identification_incomplete
+            and self._item_signature(owned.item) in self._unbuyable_full_identify_sigs
+            for owned in self._equipment_catalog.items
+        )
+
     def _identification_need_unsatisfiable(self, snapshot: Snapshot) -> bool:
         """Whether a pending identify errand cannot advance this town visit.
 
