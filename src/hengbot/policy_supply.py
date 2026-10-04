@@ -303,16 +303,8 @@ class SupplyMixin:
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
         )
-        home_charges = sum(
-            self._stack_charges(it)
-            for it in self._home_knowledge_items
-            if self._home_knowledge_current
-            and it.known
-            and InventoryItem.is_wand_staff.fget(it)
-            and it.charges > 0
-            and self._item_signature(it) not in self._deferred_home_items
-        )
-        known_charges = carried_charges + home_charges
+        # Home stock is a supplier, never food carried into the dungeon.
+        known_charges = carried_charges
         if snapshot.player.food_state in {"weak", "fainting"}:
             return known_charges
         identify_charges = sum(
@@ -331,16 +323,7 @@ class SupplyMixin:
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
         )
-        home = sum(
-            it.count
-            for it in self._home_knowledge_items
-            if self._home_knowledge_current
-            and it.known
-            and InventoryItem.is_wand_staff.fget(it)
-            and it.charges > 0
-            and self._item_signature(it) not in self._deferred_home_items
-        )
-        return carried + home
+        return carried
 
     def _light_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() >= 2 and not self._owns_lantern(snapshot):
@@ -1302,7 +1285,7 @@ class SupplyMixin:
         return None
 
     def _mana_food_survival_override_key(self, snapshot: Snapshot) -> str | None:
-        """Hard weak/fainting MANA-food acquisition and absorption owner.
+        """Hungry MANA-food absorption, survival return and town acquisition.
 
         This owner sits above every ordinary town/dungeon wait producer.  A
         MANA race receives no nutrition from TVAL_FOOD: only a wand/staff
@@ -1328,6 +1311,22 @@ class SupplyMixin:
                 expected_effect="hunger-relieved",
             )
             return key
+
+        if not snapshot.in_town:
+            hostiles = self._strategic_hostiles(snapshot)
+            if snapshot.dungeon_level == 0:
+                return self._wilderness_survival_key(snapshot, hostiles)
+            floor_key = self._mana_food_loot_key(snapshot, hostiles)
+            if floor_key is not None:
+                return floor_key
+            key = self._return_to_town_key(snapshot, hostiles)
+            if key is None:
+                # Preserve the existing weak/fainting quest-exit escape too.
+                key = self._survival_gate_key(snapshot, hostiles)
+            if key is not None and self.last_reason != "return:wait":
+                return key
+            self.last_reason = "town:blocked:survival-mana-no-charges"
+            return WAIT_KEY
 
         # Home is the universal first supplier.  Stale knowledge means "scan",
         # never absence; only a current complete catalogue may release a buy.

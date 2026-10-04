@@ -1248,7 +1248,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertTrue(policy._fundraising_departure_ready(snap))
 
     def test_detected_mining_requires_food_and_digger_until_suppliers_fail(self):
-        """Component test. USER: if food or a digger is unobtainable but detection is carried, still try mining first."""
+        """Food relaxation after supplier exhaustion applies only to a proven first run."""
         snap = Snapshot(
             player(
                 10, 10, gold=0, hp=20, max_hp=20, mp=0, max_mp=0,
@@ -1270,7 +1270,11 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._town_store_attempted.update(
             {STORE_HOME: 1, STORE_GENERAL: 1, STORE_ALCHEMIST: 1}
         )
+        self.assertFalse(policy._fundraising_departure_ready(snap))
+        policy._fundraising_runs_started = 0
         self.assertTrue(policy._fundraising_departure_ready(snap))
+        policy._fundraising_runs_started = 1
+        self.assertFalse(policy._fundraising_departure_ready(snap))
 
     def test_recorded_food_shelf_unbought_is_not_departure_ready(self):
         """USER: before stores are tried, the full kit is still required."""
@@ -11315,6 +11319,10 @@ class TownCycleDetectorTest(unittest.TestCase):
         with patch.object(
             pol, "_recall_destination_safe", return_value=True
         ), patch.object(pol, "_descent_step", return_value=None):
+            # Exhausted routing still refuses an unsupplied departure.
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+            snap = replace(snap, inventory=[recall,
+                           item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)])
             self.assertEqual(pol._town_special_key(snap), READ_KEY + "rb")
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
@@ -11330,7 +11338,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=7)
         snap = replace(
             self._town_snap(),
-            inventory=[recall],
+            inventory=[recall, item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)],
             entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
             recall_dungeon_id=DUNGEON_YEEK_CAVE,
             recall_depth=RECALL_MIN_DEPTH,
@@ -11715,7 +11723,7 @@ class TownCycleDetectorTest(unittest.TestCase):
                 self._town_snap().player,
                 abilities=frozenset({"free_action", "resist_conf", "resist_fire"}),
             ),
-            inventory=[recall],
+            inventory=[recall, item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)],
             entered_dungeon_ids=(DUNGEON_ANGBAND,),
             recall_dungeon_id=DUNGEON_ANGBAND,
             recall_depth=24,
@@ -11791,7 +11799,7 @@ class TownCycleDetectorTest(unittest.TestCase):
                 self._town_snap().player,
                 abilities=frozenset({"resist_chaos"}),
             ),
-            inventory=[recall],
+            inventory=[recall, item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)],
             entered_dungeon_ids=(DUNGEON_ANGBAND,),
             recall_dungeon_id=DUNGEON_ANGBAND,
             dungeon_recall_depths={DUNGEON_ANGBAND: 31},
@@ -11911,7 +11919,8 @@ class TownCycleDetectorTest(unittest.TestCase):
                 self._town_snap().player,
                 abilities=frozenset({"free_action", "resist_fire"}),
             ),
-            inventory=[recall],
+            # CONSTRUCTED carried food isolates the recorded recall route.
+            inventory=[recall, item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)],
             entered_dungeon_ids=(DUNGEON_ANGBAND,),
             recall_dungeon_id=DUNGEON_ANGBAND,
             recall_depth=20,
@@ -11945,7 +11954,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10)
         snap = replace(
             self._town_snap(),
-            inventory=[recall],
+            inventory=[recall, item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)],
             entered_dungeon_ids=(DUNGEON_ANGBAND,),
             recall_dungeon_id=DUNGEON_ANGBAND,
             angband_recall_unlocked=True,
@@ -12504,6 +12513,13 @@ class TownCycleDetectorTest(unittest.TestCase):
             },
         )
 
+        # 2026-10-04: cycle exhaustion cannot waive carried food/return stock.
+        self.assertTrue(pol._descent_is_blocked(snap))
+        snap = replace(snap, inventory=[
+            *snap.inventory,
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+            item("f", TVAL_FOOD, FOOD_MIN_SVAL),
+        ])
         self.assertFalse(pol._descent_is_blocked(snap))
         self.assertEqual(
             pol._town_map_descent_entrance(snap), Position(34, 120)
@@ -14365,6 +14381,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
     def test_town_recall_wait_steps_off_building_entrance_publicly(self):
         policy, snapshot = self._fixture()
+        # CONSTRUCTED: a supplied recall isolates the entrance guard.
+        snapshot = replace(snapshot, inventory=[*snapshot.inventory,
+                           item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)])
         current = replace(
             snapshot.grids[snapshot.player.position], building_special=1
         )
@@ -14386,6 +14405,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         for quest_field in ("has_quest_enter", "has_quest_exit"):
             with self.subTest(direction="off", quest_field=quest_field):
                 policy, snapshot = self._fixture()
+                # CONSTRUCTED: isolate entrance movement from food cancellation.
+                snapshot = replace(snapshot, inventory=[*snapshot.inventory,
+                                   item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)])
                 origin = snapshot.player.position
                 current = replace(snapshot.grids[origin], **{quest_field: True})
                 safe = grid(45, 122, lit=True, in_view=True)
@@ -14403,6 +14425,8 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
             with self.subTest(direction="onto", quest_field=quest_field):
                 policy, snapshot = self._fixture()
+                snapshot = replace(snapshot, inventory=[*snapshot.inventory,
+                                   item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)])
                 origin = snapshot.player.position
                 current = replace(snapshot.grids[origin], building_special=1)
                 quest = replace(
@@ -14513,6 +14537,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
     def test_entrance_wait_never_uses_warning_hazard_or_unexplored_grid(self):
         policy, snapshot = self._fixture()
+        # CONSTRUCTED: this guard is tested after carried-food admission.
+        snapshot = replace(snapshot, inventory=[*snapshot.inventory,
+                           item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)])
         origin = snapshot.player.position
         entrance = replace(snapshot.grids[origin], store_number=STORE_HOME)
         snapshot = replace(
@@ -15441,4 +15468,3 @@ class OrganizationDepartureRecordedTest(unittest.TestCase):
         ]
         self.assertEqual(len(organization), 1)
         self.assertEqual(organization[0].ordering_class, "normal")
-

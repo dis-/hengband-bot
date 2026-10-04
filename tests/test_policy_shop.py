@@ -3658,7 +3658,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         self.assertIsNone(policy._next_purchase_unreserved(stocked_shop))
 
-    def test_mana_reserve_counts_withdrawable_home_device_charges(self):
+    def test_mana_reserve_requires_withdrawing_home_device_charges(self):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR,
                    food_type=FOOD_TYPE_MANA),
@@ -3674,15 +3674,17 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         policy = HengbotPolicy()
         policy.consume_home_knowledge((home_wand,))
 
-        self.assertEqual(policy._count_mana_food_uses(snap), 18)
-        self.assertEqual(policy._count_mana_food_devices(snap), 2)
-        self.assertTrue(policy._food_ready(snap))
+        self.assertEqual(policy._count_mana_food_uses(snap), 0)
+        self.assertEqual(policy._count_mana_food_devices(snap), 0)
+        self.assertFalse(policy._food_ready(snap))
 
         ware = store_item("e", TVAL_WAND, 7, price=1083, charges=31)
         stocked = replace(
             snap, store=StoreState(store_type=STORE_MAGIC, items=[ware])
         )
-        self.assertIsNone(policy._next_purchase_unreserved(stocked))
+        # This constructed town has no reachable Home. Its catalogue cannot
+        # hide the shortage from the purchase executor either.
+        self.assertIs(policy._next_purchase_unreserved(stocked), ware)
 
     def test_known_cursed_ego_is_selected_for_sale(self):
         target = item(

@@ -186,7 +186,7 @@ class FundraisingMixin:
                       or self._home_knowledge_current)
         home_edible = (self._home_mana_food_candidate() is not None
                        if snapshot.player.food_type == FOOD_TYPE_MANA
-                       else any(item.is_food and item.aware
+                       else any(item.tval == TVAL_FOOD and item.aware
                                 and item.sval >= FOOD_MIN_SVAL
                                 for item in self._home_knowledge_items))
         store = snapshot.store
@@ -307,22 +307,12 @@ class FundraisingMixin:
         return supplier
 
     def _fundraising_food_ready(self, snapshot: Snapshot) -> bool:
-        """Allow a shallow cash run when town cannot sell the preferred reserve."""
-        if getattr(self, "_crossarea_fundraising_enforced", False):
-            return not fundraising_run_verdict(
-                self._fundraising_facts(snapshot), None
-            ).needs_procurement
-        if self._food_ready(snapshot):
+        """Carry edible food; waive only a proven first run after Home/shop."""
+        if self._find_edible(snapshot) is not None:
             return True
-        food_store = (
-            STORE_MAGIC
-            if snapshot.player.food_type == FOOD_TYPE_MANA
-            else STORE_GENERAL
-        )
-        return (
-            food_store in self._town_store_attempted
-            and not snapshot.player.hungry
-        )
+        return not fundraising_run_verdict(
+            self._fundraising_facts(snapshot), None
+        ).needs_procurement
 
     def _fundraising_supplies_ready(self, snapshot: Snapshot) -> bool:
         scrolls_needed = self._mining_detection_scroll_target(snapshot)
@@ -416,7 +406,9 @@ class FundraisingMixin:
                 return False
         player = snapshot.player
         base_ready = (
-            self._fundraising_light_ready(snapshot)
+            self._fundraising_food_ready(snapshot)
+            and not player.hungry
+            and self._fundraising_light_ready(snapshot)
             and player.hp >= player.max_hp
             and player.mp >= player.max_mp
             and self._temporary_status_clear(snapshot)
@@ -433,19 +425,7 @@ class FundraisingMixin:
                     and STORE_ALCHEMIST in self._town_store_attempted
                 )
             )
-            food_store = (
-                STORE_MAGIC
-                if snapshot.player.food_type == FOOD_TYPE_MANA
-                else STORE_GENERAL
-            )
-            food_ready = (
-                True
-                if getattr(self, "_crossarea_fundraising_enforced", False)
-                else self._food_ready(snapshot) or (
-                    food_store in self._town_store_attempted
-                    and not snapshot.player.hungry
-                )
-            )
+            food_ready = self._fundraising_food_ready(snapshot)
             digger_ready = self._has_digging_tool(snapshot) or (
                 STORE_HOME in self._town_store_attempted
                 and STORE_GENERAL in self._town_store_attempted
