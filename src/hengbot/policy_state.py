@@ -220,6 +220,8 @@ def normalize_policy_state(restored, *, restart=False):
     # Older captures predate the recall-stockout time-pass flag; False keeps
     # their former set-end behavior (no stockout exemption).
     restored.__dict__.setdefault("_recall_stockout_mining_plan", False)
+    restored.__dict__.setdefault("_supply_stockout_cycles", 0)
+    restored.__dict__.setdefault("_supply_stockout_gold_target", None)
     # Older captures predate the detected-threat rest tiering record; None is
     # the "no assessment yet" value it is rewritten from on every rest check.
     restored.__dict__.setdefault("_esp_threat_assessment", None)

@@ -138,6 +138,10 @@ def fundraising_run_verdict(
 
 class FundraisingMixin:
 
+    def _fundraising_gold_target(self) -> int:
+        target = getattr(self, "_supply_stockout_gold_target", None)
+        return FUNDRAISING_GOLD_TARGET if target is None else target
+
     def _post_fundraising_transport(
         self, snapshot: Snapshot, direction: str
     ) -> None:
@@ -174,7 +178,7 @@ class FundraisingMixin:
                     return False
                 record = replace(record, child=replace(child, state="complete"))
         if (record.status == "active"
-                and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET):
+                and snapshot.player.gold >= self._fundraising_gold_target()):
             record = replace(record, status="complete")
         self._fundraising_purpose_record = record
         return record.status != "failed"
@@ -214,11 +218,12 @@ class FundraisingMixin:
             hungry=snapshot.player.hungry,
             light_ready=self._fundraising_light_ready(snapshot),
             pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
-            objective_achieved=snapshot.player.gold >= FUNDRAISING_GOLD_TARGET,
+            objective_achieved=snapshot.player.gold >= self._fundraising_gold_target(),
             procurement_exhausted=exhausted,
             first_run=(first_departure_proven if snapshot.in_town
                        else runs_started == 1),
-            known_treasure=bool(self._known_treasure),
+            known_treasure=(bool(self._known_treasure)
+                            and getattr(self, "_supply_stockout_gold_target", None) is None),
             mode=self._fundraising_mode,
         )
 
@@ -1180,9 +1185,10 @@ class FundraisingMixin:
             self._returning_to_town = True
             return self._leave_fundraising_floor(snapshot)
         if (
-            snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+            snapshot.player.gold >= self._fundraising_gold_target()
             and (
-                self._fundraising_mode == "scavenge"
+                getattr(self, "_supply_stockout_gold_target", None) is not None
+                or self._fundraising_mode == "scavenge"
                 or not self._known_treasure
             )
         ):

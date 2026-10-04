@@ -195,7 +195,9 @@ class SupplyMixin:
 
         The facts evaluators write private copies of policy state, and a few of
         those writes reach state the ledger reads (a temporary fundraising-mode
-        swap and the equipment-optimization depth). Keying
+        swap, the equipment-optimization depth, and deferred Home curse cures).
+        Freeze the deferral set so in-place changes cannot mutate an old key.
+        Keying
         the memo on them means such a write is a miss, never a stale hit.
         tests/test_supply_ledger_observer_memo.py pins this list against a
         static scan of what the capture writes and the ledger reads.
@@ -203,6 +205,7 @@ class SupplyMixin:
         return (
             self._fundraising_mode,
             self._equipment_optimization_last_depth,
+            frozenset(self._deferred_home_items),
         )
 
     def _supply_page_offers(

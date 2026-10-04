@@ -2203,6 +2203,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Marks the one-run D1 recall-stockout time-pass (not a funding set):
         # the gold set-end leaves it running while the stockout persists.
         self._recall_stockout_mining_plan = False
+        # Supply-stockout time-pass state survives town resets/checkpoints;
+        # old captures read these with getattr defaults.
+        self._supply_stockout_cycles = 0
+        self._supply_stockout_gold_target = None
         self._mining_scroll_used_floor: tuple[int, int, int] | None = None
         self._mining_detection_centers: list[Position] = []
         self._sell_scavenged_consumables = False
@@ -14518,6 +14522,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _effective_mining_run_target(self) -> int:
+        if getattr(self, "_supply_stockout_gold_target", None) is not None:
+            return 1
         return self._planned_mining_runs or MINING_RUNS_PER_SET
 
     def _activate_partial_mining_plan(self, snapshot: Snapshot) -> bool:

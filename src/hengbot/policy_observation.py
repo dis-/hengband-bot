@@ -650,9 +650,12 @@ class ObservationMixin:
             and self._fundraising_mode in {"mine", "scavenge"}
         )
         if returned_from_fundraising:
-            if self._fundraising_mode == "mine":
+            if getattr(self, "_supply_stockout_gold_target", None) is not None:
+                self._supply_stockout_cycles = getattr(self, "_supply_stockout_cycles", 0) + 1
+            if (self._fundraising_mode == "mine"
+                    or getattr(self, "_supply_stockout_gold_target", None) is not None):
                 self._mining_runs_completed += 1
-            else:
+            if self._fundraising_mode == "scavenge":
                 self._sell_scavenged_consumables = True
             self._mining_scroll_used_floor = None
             self._mining_detection_centers.clear()

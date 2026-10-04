@@ -129,6 +129,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_remembered_entrances",
     )
     required_names = (
+        "_supply_stockout_cycles",
+        "_supply_stockout_gold_target",
         "_town_blocked_reason",
         "_visit_counts",
         "_explore_goal_identity",

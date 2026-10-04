@@ -185,7 +185,7 @@
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' and (not self._detectionless_scavenge_allowed(snapshot)) / If:body:not snapshot.in_town": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._returning_to_town and snapshot.dungeon_level > 0": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._returning_to_town or self._should_start_town_return(snapshot)": 1,
-    "self._leave_fundraising_floor(snapshot) @ If:body:snapshot.player.gold >= FUNDRAISING_GOLD_TARGET and (self._fundraising_mode == 'scavenge' or not self._known_treasure)": 1,
+    "self._leave_fundraising_floor(snapshot) @ If:body:snapshot.player.gold >= self._fundraising_gold_target() and (getattr(self, '_supply_stockout_gold_target', None) is not None or self._fundraising_mode == 'scavenge' or (not self._known_treasure))": 1,
     "self._mining_closure_key(snapshot) @ ": 1,
     "self._mining_tapped_out_key(snapshot) @ ": 1,
     "self._mining_tapped_out_key(snapshot) @ If:body:not osc / If:body:step is not None / If:body:self._mining_route_visits[snapshot.player.position] >= MINING_ROUTE_REVISIT_LIMIT": 1,

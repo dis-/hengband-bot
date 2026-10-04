@@ -2445,6 +2445,7 @@ class TownMixin:
                 snapshot.player.gold < FUNDRAISING_GOLD_TARGET
                 # The D1 time-pass still needs its D3 kit above the target.
                 or self._recall_stockout_run_outstanding(snapshot)
+                or getattr(self, "_supply_stockout_gold_target", None) is not None
             )
             and not self._opening_q34_active(snapshot)
         )
@@ -4251,6 +4252,7 @@ class TownMixin:
             # D1 time-pass, not a funding set: the D2 gold end does not apply
             # to its outstanding run while the recall stockout persists.
             and not self._recall_stockout_run_outstanding(snapshot)
+            and getattr(self, "_supply_stockout_gold_target", None) is None
         ):
             self._fundraising_mode = None
             self._planned_mining_runs = None
@@ -5556,7 +5558,9 @@ class TownMixin:
             return restock
 
         if (
-            self._fundraising_mode == "mine"
+            (self._fundraising_mode == "mine"
+             or (self._fundraising_mode == "scavenge"
+                 and getattr(self, "_supply_stockout_gold_target", None) is not None))
             and self._mining_runs_completed >= self._effective_mining_run_target()
         ):
             self._fundraising_mode = None
@@ -5567,6 +5571,7 @@ class TownMixin:
             self._town_store_attempted.clear()
             self._town_restock_suppressed = False
             self._town_errand_plan = None
+            self._supply_stockout_gold_target = None
             return None
 
         # A resumed bot does not retain the in-memory partial batch selected
@@ -5788,6 +5793,8 @@ class TownMixin:
         # Combat readiness remains an independent hard gate as well.
         departure_conjuncts = self._recall_town_departure_conjuncts(snapshot)
         departure_ok = all(departure_conjuncts.values())
+        if departure_ok and getattr(self, "_supply_stockout_gold_target", None) is None:
+            self._supply_stockout_cycles = 0
         if recall_dest is not None and (not departure_ok or guardian_blocked):
             block_conjuncts = dict(departure_conjuncts)
             if guardian_blocked:
@@ -5806,6 +5813,10 @@ class TownMixin:
             ) == ("recall_departure_ready",)
         )
         if recall_only_block:
+            if not guardian_blocked and not self._town_claims_active(snapshot):
+                stockout = self._supply_stockout_mining_key(snapshot)
+                if stockout is not None:
+                    return stockout
             # This owner is deliberately selected before cross-town shopping
             # and the generic unsatisfiable terminal.  It waits/mines in the
             # current town and re-observes the two local recall suppliers.
@@ -5818,6 +5829,10 @@ class TownMixin:
             and not snapshot.player.recalling
             and self._find_recall_scroll(snapshot) is None
         ):
+            if not guardian_blocked and not self._town_claims_active(snapshot):
+                stockout = self._supply_stockout_mining_key(snapshot)
+                if stockout is not None:
+                    return stockout
             # A zero-scroll visit cannot execute this recall objective.
             # Suppliers may both be latched after genuine stock failure;
             # wait for turnover instead of falling through to dungeon-style
@@ -6030,6 +6045,10 @@ class TownMixin:
                 if supplier is not None:
                     self._town_blocked_reason = None
                     return None
+                stockout = (self._supply_stockout_mining_key(snapshot)
+                            if not guardian_blocked else None)
+                if stockout is not None:
+                    return stockout
                 if (
                     self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
                     and not self._identify_staff_ready(snapshot)
@@ -6155,12 +6174,93 @@ class TownMixin:
             expedition = self._cross_town_shopping_key(snapshot)
             if expedition is not None:
                 return expedition
+            stockout = (self._supply_stockout_mining_key(snapshot)
+                        if not guardian_blocked else None)
+            if stockout is not None:
+                return stockout
             restock = self._town_restock_wait_key(snapshot)
             if restock is not None:
                 return restock
             self._town_blocked_reason = "departure-unsatisfiable"
             return self._town_blocked_key(snapshot)
         return None
+
+    def _supply_stockout_mining_key(self, snapshot: Snapshot) -> str | None:
+        return self._town_producer_entry(
+            "supply-stockout-mining",
+            lambda: self._supply_stockout_mining_dispatch_key(snapshot),
+            family="fundraising",
+        )
+
+    def _supply_stockout_mining_dispatch_key(self, snapshot: Snapshot) -> str | None:
+        """One normal mining run per exhausted supply retry, at most three.
+
+        Called only after cross-town shopping and local procurement have no
+        owner left. Every failed ordinary departure leaf must name a supply
+        requirement with no actionable supplier; other failures keep their
+        existing remedies. The mining driver retains its own departure gate.
+        """
+        if self._fundraising_mode is not None or snapshot.player.recalling:
+            return None
+        labels = {
+            "recall_departure_ready": {"Word of Recall scrolls"},
+            "food_ready": {"Food rations", "Device charges for food"},
+            "light_ready": {"Flasks of oil"},
+            "teleport_ready": {"Teleport scrolls"},
+            "cure_critical_ready": {"Cure Critical Wounds potions"},
+            "remove_curse_ready": {"Remove Curse scrolls", "*Remove Curse* scrolls"},
+        }
+        failed = self._departure_block_state(snapshot)["failed"]
+        requirements = self.procurement_requirements(snapshot)
+        blocked = {row["item"] for row in requirements
+                   if row.get("blocked_reason") == "no-actionable-supplier"}
+        if not failed or any(not (labels.get(name, set()) & blocked) for name in failed):
+            return None
+        kinds = {
+            "recall_departure_ready": "recall", "food_ready": "food",
+            "light_ready": "oil", "teleport_ready": "teleport",
+            "cure_critical_ready": "cure-critical",
+            "remove_curse_ready": self._required_remove_curse_kind(snapshot),
+        }
+        # No-actionable-supplier also describes an unaffordable shelf. That
+        # belongs to the existing funding remedy, never this stockout retry.
+        for name in failed:
+            category = kinds[name]
+            if any(observation for (store, observed_category), observation
+                   in self._town_visit_ledger.shelf_observations.items()
+                   if observed_category == category):
+                return None
+            supply_kind = "cure" if category == "cure-critical" else category
+            pages = dict(getattr(self, "_town_supplier_stock", {}))
+            if snapshot.store is not None:
+                pages[snapshot.store.store_type] = snapshot.store
+            if any((ware.tval in {TVAL_WAND, TVAL_STAFF} and ware.pval > 0
+                    if supply_kind == "food" and snapshot.player.food_type == FOOD_TYPE_MANA
+                    else self._store_item_is_supply(ware, supply_kind))
+                   for page in pages.values() for ware in page.items):
+                return None
+        if getattr(self, "_supply_stockout_cycles", 0) >= 3:
+            self._town_blocked_reason = "departure-unsatisfiable"
+            return self._town_blocked_key(snapshot)
+        self._supply_stockout_gold_target = snapshot.player.gold + 5_000
+        self._planned_mining_runs = 1
+        self._mining_runs_completed = 0
+        self._identify_staff_mining_plan = False
+        self._recall_stockout_mining_plan = False
+        self._fundraising_mode = "prepare"
+        self._town_restock_suppressed = False
+        self._town_restock_waiting_for = ()
+        self._town_restock_wait_until = None
+        self._town_store_attempted.clear()
+        self._cross_town_shopping = None
+        self._retire_town_errand_plan_for_rebuild()
+        self.last_reason = "town:supply-stockout-mining"
+        self._offer_execution(
+            WAIT_KEY, producer="fundraising", work_id="fundraise:supply-stockout",
+            next_step="fundraising.prepare-one-mining-run",
+            expected_effect="supply-suppliers-rearmed",
+        )
+        return WAIT_KEY
 
     def _departure_block_state(
         self, snapshot: Snapshot, conjuncts: dict[str, bool] | None = None
