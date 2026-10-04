@@ -1,0 +1,32 @@
+[
+  {
+    "revision": "96c20795",
+    "module": "test_ownership_s2b1_ladder",
+    "exit_code": 1,
+    "tests": 52,
+    "seconds": 26.55,
+    "failures": 3,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "96c20795",
+    "module": "test_town_approach_retired_recorded",
+    "exit_code": 1,
+    "tests": 10,
+    "seconds": 443.83,
+    "failures": 7,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "96c20795",
+    "module": "test_town_cure_supplier_recorded",
+    "exit_code": 1,
+    "tests": 7,
+    "seconds": 149.41,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0
+  }
+]

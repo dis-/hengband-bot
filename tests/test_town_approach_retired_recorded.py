@@ -22,8 +22,17 @@ decision 2026-09-23 (ownership contract): progress is distance plus the
 expected observation, and a strictly falling distance to the claimed goal is
 progress.
 
-S3.3 migration: the current prefix stops at 1183, where the partial Home
-page must be searched instead of asserting absence. Later guardian sites
+DECLARED DIVERGENCE (89543e80, Home relief fix C; SOL-REPORT-homefull3.txt
+section 1 C): the current prefix stops at 1180 (sequence 1178, turn 5363502).
+Board 1179 filed a combat-weapon Home errand after a deposit invalidated the
+catalogue. On 1180 no atomic operation is pending, the character is healthy,
+and no physical hostile is present. The filed errand now requests its missing
+catalogue with '~9 ESC' (home-errand:request-knowledge:combat-weapon) instead
+of live's '5' equipment-transaction:atomic-deposit. Its Observe/knowledge
+claim and execution declaration stay with home-errand. No subsequent old
+effect board is consumed. The earlier S3.3 boundary at 1183 (seek the partial
+Home page rather than asserting absence) is beyond this new changed key.
+Later guardian sites
 and the walk from 2026 use DECLARED CONSTRUCTED independent baseline-policy
 checkpoints from group 2 (90fca3b7), frozen by
 extract_s33_town_checkpoints.py. They are independent operation substrates,
@@ -157,7 +166,7 @@ BOUNCE = 1991  # sequence 1988, 06:22:50: 'rh' return:recall from (3, 23)
 PATH = (LATCH - 1, LATCH, KIT_CHANGED - 1, KIT_CHANGED, RECALL, BOUNCE)
 
 
-S33_FIRST_CHANGED = 1183
+HOME_KNOWLEDGE_FIRST_CHANGED = 1180
 S33_CHECKPOINTS = FIXTURES / "town-approach.s33-independent-checkpoints.json.gz"
 S33_CHECKPOINTS_SHA256 = "fe64591abd5fc6ecfd7e74f2170d655741544f3673fe2ba470baa4cb6fd6051a"
 S33_WALK_BEGIN = WALK_START - 10
@@ -310,8 +319,24 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             policy = cls._new_policy(directory)
             replay = []
             first = None
-            for index in range(S33_FIRST_CHANGED + 1):
+            for index in range(HOME_KNOWLEDGE_FIRST_CHANGED + 1):
                 snapshot = cls._consume(policy, index, directory)
+                if index == HOME_KNOWLEDGE_FIRST_CHANGED:
+                    cls.first_context = dict(
+                        turn=snapshot.turn, in_town=snapshot.in_town,
+                        outside=snapshot.store is None,
+                        needs_knowledge=policy._home_errand.needs_knowledge,
+                        purpose=policy._home_errand.request.purpose,
+                        knowledge_current=policy._home_knowledge_current,
+                        scan_inflight=policy._home_knowledge_scan_inflight,
+                        deposit_pending=policy._home_atomic_deposit_pending is not None,
+                        withdraw_pending=policy._home_atomic_withdraw_pending is not None,
+                        physical_hostiles=bool(policy._physical_hostiles(snapshot)),
+                        hp=(snapshot.player.hp, snapshot.player.max_hp),
+                        food=snapshot.player.food_state,
+                        adverse_status=bool(snapshot.player.poisoned or snapshot.player.cut
+                                            or snapshot.player.confused or snapshot.player.blind),
+                    )
                 row = cls._decide(policy, snapshot)
                 replay.append(row)
                 live = cls.recorded[index]
@@ -324,7 +349,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                         declaration_mismatch=row["claim"].get("declaration_mismatch"),
                         claim_verdict_conflict=row["claim"].get("claim_verdict_conflict"))
                     break  # No old effect board follows a changed key.
-            assert first == S33_FIRST_CHANGED, first
+            assert first == HOME_KNOWLEDGE_FIRST_CHANGED, first
 
             def independent(index):
                 policy = _Unpickler(io.BytesIO(cls.independent[index]), cls.monrace).load()
@@ -370,7 +395,23 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
 
     def test_current_missing_item_prefix_ends_with_zero_diagnostics(self):
         replay = self._replay()
-        self.assertEqual(len(replay), S33_FIRST_CHANGED + 1)
+        self.assertEqual(len(replay), HOME_KNOWLEDGE_FIRST_CHANGED + 1)
+        self.assertEqual(self.first_context, dict(
+            turn=5363502, in_town=True, outside=True, needs_knowledge=True,
+            purpose="combat-weapon", knowledge_current=False, scan_inflight=False,
+            deposit_pending=False, withdraw_pending=False, physical_hostiles=False,
+            hp=(542, 542), food="normal", adverse_status=False))
+        claim = replay[-1]["claim"]
+        self.assertEqual(claim["owner"], "home-errand")
+        self.assertEqual((claim["goal"]["kind"], claim["goal"]["source"]),
+                         ("Observe", "knowledge"))
+        self.assertEqual(claim["rung"], "_home_errand_knowledge_key")
+        execution = claim["execution"]
+        self.assertEqual((execution["producer"], execution["next_step"],
+                          execution["expected_effect"], execution["continuation"]),
+                         ("home-errand", "home.knowledge.request",
+                          "catalogue-adopted", "home.knowledge.observe"))
+        self.assertIsNone(claim["violation"])
         self.assertEqual(self.first_diagnostics, dict(
             would_stop=None, declaration_mismatch=None, claim_verdict_conflict=None))
 
@@ -438,16 +479,16 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ A1
     def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
         replay = self._replay()
-        self.assertEqual(len(replay), S33_FIRST_CHANGED + 1)
+        self.assertEqual(len(replay), HOME_KNOWLEDGE_FIRST_CHANGED + 1)
         for index, row in enumerate(replay[:-1]):
             live = self.recorded[index]
             expected_key = "dm" if index == 1178 else live["key"]
             self.assertEqual((row["key"], row["reason"]), (expected_key, live["reason"]), index)
         self.assertEqual((replay[-1]["key"], replay[-1]["reason"]),
-                         (" ", "equipment-transaction:seek-home-page"))
-        self.assertEqual((self.recorded[S33_FIRST_CHANGED]["key"],
-                          self.recorded[S33_FIRST_CHANGED]["reason"]),
-                         ("\x1b", "equipment-transaction:withdraw-missing"))
+                         ("~9\x1b", "home-errand:request-knowledge:combat-weapon"))
+        self.assertEqual((self.recorded[HOME_KNOWLEDGE_FIRST_CHANGED]["key"],
+                          self.recorded[HOME_KNOWLEDGE_FIRST_CHANGED]["reason"]),
+                         ("5", "equipment-transaction:atomic-deposit"))
 
     def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
         # S2b.2 (record-only): with the switch off every decision above is

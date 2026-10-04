@@ -1,0 +1,35 @@
+test_lifetimes_are_read_from_the_lift (test_ownership_s2b2_bar.BarMetricsTest.test_lifetimes_are_read_from_the_lift) ... ok
+test_the_ledger_and_the_report (test_ownership_s2b2_bar.BarMetricsTest.test_the_ledger_and_the_report) ... ok
+test_on_a_barred_choke_rung_spends_nothing (test_ownership_s2b2_bar.ChokePlanTest.test_on_a_barred_choke_rung_spends_nothing) ... ok
+test_revert_proof_off_the_same_board_spends_the_plan (test_ownership_s2b2_bar.ChokePlanTest.test_revert_proof_off_the_same_board_spends_the_plan) ... ok
+test_a_walking_errand_bar_survives_the_players_own_steps (test_ownership_s2b2_bar.ErrandBarTest.test_a_walking_errand_bar_survives_the_players_own_steps) ... ok
+test_an_errand_released_without_retirement_is_not_barred (test_ownership_s2b2_bar.ErrandBarTest.test_an_errand_released_without_retirement_is_not_barred) ... ok
+test_only_inventory_change_lifts_the_errand_bar (test_ownership_s2b2_bar.ErrandBarTest.test_only_inventory_change_lifts_the_errand_bar) ... ok
+test_the_durable_part_of_each_key_shape (test_ownership_s2b2_bar.ErrandBarTest.test_the_durable_part_of_each_key_shape) ... ok
+test_the_pure_rule_has_no_clock (test_ownership_s2b2_bar.ErrandBarTest.test_the_pure_rule_has_no_clock) ... ok
+test_off_decides_exactly_as_before (test_ownership_s2b2_bar.LootChokeRecordedTest.test_off_decides_exactly_as_before) ... ok
+test_off_records_the_positioning_would_bar (test_ownership_s2b2_bar.LootChokeRecordedTest.test_off_records_the_positioning_would_bar) ... ok
+test_on_the_oscillation_does_not_recur (test_ownership_s2b2_bar.LootChokeRecordedTest.test_on_the_oscillation_does_not_recur) ... ok
+test_revert_proof_without_the_gate_on_changes_nothing (test_ownership_s2b2_bar.LootChokeRecordedTest.test_revert_proof_without_the_gate_on_changes_nothing) ... ok
+test_a_merged_bar_keeps_its_start_and_unites_its_triggers (test_ownership_s2b2_bar.RestoredCheckpointTest.test_a_merged_bar_keeps_its_start_and_unites_its_triggers) ... ok
+test_a_policy_without_the_attributes_decides_through_getattr (test_ownership_s2b2_bar.RestoredCheckpointTest.test_a_policy_without_the_attributes_decides_through_getattr) ... ok
+test_a_pre_s2b2_register_unpickles_and_bars (test_ownership_s2b2_bar.RestoredCheckpointTest.test_a_pre_s2b2_register_unpickles_and_bars) ... ok
+test_a_round_one_bar_unpickles_and_gates_nothing (test_ownership_s2b2_bar.RestoredCheckpointTest.test_a_round_one_bar_unpickles_and_gates_nothing) ... ok
+test_the_legacy_checkpoint_restores_the_switch_off_and_decides (test_ownership_s2b2_bar.RestoredCheckpointTest.test_the_legacy_checkpoint_restores_the_switch_off_and_decides) ... ok
+test_a_retarget_violation_bars_the_goal_it_dropped (test_ownership_s2b2_bar.SurvivalAndEndingsTest.test_a_retarget_violation_bars_the_goal_it_dropped) ... ok
+test_a_survival_claim_released_is_not_barred (test_ownership_s2b2_bar.SurvivalAndEndingsTest.test_a_survival_claim_released_is_not_barred) ... ok
+test_a_survival_decision_meets_no_would_bar (test_ownership_s2b2_bar.SurvivalAndEndingsTest.test_a_survival_decision_meets_no_would_bar) ... ok
+test_no_gated_rung_can_answer_survival (test_ownership_s2b2_bar.SurvivalAndEndingsTest.test_no_gated_rung_can_answer_survival) ... ok
+test_the_endings_that_bar_nothing (test_ownership_s2b2_bar.SurvivalAndEndingsTest.test_the_endings_that_bar_nothing) ... ok
+test_the_gated_rungs_are_asked_before_they_run (test_ownership_s2b2_bar.SwitchTest.test_the_gated_rungs_are_asked_before_they_run) ... ok
+test_the_shipped_sources_never_turn_it_on (test_ownership_s2b2_bar.SwitchTest.test_the_shipped_sources_never_turn_it_on) ... ok
+test_the_switch_is_off_and_nothing_is_skipped (test_ownership_s2b2_bar.SwitchTest.test_the_switch_is_off_and_nothing_is_skipped) ... ok
+test_a_released_positioning_claim_is_barred (test_ownership_s2b2_bar.ThreatBarTest.test_a_released_positioning_claim_is_barred) ... ok
+test_nothing_but_the_clock_lifts_it (test_ownership_s2b2_bar.ThreatBarTest.test_nothing_but_the_clock_lifts_it) ... ok
+test_revert_proof_index_only_identity_keeps_the_bar (test_ownership_s2b2_bar.ThreatBarTest.test_revert_proof_index_only_identity_keeps_the_bar) ... ok
+test_the_fifty_turn_rule_with_index_and_race_identity (test_ownership_s2b2_bar.ThreatBarTest.test_the_fifty_turn_rule_with_index_and_race_identity) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 13.644s
+
+OK

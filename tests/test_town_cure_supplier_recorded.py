@@ -50,7 +50,19 @@ One replay of the process through ``CHECKPOINT`` is shared by every pin
   label; 1377-1378: the live ``town:kill-mob-approach`` the replay reads as
   ``store:entry-await-observation`` -- not explained).  The live key is posted
   on every prefix board, so every later board is the one live observed.
-  The fixed rule changes no prefix decision (1388 is the first changed key).
+  DECLARED DIVERGENCE (89543e80, SOL-REPORT-homefull3.txt section 1 C):
+  the filed identification Home errand requests its stale catalogue at 15
+  (turn 6453654), replacing the base replay's home:weight-overload-deposit
+  ('5'; live had an equipment entry wait). On that board no atomic
+  operation is pending and no physical hostile is present. The command is
+  now '~9 ESC', owned and declared by home-errand. This is inside the existing
+  LIVE-KEY WALL: every old key is still posted, so the later 16-53 boards are
+  historical substrates, not effects of this new scan. The added divergences
+  19-25, 27-33, 35-36 and 53, and restored parity at 51-52, belong to that
+  declared wall. The complete exact divergence set remains pinned; the first
+  new request's prerequisite facts, command, claim and declaration are pinned
+  separately. The supplier fix itself changes no prefix decision (1388 is
+  its first changed key).
 - CLI TIMER WALL: the periodic dump/save requests come from the CLI wall
   clock; each is delivered on the board where the live process posted it.
 - PRE-FIX WALL (``_pre_fix_supply_rule``): ``_shortage_supplier_visit_page``
@@ -106,8 +118,8 @@ HOME_UNFULFILLED = 1387
 FIRST_CHANGED = 1388
 STOP = 1390
 PREFIX_DIVERGENCES = (
-    9, 11, 12, 13, 14, 15, 16, 17, 18, 26,
-    37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 51, 52,
+    9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 53,
     69, 70, 71, 72, 73, 1057, 1377, 1378,
 )
 PERIODIC_REQUESTS = {
@@ -172,8 +184,26 @@ class _RecordedProcess(unittest.TestCase):
         policy._crossarea_fundraising_enforced = True  # live argv
         cls.prefix = []
         cls.detect_boards = {}
+        cls.home_knowledge_boundary = {}
+
+        def inspect_knowledge(index, policy, board):
+            if index != 15:
+                return
+            cls.home_knowledge_boundary = dict(
+                turn=board.turn, needs_knowledge=policy._home_errand.needs_knowledge,
+                purpose=policy._home_errand.request.purpose,
+                knowledge_current=policy._home_knowledge_current,
+                deposit_pending=policy._home_atomic_deposit_pending is not None,
+                withdraw_pending=policy._home_atomic_withdraw_pending is not None,
+                physical_hostiles=bool(policy._physical_hostiles(board)),
+                hp=(board.player.hp, board.player.max_hp), food=board.player.food_state,
+                adverse_status=bool(board.player.poisoned or board.player.cut
+                                    or board.player.confused or board.player.blind),
+                claim=copy.deepcopy(policy.decision_claim))
+
         for index in range(CHECKPOINT + 1):
-            key, reason, board = cls._step(policy, index, live_key=True)
+            key, reason, board = cls._step(
+                policy, index, live_key=True, inspect=inspect_knowledge)
             cls.prefix.append((key, reason))
             if cls.recorded[index]["reason"] == "fundraise:detect-treasure":
                 cls.detect_boards[index] = (
@@ -285,6 +315,26 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
             if self.prefix[index] != self._live(index)
         )
         self.assertEqual(divergent, PREFIX_DIVERGENCES)
+        self.assertEqual(self._live(15),
+                         ("5", "equipment-transaction:travel-home:await-entry"))
+        self.assertEqual(self.prefix[15],
+                         ("~9\x1b", "home-errand:request-knowledge:identification"))
+        boundary = dict(self.home_knowledge_boundary)
+        claim = boundary.pop("claim")
+        self.assertEqual(boundary, dict(
+            turn=6453654, needs_knowledge=True, purpose="identification",
+            knowledge_current=False, deposit_pending=False, withdraw_pending=False,
+            physical_hostiles=False, hp=(731, 731), food="normal", adverse_status=False))
+        self.assertEqual((claim["owner"], claim["goal"]["kind"], claim["goal"]["source"]),
+                         ("home-errand", "Observe", "knowledge"))
+        self.assertEqual(claim["rung"], "_home_errand_knowledge_key")
+        execution = claim["execution"]
+        self.assertEqual((execution["producer"], execution["next_step"],
+                          execution["expected_effect"], execution["continuation"]),
+                         ("home-errand", "home.knowledge.request",
+                          "catalogue-adopted", "home.knowledge.observe"))
+        for field in ("violation", "declaration_mismatch", "claim_verdict_conflict"):
+            self.assertIsNone(claim[field], field)
 
     def test_recorded_stay_ends_without_an_owner(self):
         self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS[STORE_ALCHEMIST], "%")

@@ -1,0 +1,144 @@
+test_a1_walk_whose_claimed_distance_falls_is_not_retired (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired) ... FAIL
+test_b1_path_is_the_conquest_latch_held_after_the_kit_changed (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed)
+The path that made the Orc cave the recall target, on the replay. ... FAIL
+test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave)
+User decisions 2026-09-25 (guardian-recall-pingpong r2/r3). ... FAIL
+test_current_missing_item_prefix_ends_with_zero_diagnostics (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_current_missing_item_prefix_ends_with_zero_diagnostics) ... FAIL
+test_p2_routes_to_the_departure_recall_supplier (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_p2_routes_to_the_departure_recall_supplier)
+No wall: USER DECISION 2026-09-20, target + the departure scroll. ... ok
+test_recorded_recall_onto_the_orc_cave_guardian_floor (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_recorded_recall_onto_the_orc_cave_guardian_floor) ... ok
+test_recorded_walk_closes_its_claimed_distance_and_is_retired (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_recorded_walk_closes_its_claimed_distance_and_is_retired) ... ok
+test_replay_reproduces_every_recorded_decision_before_the_stop (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop) ... FAIL
+test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off) ... FAIL
+test_s3_new_code_replay_names_remaining_violations (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s3_new_code_replay_names_remaining_violations) ... FAIL
+
+======================================================================
+FAIL: test_a1_walk_whose_claimed_distance_falls_is_not_retired (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 471, in test_a1_walk_whose_claimed_distance_falls_is_not_retired
+    replay = self._replay()
+             ^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_loadout.py", line 94, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_equipment_decisions.py", line 122, in replay
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 327, in _replay
+    assert first == S33_FIRST_CHANGED, first
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1180
+
+======================================================================
+FAIL: test_b1_path_is_the_conquest_latch_held_after_the_kit_changed (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed)
+The path that made the Orc cave the recall target, on the replay.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 567, in test_b1_path_is_the_conquest_latch_held_after_the_kit_changed
+    self._replay()
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_loadout.py", line 94, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_equipment_decisions.py", line 122, in replay
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 327, in _replay
+    assert first == S33_FIRST_CHANGED, first
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1180
+
+======================================================================
+FAIL: test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave)
+User decisions 2026-09-25 (guardian-recall-pingpong r2/r3).
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 593, in test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave
+    self._replay()
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_loadout.py", line 94, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_equipment_decisions.py", line 122, in replay
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 327, in _replay
+    assert first == S33_FIRST_CHANGED, first
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1180
+
+======================================================================
+FAIL: test_current_missing_item_prefix_ends_with_zero_diagnostics (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_current_missing_item_prefix_ends_with_zero_diagnostics)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 372, in test_current_missing_item_prefix_ends_with_zero_diagnostics
+    replay = self._replay()
+             ^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_loadout.py", line 94, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_equipment_decisions.py", line 122, in replay
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 327, in _replay
+    assert first == S33_FIRST_CHANGED, first
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1180
+
+======================================================================
+FAIL: test_replay_reproduces_every_recorded_decision_before_the_stop (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 440, in test_replay_reproduces_every_recorded_decision_before_the_stop
+    replay = self._replay()
+             ^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_loadout.py", line 94, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_equipment_decisions.py", line 122, in replay
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 327, in _replay
+    assert first == S33_FIRST_CHANGED, first
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1180
+
+======================================================================
+FAIL: test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 456, in test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off
+    replay = self._replay()
+             ^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_loadout.py", line 94, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_equipment_decisions.py", line 122, in replay
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 327, in _replay
+    assert first == S33_FIRST_CHANGED, first
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1180
+
+======================================================================
+FAIL: test_s3_new_code_replay_names_remaining_violations (test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s3_new_code_replay_names_remaining_violations)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 180, in test_s3_new_code_replay_names_remaining_violations
+    replay = self._replay()
+             ^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_loadout.py", line 94, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\recorded_equipment_decisions.py", line 122, in replay
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\fc42ca66\tests\test_town_approach_retired_recorded.py", line 327, in _replay
+    assert first == S33_FIRST_CHANGED, first
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1180
+
+----------------------------------------------------------------------
+Ran 10 tests in 432.349s
+
+FAILED (failures=7)

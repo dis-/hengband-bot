@@ -1,0 +1,84 @@
+{
+  "f7dfbcb1": {
+    "test_ownership_s2b1_ladder": {
+      "tests": 52,
+      "failing_identities": []
+    },
+    "test_town_approach_retired_recorded": {
+      "tests": 10,
+      "failing_identities": []
+    },
+    "test_town_cure_supplier_recorded": {
+      "tests": 7,
+      "failing_identities": []
+    }
+  },
+  "fc42ca66": {
+    "test_ownership_s2b1_ladder": {
+      "tests": 52,
+      "failing_identities": [
+        "test_ownership_s2b1_ladder.LadderOrderTest.test_every_marked_call_site_family_is_read_from_the_source",
+        "test_ownership_s2b1_ladder.LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order"
+      ]
+    },
+    "test_town_approach_retired_recorded": {
+      "tests": 10,
+      "failing_identities": [
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_current_missing_item_prefix_ends_with_zero_diagnostics",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s3_new_code_replay_names_remaining_violations"
+      ]
+    },
+    "test_town_cure_supplier_recorded": {
+      "tests": 7,
+      "failing_identities": [
+        "test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards"
+      ]
+    }
+  },
+  "96c20795": {
+    "test_ownership_s2b1_ladder": {
+      "tests": 52,
+      "failing_identities": [
+        "test_ownership_s2b1_ladder.LadderOrderTest.test_every_marked_call_site_family_is_read_from_the_source",
+        "test_ownership_s2b1_ladder.LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order"
+      ]
+    },
+    "test_town_approach_retired_recorded": {
+      "tests": 10,
+      "failing_identities": [
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_current_missing_item_prefix_ends_with_zero_diagnostics",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off",
+        "test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s3_new_code_replay_names_remaining_violations"
+      ]
+    },
+    "test_town_cure_supplier_recorded": {
+      "tests": 7,
+      "failing_identities": [
+        "test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards"
+      ]
+    }
+  },
+  "final": {
+    "test_ownership_s2b1_ladder": {
+      "tests": 52,
+      "failing_identities": []
+    },
+    "test_town_approach_retired_recorded": {
+      "tests": 10,
+      "failing_identities": []
+    },
+    "test_town_cure_supplier_recorded": {
+      "tests": 7,
+      "failing_identities": []
+    }
+  }
+}

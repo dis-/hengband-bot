@@ -1,0 +1,23 @@
+[
+  {
+    "revision": "f7dfbcb1",
+    "module": "test_ownership_s2b1_ladder",
+    "exit_code": 0,
+    "tests": 52,
+    "seconds": 29.09
+  },
+  {
+    "revision": "f7dfbcb1",
+    "module": "test_town_approach_retired_recorded",
+    "exit_code": 0,
+    "tests": 10,
+    "seconds": 104.52
+  },
+  {
+    "revision": "f7dfbcb1",
+    "module": "test_town_cure_supplier_recorded",
+    "exit_code": 0,
+    "tests": 7,
+    "seconds": 158.14
+  }
+]

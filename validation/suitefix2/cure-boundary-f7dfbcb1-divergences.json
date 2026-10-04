@@ -1,0 +1,1978 @@
+{
+  "9": {
+    "before": {
+      "turn": 6453299,
+      "in_town": true,
+      "store": null,
+      "needs_knowledge": false,
+      "scan_inflight": false,
+      "knowledge_current": false,
+      "purpose": null,
+      "atomic_deposit_pending": false,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        731,
+        731
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 9,
+      "turn": 6453299,
+      "key": "7",
+      "reason": "town-progress-invariant:defect:shop:travel:await-entry=>shop:travel:await-entry",
+      "position": [
+        37,
+        91
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "5",
+      "shop:travel:await-entry"
+    ],
+    "claim": {
+      "claim_id": 9,
+      "owner": "store-router",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "4",
+          "store-entry"
+        ],
+        "within": 8,
+        "source": "store-entry"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 9,
+        "work_id": "store-entry:4:37,91",
+        "revision": 1,
+        "producer": "store-router",
+        "state": "acting",
+        "next_step": "store.entry.observe",
+        "arguments": [
+          4,
+          [
+            37,
+            91
+          ]
+        ],
+        "operation_ref": null,
+        "expected_effect": "store-page-open",
+        "continuation": "store.entry.observe",
+        "budget_ref": "town-travel",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 9,
+      "reason": "shop:travel:await-entry",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_shopping_approach_key#2",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": "shop-buy",
+      "visit_operator": "store-router",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "shop-buy"
+      ],
+      "execution_delegations": [
+        {
+          "parent_claim_id": 9,
+          "parent_family": "store-router",
+          "delegate_family": "store-router",
+          "work_identity": [
+            "route",
+            8,
+            4
+          ],
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            4
+          ],
+          "opening_decision": 9,
+          "expected_effect": "arrived-or-entered",
+          "budget_reference": "town-travel-progress-budget",
+          "lifecycle": "open",
+          "ending": null,
+          "execution": {
+            "claim_id": 9,
+            "work_id": "('route', 8, 4)",
+            "revision": 1,
+            "producer": "store-router",
+            "state": "acting",
+            "next_step": "delegate.dispatch",
+            "arguments": [
+              "route",
+              8,
+              4
+            ],
+            "operation_ref": null,
+            "expected_effect": "arrived-or-entered",
+            "continuation": "parent.resume",
+            "budget_ref": "town-travel-progress-budget",
+            "evidence": null,
+            "cause": null,
+            "producer_entry": null
+          }
+        }
+      ],
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-sell"
+        ],
+        "holder_family": "store-router",
+        "holder_claim_id": 9,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "11": {
+    "before": {
+      "turn": 6453313,
+      "in_town": true,
+      "store": null,
+      "needs_knowledge": false,
+      "scan_inflight": false,
+      "knowledge_current": true,
+      "purpose": null,
+      "atomic_deposit_pending": false,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        731,
+        731
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 11,
+      "turn": 6453313,
+      "key": "\u001b`n(.",
+      "reason": "equipment-transaction:travel-home",
+      "position": [
+        36,
+        90
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "3",
+      "shop:approach"
+    ],
+    "claim": {
+      "claim_id": 11,
+      "owner": "store-router",
+      "goal": {
+        "kind": "Reach",
+        "cell": [
+          37,
+          91
+        ]
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": false,
+      "distance": 1,
+      "execution": {
+        "claim_id": 11,
+        "work_id": "route:store:37,91",
+        "revision": 1,
+        "producer": "store-router",
+        "state": "acting",
+        "next_step": "route.resume",
+        "arguments": [
+          "store",
+          [
+            37,
+            91
+          ]
+        ],
+        "operation_ref": null,
+        "expected_effect": "arrive:37,91",
+        "continuation": "route.resume",
+        "budget_ref": "town-travel",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 11,
+      "reason": "shop:approach",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 10,
+        "owner": "home-scan",
+        "goal_kind": "Observe",
+        "state": "complete",
+        "closed": "complete",
+        "closed_reason": "home-knowledge-current",
+        "execution": {
+          "claim_id": 10,
+          "work_id": "home-knowledge:6452929",
+          "revision": 3,
+          "producer": "home-scan",
+          "state": "done",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "catalogue-adopted",
+          "continuation": "home.knowledge.observe",
+          "budget_ref": "home-knowledge-existing-epoch",
+          "evidence": "home-knowledge-current",
+          "cause": null,
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_shopping_approach_key#2",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": "shop-buy",
+      "visit_operator": "store-router",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": {
+        "previous_stops": [
+          4,
+          3
+        ],
+        "previous_index": 0,
+        "new_stops": [
+          4,
+          7,
+          3
+        ],
+        "previous_stop": 4,
+        "new_stop": 4,
+        "previous_next_stop": 3,
+        "new_next_stop": 7,
+        "previous_categories": [
+          [
+            3,
+            [
+              "recall",
+              "cure-critical"
+            ]
+          ],
+          [
+            4,
+            [
+              "stat-restore",
+              "identification-source",
+              "teleport"
+            ]
+          ]
+        ],
+        "new_categories": [
+          [
+            3,
+            [
+              "recall",
+              "cure-critical"
+            ]
+          ],
+          [
+            4,
+            [
+              "stat-restore",
+              "identification-source",
+              "teleport"
+            ]
+          ],
+          [
+            7,
+            [
+              "equipment-work"
+            ]
+          ]
+        ]
+      },
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "shop-buy"
+      ],
+      "execution_delegations": [
+        {
+          "parent_claim_id": 11,
+          "parent_family": "store-router",
+          "delegate_family": "store-router",
+          "work_identity": [
+            "route",
+            8,
+            4
+          ],
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            4
+          ],
+          "opening_decision": 11,
+          "expected_effect": "arrived-or-entered",
+          "budget_reference": "town-travel-progress-budget",
+          "lifecycle": "open",
+          "ending": null,
+          "execution": {
+            "claim_id": 11,
+            "work_id": "('route', 8, 4)",
+            "revision": 1,
+            "producer": "store-router",
+            "state": "acting",
+            "next_step": "delegate.dispatch",
+            "arguments": [
+              "route",
+              8,
+              4
+            ],
+            "operation_ref": null,
+            "expected_effect": "arrived-or-entered",
+            "continuation": "parent.resume",
+            "budget_ref": "town-travel-progress-budget",
+            "evidence": null,
+            "cause": null,
+            "producer_entry": null
+          }
+        }
+      ],
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-sell"
+        ],
+        "holder_family": "store-router",
+        "holder_claim_id": 11,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "12": {
+    "before": {
+      "turn": 6453644,
+      "in_town": true,
+      "store": 7,
+      "needs_knowledge": false,
+      "scan_inflight": false,
+      "knowledge_current": true,
+      "purpose": "identification",
+      "atomic_deposit_pending": false,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        731,
+        731
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 12,
+      "turn": 6453644,
+      "key": " ",
+      "reason": "equipment-transaction:seek-home-page",
+      "position": [
+        45,
+        123
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "\u001b",
+      "home:leave-for-pending-withdraw"
+    ],
+    "claim": {
+      "claim_id": 12,
+      "owner": "home-visit",
+      "goal": {
+        "kind": "Terminal",
+        "effect": "home:leave-for-pending-withdraw"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 12,
+        "work_id": "home:leave-for-pending-withdraw",
+        "revision": 1,
+        "producer": "home-visit",
+        "state": "acting",
+        "next_step": "store.leave.send",
+        "arguments": [
+          7
+        ],
+        "operation_ref": null,
+        "expected_effect": "outside-store",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 12,
+      "reason": "home:leave-for-pending-withdraw",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 11,
+        "owner": "store-router",
+        "goal_kind": "Reach",
+        "state": "complete",
+        "closed": "complete",
+        "closed_reason": "entered-store",
+        "execution": {
+          "claim_id": 11,
+          "work_id": "route:store:37,91",
+          "revision": 2,
+          "producer": "store-router",
+          "state": "done",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "arrive:37,91",
+          "continuation": "route.resume",
+          "budget_ref": "town-travel",
+          "evidence": "entered-store",
+          "cause": null,
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_home_disposal_processing_key",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": "router-opens-family-operates",
+      "visit_requester": "home-visit",
+      "visit_operator": "home-visit",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 2,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit",
+        "shop-buy"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-sell"
+        ],
+        "holder_family": "home-visit",
+        "holder_claim_id": 12,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "13": {
+    "before": {
+      "turn": 6453644,
+      "in_town": true,
+      "store": 7,
+      "needs_knowledge": false,
+      "scan_inflight": false,
+      "knowledge_current": true,
+      "purpose": "identification",
+      "atomic_deposit_pending": false,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        731,
+        731
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 13,
+      "turn": 6453644,
+      "key": "pY",
+      "reason": "equipment-transaction:withdraw",
+      "position": [
+        45,
+        123
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "\u001b",
+      "shop:observe-and-leave"
+    ],
+    "claim": {
+      "claim_id": 13,
+      "owner": "shop-buy",
+      "goal": {
+        "kind": "Terminal",
+        "effect": "shop:observe-and-leave"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 13,
+        "work_id": "shop:observe-shelf",
+        "revision": 1,
+        "producer": "shop-buy",
+        "state": "acting",
+        "next_step": "store.leave.send",
+        "arguments": [
+          7
+        ],
+        "operation_ref": null,
+        "expected_effect": "outside-store",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 13,
+      "reason": "shop:observe-and-leave",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "town-errand:shop-buy",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "recovered-store-context",
+        "claim_owner": "shop-buy",
+        "claim_id": 13
+      },
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": "shop-buy",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-sell"
+        ],
+        "holder_family": "shop-buy",
+        "holder_claim_id": 13,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "14": {
+    "before": {
+      "turn": 6453644,
+      "in_town": true,
+      "store": 7,
+      "needs_knowledge": false,
+      "scan_inflight": false,
+      "knowledge_current": true,
+      "purpose": "identification",
+      "atomic_deposit_pending": false,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        731,
+        731
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 14,
+      "turn": 6453644,
+      "key": "\u001b",
+      "reason": "home:store-context-exit",
+      "position": [
+        45,
+        123
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "\r",
+      "shop:await-leave-confirmation"
+    ],
+    "claim": {
+      "claim_id": 14,
+      "owner": "unregistered",
+      "goal": {
+        "kind": "Terminal",
+        "effect": "shop:await-leave-confirmation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": null,
+      "non_discardable": false,
+      "distance": null,
+      "execution": null,
+      "decision_sequence": 14,
+      "reason": "shop:await-leave-confirmation",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 65,
+      "rung": "fallback:unregistered",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": "unregistered",
+      "barrier_provenance": "barrier-provenance-missing",
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-sell"
+        ],
+        "holder_family": "unregistered",
+        "holder_claim_id": 14,
+        "declaration_state": null,
+        "declaration_gap": true,
+        "mismatch": null
+      }
+    }
+  },
+  "15": {
+    "before": {
+      "turn": 6453654,
+      "in_town": true,
+      "store": null,
+      "needs_knowledge": true,
+      "scan_inflight": false,
+      "knowledge_current": false,
+      "purpose": "identification",
+      "atomic_deposit_pending": false,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        731,
+        731
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 15,
+      "turn": 6453654,
+      "key": "5",
+      "reason": "equipment-transaction:travel-home:await-entry",
+      "position": [
+        45,
+        123
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "5",
+      "home:weight-overload-deposit"
+    ],
+    "claim": {
+      "claim_id": 15,
+      "owner": "home-visit",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "15",
+          "7",
+          "dl\u001b"
+        ],
+        "within": 8,
+        "source": "store-operation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 15,
+        "work_id": "home-operation:15:dl\u001b",
+        "revision": 1,
+        "producer": "home-visit",
+        "state": "acting",
+        "next_step": "home.tail.send",
+        "arguments": [
+          15,
+          "dl\u001b"
+        ],
+        "operation_ref": null,
+        "expected_effect": "home-inventory-effect",
+        "continuation": "home.operation.observe",
+        "budget_ref": "home-operation-existing-budget",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 15,
+      "reason": "home:weight-overload-deposit",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_home_disposal_processing_key",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "home-visit",
+        "claim_id": 15
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "shop-buy",
+      "visit_operator": "home-visit",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": {
+        "previous_stops": [
+          4,
+          7,
+          3
+        ],
+        "previous_index": 0,
+        "new_stops": [
+          7,
+          5,
+          4,
+          7,
+          3,
+          6
+        ],
+        "previous_stop": 4,
+        "new_stop": 7,
+        "previous_next_stop": 7,
+        "new_next_stop": 5,
+        "previous_categories": [
+          [
+            3,
+            [
+              "recall",
+              "cure-critical"
+            ]
+          ],
+          [
+            4,
+            [
+              "stat-restore",
+              "identification-source",
+              "teleport"
+            ]
+          ],
+          [
+            7,
+            [
+              "equipment-work"
+            ]
+          ]
+        ],
+        "new_categories": [
+          [
+            3,
+            [
+              "recall",
+              "cure-critical"
+            ]
+          ],
+          [
+            4,
+            [
+              "stat-restore",
+              "teleport"
+            ]
+          ],
+          [
+            5,
+            [
+              "identify-staff"
+            ]
+          ],
+          [
+            6,
+            [
+              "black-market"
+            ]
+          ],
+          [
+            7,
+            [
+              "weight-overload",
+              "identification-withdrawal",
+              "equipment-catalog"
+            ]
+          ]
+        ]
+      },
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "equipment-txn",
+        "home-errand",
+        "home-visit",
+        "shop-buy"
+      ],
+      "execution_delegations": [
+        {
+          "parent_claim_id": 15,
+          "parent_family": "home-visit",
+          "delegate_family": "home-tail",
+          "work_identity": [
+            "staged-tail",
+            7,
+            15,
+            "dl\u001b"
+          ],
+          "purpose_identity": [
+            "visit-operation",
+            15,
+            "dl\u001b"
+          ],
+          "opening_decision": 15,
+          "expected_effect": "staged-tail-released/operation-effect",
+          "budget_reference": "home-operation-existing-budget",
+          "lifecycle": "open",
+          "ending": null,
+          "execution": {
+            "claim_id": 15,
+            "work_id": "('staged-tail', 7, 15, 'dl\\x1b')",
+            "revision": 1,
+            "producer": "home-tail",
+            "state": "acting",
+            "next_step": "delegate.dispatch",
+            "arguments": [
+              "staged-tail",
+              7,
+              15,
+              "dl\u001b"
+            ],
+            "operation_ref": null,
+            "expected_effect": "staged-tail-released/operation-effect",
+            "continuation": "parent.resume",
+            "budget_ref": "home-operation-existing-budget",
+            "evidence": null,
+            "cause": null,
+            "producer_entry": null
+          }
+        }
+      ],
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "home-visit",
+        "holder_claim_id": 15,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "16": {
+    "before": {
+      "turn": 6453654,
+      "in_town": true,
+      "store": 7,
+      "needs_knowledge": true,
+      "scan_inflight": false,
+      "knowledge_current": false,
+      "purpose": "identification",
+      "atomic_deposit_pending": true,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        731,
+        731
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 16,
+      "turn": 6453654,
+      "key": "th",
+      "reason": "equipment-transaction:takeoff",
+      "position": [
+        45,
+        123
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "dl\u001b",
+      "home:weight-overload-deposit"
+    ],
+    "claim": {
+      "claim_id": 15,
+      "owner": "home-visit",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "15",
+          "7",
+          "dl\u001b"
+        ],
+        "within": 8,
+        "source": "store-operation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 15,
+        "work_id": "home-operation:15:dl\u001b",
+        "revision": 3,
+        "producer": "home-visit",
+        "state": "acting",
+        "next_step": "home.operation.send",
+        "arguments": [
+          15,
+          "dl\u001b"
+        ],
+        "operation_ref": null,
+        "expected_effect": "home-inventory-effect",
+        "continuation": "home.operation.observe",
+        "budget_ref": "home-operation-existing-budget",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 16,
+      "reason": "home:weight-overload-deposit",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_home_disposal_processing_key",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "home-visit",
+        "claim_id": 15
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "shop-buy",
+      "visit_operator": "home-visit",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "home-visit",
+          "holder_claim_id": 15,
+          "deferred_family": "home-errand",
+          "deferred_reason": "choose-key-scan",
+          "token_would_admit": false,
+          "token_work_identity": null,
+          "producer_key": "~9\u001b"
+        },
+        {
+          "holder_family": "home-visit",
+          "holder_claim_id": 15,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "equipment-txn",
+        "home-errand",
+        "home-visit",
+        "shop-buy"
+      ],
+      "execution_delegations": [
+        {
+          "parent_claim_id": 15,
+          "parent_family": "home-visit",
+          "delegate_family": "home-tail",
+          "work_identity": [
+            "staged-tail",
+            7,
+            15,
+            "dl\u001b"
+          ],
+          "purpose_identity": [
+            "visit-operation",
+            15,
+            "dl\u001b"
+          ],
+          "opening_decision": 15,
+          "expected_effect": "staged-tail-released/operation-effect",
+          "budget_reference": "home-operation-existing-budget",
+          "lifecycle": "open",
+          "ending": null,
+          "execution": {
+            "claim_id": 15,
+            "work_id": "('staged-tail', 7, 15, 'dl\\x1b')",
+            "revision": 1,
+            "producer": "home-tail",
+            "state": "acting",
+            "next_step": "delegate.dispatch",
+            "arguments": [
+              "staged-tail",
+              7,
+              15,
+              "dl\u001b"
+            ],
+            "operation_ref": null,
+            "expected_effect": "staged-tail-released/operation-effect",
+            "continuation": "parent.resume",
+            "budget_ref": "home-operation-existing-budget",
+            "evidence": null,
+            "cause": null,
+            "producer_entry": null
+          }
+        }
+      ],
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "home-visit",
+        "holder_claim_id": 15,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "17": {
+    "before": {
+      "turn": 6453654,
+      "in_town": true,
+      "store": 7,
+      "needs_knowledge": true,
+      "scan_inflight": false,
+      "knowledge_current": false,
+      "purpose": "identification",
+      "atomic_deposit_pending": true,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        653,
+        653
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 17,
+      "turn": 6453654,
+      "key": "wl",
+      "reason": "equipment-transaction:equip",
+      "position": [
+        45,
+        123
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "\u001b",
+      "home:leave-after-one-operation"
+    ],
+    "claim": {
+      "claim_id": 15,
+      "owner": "home-visit",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "15",
+          "7",
+          "dl\u001b"
+        ],
+        "within": 8,
+        "source": "store-operation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 15,
+        "work_id": "home:leave-after-one-operation",
+        "revision": 4,
+        "producer": "home-visit",
+        "state": "acting",
+        "next_step": "store.leave.send",
+        "arguments": [
+          7
+        ],
+        "operation_ref": null,
+        "expected_effect": "outside-store",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 17,
+      "reason": "home:leave-after-one-operation",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_home_disposal_processing_key",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "home-visit",
+        "claim_id": 15
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "shop-buy",
+      "visit_operator": "home-visit",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "home-visit",
+          "holder_claim_id": 15,
+          "deferred_family": "home-errand",
+          "deferred_reason": "choose-key-scan",
+          "token_would_admit": false,
+          "token_work_identity": null,
+          "producer_key": "~9\u001b"
+        },
+        {
+          "holder_family": "home-visit",
+          "holder_claim_id": 15,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "equipment-txn",
+        "home-errand",
+        "home-visit",
+        "shop-buy"
+      ],
+      "execution_delegations": [
+        {
+          "parent_claim_id": 15,
+          "parent_family": "home-visit",
+          "delegate_family": "home-tail",
+          "work_identity": [
+            "staged-tail",
+            7,
+            15,
+            "dl\u001b"
+          ],
+          "purpose_identity": [
+            "visit-operation",
+            15,
+            "dl\u001b"
+          ],
+          "opening_decision": 15,
+          "expected_effect": "staged-tail-released/operation-effect",
+          "budget_reference": "home-operation-existing-budget",
+          "lifecycle": "open",
+          "ending": null,
+          "execution": {
+            "claim_id": 15,
+            "work_id": "('staged-tail', 7, 15, 'dl\\x1b')",
+            "revision": 1,
+            "producer": "home-tail",
+            "state": "acting",
+            "next_step": "delegate.dispatch",
+            "arguments": [
+              "staged-tail",
+              7,
+              15,
+              "dl\u001b"
+            ],
+            "operation_ref": null,
+            "expected_effect": "staged-tail-released/operation-effect",
+            "continuation": "parent.resume",
+            "budget_ref": "home-operation-existing-budget",
+            "evidence": null,
+            "cause": null,
+            "producer_entry": null
+          }
+        }
+      ],
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": "ownership:declaration-stale:home-visit",
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "home-visit",
+        "holder_claim_id": 15,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "18": {
+    "before": {
+      "turn": 6453654,
+      "in_town": true,
+      "store": 7,
+      "needs_knowledge": true,
+      "scan_inflight": false,
+      "knowledge_current": false,
+      "purpose": "identification",
+      "atomic_deposit_pending": true,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        653,
+        653
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 18,
+      "turn": 6453654,
+      "key": "dl",
+      "reason": "equipment-transaction:deposit",
+      "position": [
+        45,
+        123
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "\u001b",
+      "home:leave-after-one-operation"
+    ],
+    "claim": {
+      "claim_id": 15,
+      "owner": "home-visit",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "15",
+          "7",
+          "dl\u001b"
+        ],
+        "within": 8,
+        "source": "store-operation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 15,
+        "work_id": "home:leave-after-one-operation",
+        "revision": 5,
+        "producer": "home-visit",
+        "state": "acting",
+        "next_step": "store.leave.send",
+        "arguments": [
+          7
+        ],
+        "operation_ref": null,
+        "expected_effect": "outside-store",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 18,
+      "reason": "home:leave-after-one-operation",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_home_disposal_processing_key",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "home-visit",
+        "claim_id": 15
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "shop-buy",
+      "visit_operator": "home-visit",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "home-visit",
+          "holder_claim_id": 15,
+          "deferred_family": "home-errand",
+          "deferred_reason": "choose-key-scan",
+          "token_would_admit": false,
+          "token_work_identity": null,
+          "producer_key": "~9\u001b"
+        },
+        {
+          "holder_family": "home-visit",
+          "holder_claim_id": 15,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "equipment-txn",
+        "home-errand",
+        "home-visit",
+        "shop-buy"
+      ],
+      "execution_delegations": [
+        {
+          "parent_claim_id": 15,
+          "parent_family": "home-visit",
+          "delegate_family": "home-tail",
+          "work_identity": [
+            "staged-tail",
+            7,
+            15,
+            "dl\u001b"
+          ],
+          "purpose_identity": [
+            "visit-operation",
+            15,
+            "dl\u001b"
+          ],
+          "opening_decision": 15,
+          "expected_effect": "staged-tail-released/operation-effect",
+          "budget_reference": "home-operation-existing-budget",
+          "lifecycle": "open",
+          "ending": null,
+          "execution": {
+            "claim_id": 15,
+            "work_id": "('staged-tail', 7, 15, 'dl\\x1b')",
+            "revision": 1,
+            "producer": "home-tail",
+            "state": "acting",
+            "next_step": "delegate.dispatch",
+            "arguments": [
+              "staged-tail",
+              7,
+              15,
+              "dl\u001b"
+            ],
+            "operation_ref": null,
+            "expected_effect": "staged-tail-released/operation-effect",
+            "continuation": "parent.resume",
+            "budget_ref": "home-operation-existing-budget",
+            "evidence": null,
+            "cause": null,
+            "producer_entry": null
+          }
+        }
+      ],
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "home-visit",
+        "holder_claim_id": 15,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  },
+  "26": {
+    "before": {
+      "turn": 6454044,
+      "in_town": true,
+      "store": null,
+      "needs_knowledge": true,
+      "scan_inflight": false,
+      "knowledge_current": false,
+      "purpose": "identification",
+      "atomic_deposit_pending": false,
+      "atomic_withdraw_pending": false,
+      "physical_hostiles": false,
+      "hp": [
+        653,
+        653
+      ],
+      "food": "normal"
+    },
+    "live": {
+      "decision_sequence": 26,
+      "turn": 6454044,
+      "key": "8",
+      "reason": "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off",
+      "position": [
+        37,
+        91
+      ],
+      "floor": [
+        0,
+        0
+      ]
+    },
+    "current": [
+      "7",
+      "shop:approach"
+    ],
+    "claim": {
+      "claim_id": 21,
+      "owner": "store-router",
+      "goal": {
+        "kind": "Reach",
+        "cell": [
+          37,
+          91
+        ]
+      },
+      "state": "retired",
+      "closed": "retired",
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": false,
+      "distance": 0,
+      "execution": {
+        "claim_id": 21,
+        "work_id": "route:store:37,91",
+        "revision": 1,
+        "producer": "store-router",
+        "state": "acting",
+        "next_step": "route.resume",
+        "arguments": [
+          "store",
+          [
+            37,
+            91
+          ]
+        ],
+        "operation_ref": null,
+        "expected_effect": "arrive:37,91",
+        "continuation": "route.resume",
+        "budget_ref": "town-travel",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 26,
+      "reason": "shop:approach",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_shopping_approach_key#2",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": "store-router",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": {
+        "previous_stops": [
+          4,
+          3
+        ],
+        "previous_index": 1,
+        "new_stops": [
+          4,
+          3
+        ],
+        "previous_stop": 3,
+        "new_stop": 4,
+        "previous_next_stop": null,
+        "new_next_stop": 3,
+        "previous_categories": [
+          [
+            3,
+            [
+              "recall",
+              "cure-critical"
+            ]
+          ],
+          [
+            4,
+            [
+              "stat-restore",
+              "identification-source"
+            ]
+          ]
+        ],
+        "new_categories": [
+          [
+            3,
+            [
+              "recall",
+              "cure-critical"
+            ]
+          ],
+          [
+            4,
+            [
+              "stat-restore",
+              "identification-source"
+            ]
+          ]
+        ]
+      },
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": [
+        {
+          "owner": "store-router",
+          "goal": {
+            "kind": "Reach",
+            "cell": [
+              37,
+              91
+            ]
+          },
+          "kind": "errand",
+          "rung": "_shopping_approach_key#2",
+          "since_turn": 6454044,
+          "since_sequence": 26,
+          "triggers": [],
+          "last_perceived_turn": null,
+          "claim_id": 21,
+          "ending": "retired"
+        }
+      ],
+      "bars_lifted": null,
+      "bars_active": 1,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "shop-buy"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-sell"
+        ],
+        "holder_family": "store-router",
+        "holder_claim_id": 21,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  }
+}

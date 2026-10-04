@@ -1,0 +1,160 @@
+SOL-REPORT-suitefix2.txt
+2026-10-04 / suite-fix2-1004 / initial HEAD 96c20795
+
+All 10 requested failing identities are resolved: 2 STRUCTURAL, 8 EXPECTED,
+0 REGRESSION. Final validation: 10 individual modules, 747 tests, all passed,
+no errors or skips. No full suite was run. No push, game/BOT start/stop, other
+worktree modification, or C:\hengband\bot-client\jsonlog modification occurred.
+
+Outcome and changing-commit confirmation
+
+Every identity in the table below was PASS at f7dfbcb1, FAIL at fc42ca66,
+FAIL at 96c20795, and PASS after this fix. The three complete modules were
+run sequentially on each historical revision, using git archives extracted
+ONLY inside this worktree's ignored validation/suitefix2/<revision>/ copies.
+Per-identity results are in validation/suitefix2/identity-outcomes.json;
+the corresponding <revision>-<module>.log files retain the actual failures.
+
+The changing production commit is 89543e80ef05063fd7e6690bc5ad8ae248b69ce3,
+integrated by fc42ca66. This attribution is checked by git object identity:
+f7dfbcb1 and its intervening 57cbe172 have the same complete src tree
+(3ec62d0f01e87fbe1f213ddbe3d7f3869da13a2d), while 89543e80 and fc42ca66
+have the same complete src tree (c5d4bf9f6dfb81480bd6602c0d262da90913b3d2).
+All three affected test files are identical across those revisions and
+96c20795. See validation/suitefix2/causality.json and 89543e80's policy.py
+diff: the early _home_errand_knowledge_key call is newly introduced there.
+89543e80 was attributed through these object comparisons, rather than
+reported as an additional test run.
+
+Identity prefixes used in the table:
+O = tests.test_ownership_s2b1_ladder.LadderOrderTest
+A = tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest
+C = tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest
+
+| Identity | Changing commit | Classification | Change / decision / evidence |
+| --- | --- | --- | --- |
+| O.test_every_marked_call_site_family_is_read_from_the_source | 89543e80, merged fc42ca66 | STRUCTURAL | Register the missing early knowledge producer. Its omission shifted the zip against source calls, wrongly aligning the unmarked dispatcher families with _unseen_retreat_intercept_key and _town_kill_mob_key. Source-family extraction and the non-None assertion are unchanged. Evidence S1. |
+| O.test_the_decide_rungs_are_the_marked_calls_in_order | 89543e80, merged fc42ca66 | STRUCTURAL | Insert _home_errand_knowledge_key BEFORE _home_full_relief_key, matching actual _decide order; pin 77 calls, its first position, both knowledge reason prefixes, and TOWN_RANK. The complete AST order comparison and revert-proof swaps remain. Evidence S1. |
+| A.test_a1_walk_whose_claimed_distance_falls_is_not_retired | 89543e80, merged fc42ca66 | EXPECTED | Update the shared current-prefix boundary to the intended knowledge request at 1180. Keep every independent walk key, falling distance, resumed claim identity, full budget and non-retirement assertion. Evidence A1. |
+| A.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed | 89543e80, merged fc42ca66 | EXPECTED | Same boundary correction; retain the exact independent guardian/conquest path table without changes. Evidence A1. |
+| A.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave | 89543e80, merged fc42ca66 | EXPECTED | Same boundary correction; preserve the exact dump, safe-target switch and Forest recall pins required by the existing 2026-09-25 user decision. Evidence A1. |
+| A.test_current_missing_item_prefix_ends_with_zero_diagnostics | 89543e80, merged fc42ca66 | EXPECTED | Require 1181 rows through the declared divergence; add exact prerequisite facts, owner, Observe/knowledge typing, rung and execution declaration. Keep zero boundary diagnostics and no violation. Evidence A1. |
+| A.test_replay_reproduces_every_recorded_decision_before_the_stop | 89543e80, merged fc42ca66 | EXPECTED | Compare every pre-boundary key/reason exactly, retaining only the existing 1178 quantity-command equivalence; pin both old and new decisions at 1180. Consume no subsequent old effect board. Evidence A1. |
+| A.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off | 89543e80, merged fc42ca66 | EXPECTED | Same justified boundary; retain the exact empty bar-record assertion over the valid current prefix. Evidence A1. |
+| A.test_s3_new_code_replay_names_remaining_violations | 89543e80, merged fc42ca66 | EXPECTED | Same justified boundary; retain the exact remaining violation list, including sequence 1177 equipment-txn -> home-errand. Evidence A1. |
+| C.test_walled_prefix_reproduces_live_except_declared_boards | 89543e80, merged fc42ca66 | EXPECTED | Preserve the existing complete LIVE-KEY WALL through 1380, declare the knowledge change at 15, and pin the exact new 45-row divergence set plus the request's facts/owner/type/declaration. Supplier behavior and all later supplier pins remain. Evidence C1. |
+
+S1: structural registration
+
+src/hengbot/claim_ladder.py:227 now places the producer at the true first
+marked call site. It matches home-errand:request-knowledge: and
+home-errand:await-fresh-knowledge:, sharing the established town rank. The
+existing ordinary home-errand rung and one-ordinary-rung-per-family census
+remain intact. No ownership lint or test-fakery allowance was weakened.
+The complete 52-test ladder module passes, including rank, family, order,
+swap-revert, recorded neutrality and checkpoint checks.
+
+A1: first current town-approach divergence and authority
+
+First new changed board: index 1180, decision sequence 1178, turn 5363502.
+Recorded and base-replay decision: '5', equipment-transaction:atomic-deposit.
+New decision: '~9\x1b', home-errand:request-knowledge:combat-weapon.
+Board 1179 filed that errand after the deposit invalidated the catalogue.
+At 1180 it needs knowledge, with neither atomic deposit nor withdrawal
+pending, outside Home, HP 542/542, normal food, no adverse status and no
+physical hostile. The new claim is home-errand / Observe / knowledge, with
+home.knowledge.request -> catalogue-adopted -> home.knowledge.observe.
+The execution and claim agree; boundary diagnostics and violation are None.
+
+Authority: SOL-REPORT-homefull3.txt:20-22, fix C in 89543e80. It deliberately
+gives the filed errand's catalogue request and delayed wait a dedicated
+owner/declaration, including when ordinary Home allowance is spent. The
+production guard covers filed errands needing knowledge, including this
+combat-weapon request. Updating this expectation honors that fix.
+
+The replay still discovers and asserts its first divergence; its boundary
+is not a blind slice. It stops before consuming board 1181, which could not
+be claimed as an effect of the new scan. The earlier partial-page boundary
+at 1183 is documented as beyond this changed key. The existing independent
+90fca3b7 guardian checkpoints and the walk from 2026 still run unchanged.
+Evidence: validation/suitefix2/approach-divergences.json and all historical
+and final test_town_approach_retired_recorded logs. Frozen fixture hashes
+and existing replay walls were retained.
+
+C1: first changed supplier-prefix decision and existing wall
+
+First change versus the base replay: index/sequence 15, turn 6453654.
+Base replay: '5', home:weight-overload-deposit.
+Recorded: '5', equipment-transaction:travel-home:await-entry.
+New: '~9\x1b', home-errand:request-knowledge:identification.
+The already-filed identification errand has stale knowledge, no pending
+atomic operation, HP 731/731, normal food, no adverse status or physical
+hostile. It receives the same correctly typed/declarative knowledge owner
+as A1. Authority is the same fix C, SOL-REPORT-homefull3.txt:22.
+
+The first additionally divergent index is 19 (turn 6453654): live leaves
+Home with '\x1b', home:leave-after-one-operation, while the replay still
+requests '~9\x1b', home-errand:request-knowledge:identification. Its catalogue
+is still unfulfilled because the EXISTING LIVE-KEY WALL posted the old
+commands, rather than executing the new scan. Later boards are expressly
+historical inputs under that wall, never claimed as a new scan trajectory.
+
+The exact divergence set changes from 30 to 45 rows: add 19-25, 27-33,
+35-36 and 53; remove 51-52, which now reproduce live. The full 1381-row
+prefix is retained and every divergence index remains checked exactly.
+The separate supplier fix still first changes its key at 1388, routes to
+Temple, and stops before an unconfirmed historical effect board. The
+pre-fix supplier stop, constructed supplier variants and dungeon detection
+pins all pass unchanged. Evidence: cure-boundary-f7dfbcb1-divergences.json,
+cure-96c20795-divergences.json and the supplier module logs under
+validation/suitefix2/. No fixture or digest was changed.
+
+Historical module counts (sequential, no full suite)
+
+| Module | Tests at each revision | f7dfbcb1 | fc42ca66 | 96c20795 |
+| --- | ---: | --- | --- | --- |
+| test_ownership_s2b1_ladder | 52 | OK | 2 failing identities, 3 unittest failure records | same |
+| test_town_approach_retired_recorded | 10 | OK | 7 failing identities | same |
+| test_town_cure_supplier_recorded | 7 | OK | 1 failing identity | same |
+
+Each historical revision ran 69 tests. Base: all passed. Both later
+revisions: the same 10 failing identities, 11 unittest failure records
+(the family-extraction identity has two failed subtests), no errors/skips.
+The three known environment-error identities listed in the task were
+excluded from this triage, as instructed.
+
+Final module counts (one module/process at a time)
+
+| Module | Tests | Result |
+| --- | ---: | --- |
+| test_ownership_s2b1_ladder | 52 | OK |
+| test_town_approach_retired_recorded | 10 | OK |
+| test_town_cure_supplier_recorded | 7 | OK |
+| test_homefull3_recorded | 8 | OK |
+| test_home_full_relief_recorded | 4 | OK |
+| test_equipment_deposit_owner_recorded | 7 | OK |
+| test_ownership_s2b2_bar | 30 | OK |
+| test_execution_declaration | 27 | OK |
+| test_test_fakery_lint | 13 | OK |
+| test_policy_town | 589 | OK |
+
+Total: 10 modules, 747 passed, zero failures/errors/skips. test_policy_town
+ran alone, starting 2026-10-04 16:47:28 JST, after the 16:40 restriction.
+Runtime: C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe.
+Validation scripts and per-module logs/results are committed under scripts/
+and validation/suitefix2/. Historical archives/source copies and redundant
+orchestrator output are ignored. Two historical ladder stdout lines had
+trailing spaces normalized; their failure content is unchanged.
+git diff 96c20795 --check passed after that normalization.
+
+Commits (local only)
+
+f0c9f6de313face6b2f353290ac6678c3bb0bf05 - Register Home knowledge ownership and declare replay boundaries
+Includes the fix, strengthened expectation checks, sequential validation
+helpers, historical outcome/causality evidence and final validation logs.
+
+Following documentation commit: "Record suite-fix2 triage report".
+It contains this report; its resulting hash is printed alongside the report
+and is available with git log -1. No push was performed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

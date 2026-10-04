@@ -1,0 +1,15 @@
+test_detection_is_read_on_yeek_cave_one (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_detection_is_read_on_yeek_cave_one)
+The reported 'detect treasure read in town': it was not. ... ok
+test_pre_fix_rule_reproduces_the_live_stop (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_pre_fix_rule_reproduces_the_live_stop) ... ok
+test_recorded_stay_ends_without_an_owner (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_recorded_stay_ends_without_an_owner) ... ok
+test_visit_magic_page_supplies_mana_food_with_a_charged_device (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_visit_magic_page_supplies_mana_food_with_a_charged_device)
+DECLARED CONSTRUCTED board 1388 (review F1): MANA food parity. ... ok
+test_visit_page_of_unattempted_store_counts_an_unaffordable_ware (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_visit_page_of_unattempted_store_counts_an_unaffordable_ware)
+DECLARED CONSTRUCTED board 1388 (review F2): ledger parity. ... ok
+test_visit_page_without_the_ware_routes_to_the_stocked_temple (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_visit_page_without_the_ware_routes_to_the_stocked_temple) ... ok
+test_walled_prefix_reproduces_live_except_declared_boards (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 156.338s
+
+OK
