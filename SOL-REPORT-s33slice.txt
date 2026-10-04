@@ -1,0 +1,311 @@
+S3.3 minimal reservation / serializer / return-boundary slice
+C:\hengband\bot-client-s33slice
+Branch: s33-reservation-slice; task base: 5cd05e8e.
+
+2aa0a580 A: share decision-local item reservations across town sinks
+One decision-local item_reserved_by_other predicate composes existing equipment
+deposit/provenance, Home retry, atomic pending, disposal and reserve state.
+Identity rows and pending-signature sets are cached within a ContextVar decision
+and released in finally. No new persisted policy attributes. Retention remains
+a quantity view. An observed successful Home take releases pending withdrawal
+ownership for rearming; remaining deposits also protect non-equipment items.
+Foreign reservations are skipped in OFF and ON. OFF records shadow; ON stops
+with ownership:item-reserved:<sink>:<owner>. OFF predicate exceptions preserve
+historical behavior and record the exception type; ON emits a typed stop.
+Named sinks wired directly or through their existing shared leaf:
+  _store_sell_key; _home_deposit_key; _open_home_deposit_key;
+  _atomic_home_deposit_key; _atomic_home_withdraw_key; _verified_destroy_key;
+  _full_pack_destroy_key; _town_destroy_key; _town_overflow_destroy_key;
+  _equipment_wield; _weight_deposit_candidates; _home_full_relief_key sale guard.
+The test runner also ignores empty worker shards: the required single-module
+CLI invocation previously attempted a zero-worker pool.
+
+6cd18fb5 B: require reservation verdicts for item commands and pin producer adapters
+Candidate reservation rows are computed on first use and cached; unused
+Home/catalogue rows are not evaluated. Pending identity sets still build
+once per decision. Tests pin two evaluated identities across three lookups.
+item_command(kind, item, verdict: ReservationVerdict) is the common serializer.
+Verdicts bind both the physical item and sink. Pack/equipment/tag/page addresses
+retain their historical key spelling. Foreign verdicts cannot be serialized
+in either mode. OFF serializer exceptions shadow and use the saved historical
+serializer; ON serializer exceptions stop with a typed reason.
+Deposit, withdrawal, sale, destruction, wield, takeoff and inscriptions use it.
+Purchases share the p prefix and consequently also use the serializer.
+Merchant stock is external to possession reservations; Home stock uses the
+withdraw sink. Two reserve-scroll purchase regressions caught by Town tests
+were fixed without changing purchasing/supply policy.
+Need enumeration remains a query: reservation filtering applies in both
+modes, while query_skip shadow records cannot stop an unrelated legitimate
+owner handoff. A transient ContextVar query scope resets in finally; it adds
+no policy attributes. Home-route-release pins exposed and verify this fix.
+Equipment serialization runs after the existing mutation refusal barrier:
+test_cli exposed an ordering regression; it was fixed and its 223 tests passed.
+Legacy standalone mutation/destroy APIs use core verdict factories; production
+adapter calls must provide their decision verdict or snapshot and policy.
+The observed-input p-prefix comparison was rewritten equivalently as startswith
+and suffix equality; no sender, transport or receipt behavior was changed.
+Default-deny AST lint:
+  Raw item-prefix composition is permitted only inside item_command.
+  Only item_reservation.py constructs ReservationVerdict.
+  Serializer calls require a typed/core-factory verdict; overwritten verdicts,
+  missing/None/boolean verdicts, constructor and serializer aliases are checked.
+  Claims producers require a _town_producer_entry lambda or exact file:function
+  adapter pins. Pins bind call expression, guard ancestry and multiplicity.
+  The baseline manifest has 89 sites / 275 direct calls / 115 producer names.
+  Every pin must still exist; a broad site name cannot admit extra calls.
+  Required Home-relief, shop-core, town procurement/return and _choose_key
+  adapter sites are explicitly tested. No 434-witness classification was added.
+Mutations rejected: raw d+item.slot; serializer without verdict; new direct
+producer call; duplicate/moved pinned call; verdict construction outside core;
+f-string/format/percent/join/alias raw forms; overwritten serializer verdict.
+
+C: finish every decision through one enforcement and claim-recording exit
+choose_key has one public return and one final _record_decision_claim call.
+Both probes and all five early terminal None exits fall through the same
+decision block to _enforce_town_claim_result, then record and return its result.
+_town_final_declaration_stop remains the ON seam; no gateway class was added.
+The producer-entry calls and rung names remain AST-identical. Only the six
+choose_key adapter guard pins gained the enclosing single-pass block; call
+expressions and counts are unchanged. claim_ladder was not modified.
+Lint now requires exactly one non-None return, no earlier None bypass, final
+enforcement, and recording the same returned key. Extra-return/None-bypass/
+different-recorded-key mutants fail. Probe and reservation terminal tests
+verify final enforcement followed by exactly one recorded result.
+Low-level mutation verdict checks cover non-policy modules and aliases too.
+A pre-existing S2 exception-name mismatch at base 5cd05e8e was corrected:
+_in_store_emit had no reason assignment; _in_store_commit_operation already
+had that assignment. Only that existing exception host name changed; its
+reason stayed the same. No inventory-witness classification was expanded.
+
+Recorded and constructed pins:
+18:33:03: supplied recorded turn 9037482 sent dqdmdi4\rdh2\r\x1b.
+The test fixture preserves this board and reconstructs a session-planned
+deposit for its q item. Exact selector functions extracted from 5cd05e8e
+admit q / call the constructed Home-relief sale. Current functions skip q
+and do not sell it in OFF or ON; ON has a typed stop, OFF has shadow/skip.
+The non-equipment m staff also has a both-mode session-ownership pin:
+the exact base deposit-ownership predicate returns False and current returns
+True for the same constructed session and recorded staff.
+Important evidence limit: original missing identity 5a23aaab8fc64246 (move
+ddbf9934c61daf5a) is absent from this supplied board. Its q identity is
+c636eba034308e15 and m identity is 5eda4249d8fa5d00; names contain replacement
+characters. No checkpoint was supplied and contemporaneous telemetry lists
+transaction_actions=0. The foreign-existing-reservation mechanism is closed
+and pinned; the exact historical incident is not proven closed. An item
+reserved only by a future plan cannot be protected by this pure existing-state
+predicate. This is not an invented full replay or reconstruction of that ID.
+20:19:11: the supplied copy shows the wand count increasing 11->16 and charges
+8->13 after 5py5\r\x1b. The withdrawal succeeded physically. The selected
+signature name includes (5charges), and merging changes the name/charge state;
+the exact-signature count observer can miss it. The special move-identity
+observer is for Identify STAFF (tval 55), not this WAND (tval 65, sval 6).
+Inference: withdraw-failed is consistent with a merged-stack/name identity
+mismatch. This slice neither explains it as reservation theft nor closes it.
+20:21:38: store-unreachable is absent from the supplied named autorecover copy
+(decisions end at 20:19:16). Its exact cause cannot be verified from that copy;
+a reservation predicate alone does not establish or repair shop reachability.
+Backup logs were read only at the task-named backup directory.
+
+Testing: each selected module ran alone through test_parallel_runner.py with
+--workers 1 --modules <one module> --purity always and PYTHONPATH=src, using
+the Codex runtime Python. Only summary lines were read unless a test failed.
+test_policy_town ran as its own invocation after checking for other active
+test_policy_town workers. Dispatcher parents were distinguished from their
+actual single-module children. No full-suite invocation was used.
+A selection grepped sink/selector functions and changed ownership reasons.
+B selection grepped changed production and lint function names.
+C selection grepped the boundary/probe/enforcement functions and ownership
+reason/deferred-row strings below, rather than every incidental choose_key
+mention (which would turn this targeted run into a near-full suite).
+
+A selected modules and counts:
+  tests.test_buy_deposit_loop_recorded: 3 PASS
+  tests.test_classA_observed_input: 30 PASS
+  tests.test_classC2_departure_recorded: 10 PASS
+  tests.test_cli: 223 PASS
+  tests.test_declarations_r4: 8 PASS
+  tests.test_declarations_r7: 12 PASS
+  tests.test_destroy_procurement_guard: 7 PASS
+  tests.test_equipment_deposit_owner_recorded: 7 PASS
+  tests.test_execution_declaration: 27 PASS
+  tests.test_home_deposit_hang_recorded: 5 PASS
+  tests.test_home_full_await_knowledge_recorded: 2 PASS
+  tests.test_home_full_relief_recorded: 4 PASS
+  tests.test_home_light_alternation: 36 PASS
+  tests.test_home_visit: 20 PASS
+  tests.test_home_withdraw_deposit_alternation_recorded: 2 PASS
+  tests.test_home_withdraw_failed_stock_present_recorded: 6 PASS
+  tests.test_home_withdraw_moved_address: 8 PASS
+  tests.test_homefull3_recorded: 8 PASS
+  tests.test_identify_staff_live27_recorded: 2 PASS
+  tests.test_item_reservation: 10 PASS
+  tests.test_loot_triage: 14 PASS
+  tests.test_overweight_home_hold_recorded: 7 PASS
+  tests.test_ownership_s2b1_ladder: 52 PASS
+  tests.test_policy_equipment: 191 PASS
+  tests.test_policy_home: 171 PASS
+  tests.test_policy_quest: 334 PASS
+  tests.test_policy_shop: 273 PASS
+  tests.test_policy_supply: 205 PASS
+  tests.test_s33_batch_context: 8 PASS
+  tests.test_sale_key_lint: 2 PASS
+  tests.test_star_remove_curse_unused_recorded: 2 PASS
+  tests.test_torch_predicate_recorded: 3 PASS
+  tests.test_town_cure_supplier_recorded: 7 PASS
+  tests.test_town_home_candidate_stall_recorded: 5 PASS
+  tests.test_town_overflow_recorded: 8 PASS
+  tests.test_policy_town: 589 PASS
+A total: 36 modules, 2301 tests; failures 0, errors 0.
+
+B selected modules and counts:
+  tests.test_item_reservation: 13 PASS
+  tests.test_item_serialization: 8 PASS
+  tests.test_item_sink_lint: 11 PASS
+  tests.test_test_fakery_lint: 13 PASS
+  tests.test_home_route_release_recorded: 5 PASS
+  tests.test_policy_town: 589 PASS
+  tests.test_policy_home: 171 PASS
+  tests.test_execution_declaration: 27 PASS
+  tests.test_policy_shop: 273 PASS
+  tests.test_policy_supply: 205 PASS
+  tests.test_cli: 223 PASS
+  tests.test_equipment_mutation: 17 PASS
+  tests.test_classA_observed_input: 30 PASS
+  tests.test_classC2_departure_recorded: 10 PASS
+  tests.test_crossarea_live2: 3 PASS
+  tests.test_darkwalk: 25 PASS
+  tests.test_decision_viewer_tail: 2 PASS
+  tests.test_declarations_r4: 8 PASS
+  tests.test_declarations_r7: 12 PASS
+  tests.test_departure_unsatisfiable_weight_recorded: 8 PASS
+  tests.test_equipment_deposit_owner_recorded: 7 PASS
+  tests.test_equipment_in_home_stage1: 16 PASS
+  tests.test_equipment_swap_loop_incident: 17 PASS
+  tests.test_esp_threat_rest_recorded: 16 PASS
+  tests.test_golden_trajectory: 8 PASS
+  tests.test_home_deposit_hang_recorded: 5 PASS
+  tests.test_home_knowledge_scan: 38 PASS
+  tests.test_home_light_alternation: 36 PASS
+  tests.test_home_light_alternation_cli: 7 PASS
+  tests.test_home_visit: 20 PASS
+  tests.test_identify_staff_live27_recorded: 2 PASS
+  tests.test_identify_staff_swap_churn_recorded: 5 PASS
+  tests.test_input_executor: 72 PASS
+  tests.test_lethal_unseen_caster_recorded: 7 PASS
+  tests.test_live17_identify_observation: 2 PASS
+  tests.test_loot_triage: 14 PASS
+  tests.test_overweight_home_hold_recorded: 7 PASS
+  tests.test_owner_map: 6 PASS
+  tests.test_pickup_pile_prompt_recorded: 12 PASS
+  tests.test_policy: 57 PASS
+  tests.test_policy_combat: 302 PASS
+  tests.test_policy_equipment: 191 PASS
+  tests.test_policy_fundraising: 50 PASS
+  tests.test_policy_identification: 48 PASS
+  tests.test_policy_navigation: 129 PASS
+  tests.test_policy_quest: 334 PASS
+  tests.test_protocol3_client: 29 PASS
+  tests.test_protocol3_display_align: 13 PASS
+  tests.test_quest34_target_dead_recorded: 3 PASS
+  tests.test_s33_batch_context: 8 PASS
+  tests.test_shop_one_shot: 53 PASS
+  tests.test_store_reentry_recorded: 34 PASS
+  tests.test_town_latency_caches: 14 PASS
+  tests.test_town_overflow_recorded: 8 PASS
+  tests.test_unaffordable_claim_tour_recorded: 7 PASS
+  tests.test_warrior_optimization: 36 PASS
+  tests.test_ability_sources_incident: 8 PASS
+  tests.test_absorbing_states: 22 PASS
+  tests.test_calibration_checkpoint: 9 PASS
+  tests.test_calibration_crlf_dump_recorded: 2 PASS
+  tests.test_declarations_r3b: 14 PASS
+  tests.test_equipment_transaction_session: 15 PASS
+  tests.test_homefull3_recorded: 8 PASS
+  tests.test_optimizer_purity: 15 PASS
+  tests.test_ownership_s2a1_closure: 80 PASS
+  tests.test_policy_calibration: 12 PASS
+  tests.test_policy_observation: 57 PASS
+  tests.test_pure_decision_telemetry: 6 PASS
+  tests.test_quest_enter_approach_progress: 5 PASS
+  tests.test_recall_stockout_surplus_pins: 8 PASS
+  tests.test_s33_batch_reconciliation: 18 PASS
+  tests.test_shadow3_recorded: 8 PASS
+  tests.test_sale_key_lint: 2 PASS
+  tests.test_declarations_r10: 7 PASS
+  tests.test_declarations_r11: 10 PASS
+  tests.test_declarations_r12: 6 PASS
+  tests.test_fundraise_light_block: 6 PASS
+  tests.test_light_crossbow_preference: 16 PASS
+  tests.test_live11: 2 PASS
+  tests.test_live32_shop_leave: 5 PASS
+  tests.test_live8: 6 PASS
+  tests.test_no_safe_destination_recorded: 5 PASS
+  tests.test_ownership_s3_3_delegation_record: 14 PASS
+  tests.test_ownership_s3a_record: 105 PASS
+  tests.test_s33_shadow: 7 PASS
+  tests.test_town_arbiter: 30 PASS
+  tests.test_town_cure_supplier_recorded: 7 PASS
+B total: 87 modules, 3781 tests; failures 0, errors 0.
+Mechanical grep terms: _atomic_home_deposit_dispatch_key, _atomic_home_withdraw_dispatch_key, _batch_sale_entry, _batch_sell_key, _current_store_sale_candidates, _destroy_item_key, _enforce_town_claim_result, _equipment_takeoff, _equipment_transaction_home_key, _equipment_wield, _heavy_curse_inscription_key, _home_deposit_key, _home_full_relief_key, _in_store_selection, _open_home_deposit_key, _prepare, _shop_core, _town_need_candidates, _town_random_teleport_suppression_key, _verified_destroy_dispatch_key, _view, analyze_repository, analyze_source, checked_item_command, compile_observed_input, direct_calls, item_command, item_reserved_by_other, producer_names, request_takeoff, request_wield, reservation_query, reservation_verdict, reserved_item_command, standalone_verdict
+
+C selected modules and counts:
+  tests.test_item_sink_lint: 15 PASS
+  tests.test_decision_return_boundary: 3 PASS
+  tests.test_catcycle: 4 PASS
+  tests.test_cli: 223 PASS
+  tests.test_crossarea_fundraising: 13 PASS
+  tests.test_declarations_r10: 7 PASS
+  tests.test_declarations_r11: 10 PASS
+  tests.test_declarations_r12: 6 PASS
+  tests.test_declarations_r3b: 14 PASS
+  tests.test_declarations_r7: 12 PASS
+  tests.test_execution_declaration: 27 PASS
+  tests.test_homefull3_recorded: 8 PASS
+  tests.test_item_reservation: 13 PASS
+  tests.test_item_serialization: 8 PASS
+  tests.test_live10: 2 PASS
+  tests.test_live11: 2 PASS
+  tests.test_live22_bounty: 12 PASS
+  tests.test_live23_home_cycle: 7 PASS
+  tests.test_live32_shop_leave: 5 PASS
+  tests.test_live37_home_scan: 5 PASS
+  tests.test_live8: 6 PASS
+  tests.test_ownership_claims: 24 PASS
+  tests.test_ownership_s2a1_closure: 80 PASS
+  tests.test_ownership_s2a_classification: 16 PASS
+  tests.test_ownership_s2b1_ladder: 52 PASS
+  tests.test_ownership_s2b2_bar: 30 PASS
+  tests.test_ownership_s3_3_delegation_record: 14 PASS
+  tests.test_ownership_s3_3_live_short_route: 2 PASS
+  tests.test_ownership_s3a_record: 105 PASS
+  tests.test_s33_batch_admission: 9 PASS
+  tests.test_s33_batch_context: 8 PASS
+  tests.test_s33_phase2_idle: 2 PASS
+  tests.test_s33_shadow: 7 PASS
+  tests.test_s33_shadow_recorded: 5 PASS
+  tests.test_s33_shadow_report: 2 PASS
+  tests.test_s3_live_report: 1 PASS
+  tests.test_shadow3_recorded: 8 PASS
+  tests.test_torch_predicate_recorded: 3 PASS
+  tests.test_policy_town: 589 PASS
+  tests.test_sale_key_lint: 2 PASS
+  tests.test_test_fakery_lint: 13 PASS
+  tests.test_home_visit: 20 PASS
+  tests.test_s33_batch_replay: 2 PASS
+  tests.test_town_overflow_recorded: 8 PASS
+  tests.test_home_full_relief_recorded: 4 PASS
+  tests.test_home_route_release_recorded: 5 PASS
+C total: 46 modules, 1413 tests; failures 0, errors 0.
+Mechanical grep terms: _record_decision_claim, _enforce_town_claim_result, _town_final_declaration_stop, _skill_exp_request_key, _posting_refusal_probe, _decision_errand_deferred, ownership:gate-missing, ownership:declaration-, ownership:holder-silent, ownership:item-reserved, analyze_source, analyze_repository, _town_producer_entry, home:atomic-deposit-await-confirmation
+
+Final lint: zero violations. git diff --check passed.
+Open risks: source lint is not a general Python data-flow proof; dynamically
+constructed/reflected code requires review. Exact historical reservation
+state is missing; no live run/checkpoint replay was authorized or performed.
+Identical stacks matching a foreign reservation are skipped with a typed stop
+and ambiguous shadow flag; stack lineage and unrelated charge/name merge
+observation are intentionally outside this slice. Broader tests were not run.
+No push. No game/BOT start or stop. No writes to other worktrees or to
+C:\hengband\bot-client\jsonlog. Mandatory depth/equipment rules unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

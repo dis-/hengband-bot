@@ -98,12 +98,12 @@
     "self._return_to_town_key(snapshot, self._strategic_hostiles(snapshot)) @ If:body:len(snapshot.inventory) >= PACK_CAPACITY": 1
   },
   "policy.py:choose_key": {
-    "self._forbid_wait_while_damaged(snapshot, key) @ ": 1,
-    "self._look_probe_key(snapshot) @ If:body:refusal_probe is not None / If:body:replace(current_progress_core, decision_sequence=0) == replace(refusal_core, decision_sequence=0)": 1,
     "self._observe_home_atomic_deposit_outside(snapshot) @ ": 1,
-    "self._refuse_no_progress_cycle(snapshot, key) @ If:orelse:holder_for_key is not None": 1,
-    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:in_town and (not town_kill_owns_visible_target) and (not town_order_owns_step4) and (not held_claim_decision) and (not posted_shop_observation_wait) and (not arbiter.preview_may_select(self.last_reason, vector, retirement_key=current_retirement_key)) / If:orelse:self._route_unavailable_terminal_candidate(rejected_candidate, key) / If:body:step is not None / If:orelse:transaction_owns_relocation and foreign_relocation / If:body:not transaction_owns_relocation": 1,
-    "self._skill_exp_request_key(snapshot) @ ": 1
+    "self._skill_exp_request_key(snapshot) @ For:(None,)": 1,
+    "self._forbid_wait_while_damaged(snapshot, key) @ For:(None,)": 1,
+    "self._refuse_no_progress_cycle(snapshot, key) @ For:(None,) / If:orelse:holder_for_key is not None": 1,
+    "self._look_probe_key(snapshot) @ For:(None,) / If:body:refusal_probe is not None / If:body:replace(current_progress_core, decision_sequence=0) == replace(refusal_core, decision_sequence=0)": 1,
+    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ For:(None,) / If:body:in_town and (not town_kill_owns_visible_target) and (not town_order_owns_step4) and (not held_claim_decision) and (not posted_shop_observation_wait) and (not arbiter.preview_may_select(self.last_reason, vector, retirement_key=current_retirement_key)) / If:orelse:self._route_unavailable_terminal_candidate(rejected_candidate, key) / If:body:step is not None / If:orelse:transaction_owns_relocation and foreign_relocation / If:body:not transaction_owns_relocation": 1
   },
   "policy_combat.py:_breeder_breakthrough_key": {
     "self._breeder_breakthrough_escape_key(snapshot) @ ": 1,

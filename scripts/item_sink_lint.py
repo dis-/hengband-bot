@@ -111,14 +111,15 @@ def _valid_verdict(function, verdict):
 
 
 def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
-                   check_exit=False):
+                   check_exit=True):
     tree = ast.parse(source)
     parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
     findings = []
     names = (producer_names() if names is None else names) | _producers(tree)
     adapters = {} if adapters is None else adapters
     protected_names = {'ReservationVerdict', 'standalone_verdict', 'item_command',
-                       'checked_item_command', '_historical_item_command'}
+                       'checked_item_command', '_historical_item_command',
+                       'request_wield', 'request_takeoff', '_destroy_item_key'}
     call_aliases = {}
     for assignment in ast.walk(tree):
         if isinstance(assignment, ast.Assign) and _name(assignment.value) in protected_names:
@@ -162,7 +163,7 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
                 if (snapshot is None or isinstance(snapshot, ast.Constant) and snapshot.value is None
                         or policy is None or isinstance(policy, ast.Constant) and policy.value is None):
                     findings.append(f'line {node.lineno}: destruction adapter requires the decision snapshot and policy')
-            if name in {'request_wield', 'request_takeoff'} and filename.startswith('policy'):
+            if name in {'request_wield', 'request_takeoff'}:
                 verdict = next((keyword.value for keyword in node.keywords if keyword.arg == 'verdict'), None)
                 if not _valid_verdict(function, verdict):
                     findings.append(f'line {node.lineno}: equipment adapter requires a reservation verdict')
@@ -219,15 +220,23 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
                         and not (isinstance(child.value, ast.Constant) and child.value.value is None)]
             if len(non_none) != 1:
                 findings.append(f'line {node.lineno}: choose_key must have exactly one non-None return site')
-            elif (len(node.body) < 2 or not isinstance(node.body[-1], ast.Return)
+            elif (len(returns) != 1 or len(node.body) < 3
+                  or not isinstance(node.body[-1], ast.Return)
                   or not isinstance(node.body[-2], ast.Expr)
                   or not isinstance(node.body[-2].value, ast.Call)
-                  or _name(node.body[-2].value.func) != '_record_decision_claim'):
-                findings.append(f'line {node.lineno}: choose_key exit must record its decision claim')
+                  or _name(node.body[-2].value.func) != '_record_decision_claim'
+                  or not node.body[-2].value.args
+                  or ast.dump(node.body[-2].value.args[-1]) != ast.dump(non_none[0].value)
+                  or not isinstance(node.body[-3], ast.Assign)
+                  or len(node.body[-3].targets) != 1
+                  or ast.unparse(node.body[-3].targets[0]) != ast.unparse(non_none[0].value)
+                  or not isinstance(node.body[-3].value, ast.Call)
+                  or _name(node.body[-3].value.func) != '_enforce_town_claim_result'):
+                findings.append(f'line {node.lineno}: choose_key exit must enforce and record its final decision claim')
     return sorted(set(findings))
 
 
-def analyze_repository(*, check_exit=False):
+def analyze_repository(*, check_exit=True):
     names = producer_names()
     adapters = json.loads(ADAPTER_PATH.read_text(encoding='utf8'))
     findings = []

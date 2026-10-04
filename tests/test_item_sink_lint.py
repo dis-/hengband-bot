@@ -116,3 +116,41 @@ def choose_key(self, snapshot):
 '''
         findings = analyze_source(source, 'policy.py', names=set(), check_exit=True)
         self.assertTrue(any('exactly one non-None return' in finding for finding in findings))
+
+    def test_none_exit_cannot_bypass_final_record(self):
+        source = """
+def choose_key(self, snapshot):
+    if stop:
+        return None
+    key = self._enforce_town_claim_result(snapshot, key)
+    self._record_decision_claim(snapshot, key)
+    return key
+"""
+        self.assertTrue(analyze_source(source, 'policy.py', names=set()))
+
+    def test_returned_key_must_be_the_recorded_final_key(self):
+        source = """
+def choose_key(self, snapshot):
+    key = self._enforce_town_claim_result(snapshot, key)
+    self._record_decision_claim(snapshot, other)
+    return key
+"""
+        self.assertTrue(analyze_source(source, 'policy.py', names=set()))
+
+    def test_enforcement_result_cannot_be_discarded_at_exit(self):
+        source = """
+def choose_key(self, snapshot):
+    discarded = self._enforce_town_claim_result(snapshot, key)
+    self._record_decision_claim(snapshot, key)
+    return key
+"""
+        self.assertTrue(analyze_source(source, 'policy.py', names=set()))
+
+    def test_low_level_adapter_cannot_bypass_verdict_in_a_new_module(self):
+        for source in (
+            'def selector(executor, snapshot, item):\n return executor.request_wield(snapshot, "goal", item, "main_hand", {})',
+            'def selector(executor, snapshot):\n return executor.request_takeoff(snapshot, "goal", "a")',
+            'def selector(executor, snapshot, item):\n mutate = executor.request_wield\n return mutate(snapshot, "goal", item, "main_hand", {})',
+            'def selector(policy, item):\n destroy = policy._destroy_item_key\n return destroy(item)',
+        ):
+            self.assertTrue(analyze_source(source, 'town_new_selector.py', names=set()))

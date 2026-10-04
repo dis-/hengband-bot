@@ -87,6 +87,7 @@ class ItemReservationTest(unittest.TestCase):
         for enforced in (False, True):
             policy, board, target = self.scene(enforced, 'm')
             self.assertFalse(target.is_equipment)
+            self.assertFalse(self.baseline('_equipment_transaction_deposit_owns_item')(policy, target))
             self.assertTrue(policy._equipment_transaction_deposit_owns_item(target))
             self.assertFalse(item_available(policy, board, target, 'home-visit', 'deposit'))
             self.assertEqual(item_reserved_by_other(policy, board, target,
