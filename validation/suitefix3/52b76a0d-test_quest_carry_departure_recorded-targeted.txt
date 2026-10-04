@@ -1,0 +1,21 @@
+test_recorded_stockout_releases_ordinary_departure_at_blocked_board (test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_recorded_stockout_releases_ordinary_departure_at_blocked_board) ... FAIL
+
+======================================================================
+FAIL: test_recorded_stockout_releases_ordinary_departure_at_blocked_board (test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_recorded_stockout_releases_ordinary_departure_at_blocked_board)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_quest_carry_departure_recorded.py", line 113, in test_recorded_stockout_releases_ordinary_departure_at_blocked_board
+    self.assertEqual(replay, ("rca", "town:recall-to-angband"))
+AssertionError: Tuples differ: ('1', 'explore') != ('rca', 'town:recall-to-angband')
+
+First differing element 0:
+'1'
+'rca'
+
+- ('1', 'explore')
++ ('rca', 'town:recall-to-angband')
+
+----------------------------------------------------------------------
+Ran 1 test in 6.144s
+
+FAILED (failures=1)

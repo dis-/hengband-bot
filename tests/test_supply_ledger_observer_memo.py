@@ -200,10 +200,12 @@ class SupplyLedgerObserverMemoTest(unittest.TestCase):
                 restored = policy._supply_ledger(snapshot, 3)
                 self.assertEqual(computed, 2)
                 policy._equipment_optimization_last_depth = 30
-                policy._supply_ledger(snapshot, 3)
+                depth_changed = policy._supply_ledger(snapshot, 3)
                 policy._deferred_home_items.add(("deferred", 1, 1))
-                policy._supply_ledger(snapshot, 3)
-            self.assertEqual(computed, 4)
+                # Home devices no longer contribute to carried food counts;
+                # deferral therefore is not a ledger input after f1974c97.
+                self.assertEqual(policy._supply_ledger(snapshot, 3), depth_changed)
+            self.assertEqual(computed, 3)
             self.assertEqual(mined["recall"].required_return, 0)
             self.assertEqual(restored, plain)
 

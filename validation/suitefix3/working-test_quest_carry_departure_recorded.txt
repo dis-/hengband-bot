@@ -1,0 +1,9 @@
+test_fixed_quest_entry_refuses_recorded_ninety_five_bolts (test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_fixed_quest_entry_refuses_recorded_ninety_five_bolts) ... ok
+test_fixture_is_the_byte_faithful_recorded_window (test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_fixture_is_the_byte_faithful_recorded_window) ... ok
+test_recorded_stockout_releases_ordinary_departure_at_blocked_board (test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_recorded_stockout_releases_ordinary_departure_at_blocked_board) ... ok
+test_satisfiable_shortfall_still_routes_to_weapon_smith (test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_satisfiable_shortfall_still_routes_to_weapon_smith) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 15.268s
+
+OK

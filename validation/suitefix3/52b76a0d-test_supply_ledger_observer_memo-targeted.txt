@@ -1,0 +1,17 @@
+test_memo_inputs_cover_every_ledger_input_the_capture_writes (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_inputs_cover_every_ledger_input_the_capture_writes)
+Static scan: what the facts evaluators can write vs what the ledger ... FAIL
+
+======================================================================
+FAIL: test_memo_inputs_cover_every_ledger_input_the_capture_writes (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_inputs_cover_every_ledger_input_the_capture_writes)
+Static scan: what the facts evaluators can write vs what the ledger
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_supply_ledger_observer_memo.py", line 262, in test_memo_inputs_cover_every_ledger_input_the_capture_writes
+    self.assertEqual((ledger_reads & facts_writes) - pure_memos, keyed)
+AssertionError: Items in the second set but not the first:
+'_deferred_home_items'
+
+----------------------------------------------------------------------
+Ran 1 test in 2.785s
+
+FAILED (failures=1)

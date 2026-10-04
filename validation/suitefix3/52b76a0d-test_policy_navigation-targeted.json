@@ -1,0 +1,16 @@
+{
+  "revision": "52b76a0d",
+  "module": "test_policy_navigation",
+  "tests": 3,
+  "failures": 3,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 0.015,
+  "identities": {
+    "test_policy_navigation.DescendTest.test_bare_downstairs_needs_no_confirmation": "FAIL",
+    "test_policy_navigation.DescendTest.test_confirms_entry_on_a_dungeon_entrance": "FAIL",
+    "test_policy_navigation.DescendTest.test_descends_when_standing_on_downstairs_and_healthy": "FAIL"
+  }
+}

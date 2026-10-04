@@ -1,0 +1,18 @@
+{
+  "revision": "working",
+  "module": "test_recall_read_cancel_pingpong_recorded",
+  "tests": 5,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 43.078,
+  "identities": {
+    "test_recall_read_cancel_pingpong_recorded.RecallReadCancelPingPongRecordedTest.test_r1_cancel_boards_keep_the_armed_recall": "PASS",
+    "test_recall_read_cancel_pingpong_recorded.RecallReadCancelPingPongRecordedTest.test_recorded_pairs_are_a_read_then_its_unready_cancel": "PASS",
+    "test_recall_read_cancel_pingpong_recorded.RecallReadCancelPingPongRecordedTest.test_replay_reproduces_each_recorded_read": "PASS",
+    "test_recall_read_cancel_pingpong_recorded.RecallReadCancelPingPongRecordedTest.test_the_failed_leaf_on_each_cancel_board_is_the_pack_certificate": "PASS",
+    "test_recall_read_cancel_pingpong_recorded.RecallReadCancelPingPongRecordedTest.test_the_read_alone_changes_the_signed_pack": "PASS"
+  }
+}

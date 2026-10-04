@@ -1,0 +1,9 @@
+test_constructed_visit_reads_on_the_ready_board (test_recall_read_cancel_pingpong.RecallReadCancelClassTest.test_constructed_visit_reads_on_the_ready_board) ... ok
+test_r2_no_read_cancel_read_for_any_unmet_departure_leaf (test_recall_read_cancel_pingpong.RecallReadCancelClassTest.test_r2_no_read_cancel_read_for_any_unmet_departure_leaf) ... ok
+test_r2_the_read_alone_never_arms_the_cancel (test_recall_read_cancel_pingpong.RecallReadCancelClassTest.test_r2_the_read_alone_never_arms_the_cancel)
+Incident shape: 19 items, the four-slot certificate, nothing else. ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.080s
+
+OK

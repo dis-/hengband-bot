@@ -1,0 +1,26 @@
+{
+  "revision": "working",
+  "module": "test_manafood_departure_recorded",
+  "tests": 13,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 0.469,
+  "identities": {
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_armed_town_recall_is_not_cancelled_for_food_alone": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_first_run_food_waiver_never_waives_recall_stock": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_first_run_waiver_requires_exhausted_home_and_shop": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_identify_reserve_is_preserved": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_no_return_route_retains_terminal": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_recorded_departure_home_stock_cannot_satisfy_food_leaf": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_recorded_recovery_public_decision_after_observed_skills": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_recorded_recovery_reads_recall": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_recovery_continues_countdown_then_absorbs_found_charge": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_recovery_without_recall_ascends": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_repetition_recall_requires_carried_food": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_suppressed_walk_in_still_requires_carried_food": "PASS",
+    "test_manafood_departure_recorded.ManafoodRecordedTest.test_withdrawn_charges_satisfy_departure": "PASS"
+  }
+}

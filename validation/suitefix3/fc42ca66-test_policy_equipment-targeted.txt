@@ -1,0 +1,9 @@
+test_mining_walk_in_ignores_prior_floor_descent_cooldown (test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown) ... ok
+test_cancels_deep_recall_when_loadout_is_not_confirmed (test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_cancels_deep_recall_when_loadout_is_not_confirmed) ... ok
+test_active_recall_is_not_cancelled_only_because_scroll_was_consumed (test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_only_because_scroll_was_consumed) ... ok
+test_active_recall_is_not_cancelled_to_strand_uncompared_weapon (test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_to_strand_uncompared_weapon) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.023s
+
+OK

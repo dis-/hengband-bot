@@ -1,0 +1,14 @@
+test_exhausted_partial_kit_resolves_to_fundraising_fallback (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback) ... FAIL
+
+======================================================================
+FAIL: test_exhausted_partial_kit_resolves_to_fundraising_fallback (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_newchar_town_wander_recorded.py", line 78, in test_exhausted_partial_kit_resolves_to_fundraising_fallback
+    self.assertTrue(policy._fundraising_departure_ready(snapshot))
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 1 test in 0.209s
+
+FAILED (failures=1)

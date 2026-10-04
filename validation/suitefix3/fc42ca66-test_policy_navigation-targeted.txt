@@ -1,0 +1,8 @@
+test_bare_downstairs_needs_no_confirmation (test_policy_navigation.DescendTest.test_bare_downstairs_needs_no_confirmation) ... ok
+test_confirms_entry_on_a_dungeon_entrance (test_policy_navigation.DescendTest.test_confirms_entry_on_a_dungeon_entrance) ... ok
+test_descends_when_standing_on_downstairs_and_healthy (test_policy_navigation.DescendTest.test_descends_when_standing_on_downstairs_and_healthy) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.019s
+
+OK

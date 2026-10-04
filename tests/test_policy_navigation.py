@@ -1359,7 +1359,8 @@ class DescendTest(unittest.TestCase):
 
     def test_descends_when_standing_on_downstairs_and_healthy(self):
         grids = {Position(10, 10): grid(10, 10, downstairs=True)}
-        snap = Snapshot(player(10, 10, hp=20, max_hp=20), grids, [])
+        # A dungeon stair is not a town departure and needs no town supplies.
+        snap = Snapshot(player(10, 10, hp=20, max_hp=20), grids, [], floor_key=(1, 1, 0))
         self.assertEqual(HengbotPolicy().choose_key(snap), ">")
 
     def test_descends_when_standing_on_expired_downstairs(self):
@@ -1402,7 +1403,8 @@ class DescendTest(unittest.TestCase):
             grids,
             [],
             inventory=[
-                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3)
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3),
+                item("f", TVAL_FOOD, 35, count=5),
             ],
         )
         self.assertTrue(policy._equipment_departure_ready(snapshot))
@@ -1412,7 +1414,8 @@ class DescendTest(unittest.TestCase):
 
     def test_bare_downstairs_needs_no_confirmation(self):
         grids = {Position(10, 10): grid(10, 10, downstairs=True)}
-        self.assertEqual(HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [])), ">")
+        snapshot = Snapshot(player(10, 10), grids, [], floor_key=(1, 1, 0))
+        self.assertEqual(HengbotPolicy().choose_key(snapshot), ">")
 
     def test_seeks_a_dungeon_entrance(self):
         grids = {

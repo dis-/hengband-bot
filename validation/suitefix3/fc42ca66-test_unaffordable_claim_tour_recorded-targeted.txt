@@ -1,0 +1,9 @@
+test_root_cause_claims_on_the_post_purchase_board (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board) ... ok
+test_u1_after_the_healing_purchase_the_bot_departs (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u1_after_the_healing_purchase_the_bot_departs) ... ok
+test_u2_affordable_optional_purchases_still_happen (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u2_affordable_optional_purchases_still_happen) ... ok
+test_u3_required_supply_claims_are_not_released (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u3_required_supply_claims_are_not_released) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 610.127s
+
+OK

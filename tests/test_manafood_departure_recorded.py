@@ -165,15 +165,16 @@ class ManafoodRecordedTest(unittest.TestCase):
         self.assertLess(policy._count_mana_food_uses(board), 15)
         self.assertFalse(policy._food_ready(board))
 
-    def test_armed_town_recall_does_not_bypass_carried_food(self):
+    def test_armed_town_recall_is_not_cancelled_for_food_alone(self):
         policy, board = self.departure()
         board = replace(board, player=replace(board.player, recalling=True),
                         recall_dungeon_id=3)
         policy._startup_town_recall = True
         policy._pending_recall_dungeon_id = 3
-        self.assertIn('food-shortage', policy._recall_unready_blockers(board, 3))
-        self.assertIsNotNone(policy._town_cancel_unsafe_recall_key(board))
-        self.assertEqual(policy.last_reason, 'town:cancel-unready-recall')
+        # The food gate still refuses a fresh departure on the same board.
+        self.assertFalse(policy._recall_town_departure_conjuncts(board)['food_ready'])
+        self.assertNotIn('food-shortage', policy._recall_unready_blockers(board, 3))
+        self.assertIsNone(policy._town_cancel_unsafe_recall_key(board))
 
     def test_repetition_recall_requires_carried_food(self):
         policy, board = self.departure()

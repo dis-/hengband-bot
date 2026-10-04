@@ -1,0 +1,41 @@
+test_bare_downstairs_needs_no_confirmation (test_policy_navigation.DescendTest.test_bare_downstairs_needs_no_confirmation) ... FAIL
+test_confirms_entry_on_a_dungeon_entrance (test_policy_navigation.DescendTest.test_confirms_entry_on_a_dungeon_entrance) ... FAIL
+test_descends_when_standing_on_downstairs_and_healthy (test_policy_navigation.DescendTest.test_descends_when_standing_on_downstairs_and_healthy) ... FAIL
+
+======================================================================
+FAIL: test_bare_downstairs_needs_no_confirmation (test_policy_navigation.DescendTest.test_bare_downstairs_needs_no_confirmation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_navigation.py", line 1415, in test_bare_downstairs_needs_no_confirmation
+    self.assertEqual(HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [])), ">")
+AssertionError: '8' != '>'
+- 8
++ >
+
+
+======================================================================
+FAIL: test_confirms_entry_on_a_dungeon_entrance (test_policy_navigation.DescendTest.test_confirms_entry_on_a_dungeon_entrance)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_navigation.py", line 1409, in test_confirms_entry_on_a_dungeon_entrance
+    self.assertEqual(
+AssertionError: '8' != '>\ry'
+- 8
++ >+ y
+
+
+======================================================================
+FAIL: test_descends_when_standing_on_downstairs_and_healthy (test_policy_navigation.DescendTest.test_descends_when_standing_on_downstairs_and_healthy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_navigation.py", line 1363, in test_descends_when_standing_on_downstairs_and_healthy
+    self.assertEqual(HengbotPolicy().choose_key(snap), ">")
+AssertionError: '8' != '>'
+- 8
++ >
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.023s
+
+FAILED (failures=3)

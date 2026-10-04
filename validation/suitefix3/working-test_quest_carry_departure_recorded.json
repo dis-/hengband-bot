@@ -1,0 +1,17 @@
+{
+  "revision": "working",
+  "module": "test_quest_carry_departure_recorded",
+  "tests": 4,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 15.266,
+  "identities": {
+    "test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_fixed_quest_entry_refuses_recorded_ninety_five_bolts": "PASS",
+    "test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_fixture_is_the_byte_faithful_recorded_window": "PASS",
+    "test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_recorded_stockout_releases_ordinary_departure_at_blocked_board": "PASS",
+    "test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_satisfiable_shortfall_still_routes_to_weapon_smith": "PASS"
+  }
+}

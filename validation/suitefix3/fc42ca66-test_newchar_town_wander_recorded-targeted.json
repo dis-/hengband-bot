@@ -1,0 +1,12 @@
+{
+  "revision": "fc42ca66",
+  "module": "test_newchar_town_wander_recorded",
+  "tests": 1,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "elapsed": 0.203,
+  "identities": {
+    "test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback": "PASS"
+  }
+}

@@ -1410,6 +1410,9 @@ class EntranceTravelTest(unittest.TestCase):
             },
             inventory=[
                 item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+                # A repeated income run carries food and its return ticket.
+                item("f", TVAL_FOOD, 35, count=5),
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3),
                 item(
                     "t",
                     TVAL_SCROLL,

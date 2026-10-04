@@ -1,0 +1,164 @@
+{
+  "base": "504a7c5e",
+  "implementation_commit": "1876b8d6718743048bdc7dedab65b82165e208b1",
+  "branch": "suite-fix3-1004",
+  "python": "Codex runtime Python 3.12.14",
+  "full_suite": false,
+  "serial": true,
+  "final_tests": 981,
+  "modules": [
+    {
+      "revision": "working",
+      "module": "test_unaffordable_claim_tour_recorded",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 662.485
+    },
+    {
+      "revision": "working",
+      "module": "test_policy_equipment",
+      "tests": 191,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 17.172
+    },
+    {
+      "revision": "working",
+      "module": "test_policy_navigation",
+      "tests": 129,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 7.593
+    },
+    {
+      "revision": "working",
+      "module": "test_supply_ledger_observer_memo",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 32.812
+    },
+    {
+      "revision": "working",
+      "module": "test_quest_carry_departure_recorded",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 15.266
+    },
+    {
+      "revision": "working",
+      "module": "test_newchar_town_wander_recorded",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 3.047
+    },
+    {
+      "revision": "working",
+      "module": "test_manafood_departure_recorded",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 0.469
+    },
+    {
+      "revision": "working",
+      "module": "test_crossarea_fundraising",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 11.0
+    },
+    {
+      "revision": "working",
+      "module": "test_recall_read_cancel_pingpong",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 0.079
+    },
+    {
+      "revision": "working",
+      "module": "test_recall_read_cancel_pingpong_recorded",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 43.078
+    },
+    {
+      "revision": "working",
+      "module": "test_recall_readiness_contradiction",
+      "started_at": "2026-10-04T19:42:52+0900",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 0.016
+    },
+    {
+      "revision": "working",
+      "module": "test_test_fakery_lint",
+      "started_at": "2026-10-04T19:42:52+0900",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 78.594
+    },
+    {
+      "revision": "working",
+      "module": "test_policy_town",
+      "started_at": "2026-10-04T19:44:31+0900",
+      "tests": 589,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expected_failures": 0,
+      "unexpected_successes": 0,
+      "elapsed": 274.265
+    }
+  ],
+  "classifications": {
+    "EXPECTED": 10,
+    "STRUCTURAL": 1,
+    "REGRESSION": 3
+  },
+  "historical_identity_transition": "fc42ca66 PASS -> 52b76a0d FAIL -> implementation PASS",
+  "historical_targeted_methods_per_revision": 14
+}

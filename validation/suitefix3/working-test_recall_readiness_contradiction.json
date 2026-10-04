@@ -1,0 +1,18 @@
+{
+  "revision": "working",
+  "module": "test_recall_readiness_contradiction",
+  "started_at": "2026-10-04T19:42:52+0900",
+  "tests": 4,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 0.016,
+  "identities": {
+    "test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p4a_four_slot_certificate_has_no_pack_blocker": "PASS",
+    "test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p4b_future_contradiction_stops_before_read": "PASS",
+    "test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p4c_contradiction_terminal_is_registered_with_exact_banner": "PASS",
+    "test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p6_self_restore_refusal_preserves_shortage": "PASS"
+  }
+}

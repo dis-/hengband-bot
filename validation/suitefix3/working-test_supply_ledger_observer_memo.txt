@@ -1,0 +1,11 @@
+test_a_capture_write_to_a_ledger_input_is_a_miss (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_a_capture_write_to_a_ledger_input_is_a_miss) ... ok
+test_memo_inputs_cover_every_ledger_input_the_capture_writes (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_inputs_cover_every_ledger_input_the_capture_writes)
+Static scan: what the facts evaluators can write vs what the ledger ... ok
+test_memo_is_dropped_when_the_capture_ends (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_is_dropped_when_the_capture_ends) ... ok
+test_memo_keys_on_board_identity_and_depth (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_keys_on_board_identity_and_depth) ... ok
+test_memoized_facts_equal_unmemoized_facts_on_recorded_boards (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memoized_facts_equal_unmemoized_facts_on_recorded_boards) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 32.811s
+
+OK

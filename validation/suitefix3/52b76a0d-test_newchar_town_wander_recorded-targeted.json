@@ -1,0 +1,14 @@
+{
+  "revision": "52b76a0d",
+  "module": "test_newchar_town_wander_recorded",
+  "tests": 1,
+  "failures": 1,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 0.218,
+  "identities": {
+    "test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback": "FAIL"
+  }
+}

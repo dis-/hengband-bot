@@ -1,0 +1,12 @@
+{
+  "revision": "fc42ca66",
+  "module": "test_quest_carry_departure_recorded",
+  "tests": 1,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "elapsed": 6.438,
+  "identities": {
+    "test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_recorded_stockout_releases_ordinary_departure_at_blocked_board": "PASS"
+  }
+}

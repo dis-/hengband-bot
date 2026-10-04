@@ -1,0 +1,18 @@
+{
+  "revision": "working",
+  "module": "test_supply_ledger_observer_memo",
+  "tests": 5,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 32.812,
+  "identities": {
+    "test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_a_capture_write_to_a_ledger_input_is_a_miss": "PASS",
+    "test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_inputs_cover_every_ledger_input_the_capture_writes": "PASS",
+    "test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_is_dropped_when_the_capture_ends": "PASS",
+    "test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_keys_on_board_identity_and_depth": "PASS",
+    "test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memoized_facts_equal_unmemoized_facts_on_recorded_boards": "PASS"
+  }
+}

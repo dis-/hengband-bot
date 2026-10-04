@@ -1,0 +1,15 @@
+{
+  "revision": "fc42ca66",
+  "module": "test_unaffordable_claim_tour_recorded",
+  "tests": 4,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "elapsed": 610.125,
+  "identities": {
+    "test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board": "PASS",
+    "test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u1_after_the_healing_purchase_the_bot_departs": "PASS",
+    "test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u2_affordable_optional_purchases_still_happen": "PASS",
+    "test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u3_required_supply_claims_are_not_released": "PASS"
+  }
+}

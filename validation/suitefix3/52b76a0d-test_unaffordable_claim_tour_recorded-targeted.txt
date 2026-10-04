@@ -1,0 +1,63 @@
+test_root_cause_claims_on_the_post_purchase_board (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board) ... FAIL
+test_u1_after_the_healing_purchase_the_bot_departs (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u1_after_the_healing_purchase_the_bot_departs) ... FAIL
+test_u2_affordable_optional_purchases_still_happen (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u2_affordable_optional_purchases_still_happen) ... FAIL
+test_u3_required_supply_claims_are_not_released (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u3_required_supply_claims_are_not_released) ... FAIL
+
+======================================================================
+FAIL: test_root_cause_claims_on_the_post_purchase_board (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_unaffordable_claim_tour_recorded.py", line 574, in test_root_cause_claims_on_the_post_purchase_board
+    self.assertIn((STORE_BLACK, "black-market"), claim_view["needs"])
+AssertionError: (6, 'black-market') not found in [(4, 'launcher-enchant')]
+
+======================================================================
+FAIL: test_u1_after_the_healing_purchase_the_bot_departs (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u1_after_the_healing_purchase_the_bot_departs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_unaffordable_claim_tour_recorded.py", line 590, in test_u1_after_the_healing_purchase_the_bot_departs
+    self.assertEqual(decided, ("Cf\ry\x1b\x1b", "town:character-dump"))
+AssertionError: Tuples differ: ('2', 'town:entrance-step-off:shop:observed-operation-uncomposable') != ('Cf\ry\x1b\x1b', 'town:character-dump')
+
+First differing element 0:
+'2'
+'Cf\ry\x1b\x1b'
+
+- ('2', 'town:entrance-step-off:shop:observed-operation-uncomposable')
++ ('Cf\ry\x1b\x1b', 'town:character-dump')
+
+======================================================================
+FAIL: test_u2_affordable_optional_purchases_still_happen (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u2_affordable_optional_purchases_still_happen)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_unaffordable_claim_tour_recorded.py", line 555, in test_u2_affordable_optional_purchases_still_happen
+    self.assertEqual(
+AssertionError: Tuples differ: ('\x1b', 'town-progress-invariant:continue-observed-shop') != ('pj21\r\r\x1b', 'shop:one-shot-buy')
+
+First differing element 0:
+'\x1b'
+'pj21\r\r\x1b'
+
+- ('\x1b', 'town-progress-invariant:continue-observed-shop')
++ ('pj21\r\r\x1b', 'shop:one-shot-buy')
+
+======================================================================
+FAIL: test_u3_required_supply_claims_are_not_released (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u3_required_supply_claims_are_not_released)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_unaffordable_claim_tour_recorded.py", line 600, in test_u3_required_supply_claims_are_not_released
+    self.assertEqual(recorded_gold["decision"], ("\x1b`n%.", "shop:travel"))
+AssertionError: Tuples differ: ('\x1b`n%.', 'town-progress-invariant:defect:shop:obser[57 chars]ach') != ('\x1b`n%.', 'shop:travel')
+
+First differing element 1:
+'town-progress-invariant:defect:shop:obser[56 chars]oach'
+'shop:travel'
+
++ ('\x1b`n%.', 'shop:travel')
+- ('\x1b`n%.',
+-  'town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach')
+
+----------------------------------------------------------------------
+Ran 4 tests in 601.540s
+
+FAILED (failures=4)

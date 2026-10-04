@@ -1,0 +1,141 @@
+suitefix3 full-suite failure triage and repair - 2026-10-04
+
+Worktree: C:\hengband\bot-client-suitefix3
+Branch/base: suite-fix3-1004 / 504a7c5e
+Result: all 14 requested identities fixed; 981 tests in 13 modules passed.
+Classification: 10 EXPECTED, 3 REGRESSION, 1 STRUCTURAL.
+
+Historical proof
+Each original identity was executed unmodified at both revisions:
+fc42ca66 PASS -> 52b76a0d FAIL -> final implementation PASS.
+Each historical revision ran 14 methods, module by module. The failing
+revision has 15 failure events because mining has two cooldown subcases.
+Changing commit: f1974c97, integrated by merge 52b76a0d. The supplied
+SUITE-504a7c5e.txt reports the same identities. No full suite was rerun.
+Evidence: validation/suitefix3/*-targeted.{json,txt}, identity-triage.json,
+and working-*.{json,txt}; final-results.json records final module counts.
+
+Identity -> changing commit -> classification -> change/decision/evidence
+
+test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board -> f1974c97 -> EXPECTED
+  Change: Declare 10 charges per carried staff (15 usable) in that replay window; retain fixture hashes, byte-faithful replay and prefix ownership checks. Preserve both optional claims and their observed supplier answers.
+  Decision: departure-conditions-carried-only-decision-20260917
+  Evidence: Final town arrival indices 4229-4237: two Identify staves, 16 charges minus five reserved = 11 food uses; required 15. Home formerly hid the shortage.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u1_after_the_healing_purchase_the_bot_departs -> f1974c97 -> EXPECTED
+  Change: Declare 10 charges per carried staff (15 usable) in that replay window; retain fixture hashes, byte-faithful replay and prefix ownership checks. Preserve character dump followed by Angband recall.
+  Decision: departure-conditions-carried-only-decision-20260917
+  Evidence: Final town arrival indices 4229-4237: two Identify staves, 16 charges minus five reserved = 11 food uses; required 15. Home formerly hid the shortage.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u2_affordable_optional_purchases_still_happen -> f1974c97 -> EXPECTED
+  Change: Declare 10 charges per carried staff (15 usable) in that replay window; retain fixture hashes, byte-faithful replay and prefix ownership checks. Preserve the exact affordable ammo and Healing purchase keys.
+  Decision: departure-conditions-carried-only-decision-20260917
+  Evidence: Final town arrival indices 4229-4237: two Identify staves, 16 charges minus five reserved = 11 food uses; required 15. Home formerly hid the shortage.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u3_required_supply_claims_are_not_released -> f1974c97 -> EXPECTED
+  Change: Declare 10 charges per carried staff (15 usable) in that replay window; retain fixture hashes, byte-faithful replay and prefix ownership checks. Preserve required Teleport claims and their departure refusal.
+  Decision: departure-conditions-carried-only-decision-20260917
+  Evidence: Final town arrival indices 4229-4237: two Identify staves, 16 charges minus five reserved = 11 food uses; required 15. Home formerly hid the shortage.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_inputs_cover_every_ledger_input_the_capture_writes -> f1974c97 -> STRUCTURAL
+  Change: Reconcile the input registry by removing the obsolete key; assert deferred changes reuse the unchanged ledger. Keep the strict static lint and genuine input invalidation checks.
+  Decision: departure-conditions-carried-only-decision-20260917
+  Evidence: f1974c97 removes the last ledger read of _deferred_home_items when Home ceases contributing to carried device counts. Exact AST coverage equality rejects the obsolete key.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown -> f1974c97 -> EXPECTED
+  Change: Carry five food items and three recall scrolls; retain both cooldown cases and exact entrance-travel assertions.
+  Decision: fundraising-food-and-empty-body-slot-decisions-20260929; recall-entry invariant
+  Evidence: Both cooldown subcases replace the entire carried inventory with a shovel and detection scrolls; no food or recall stock remains.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_cancels_deep_recall_when_loadout_is_not_confirmed -> f1974c97 -> REGRESSION
+  Change: Remove food-only armed-recall cancellation; retain the deep-loadout blocker and its cancellation key.
+  Decision: SOL-TASK-suitefix3.txt: an already-active recall is not a new town departure; no cited decision authorizes food-only cancellation
+  Evidence: An armed 31F recall acquires an unrelated food-shortage blocker alongside deep-loadout-unconfirmed.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_only_because_scroll_was_consumed -> f1974c97 -> REGRESSION
+  Change: Remove the food-only armed-recall blocker and restore startup/emergency sanctions. Keep pre-read carried-food checks, destination and teleport hazards, pack, weapon and deep-loadout cancellation.
+  Decision: SOL-TASK-suitefix3.txt: an already-active recall is not a new town departure; no cited decision authorizes food-only cancellation
+  Evidence: The armed recall still has its return scroll; the new food blocker emits rr.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_to_strand_uncompared_weapon -> f1974c97 -> REGRESSION
+  Change: Remove the food-only armed-recall blocker and restore startup/emergency sanctions. Keep pre-read carried-food checks, destination and teleport hazards, pack, weapon and deep-loadout cancellation.
+  Decision: SOL-TASK-suitefix3.txt: an already-active recall is not a new town departure; no cited decision authorizes food-only cancellation
+  Evidence: The protected spare weapon is uncompared; the new food blocker emits rr.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_policy_navigation.DescendTest.test_bare_downstairs_needs_no_confirmation -> f1974c97 -> EXPECTED
+  Change: Set an explicit dungeon floor (1,1,0). Preserve bare > and empty inventory, proving ordinary dungeon stairs do not inherit town food/recall gates. No navigation production change.
+  Decision: recall-entry invariant; departure-conditions-carried-only-decision-20260917
+  Evidence: The purported dungeon-stair fixture omits floor_key, defaulting to (0,0,0); Snapshot.in_town is therefore True, so the new town recall gate fires.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_policy_navigation.DescendTest.test_descends_when_standing_on_downstairs_and_healthy -> f1974c97 -> EXPECTED
+  Change: Set an explicit dungeon floor (1,1,0). Preserve bare > and empty inventory, proving ordinary dungeon stairs do not inherit town food/recall gates. No navigation production change.
+  Decision: recall-entry invariant; departure-conditions-carried-only-decision-20260917
+  Evidence: The purported dungeon-stair fixture omits floor_key, defaulting to (0,0,0); Snapshot.in_town is therefore True, so the new town recall gate fires.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_policy_navigation.DescendTest.test_confirms_entry_on_a_dungeon_entrance -> f1974c97 -> EXPECTED
+  Change: Carry five food items; preserve exact entrance confirmation macro >\ry.
+  Decision: departure-conditions-carried-only-decision-20260917
+  Evidence: This real town entrance carries three recall scrolls but no food.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_recorded_stockout_releases_ordinary_departure_at_blocked_board -> f1974c97 -> EXPECTED
+  Change: Assert the original food refusal, then declare a two-staff carried variant. Preserve 95/99 quest ammo, ordinary recall, stockout supplier observations and byte-faithful recording.
+  Decision: departure-conditions-carried-only-decision-20260917
+  Evidence: The Zombie recording carries one charged light staff (20 uses); the mandatory two-device reserve is unsatisfied despite Home stock.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback -> f1974c97 -> EXPECTED
+  Change: Assert food/departure refusal and recall-departure-shortage; retain the exhausted-plan fallback, prepare mode, detected-mining preference and entrance geometry.
+  Decision: fundraising-food-and-empty-body-slot-decisions-20260929; recall-entry invariant
+  Evidence: The Zombie carries detection scrolls and lights, no edible device or recall. An exhausted errand plan does not prove first-run Home/food-supplier exhaustion.
+  Executed: fc42ca66 PASS; 52b76a0d FAIL; final PASS.
+
+Supporting coverage
+The MANA-food armed-recall pin now asserts no cancellation for food alone
+and still asserts refusal of a fresh departure on that same board.
+The recall-cycle loop still exercises every departure leaf, including food;
+pack/weapon/deep-loadout hazards retain cancellation checks.
+Memo coverage equality and the fixture-fakery lint were not relaxed.
+An initial memo test incorrectly asserted dictionary object identity; it was
+corrected to compare values and require exactly three computations, because
+the ledger returns a fresh dictionary even when it reuses the memo.
+
+Final serial module counts (all zero failures/errors/skips)
+  test_unaffordable_claim_tour_recorded: 7 tests PASS (662.485s)
+  test_policy_equipment: 191 tests PASS (17.172s)
+  test_policy_navigation: 129 tests PASS (7.593s)
+  test_supply_ledger_observer_memo: 5 tests PASS (32.812s)
+  test_quest_carry_departure_recorded: 4 tests PASS (15.266s)
+  test_newchar_town_wander_recorded: 5 tests PASS (3.047s)
+  test_manafood_departure_recorded: 13 tests PASS (0.469s)
+  test_crossarea_fundraising: 13 tests PASS (11.000s)
+  test_recall_read_cancel_pingpong: 3 tests PASS (0.079s)
+  test_recall_read_cancel_pingpong_recorded: 5 tests PASS (43.078s)
+  test_recall_readiness_contradiction: 4 tests PASS (0.016s)
+  test_test_fakery_lint: 13 tests PASS (78.594s)
+  test_policy_town: 589 tests PASS (274.265s)
+  Total: 981 tests / 13 modules.
+test_policy_town ran alone, starting 2026-10-04T19:44:31+0900 (after 19:40 JST).
+
+Scope and commits
+No push. No game or bot start/stop. No changes to other worktrees or the
+live C:\hengband\bot-client\jsonlog. Historical source copies stayed in
+this worktree; tests used temporary runtime overrides and write guards.
+The three listed missing-capture environment errors were excluded as directed.
+Carried-only departure counting, first-run-only fundraising relaxation,
+Zombie device food/no food purchases, and recall-entry stock remain enforced.
+Implementation commit: 1876b8d6718743048bdc7dedab65b82165e208b1
+Report/evidence commit: the subsequent branch-tip commit containing this report.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
