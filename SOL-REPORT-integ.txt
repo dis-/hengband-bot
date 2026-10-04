@@ -1,0 +1,85 @@
+Integration report — integ-1005, base 7b48a9a7
+Worktree: C:\hengband\bot-client-integ
+
+Merges and resolutions:
+- Merged remove-curse-priority-1004 (c90157a6), then s33-reservation-slice
+  (bd8e3b92), both with --no-ff. No textual conflicts.
+- Git does not resurrect an ancestor reverted on main merely by merging a
+  descendant. Reversed 13985855 explicitly to restore the intended shadow3
+  changes and test_shadow3_recorded; this also applied without conflicts.
+- Added exactly two guarded, single-call fundraising return adapter pins
+  from the curse branch. Item-sink lint: 0 violations. Serializer enforcement
+  and reservation filtering preserved. No mandatory depth rules changed.
+
+Recorded regression and minimal fix:
+- Source: autorecover-20261004-210741-no-key-exhausted.* in the task-named
+  backup directory. Decision rows 232/233: prior shop-4 purchase and confirmed
+  effect, followed by a Home-relief exit; the old entry opened at sequence 14.
+  Rows 238/239: new visit opened at sequence 20, '{c@2\r' at sequence 21,
+  then empty key shop:one-shot-in-flight at sequence 22 (turn 9649286).
+- State rows 77/78 show the same 14-item target stack and gold 13571; only its
+  @2 inscription appears. Posted-character rows 4984-4988 contain exactly the
+  five inscription characters, with no subsequent sale.
+- _in_store_commit_operation reused the prior entry ledger despite a different
+  opened_sequence. _in_store_entry_key discarded that mismatched ledger on
+  the next board, leaving operation_posted true. Thus no inscription observer
+  advanced the transaction to its sale; the one-shot wait owned an operation
+  whose sale was never sent. This is a stale visit binding, not merely the
+  normal inscription pending state (the fresh-ledger control passed before).
+- src/hengbot/policy_instore.py:481 now creates a ledger when absent OR when
+  store/opened_sequence differs. The existing inscription observer can then
+  clear the inscription operation and emit d214\ry under shop-sell ownership.
+  No time guards, retry-budget changes, or new direct producer calls.
+- tests.test_home_surplus_inscription_recorded: 2 tests. On the restored merged
+  tree BEFORE the fix, OFF reproduced the exact empty-key/in-flight result;
+  ON failed with ownership:gate-missing:shop-buy. AFTER: both modes pass.
+  Before/after results: validation/integ-regression-{before,after}.json.
+  Immutable fixture SHA256:
+  fc2f8c7954f25938fccced18cdca18e7c2f6c068ef17ea95111acd6b5ff726c7
+- Evidence limit: these are recorded boards plus explicitly reconstructed
+  visit/relief/previous-entry ledgers, not a full saved-policy checkpoint.
+  Protocol 2 bypasses the missing attach skill cache, as in shadow3 pins;
+  item/store data are unchanged. No selectors or decisions are mocked.
+
+Performance and validation:
+- Recorded 240-item Home board choose_key: 2.703933 s (< 5 s),
+  key='1', reason=home:request-knowledge-scan; reservations remain enabled.
+- Each module ran alone with Codex runtime Python, PYTHONPATH=src,
+  scripts/test_parallel_runner.py --workers 1 --modules <module> --purity always.
+  test_policy_town was last and alone. No full suite or branch re-review.
+- Module counts and runner wall times (seconds; all PASS):
+  test_item_reservation: 13 tests, 14.704 s
+  test_item_sink_lint: 15 tests, 21.096 s
+  test_decision_return_boundary: 3 tests, 3.973 s
+  test_curse_priority_recorded: 10 tests, 6.046 s
+  test_shadow3_recorded: 8 tests, 11.860 s
+  test_slow_home_recorded: 2 tests, 19.718 s
+  test_home_full_relief_recorded: 4 tests, 11.046 s
+  test_homefull3_recorded: 8 tests, 23.918 s
+  test_equipment_deposit_owner_recorded: 7 tests, 6.501 s
+  test_manafood_departure_recorded: 13 tests, 1.811 s
+  test_policy_home: 171 tests, 32.289 s
+  test_policy_shop: 273 tests, 24.171 s
+  test_policy_supply: 205 tests, 65.213 s
+  test_policy_fundraising: 50 tests, 1.660 s
+  test_policy_equipment: 191 tests, 17.963 s
+  test_policy_navigation: 129 tests, 8.091 s
+  test_ownership_s2b1_ladder: 52 tests, 27.233 s
+  test_test_fakery_lint: 13 tests, 74.613 s
+  test_home_surplus_inscription_recorded: 2 tests, 3.610 s
+  test_policy_town: 589 tests, 257.662 s
+Total: 20 modules, 1758 tests,
+0 failures, 0 errors; sum of runner wall times 633.180 s.
+Summary evidence: validation/integ/results.json. Only summaries read for
+passing modules. git diff --check passed.
+
+Commits:
+d24937ef Bind direct store operations to their current visit ledger
+c93d46a8 Restore intentionally reverted shadow3 changes for integration
+c3f80b57 Merge S3.3 reservation slice into integration
+82166201 Merge remove-curse priority changes into integration
+
+No push. No game/BOT start or stop. No writes to other worktrees or to
+C:\hengband\bot-client\jsonlog. Validation artifacts stay in this worktree.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
