@@ -1,0 +1,45 @@
+test_assert_equal_scope_is_withdrawn_honestly (test_test_fakery_lint.TestEvasionRewrites.test_assert_equal_scope_is_withdrawn_honestly) ... ok
+test_policy_subclass_path_override_is_caught (test_test_fakery_lint.TestEvasionRewrites.test_policy_subclass_path_override_is_caught) ... ok
+test_repository_idiom_evasions_are_caught (test_test_fakery_lint.TestEvasionRewrites.test_repository_idiom_evasions_are_caught) ... ok
+test_seven_rewrites_remain_caught (test_test_fakery_lint.TestEvasionRewrites.test_seven_rewrites_remain_caught) ... ok
+test_source_text_check_does_not_taint_behavioural_assertions (test_test_fakery_lint.TestEvasionRewrites.test_source_text_check_does_not_taint_behavioural_assertions) ... ok
+test_source_text_only_assertions_are_caught (test_test_fakery_lint.TestEvasionRewrites.test_source_text_only_assertions_are_caught) ... ok
+test_real_historical_sites_fire_undeclared (test_test_fakery_lint.TestHistoricalFakerySites.test_real_historical_sites_fire_undeclared) ... ok
+test_capture_dependency_lint_rejects_real_directory_not_fixture (test_test_fakery_lint.TestTreeFakeryLint.test_capture_dependency_lint_rejects_real_directory_not_fixture) ... ok
+test_inline_exception_count_is_ratcheted (test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted) ... ok
+test_lost_substrate_skip_count_is_pinned (test_test_fakery_lint.TestTreeFakeryLint.test_lost_substrate_skip_count_is_pinned) ... ok
+test_tree_has_no_recorder_owned_capture_reads (test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_no_recorder_owned_capture_reads) ... ok
+test_tree_has_only_catalogued_undeclared_shapes (test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes) ... ok
+test_two_invalid_declarations_were_fixed_not_moved (test_test_fakery_lint.TestTreeFakeryLint.test_two_invalid_declarations_were_fixed_not_moved) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 66.314s
+
+OK
+
+Repository-idiom evasion matrix:
+Mock assignment | CAUGHT | public-path-replaced
+mock.patch.object | CAUGHT | public-path-replaced
+module constant patch target | CAUGHT | public-path-replaced
+counted drive with aliased literal | CAUGHT | literal-success-predicate
+renamed invariant | CAUGHT | invariant-input-overwritten
+Mock collaborator wall | CAUGHT | collaborator-wall
+
+Seven-rewrite evasion matrix:
+setattr replacement | CAUGHT | public-path-replaced
+string patch target | CAUGHT | public-path-replaced
+injection moved to helper | CAUGHT | private-state-injected
+assert delegated to helper | CAUGHT | public-path-replaced
+wall split patch plus assignment | CAUGHT | collaborator-wall
+success literal hoisted | CAUGHT | literal-success-predicate
+historical test renamed | CAUGHT | subject-precompleted
+
+Historical acceptance table (real git blobs):
+shape | revision | real site | fires | declared
+optimizer precompletion | 594053f | tests/test_policy.py:test_mining_walk_in_is_the_only_zero_recall_entry | YES | NO
+fundraising premise overwrite | 0de8159 | tests/test_policy.py:test_incomplete_optimizer_blocks_normal_direct_entrance | YES | NO
+best/loadout fabrication | 43726bb | tests/test_policy.py:test_unactionable_suppression_keeps_confirmed_loadout | YES | NO
+literal success predicate | b57957f | tests/test_policy.py:test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window | YES | NO
+frozen 105-decision drive | HEAD | tests/test_policy_town.py:test_live_home_door_block_replay_never_posts_stay_publicly | YES | NO
+helper state injection | 5f49d7a | tests/test_policy.py:_catalogued_withdrawal_policy | YES | NO
+all collaborators mocked | 534b4be^ | tests/test_policy.py:test_live_block_replay_continues_alchemist_plan_publicly | YES | NO

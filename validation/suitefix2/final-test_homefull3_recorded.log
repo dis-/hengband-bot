@@ -1,0 +1,13 @@
+test_D_artifacts_unknown_superior_and_reservations_are_not_destroy_candidates (test_homefull3_recorded.ConstructedDiscardTest.test_D_artifacts_unknown_superior_and_reservations_are_not_destroy_candidates) ... ok
+test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit (test_homefull3_recorded.ConstructedDiscardTest.test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit) ... ok
+test_D_sell_first_even_when_autodestroy_stock_exists (test_homefull3_recorded.ConstructedDiscardTest.test_D_sell_first_even_when_autodestroy_stock_exists) ... ok
+test_D_shop_rejected_value_is_zero_even_if_base_cost_is_positive (test_homefull3_recorded.ConstructedDiscardTest.test_D_shop_rejected_value_is_zero_even_if_base_cost_is_positive) ... ok
+test_D_unknown_is_identified_then_revalidated_before_destroy (test_homefull3_recorded.ConstructedDiscardTest.test_D_unknown_is_identified_then_revalidated_before_destroy) ... ok
+test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople (test_homefull3_recorded.RecordedHomeFull3Test.test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople) ... ok
+test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist (test_homefull3_recorded.RecordedHomeFull3Test.test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist) ... ok
+test_C_stale_catalogue_has_owner_declared_request_and_wait (test_homefull3_recorded.RecordedHomeFull3Test.test_C_stale_catalogue_has_owner_declared_request_and_wait) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 20.197s
+
+OK

@@ -1,0 +1,12 @@
+test_confirmed_action_refreshes_its_own_declaration (test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_confirmed_action_refreshes_its_own_declaration) ... ok
+test_initial_deposits_are_different_from_later_stolen_goals (test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_initial_deposits_are_different_from_later_stolen_goals) ... ok
+test_open_page_retry_is_posted_and_observed_by_equipment_owner (test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_open_page_retry_is_posted_and_observed_by_equipment_owner) ... ok
+test_refused_deposit_exit_preserves_the_owner_continuation (test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_refused_deposit_exit_preserves_the_owner_continuation) ... ok
+test_retry_selection_never_takes_the_equipment_owners_item (test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_retry_selection_never_takes_the_equipment_owners_item) ... ok
+test_stall_termination_releases_old_goal_before_final_validation (test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_stall_termination_releases_old_goal_before_final_validation) ... ok
+test_successful_deposit_exit_keeps_the_next_item_goal_registered (test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_successful_deposit_exit_keeps_the_next_item_goal_registered) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 4.863s
+
+OK

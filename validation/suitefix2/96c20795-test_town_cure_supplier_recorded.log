@@ -1,0 +1,83 @@
+test_detection_is_read_on_yeek_cave_one (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_detection_is_read_on_yeek_cave_one)
+The reported 'detect treasure read in town': it was not. ... ok
+test_pre_fix_rule_reproduces_the_live_stop (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_pre_fix_rule_reproduces_the_live_stop) ... ok
+test_recorded_stay_ends_without_an_owner (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_recorded_stay_ends_without_an_owner) ... ok
+test_visit_magic_page_supplies_mana_food_with_a_charged_device (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_visit_magic_page_supplies_mana_food_with_a_charged_device)
+DECLARED CONSTRUCTED board 1388 (review F1): MANA food parity. ... ok
+test_visit_page_of_unattempted_store_counts_an_unaffordable_ware (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_visit_page_of_unattempted_store_counts_an_unaffordable_ware)
+DECLARED CONSTRUCTED board 1388 (review F2): ledger parity. ... ok
+test_visit_page_without_the_ware_routes_to_the_stocked_temple (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_visit_page_without_the_ware_routes_to_the_stocked_temple) ... ok
+test_walled_prefix_reproduces_live_except_declared_boards (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards) ... FAIL
+
+======================================================================
+FAIL: test_walled_prefix_reproduces_live_except_declared_boards (test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix2\validation\suitefix2\96c20795\tests\test_town_cure_supplier_recorded.py", line 287, in test_walled_prefix_reproduces_live_except_declared_boards
+    self.assertEqual(divergent, PREFIX_DIVERGENCES)
+AssertionError: Tuples differ: (9, 1[26 chars] 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 2[103 chars]1378) != (9, 1[26 chars] 18, 26, 37, 38, 39, 40, 41, 42, 43, 44, 45, 4[43 chars]1378)
+
+First differing element 9:
+19
+26
+
+First tuple contains 15 additional elements.
+First extra element 30:
+41
+
+  (9,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+-  19,
+-  20,
+-  21,
+-  22,
+-  23,
+-  24,
+-  25,
+   26,
+-  27,
+-  28,
+-  29,
+-  30,
+-  31,
+-  32,
+-  33,
+-  35,
+-  36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42,
+   43,
+   44,
+   45,
+   46,
+-  53,
+?   ^
+
++  51,
+?   ^
+
++  52,
+   69,
+   70,
+   71,
+   72,
+   73,
+   1057,
+   1377,
+   1378)
+
+----------------------------------------------------------------------
+Ran 7 tests in 147.578s
+
+FAILED (failures=1)

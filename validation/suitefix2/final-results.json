@@ -1,0 +1,112 @@
+[
+  {
+    "revision": "final",
+    "module": "test_ownership_s2b1_ladder",
+    "exit_code": 0,
+    "tests": 52,
+    "started_at": "2026-10-04T16:40:44.279586+09:00",
+    "seconds": 28.31,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_town_approach_retired_recorded",
+    "exit_code": 0,
+    "tests": 10,
+    "started_at": "2026-10-04T16:41:12.594347+09:00",
+    "seconds": 93.69,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_town_cure_supplier_recorded",
+    "exit_code": 0,
+    "tests": 7,
+    "started_at": "2026-10-04T16:42:46.279760+09:00",
+    "seconds": 146.98,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_homefull3_recorded",
+    "exit_code": 0,
+    "tests": 8,
+    "started_at": "2026-10-04T16:45:13.258012+09:00",
+    "seconds": 21.69,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_home_full_relief_recorded",
+    "exit_code": 0,
+    "tests": 4,
+    "started_at": "2026-10-04T16:45:34.956693+09:00",
+    "seconds": 9.25,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_equipment_deposit_owner_recorded",
+    "exit_code": 0,
+    "tests": 7,
+    "started_at": "2026-10-04T16:45:44.199625+09:00",
+    "seconds": 6.17,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_ownership_s2b2_bar",
+    "exit_code": 0,
+    "tests": 30,
+    "started_at": "2026-10-04T16:45:50.377445+09:00",
+    "seconds": 15.25,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_execution_declaration",
+    "exit_code": 0,
+    "tests": 27,
+    "started_at": "2026-10-04T16:46:05.623660+09:00",
+    "seconds": 15.99,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_test_fakery_lint",
+    "exit_code": 0,
+    "tests": 13,
+    "started_at": "2026-10-04T16:46:21.602902+09:00",
+    "seconds": 66.5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "revision": "final",
+    "module": "test_policy_town",
+    "exit_code": 0,
+    "tests": 589,
+    "started_at": "2026-10-04T16:47:28.114379+09:00",
+    "seconds": 231.5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+]

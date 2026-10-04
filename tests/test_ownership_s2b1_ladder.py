@@ -294,9 +294,15 @@ class LadderOrderTest(unittest.TestCase):
 
     def test_the_decide_rungs_are_the_marked_calls_in_order(self):
         self.assertEqual(_order_mismatch(CLAIM_LADDER), [])
-        # The full-Home recovery producer adds one ordinary call site after
-        # retirement of the strip-calibration rung: 75 + 1.
-        self.assertEqual(len(decide_rungs()), 76)
+        # Full-Home recovery and its early errand knowledge prerequisite
+        # follow retirement of the strip-calibration rung: 75 + 2.
+        self.assertEqual(len(decide_rungs()), 77)
+        self.assertEqual(decide_rungs()[0].producer, "_home_errand_knowledge_key")
+        for reason in ("home-errand:request-knowledge:full-home-sale",
+                       "home-errand:await-fresh-knowledge:full-home-sale"):
+            rung = rung_of("home-errand", reason)
+            self.assertEqual(rung.producer, "_home_errand_knowledge_key")
+            self.assertEqual(rung.rank, TOWN_RANK)
 
     def test_revert_proof_swapping_two_rungs(self):
         rungs = list(CLAIM_LADDER)

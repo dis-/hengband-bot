@@ -1,0 +1,32 @@
+{
+  "f7dfbcb1": {
+    "src": "3ec62d0f01e87fbe1f213ddbe3d7f3869da13a2d",
+    "tests/test_ownership_s2b1_ladder.py": "f7a7516a1aa4eb94213c7dd39756dfe67e1c372a",
+    "tests/test_town_approach_retired_recorded.py": "3c3b8fd1d2ac5598b68fc642c5718c6a273f591e",
+    "tests/test_town_cure_supplier_recorded.py": "97f57b967f1145b2a339d6207aef5b2725793abc"
+  },
+  "57cbe172": {
+    "src": "3ec62d0f01e87fbe1f213ddbe3d7f3869da13a2d",
+    "tests/test_ownership_s2b1_ladder.py": "f7a7516a1aa4eb94213c7dd39756dfe67e1c372a",
+    "tests/test_town_approach_retired_recorded.py": "3c3b8fd1d2ac5598b68fc642c5718c6a273f591e",
+    "tests/test_town_cure_supplier_recorded.py": "97f57b967f1145b2a339d6207aef5b2725793abc"
+  },
+  "89543e80": {
+    "src": "c5d4bf9f6dfb81480bd6602c0d262da90913b3d2",
+    "tests/test_ownership_s2b1_ladder.py": "f7a7516a1aa4eb94213c7dd39756dfe67e1c372a",
+    "tests/test_town_approach_retired_recorded.py": "3c3b8fd1d2ac5598b68fc642c5718c6a273f591e",
+    "tests/test_town_cure_supplier_recorded.py": "97f57b967f1145b2a339d6207aef5b2725793abc"
+  },
+  "fc42ca66": {
+    "src": "c5d4bf9f6dfb81480bd6602c0d262da90913b3d2",
+    "tests/test_ownership_s2b1_ladder.py": "f7a7516a1aa4eb94213c7dd39756dfe67e1c372a",
+    "tests/test_town_approach_retired_recorded.py": "3c3b8fd1d2ac5598b68fc642c5718c6a273f591e",
+    "tests/test_town_cure_supplier_recorded.py": "97f57b967f1145b2a339d6207aef5b2725793abc"
+  },
+  "96c20795": {
+    "src": "c5420c6c8cfe4ed56162942cde78eda1b009aca4",
+    "tests/test_ownership_s2b1_ladder.py": "f7a7516a1aa4eb94213c7dd39756dfe67e1c372a",
+    "tests/test_town_approach_retired_recorded.py": "3c3b8fd1d2ac5598b68fc642c5718c6a273f591e",
+    "tests/test_town_cure_supplier_recorded.py": "97f57b967f1145b2a339d6207aef5b2725793abc"
+  }
+}

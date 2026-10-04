@@ -1,0 +1,9 @@
+test_observed_capacity_triggers_relief_without_refusal_message (test_home_full_relief_recorded.HomeFullReliefTest.test_observed_capacity_triggers_relief_without_refusal_message) ... ok
+test_refusal_withdraws_sells_two_slots_then_retries_original_deposit (test_home_full_relief_recorded.HomeFullReliefTest.test_refusal_withdraws_sells_two_slots_then_retries_original_deposit) ... ok
+test_unidentified_excellent_and_special_are_not_selected_for_sale (test_home_full_relief_recorded.HomeFullReliefTest.test_unidentified_excellent_and_special_are_not_selected_for_sale) ... ok
+test_unknown_surplus_requires_identification_before_disposal (test_home_full_relief_recorded.HomeFullReliefTest.test_unknown_surplus_requires_identification_before_disposal) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 7.966s
+
+OK
