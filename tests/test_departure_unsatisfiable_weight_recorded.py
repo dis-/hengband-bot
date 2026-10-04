@@ -45,15 +45,18 @@ Walls, each declared:
   input executor's ``_completed_operation_sequence``/``_owner`` (the
   previous decision's sequence and reason), as the executor adds them after
   an accepted operation.
-The pre-fix code reproduces every one of the 117 recorded decisions, the
-stop included.  With the fix every decision up to the first overweight
-board (sequence 108) is decided as live; that board then travels to Home
-for the weight-overload deposit instead of the Black Market.  DECLARED
-DIVERGENCE: the later recorded boards follow the live route the fixed
-policy no longer takes (Black Market page, the Alchemist page and its
-purchase); on them the fixed policy heads back to Home (sequence 111), buys
-from the page it was handed (sequence 114), and the stop board heads to
-Home instead of the terminal.  Only those boards differ.
+Historical R4 result: the pre-fix code reproduced all 117 decisions. The
+mutation observation fix changed the first overweight board to travel Home.
+
+Current S3.3 observation contract (fc59b83a): an earlier partial Home page
+cannot prove a withdrawal target missing. Replay now ends at index 70 when
+the current policy requests another page instead of abandoning withdrawal.
+Every earlier key/reason remains pinned. The observed ring mutation is still
+verified on that prefix; the first overweight and terminal boards are tested
+as explicitly independent complete recorded scenarios with a fresh owner.
+They verify the real surplus selector, weight claim and reachable Home
+transport without treating later historical boards as changed-key responses.
+
 """
 
 from __future__ import annotations
@@ -72,6 +75,7 @@ from unittest.mock import patch
 from hengbot.cli import _consume_response_sequence
 from hengbot.equipment_mutation import EquipmentMutationState
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_HOME
 
@@ -123,6 +127,10 @@ STAFF_BUY = 109  # sequence 108, 'pk\r\x1b'
 FIRST_OVERWEIGHT = 110  # sequence 109, the first overweight board
 RECALL_BUY = 115  # sequence 114, 'pi1\r\r\x1b'
 STOP = 116  # sequence 115, town:blocked:departure-unsatisfiable
+# S3.3 observation decision (fc59b83a): a partial Home page cannot prove the
+# withdrawal target missing. The new seek-page command ends the live replay;
+# later weight boards are independent recorded scenarios, not its responses.
+RECONCILIATION_BOUNDARY = 70
 DIVERGENT = (FIRST_OVERWEIGHT, 112, RECALL_BUY, STOP)
 HOME_TRAVEL = "\x1b`n(."
 WEIGHT_LIMIT = 1650
@@ -180,7 +188,7 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
     @classmethod
     @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def _replay(cls):
-        """Replay the whole recorded process on one policy."""
+        """Replay the recorded prefix through the first reconciliation change."""
         if cls.replay is not None:
             return cls.replay
         replay = []
@@ -194,7 +202,7 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
                 CALIBRATION.read_bytes()
             )
             install_extraction_calibration(policy)
-            for index in range(STOP + 1):
+            for index in range(RECONCILIATION_BOUNDARY + 1):
                 _decoded, snapshots = _consume_response_sequence(
                     cls._board_lines(index), policy, lambda _key: True,
                     cls.monrace,
@@ -228,6 +236,8 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
                         STORE_HOME in policy._town_visit_ledger.blocked_stores
                     ),
                 })
+                if index == RECONCILIATION_BOUNDARY:
+                    break
                 policy.confirm_key_posted(key)
         cls.replay = replay
         return replay
@@ -318,11 +328,11 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ H1
     def test_replay_decides_as_live_until_the_first_overweight_board(self):
         replay = self._replay()
-        # The selected ring at 63 and weapon at 91 are singletons. The old
-        # deposit macros appended Return although sell-order.cpp only calls
-        # input_quantity for stacks. R4 compares later recorded boards modulo
-        # these two exact answers; their state is from the old key stream.
-        quantity_keys = {63: ("dm\r", "dm"), 91: ("do\r", "do")}
+        # The original weight continuation is beyond the changed Home command.
+        # Keep every earlier key/reason pin and the singleton quantity fix;
+        # no later historical board is consumed after the new boundary.
+        self.assertEqual(len(replay), RECONCILIATION_BOUNDARY + 1)
+        quantity_keys = {63: ("dm\r", "dm")}
         for index, (old, new) in quantity_keys.items():
             self.assertEqual(self.recorded[index]["key"], old)
             self.assertEqual(replay[index]["key"], new)
@@ -330,16 +340,17 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
         self.assertEqual(
             [
                 index
-                for index in range(STOP + 1)
+                for index in range(RECONCILIATION_BOUNDARY + 1)
                 if (self.recorded[index]["key"] if index in quantity_keys
                     else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            list(DIVERGENT),
+            [RECONCILIATION_BOUNDARY],
         )
         self.assertEqual(
-            [row["overweight"] for row in replay[STAFF_BUY : STOP + 1]],
-            [False] + [True] * (STOP - STAFF_BUY),
+            (replay[RECONCILIATION_BOUNDARY]["key"],
+             replay[RECONCILIATION_BOUNDARY]["reason"]),
+            (" ", "equipment-transaction:seek-home-page"),
         )
 
     def test_h1_the_observed_ring_swap_releases_the_mutation_gate(self):
@@ -358,26 +369,54 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
         )
 
     def test_h1_the_first_overweight_board_sheds_weight_at_home(self):
-        replay = self._replay()
-        board = replay[FIRST_OVERWEIGHT]
-        self.assertEqual(
-            (board["key"], board["reason"]), (HOME_TRAVEL, "shop:travel")
-        )
-        self.assertIn("weight-overload", board["claims"])
-        self.assertIn(CLAYMORE, board["deposit"])
-        self.assertIsNone(board["blocked_reason"])
+        policy, snapshot, deposit, key = self._independent_weight_board(FIRST_OVERWEIGHT)
+        self.assertEqual((key, policy.last_reason), (HOME_TRAVEL, "shop:travel"))
+        self.assertIn("weight-overload", policy._town_claim_categories)
+        self.assertIn(CLAYMORE, deposit.name)
+        self.assertGreaterEqual(deposit.weight * policy._retention_surplus(snapshot, deposit),
+                                policy._inventory_weight(snapshot) - WEIGHT_LIMIT)
+        self.assertIsNone(policy._town_blocked_reason)
 
     def test_h1_the_stop_board_heads_home_instead_of_the_terminal(self):
-        replay = self._replay()
-        stop = replay[STOP]
-        self.assertEqual((stop["key"], stop["reason"]), (HOME_TRAVEL, "shop:travel"))
-        self.assertIn("weight-overload", stop["claims"])
-        self.assertIn(CLAYMORE, stop["deposit"])
-        self.assertIsNone(stop["blocked_reason"])
-        self.assertFalse(stop["home_blocked"])
-        for row in replay[FIRST_OVERWEIGHT : STOP + 1]:
-            self.assertNotEqual(row["blocked_reason"], "departure-unsatisfiable")
-            self.assertIsNotNone(row["deposit"])
+        policy, snapshot, deposit, key = self._independent_weight_board(STOP)
+        self.assertEqual((key, policy.last_reason), (HOME_TRAVEL, "shop:travel"))
+        self.assertIn("weight-overload", policy._town_claim_categories)
+        self.assertIn(CLAYMORE, deposit.name)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertGreaterEqual(deposit.weight * policy._retention_surplus(snapshot, deposit),
+                                policy._inventory_weight(snapshot) - WEIGHT_LIMIT)
+        # These are raw recorded weights, with no claim that the changed
+        # reconciliation path reached any of the later boards.
+        for index in range(FIRST_OVERWEIGHT, STOP + 1):
+            self.assertGreater(_board_weight(self._board(index)), WEIGHT_LIMIT)
+            self.assertLessEqual(_board_weight(self._board(index)) - WEIGHT_LIMIT,
+                                 deposit.weight)
+
+    def _independent_weight_board(self, index):
+        """CONSTRUCTED fresh owner attached to the complete recorded board.
+
+        Preserve H1's weight-routing intent after S3.3's earlier observation
+        change. The board, calibration and map remain captured; no successful
+        effect or preceding amended command trajectory is invented.
+        """
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        policy = _policy(Path(directory.name), self.monrace)
+        policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+        install_extraction_calibration(policy)
+        snapshot = parse_snapshot(self._board(index), self.monrace)
+        policy.prime(snapshot)
+        self.assertEqual(policy._equipment_mutation.state, EquipmentMutationState.IDLE)
+        self.assertTrue(policy._inventory_overweight(snapshot))
+        deposit = policy._overweight_home_deposit(snapshot)
+        self.assertIsNotNone(deposit)
+        policy._town_claims_active(snapshot)
+        step = policy._shopping_approach_step(snapshot, STORE_HOME)
+        self.assertIsNotNone(step)
+        key = policy._shopping_approach_key(snapshot, step, "shop:travel")
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+        return policy, snapshot, deposit, key
 
 
 class ObservedMutationReleasesTownOwnersTest(unittest.TestCase):

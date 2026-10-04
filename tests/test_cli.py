@@ -5088,6 +5088,7 @@ class TownBlockedStreakTest(unittest.TestCase):
         self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
 
     def test_live_wiring_real_gold_progress_never_fuses(self):
+        """User decision: gold alone cannot reset the blocked-town fuse."""
         from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
         from hengbot.model import PlayerState, Snapshot
         from hengbot.policy import HengbotPolicy
@@ -5113,7 +5114,7 @@ class TownBlockedStreakTest(unittest.TestCase):
             streak, state = _advance_town_blocked_iteration(
                 policy, current, streak, state
             )
-        self.assertEqual(streak, 1)
+        self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT + 5)
 
     def test_pin_vacuity_alchemist_door_cycle_reaches_live_cli_fuse(self):
         from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT

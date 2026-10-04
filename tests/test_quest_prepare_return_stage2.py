@@ -102,14 +102,17 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         step_off_snapshot = observations[0][6]
         self.assertEqual(step_off_vector[0].floor, step_off_snapshot.floor_key)
         self.assertEqual(step_off_vector[0].hp, step_off_snapshot.player.hp)
-        self.assertEqual(step_off_vector[0].gold, step_off_snapshot.player.gold)
+        # Authoritative goldburn decision: spending/earning is not arbiter
+        # progress, while the real board retains its observed gold.
+        self.assertEqual(step_off_vector[0].gold, 0)
         self.assertEqual(
             step_off_vector[0].experience, step_off_snapshot.player.exp
         )
         town_fingerprint = step_off_vector[1]
         self.assertEqual(town_fingerprint[0], step_off_snapshot.floor_key)
-        self.assertEqual(town_fingerprint[1], step_off_snapshot.player.gold)
-        self.assertEqual(town_fingerprint[4], step_off_snapshot.player.exp)
+        self.assertEqual(town_fingerprint[1], step_off_snapshot.player.food_state)
+        self.assertEqual(town_fingerprint[2], step_off_snapshot.player.food_type)
+        self.assertEqual(town_fingerprint[3], step_off_snapshot.player.exp)
         self.assertEqual(step_off_vector[2], ())
         self.assertEqual(step_off_vector[3:], (False, False, None, None, False))
         self.assertEqual(

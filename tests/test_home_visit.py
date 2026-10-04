@@ -444,11 +444,18 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         for node in functions["_shopping_approach_step"]:
             approach = ast.unparse(node)
             self.assertIn("_ensure_home_visit_request(snapshot)", approach)
+        # S3.3 admission wraps the physical composers. Keep both halves under
+        # the ratchet: the wrapper must admit and dispatch, and the actual
+        # composer must prepare the bounded executor operation.
         for name in ("_atomic_home_withdraw_key", "_atomic_home_deposit_key"):
+            dispatch_name = name.replace("_key", "_dispatch_key")
             for node in functions[name]:
                 body = ast.unparse(node)
-                self.assertIn("_prepare_home_visit_operation", body)
-        for node in functions["_atomic_home_deposit_key"]:
+                self.assertIn("_town_producer_entry", body)
+                self.assertIn(dispatch_name, body)
+            for node in functions[dispatch_name]:
+                self.assertIn("_prepare_home_visit_operation", ast.unparse(node))
+        for node in functions["_atomic_home_deposit_dispatch_key"]:
             deposit = ast.unparse(node)
             self.assertIn("_home_atomic_deposit_pending is not None", deposit)
             self.assertNotIn(

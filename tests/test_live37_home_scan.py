@@ -75,7 +75,11 @@ class Live37HomeScanTest(unittest.TestCase):
                         policy = pickle.loads(pickle.dumps(policy))
                     key = policy.choose_key(board)
                     if enforced:
-                        self.assertEqual((key, policy.last_reason), ("3", "shop:approach"))
+                        # S3.3's declared route continuation resumes the posted
+                        # transport under the same holder instead of inventing
+                        # an unrelated one-cell walk after the deferred scan.
+                        self.assertEqual((key, policy.last_reason),
+                                         ("\x1b`n(.", "shop:travel"))
                         self.assertEqual(policy.decision_claim["owner"], "store-router")
                         self.assertEqual(policy.decision_claim["claim_id"], 8583)
                         self.assertIsNone(policy.decision_claim["violation"])

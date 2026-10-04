@@ -1123,6 +1123,24 @@ class ReturnToTownTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "01ka")
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
 
+def _known_unaffordable_detection(policy, snapshot):
+    """CONSTRUCTED supplier evidence for the authoritative poverty exception.
+
+    These scavenge scenarios have no carried or Home detection. Preserve their
+    navigation/cycle subject by observing a scroll whose price exceeds gold;
+    unknown supplier prices no longer authorize detection-less scavenging.
+    """
+    assert not any(item.is_treasure_detection_scroll for item in snapshot.inventory)
+    assert not any(item.is_treasure_detection_scroll
+                   for item in policy._home_knowledge_items)
+    policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+        STORE_ALCHEMIST, [store_item("a", TVAL_SCROLL,
+                                    SV_SCROLL_DETECT_TREASURE,
+                                    price=snapshot.player.gold + 1)])
+    policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (
+        policy._effective_town_id(snapshot), snapshot.turn)
+
+
 class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
     def test_recovered_home_entry_charges_an_evaporated_route_claim(self):
         inside = Snapshot(
@@ -3105,8 +3123,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         ):
             self.assertIsNone(policy._town_special_key(snap))
 
-        self.assertEqual(policy._fundraising_mode, "scavenge")
-        self.assertTrue(policy._town_restock_suppressed)
+        # Authoritative detection decision: unknown prices require preparation.
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertFalse(policy._town_restock_suppressed)
         self.assertEqual(
             policy.last_reason, "fundraise:fallback-exhausted-plan"
         )
@@ -3717,6 +3736,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "scavenge"
 
+        _known_unaffordable_detection(policy, snap)
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "fundraise:seek-loot")
 
@@ -3792,6 +3812,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         set_completed_equipment_optimization(policy)
         policy._fundraising_mode = "scavenge"
 
+        _known_unaffordable_detection(policy, snap)
         self.assertEqual(policy.choose_key(snap), ">\ry")
         self.assertEqual(policy.last_reason, "descend")
 
@@ -4264,6 +4285,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "scavenge"
 
+        _known_unaffordable_detection(policy, snap)
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "fundraise:scavenge")
 
@@ -4354,6 +4376,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         for pos in (Position(29, 5), Position(30, 5), Position(31, 5)):
             policy._visit_counts[pos] = 1
 
+        _known_unaffordable_detection(policy, snap)
         self.assertEqual(policy.choose_key(snap), "2")
         self.assertEqual(policy.last_reason, "fundraise:scavenge")
         self.assertIn((31, 5), policy._floor_t)
@@ -5984,7 +6007,8 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
 
         policy.prime(snap)
 
-        self.assertEqual(policy._fundraising_mode, "scavenge")
+        # Authoritative detection decision: unknown prices require preparation.
+        self.assertEqual(policy._fundraising_mode, "prepare")
         self.assertIsNone(policy._mining_scroll_used_floor)
 
     def test_prime_does_not_start_fundraising_for_a_carried_digger(self):
@@ -6362,7 +6386,8 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._equipment_catalog.home_scan_complete = True
         policy._home_candidate_waiting = True
         policy._home_available = lambda candidate_snapshot: True
-        policy._equipment_departure_ready = lambda candidate_snapshot: True
+        # The actual-destination gate now passes its landing depth explicitly.
+        policy._equipment_departure_ready = lambda candidate_snapshot, *, destination_depth=None: True
 
         self.assertEqual(policy._town_special_key(snap), "rra")
         self.assertFalse(policy._home_candidate_waiting)
@@ -6420,7 +6445,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
                 policy._home_candidate_waiting = candidate_waiting
                 policy._town_store_attempted[STORE_HOME] = snap.turn
                 policy._home_available = lambda candidate_snapshot: True
-                policy._equipment_departure_ready = lambda candidate_snapshot: True
+                # The actual-destination gate supplies the same explicit depth
+                # when an exhausted Home catalogue is only advisory.
+                policy._equipment_departure_ready = lambda candidate_snapshot, *, destination_depth=None: True
 
                 self.assertEqual(policy._town_special_key(snap), "rra")
                 self.assertFalse(policy._home_candidate_waiting)
@@ -9847,8 +9874,9 @@ class TownRecallReturnTest(unittest.TestCase):
             (STORE_ALCHEMIST, "identification-source:normal")
         ] = ()
         shortage = [("identification-source:normal", 1)]
+        # S3.3 transport declares its owning family and continuation reason.
         with patch.object(pol, "_cross_town_shortages", return_value=shortage), patch.object(
-            pol, "_town_teleport_key", side_effect=lambda _snap, town: f"travel-{town}"
+            pol, "_town_teleport_key", side_effect=lambda _snap, town, *, producer, reason: f"travel-{town}"
         ):
             self.assertEqual(pol._cross_town_shopping_key(snap), "travel-1")
             town1 = replace(snap, town_id=1)
@@ -11146,6 +11174,7 @@ class TownCycleDetectorTest(unittest.TestCase):
                 )
             ],
         )
+        _known_unaffordable_detection(pol, departure)
         self.assertEqual(pol._town_special_key(departure), WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:cycle-break")
         self.assertTrue(pol._town_restock_suppressed)
@@ -12211,6 +12240,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._town_cycle_pending = True
         snap = self._town_snap()
+        _known_unaffordable_detection(pol, snap)
         pol._town_special_key(snap)
         pol._town_cycle_pending = True
         step = Position(snap.player.position.y, snap.player.position.x + 1)
@@ -12228,6 +12258,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._town_cycle_pending = True
         snap = self._town_snap()
         with patch.object(pol, "_town_need_candidates", return_value=[]):
+            _known_unaffordable_detection(pol, snap)
             pol._town_special_key(snap)
         self.assertTrue(pol._town_restock_suppressed)
         self.assertIsNone(
@@ -12252,6 +12283,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         with mock.patch.object(
             pol, "_town_need_candidates", return_value=[catalog_need]
         ):
+            _known_unaffordable_detection(pol, snap)
             pol._town_special_key(snap)  # first break: optional work suppressed
         with mock.patch.object(
             pol,
@@ -12270,6 +12302,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         with patch.object(
             pol, "_town_need_candidates", return_value=[catalog_need]
         ):
+            _known_unaffordable_detection(pol, snap)
             pol._break_town_cycle(snap)
 
         self.assertTrue(pol._town_restock_suppressed)
@@ -12293,6 +12326,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             ],
         )
 
+        _known_unaffordable_detection(pol, snap)
         self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:cycle-break")
         self.assertEqual(pol._fundraising_mode, "scavenge")
@@ -12320,6 +12354,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         with mock.patch.object(
             pol, "_fundraising_departure_ready", return_value=False
         ), mock.patch.object(pol, "_fundraising_supplies_ready", return_value=True):
+            _known_unaffordable_detection(pol, snap)
             self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
             self.assertEqual(pol.last_reason, "town:cycle-break")
             self.assertEqual(pol._fundraising_mode, "scavenge")
@@ -12347,6 +12382,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             ],
         )
 
+        _known_unaffordable_detection(pol, town)
         pol._break_town_cycle(town)
 
         self.assertEqual(pol._fundraising_mode, "scavenge")
@@ -12387,6 +12423,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._fundraising_mode = "prepare"
         pol._town_cycle_pending = True
 
+        _known_unaffordable_detection(pol, self._town_snap(gold=0))
         self.assertEqual(pol._town_special_key(self._town_snap(gold=0)), WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:blocked:departure-no-light")
         self.assertEqual(pol._town_blocked_reason, "departure-no-light")
@@ -12396,6 +12433,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._town_cycle_pending = True
 
+        _known_unaffordable_detection(pol, self._town_snap(gold=0))
         self.assertEqual(pol._town_special_key(self._town_snap(gold=0)), WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:blocked:departure-no-light")
         self.assertEqual(pol._town_blocked_reason, "departure-no-light")
@@ -12450,6 +12488,7 @@ class TownCycleDetectorTest(unittest.TestCase):
                 )
             ],
         )
+        _known_unaffordable_detection(pol, snap)
         pol._town_special_key(snap)
         pol._town_map = SimpleNamespace(entrance=Position(34, 120))
         pol._town_map_active = lambda _snapshot: True

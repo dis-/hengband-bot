@@ -72,7 +72,9 @@ class NewCharacterTownWanderRecorded(unittest.TestCase):
             snapshot, guardian_gate=False)[0])
         self.assertEqual(policy._town_special_key(snapshot), "5")
         self.assertEqual(policy.last_reason, "fundraise:fallback-exhausted-plan")
-        self.assertEqual(policy._fundraising_mode, "scavenge")
+        # Authoritative detection poverty decision: the five carried scrolls
+        # veto detection-less scavenging even when the digging kit is partial.
+        self.assertEqual(policy._fundraising_mode, "prepare")
         self.assertTrue(policy._fundraising_departure_ready(snapshot))
         entrance = policy._town_walk_in_entrance(snapshot)
         self.assertEqual(entrance, Position(31, 150))
@@ -87,7 +89,8 @@ class NewCharacterTownWanderRecorded(unittest.TestCase):
         self.assertEqual(restored._town_errand_plan.index, 1)
         self.assertEqual(restored._town_special_key(snapshot), "5")
         self.assertEqual(restored.last_reason, "fundraise:fallback-exhausted-plan")
-        self.assertEqual(restored._fundraising_mode, "scavenge")
+        # Restart obeys the same carried-detection veto as the fresh policy.
+        self.assertEqual(restored._fundraising_mode, "prepare")
 
     def test_wander_skips_recorded_building_and_store_entrances(self):
         for line, entrance in ((497, Position(37, 91)),

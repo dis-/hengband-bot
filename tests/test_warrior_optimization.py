@@ -121,6 +121,24 @@ def gear(
     return OwnedEquipment(item_id, item, origin, equipped_slot=slot)
 
 
+def _departure_board(*, player, inventory=(), equipment=(), **fields):
+    """Construct a complete town board for the actual-depth departure gate.
+
+    The authoritative optional-failure decision requires destination facts,
+    including quests and recall depths; the old three-field stand-ins cannot
+    express that premise. Preserve each test's custom player inputs over the
+    model defaults rather than giving production a missing-field fallback.
+    """
+    defaults = PlayerState(position=Position(10, 10), hp=100, max_hp=100,
+                          mp=0, max_mp=0, level=10,
+                          class_id=PLAYER_CLASS_WARRIOR)
+    complete_player = SimpleNamespace(**{**vars(defaults), **vars(player)})
+    return Snapshot(player=complete_player, grids={}, visible_monsters=[],
+                    floor_key=(0, 0, 0), inventory=inventory,
+                    equipment=equipment, town_flag=fields.pop('town_flag', True),
+                    **fields)
+
+
 
 
 def seed_calibration(snapshot, items=()):
@@ -1007,7 +1025,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         policy._prepare_equipment_optimization = lambda _snapshot: (
             pending if policy._equipment_transaction_session is not None else achieved
         )
-        snapshot = SimpleNamespace(
+        snapshot = _departure_board(
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
             inventory=(), equipment=(),
         )
@@ -1025,7 +1043,7 @@ class WarriorOptimizationTest(unittest.TestCase):
     def test_departure_is_immediate_for_already_optimal_loadout(self):
         policy = HengbotPolicy()
         light = gear("light", "equipped", slot="light", tval=39)
-        snapshot = SimpleNamespace(
+        snapshot = _departure_board(
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
             inventory=(), equipment=(light.item,),
         )
@@ -1040,9 +1058,14 @@ class WarriorOptimizationTest(unittest.TestCase):
 
     def test_failed_uncomposable_transaction_opens_equipment_departure_conjunct(self):
         policy = HengbotPolicy()
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        # Optional departure must be able to record its named current-loadout
+        # outcome, rather than silently dropping the failed target.
+        policy._confirmed_loadout_path = Path(directory.name) / "confirmed-loadout.json"
         worn = gear("worn", "equipped", slot="main_hand")
         failed = gear("failed", "pack", slot="b")
-        snapshot = SimpleNamespace(
+        snapshot = _departure_board(
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
             inventory=(failed.item,), equipment=(worn.item,),
         )
@@ -1074,6 +1097,9 @@ class WarriorOptimizationTest(unittest.TestCase):
 
     def test_retired_failure_freezes_worn_target_across_optimizer_rebuild(self):
         policy = HengbotPolicy()
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        policy._confirmed_loadout_path = Path(directory.name) / "confirmed-loadout.json"
         worn = gear("worn", "equipped", slot="main_hand")
         failed = gear("failed", "pack", slot="b")
         player = SimpleNamespace(
@@ -1083,9 +1109,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             speed=110, melee_skill=50, shooting_skill=40, saving_skill=20,
             shield_skill=0, two_weapon_skill=0, max_hp=100, max_mp=0,
         )
-        snapshot = SimpleNamespace(
+        snapshot = _departure_board(
             player=player, inventory=(failed.item,), equipment=(worn.item,),
-            in_town=True,
+            town_flag=True,
         )
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
@@ -1126,7 +1152,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         policy._confirmed_loadout_path = Path(directory.name) / "confirmed-loadout.json"
         light = gear("light", "equipped", slot="light", tval=39)
-        snapshot = SimpleNamespace(
+        snapshot = _departure_board(
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
             inventory=(), equipment=(light.item,),
         )
@@ -1155,7 +1181,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             current, None, None, ("optimization-timeout",),
         )
         self.assertFalse(policy._equipment_departure_ready(snapshot))
-        stripped = SimpleNamespace(
+        stripped = _departure_board(
             player=snapshot.player, inventory=(), equipment=(),
         )
         self.assertFalse(policy._equipment_departure_ready(stripped))
@@ -1166,7 +1192,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             class_id=PLAYER_CLASS_WARRIOR, race_id=1, personality_id=2,
             stat_max=(18, 17, 16, 15, 14, 13),
         )
-        snapshot = SimpleNamespace(
+        snapshot = _departure_board(
             player=player_state, inventory=(), equipment=(light.item,), turn=500,
         )
         with TemporaryDirectory() as directory:
@@ -1196,7 +1222,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             restarted._equipment_optimization_timed_out_this_visit = True
             self.assertTrue(restarted._equipment_departure_ready(snapshot))
 
-            strengthened = SimpleNamespace(
+            strengthened = _departure_board(
                 player=SimpleNamespace(
                     **{
                         **vars(player_state),
@@ -1208,7 +1234,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             self.assertTrue(restarted._equipment_departure_ready(strengthened))
 
             blade = gear("blade", "pack", tval=23).item
-            grown_catalog = SimpleNamespace(
+            grown_catalog = _departure_board(
                 player=player_state, inventory=(blade,),
                 equipment=(light.item,), turn=502,
             )
@@ -1218,13 +1244,13 @@ class WarriorOptimizationTest(unittest.TestCase):
             restarted._equipment_optimizer_input_key = "1" * 64
             self.assertFalse(restarted._equipment_departure_ready(grown_catalog))
 
-            stripped = SimpleNamespace(
+            stripped = _departure_board(
                 player=player_state, inventory=(), equipment=(), turn=501,
             )
             restarted._equipment_catalog.refresh_carried((), ())
             self.assertFalse(restarted._equipment_departure_ready(stripped))
 
-            other_character = SimpleNamespace(
+            other_character = _departure_board(
                 player=SimpleNamespace(
                     class_id=PLAYER_CLASS_WARRIOR, race_id=9, personality_id=2,
                     stat_max=player_state.stat_max,
@@ -1245,7 +1271,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             successor._prepare_equipment_optimization = lambda _snapshot: timeout
             successor._equipment_optimizer_input_key = "0" * 64
             successor._equipment_optimization_timed_out_this_visit = True
-            clone = SimpleNamespace(
+            clone = _departure_board(
                 player=player_state, inventory=(), equipment=(light.item,),
                 turn=5001,
             )

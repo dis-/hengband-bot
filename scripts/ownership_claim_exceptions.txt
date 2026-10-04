@@ -71,6 +71,7 @@ policy.py:_enforce_town_claim_result  # reports a gate leak from the family of t
 policy.py:_low_hp_walk_gate  # post-decision low-HP walk veto (665d0c25, 297282cd): survival heal/rest, combat melee, escape wait, and relayed escape consumables
 
 # -- 2. relays ---------------------------------------------------------------
+policy_home.py:_home_full_leave_key  # relays the full-Home owner's supplied leave reason; callers name space-ready, surplus transport, or queued withdrawal
 policy.py:__init__  # initialises last_reason to design 4's idle default before any producer runs
 policy.py:_destination_depth_allowed  # relays the depth-block reason its caller composed
 policy.py:_unprofitable_unique_disengage_key  # relays the escape rung the disengage ladder chose

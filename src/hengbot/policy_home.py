@@ -113,6 +113,8 @@ class HomeMixin:
                     return self._open_home_deposit_key(snapshot)
                 return self._home_full_leave_key("home:full-space-ready")
             self._rearm_town_store_for_new_work(STORE_HOME)
+            if not self._ensure_home_visit_request(snapshot):
+                return None
             step = self._shopping_approach_step(snapshot, STORE_HOME, requester="home-visit")
             if step is None:
                 self._town_blocked_reason = "home-full-deposit-retry-unreachable"

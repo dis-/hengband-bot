@@ -224,6 +224,7 @@ _RUNGS: tuple[Rung, ...] = (
         "periodic:character-dump", "town:character-dump",
     ),
     # -- decide: the order _decide consults them ------------------------------
+    _decide("_home_full_relief_key", "home-visit", "home:full-"),
     _decide("_equipment_transaction_town_key", "equipment-txn",
             owns_transaction=True),                                    # 5765
     _decide("_equipment_transaction_town_owner_key", "equipment-txn",
@@ -279,7 +280,6 @@ _RUNGS: tuple[Rung, ...] = (
             "quest:regen:"),                                           # 6534
     _decide("_home_disposal_processing_key", "home-visit",
             "home-disposal:", ordinary=True),                          # 6538
-    _decide("_home_full_relief_key", "home-visit", "home:full-", ordinary=True),
     _decide("_town_restore_weapon_key", "equipment-txn"),              # 6598
     _decide("_fixed_quest_key", "quest-request"),                      # 6606
     _decide("_town_space_deposit_key", "store-router"),                # 6610
