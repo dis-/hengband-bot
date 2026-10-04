@@ -310,6 +310,7 @@ class PolicyHelpersMixin:
         return (
             HEAVY_CURSE_TAG in item.inscription
             or self._item_signature(item) in self._heavy_cursed_items
+            or self._item_signature(item) in getattr(self, "_permanent_cursed_items", ())
         )
     @staticmethod
     def _profile_resistance_name(name: str) -> str:

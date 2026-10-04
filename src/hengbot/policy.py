@@ -2081,6 +2081,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # player-visible, savefile-persistent inscription.  All curse consumers
         # consult _curse_unremovable(), never either backing store directly.
         self._remove_curse_watch: tuple[tuple[str, int, int], int, int] | None = None
+        self._permanent_cursed_items: set[tuple[str, int, int]] = set()
         self._heavy_cursed_items: set[tuple[str, int, int]] = set()
         self._heavy_curse_inscription_pending: tuple[str, int, int] | None = None
         self._launcher_enchant_attempted: set[int] = set()
@@ -14860,6 +14861,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._remember_departure_price("light", item.price)
             if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
                 self._remember_departure_price("remove-curse", item.price)
+            if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
+                self._remember_departure_price("star-remove-curse", item.price)
+                self._remember_departure_price("remove-curse", item.price)
             for stat, sval in RESTORE_POTION_SVAL_BY_STAT.items():
                 if item.tval == TVAL_POTION and item.sval == sval:
                     self._remember_departure_price(
@@ -15310,6 +15314,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return any(
             item.is_cursed
             and not self._curse_unremovable(item)
+            and self._item_signature(item) not in getattr(self, "_permanent_cursed_items", ())
             for item in snapshot.equipment
         )
 
@@ -15317,6 +15322,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _has_unremovable_curse_target(self, snapshot: Snapshot) -> bool:
         return any(
             item.is_cursed and self._curse_unremovable(item)
+            and self._item_signature(item) not in getattr(self, "_permanent_cursed_items", ())
             for item in snapshot.equipment
         )
 
@@ -15329,24 +15335,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return True
         store = snapshot.store
-        if store is not None and store.store_type == STORE_TEMPLE:
+        if store is not None and store.store_type in {STORE_ALCHEMIST, STORE_TEMPLE}:
             return any(
                 item.tval == TVAL_SCROLL
                 and item.sval == SV_SCROLL_REMOVE_CURSE
                 and item.price <= snapshot.player.gold
                 for item in store.items
             )
-        if (
-            self._town_map_active(snapshot)
-            and self._town_map.store_position(STORE_TEMPLE) is None
+        suppliers = (STORE_ALCHEMIST, STORE_TEMPLE)
+        if self._town_map_active(snapshot) and all(
+            self._town_map.store_position(supplier) is None for supplier in suppliers
         ):
             return False
-        observed = self._town_visit_ledger.shelf_observations.get(
-            (STORE_TEMPLE, "remove-curse")
-        )
-        return bool(
-            observed
-            and any(price <= snapshot.player.gold for price, _units in observed)
+        return any(
+            price <= snapshot.player.gold
+            for supplier in suppliers
+            for price, _units in self._town_visit_ledger.shelf_observations.get(
+                (supplier, "remove-curse"), ())
         )
 
 
@@ -15396,6 +15401,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if item.is_cursed
         }
         self._heavy_cursed_items.intersection_update(cursed_signatures)
+        self.__dict__.setdefault("_permanent_cursed_items", set()).intersection_update(cursed_signatures)
         watch = self._remove_curse_watch
         if watch is None:
             return
@@ -15419,6 +15425,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if scroll_sval == SV_SCROLL_REMOVE_CURSE:
             self._heavy_cursed_items.add(signature)
             self._heavy_curse_inscription_pending = signature
+        elif scroll_sval == SV_SCROLL_STAR_REMOVE_CURSE:
+            self._permanent_cursed_items.add(signature)
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _heavy_curse_inscription_key(self, snapshot: Snapshot) -> str | None:

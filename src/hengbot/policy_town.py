@@ -1801,6 +1801,7 @@ class TownMixin:
         home_required = self._home_available(snapshot)
         return {
             "recall_departure_ready": self._recall_departure_ready(snapshot),
+            "remove_curse_ready": self._required_remove_curse_kind(snapshot) is None,
             "food_ready": self._departure_food_ready(snapshot),
             "light_ready": self._light_ready(snapshot),
             # Fixed-quest carry belongs to the quest-entry contract, not the
@@ -2457,6 +2458,20 @@ class TownMixin:
                 return
             needs.append(TownNeed(store_type, category, ordering_class))
 
+        curse_kind = self._required_remove_curse_kind(snapshot)
+        if curse_kind is not None and self._usable_remove_curse_scroll(snapshot) is None:
+            if self._home_remove_curse_scroll(snapshot) is not None:
+                add(STORE_HOME, "home-star-remove-curse-use", "home-first")
+            else:
+                status = self._supply_ledger(snapshot, self._planned_depth())[curse_kind]
+                for supplier in status.stores:
+                    page = (snapshot.store if snapshot.store is not None
+                            and snapshot.store.store_type == supplier
+                            else self._town_supplier_stock.get(supplier))
+                    if (self._supply_page_offers(snapshot, curse_kind, supplier, page)
+                            if page is not None else supplier not in self._town_store_attempted):
+                        add(supplier, "required-star-remove-curse"
+                            if curse_kind == "star-remove-curse" else curse_kind)
 
         if (
             self._home_disposal_pass
@@ -2843,9 +2858,12 @@ class TownMixin:
         supply_categories = {
             "recall": "recall", "food": "food", "oil": "oil",
             "teleport": "teleport", "cure": "cure-critical",
+            "remove-curse": "remove-curse", "star-remove-curse": "star-remove-curse",
         }
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         for status in self._ledger_departure_shortages(ledger):
+            if status.kind in {"remove-curse", "star-remove-curse"}:
+                continue  # Already filed before the fundraising-only return.
             for store_type in status.stores:
                 # A shelf observed in this town visit (the open page, or a
                 # remembered one younger than the restock turnover) answers
@@ -3035,21 +3053,15 @@ class TownMixin:
             and STORE_GENERAL not in self._town_store_attempted
         ):
             add(STORE_GENERAL, "throwing-torches")
-        if (
-            self._has_normal_remove_curse_target(snapshot)
-            and self._find_remove_curse_scroll(snapshot) is None
-        ):
-            if STORE_TEMPLE in self._town_store_attempted:
-                return needs
-            add(STORE_TEMPLE, "remove-curse")
         carried_star_reserve = self._carried_star_remove_curse_count(snapshot) > 0
         if (
-            self._has_unremovable_curse_target(snapshot)
+            self._required_remove_curse_kind(snapshot) is not None
+            and self._home_remove_curse_scroll(snapshot) is None
             # A fresh policy must inspect Home before considering a new shop
             # purchase; otherwise it can buy while the reserve already sits on
             # an unobserved Home page.
             and self._home_star_remove_curse_count != 0
-            and not carried_star_reserve
+            and self._usable_remove_curse_scroll(snapshot) is None
             and not self._recall_departure_shortage(snapshot)
         ):
             add(STORE_HOME, "home-star-remove-curse-use", "home-first")
@@ -3068,10 +3080,8 @@ class TownMixin:
             and not self._star_remove_curse_reserve_deposit_pending
         ):
             add(STORE_TEMPLE, "home-star-remove-curse-stock")
-        # A latched heavy curse never creates a speculative Temple trip.  Keep
-        # the stop only when the live shelf proves that an affordable *Remove
-        # Curse* is available; this makes the attempt opportunistic and gives
-        # neither departure nor the restock waiter a missing-stock obligation.
+        # Reserve replenishment keeps its existing live-shelf rule. Required
+        # worn-curse procurement was filed before the fundraising-only return.
         if self._affordable_star_remove_curse(snapshot) is not None:
             add(STORE_TEMPLE, "star-remove-curse")
         if (
@@ -3164,11 +3174,12 @@ class TownMixin:
             ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
-            ("remove-curse", "normal", 1, True),  # An actionable carried curse makes departure unsafe.
+            ("remove-curse", "normal", 4, True),  # Required worn-curse suppliers.
             ("home-star-remove-curse-use", "home-first", 1, True),
             ("home-star-remove-curse-check", "home-first", 1, False),
             ("home-star-remove-curse-stock", "normal", 1, False),
-            ("star-remove-curse", "normal", 1, False),  # Shelf-proven heavy-curse service is opportunistic.
+            ("required-star-remove-curse", "normal", 4, True),
+            ("star-remove-curse", "normal", 1, False),  # Reserve replenishment stays optional.
             ("launcher-enchant", "normal", 1, False),  # Launcher enchanting is an optimization.
             ("equipment-catalog", "home-first", 1, False),  # Catalog completion yields to a ready departure.
             ("equipment-work", "home-first", 1, True),
@@ -3480,6 +3491,8 @@ class TownMixin:
         supply_categories = {
             "recall": "recall", "food": "food", "oil": "oil",
             "teleport": "teleport", "cure": "cure-critical",
+            "remove-curse": "remove-curse",
+            "star-remove-curse": "required-star-remove-curse",
         }
         for status in self._ledger_departure_shortages(ledger):
             if status.obtainable:
@@ -4038,8 +4051,12 @@ class TownMixin:
             SV_LITE_LANTERN,
         }:
             categories.append("light")
-        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
+        if item.tval == TVAL_SCROLL and item.sval in {
+            SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE,
+        }:
             categories.append("remove-curse")
+            if item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
+                categories.append("star-remove-curse")
         for stat, sval in RESTORE_POTION_SVAL_BY_STAT.items():
             if item.tval == TVAL_POTION and item.sval == sval:
                 categories.append(f"stat-restore:{stat}")
@@ -4075,6 +4092,7 @@ class TownMixin:
                 "identify-staff",
                 "light",
                 "remove-curse",
+                "star-remove-curse",
                 *(f"stat-restore:{stat}" for stat in RESTORE_POTION_SVAL_BY_STAT),
             )
             if store.store_type in self._cross_town_supplier_types(snapshot, category)
@@ -4094,6 +4112,8 @@ class TownMixin:
             "cure-critical": "cure",
             "oil": "oil",
             "food": "food",
+            "remove-curse": "remove-curse",
+            "star-remove-curse": "star-remove-curse",
         }.get(category)
         if supply_kind is not None:
             ledger = self._supply_ledger(snapshot, self._planned_depth())
@@ -4129,6 +4149,8 @@ class TownMixin:
             "cure": "cure-critical",
             "oil": "oil",
             "food": "food",
+            "remove-curse": "remove-curse",
+            "star-remove-curse": "star-remove-curse",
         }
         for status in ledger.values():
             missing = max(0, status.required_departure - status.count)
@@ -4158,8 +4180,6 @@ class TownMixin:
             )
         if not self._light_ready(snapshot):
             shortages.append(("light", 1))
-        if self._has_normal_remove_curse_target(snapshot) and self._find_remove_curse_scroll(snapshot) is None:
-            shortages.append(("remove-curse", 1))
         for stat in snapshot.player.drained_stats:
             if self._carried_restore_potion(snapshot, stat) is None:
                 shortages.append((f"stat-restore:{stat}", 1))
@@ -4779,40 +4799,17 @@ class TownMixin:
                 cause="cannot-read-scroll",
             )
             return None
-        cursed = next(
-            (
-                item for item in snapshot.equipment
-                if item.is_cursed
-                and not self._curse_unremovable(item)
-            ),
-            None,
-        )
-        star = self._first_item(
-            snapshot,
-            lambda it: it.is_scroll
-            and it.aware
-            and it.sval == SV_SCROLL_STAR_REMOVE_CURSE,
-        )
-        scroll = star or self._first_item(
-            snapshot,
-            lambda it: it.is_scroll
-            and it.aware
-            and it.sval == SV_SCROLL_REMOVE_CURSE,
-        )
+        scroll = self._usable_remove_curse_scroll(snapshot)
         if scroll is None:
             self._offer_execution_no_step(
                 producer="curse-enchant", work_id="remove-curse",
                 cause="no-remove-curse-scroll",
             )
             return None
-        if cursed is None and scroll.sval != SV_SCROLL_STAR_REMOVE_CURSE:
-            self._offer_execution_no_step(
-                producer="curse-enchant", work_id="remove-curse",
-                cause="ordinary-scroll-cannot-remove-curse",
-            )
-            return None
-        if cursed is None:
-            cursed = next((item for item in snapshot.equipment if item.is_cursed), None)
+        targets = [item for item in snapshot.equipment if item.is_cursed
+                   and self._item_signature(item) not in getattr(self, "_permanent_cursed_items", ())]
+        cursed = next((item for item in targets if self._curse_unremovable(item)),
+                      next(iter(targets), None))
         if cursed is None:
             self._offer_execution_no_step(
                 producer="curse-enchant", work_id="remove-curse",
@@ -4827,8 +4824,7 @@ class TownMixin:
                 if item.is_scroll and item.aware and item.sval == scroll.sval
             ),
         )
-        if scroll.sval == SV_SCROLL_STAR_REMOVE_CURSE:
-            self._star_remove_curse_reserve_withdraw_pending = False
+        self._star_remove_curse_reserve_withdraw_pending = False
         self.last_reason = "town:remove-curse"
         key = self._read_key(snapshot, scroll)
         self._offer_execution(
