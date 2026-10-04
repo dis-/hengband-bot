@@ -183,13 +183,13 @@ class HomeFullReliefTest(unittest.TestCase):
         self.assertIsNotNone(policy._home_errand.request)
         self.assertEqual(policy._home_errand.request.purpose, "full-home-sale")
 
-    def test_no_sellable_surplus_stops_with_named_reason_and_never_destroys(self):
+    def test_unknown_surplus_requires_identification_before_disposal(self):
         for enforced in (False, True):
             policy, board, _catalogue, _entries = relief_scene(
                 self.pins[2], enforced, safe=0)
             board, key = self.refuse(policy, board)
-            self.assertEqual(policy.last_reason, "town:blocked:home-full-no-sellable-surplus")
+            self.assertEqual(policy._home_full_relief["mode"], "identify")
             self.assertNotIn("k", key or "")
-            self.assertIsNone(policy._home_errand.request)
+            self.assertEqual(policy._home_errand.request.purpose, "full-home-discard")
             self.assertIsNone(policy._home_disposal_pending)
             self.assertIsNone(policy._pending_disposal_item)

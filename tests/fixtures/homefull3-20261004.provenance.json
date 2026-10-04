@@ -1,0 +1,9 @@
+{
+  "state-upto-1344.jsonl.gz": "f05caa34bde7525d93cbfa8b71ba2691b49266232077de09dc5583cb8d1212f0",
+  "state-upto-1150.jsonl.gz": "d1e5471e135797ea1901dee6b6e16235f082c3907dc06c0b5c3eff96d5c37dd8",
+  "autorecover-20261004-134213-equipment-transaction-home-route-repeat-terminal.bot-decisions.jsonl.gz": "1873ea57f3011db5f2d793cada56e8de8495295ffc11d718e34935e62ebdcc6f",
+  "autorecover-20261004-134314-town-blocked-owner-retired.bot-decisions.jsonl.gz": "fe9e62bc795e75b477ac940f53d8b6e2c420eddf568ca58a46f4c01227ce4fec",
+  "decisions-tail-1150.jsonl.gz": "ff73f8308b39ceb6c4afb53a920c8cf15972a146f33d5a67bae456a8d08240bb",
+  "fixture_sha256": "b82afc4fee7282211fdda4884e2fc3edbec2682dddc675ca93d74cc7a00b695d",
+  "backup_directory": "C:\\hengband-backups\\state-logs\\s33-phase2b-shadow-20261004"
+}
