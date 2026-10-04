@@ -1,0 +1,184 @@
+[
+  {
+    "module": "test_policy_shop",
+    "exit_code": 0,
+    "tests": 273,
+    "seconds": 26.25,
+    "summary": "OK (skipped=1)"
+  },
+  {
+    "module": "test_home_full_await_knowledge_recorded",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 6.62,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_route_release_recorded",
+    "exit_code": 0,
+    "tests": 5,
+    "seconds": 6.09,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_errand",
+    "exit_code": 0,
+    "tests": 6,
+    "seconds": 0.17,
+    "summary": "OK (skipped=3)"
+  },
+  {
+    "module": "test_home_disposal",
+    "exit_code": 0,
+    "tests": 15,
+    "seconds": 3.27,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_equipment_disposal",
+    "exit_code": 0,
+    "tests": 6,
+    "seconds": 1.64,
+    "summary": "OK"
+  },
+  {
+    "module": "test_ownership_s3_3_first_divergence",
+    "exit_code": 0,
+    "tests": 3,
+    "seconds": 0.19,
+    "summary": "OK"
+  },
+  {
+    "module": "test_ownership_s3_3_live_short_route",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 4.58,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_admission",
+    "exit_code": 0,
+    "tests": 9,
+    "seconds": 3.34,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_context",
+    "exit_code": 0,
+    "tests": 8,
+    "seconds": 7.55,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_reconciliation",
+    "exit_code": 0,
+    "tests": 18,
+    "seconds": 1.53,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_replay",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 1.95,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_phase2_equipment",
+    "exit_code": 0,
+    "tests": 1,
+    "seconds": 1.92,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_phase2_idle",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 1.47,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_phase2_quest",
+    "exit_code": 0,
+    "tests": 4,
+    "seconds": 10.97,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_shadow",
+    "exit_code": 0,
+    "tests": 7,
+    "seconds": 12.92,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_shadow_recorded",
+    "exit_code": 0,
+    "tests": 5,
+    "seconds": 16.77,
+    "summary": "OK"
+  },
+  {
+    "module": "test_execution_declaration",
+    "exit_code": 0,
+    "tests": 27,
+    "seconds": 17.49,
+    "summary": "OK"
+  },
+  {
+    "module": "test_policy_town",
+    "exit_code": 0,
+    "tests": 589,
+    "seconds": 243.95,
+    "summary": "OK"
+  },
+  {
+    "module": "test_policy_home",
+    "exit_code": 0,
+    "tests": 171,
+    "seconds": 31.41,
+    "summary": "OK (skipped=4)"
+  },
+  {
+    "module": "test_home_full_relief_recorded",
+    "exit_code": 0,
+    "tests": 4,
+    "seconds": 9.97,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_deposit_hang_recorded",
+    "exit_code": 0,
+    "tests": 5,
+    "seconds": 9.77,
+    "summary": "OK"
+  },
+  {
+    "module": "test_ownership_s3_3_delegation_record",
+    "exit_code": 0,
+    "tests": 14,
+    "seconds": 9.77,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_shadow_report",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 0.33,
+    "summary": "OK"
+  },
+  {
+    "module": "test_test_fakery_lint",
+    "exit_code": 1,
+    "tests": 13,
+    "seconds": 68.0,
+    "summary": "named invariant | CAUGHT | invariant-input-overwritten\nMock collaborator wall | CAUGHT | collaborator-wall\n\nSeven-rewrite evasion matrix:\nsetattr replacement | CAUGHT | public-path-replaced\nstring patch target | CAUGHT | public-path-replaced\ninjection moved to helper | CAUGHT | private-state-injected\nassert delegated to helper | CAUGHT | public-path-replaced\nwall split patch plus assignment | CAUGHT | collaborator-wall\nsuccess literal hoisted | CAUGHT | literal-success-predicate\nhistorical test renamed | CAUGHT | subject-precompleted\n\nHistorical acceptance table (real git blobs):\nshape | revision | real site | fires | declared\noptimizer precompletion | 594053f | tests/test_policy.py:test_mining_walk_in_is_the_only_zero_recall_entry | YES | NO\nfundraising premise overwrite | 0de8159 | tests/test_policy.py:test_incomplete_optimizer_blocks_normal_direct_entrance | YES | NO\nbest/loadout fabrication | 43726bb | tests/test_policy.py:test_unactionable_suppression_keeps_confirmed_loadout | YES | NO\nliteral success predicate | b57957f | tests/test_policy.py:test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window | YES | NO\nfrozen 105-decision drive | HEAD | tests/test_policy_town.py:test_live_home_door_block_replay_never_posts_stay_publicly | YES | NO\nhelper state injection | 5f49d7a | tests/test_policy.py:_catalogued_withdrawal_policy | YES | NO\nall collaborators mocked | 534b4be^ | tests/test_policy.py:test_live_block_replay_continues_alchemist_plan_publicly | YES | NO\n"
+  },
+  {
+    "module": "test_homefull3_recorded",
+    "exit_code": 0,
+    "tests": 8,
+    "seconds": 22.64,
+    "summary": "OK"
+  }
+]

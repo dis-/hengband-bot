@@ -1,0 +1,86 @@
+SOL-REPORT-homefull3.txt
+2026-10-04 / home-full-relief-1004 / base f7dfbcb1
+
+Completed A, B, C and D in C:\hengband\bot-client-homefull3. No push, live game/bot operation, or modification of another worktree or the main jsonlog was performed. Archived logs were read from C:\hengband-backups\state-logs\s33-phase2b-shadow-20261004.
+
+1. Recorded first divergence and causes
+
+A: autorecover-20261004-134213-equipment-transaction-home-route-repeat-terminal.bot-decisions.jsonl.gz rows 275-284. Row 275 posts the deposit at 13:41:59. Row 276 is a periodic dump; bookkeeping is not itself the business divergence. Row 277 (13:42:01, identify:full) is the first business divergence: the partial posted deposit still owns its outside observation phase, but identification takes over. Rows 278-279 then suppress random teleport and try the equipment Home route. Row 279 reports session-not-executable, effect not observed, begin_approach false, EXIT_PENDING with a queued request. Rows 280-284 abandon/retry until home-route-repeat-terminal.
+
+state-upto-1344.jsonl.gz row 4263 shows Home stock 239/240. Rows 4264-4265 merge arrows and add the pike, reaching 240. Row 4266 refuses the wand; row 4268 refuses accuracy scrolls; row 4271 refuses the skill book. Other intermediate deposits succeed. Outside row 4272 has no visible monsters but detected hostile town NPCs. The early pending-deposit hold required no hostile in either perception list, so these distant NPCs disabled the hold. Normal town producers use physical/visible hostiles instead. Identification/equipment therefore interposed before the old Home executor finished observing its partial batch; the queued equipment route could not become executable. This explains why the earlier release/observation fixes did not cover this board.
+
+Fix A: use the normal physical-hostile predicate for the pending Home hold. Preserve its existing Home owner, declaration and observation budget until it resolves. No new attempt or time guard was added.
+
+B: autorecover-20261004-134314-town-blocked-owner-retired.bot-decisions.jsonl.gz rows 251-257. Row 251 approaches Home; row 252 leaves it with full-queue-surplus-withdraw. Row 253 is the first divergence: outside Home it runs shop:travel toward Alchemist 4 instead of the queued atomic Home withdrawal. Rows 254-257 leave Alchemist, travel back to Home, leave Home, then travel toward Magic 5; later Weapon 2 joins the alternation. Row 281 retires the owner. Corresponding state-upto-1344.jsonl.gz rows 4288/4291/4292 supply the fresh catalogue, full Home page and first outside board.
+
+The ESC in row 252 is necessary: this bot composes an atomic Home withdrawal from outside the store. The fault is the next decision. The outside full-Home priority used the same overbroad detected-hostile gate as A; it skipped the filed relief work. Ordinary shopping then selected its still-outstanding shop work. Inside each store, full-Home relief again emitted ESC to obtain its required outside board. Both producers made routes without the withdrawal/sale effect, causing the alternating router pattern.
+
+Fix B: retain full-Home relief priority on the outside board using the same physical-hostile predicate. The existing Home errand composes the atomic withdrawal before other store work. The first changed command is 5p... to Home, owned and declared by home-errand. Health, status and physical-hostile gates remain in force.
+
+C: decisions-tail-1150.jsonl.gz row 2546 awaits fresh Home knowledge for full-home-sale, followed by row 2547 (turn 8072798) policy:none-wait and ownership:declaration-missing:home-errand. Rows 2548-2549 scan and wait again. state-upto-1150.jsonl.gz rows 94-97 show Home, the entrance and the outside/delayed boards. Captured diagnostics have the ordinary Home allowance charged three times and the catalogue invalidated/not current.
+
+The atomic withdrawal returned no command for a stale catalogue. The ordinary town route/allowance path could not guarantee that this prerequisite wait remained with the filed errand. Falling through to idle lost its declaration. Fix C: a dedicated home-errand knowledge producer owns both ~9 ESC and its delayed wait, including when the ordinary entrance allowance is spent. Both reasons use Observe/knowledge typing; each command declares the same catalogue-adopted continuation. Atomic withdrawal and the outside knowledge seam use that producer. It adds no retry/time limit.
+
+2. D: implementation against the user decision
+
+At base policy_home._home_full_relief_key stops with home-full-no-sellable-surplus when no eligible sale exists. D is a new decision, not a captured successful destroy recovery. The original refusal anchoring the incident is state row 4266; D's later command responses are explicitly constructed.
+
+The first choice remains an identified, unreserved, safe Home sale. Destruction is considered only after that candidate list is empty. Empty bottles are explicitly excluded from sales. Safe known destruction candidates are ordered by automatic junk priority, then realizable store buy value, then a stable signature. No-buy kinds and observed refused sales have zero realizable buy value, including positive-base-cost items a shop refused. Since a buyable eligible item would already have entered the sale branch, this destruction seam normally compares zero-valued unsellable surplus; base cost is not presented as an exact positive equipment shop appraisal.
+
+Automatic priority includes the existing _is_disposable_item authority and the unconditional junk kinds/zero-cost non-equipment shown in the committed pickup-editor fixture (bones/corpses, junk, statues, worthless items). The archive does not export a live arbitrary autopick rule matcher; the implementation does not claim to reconstruct every conditional or user-edited rule from those logs.
+
+Retention/procurement/departure reservations, equipment disposal reservations, artifacts, bounty targets, explicit keep decisions, previously undestroyable signatures, pending targets and identical carried stacks are excluded. Known equipment is eligible only through the existing dominated-armour authority and superior-item guard. The authoritative depth requirements and equipment comparison rules were not changed.
+
+Unknown or full-ID-required stock may be withdrawn for existing normal/full identification, never destroyed unverified. Observed identification settles its identification owner, rebinds a changed name/kind signature only when unique, and rechecks sale/protection before destruction. Newly valuable sale stock is sold; newly protected stock is retained. An ambiguous identification effect or unavailable source yields a named safe stop.
+
+A destruction uses the existing force-whole-stack command 0<count>k<slot> once. Subsequent observations wait under home-visit. Neither an unchanged inventory nor merely leaving/taking from Home credits disposal. Only the selected stack's observed disappearance decrements the relief requirement. After enough sale/destruction effects, a fresh catalogue is requested and the original rejected deposit batch is retried.
+
+3. Evidence and limits
+
+Fixture: tests/fixtures/homefull3-20261004.json.gz
+SHA256: b82afc4fee7282211fdda4884e2fc3edbec2682dddc675ca93d74cc7a00b695d
+Extraction script and provenance JSON record immutable backup source hashes/row numbers. Omitted grid maps are hydrated from the preceding recorded map. Static missing monster combat lore and posted ledgers are explicitly reconstructed. No original Python-policy checkpoint exists, and no historical later board is claimed as the result of a newly changed command. Selector/decision/readiness collaborators are not replaced.
+
+Recorded A/B/C pins run with town claims OFF and ON, with crossarea fundraising and in-store operations enabled. D constructed pins cover sell-first, automatic junk priority, two take/destroy effects then fresh-catalogue/deposit, unchanged-inventory observation, protected stock, unknown-to-identified signature changes and refused/no-buy zero value. Public decision/posting/catalogue drivers exercise the recovery; candidate/rank unit assertions supplement those public pins.
+
+Fail-before/pass-after and revert proof: validation/homefull3/revert-*.log and revert-results.json. Five selected pins fail on f7dfbcb1 (five assertion failures, no harness errors); all eight pins pass on the final implementation. Removing only the town handoff fix fails A and B (2/2); removing the knowledge-owner fix fails C (1/1); removing the destruction selection fails both selected D pins (2/2). Source copies are isolated inside ignored validation/homefull3/source-* directories; the actual worktree was never reverted. A reproduces identify:full and B reproduces shop:travel toward Alchemist on the base. C's reconstructed delayed board routes toward Alchemist on the base rather than reproducing the exact historical none-wait; it still proves that the pending knowledge errand loses its next command. The recorded row itself pins the historical missing-declaration stop.
+
+4. Tests (individual modules, sequential; no full suite)
+
+Runtime: C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
+PYTHONPATH includes src plus the repository/tests/scripts for standalone test-helper imports. test_policy_town was run alone (589 tests, OK). Per-module final results:
+  test_execution_declaration: 27 tests; OK
+  test_home_deposit_hang_recorded: 5 tests; OK
+  test_home_disposal: 15 tests; OK
+  test_home_equipment_disposal: 6 tests; OK
+  test_home_errand: 6 tests; OK (skipped=3)
+  test_home_full_await_knowledge_recorded: 2 tests; OK
+  test_home_full_relief_recorded: 4 tests; OK
+  test_home_route_release_recorded: 5 tests; OK
+  test_homefull3_recorded: 8 tests; OK
+  test_ownership_s3_3_delegation_record: 14 tests; OK
+  test_ownership_s3_3_first_divergence: 3 tests; OK
+  test_ownership_s3_3_live_short_route: 2 tests; OK
+  test_policy_home: 171 tests; OK (skipped=4)
+  test_policy_shop: 273 tests; OK (skipped=1)
+  test_policy_town: 589 tests; OK
+  test_s33_batch_admission: 9 tests; OK
+  test_s33_batch_context: 8 tests; OK
+  test_s33_batch_reconciliation: 18 tests; OK
+  test_s33_batch_replay: 2 tests; OK
+  test_s33_phase2_equipment: 1 tests; OK
+  test_s33_phase2_idle: 2 tests; OK
+  test_s33_phase2_quest: 4 tests; OK
+  test_s33_shadow: 7 tests; OK
+  test_s33_shadow_recorded: 5 tests; OK
+  test_s33_shadow_report: 2 tests; OK
+  test_test_fakery_lint: 13 tests; FAILED: 1 pre-existing audit assertion
+
+25 related modules are OK: 1,188 tests counted, with 8 skips. The additional test_test_fakery_lint module runs 13 tests: 12 pass and 1 fails on the pre-existing tests/replay_decision_hang.py:55 private-state-injected finding. Total final module outcomes: 1,192 passed, 8 skipped, 1 pre-existing failure (1,201 counted). preexisting-lint.json proves that this file is byte-identical to f7dfbcb1 and produces the same finding on that base blob. No audit whitelist or unrelated replay helper was altered. Initial failing run summaries are retained in initial-test-results.json. BOM/import-path setup and constructed-fixture issues were corrected and affected modules rerun. Final logs and test-results.json are committed. git diff --check passed.
+
+5. Commits
+
+89543e80ef05063fd7e6690bc5ad8ae248b69ce3 - Fix Home relief ownership and reclaim unsellable shelf stock
+The report and validation evidence are recorded in the following separate documentation commit, titled "Record Home relief incident analysis and validation evidence" (its hash is printed in the final response and available from git log). No push was performed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

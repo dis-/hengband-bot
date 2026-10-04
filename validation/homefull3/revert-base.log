@@ -1,0 +1,48 @@
+FFFFF
+======================================================================
+FAIL: test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople (test_homefull3_recorded.RecordedHomeFull3Test.test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 77, in test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople
+    self.assertIn('home:atomic-deposit-await-confirmation', p.last_reason)
+AssertionError: 'home:atomic-deposit-await-confirmation' not found in 'identify:full'
+
+======================================================================
+FAIL: test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist (test_homefull3_recorded.RecordedHomeFull3Test.test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 96, in test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist
+    self.assertTrue(key.startswith('5p'), (key, p.last_reason, p.home_route_refusal_state()))
+AssertionError: False is not true : ('\x1b`n%.', 'shop:travel', None)
+
+======================================================================
+FAIL: test_C_stale_catalogue_has_owner_declared_request_and_wait (test_homefull3_recorded.RecordedHomeFull3Test.test_C_stale_catalogue_has_owner_declared_request_and_wait)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 129, in test_C_stale_catalogue_has_owner_declared_request_and_wait
+    self.assertEqual(key, '5')
+AssertionError: '\x1b`n%.' != '5'
+- `n%.
++ 5
+
+
+======================================================================
+FAIL: test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit (test_homefull3_recorded.ConstructedDiscardTest.test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 165, in test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit
+    self.assertEqual(p._home_full_relief.get('mode'), 'destroy')
+AssertionError: None != 'destroy'
+
+======================================================================
+FAIL: test_D_unknown_is_identified_then_revalidated_before_destroy (test_homefull3_recorded.ConstructedDiscardTest.test_D_unknown_is_identified_then_revalidated_before_destroy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 227, in test_D_unknown_is_identified_then_revalidated_before_destroy
+    self.assertEqual(p._home_full_relief.get('mode'), 'identify')
+AssertionError: None != 'identify'
+
+----------------------------------------------------------------------
+Ran 5 tests in 5.995s
+
+FAILED (failures=5)

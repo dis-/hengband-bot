@@ -1,0 +1,16 @@
+F
+======================================================================
+FAIL: test_C_stale_catalogue_has_owner_declared_request_and_wait (test_homefull3_recorded.RecordedHomeFull3Test.test_C_stale_catalogue_has_owner_declared_request_and_wait)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 129, in test_C_stale_catalogue_has_owner_declared_request_and_wait
+    self.assertEqual(key, '5')
+AssertionError: '\x1b`n%.' != '5'
+- `n%.
++ 5
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.681s
+
+FAILED (failures=1)

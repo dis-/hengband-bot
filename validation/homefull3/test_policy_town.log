@@ -1,0 +1,13 @@
+................................................................................C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\tempfile.py:940: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmpcgtbi0re'>
+  _warnings.warn(warn_message, ResourceWarning)
+........C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\tempfile.py:940: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmp2wjgvsvt'>
+  _warnings.warn(warn_message, ResourceWarning)
+....................................................................................................................C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\tempfile.py:940: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmp11cv36vv'>
+  _warnings.warn(warn_message, ResourceWarning)
+.......................................................................................................................................................................C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\tempfile.py:940: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmpcg9h60xl'>
+  _warnings.warn(warn_message, ResourceWarning)
+..........................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 589 tests in 235.029s
+
+OK

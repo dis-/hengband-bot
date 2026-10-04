@@ -1,0 +1,21 @@
+FF
+======================================================================
+FAIL: test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit (test_homefull3_recorded.ConstructedDiscardTest.test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 165, in test_D_autodestroy_first_and_waits_for_destroy_effect_before_deposit
+    self.assertEqual(p._home_full_relief.get('mode'), 'destroy')
+AssertionError: None != 'destroy'
+
+======================================================================
+FAIL: test_D_unknown_is_identified_then_revalidated_before_destroy (test_homefull3_recorded.ConstructedDiscardTest.test_D_unknown_is_identified_then_revalidated_before_destroy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 227, in test_D_unknown_is_identified_then_revalidated_before_destroy
+    self.assertEqual(p._home_full_relief.get('mode'), 'identify')
+AssertionError: None != 'identify'
+
+----------------------------------------------------------------------
+Ran 2 tests in 2.472s
+
+FAILED (failures=2)
