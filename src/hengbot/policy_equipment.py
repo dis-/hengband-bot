@@ -1,4 +1,6 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command, reservation_verdict
+from hengbot.item_reservation import item_available
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
@@ -1827,7 +1829,7 @@ class EquipmentMixin:
     def _equipment_transaction_deposit_owns_item(self, item: InventoryItem) -> bool:
         """Reserve every remaining deposit for its registered session owner."""
         session = self._equipment_transaction_session
-        if session is None or not item.is_equipment:
+        if session is None:
             return False
         return any(
             action.kind == "deposit" and (
@@ -2153,7 +2155,10 @@ class EquipmentMixin:
                 # rather than blindly wielding the first pack weapon.
                 self._normal_weapon_name = target.name
             quantity = f"{target.count}\r" if target.count > 1 else ""
-            key = SELL_KEY + target.slot + quantity
+            prefix = reserved_item_command(self, snapshot, "deposit", target, "equipment-txn")
+            if prefix is None:
+                return None
+            key = prefix + quantity
             if not self._prepare_equipment_transaction_command(
                 session,
                 action,
@@ -2217,7 +2222,10 @@ class EquipmentMixin:
                     "transaction_target_identity": action.item_identity,
                     "transaction_target_move_identity": action.move_identity,
                 }
-                key = BUY_KEY + letter + quantity
+                prefix = reserved_item_command(self, snapshot, "withdraw", target, "equipment-txn", address=letter)
+                if prefix is None:
+                    return None
+                key = prefix + quantity
                 if not self._prepare_equipment_transaction_command(
                     session, action, observation, key,
                     ("home", snapshot.turn, letter,
@@ -3527,6 +3535,8 @@ class EquipmentMixin:
     ) -> str | None:
         if target_slot is None:
             return None
+        if not item_available(self, snapshot, item, "equipment-txn", "wield"):
+            return None
         if (
             not quest_contract_exempt
             and self._equip_blocked_by_identification(item)
@@ -3544,7 +3554,8 @@ class EquipmentMixin:
             self._pending_mutation_report = result.report
             return None
         result = self._equipment_mutation.request_wield(
-            snapshot, goal, item, target_slot, EQUIPMENT_SLOT_KEY
+            snapshot, goal, item, target_slot, EQUIPMENT_SLOT_KEY,
+            verdict=reservation_verdict(self, snapshot, item, "equipment-txn", "wield"), policy=self,
         )
         if (
             self._equipment_mutation.observed_changes
@@ -3567,7 +3578,13 @@ class EquipmentMixin:
     def _equipment_takeoff(
         self, snapshot: Snapshot, goal: str, slot_key: str
     ) -> str | None:
-        result = self._equipment_mutation.request_takeoff(snapshot, goal, slot_key)
+        item = next((candidate for candidate in snapshot.equipment
+                     if EQUIPMENT_SLOT_KEY.get(candidate.slot) == slot_key), slot_key)
+        verdict = reservation_verdict(self, snapshot, item, "equipment-txn", "takeoff")
+        if verdict.owner is not None:
+            return None
+        result = self._equipment_mutation.request_takeoff(
+            snapshot, goal, slot_key, verdict=verdict, policy=self)
         if (
             self._equipment_mutation.observed_changes
             != self._equipment_mutation_observed_changes

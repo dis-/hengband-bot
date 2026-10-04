@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import item_available, reserved_item_command
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -3203,6 +3204,8 @@ class ShopMixin(InStoreMixin):
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
         item = current
+        if not item_available(self, snapshot, item, "shop-sell", "sell"):
+            return LEAVE_STORE_KEY
         if self._sale_retains_digging_tool(snapshot, item):
             self._batch_sell_pending = None
             self.last_reason = "shop:retain-standing-digging-tool"
@@ -3307,7 +3310,7 @@ class ShopMixin(InStoreMixin):
                     and item.known
                     and not self._disposal_protected_by_identification(item)
                     and self._retention_reservation(snapshot, item) == 0
-                    and not self._equipment_transaction_owns_item(item)]
+                    and item_available(self, snapshot, item, "shop-sell", "sell")]
         remaining = list(snapshot.inventory)
         result: list[InventoryItem] = []
         while remaining:
@@ -3345,7 +3348,8 @@ class ShopMixin(InStoreMixin):
             ):
                 if not self._equipment_transaction_owns_item(organization):
                     result.append(organization)
-        return result
+        return [item for item in result
+                if item_available(self, snapshot, item, "shop-sell", "sell")]
 
     @claims(ClaimOwner.SHOP_SELL)
     def _batch_sell_key(
@@ -3462,6 +3466,8 @@ class ShopMixin(InStoreMixin):
             if candidates is None
             else candidates
         )
+        candidates = [item for item in candidates
+                      if item_available(self, snapshot, item, "shop-sell", "sell")]
         if not candidates:
             return None
 
@@ -3489,7 +3495,10 @@ class ShopMixin(InStoreMixin):
             if "@" in item.inscription and not has_exact_tag and not has_numeric_tag:
                 continue
             if not has_exact_tag:
-                inscribe_parts.append("{" + item.slot + exact_tag + "\r")
+                prefix = reserved_item_command(self, snapshot, "inscribe", item, "shop-sell")
+                if prefix is None:
+                    continue
+                inscribe_parts.append(prefix + exact_tag + "\r")
             sale = self._batch_sale_entry(snapshot, item, digit)
             if sale is None:
                 self._batch_sell_pending = None
@@ -3610,11 +3619,14 @@ class ShopMixin(InStoreMixin):
         # The store always asks for the offered-price confirmation.  A stack
         # first asks for a quantity; a singleton does not.
         quantity_answer = f"{quantity}\r" if item.count > 1 else ""
+        prefix = reserved_item_command(self, snapshot, "sell", item, "shop-sell", address=tag)
+        if prefix is None:
+            return None
         return {
             "count": item.count,
             "quantity": quantity,
             "charges": item.charges,
-            "sell": SELL_KEY + tag + quantity_answer + "y",
+            "sell": prefix + quantity_answer + "y",
         }
 
     def _shop(self, snapshot: Snapshot) -> str | None:
@@ -3784,7 +3796,8 @@ class ShopMixin(InStoreMixin):
                     else BUY_CONFIRM_SUFFIX
                 )
                 self.last_reason = "survival:buy-food"
-                return BUY_KEY + food_item.letter + suffix
+                prefix = reserved_item_command(self, snapshot, "buy", food_item, "survival")
+                return prefix + suffix if prefix is not None else None
             self._set_town_store_attempted(store.store_type, snapshot.turn, "survival-food-unavailable")
             if snapshot.player.food_type == FOOD_TYPE_MANA:
                 prices = [
@@ -4548,7 +4561,8 @@ class ShopMixin(InStoreMixin):
             )
             if item.is_digging_tool and fallback_purchase:
                 self._digger_fallback_bought_this_visit = True
-            return BUY_KEY + item.letter + suffix
+            prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
+            return prefix + suffix if prefix is not None else None
 
         self._store_buy_inflight = None
         self._last_buy_sig = None

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command, reservation_verdict
+from hengbot.item_reservation import reservation_decision, reservation_shadow, item_available
 
 from collections import Counter, deque
 import random
@@ -2556,6 +2558,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
+    @reservation_decision
     def choose_key(self, snapshot: Snapshot) -> str | None:
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
@@ -2658,58 +2661,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # below, this observation-only key costs no game time and is not a
         # policy turn: no decision bookkeeping runs, so the decision on the
         # unchanged board that follows is the one the bot would have made.
-        skill_request = self._skill_exp_request_key(snapshot)
-        if skill_request is not None:
-            arbiter.observe(
-                in_town=bool(snapshot.in_town or snapshot.store is not None),
-                reason=self.last_reason,
-                progress_vector=self._town_arbiter_progress_vector(
-                    snapshot, self.last_reason
-                ),
-                probe=True,
-                retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-                    snapshot, owner
-                ),
-            )
-            self.decision_attribution = arbiter.decision_owner_for_reason(
-                self.last_reason
-            )
-            self._record_decision_claim(snapshot, skill_request)
-            return skill_request
-        self._refresh_carried_equipment_catalog(snapshot)
-        self._request_priority_body_rearm(snapshot)
-        current_progress_core = self._owner_progress_core(snapshot)
-        refusal_probe = self._posting_refusal_probe
-        if refusal_probe is not None:
-            self._posting_refusal_probe = None
-            refusal_owner, refusal_core = refusal_probe
-            if replace(
-                current_progress_core, decision_sequence=0
-            ) == replace(refusal_core, decision_sequence=0):
-                # The probe is the explicit observation barrier after any
-                # sender-side refusal.  A stair watch may belong to an older,
-                # successfully accepted decision (for example when an
-                # interleaved Home scan was refused before the stair result
-                # arrived).  Keeping that watch across the identity-breaking
-                # probe makes the recovered stair key disappear into
-                # stair:await-observation forever.  Release it here: the next
-                # decision either reposts the stair against the new identity or
-                # routes elsewhere visibly.
-                if self._pending_stair_command is not None:
-                    self._pending_stair_command = None
-                    self._owner_expectations.release("stair-command")
-                self._last_policy_progress_core = current_progress_core
-                decided_reason = self.last_reason
-                key = self._look_probe_key(snapshot)
-                # G2: this observation-only key breaks the posting identity;
-                # it is not a policy turn and cannot replace the last decided
-                # owner's reason.
-                self.last_reason = decided_reason
+        # Probes and terminal results finish one decision block.
+        # Every envelope reaches final enforcement and claim recording.
+        for _decision_pass in (None,):
+            skill_request = self._skill_exp_request_key(snapshot)
+            if skill_request is not None:
                 arbiter.observe(
                     in_town=bool(snapshot.in_town or snapshot.store is not None),
-                    reason=refusal_owner,
+                    reason=self.last_reason,
                     progress_vector=self._town_arbiter_progress_vector(
-                        snapshot, refusal_owner
+                        snapshot, self.last_reason
                     ),
                     probe=True,
                     retirement_key_for=lambda owner: self._town_retirement_clearance_key(
@@ -2717,454 +2678,499 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     ),
                 )
                 self.decision_attribution = arbiter.decision_owner_for_reason(
-                    decided_reason
+                    self.last_reason
                 )
-                self._record_decision_claim(snapshot, key)
-                return key
-        self._last_policy_progress_core = current_progress_core
-        if (getattr(self, "_town_claim_bar_enforced", False)
-                and (snapshot.in_town or snapshot.store is not None)):
-            # Finish an observed arrival or store entry before asking the next
-            # town producer.  Otherwise its entry gate sees yesterday's route.
-            standing = getattr(self._claim_register, "current", None)
-            if standing is not None and standing.is_open:
-                self._claim_exit_completion(snapshot, standing, [])
-            self._observe_execution_delegations()
-            self._retire_finished_home_errand_plan_stop()
-        home_capture = self._home_entry_capture
-        def choose_ladder():
-            chosen = (home_capture.choose_key(self, snapshot)
-                      if home_capture is not None
-                      else self._choose_key_with_latch_capture(snapshot))
-            return self._enforce_town_claim_result(snapshot, chosen)
-
-        key = choose_ladder()
-        if (getattr(self, "_town_claim_bar_enforced", False)
-                and (snapshot.in_town or snapshot.store is not None)
-                and not self._warning_prompt_stops_decision):
-            retried = set()
-            released_any = False
-            while (key is None and not self._decision_gate_final_count
-                   and not (self.last_reason or "").startswith((
-                "ownership:holder-silent:", "ownership:declaration-",
-                "ownership:gate-missing:",
-            ))):
-                holder = self._claim_errand_hold("__none__")
-                if holder is not None:
-                    if holder.claim_id in retried:
-                        key = self._town_holder_ladder_result(holder, snapshot)
-                        break
-                    retried.add(holder.claim_id)
-                    if holder is getattr(self._claim_register, "current", None):
-                        self._claim_exit_completion(snapshot, holder, [])
-                    holder = self._claim_errand_hold("__none__")
-                    if holder is not None:
-                        key = self._town_holder_ladder_result(holder, snapshot)
-                        if key is not None or (self.last_reason or "").startswith((
-                            "ownership:holder-silent:", "ownership:declaration-",
-                        )):
-                            break
-                        if not getattr(self, "_decision_no_step_release", False):
-                            break
-                elif not getattr(self, "_decision_no_step_release", False):
-                    break
-                # An observed completion or named release gives the next
-                # eligible producer the same immutable board.
-                released_any = released_any or self._decision_no_step_release
-                self._decision_no_step_release = False
-                self._decision_errand_deferred = []
-                key = choose_ladder()
-            if (key == "" and (self.last_reason or "").startswith(
-                "ownership:holder-await:home-scan"
-            )):
-                key = WAIT_KEY
-                self.last_reason = "home:scan-await-observation"
-            if (key is None and (released_any or self._decision_no_step_release)
-                    and self._claim_errand_hold("__none__") is None):
-                self.last_reason = "town:blocked:owner-retired"
-                key = WAIT_KEY
-            if (self.last_reason or "").startswith((
-                "ownership:holder-silent:", "ownership:declaration-",
-                "ownership:gate-missing:",
-            )):
-                self._record_decision_claim(snapshot, None)
-                return None
-        # The producers below commit the store visit to the key they return:
-        # an in-store leave arms _store_leave_inflight and a composed one-shot
-        # marks operation_posted.  Every rewrite between here and the return
-        # can replace that key, so remember what the commitment was bound to.
-        decided_key = key
-        decided_visit = self._store_visit
-        if (
-            key == WAIT_KEY
-            and self.last_reason == "warning:blocked-step"
-            and any(
-                home_page_message_body(message).startswith(
-                    WARNING_PROMPT_MESSAGE_PREFIXES
-                )
-                for message in snapshot.messages
-            )
-        ):
-            # The prompt-bearing fixed-quest snapshot has no alternative rung;
-            # preserve its no-command seam after the refusal was processed.
-            # A later snapshot without the stale prompt returns the ordinary
-            # warning:blocked-step wait, while the CLI now bounds quiet None.
-            self._record_decision_claim(snapshot, None)
-            return None
-        if key is None and self._warning_prompt_stops_decision:
-            self._record_decision_claim(snapshot, None)
-            return None
-        if (
-            key
-            and (self.last_reason or "").startswith("equipment-transaction:")
-            and not (self.last_reason or "").startswith(
-                "equipment-transaction:await-"
-            )
-        ):
-            self._post_owner_expectation(
-                snapshot,
-                "equipment-transaction",
-                "inventory",
-                "equipment",
-                "store_type",
-                "gold",
-            )
-        holder_for_key = self._town_held_decision(key)
-        if holder_for_key is not None:
-            self._town_refuse_rewrite("no-progress", holder_for_key)
-        else:
-            key = self._refuse_no_progress_cycle(snapshot, key)
-        key = self._enforce_town_claim_result(snapshot, key)
-        if (self.last_reason or "").startswith("ownership:gate-missing:"):
-            self._record_decision_claim(snapshot, None)
-            return None
-        holder_for_key = self._town_held_decision(key)
-        if holder_for_key is not None:
-            self._town_refuse_rewrite("procurement", holder_for_key)
-        else:
-            procurement_key = self._town_procurement_decision(snapshot, key)
-            if procurement_key is not None:
-                key = procurement_key
-            if (
-                self._town_blocked_reason
-                == "town:blocked:home-withdraw-failed-stock-present"
-            ):
-                key = WAIT_KEY
-                self.last_reason = self._town_blocked_reason
-        if self._withdrawal_unfulfilled_defect:
-            self._record_shop_selector_diagnostics(snapshot, key)
-        unresolved_quest_candidate = (
-            key
-            if isinstance(key, DecisionCandidate)
-            and key.reason in {
-                "fixedquest:q22-travel:route-unavailable",
-                "fixedquest:prepare-return:route-unavailable",
-                "quest:enter:approach:route-unavailable",
-                "fixedquest:claim:approach:route-unavailable",
-                "fixedquest:request:approach:route-unavailable",
-                "fixedquest:reward-approach:route-unavailable",
-            }
-            else None
-        )
-        unresolved_quest_reason = (
-            unresolved_quest_candidate.reason
-            if unresolved_quest_candidate is not None else None
-        )
-        # Safety detector rewrites below are judged on their own evidence,
-        # after the holder's producer and the two retirement rewrites have
-        # passed the holder check. They do not masquerade as another errand.
-        key = self._forbid_wait_while_damaged(snapshot, key)
-        # USER DECISION 2026-10-03: the last word on a walking move at low HP
-        # or right after a hit, after every producer and the no-wait rewrite.
-        key = self._low_hp_walk_gate(snapshot, key)
-        # A shot or throw may leave a summoner a counter-attack target (the
-        # summoner emergency's reach, USER DECISION 2026-10-03 06:1x).
-        self._note_summoner_counter_targets(snapshot, key)
-        if (
-            unresolved_quest_candidate is not None
-            and key is not unresolved_quest_candidate
-            and key == WAIT_KEY
-        ):
-            unresolved_reason = unresolved_quest_candidate.reason
-            unresolved_vector = self._town_arbiter_progress_vector(
-                snapshot, unresolved_reason, unresolved_quest_candidate
-            )
-            unresolved_clearance = self._town_retirement_clearance_key(
-                snapshot, "quest-request", unresolved_reason,
-                unresolved_quest_candidate,
-            )
-            if not arbiter.preview_may_select(
-                unresolved_reason, unresolved_vector,
-                retirement_key=unresolved_clearance,
-            ):
-                # A no-op rewrite must not erase the exact unresolved claim
-                # once that claim has retired.  A real safety action keeps its
-                # detector ownership and always wins over quest arbitration.
-                key = unresolved_quest_candidate
-                self.last_reason = unresolved_reason
-        vector = self._town_arbiter_progress_vector(snapshot, self.last_reason, key)
-        in_town = bool(snapshot.in_town or snapshot.store is not None)
-        arbiter.observe(
-            in_town=in_town,
-            reason=self.last_reason,
-            progress_vector=vector,
-            probe=True,
-            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-                snapshot, owner, self.last_reason
-            ),
-        )
-        current_owner = arbiter.owner_for_reason(self.last_reason)
-        current_retirement_key = self._town_retirement_clearance_key(
-            snapshot, current_owner, self.last_reason,
-            key if isinstance(key, DecisionCandidate) else None,
-        )
-        town_kill_owns_visible_target = (
-            (
-                (self.last_reason or "").startswith("town:kill-mob")
-                or self.last_reason == "melee"
-            )
-            and any(not monster.pet for monster in snapshot.visible_monsters)
-        )
-        town_order_owns_step4 = bool(
-            self._town_order_operation == "normal-step4-bounty"
-            and self._town_order_step4_pending(snapshot)
-            and (self.last_reason or "").startswith("bounty:")
-        )
-        held_claim_decision = self._town_held_decision(key) is not None
-        visit = self._store_visit
-        posted_shop_observation_wait = bool(
-            getattr(self, "_town_claim_bar_enforced", False)
-            and key == ""
-            and self.last_reason == "shop:one-shot-in-flight"
-            and visit is not None
-            and visit.operation_posted
-            and not visit.operation_effect_observed
-            and visit.claim_operation_identity is not None
-            and (not visit.operation_released
-                 or self._store_buy_inflight is not None
-                 or (self._batch_sell_pending is not None
-                     and self._batch_sell_pending.get("phase") == "await-sale"))
-        )
-        if (
-            in_town
-            and not town_kill_owns_visible_target
-            and not town_order_owns_step4
-            and not held_claim_decision
-            and not posted_shop_observation_wait
-            and not arbiter.preview_may_select(
-                self.last_reason, vector, retirement_key=current_retirement_key
-            )
-        ):
-            rejected_candidate = key
-            retired_owner = arbiter.owner_for_reason(self.last_reason)
-            self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
-            supplier = self._departure_supplier_counterfactual(snapshot)
-            step = (
-                self._shopping_approach_step(
-                    snapshot, supplier, router_plan_stop=True
-                )
-                if (
-                    supplier is not None
-                    and snapshot.store is None
-                    and retired_owner != "store-router"
-                    and not self._defer_town_errand(
-                        "store-router", "counterfactual-approach"
-                    )
-                    and arbiter.preview_may_select(
-                        "shop:approach",
-                        self._town_arbiter_progress_vector(snapshot, "shop:approach"),
-                        retirement_key=self._town_retirement_clearance_key(
-                            snapshot, arbiter.owner_for_reason("shop:approach"),
-                            "shop:approach",
+                key = skill_request
+                break
+            self._refresh_carried_equipment_catalog(snapshot)
+            self._request_priority_body_rearm(snapshot)
+            current_progress_core = self._owner_progress_core(snapshot)
+            refusal_probe = self._posting_refusal_probe
+            if refusal_probe is not None:
+                self._posting_refusal_probe = None
+                refusal_owner, refusal_core = refusal_probe
+                if replace(
+                    current_progress_core, decision_sequence=0
+                ) == replace(refusal_core, decision_sequence=0):
+                    # The probe is the explicit observation barrier after any
+                    # sender-side refusal.  A stair watch may belong to an older,
+                    # successfully accepted decision (for example when an
+                    # interleaved Home scan was refused before the stair result
+                    # arrived).  Keeping that watch across the identity-breaking
+                    # probe makes the recovered stair key disappear into
+                    # stair:await-observation forever.  Release it here: the next
+                    # decision either reposts the stair against the new identity or
+                    # routes elsewhere visibly.
+                    if self._pending_stair_command is not None:
+                        self._pending_stair_command = None
+                        self._owner_expectations.release("stair-command")
+                    self._last_policy_progress_core = current_progress_core
+                    decided_reason = self.last_reason
+                    key = self._look_probe_key(snapshot)
+                    # G2: this observation-only key breaks the posting identity;
+                    # it is not a policy turn and cannot replace the last decided
+                    # owner's reason.
+                    self.last_reason = decided_reason
+                    arbiter.observe(
+                        in_town=bool(snapshot.in_town or snapshot.store is not None),
+                        reason=refusal_owner,
+                        progress_vector=self._town_arbiter_progress_vector(
+                            snapshot, refusal_owner
+                        ),
+                        probe=True,
+                        retirement_key_for=lambda owner: self._town_retirement_clearance_key(
+                            snapshot, owner
                         ),
                     )
+                    self.decision_attribution = arbiter.decision_owner_for_reason(
+                        decided_reason
+                    )
+                    break
+            self._last_policy_progress_core = current_progress_core
+            if (getattr(self, "_town_claim_bar_enforced", False)
+                    and (snapshot.in_town or snapshot.store is not None)):
+                # Finish an observed arrival or store entry before asking the next
+                # town producer.  Otherwise its entry gate sees yesterday's route.
+                standing = getattr(self._claim_register, "current", None)
+                if standing is not None and standing.is_open:
+                    self._claim_exit_completion(snapshot, standing, [])
+                self._observe_execution_delegations()
+                self._retire_finished_home_errand_plan_stop()
+            home_capture = self._home_entry_capture
+            def choose_ladder():
+                chosen = (home_capture.choose_key(self, snapshot)
+                          if home_capture is not None
+                          else self._choose_key_with_latch_capture(snapshot))
+                return self._enforce_town_claim_result(snapshot, chosen)
+
+            key = choose_ladder()
+            if (getattr(self, "_town_claim_bar_enforced", False)
+                    and (snapshot.in_town or snapshot.store is not None)
+                    and not self._warning_prompt_stops_decision):
+                retried = set()
+                released_any = False
+                while (key is None and not self._decision_gate_final_count
+                       and not (self.last_reason or "").startswith((
+                    "ownership:holder-silent:", "ownership:declaration-",
+                    "ownership:gate-missing:", "ownership:item-reserved:",
+                ))):
+                    holder = self._claim_errand_hold("__none__")
+                    if holder is not None:
+                        if holder.claim_id in retried:
+                            key = self._town_holder_ladder_result(holder, snapshot)
+                            break
+                        retried.add(holder.claim_id)
+                        if holder is getattr(self._claim_register, "current", None):
+                            self._claim_exit_completion(snapshot, holder, [])
+                        holder = self._claim_errand_hold("__none__")
+                        if holder is not None:
+                            key = self._town_holder_ladder_result(holder, snapshot)
+                            if key is not None or (self.last_reason or "").startswith((
+                                "ownership:holder-silent:", "ownership:declaration-",
+                            )):
+                                break
+                            if not getattr(self, "_decision_no_step_release", False):
+                                break
+                    elif not getattr(self, "_decision_no_step_release", False):
+                        break
+                    # An observed completion or named release gives the next
+                    # eligible producer the same immutable board.
+                    released_any = released_any or self._decision_no_step_release
+                    self._decision_no_step_release = False
+                    self._decision_errand_deferred = []
+                    key = choose_ladder()
+                if (key == "" and (self.last_reason or "").startswith(
+                    "ownership:holder-await:home-scan"
+                )):
+                    key = WAIT_KEY
+                    self.last_reason = "home:scan-await-observation"
+                if (key is None and (released_any or self._decision_no_step_release)
+                        and self._claim_errand_hold("__none__") is None):
+                    self.last_reason = "town:blocked:owner-retired"
+                    key = WAIT_KEY
+                if (self.last_reason or "").startswith((
+                    "ownership:holder-silent:", "ownership:declaration-",
+                    "ownership:gate-missing:", "ownership:item-reserved:",
+                )):
+                    key = None
+                    break
+            # The producers below commit the store visit to the key they return:
+            # an in-store leave arms _store_leave_inflight and a composed one-shot
+            # marks operation_posted.  Every rewrite between here and the return
+            # can replace that key, so remember what the commitment was bound to.
+            decided_key = key
+            decided_visit = self._store_visit
+            if (
+                key == WAIT_KEY
+                and self.last_reason == "warning:blocked-step"
+                and any(
+                    home_page_message_body(message).startswith(
+                        WARNING_PROMPT_MESSAGE_PREFIXES
+                    )
+                    for message in snapshot.messages
                 )
+            ):
+                # The prompt-bearing fixed-quest snapshot has no alternative rung;
+                # preserve its no-command seam after the refusal was processed.
+                # A later snapshot without the stale prompt returns the ordinary
+                # warning:blocked-step wait, while the CLI now bounds quiet None.
+                key = None
+                break
+            if key is None and self._warning_prompt_stops_decision:
+                key = None
+                break
+            if (
+                key
+                and (self.last_reason or "").startswith("equipment-transaction:")
+                and not (self.last_reason or "").startswith(
+                    "equipment-transaction:await-"
+                )
+            ):
+                self._post_owner_expectation(
+                    snapshot,
+                    "equipment-transaction",
+                    "inventory",
+                    "equipment",
+                    "store_type",
+                    "gold",
+                )
+            holder_for_key = self._town_held_decision(key)
+            if holder_for_key is not None:
+                self._town_refuse_rewrite("no-progress", holder_for_key)
+            else:
+                key = self._refuse_no_progress_cycle(snapshot, key)
+            key = self._enforce_town_claim_result(snapshot, key)
+            if (self.last_reason or "").startswith("ownership:gate-missing:"):
+                key = None
+                break
+            holder_for_key = self._town_held_decision(key)
+            if holder_for_key is not None:
+                self._town_refuse_rewrite("procurement", holder_for_key)
+            else:
+                procurement_key = self._town_procurement_decision(snapshot, key)
+                if procurement_key is not None:
+                    key = procurement_key
+                if (
+                    self._town_blocked_reason
+                    == "town:blocked:home-withdraw-failed-stock-present"
+                ):
+                    key = WAIT_KEY
+                    self.last_reason = self._town_blocked_reason
+            if self._withdrawal_unfulfilled_defect:
+                self._record_shop_selector_diagnostics(snapshot, key)
+            unresolved_quest_candidate = (
+                key
+                if isinstance(key, DecisionCandidate)
+                and key.reason in {
+                    "fixedquest:q22-travel:route-unavailable",
+                    "fixedquest:prepare-return:route-unavailable",
+                    "quest:enter:approach:route-unavailable",
+                    "fixedquest:claim:approach:route-unavailable",
+                    "fixedquest:request:approach:route-unavailable",
+                    "fixedquest:reward-approach:route-unavailable",
+                }
                 else None
             )
-            if self._route_unavailable_terminal_candidate(
-                rejected_candidate, key
+            unresolved_quest_reason = (
+                unresolved_quest_candidate.reason
+                if unresolved_quest_candidate is not None else None
+            )
+            # Safety detector rewrites below are judged on their own evidence,
+            # after the holder's producer and the two retirement rewrites have
+            # passed the holder check. They do not masquerade as another errand.
+            key = self._forbid_wait_while_damaged(snapshot, key)
+            # USER DECISION 2026-10-03: the last word on a walking move at low HP
+            # or right after a hit, after every producer and the no-wait rewrite.
+            key = self._low_hp_walk_gate(snapshot, key)
+            # A shot or throw may leave a summoner a counter-attack target (the
+            # summoner emergency's reach, USER DECISION 2026-10-03 06:1x).
+            self._note_summoner_counter_targets(snapshot, key)
+            if (
+                unresolved_quest_candidate is not None
+                and key is not unresolved_quest_candidate
+                and key == WAIT_KEY
             ):
-                self.last_reason = (
-                    "fixedquest:prepare-return:unsatisfiable"
-                    if rejected_candidate.reason.startswith(
-                        "fixedquest:prepare-return:"
-                    ) else (
-                        "quest:enter:approach:unsatisfiable"
-                        if rejected_candidate.reason.startswith(
-                            "quest:enter:approach:"
-                        ) else (
-                            rejected_candidate.reason.replace(
-                                ":route-unavailable", ":unsatisfiable"
-                            ) if rejected_candidate.reason.startswith(
-                                ("fixedquest:claim:approach:",
-                                 "fixedquest:request:approach:",
-                                 "fixedquest:reward-approach:")
-                            ) else "fixedquest:q22-travel:unsatisfiable"
+                unresolved_reason = unresolved_quest_candidate.reason
+                unresolved_vector = self._town_arbiter_progress_vector(
+                    snapshot, unresolved_reason, unresolved_quest_candidate
+                )
+                unresolved_clearance = self._town_retirement_clearance_key(
+                    snapshot, "quest-request", unresolved_reason,
+                    unresolved_quest_candidate,
+                )
+                if not arbiter.preview_may_select(
+                    unresolved_reason, unresolved_vector,
+                    retirement_key=unresolved_clearance,
+                ):
+                    # A no-op rewrite must not erase the exact unresolved claim
+                    # once that claim has retired.  A real safety action keeps its
+                    # detector ownership and always wins over quest arbitration.
+                    key = unresolved_quest_candidate
+                    self.last_reason = unresolved_reason
+            vector = self._town_arbiter_progress_vector(snapshot, self.last_reason, key)
+            in_town = bool(snapshot.in_town or snapshot.store is not None)
+            arbiter.observe(
+                in_town=in_town,
+                reason=self.last_reason,
+                progress_vector=vector,
+                probe=True,
+                retirement_key_for=lambda owner: self._town_retirement_clearance_key(
+                    snapshot, owner, self.last_reason
+                ),
+            )
+            current_owner = arbiter.owner_for_reason(self.last_reason)
+            current_retirement_key = self._town_retirement_clearance_key(
+                snapshot, current_owner, self.last_reason,
+                key if isinstance(key, DecisionCandidate) else None,
+            )
+            town_kill_owns_visible_target = (
+                (
+                    (self.last_reason or "").startswith("town:kill-mob")
+                    or self.last_reason == "melee"
+                )
+                and any(not monster.pet for monster in snapshot.visible_monsters)
+            )
+            town_order_owns_step4 = bool(
+                self._town_order_operation == "normal-step4-bounty"
+                and self._town_order_step4_pending(snapshot)
+                and (self.last_reason or "").startswith("bounty:")
+            )
+            held_claim_decision = self._town_held_decision(key) is not None
+            visit = self._store_visit
+            posted_shop_observation_wait = bool(
+                getattr(self, "_town_claim_bar_enforced", False)
+                and key == ""
+                and self.last_reason == "shop:one-shot-in-flight"
+                and visit is not None
+                and visit.operation_posted
+                and not visit.operation_effect_observed
+                and visit.claim_operation_identity is not None
+                and (not visit.operation_released
+                     or self._store_buy_inflight is not None
+                     or (self._batch_sell_pending is not None
+                         and self._batch_sell_pending.get("phase") == "await-sale"))
+            )
+            if (
+                in_town
+                and not town_kill_owns_visible_target
+                and not town_order_owns_step4
+                and not held_claim_decision
+                and not posted_shop_observation_wait
+                and not arbiter.preview_may_select(
+                    self.last_reason, vector, retirement_key=current_retirement_key
+                )
+            ):
+                rejected_candidate = key
+                retired_owner = arbiter.owner_for_reason(self.last_reason)
+                self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
+                supplier = self._departure_supplier_counterfactual(snapshot)
+                step = (
+                    self._shopping_approach_step(
+                        snapshot, supplier, router_plan_stop=True
+                    )
+                    if (
+                        supplier is not None
+                        and snapshot.store is None
+                        and retired_owner != "store-router"
+                        and not self._defer_town_errand(
+                            "store-router", "counterfactual-approach"
+                        )
+                        and arbiter.preview_may_select(
+                            "shop:approach",
+                            self._town_arbiter_progress_vector(snapshot, "shop:approach"),
+                            retirement_key=self._town_retirement_clearance_key(
+                                snapshot, arbiter.owner_for_reason("shop:approach"),
+                                "shop:approach",
+                            ),
                         )
                     )
+                    else None
                 )
-                key = WAIT_KEY
-            elif step is not None:
-                transaction_owns_relocation = (
-                    self._equipment_transaction_owns_town_relocation(snapshot)
-                )
-                foreign_relocation = (
-                    self._shopping_approach_store_type != STORE_HOME
-                )
-                if transaction_owns_relocation and foreign_relocation:
-                    # Arbitration may retire the transaction's claim, but it
-                    # cannot hand the remainder of this decision to a foreign
-                    # locomotion owner.  Preserve an executor WAIT unchanged;
-                    # a progressing key must instead converge on the existing
-                    # named terminal rather than becoming an unnamed WAIT.
-                    if key != WAIT_KEY:
-                        self.last_reason = "town:blocked:owner-retired"
-                        key = WAIT_KEY
-                elif not transaction_owns_relocation:
-                    self.last_reason = "shop:approach"
-                    key = self._shopping_approach_key(snapshot, step, "shop:travel")
-            else:
-                self.last_reason = "town:blocked:owner-retired"
-                key = WAIT_KEY
-            vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
-        elif (in_town and held_claim_decision
-              and not arbiter.preview_may_select(
-                  self.last_reason, vector,
-                  retirement_key=current_retirement_key)):
-            self._town_refuse_rewrite(
-                "arbiter-retirement", self._town_held_decision(key))
-        if snapshot.store is not None and key in DIRECTION_KEYS.values():
-            # This is the final policy emission seam.  No producer or
-            # downstream town owner may post a bare direction into Hengband's
-            # store command loop; leave through its established command path.
-            self.last_reason = "store:direction-refused-leave"
-            key = LEAVE_STORE_KEY
-            vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
-        # This is the first mutating accounting point and follows every key
-        # rewrite.  Only the exact surviving envelope can authorize a route.
-        final_candidate = key if isinstance(key, DecisionCandidate) else None
-        vector = self._town_arbiter_progress_vector(
-            snapshot, self.last_reason, final_candidate
-        )
-        terminal = self._town_arbiter_terminal_result(key)
-        arbiter.observe(
-            in_town=bool(snapshot.in_town or snapshot.store is not None),
-            reason=self.last_reason,
-            progress_vector=vector,
-            terminal=terminal,
-            observation_wait=(posted_shop_observation_wait or bool(
-                key == ""
-                and self._store_visit is not None
-                and self._store_visit.operation_posted
-                and not self._store_visit.operation_released
-            )),
-            close_visit=self._arbiter_close_store_visit,
-            retirement_key=self._town_retirement_clearance_key(
-                snapshot, arbiter.owner_for_reason(self.last_reason),
-                self.last_reason, final_candidate,
-            ),
-            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-                snapshot, owner,
-                unresolved_quest_reason
-                if owner == "quest-request" and unresolved_quest_reason is not None
-                else self.last_reason,
-                final_candidate if owner == arbiter.owner_for_reason(self.last_reason) else None,
-            ),
-        )
-        self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
-        if self.last_reason in {"shop:await-leave-confirmation",
-                                "shop:await-leave-generation"}:
-            self.decision_attribution = self._visit_exit_family()
-        if (
-            self._equipment_transaction_session is None
-            and STORE_HOME in self._town_visit_ledger.blocked_stores
-            and self._store_visit is not None
-            and self._store_visit.store_type == STORE_HOME
-        ):
-            # E5: locomotion metrics belong only to a live owner.  Close the
-            # retired Home approach after observation so a same-decision
-            # counterfactual cannot leak its target across owner stamps.
-            self._close_store_visit("equipment-transaction-owner-retired")
-            self._release_claim_goal(
-                "shop-approach:equipment-transaction-owner-retired",
-                self._shopping_approach_goal,
-                owners=CLAIM_ENTRANCE_OWNERS,
-            )
-            self._shopping_approach_goal = None
-            self._release_town_travel_claim(
-                "town-travel:equipment-transaction-owner-retired"
-            )
-            self._town_travel_state = None
-            self._town_travel_fallback = None
-        here = snapshot.grid_at(snapshot.player.position)
-        if (
-            key == WAIT_KEY
-            and here is not None
-            and here.store_number == STORE_HOME
-            and self._home_pending_item is not None
-            and self._shopping_approach_store_type == STORE_HOME
-            and self._shopping_approach_goal == snapshot.player.position
-            and not (self.last_reason or "").startswith("town:blocked:")
-        ):
-            self._intentional_entrance_activation = True
-        if (self.last_reason or "").startswith("town:blocked:"):
-            self._intentional_entrance_activation = False
-        if (
-            key == WAIT_KEY
-            and snapshot.in_town
-            and snapshot.store is None
-            and here is not None
-            and (
-                here.has_entrance
-                or here.store_number >= 0
-                or here.building_special >= 0
-            )
-            and not self._intentional_entrance_activation
-            and not (self.last_reason or "").startswith(
-                "quest:enter:approach:unsatisfiable"
-            )
-        ):
-            # This is the final emitted-envelope seam, after every owner and
-            # stage-2 accounting mutation has observed the producer's original
-            # WAIT claim.  Hengband interprets that byte as entrance activation.
-            wait_reason = self.last_reason
-            key = self._town_entrance_step_off_key(snapshot, wait_reason)
-            if (wait_reason or "").startswith("fixedquest:prepare-return"):
-                # Stage-2 quest-travel arbitration/accounting remains owned by
-                # its original producer even though the emitted byte is the
-                # safety step-off envelope.
-                self.last_reason = wait_reason
-            if key == WAIT_KEY:
-                key = ""
-                if not (wait_reason or "").startswith(
-                    "fixedquest:prepare-return"
+                if self._route_unavailable_terminal_candidate(
+                    rejected_candidate, key
                 ):
                     self.last_reason = (
-                        f"town:entrance-wait-refused:{wait_reason or 'wait'}"
+                        "fixedquest:prepare-return:unsatisfiable"
+                        if rejected_candidate.reason.startswith(
+                            "fixedquest:prepare-return:"
+                        ) else (
+                            "quest:enter:approach:unsatisfiable"
+                            if rejected_candidate.reason.startswith(
+                                "quest:enter:approach:"
+                            ) else (
+                                rejected_candidate.reason.replace(
+                                    ":route-unavailable", ":unsatisfiable"
+                                ) if rejected_candidate.reason.startswith(
+                                    ("fixedquest:claim:approach:",
+                                     "fixedquest:request:approach:",
+                                     "fixedquest:reward-approach:")
+                                ) else "fixedquest:q22-travel:unsatisfiable"
+                            )
+                        )
                     )
-        self._release_rewritten_store_posting(decided_visit, decided_key, key)
-        self._release_rewritten_prompt_chain(key)
-        # A candidate can be discarded by town arbitration and retried on the
-        # same board. Only the final envelope has a posted stair identity.
-        self._remember_stair_command(snapshot, key)
-        if getattr(self, "_crossarea_fundraising_enforced", False):
-            if key and key[0] == UP_STAIRS_KEY and self.last_reason == "fundraise:ascend":
-                self._post_fundraising_transport(snapshot, "return")
-            elif (key and key[0] == DOWN_STAIRS_KEY
-                  and self.last_reason == "descend" and snapshot.in_town
-                  and self._fundraising_mode in {"mine", "scavenge"}):
-                self._fundraising_runs_started = (
-                    (self._fundraising_runs_started or 0) + 1
+                    key = WAIT_KEY
+                elif step is not None:
+                    transaction_owns_relocation = (
+                        self._equipment_transaction_owns_town_relocation(snapshot)
+                    )
+                    foreign_relocation = (
+                        self._shopping_approach_store_type != STORE_HOME
+                    )
+                    if transaction_owns_relocation and foreign_relocation:
+                        # Arbitration may retire the transaction's claim, but it
+                        # cannot hand the remainder of this decision to a foreign
+                        # locomotion owner.  Preserve an executor WAIT unchanged;
+                        # a progressing key must instead converge on the existing
+                        # named terminal rather than becoming an unnamed WAIT.
+                        if key != WAIT_KEY:
+                            self.last_reason = "town:blocked:owner-retired"
+                            key = WAIT_KEY
+                    elif not transaction_owns_relocation:
+                        self.last_reason = "shop:approach"
+                        key = self._shopping_approach_key(snapshot, step, "shop:travel")
+                else:
+                    self.last_reason = "town:blocked:owner-retired"
+                    key = WAIT_KEY
+                vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
+            elif (in_town and held_claim_decision
+                  and not arbiter.preview_may_select(
+                      self.last_reason, vector,
+                      retirement_key=current_retirement_key)):
+                self._town_refuse_rewrite(
+                    "arbiter-retirement", self._town_held_decision(key))
+            if snapshot.store is not None and key in DIRECTION_KEYS.values():
+                # This is the final policy emission seam.  No producer or
+                # downstream town owner may post a bare direction into Hengband's
+                # store command loop; leave through its established command path.
+                self.last_reason = "store:direction-refused-leave"
+                key = LEAVE_STORE_KEY
+                vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
+            # This is the first mutating accounting point and follows every key
+            # rewrite.  Only the exact surviving envelope can authorize a route.
+            final_candidate = key if isinstance(key, DecisionCandidate) else None
+            vector = self._town_arbiter_progress_vector(
+                snapshot, self.last_reason, final_candidate
+            )
+            terminal = self._town_arbiter_terminal_result(key)
+            arbiter.observe(
+                in_town=bool(snapshot.in_town or snapshot.store is not None),
+                reason=self.last_reason,
+                progress_vector=vector,
+                terminal=terminal,
+                observation_wait=(posted_shop_observation_wait or bool(
+                    key == ""
+                    and self._store_visit is not None
+                    and self._store_visit.operation_posted
+                    and not self._store_visit.operation_released
+                )),
+                close_visit=self._arbiter_close_store_visit,
+                retirement_key=self._town_retirement_clearance_key(
+                    snapshot, arbiter.owner_for_reason(self.last_reason),
+                    self.last_reason, final_candidate,
+                ),
+                retirement_key_for=lambda owner: self._town_retirement_clearance_key(
+                    snapshot, owner,
+                    unresolved_quest_reason
+                    if owner == "quest-request" and unresolved_quest_reason is not None
+                    else self.last_reason,
+                    final_candidate if owner == arbiter.owner_for_reason(self.last_reason) else None,
+                ),
+            )
+            self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
+            if self.last_reason in {"shop:await-leave-confirmation",
+                                    "shop:await-leave-generation"}:
+                self.decision_attribution = self._visit_exit_family()
+            if (
+                self._equipment_transaction_session is None
+                and STORE_HOME in self._town_visit_ledger.blocked_stores
+                and self._store_visit is not None
+                and self._store_visit.store_type == STORE_HOME
+            ):
+                # E5: locomotion metrics belong only to a live owner.  Close the
+                # retired Home approach after observation so a same-decision
+                # counterfactual cannot leak its target across owner stamps.
+                self._close_store_visit("equipment-transaction-owner-retired")
+                self._release_claim_goal(
+                    "shop-approach:equipment-transaction-owner-retired",
+                    self._shopping_approach_goal,
+                    owners=CLAIM_ENTRANCE_OWNERS,
                 )
-                self._post_fundraising_transport(snapshot, "depart")
-        if (getattr(self, "_town_claim_bar_enforced", False)
-                and self._town_unbound_entry_wait(key)):
-            # The holder check above gave procurement a chance to replace the
-            # empty wait.  If no route exists, stop visibly rather than emit
-            # an undeclared observation from an unposted visit.
-            self.last_reason = "ownership:declaration-missing:store-router"
-            self._record_decision_claim(snapshot, None)
-            return None
+                self._shopping_approach_goal = None
+                self._release_town_travel_claim(
+                    "town-travel:equipment-transaction-owner-retired"
+                )
+                self._town_travel_state = None
+                self._town_travel_fallback = None
+            here = snapshot.grid_at(snapshot.player.position)
+            if (
+                key == WAIT_KEY
+                and here is not None
+                and here.store_number == STORE_HOME
+                and self._home_pending_item is not None
+                and self._shopping_approach_store_type == STORE_HOME
+                and self._shopping_approach_goal == snapshot.player.position
+                and not (self.last_reason or "").startswith("town:blocked:")
+            ):
+                self._intentional_entrance_activation = True
+            if (self.last_reason or "").startswith("town:blocked:"):
+                self._intentional_entrance_activation = False
+            if (
+                key == WAIT_KEY
+                and snapshot.in_town
+                and snapshot.store is None
+                and here is not None
+                and (
+                    here.has_entrance
+                    or here.store_number >= 0
+                    or here.building_special >= 0
+                )
+                and not self._intentional_entrance_activation
+                and not (self.last_reason or "").startswith(
+                    "quest:enter:approach:unsatisfiable"
+                )
+            ):
+                # This is the final emitted-envelope seam, after every owner and
+                # stage-2 accounting mutation has observed the producer's original
+                # WAIT claim.  Hengband interprets that byte as entrance activation.
+                wait_reason = self.last_reason
+                key = self._town_entrance_step_off_key(snapshot, wait_reason)
+                if (wait_reason or "").startswith("fixedquest:prepare-return"):
+                    # Stage-2 quest-travel arbitration/accounting remains owned by
+                    # its original producer even though the emitted byte is the
+                    # safety step-off envelope.
+                    self.last_reason = wait_reason
+                if key == WAIT_KEY:
+                    key = ""
+                    if not (wait_reason or "").startswith(
+                        "fixedquest:prepare-return"
+                    ):
+                        self.last_reason = (
+                            f"town:entrance-wait-refused:{wait_reason or 'wait'}"
+                        )
+            self._release_rewritten_store_posting(decided_visit, decided_key, key)
+            self._release_rewritten_prompt_chain(key)
+            # A candidate can be discarded by town arbitration and retried on the
+            # same board. Only the final envelope has a posted stair identity.
+            self._remember_stair_command(snapshot, key)
+            if getattr(self, "_crossarea_fundraising_enforced", False):
+                if key and key[0] == UP_STAIRS_KEY and self.last_reason == "fundraise:ascend":
+                    self._post_fundraising_transport(snapshot, "return")
+                elif (key and key[0] == DOWN_STAIRS_KEY
+                      and self.last_reason == "descend" and snapshot.in_town
+                      and self._fundraising_mode in {"mine", "scavenge"}):
+                    self._fundraising_runs_started = (
+                        (self._fundraising_runs_started or 0) + 1
+                    )
+                    self._post_fundraising_transport(snapshot, "depart")
+            if (getattr(self, "_town_claim_bar_enforced", False)
+                    and self._town_unbound_entry_wait(key)):
+                # The holder check above gave procurement a chance to replace the
+                # empty wait.  If no route exists, stop visibly rather than emit
+                # an undeclared observation from an unposted visit.
+                self.last_reason = "ownership:declaration-missing:store-router"
+                key = None
+                break
+        key = self._enforce_town_claim_result(snapshot, key)
         self._record_decision_claim(snapshot, key)
         return key
 
@@ -4715,6 +4721,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             claim_declaration_mismatch(finished, 'awaiting', reason) if finished is not None and finished.execution is not None and (finished.execution.state == 'done') and (claim.claim_id == finished.claim_id or claim.execution is None) and (finished.owner.value in {'home-visit', 'equipment-txn'}) and (visit is not None) and visit.operation_posted and (not visit.operation_released) else None
         )
         self.decision_claim = {
+            **({"item_reservation_shadow": reservation_shadow(self)}
+               if reservation_shadow(self) else {}),
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
             "reason": reason,
@@ -6773,6 +6781,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _town_final_declaration_stop(self, snapshot, key, route):
         """Pure validity checks shared by enforcement and OFF shadow."""
+        reserved = next((row["would_stop"] for row in reservation_shadow(self)
+                         if row.get("would_stop")), None)
+        if reserved is not None:
+            return reserved
         reason = self.last_reason or ""
         family = self._claim_family_of(reason)
         if key == "" and reason == "shop:one-shot-in-flight":
@@ -6885,6 +6897,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Detect a producer that escaped the town entry gate."""
         if not (snapshot.in_town or snapshot.store is not None):
             return key
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and any(row.get("would_stop") for row in reservation_shadow(self))):
+            stop = self._town_final_declaration_stop(snapshot, key, None)
+            if stop is not None:
+                self.last_reason = stop
+                return None
         if key is None:
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
@@ -12183,6 +12201,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         disposable = finder(candidate_snapshot)
         refused_superior = False
         while disposable is not None:
+            owner = "equipment-txn" if reason.startswith("equipment:") else "identification"
+            if not item_available(self, snapshot, disposable, owner, "destroy"):
+                if getattr(self, "_town_claim_bar_enforced", False):
+                    return None
+                candidate_snapshot = replace(candidate_snapshot, inventory=[
+                    item for item in candidate_snapshot.inventory if item is not disposable])
+                skipped = disposable
+                disposable = finder(candidate_snapshot)
+                if disposable is skipped:
+                    disposable = None
+                continue
             if not self._entire_stack_is_surplus(candidate_snapshot, disposable):
                 self._offer_execution_no_step(
                     producer="identification", work_id="verified-destroy",
@@ -12223,7 +12252,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if refused_superior
                 else reason
             )
-            key = self._destroy_item_key(disposable)
+            key = self._destroy_item_key(disposable, snapshot, owner, policy=self)
             self._offer_execution(
                 key, producer="identification",
                 work_id=f"verified-destroy:{self._item_signature(disposable)}",
@@ -15449,7 +15478,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             cleaned = stale_tag.inscription.replace(HEAVY_CURSE_TAG, "").strip()
             if not cleaned:
                 self.last_reason = "equipment:clear-heavy-curse-tag"
-                key = UNINSCRIBE_KEY + "/" + slot_key
+                key = reserved_item_command(self, snapshot, "uninscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
+                if key is None:
+                    return None
                 self._offer_execution(
                     key, producer="equipment-txn", work_id="heavy-curse-tag",
                     next_step="equipment.clear-heavy-curse-tag",
@@ -15457,7 +15488,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 return key
             self.last_reason = "equipment:remove-heavy-curse-tag"
-            key = INSCRIBE_KEY + "/" + slot_key + cleaned + "\r"
+            prefix = reserved_item_command(self, snapshot, "inscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
+            if prefix is None:
+                return None
+            key = prefix + cleaned + "\r"
             self._offer_execution(
                 key, producer="equipment-txn", work_id="heavy-curse-tag",
                 next_step="equipment.remove-heavy-curse-tag",
@@ -15507,7 +15541,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # end and switches to insert mode before the persistent marker is added.
         suffix = "\x05 " + HEAVY_CURSE_TAG
         self.last_reason = "equipment:mark-heavy-curse"
-        key = INSCRIBE_KEY + "/" + slot_key + suffix + "\r"
+        prefix = reserved_item_command(self, snapshot, "inscribe-equipped", target, "equipment-txn", address=slot_key)
+        if prefix is None:
+            return None
+        key = prefix + suffix + "\r"
         self._offer_execution(
             key, producer="equipment-txn", work_id="heavy-curse-tag",
             next_step="equipment.mark-heavy-curse-tag",

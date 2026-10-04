@@ -93,7 +93,7 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     if (kind is ScreenKind.STORE and owner == "shop:one-shot-buy"
             and continuations
             and continuations[0].kinds == frozenset({ScreenKind.ITEM_SOURCE})
-            and key == "p" + continuations[0].keys):
+            and key.startswith("p") and key[1:] == continuations[0].keys):
         # The sender already bound this slot to the recorded store chooser.
         # Split its historical p+slot prefix without inserting a narrower
         # _BUY gate in front of that authoritative continuation.

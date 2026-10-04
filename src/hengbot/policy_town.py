@@ -1,4 +1,6 @@
 from __future__ import annotations
+from hengbot.item_reservation import reservation_query
+from hengbot.item_reservation import reserved_item_command, reservation_verdict
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -2433,6 +2435,7 @@ class TownMixin:
             )
         return key
 
+    @reservation_query
     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
         """Mechanically evaluate the predicates backing the town need registry."""
         needs: list[TownNeed] = []
@@ -4876,7 +4879,10 @@ class TownMixin:
                 return LEAVE_STORE_KEY
             if pack_owned is not None:
                 self.last_reason = "equipment:suppress-random-teleport"
-                key = INSCRIBE_KEY + pack_owned.item.slot + ".\r"
+                prefix = reserved_item_command(self, snapshot, "inscribe", pack_owned.item, "equipment-txn")
+                if prefix is None:
+                    return None
+                key = prefix + ".\r"
                 self._offer_execution(
                     key, producer="equipment-txn",
                     work_id="suppress-random-teleport",
@@ -4888,7 +4894,10 @@ class TownMixin:
             slot_key = EQUIPMENT_SLOT_KEY.get(equipped_owned.equipped_slot)
             if slot_key is not None:
                 self.last_reason = "equipment:suppress-equipped-random-teleport"
-                key = INSCRIBE_KEY + "/" + slot_key + ".\r"
+                prefix = reserved_item_command(self, snapshot, "inscribe-equipped", equipped_owned.item, "equipment-txn", address=slot_key)
+                if prefix is None:
+                    return None
+                key = prefix + ".\r"
                 self._offer_execution(
                     key, producer="equipment-txn",
                     work_id="suppress-random-teleport",

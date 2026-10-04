@@ -1,0 +1,104 @@
+def _weight_deposit_candidates(
+        self, snapshot: Snapshot, *, include_ammo: bool = True
+    ) -> list[InventoryItem]:
+        if (
+            self._equipment_mutation.state.name != "IDLE"
+            or not self._inventory_overweight(snapshot)
+        ):
+            return []
+
+        blocking_categories = {
+            spec.category
+            for spec in self._town_need_registry()
+            if spec.departure_blocking
+        }
+        # A charge-based ability has no per-stack retention target. Ask its
+        # existing supply-preserving surplus selector instead of protecting
+        # every Identify staff merely because its category blocks departure.
+        surplus_identify_staff = self._find_surplus_identify_staff(
+            snapshot, for_weight_overload=True
+        )
+        # A Home identification withdrawal owns the pending identification
+        # work until its usable source has been consumed. Do not retire its
+        # identification supply as weight surplus during that handoff.
+        if any(
+            self._identification_flow_owns(item)
+            and self._find_identification_source(
+                snapshot,
+                full=bool(item.known and item_requires_full_identification(item)
+                          and not item.fully_known),
+                reliable_only=True,
+                reservation_target=self._item_signature(item),
+            ) is not None
+            for item in snapshot.inventory
+        ):
+            surplus_identify_staff = None
+
+        def required_supply(item: InventoryItem) -> bool:
+            categories = set(self._cross_town_item_categories(item))
+            categories.update(
+                category.split(":", 1)[0]
+                for category in tuple(categories)
+                if category.startswith(("identification-source:", "stat-restore:"))
+            )
+            strategy = (
+                self._carry_procurement_strategy(snapshot)
+                or self._quest_strategy_for_errand_or_floor(snapshot)
+            )
+            if (
+                strategy is not None
+                and self._quest_carry_target_for_item(
+                    snapshot, item, strategy.required_force
+                ) is not None
+            ):
+                categories.update(
+                    category
+                    for category in blocking_categories
+                    if category.startswith("quest-")
+                )
+            mining_planned = self._fundraising_mode in {
+                "prepare", "mine", "scavenge"
+            } or (
+                snapshot.in_town
+                and snapshot.player.class_id >= 0
+                and snapshot.player.gold < FUNDRAISING_START_GOLD
+            )
+            if mining_planned:
+                if item.is_treasure_detection_scroll:
+                    categories.add("fundraising-detection")
+                if item.is_digging_tool:
+                    categories.add("fundraising-digger")
+                if item.is_light:
+                    categories.add("fundraising-light")
+            return bool(categories & blocking_categories)
+
+        def unreserved_required_supply(item: InventoryItem) -> bool:
+            return (
+                required_supply(item)
+                and self._retention_reservation(snapshot, item) == 0
+                and item != surplus_identify_staff
+            )
+
+        mining_planned = self._fundraising_mode in {
+            "prepare", "mine", "scavenge"
+        }
+
+        candidates = [
+            item
+            for item in snapshot.inventory
+            if (include_ammo or not item.is_ammo) and item.weight > 0 and (self._retention_surplus(snapshot, item) > 0) and (not (self._identification_flow_owns(item) and self._find_identification_source(snapshot, full=bool(item.known and item_requires_full_identification(item) and (not item.fully_known)), reliable_only=True, reservation_target=self._item_signature(item)) is not None)) and (not unreserved_required_supply(item)) and (not item.is_bounty) and (not self._is_wanted_jewelry(snapshot, item)) and (self._item_signature(item) not in self._home_rejected_deposits) and (self._item_signature(item) not in []) and (self._item_signature(item) not in self._home_pending_batch) and (item.slot != self._home_pending_slot) and (item.slot != self._pending_disposal_slot)
+        ]
+        launcher = self._equipped_launcher(snapshot)
+        ordinary = [item for item in candidates
+                    if launcher is None or item.tval != launcher.ammo_tval]
+        if ordinary:
+            candidates = ordinary
+        def priority(item: InventoryItem) -> tuple[int, int, str]:
+            category = (
+                0 if item.is_equipment and item.is_cursed
+                else 1 if item.is_digging_tool and not mining_planned
+                else 3 if required_supply(item) else 2
+            )
+            return category, -item.weight * self._retention_surplus(snapshot, item), item.slot
+
+        return sorted(candidates, key=priority)
