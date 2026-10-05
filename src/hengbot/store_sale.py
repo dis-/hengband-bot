@@ -180,7 +180,9 @@ def _visible_sale_value(item: InventoryItem, base_cost: int | None) -> int:
     fixed = (_named_definition(item, knowledge["artifacts"])
              if item.is_artifact else None)
     ego = _named_definition(item, knowledge["egos"]) if item.is_ego else None
-    if (item.is_ego or item.is_artifact) and not item.fully_known:
+    # calc_price uses object_value_real as soon as the item is known; *ID*
+    # is not required. Named ego/fixed-artifact costs are already public.
+    if item.is_artifact and fixed is None and not item.fully_known:
         return 0
     if item.is_ego and (ego is None or ego["cost"] <= 0):
         return 0

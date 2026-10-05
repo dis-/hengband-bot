@@ -955,7 +955,8 @@ class WeaponSaleTest(unittest.TestCase):
         return item("main_hand", 23, 0, is_equipment=True, is_ego=True, known=True, name="ego")
 
     def _inferior(self, slot="b", pseudo="good"):
-        return item(slot, 23, 0, is_equipment=True, known=True, pseudo_feeling=pseudo, name="spare")
+        # Use a real positive-cost sword kind; sword sval 0 has no definition.
+        return item(slot, 23, 4, is_equipment=True, known=True, pseudo_feeling=pseudo, name="spare")
 
     def _town(self, inventory, equipment, store=None):
         return Snapshot(
@@ -1033,8 +1034,9 @@ class WeaponSaleTest(unittest.TestCase):
         blocked = item(
             "b",
             23,
-            1,
-            name="artifact scimitar",
+            4,
+            # A named fixed artifact proves positive cost despite NO_TELE (-10000).
+            name="Dagger 'Narthanc'",
             is_equipment=True,
             is_artifact=True,
             fully_known=True,

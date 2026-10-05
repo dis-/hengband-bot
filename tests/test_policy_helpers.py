@@ -142,7 +142,8 @@ class StoreSellGateTest(unittest.TestCase):
         )
 
     def test_2139_replay_unaccepted_alchemist_food_emits_no_sell_or_tail(self):
-        mana_food = item("a", TVAL_FOOD, 1, name="Ration of Food", known=True)
+        # BaseitemDefinitions: a ration is food sval 35; sval 1 is a zero-cost mushroom.
+        mana_food = item("a", TVAL_FOOD, 35, name="Ration of Food", known=True)
         snap = self._store([mana_food], STORE_ALCHEMIST)
         policy = HengbotPolicy()
 
@@ -153,7 +154,8 @@ class StoreSellGateTest(unittest.TestCase):
         self.assertNotIn(policy._item_signature(mana_food), policy._unsellable_items)
 
     def test_mana_race_food_is_sold_at_general_store(self):
-        mana_food = item("a", TVAL_FOOD, 1, name="Ration of Food", known=True)
+        # BaseitemDefinitions: a ration is food sval 35; sval 1 is a zero-cost mushroom.
+        mana_food = item("a", TVAL_FOOD, 35, name="Ration of Food", known=True)
         policy = HengbotPolicy()
 
         self.assertEqual(

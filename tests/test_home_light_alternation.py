@@ -24,6 +24,7 @@ from hengbot.model import (
     STORE_GENERAL,
     STORE_ALCHEMIST,
     STORE_HOME,
+    STORE_WEAPON,
     SV_FLASK_OIL,
     SV_LITE_LANTERN,
     SV_LITE_TORCH,
@@ -1099,7 +1100,9 @@ class DiggerQuestPins(unittest.TestCase):
         self.assertFalse(
             self.policy._sale_retains_digging_tool(two_better, cursed)
         )
-        self.assertIs(self.policy._find_low_level_sale(two_better), cursed)
+        # Hengband ItemEntity::calc_price returns 0 for known cursed items.
+        self.assertIsNone(self.policy._find_low_level_sale(two_better))
+        self.assertFalse(self.policy._store_accepts_sale(STORE_WEAPON, cursed))
 
     def test_pin_m3_transaction_home_selector(self):
         unknown, pick, mattock = self._common_diggers()

@@ -3673,7 +3673,9 @@ class ShopMixin(InStoreMixin):
         if item is None:
             self.last_reason = "shop:batch-sale-signature-unobserved"
             return None
-        if snapshot.store is None or not self._store_accepts_sale(snapshot.store.store_type, item):
+        store_type = (snapshot.store.store_type if snapshot.store is not None
+                      else STORE_BLACK)
+        if not self._store_accepts_sale(store_type, item):
             self.last_reason = "shop:sale-unaccepted-leave"
             return None
         surplus = self._retention_surplus(snapshot, item)

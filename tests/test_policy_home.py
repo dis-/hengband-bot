@@ -5233,12 +5233,6 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
         scan_key = policy.choose_key(parse_snapshot(rows[1]))
-        self.assertEqual(scan_key, LEAVE_STORE_KEY)
-        policy.confirm_key_posted(scan_key)
-        # CONSTRUCTED outside response to the changed exit; the historical
-        # inside ~9 command could not safely open the knowledge menu.
-        page = parse_snapshot(rows[1])
-        scan_key = policy.choose_key(replace(page, store=None, turn=page.turn + 1))
         self.assertEqual(scan_key, "~9\x1b")
         policy.confirm_key_posted(scan_key)
         self.assertEqual(
@@ -5270,11 +5264,6 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
         scan_key = policy.choose_key(parse_snapshot(rows[1]))
-        self.assertEqual(scan_key, LEAVE_STORE_KEY)
-        policy.confirm_key_posted(scan_key)
-        # CONSTRUCTED outside board after the changed store exit.
-        page = parse_snapshot(rows[1])
-        scan_key = policy.choose_key(replace(page, store=None, turn=page.turn + 1))
         self.assertEqual(scan_key, "~9\x1b")
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
         policy.confirm_key_posted(scan_key)
@@ -5385,11 +5374,6 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
         scan_key = policy.choose_key(parse_snapshot(rows[1]))
-        self.assertEqual(scan_key, LEAVE_STORE_KEY)
-        policy.confirm_key_posted(scan_key)
-        # CONSTRUCTED outside response before the modified catalogue reply.
-        page = parse_snapshot(rows[1])
-        scan_key = policy.choose_key(replace(page, store=None, turn=page.turn + 1))
         self.assertEqual(scan_key, "~9\x1b")
         policy.confirm_key_posted(scan_key)
         self.assertEqual(

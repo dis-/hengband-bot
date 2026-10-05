@@ -343,6 +343,9 @@ class SaleZeroValueRecordedTest(unittest.TestCase):
                         name='The Phial of Galadriel', is_artifact=True, is_broken=False,
                         fully_known=True, pval=-1, to_a=-10)
         self.assertTrue(policy._store_accepts_sale(STORE_BLACK, fixed))
+        # Hengband calc_price uses object_value_real on normal ID, before *ID*.
+        self.assertTrue(policy._store_accepts_sale(STORE_BLACK,
+            replace(fixed, fully_known=False)))
         self.assertFalse(policy._store_accepts_sale(STORE_BLACK,
             replace(fixed, known_flags=flags('DRAIN_EXP'))))
 
@@ -374,9 +377,9 @@ class SaleZeroValueRecordedTest(unittest.TestCase):
         artifact = next(e for e in _value_knowledge()['artifacts']
                         if e['base_item']['type_value'] == 45 and e['cost'] > 0)
         kind = artifact['base_item']
-        # Declared constructed: the game's known fixed-artifact value is
-        # positive, while the bot cannot price its still-hidden extra flags.
-        rival = replace(original, slot='a', name=artifact['name']['en'] + ' {@0}',
+        # Declared constructed: without a resolved fixed-artifact name or
+        # full identification, the bot cannot prove this rival's sale value.
+        rival = replace(original, slot='a', name='Unresolved artifact ring {@0}',
                         tval=kind['type_value'], sval=kind['subtype_value'], count=1,
                         pval=0, charges=0, is_broken=False, is_artifact=True,
                         fully_known=False)
@@ -403,6 +406,9 @@ class SaleZeroValueRecordedTest(unittest.TestCase):
         self.assertEqual(_named_definition(helmet, knowledge['egos'])['cost'], 800)
         self.assertEqual(_named_definition(lamp, knowledge['egos'])['cost'], 0)
         self.assertTrue(policy._store_accepts_sale(STORE_ARMOURY, helmet))
+        # Hengband calc_price uses the named ego cost on normal ID, before *ID*.
+        self.assertTrue(policy._store_accepts_sale(STORE_ARMOURY,
+            replace(helmet, fully_known=False)))
         self.assertFalse(policy._store_accepts_sale(STORE_BLACK, lamp))
         sword = replace(helmet, tval=23, sval=17, name='Long Sword of Slaying',
                         to_a=-10, damage_dice_num=2, damage_dice_sides=5)

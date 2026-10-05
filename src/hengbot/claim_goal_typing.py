@@ -210,6 +210,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("home:processing-complete", T, EFFECT),
         ("home:full-space-ready", T, EFFECT),
         ("home:full-leave-with-surplus", T, EFFECT),
+        ("home:full-leave-for-identification-effect", T, EFFECT),
         ("home:full-queue-surplus-withdraw", T, EFFECT),
         ("home:full-destroy-", O, EFFECT),
         ("home-visit:", T, EFFECT),

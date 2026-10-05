@@ -7681,22 +7681,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         knowledge_exit_holder = getattr(self._claim_register, "current", None)
         knowledge_exit = getattr(knowledge_exit_holder, "execution", None)
         if (snapshot.store is None and snapshot.in_town
-                and knowledge_exit_holder is not None and knowledge_exit_holder.is_open
-                and knowledge_exit_holder.owner.value in {"home-scan", "home-errand"}
-                and knowledge_exit is not None
-                and knowledge_exit.expected_effect == "outside-store"
-                and knowledge_exit.continuation == "home.knowledge.request"):
-            # A scan's exit owns its observed outside continuation. Settle it
-            # before entrance acquisition can replace it with another visit.
-            family = knowledge_exit_holder.owner.value
-            self._store_leave_inflight = None
-            self._complete_claim_goal("home-knowledge-store-exited", owners=(family,))
-            return self._town_producer_entry(
-                "home-knowledge-after-exit",
-                lambda: (self._home_errand_knowledge_key(snapshot)
-                         if family == "home-errand"
-                         else self._home_full_knowledge_key(snapshot)), family=family)
-        if (snapshot.store is None and snapshot.in_town
                 and (catalogue_holder := self._home_catalogue_work_holder()) is not None
                 and catalogue_holder.execution.continuation == "home.catalogue.acquire"):
             # The posted partial-page exit owns its outside continuation, even
@@ -7720,14 +7704,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if scan_key is not None:
                 return scan_key
         if (
-            snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (not self._equipment_catalog.home_scan_complete or self._home_knowledge_invalidated) and (self._home_errand.needs_knowledge or 'home-scan-incomplete' in getattr(self._equipment_optimization_preparation, 'blockers', ()) or (self._home_procurement_probe is not None or (self._home_visit.request is not None and self._home_visit.request.kind == HomeVisitKind.SCAN))) and (not self._home_knowledge_scan_requested) and (self._home_knowledge_scan_epoch is None) and (self._equipment_transaction_session is None) and (not self._town_space_deposit_actionable(snapshot)) and (not (getattr(self, '_town_claim_bar_enforced', False) and self._store_leave_inflight is not None)) and (not (getattr(self, '_town_claim_bar_enforced', False) and (self._home_atomic_deposit_pending is not None or self._home_atomic_withdraw_pending is not None))) and (not self._defer_town_errand('home-errand' if self._home_errand.needs_knowledge else 'home-scan', 'choose-key-scan'))
+            snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (snapshot.store.stock_num is None or self._store_page_can_request_knowledge(snapshot)) and (not self._equipment_catalog.home_scan_complete or self._home_knowledge_invalidated) and (self._home_errand.needs_knowledge or 'home-scan-incomplete' in getattr(self._equipment_optimization_preparation, 'blockers', ()) or (self._home_procurement_probe is not None or (self._home_visit.request is not None and self._home_visit.request.kind == HomeVisitKind.SCAN))) and (not self._home_knowledge_scan_requested) and (self._home_knowledge_scan_epoch is None) and (self._equipment_transaction_session is None) and (not self._town_space_deposit_actionable(snapshot)) and (self._store_leave_inflight is None) and (not (getattr(self, '_town_claim_bar_enforced', False) and (self._home_atomic_deposit_pending is not None or self._home_atomic_withdraw_pending is not None))) and (not self._defer_town_errand('home-errand' if self._home_errand.needs_knowledge else 'home-scan', 'choose-key-scan'))
         ):
-            return self._town_producer_entry(
-                "home-open-page-knowledge-exit",
-                lambda: (self._home_errand_knowledge_key(snapshot)
-                         if self._home_errand.needs_knowledge
-                         else self._home_full_knowledge_key(snapshot)),
-                family="home-errand" if self._home_errand.needs_knowledge else "home-scan")
+            self.last_reason = (
+                self._home_errand.reason("request-knowledge")
+                if self._home_errand.needs_knowledge
+                else "home:request-knowledge-scan"
+            )
+            self._offer_home_knowledge_request(
+                producer="home-errand" if self._home_errand.needs_knowledge
+                else "home-scan")
+            return HOME_KNOWLEDGE_MACRO
         if (
             snapshot.store is None
             and snapshot.in_town
@@ -7739,10 +7726,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._home_atomic_withdraw_pending is None
             and self._home_atomic_deposit_pending is None
             and not self._home_entry_operation_posted
-            and not self._home_errand.active
+            and not (self._home_errand.needs_knowledge
+                     and knowledge_exit is not None
+                     and knowledge_exit.continuation == "home.knowledge.request")
             and self._home_full_relief is None
             and self._home_full_retry_deposits is None
-            and self._store_leave_inflight is None
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
             and not self._defer_town_errand("equipment-txn", "acquire-home-catalog")
@@ -7773,6 +7761,37 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         cause="home-approach-unavailable",
                     )
                 return key
+        if (snapshot.store is None and snapshot.in_town
+                and knowledge_exit_holder is not None and knowledge_exit_holder.is_open
+                and knowledge_exit_holder.owner.value in {"home-scan", "home-errand"}
+                and knowledge_exit is not None
+                and knowledge_exit.expected_effect == "outside-store"
+                and knowledge_exit.continuation == "home.knowledge.request"
+                and (self._home_full_relief is not None
+                     or self._home_full_retry_deposits is not None
+                     or self._home_errand.needs_knowledge
+                     or (self._home_knowledge_invalidated
+                         and (self._home_visit.request is None
+                          or self._home_visit.request.kind == HomeVisitKind.SCAN)
+                         and not self._town_space_deposit_actionable(snapshot)
+                         and self._home_pending_item is None
+                         and not self._home_pending_batch
+                         and self._home_atomic_withdraw_pending is None
+                         and self._home_atomic_deposit_pending is None
+                         and self._equipment_transaction_session is None))):
+            # Keep an earlier equipment catalogue acquisition ahead of a
+            # generic scan exit. Filed takes and full-Home relief bypass that
+            # gate and resume their own observed knowledge continuation.
+            family = knowledge_exit_holder.owner.value
+            self._store_leave_inflight = None
+            self._complete_claim_goal("home-knowledge-store-exited", owners=(family,))
+            scan_key = self._town_producer_entry(
+                "home-knowledge-after-exit",
+                lambda: (self._home_errand_knowledge_key(snapshot)
+                         if family == "home-errand"
+                         else self._home_full_knowledge_key(snapshot)), family=family)
+            if scan_key is not None:
+                return scan_key
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -8952,19 +8971,47 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             elif (
                 self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._equipment_catalog.home_scan_complete or not self._home_knowledge_current or self._home_knowledge_invalidated)
             ):
-                # A partial store page cannot host the knowledge menu. Keep
-                # its scan owner while leaving; acquire the complete list only
-                # after an authoritative outside board.
-                self.last_reason = "home:scan-incomplete-open-page"
-                key = LEAVE_STORE_KEY
-                self._offer_execution(
-                    key, producer="home-scan",
-                    work_id=f"home-knowledge-leave:{self._decision_sequence}",
-                    next_step="store.leave.send",
-                    expected_effect="outside-store",
-                    continuation="home.knowledge.request",
-                    budget_ref="home-knowledge-existing-epoch",
+                routed_home_visit = bool(
+                    self._store_visit is not None
+                    and self._store_visit.store_type == STORE_HOME
+                    and self._store_visit.owner != "shop-handler"
+                    and not self._store_visit.operation_released
                 )
+                if (
+                    routed_home_visit
+                    and (snapshot.store.stock_num is None
+                         or self._store_page_can_request_knowledge(snapshot))
+                    and self._home_knowledge_invalidated
+                    and not self._home_knowledge_scan_requested
+                    and self._home_knowledge_scan_epoch is None
+                    and self._store_leave_inflight is None
+                    and not (
+                        getattr(self, "_town_claim_bar_enforced", False)
+                        and (
+                            self._home_atomic_deposit_pending is not None
+                            or self._home_atomic_withdraw_pending is not None
+                        )
+                    )
+                    and not self._defer_town_errand(
+                        "home-scan", "open-home-scan"
+                    )
+                ):
+                    self.last_reason = "home:request-knowledge-scan"
+                    key = HOME_KNOWLEDGE_MACRO
+                    self._offer_home_knowledge_request(producer="home-scan")
+                else:
+                    # A visible page of a multi-page (or metadata-poor) Home is
+                    # useful evidence, but it cannot replace the complete ~9 list.
+                    self.last_reason = "home:scan-incomplete-open-page"
+                    key = LEAVE_STORE_KEY
+                    self._offer_execution(
+                        key, producer="home-scan",
+                        work_id=f"home-knowledge-leave:{self._decision_sequence}",
+                        next_step="store.leave.send",
+                        expected_effect="outside-store",
+                        continuation="home.knowledge.request",
+                        budget_ref="home-knowledge-existing-epoch",
+                    )
             elif (
                 self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and ((open_page_deposit := self._town_producer_entry('_open_home_deposit_key', lambda: self._open_home_deposit_key(snapshot), family='home-visit')) is not None)
             ):

@@ -527,6 +527,14 @@ class HomeMixin:
                     self._invalidate_home_observation()
                     self._rearm_town_store_for_new_work(STORE_HOME,
                                                        release_visit_bound=True)
+                if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+                    # The observed sale completes the store operation. Exit its
+                    # foreign visit before starting the next Home census.
+                    return self._town_producer_entry(
+                        "home-full-knowledge",
+                        lambda: self._home_full_knowledge_key(
+                            snapshot, leave_foreign_store=True), family="home-scan")
+                if self._home_full_relief is None:
                     return self._home_full_relief_key(snapshot)
                 sale = None
             elif self._home_errand.state.value in {"failed", "stopped"}:
@@ -629,10 +637,25 @@ class HomeMixin:
             return self._town_blocked_key(snapshot)
         return self._shopping_approach_key(snapshot, step, "shop:travel")
 
+    @staticmethod
+    def _store_page_can_request_knowledge(snapshot: Snapshot) -> bool:
+        """A fully rendered store page can open ~9 (store-key-processor.cpp)."""
+        store = snapshot.store
+        return bool(store is not None
+                    and store.stock_num is not None and store.page_size
+                    and store.page_top is not None
+                    and len(store.items) == min(store.page_size,
+                                              store.stock_num - store.page_top))
+
     @claims(ClaimOwner.HOME_SCAN)
-    def _home_full_knowledge_key(self, snapshot: Snapshot) -> str:
+    def _home_full_knowledge_key(
+        self, snapshot: Snapshot, *, leave_foreign_store: bool = False,
+    ) -> str:
         """Reacquire changed stock through the existing observed scan owner."""
-        if snapshot.store is not None or self._store_leave_inflight is not None:
+        if (self._store_leave_inflight is not None
+                or (snapshot.store is not None
+                    and ((leave_foreign_store and snapshot.store.store_type != STORE_HOME)
+                         or not self._store_page_can_request_knowledge(snapshot)))):
             self.last_reason = "home:scan-leave-store"
             self._offer_execution(
                 LEAVE_STORE_KEY, producer="home-scan", work_id="home-knowledge-exit",
@@ -655,7 +678,10 @@ class HomeMixin:
     @claims(ClaimOwner.HOME_ERRAND)
     def _home_errand_knowledge_key(self, snapshot: Snapshot) -> str:
         """Keep a filed take's knowledge request and wait with its owner."""
-        if snapshot.store is not None or self._store_leave_inflight is not None:
+        if (self._store_leave_inflight is not None
+                or (snapshot.store is not None
+                    and (snapshot.store.store_type != STORE_HOME
+                         or not self._store_page_can_request_knowledge(snapshot)))):
             self.last_reason = self._home_errand.reason("leave-for-knowledge")
             self._offer_execution(
                 LEAVE_STORE_KEY, producer="home-errand", work_id="home-errand-knowledge-exit",
