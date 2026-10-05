@@ -217,7 +217,9 @@ class InStoreMixin:
                 sale = next((item for item in snapshot.inventory
                              if self._sale_item_identity(item) == entry["signature"]
                              and self._item_has_sale_tag(item, str(entry["tag"]))), None)
-                if sale is None or not self._sale_tag_is_unique(snapshot, sale, str(entry["tag"])):
+                if (sale is None
+                        or not self._store_accepts_sale(store.store_type, sale)
+                        or not self._sale_tag_is_unique(snapshot, sale, str(entry["tag"]))):
                     return None
                 surplus = self._retention_surplus(snapshot, sale)
                 quantity = sale.count if surplus <= 0 else min(sale.count, surplus)

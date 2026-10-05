@@ -1636,7 +1636,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
                 self.assertEqual(_public_shop_inner(self, policy, snap), "{a@0\r")
                 self.assertEqual(policy.last_reason, "shop:batch-inscribe")
 
-    def test_alchemist_buys_sleep_and_detect_invisible(self):
+    def test_alchemist_refuses_sleep_and_buys_detect_invisible(self):
         for tval, sval in ((TVAL_POTION, 11), (TVAL_SCROLL, 30)):
             with self.subTest(tval=tval, sval=sval):
                 snap = Snapshot(
@@ -1648,8 +1648,15 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
                 )
                 policy = HengbotPolicy()
 
-                self.assertEqual(_public_shop_inner(self, policy, snap), "{a@0\r")
-                self.assertEqual(policy.last_reason, "shop:batch-inscribe")
+                if tval == TVAL_POTION:
+                    self.assertFalse(policy._store_accepts_sale(STORE_ALCHEMIST, snap.inventory[0]))
+                    self.assertIsNone(policy._find_low_level_sale(snap))
+                    # No admitted sale remains; ordinary empty-shop restocking runs.
+                    self.assertEqual(_public_shop_inner(self, policy, snap), "R300\r")
+                    self.assertIsNone(policy._batch_sell_pending)
+                else:
+                    self.assertEqual(_public_shop_inner(self, policy, snap), "{a@0\r")
+                    self.assertEqual(policy.last_reason, "shop:batch-inscribe")
 
     def test_depth_two_requirements_are_reported(self):
         snap = Snapshot(
@@ -7501,7 +7508,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
     def test_magic_shop_sells_nonessential_devices(self):
         for device in (
             item("a", TVAL_WAND, 1, charges=8, name="wand"),
-            item("a", TVAL_STAFF, 1, charges=8, name="staff"),
+            item("a", TVAL_STAFF, 8, charges=8, name="staff"),
         ):
             with self.subTest(tval=device.tval):
                 snap = Snapshot(
@@ -7664,8 +7671,8 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
 
     def test_mana_race_keeps_highest_staff_only_without_wands(self):
         devices = [
-            item("a", TVAL_STAFF, 1, charges=3, name="small staff"),
-            item("b", TVAL_STAFF, 2, charges=9, name="large staff"),
+            item("a", TVAL_STAFF, 8, charges=3, name="small staff"),
+            item("b", TVAL_STAFF, 9, charges=9, name="large staff"),
         ]
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR, food_type=FOOD_TYPE_MANA),

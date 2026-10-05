@@ -18,6 +18,8 @@ from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from math import ceil
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.baseitem_knowledge import item_base_cost
+from hengbot.store_sale import has_positive_sale_value, sale_monrace
+from hengbot.model import SPELLBOOK_TVALS, TVAL_HISSATSU_BOOK
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
@@ -277,6 +279,7 @@ class ShopMixin(InStoreMixin):
                 or (it.is_torch and it.count > TORCH_THROW_TARGET)
             )
             and self._retention_surplus(snapshot, it) > 0
+            and self._store_accepts_sale(STORE_GENERAL, it)
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 
@@ -410,6 +413,7 @@ class ShopMixin(InStoreMixin):
         return self._first_item(
             snapshot,
             lambda item: self._book_sale_store_type(item) is not None
+            and self._store_accepts_sale(store_type if store_type is not None else STORE_BLACK, item)
             and (store_type is None or self._book_sale_store_type(item) == store_type)
             and (item.name, item.tval, item.sval) not in self._unsellable_items,
         )
@@ -420,9 +424,10 @@ class ShopMixin(InStoreMixin):
             # Home compaction destroys the withdrawn object's slot identity, but
             # it must not destroy any of the ordinary sale obligations.  Reuse
             # the single surplus selector, including same-visit retention.
-            return self._find_surplus_identify_staff(
-                snapshot, pending_home_sale=True
-            )
+            surplus = self._find_surplus_identify_staff(snapshot, pending_home_sale=True)
+            if surplus is not None and self._store_accepts_sale(STORE_MAGIC, surplus):
+                return surplus
+            return None
         surplus_identify_staff = self._find_surplus_identify_staff(snapshot)
         surplus_slot = (
             surplus_identify_staff.slot
@@ -432,6 +437,7 @@ class ShopMixin(InStoreMixin):
         return self._first_item(
             snapshot,
             lambda item: self._retention_surplus(snapshot, item) > 0
+            and self._store_accepts_sale(STORE_MAGIC, item)
             and item.known
             and (
                 item.slot == surplus_slot
@@ -705,10 +711,9 @@ class ShopMixin(InStoreMixin):
         )
         return key
 
-    @staticmethod
-    def _dominated_disposal_store(item: InventoryItem | StoreItem) -> int | None:
+    def _dominated_disposal_store(self, item: InventoryItem | StoreItem) -> int | None:
         for store_type in (STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE):
-            if item.tval in STORE_ACCEPTED_TVALS[store_type]:
+            if self._store_accepts_sale(store_type, item):
                 return store_type
         return None
 
@@ -730,6 +735,7 @@ class ShopMixin(InStoreMixin):
                 it.is_digging_tool
                 and self._sale_retains_digging_tool(snapshot, it)
             )
+            and self._store_accepts_sale(STORE_ALCHEMIST, it)
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 
@@ -3169,32 +3175,36 @@ class ShopMixin(InStoreMixin):
             return 0
         return max(0, (snapshot.player.gold - reserve) // item.price)
 
-    @staticmethod
-    def _store_accepts_sale(store_type: int, item: InventoryItem) -> bool:
-        """Conservative type/value gate for the store's item selection prompt."""
-        if store_type == STORE_HOME:
+    def _store_accepts_sale(self, store_type: int, item: InventoryItem) -> bool:
+        """Single selection/emission gate mirroring store_will_buy."""
+        if store_type in {STORE_HOME, 9}:  # Museum also accepts worthless gifts.
             return True
-        # object_value_real makes known non-artifact armour with a negative
-        # armour bonus worthless, even when it is ego and has a positive base
-        # cost. store_will_buy excludes it from the item prompt entirely;
-        # sending its tag and a price answer would leave those keys unowned.
-        # Fixed artifacts return their value before this check. The emitter
-        # only exposes a combined artifact flag, so leave artifacts alone.
-        if (item.known and not item.is_artifact and item.to_a < 0
-                and item.tval in {
-                    TVAL_BOOTS, TVAL_GLOVES, TVAL_CROWN, TVAL_HELM,
-                    TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR,
-                    TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR,
-                }):
+        if not has_positive_sale_value(item, item_base_cost(item, self._baseitem_costs)):
             return False
         if store_type == STORE_BLACK:
             return True
-        if (
-            store_type == STORE_WEAPON
-            and item.tval == TVAL_HAFTED
-            and item.sval == SV_HAFTED_WIZSTAFF
-        ):
-            return False
+        if store_type == STORE_GENERAL:
+            if item.tval == TVAL_ROD:
+                return item.sval == 12  # SV_ROD_PESTICIDE
+            if item.tval == TVAL_POTION:
+                return item.sval == 0  # SV_POTION_WATER
+        if item.tval == TVAL_HAFTED:
+            if store_type == STORE_WEAPON:
+                return item.sval != SV_HAFTED_WIZSTAFF
+            if store_type == STORE_MAGIC:
+                return item.sval == SV_HAFTED_WIZSTAFF
+        if store_type == STORE_TEMPLE:
+            if item.tval in {8, 9}:  # Figurines/statues of non-evil creatures.
+                race = sale_monrace(item)
+                if (race is not None and "EVIL" not in race["kind"]
+                        and (set(race["kind"]) & {"GOOD", "ANIMAL"}
+                             or race["symbol"] in {"?", "!"})):
+                    return True
+                return 92 in item.known_flags  # same blessed fallthrough
+            if item.tval in {TVAL_POLEARM, TVAL_SWORD}:
+                return 92 in item.known_flags  # TR_BLESSED, never hidden flags
+        if store_type == 8:  # Bookstore: Hissatsu is Weapon Smith only.
+            return item.tval in SPELLBOOK_TVALS - {TVAL_HISSATSU_BOOK}
         return item.tval in STORE_ACCEPTED_TVALS.get(store_type, frozenset())
 
     def _offer_store_sale_leave(self, snapshot):
@@ -3366,6 +3376,7 @@ class ShopMixin(InStoreMixin):
                     sale = self._first_item(
                         view,
                         lambda item: item.tval == TVAL_FOOD
+                        and self._store_accepts_sale(STORE_GENERAL, item)
                         and self._retention_surplus(snapshot, item) > 0
                         and self._item_signature(item) not in self._unsellable_items,
                     )
@@ -3576,11 +3587,14 @@ class ShopMixin(InStoreMixin):
     def _sale_tag_is_unique(
         self, snapshot: Snapshot, intended: InventoryItem, tag: str
     ) -> bool:
-        """Match Hengband's numeric-tag resolver over store-eligible pack items."""
+        """Prove uniqueness even when a rival's sale value is uncertain.
+
+        A conservatively refused rival can still pass the game's tester. Count
+        all pack tags so pricing uncertainty cannot redirect a sale to it.
+        """
         matches = [
             item for item in snapshot.inventory
-            if self._store_accepts_sale(snapshot.store.store_type, item)
-            and self._item_has_sale_tag(item, tag)
+            if self._item_has_sale_tag(item, tag)
         ]
         return (
             len(matches) == 1
@@ -3659,10 +3673,15 @@ class ShopMixin(InStoreMixin):
         if item is None:
             self.last_reason = "shop:batch-sale-signature-unobserved"
             return None
+        if snapshot.store is None or not self._store_accepts_sale(snapshot.store.store_type, item):
+            self.last_reason = "shop:sale-unaccepted-leave"
+            return None
         surplus = self._retention_surplus(snapshot, item)
         quantity = item.count if surplus <= 0 else min(item.count, surplus)
         # The store always asks for the offered-price confirmation.  A stack
-        # first asks for a quantity; a singleton does not.
+        # first asks for a quantity; a singleton does not. input_quantity's
+        # default "1" is in askfor overwrite mode: the first digit replaces it,
+        # so "5\r" means five, not fifteen (asking-player.cpp:44-173,326-376).
         quantity_answer = f"{quantity}\r" if item.count > 1 else ""
         prefix = reserved_item_command(self, snapshot, "sell", item, "shop-sell", address=tag)
         if prefix is None:
@@ -4428,6 +4447,7 @@ class ShopMixin(InStoreMixin):
                 sale = self._first_item(
                     snapshot,
                     lambda item: item.tval == TVAL_FOOD
+                    and self._store_accepts_sale(STORE_GENERAL, item)
                     and self._retention_surplus(snapshot, item) > 0
                     and self._item_signature(item) not in self._unsellable_items,
                 )
