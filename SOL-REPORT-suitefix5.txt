@@ -1,0 +1,77 @@
+Suite-fix5 report
+
+Scope: C:\hengband\bot-client-suitefix5, branch suite-fix5-1005,
+base 699bbeeb. Fixed the two named suite failures originating in 2d2f9b64.
+
+1. Frozen arbitration table
+
+Renamed the Home-surplus refusal to
+shop:unsellable-home-full-surplus-sale-refused
+(src/hengbot/policy_home.py:352). This describes the selected surplus item's
+refused sale and uses the existing shop:unsellable- arbitration prefix.
+Reverted exactly the added town_arbiter.py prefix; the file's resulting blob
+is e4dfa0c2, identical to its pre-2d2f9b64 version. The frozen table digest
+remains 9ef9e4b94bb107ff2083992d9834944a444d5c75acbc6ed4975a260f38e5f5cf.
+
+Removed the redundant special goal-typing row; the existing shop:unsellable-
+row retains Terminal/effect typing (src/hengbot/claim_goal_typing.py:232).
+Updated the exact item-sink adapter pin and the sale-screen replay expectation.
+The shadow-zero tests assert the historical reason before replaying the renamed
+production reason (tests/test_s33_shadow_zero.py:197 and :423). The recorded
+fixture bytes and their checksum remain unchanged, and the replay still checks
+shop-sell ownership, goal typing, exit declaration, and OFF/ON verdicts.
+
+2. Reservation terminal at the decision return boundary
+
+Evidence: 2d2f9b64 changed reservation_verdict to call _selector_skip rather
+than mark a foreign candidate as an emission denial. item_available only
+queries that verdict (src/hengbot/item_reservation.py:273 and :295).
+The original test stub ignored its false result and returned '5'; it never
+attempted an item command. Reproducing that stub on this worktree returned
+key '9', reason town:entrance-step-off:wait, with selector_skip/query_skip
+records and no would_stop record. The final wait-envelope rewrite calls
+_town_entrance_step_off_key (src/hengbot/policy.py:3135), which sets this
+reason and chooses a safe adjacent step (src/hengbot/policy_town.py:1747).
+The cause is the intentional selector/emission separation, not a leak past
+an actual emission denial. Existing Home-relief and selector-skip tests pin
+this behavior in OFF and ON, so production reservation behavior is retained.
+
+Rebuilt tests/test_decision_return_boundary.py:46 around reserved_item_command
+for an actual foreign-reserved deposit. That calls checked_item_command,
+which invokes _emission_denied (src/hengbot/item_reservation.py:366, :346,
+and :129). Final enforcement consumes the would_stop record and returns None
+(src/hengbot/policy.py:6983); the decision loop preserves reservation terminals
+(src/hengbot/policy.py:2754 and :2792). The test covers both a suppressed key
+and a producer-supplied '5' fallback. Both must return None, invoke the producer
+once, retain the reservation reason, log exactly one emission denial, and
+record exactly once after final enforcement. The expected terminal was not
+weakened. The common final enforcement/record seam is policy.py:3172-3174.
+
+Validation
+
+Initial targeted run: 131 tests; only the two shadow-zero test identities
+still using the captured old reason failed (three unittest failure entries).
+Updated those tests as described above, without changing the fixture.
+
+Final run (normal Windows Python 3.13, PYTHONPATH=src):
+python scripts/test_parallel_runner.py --workers 1 --purity always --modules
+  test_ownership_s2a_classification test_decision_return_boundary
+  test_town_arbiter test_s33_shadow_zero test_item_reservation
+  test_item_sink_lint test_town_structure_lint test_homefull3_recorded
+  test_home_relief_progress_recorded test_home_surplus_sale_screen_recorded
+
+PASS: 131 tests, 266.544 seconds, worker exit 0; failures none, errors none.
+All nine requested modules ran; the extra sale-screen replay covers the renamed
+refusal in both enforcement modes. Purity was forced to run rather than skipped
+through cache. Only summaries were read for passing tests.
+Receipt: jsonlog/receipts/test_parallel_runner-full-20261005T154840+0900.json
+Receipt SHA256: f2080434ad4e7090ec06f39bb8fe0d9d14dbe982a539d19d60b4e83c57d21fd5
+git diff --check: PASS.
+
+Limits: This is the requested targeted validation, not a new full-suite run.
+No game or bot was started. No other worktree was used; no push was made;
+C:\hengband\bot-client\jsonlog was not accessed or modified. Runtime test
+artifacts were written under this worktree's jsonlog and runner-owned temporary
+directories. The supplied task and suite output files are left untracked.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -230,7 +230,7 @@
     "self._open_home_deposit_key(snapshot) @ If:body:retry is not None / If:body:snapshot.store is not None / If:body:snapshot.store.store_type == STORE_HOME": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ ": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:retry is not None": 1,
-    "self._store_sell_key(snapshot, target, 'shop:sell-home-full-surplus', rejected_reason='shop:home-full-surplus-sale-refused') @ If:body:sale is not None / If:body:count > before_count / If:body:snapshot.store is not None": 1
+    "self._store_sell_key(snapshot, target, 'shop:sell-home-full-surplus', rejected_reason='shop:unsellable-home-full-surplus-sale-refused') @ If:body:sale is not None / If:body:count > before_count / If:body:snapshot.store is not None": 1
   },
   "policy_home.py:_open_home_deposit_key": {
     "self._home_deposit_key(snapshot, item, forced_count=deposit_count) @ For:sorted(self._home_deposit_batch(snapshot, first), key=lambda entry: entry[0].slot, reverse=True)": 1,

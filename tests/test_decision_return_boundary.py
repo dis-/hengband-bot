@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 from tests import test_item_reservation as fixture
-from hengbot.item_reservation import item_available
+from hengbot.item_reservation import reserved_item_command
 
 
 class DecisionReturnBoundaryTest(unittest.TestCase):
@@ -44,11 +44,22 @@ class DecisionReturnBoundaryTest(unittest.TestCase):
                 self.assert_boundary(policy, board, 'l')
 
     def test_reservation_terminal_records_once_after_final_enforcement(self):
-        policy, board, item = self.scene(True)
-        def producer(snapshot):
-            item_available(policy, snapshot, item, 'home-visit', 'weight-deposit')
-            return '5'
-        with patch.object(policy, '_skill_exp_request_key', return_value=None), \
-                patch.object(policy, '_choose_key_with_latch_capture', side_effect=producer):
-            self.assert_boundary(policy, board, None)
-        self.assertEqual(policy.last_reason, 'ownership:item-reserved:weight-deposit:equipment-txn')
+        for fallback in (None, '5'):
+            with self.subTest(fallback=fallback):
+                policy, board, item = self.scene(True)
+                def producer(snapshot):
+                    # Selection alone is a silent skip. Attempt serialization
+                    # to exercise a terminal at the actual emission seam.
+                    self.assertIsNone(reserved_item_command(
+                        policy, snapshot, 'deposit', item, 'home-visit'))
+                    return fallback
+                with patch.object(policy, '_skill_exp_request_key', return_value=None), \
+                        patch.object(policy, '_choose_key_with_latch_capture',
+                                     side_effect=producer) as choose:
+                    self.assert_boundary(policy, board, None)
+                choose.assert_called_once_with(board)
+                reason = 'ownership:item-reserved:deposit:equipment-txn'
+                self.assertEqual(policy.last_reason, reason)
+                self.assertEqual([row['would_stop'] for row in
+                                  policy.decision_claim['item_reservation_shadow']
+                                  if 'would_stop' in row], [reason])
