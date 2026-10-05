@@ -1,0 +1,87 @@
+TASK suitefix6 — final report
+
+Worktree: C:\hengband\bot-client-discard
+Branch: home-full-discard2-1006; starting HEAD: 507557b3.
+Tested code/test commit: 74969db49daea838c061994882001d92e1212b1a. The following commit adds this report only.
+Scope: the requested 29 modules and test_policy_town alone. No full suite, push, game or bot launch.
+
+Fixes and source rules:
+R1: Restore equipment-catalogue acquisition and filed Home operations ahead of generic scan exits. A generic outside knowledge continuation resumes only invalidated catalogue work; fresh partial-page visits retain their recorded entrance step-off and scan sequence. Restore the removed routed-Home scan branch.
+R2: A fully rendered Home page can host ~9 even when the catalogue spans multiple pages. Keep the in-Home request. Preserve an already posted leave, exit incomplete pages, and exit a foreign filed errand or a just-completed foreign sale before its next census. Keep the 22:10 leave-in-flight protection and both discard pins.
+R2 detail: the immutable 07:10:40 await-knowledge pin presents a complete Magic-store page. It retains its original ~9 census expectation: Hengband src/store/store-key-processor.cpp routes ~ to do_cmd_knowledge in every store. This standalone census has no unfinished foreign sale operation.
+R3: ItemEntity::calc_price uses object_value_real after ordinary identification; named positive-cost ego/fixed artifacts do not need *ID*. Remove the overly broad fully_known veto. Keep unresolved identities conservative and keep zero-value rejection.
+R3 coverage: extend the fixed-artifact and ego tests with ordinary-ID positive-value assertions. The numeric-tag guard fixture now uses an unresolved artifact identity, preserving its original no-sale and tag-safety assertions.
+R4: Allow outside batch-sale quantity preparation using the all-item store value gate. Sending the sale still validates the actual destination store. This fixes IdentifyStaffTest returning None instead of the one-staff release plan.
+R5: Explicitly type home:full-leave-for-identification-effect as a Home terminal/effect goal, preserving the emitted reason.
+S1: Hengband ItemEntity::calc_price returns 0 for known cursed/broken items. object_value_real returns 0 for zero-base-cost kinds (src/object/object-value-calc.cpp). The m3 cursed-digger finder now expects None and agrees with the sale gate; its test has the one-line source-rule comment.
+F1/F2: Repair constructed WeaponSale fixtures while keeping every original sale/route assertion. Sword 23:0 has no BaseitemDefinitions entry; use positive-cost dagger 23:4. Use the named fixed artifact Narthanc for the NO_TELE example so its fixed-artifact cost exceeds the -10000 flag cost (ArtifactDefinitions/object_value_real). The fixtures previously asserted selling an undefined or nonpositive-value item.
+F3: Repair the constructed mana-race food fixture while preserving its sale assertion: BaseitemDefinitions identifies a ration as food 80:35 (cost 3), while 80:1 is a zero-cost mushroom. Source-rule comments accompany both uses.
+Restore original Home-shortage in-store scan expectations and the original five-visit town bound that 2855ce8e had changed. No recorded replay fixture or requested A replay expectation was rewritten.
+
+Operator failure classification (suite-d6a68666.log; 33 failures + 6 non-environment errors):
+01. tests.test_store_reentry_recorded.StoreReentryRecordedTest: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+02. tests.test_policy_equipment.WeaponSaleTest.test_sale_target_only_with_high_grade_wielded: regression-fixed / invalid fixture repaired — F1/F2: retain original sale/route assertions, use real positive-cost sword/fixed artifact.
+03. tests.test_policy_equipment.WeaponSaleTest.test_sells_no_teleport_artifact_after_replacement: regression-fixed / invalid fixture repaired — F1/F2: retain original sale/route assertions, use real positive-cost sword/fixed artifact.
+04. tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+05. tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_s2a1_observe_goals_complete_on_their_confirmed_effect: regression-fixed — R3 + R1/R2: normal ID suffices for named ego sale; preserve original sale/telemetry counts.
+06. tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_s3_new_code_replay_names_remaining_violations: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+07. tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u1_after_the_healing_purchase_the_bot_departs: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+08. tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u2_affordable_optional_purchases_still_happen: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+09. tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u3_required_supply_claims_are_not_released: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+10. tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_tour_first_town_visit: regression-fixed — R3 + R1/R2: normal ID suffices for named ego sale; preserve original sale/telemetry counts.
+11. tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result: regression-fixed — R3 + R1/R2: normal ID suffices for named ego sale; preserve original sale/telemetry counts.
+12. tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+13. tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_s0_replay_matches_recorded_lifetime_through_stockout_start: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+14. tests.test_ownership_s2a1_closure.ClosingPathsTest.test_posted_effect_captures_close_what_they_can: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+15. tests.test_ownership_s2a1_closure.ClosingPathsTest.test_revert_proof_without_the_effect_confirmation_no_sale_completes: regression-fixed — R3 + R1/R2: normal ID suffices for named ego sale; preserve original sale/telemetry counts.
+16. tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+17. tests.test_ownership_s3a_record.S3aRecordTest.test_emitted_home_literals_do_not_use_the_catch_all: regression-fixed — R5: register the identification-effect exit reason explicitly.
+18. tests.test_esp_threat_rest_recorded.EspThreatRestTest.test_e1_lifetime_replays_recorded_before_equipment_choice: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+19. tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_h1_the_observed_ring_swap_releases_the_mutation_gate: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+20. tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+21. tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_replay_decides_as_live_until_the_first_overweight_board: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+22. tests.test_policy_equipment.WeaponSaleTest.test_routes_to_and_sells_at_weapon_smith: regression-fixed / invalid fixture repaired — F1/F2: retain original sale/route assertions, use real positive-cost sword/fixed artifact.
+23. tests.test_home_full_await_knowledge_recorded.HomeFullAwaitKnowledgeRecordedTest.test_071040_board_requests_scan_instead_of_recorded_escape: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+24. tests.test_policy_supply.IdentifyStaffTest.test_live_six_staves_release_fewest_charges_below_twenty: regression-fixed — R4: classify outside batch sale without requiring an open store; keep quantity one.
+25. tests.test_home_withdraw_failed_stock_present_recorded.HomeWithdrawFailedStockPresentRecordedTest.test_the_take_shortened_the_prefix_past_the_shovel: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+26. tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+27. tests.test_home_light_alternation.DiggerQuestPins.test_pin_m3_sale_finder_agrees_with_gate: stale-expectation — S1: known cursed digger has zero calc_price; finder and sale gate both reject.
+28. tests.test_live23_home_cycle.Live23HomeCycleTest.test_recorded_off_scan_continues_registered_catalogue: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+29. tests.test_oneshot_preempt_recorded.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+30. tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+31. tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+32. tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+33. tests.test_home_withdraw_failed_stock_present_recorded.HomeWithdrawFailedStockPresentRecordedTest.test_replay_reproduces_the_process_before_equipment_choice: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+34. tests.test_home_withdraw_failed_stock_present_recorded.HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+35. tests.test_home_withdraw_failed_stock_present_recorded.HomeWithdrawFailedStockPresentRecordedTest.test_w1_after_the_rescan_the_shovels_are_taken: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+36. tests.test_home_withdraw_failed_stock_present_recorded.HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+37. tests.test_home_knowledge_scan.HomeOwnedModalTest.test_home_knowledge_has_one_viewer_close_and_store_terminal: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+38. tests.test_policy_helpers.StoreSellGateTest.test_mana_race_food_is_sold_at_general_store: regression-fixed / invalid fixture repaired — F3: retain original sale assertion, replace zero-cost mushroom sval 1 with ration sval 35.
+39. tests.test_margin_ratio_home_withdraw_divergence_recorded.MarginRatioHomeWithdrawDivergenceRecordedTest.test_the_board_is_the_recorded_home_withdraw: regression-fixed — R1/R2: restore Home catalogue, equipment/withdraw, town/shop and recall continuation order.
+
+Additional required-module check: tests.test_home_relief_progress_recorded.RecordedHomeReliefProgressTest.test_recorded_home_relief_remaining_prevents_owner_retirement: regression-fixed (R2); preserve the foreign-sale exit, outside response, census, and observed remaining-space progress assertions.
+
+Known environment errors left unchanged and excluded:
+tests.test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_recorded_command_barrier_replans_interrupted_home_travel
+tests.test_store_visit_round3_gates.StoreVisitRound3GateTest.test_constructed_reproduction_accepts_both_foreign_visits
+tests.test_store_visit_round3_gates.StoreVisitRound3GateTest.test_leak_matrix_has_no_failures
+
+Final receipts (normal Windows Python 3.13; PYTHONPATH=src; --workers 1):
+suitefix6-final-batch3: 1070 tests; failures none; errors none; exit 0; 2473.631s.
+Existing unittest skips: 5.
+Command: PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules tests.test_unaffordable_claim_tour_recorded tests.test_pure_decision_telemetry tests.test_recall_stockout_set_end_recorded tests.test_ownership_s2a1_closure tests.test_protocol3_client tests.test_ownership_s3a_record tests.test_esp_threat_rest_recorded tests.test_departure_unsatisfiable_weight_recorded tests.test_policy_equipment tests.test_home_full_await_knowledge_recorded tests.test_home_light_alternation tests.test_live23_home_cycle tests.test_oneshot_preempt_recorded tests.test_home_withdraw_failed_stock_present_recorded tests.test_home_knowledge_scan tests.test_policy_helpers tests.test_margin_ratio_home_withdraw_divergence_recorded tests.test_store_reentry_recorded tests.test_policy_supply tests.test_identify_staff_swap_churn_recorded tests.test_home_discard_incidents_recorded tests.test_homefull3_recorded tests.test_home_full_relief_recorded tests.test_home_relief_progress_recorded tests.test_home_surplus_sale_screen_recorded tests.test_policy_home tests.test_item_sink_lint tests.test_town_structure_lint tests.test_s33_shadow_zero --output jsonlog/suitefix6-final-batch3.json --summary-output jsonlog/suitefix6-final-batch3-summary.json --streams-dir jsonlog/suitefix6-final-batch3-streams
+Receipt: C:\hengband\bot-client-discard\jsonlog\receipts\test_parallel_runner-full-20261006T030624+0900.json
+Receipt SHA256: 668357517ab5899f069e99a6acb392383a74643096660047a6c27f20e3872f97
+Source fingerprint: 2613c695d58dde73ac1da439b659f812d5149221d7779b566e5872698b189396
+Started: 2026-10-06T03:06:24.014626+09:00; ended: 2026-10-06T03:47:40.162974+09:00
+suitefix6-final-town3: 589 tests; failures none; errors none; exit 0; 267.157s.
+Existing unittest skips: 0.
+Command: PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules tests.test_policy_town --output jsonlog/suitefix6-final-town3.json --summary-output jsonlog/suitefix6-final-town3-summary.json --streams-dir jsonlog/suitefix6-final-town3-streams
+Receipt: C:\hengband\bot-client-discard\jsonlog\receipts\test_parallel_runner-full-20261006T030801+0900.json
+Receipt SHA256: 7efb1956e803f5967e5607358081ec6ba45cf7d91b8e9e8767a9097e6afaa809
+Source fingerprint: 2613c695d58dde73ac1da439b659f812d5149221d7779b566e5872698b189396
+Started: 2026-10-06T03:08:01.890889+09:00; ended: 2026-10-06T03:12:31.727226+09:00
+The runner always labels its receipt target "full"; argv above proves both runs used explicit --modules, not the full suite.
+All 30 requested modules are covered at the tested code/test commit. The report commit changes no executable or test files.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
