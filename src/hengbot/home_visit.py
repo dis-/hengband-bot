@@ -151,6 +151,35 @@ class HomeVisitExecutor:
         self.state = HomeVisitState.FILED
         return "filed"
 
+    def file_survival(self, request: HomeVisitRequest) -> str:
+        """Hand unposted Home work to survival, then resume it from the queue.
+
+        Entry and operation input already sent must finish observation first.
+        A handover keeps the physical visit budget and discards its old address
+        evidence; the new operation must earn fresh evidence of its own.
+        """
+        if request.requester != "survival":
+            raise ValueError("survival handover requires survival requester")
+        if self.state in {
+            HomeVisitState.ENTRY_PENDING, HomeVisitState.OPERATING,
+            HomeVisitState.EXIT_PENDING,
+        } or self.operation is not None:
+            return "pending"
+        if self.active:
+            previous = self.request
+            if previous != request:
+                if (previous is not None and previous.requester != "survival"
+                        and previous not in self.queued):
+                    self.queued.insert(0, previous)
+                self.queued = [queued for queued in self.queued if queued != request]
+                self.request = request
+            self.fresh_evidence = None
+            self.context_token = None
+            if self.state == HomeVisitState.OBSERVING:
+                self.state = HomeVisitState.APPROACHING
+            return "active"
+        return self.file(request)
+
     def begin_approach(self, outside_generation: int) -> bool:
         if self.state not in {HomeVisitState.FILED, HomeVisitState.APPROACHING}:
             return False

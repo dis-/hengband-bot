@@ -627,7 +627,11 @@ class HomeMixin:
             )
             self._home_route_refusal_sequence = self._decision_sequence
             return False
-        filing = self._home_visit.file(request)
+        filing = (
+            self._home_visit.file_survival(request)
+            if request.requester == "survival"
+            else self._home_visit.file(request)
+        )
         if filing == "rejected" or self._home_visit.request is None:
             rejection = None
             report = self._home_visit.consume_report()
@@ -1895,7 +1899,9 @@ class HomeMixin:
     ) -> str | None:
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
-        family = ("equipment-txn" if action is not None and action.kind == "withdraw"
+        family = ("survival" if snapshot.player.food_type == FOOD_TYPE_MANA
+                  and snapshot.player.hungry and self._find_edible(snapshot) is None
+                  else "equipment-txn" if action is not None and action.kind == "withdraw"
                   else "home-errand" if self._home_errand.active else "home-visit")
         return self._town_producer_entry(
             "home-atomic-withdraw", lambda: self._atomic_home_withdraw_dispatch_key(
@@ -1924,14 +1930,17 @@ class HomeMixin:
         if entrance is None or entrance.store_number != STORE_HOME:
             self._offer_home_atomic_no_step("withdraw", "not-at-home-entrance")
             return None
-        taken = getattr(self, "_home_pending_take_confirmed", None)
+        survival = (snapshot.player.food_type == FOOD_TYPE_MANA
+                    and snapshot.player.hungry and self._find_edible(snapshot) is None)
+        survival_device = self._home_mana_food_candidate() if survival else None
+        taken = None if survival else getattr(self, "_home_pending_take_confirmed", None)
         if taken is not None and taken != self._home_pending_item:
             taken = self._home_pending_take_confirmed = None
-        session = (None if (self._home_full_relief is not None
+        session = (None if (survival or self._home_full_relief is not None
                            or getattr(self, "_home_full_retry_deposits", None) is not None)
                    else self._equipment_transaction_session)
         action = session.current_action if session is not None else None
-        withdrawal_requested = bool(self._home_errand.active or self._home_pending_item is not None or self._home_pending_batch or (action is not None and action.kind == 'withdraw'))
+        withdrawal_requested = bool(survival_device is not None or self._home_errand.active or self._home_pending_item is not None or self._home_pending_batch or (action is not None and action.kind == 'withdraw'))
         if not withdrawal_requested:
             self._offer_home_atomic_no_step("withdraw", "no-withdrawal-request")
             return None
@@ -1962,6 +1971,16 @@ class HomeMixin:
         )
         observed_signatures = {self._item_signature(item) for _, item in address_slots}
         transaction_withdraw_pending = action is not None and action.kind == "withdraw"
+        if survival_device is not None:
+            signature = self._item_signature(survival_device)
+            if signature not in observed_signatures:
+                self._invalidate_home_observation()
+                self.last_reason = "survival:mana-home-scan"
+                self._offer_home_knowledge_request(producer="survival")
+                return HOME_KNOWLEDGE_MACRO
+            selecting_branch = "survival"
+            quantity = 1
+            reason = "survival:mana-home-withdraw"
         if transaction_withdraw_pending:
             transaction_slot = next(
                 (
@@ -1978,7 +1997,7 @@ class HomeMixin:
                 transaction_identity = action.item_identity
                 reason = "equipment-transaction:atomic-withdraw"
         if (
-            not transaction_withdraw_pending and self._home_errand.active and (self._home_errand.request is not None)
+            not survival and not transaction_withdraw_pending and self._home_errand.active and (self._home_errand.request is not None)
         ):
             signature = self._home_errand.request.signature
             selecting_branch = "home-errand"
@@ -2199,7 +2218,7 @@ class HomeMixin:
             if self._home_pending_quantity is not None
             else 1
         )
-        owner = "equipment-txn" if transaction_withdraw_pending else "home-errand"
+        owner = "survival" if survival else "equipment-txn" if transaction_withdraw_pending else "home-errand"
         if not item_available(self, snapshot, item, owner, "withdraw"):
             return None
         take_count = max(1, min(item.count, requested_quantity))
@@ -2296,7 +2315,7 @@ class HomeMixin:
             item,
             take_count,
         )
-        self._declare_non_discardable("home-visit")
+        self._declare_non_discardable("survival" if survival else "home-visit")
         self._home_atomic_withdraw_move_identity = move_identity
         procurement_probe = getattr(self, "_home_procurement_probe", None)
         self._home_atomic_withdraw_procurement_class = (
@@ -2321,7 +2340,8 @@ class HomeMixin:
         self._home_atomic_withdraw_index = catalogue_index
         self._home_atomic_withdraw_posted_turn = snapshot.turn
         if (
-            self._home_errand.active
+            not survival
+            and self._home_errand.active
             and self._home_errand.request is not None
             and self._home_errand.request.signature == signature
         ):
@@ -2332,8 +2352,9 @@ class HomeMixin:
                 "home-errand-posted", owners=("home-errand",),
                 sources=("store-operation",),
             )
-        self._home_pending_quantity = None
-        getattr(self, "_home_pending_quantities", {}).pop(signature, None)
+        if not survival:
+            self._home_pending_quantity = None
+            getattr(self, "_home_pending_quantities", {}).pop(signature, None)
         self._home_candidate_waiting = False
         self._home_withdrawal_queued = False
         self._home_entry_operation_posted = True

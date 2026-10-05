@@ -418,6 +418,19 @@ class QuestMixin:
         self, snapshot: Snapshot
     ) -> PhysicalHomeVisitRequest | None:
         """Translate every legacy Home producer into one immutable request."""
+        # Survival owns this request without overwriting the suspended errand's
+        # pending item, quantities, or equipment transaction.
+        if (snapshot.player.food_type == FOOD_TYPE_MANA
+                and snapshot.player.hungry and self._find_edible(snapshot) is None):
+            device = self._home_mana_food_candidate()
+            if device is not None:
+                identity = self._item_signature(device)
+                return PhysicalHomeVisitRequest(
+                    HomeVisitKind.WITHDRAW, "survival", identity,
+                    address=identity, quantity=1,
+                )
+            if not self._home_knowledge_current:
+                return PhysicalHomeVisitRequest(HomeVisitKind.SCAN, "survival")
         keep_set = self._home_visit_keep_set(snapshot)
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
