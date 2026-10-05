@@ -1,0 +1,104 @@
+Home内のNone退出ループ修正報告（2026-10-05）
+
+作業対象: C:\hengband\bot-client-homeexit
+ブランチ: home-exit-none-1005
+修正前HEAD: f8678cb56f1922fe72707114318982e6a18d4ebf
+
+原因と記録行
+捕捉元はすべて C:\hengband-backups\state-logs\s33-phase2b-shadow-20261004\
+autorecover-20261005-093156-town-blocked-owner-retired.* のコピー。
+以下の行番号はgzip展開後のJSONL行番号。
+
+bot-decisions.jsonl.gz:209 は di9\r ESC のHome預入。
+bot-state-fixed.jsonl.gz:45/46 はその預入前後のHome盤面。
+bot-decisions.jsonl.gz:220/223 は満杯対策の取り出し・売却、225 は
+home:full-space-ready。満杯対策が終了すると、policy_home.py:380 が
+元の預入品を _home_full_retry_deposits に戻し、relief を終了する。
+
+bot-decisions.jsonl.gz:226 は equipment-transaction:travel-home。
+次のHome盤面（bot-state-fixed.jsonl.gz:75、turn 11074177）に対し、
+bot-decisions.jsonl.gz:227 は policy:none-store-exit、ESC、owner idle。
+この行には equipment-txn holder による entry:_home_full_relief_key の
+拒否が記録されている。装備の次のactionはwithdraw、contextはhome、
+entry_blockerはnull、pending actionはない。230でも同じ退出が繰り返され、
+233でようやくseek-home-page、234でtown:blocked:owner-retiredになる。
+
+根本原因は、policy.py:8491 の満杯対策分岐が「reliefが終了していても
+retryリストがある」という条件で装備Home分岐より先に選ばれること。
+その分岐はhome-visit producerを呼ぶが、現在のequipment-txn holderが
+policy.py:5703 のHome順序保護を通じて拒否するためNoneになる。
+elif連鎖なので、その後の装備Home producerは呼ばれず、policy.py:8990
+の共通None処理がESCに変換する。S3.3 OFFでもcross-area Home保護は有効。
+
+今回の対象武器へのitem_reserved_by_other拒否が原因ではない。
+記録から復元したretry品は預入予定の巻物で、対象武器は記録カタログ
+（bot-state-fixed.jsonl.gz:70）の181番、identity 1a44577a87769bf5。
+予約判定はwithdrawを許可する。最初のHomeページには武器自体がないため、
+そこで正しい次の入力は装備ownerのページ送り。予約判定を迂回する変更はない。
+
+修正
+policy.py:8491: relief終了後のretry分岐は装備sessionがない場合に限る。
+満杯対策の売却が進行中なら、その既存の優先順位を保持する。
+装備sessionは既存のequipment-txn entryからHome処理を続ける。
+
+policy_equipment.py:1993: 装備Home producerが認められた時点で、残った装備
+預入品をretryリストから明示的に解放する。同じ品を二つのownerが保持せず、
+装備ownerが預入を発行・観測する。無関係なretry品は後のHome作業用に保持する。
+
+policy_equipment.py:2169/2240: 預入・取り出しの予約拒否は理由付きでsessionを
+blockし、equipment-txn ownerのESCを返す。競合側の予約は奪わず保持し、
+既存の装備中断・復旧経路に渡す。silent Noneからidle退出には落とさない。
+
+scripts/item_sink_adapters.json: 分岐条件を含む既存の二つの厳密なadapter pinを
+更新。producer・呼び出し数・lintの拒否機能は追加/緩和していない。
+
+記録pinとrevert検証
+tests/fixtures/homeexit-20261005.json.gz に必要な捕捉行だけを収録。
+SHA256: 382ecb3be6469fedd7e6e720b93a8a32c606f0405fa8ac59f90bc16dc7170bd7
+tests/test_homeexit_recorded.py は捕捉された75/79行のHome盤面を使用し、
+OFF/ON両方でequipment-transaction:seek-home-pageのspaceを確認。
+記録70行のカタログから対象ページ（page_top 156）を明示的に構成し、
+次にequipment-transaction:withdrawのpzと、posting後のpending actionを確認。
+156ページの応答は捕捉されていないため、歴史上の盤面とは称していない。
+checkpointはコピーにないため、ledger/session/visitの復元を明記。
+skill_expは捕捉42行から読み込み、捕捉されたprotocol 3を保持する。
+変更後に捕捉された後続応答をそのまま効果として再生しない。
+他のpinは装備預入dpへの予約引渡しと、実際のHome予約競合の理由付き退出を検証。
+
+修正前HEADの_choose_keyだけを別Pythonプロセス内で復元して同じ回帰testを実行。
+75/79行×OFF/ONの4ケースすべて失敗（例外なし）。OFFは実際にESC、
+policy:none-store-exit、owner idle。ONはNone、ownership:holder-silent:equipment-txn。
+この検証は作業ファイルを戻したり、別worktreeを作ったりせず実施した。
+
+検証結果
+Python: C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
+PYTHONPATH=src;tests。各モジュールを一つずつ実行し、出力は成功要約だけを確認。
+最終コードでの必須モジュール結果:
+  test_homeexit_recorded: 5 tests, OK
+  test_item_reservation: 17 tests, OK
+  test_item_sink_lint: 18 tests, OK
+  test_town_structure_lint: 19 tests, OK
+  test_equipment_deposit_owner_recorded: 7 tests, OK
+  test_homefull3_recorded: 8 tests, OK
+  test_policy_home: 171 tests, OK (skipped=4)
+  test_policy_equipment: 191 tests, OK
+  test_policy_town: 589 tests, OK（単独モジュール実行、227.465秒）
+
+必須モジュールと新規pinは合計1025件（うちHomeの4件はskip）。
+技能捕捉行追加後の最終pinは5件すべてOK。protocol 3でrevert失敗も再確認。
+
+変更した _equipment_transaction_home_key / _home_full_relief_key の参照を検索し、
+追加で test_crossarea_live2 (3)、test_equipment_swap_loop_incident (17)、
+test_home_light_alternation (36)、test_warrior_optimization (36) もすべてOK。
+Townの開始前に別のfull-suite worker 7580を非停止でstack検査し、実行中の
+モジュールが test_s33_batch_context であること、そのworkerの固定実行順で
+test_policy_townが既に終了した位置にあること、Town stackがないことを確認。
+他のワーカーを停止せず、自分のTown待機launcherだけを終了して単独で開始。
+一時的な検査ツールはこのworktree内に置き、検査後に削除済み。
+git diff --check / staged diff --check も通過。
+
+運用
+ゲーム・BOTは起動/停止していない。maintenance.holdとlive jsonlogは変更せず、
+他worktreeでは作業していない。pushしていない。指定の変更とこの報告をcommit。
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
