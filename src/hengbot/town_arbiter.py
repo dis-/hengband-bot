@@ -357,6 +357,28 @@ class TownTurnArbiter:
             return "detectors"
         return "town-plan"
 
+    def forgive_retirement(self) -> None:
+        """Drop every owner budget/retirement, exactly as leaving town does.
+
+        Used only while the user-approved owner-retired log-only mode is on
+        (2026-10-05): a retirement is recorded, not a stop, and the town
+        owners start again from a fresh budget.
+        """
+        self._owner = None
+        self._tenure = 0
+        for name in ("_no_progress_by_owner", "_vector_by_owner", "_retired",
+                     "_recurrences", "_visit_transfers"):
+            value = getattr(self, name, None)
+            if value is not None:
+                value.clear()
+        self._visit_vector = None
+        self._last_pair = None
+        self._last_transfer_sequence = None
+        self._last_transfer_pair = None
+        self._pending_transfer = None
+        self._transfer_exhausted = False
+        self._transferred_visit = None
+
     def _decision_owner(self, reason: str) -> str:
         """Bind ordinary work to the active errand; survival may hand off."""
         reason_owner = self.owner_for_reason(reason)

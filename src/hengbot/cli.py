@@ -407,6 +407,33 @@ def _declaration_requires_no_send(key: str | None, reason: str | None) -> bool:
         "ownership:declaration-"))
 
 
+def _record_owner_retired_log_only(args, snapshot, key, policy) -> None:
+    """Log an owner retirement and give town owners a fresh budget."""
+    arbiter = getattr(policy, "_town_turn_arbiter", None)
+    telemetry = getattr(arbiter, "telemetry", None) if arbiter is not None else None
+    record = {
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "turn": getattr(snapshot, "turn", None),
+        "floor": list(getattr(snapshot, "floor_key", ()) or ()),
+        "key": key,
+        "reason": policy.last_reason,
+        "arbiter": telemetry if isinstance(telemetry, dict) else None,
+    }
+    path = None
+    if getattr(args, "decision_log", None):
+        path = Path(args.decision_log).with_name("owner-retired-log-only.jsonl")
+    if path is not None:
+        try:
+            with open(path, "a", encoding="utf-8") as stream:
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+    print(f"<owner-retired-log-only> turn={record['turn']} recorded; continuing",
+          file=sys.stderr, flush=True)
+    if arbiter is not None and hasattr(arbiter, "forgive_retirement"):
+        arbiter.forgive_retirement()
+
+
 def _policy_final_stop_banner(reason: str) -> str:
     if reason.startswith("ownership:contract-conflict:fundraising:"):
         return (f"<{reason}> fundraising has no valid purpose continuation; "
@@ -3152,6 +3179,14 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         help="use the shared cross-area fundraising verdict and purpose (default: off)",
     )
     parser.add_argument(
+        "--owner-retired-log-only", action="store_true",
+        help=(
+            "record town:blocked:owner-retired and reset the town owner "
+            "budgets instead of stopping (user decision 2026-10-05, until the "
+            "town progress definition is rebuilt; default: off)"
+        ),
+    )
+    parser.add_argument(
         "--in-store-shop-ops", action="store_true",
         help=(
             "buy/sell on the observed page of an ordinary shop and skip shelf-"
@@ -4319,7 +4354,10 @@ def _run_follow(
                             flush=True,
                         )
                         return incident_stop("loop-detected", snapshot)
-                    if (policy.last_reason in POLICY_FINAL_STOP_REASONS
+                    if (getattr(args, "owner_retired_log_only", False)
+                            and policy.last_reason == "town:blocked:owner-retired"):
+                        _record_owner_retired_log_only(args, snapshot, key, policy)
+                    elif (policy.last_reason in POLICY_FINAL_STOP_REASONS
                             or (policy.last_reason or "").startswith(
                                 ("ownership:holder-silent:",
                                  "ownership:declaration-",
