@@ -9198,8 +9198,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1001,
-    "end_line": 1008,
+    "line": 1009,
+    "end_line": 1016,
     "ast_sha256": "1757717d7ab08bbccdc1783d1ef4abd1189bde616171b73453489eae069f37e5"
   },
   "town_arbiter.py:TownArbiterMixin._owner_may_select": {
@@ -9208,8 +9208,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1102,
-    "end_line": 1105,
+    "line": 1110,
+    "end_line": 1113,
     "ast_sha256": "d65f56fa32af69092b9fa582fc8aa62fcf6266de343de1380f0846390d4a354f"
   },
   "town_arbiter.py:TownArbiterMixin._owner_progress_core": {
@@ -9218,8 +9218,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1043,
-    "end_line": 1049,
+    "line": 1051,
+    "end_line": 1057,
     "ast_sha256": "b1be257e6cd7ddbc81c5b8ea18483669560283fb44cbd636cb291a497b5d350c"
   },
   "town_arbiter.py:TownArbiterMixin._progress_core_of": {
@@ -9228,8 +9228,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1051,
-    "end_line": 1078,
+    "line": 1059,
+    "end_line": 1086,
     "ast_sha256": "8ac450ff5d7beb9733cf218138581766283eb09cbd6995c407e8bcc07909d3c5"
   },
   "town_arbiter.py:TownTurnArbiter.__init__.registration": {
@@ -9268,8 +9268,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 619,
-    "end_line": 660,
+    "line": 627,
+    "end_line": 668,
     "ast_sha256": "7f93fbb9afe7baa167c9a436444cc094491579de46b00058aac76ecf98349875"
   },
   "town_arbiter.py:TownTurnArbiter.observe": {
@@ -9279,8 +9279,8 @@
     ],
     "delegation": "selected child; no independent success",
     "line": 427,
-    "end_line": 617,
-    "ast_sha256": "d381e47eb92055d5cac747ef8acb835e72a0719ec2709023214a2d3454bc40b2"
+    "end_line": 625,
+    "ast_sha256": "23fb5c17ba33556ff8815ef2c23e4c0160e7af3f11ab721065e8b64cd4fa6c31"
   },
   "town_arbiter.py:TownTurnArbiter.owner_for_reason": {
     "classification": "data",
@@ -9308,8 +9308,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 671,
-    "end_line": 692,
+    "line": 679,
+    "end_line": 700,
     "ast_sha256": "c74a38439127fa1db157ed63cfde58cbdd1808f217faffd290c6bf5ae48e9ffc"
   },
   "town_arbiter.py:reason_owner_family": {
@@ -9318,8 +9318,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 695,
-    "end_line": 708,
+    "line": 703,
+    "end_line": 716,
     "ast_sha256": "a266312e8ce493463739d5bd8a49717199fa924b28861fa36b3ddad3cce44599"
   },
   "town_maps.py:TownMap.building_position": {

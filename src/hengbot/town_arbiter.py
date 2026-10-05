@@ -485,10 +485,18 @@ class TownTurnArbiter:
             # An interrupt freezes the errand's counters and transfer history.
             # Do not retire safety, even at a repeated vector or a terminal
             # result: its producer supplies its own visible impossibility.
+            # Progress is still reported against survival's own last vector
+            # (distance to its claimed goal), kept apart from errand state.
+            previous_survival = self.__dict__.get("_survival_vector")
+            self._survival_vector = progress_vector
             self.telemetry = {
                 "owner": "survival", "producer_owner": "survival",
-                "tenure": 1, "progress": False,
-                "budget_remaining_estimate": None, "would_retire": False,
+                "tenure": 1,
+                "progress": previous_survival is None or previous_survival != progress_vector,
+                # Survival never spends its budget, so the full budget remains.
+                "budget_remaining_estimate": getattr(
+                    self.registry.get("survival"), "budget", None),
+                "would_retire": False,
                 "retired": False, "retirement_set": sorted(self._retired),
             }
             return dict(self.telemetry)
