@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-05T10:56:11Z",
+ "generated": "2026-10-05T11:00:34Z",
  "commit": "main",
  "blob_base": "https://github.com/dis-/hengband-bot/blob/main/",
  "sections": [
@@ -29,190 +29,297 @@
    "name": "bookkeeping",
    "label": "記録と保存",
    "count": 3,
-   "hits": 737
+   "hits": {
+    "all": 740,
+    "h48": 457
+   }
   },
   {
    "name": "combat",
    "label": "戦闘",
    "count": 4,
-   "hits": 2851
+   "hits": {
+    "all": 2964,
+    "h48": 1319
+   }
   },
   {
    "name": "cross-town",
    "label": "町の間の移動",
    "count": 1,
-   "hits": 185
+   "hits": {
+    "all": 185,
+    "h48": 100
+   }
   },
   {
    "name": "curse-enchant",
    "label": "呪いと強化",
    "count": 2,
-   "hits": 39
+   "hits": {
+    "all": 39,
+    "h48": 17
+   }
   },
   {
    "name": "departure",
    "label": "出発と帰還",
    "count": 7,
-   "hits": 2895
+   "hits": {
+    "all": 2900,
+    "h48": 2066
+   }
   },
   {
    "name": "detectors",
    "label": "異常の検出",
    "count": 10,
-   "hits": 1347
+   "hits": {
+    "all": 1351,
+    "h48": 733
+   }
   },
   {
    "name": "equipment-opt",
    "label": "装備の最適化",
    "count": 1,
-   "hits": 0
+   "hits": {
+    "all": 0,
+    "h48": 0
+   }
   },
   {
    "name": "equipment-txn",
    "label": "装備の取引",
    "count": 7,
-   "hits": 1296
+   "hits": {
+    "all": 1296,
+    "h48": 884
+   }
   },
   {
    "name": "escape",
    "label": "脱出",
    "count": 8,
-   "hits": 3763
+   "hits": {
+    "all": 3769,
+    "h48": 731
+   }
   },
   {
    "name": "esp-threat",
    "label": "テレパシーの脅威",
    "count": 2,
-   "hits": 0
+   "hits": {
+    "all": 0,
+    "h48": 0
+   }
   },
   {
    "name": "explore",
    "label": "探索",
    "count": 2,
-   "hits": 18881
+   "hits": {
+    "all": 20982,
+    "h48": 14419
+   }
   },
   {
    "name": "floor-loot",
    "label": "床の戦利品",
    "count": 5,
-   "hits": 2743
+   "hits": {
+    "all": 2897,
+    "h48": 1262
+   }
   },
   {
    "name": "fundraising",
    "label": "資金稼ぎ",
    "count": 2,
-   "hits": 7831
+   "hits": {
+    "all": 7831,
+    "h48": 4954
+   }
   },
   {
    "name": "home-errand",
    "label": "自宅の用事",
    "count": 2,
-   "hits": 261
+   "hits": {
+    "all": 261,
+    "h48": 233
+   }
   },
   {
    "name": "home-scan",
    "label": "自宅の確認",
    "count": 1,
-   "hits": 706
+   "hits": {
+    "all": 706,
+    "h48": 532
+   }
   },
   {
    "name": "home-visit",
    "label": "自宅の訪問",
    "count": 2,
-   "hits": 1706
+   "hits": {
+    "all": 1706,
+    "h48": 1398
+   }
   },
   {
    "name": "hunt",
    "label": "狩り",
    "count": 2,
-   "hits": 80
+   "hits": {
+    "all": 80,
+    "h48": 62
+   }
   },
   {
    "name": "identification",
    "label": "鑑定",
    "count": 2,
-   "hits": 259
+   "hits": {
+    "all": 284,
+    "h48": 207
+   }
   },
   {
    "name": "idle",
    "label": "手待ち",
    "count": 1,
-   "hits": 226
+   "hits": {
+    "all": 226,
+    "h48": 64
+   }
   },
   {
    "name": "misc",
    "label": "その他",
    "count": 1,
-   "hits": 0
+   "hits": {
+    "all": 0,
+    "h48": 0
+   }
   },
   {
    "name": "positioning",
    "label": "位置取り",
    "count": 7,
-   "hits": 282
+   "hits": {
+    "all": 282,
+    "h48": 38
+   }
   },
   {
    "name": "quest-request",
    "label": "クエストの受注",
    "count": 6,
-   "hits": 1379
+   "hits": {
+    "all": 1379,
+    "h48": 64
+   }
   },
   {
    "name": "quest-sweep",
    "label": "クエストの掃討",
    "count": 1,
-   "hits": 829
+   "hits": {
+    "all": 829,
+    "h48": 0
+   }
   },
   {
    "name": "rumor",
    "label": "うわさ集め",
    "count": 1,
-   "hits": 0
+   "hits": {
+    "all": 0,
+    "h48": 0
+   }
   },
   {
    "name": "shop-buy",
    "label": "店での購入",
    "count": 1,
-   "hits": 1053
+   "hits": {
+    "all": 1053,
+    "h48": 518
+   }
   },
   {
    "name": "shop-sell",
    "label": "店での売却",
    "count": 1,
-   "hits": 498
+   "hits": {
+    "all": 498,
+    "h48": 438
+   }
   },
   {
    "name": "store-router",
    "label": "店の出入り",
    "count": 3,
-   "hits": 2620
+   "hits": {
+    "all": 2620,
+    "h48": 1308
+   }
   },
   {
    "name": "survival",
    "label": "生存",
    "count": 9,
-   "hits": 791
+   "hits": {
+    "all": 799,
+    "h48": 402
+   }
   },
   {
    "name": "town-plan",
    "label": "町の段取り",
    "count": 2,
-   "hits": 700
+   "hits": {
+    "all": 700,
+    "h48": 150
+   }
   },
   {
    "name": "unregistered",
    "label": "未登録",
    "count": 1,
-   "hits": 3
+   "hits": {
+    "all": 3,
+    "h48": 3
+   }
   }
  ],
- "log": {
-  "files": 186,
-  "decisions": 54183,
-  "unrunged": 179,
-  "first": "2026-10-01T21:57:17+0900",
-  "last": "2026-10-05T19:55:59+0900"
- },
+ "windows": [
+  {
+   "key": "all",
+   "label": "全期間",
+   "hours": null,
+   "since": null,
+   "files": 186,
+   "decisions": 56602,
+   "unrunged": 179,
+   "first": "2026-10-01T21:57:17+0900",
+   "last": "2026-10-05T20:00:22+0900"
+  },
+  {
+   "key": "h48",
+   "label": "直近48時間",
+   "hours": 48,
+   "since": "2026-10-03T11:00:19.785358+00:00",
+   "files": 84,
+   "decisions": 32359,
+   "unrunged": 95,
+   "first": "2026-10-03T20:27:23+0900",
+   "last": "2026-10-05T20:00:22+0900"
+  }
+ ],
  "rungs": [
   {
    "index": 0,
@@ -231,81 +338,154 @@
    "line": 103,
    "doc": "Refuse a repeated transition after an equivalent-state cycle.",
    "doc_from": "docstring",
-   "hits": 688,
-   "log_reasons": [
-    [
-     "town-progress-invariant:continue-observed-shop",
-     457
-    ],
-    [
-     "town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach",
-     24
-    ],
-    [
-     "town-progress-invariant:defect:shop:approach=>town-progress-invariant:approach",
-     19
-    ],
-    [
-     "town-progress-invariant:defect:periodic:character-dump=>town-progress-invariant:approach",
-     19
-    ],
-    [
-     "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off",
-     14
-    ],
-    [
-     "town-progress-invariant:defect:survival:mana-absorb=>town-progress-invariant:approach",
-     13
-    ],
-    [
-     "town-progress-invariant:defect:shop:travel:await-entry=>shop:travel:await-entry",
-     12
-    ],
-    [
-     "town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach",
-     10
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     683
-    ],
-    [
-     "Explore and break out of dead ends",
-     4
-    ],
-    [
-     "Town maintenance and resupply",
-     1
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u001b",
-     457
-    ],
-    [
-     "\u001b`n%.",
-     79
-    ],
-    [
-     "\u001b`n&.",
-     35
-    ],
-    [
-     "9",
-     32
-    ],
-    [
-     "\u001b`n$.",
-     26
-    ],
-    [
-     "7",
-     17
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 688,
+     "reasons": [
+      [
+       "town-progress-invariant:continue-observed-shop",
+       457
+      ],
+      [
+       "town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach",
+       24
+      ],
+      [
+       "town-progress-invariant:defect:shop:approach=>town-progress-invariant:approach",
+       19
+      ],
+      [
+       "town-progress-invariant:defect:periodic:character-dump=>town-progress-invariant:approach",
+       19
+      ],
+      [
+       "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off",
+       14
+      ],
+      [
+       "town-progress-invariant:defect:survival:mana-absorb=>town-progress-invariant:approach",
+       13
+      ],
+      [
+       "town-progress-invariant:defect:shop:travel:await-entry=>shop:travel:await-entry",
+       12
+      ],
+      [
+       "town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach",
+       10
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       683
+      ],
+      [
+       "Explore and break out of dead ends",
+       4
+      ],
+      [
+       "Town maintenance and resupply",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       457
+      ],
+      [
+       "\u001b`n%.",
+       79
+      ],
+      [
+       "\u001b`n&.",
+       35
+      ],
+      [
+       "9",
+       32
+      ],
+      [
+       "\u001b`n$.",
+       26
+      ],
+      [
+       "7",
+       17
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 320,
+     "reasons": [
+      [
+       "town-progress-invariant:continue-observed-shop",
+       179
+      ],
+      [
+       "town-progress-invariant:defect:periodic:character-dump=>town-progress-invariant:approach",
+       14
+      ],
+      [
+       "town-progress-invariant:defect:survival:mana-absorb=>town-progress-invariant:approach",
+       13
+      ],
+      [
+       "town-progress-invariant:defect:shop:approach=>town-progress-invariant:approach",
+       12
+      ],
+      [
+       "town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach",
+       10
+      ],
+      [
+       "town-progress-invariant:defect:equipment-transaction:travel-home:await-entry=>town-progress-invariant:approach",
+       10
+      ],
+      [
+       "town-progress-invariant:defect:identify:full-equipped=>identify:full-equipped",
+       9
+      ],
+      [
+       "town-progress-invariant:defect:identify:full=>identify:full",
+       9
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       320
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       179
+      ],
+      [
+       "\u001b`n%.",
+       37
+      ],
+      [
+       "\u001b`n&.",
+       34
+      ],
+      [
+       "9",
+       23
+      ],
+      [
+       "\u001b`n$.",
+       16
+      ],
+      [
+       "7",
+       13
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 1,
@@ -326,53 +506,94 @@
    "line": 300,
    "doc": "Reject every bare no-op after an observed HP loss.",
    "doc_from": "docstring",
-   "hits": 112,
-   "log_reasons": [
-    [
-     "no-wait:least-visited",
-     59
-    ],
-    [
-     "no-wait:escape-scroll",
-     52
-    ],
-    [
-     "no-wait:melee",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     112
-    ]
-   ],
-   "log_keys": [
-    [
-     "rf",
-     20
-    ],
-    [
-     "4",
-     18
-    ],
-    [
-     "6",
-     18
-    ],
-    [
-     "re",
-     15
-    ],
-    [
-     "7",
-     8
-    ],
-    [
-     "rh",
-     8
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 112,
+     "reasons": [
+      [
+       "no-wait:least-visited",
+       59
+      ],
+      [
+       "no-wait:escape-scroll",
+       52
+      ],
+      [
+       "no-wait:melee",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       112
+      ]
+     ],
+     "keys": [
+      [
+       "rf",
+       20
+      ],
+      [
+       "4",
+       18
+      ],
+      [
+       "6",
+       18
+      ],
+      [
+       "re",
+       15
+      ],
+      [
+       "7",
+       8
+      ],
+      [
+       "rh",
+       8
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 21,
+     "reasons": [
+      [
+       "no-wait:escape-scroll",
+       16
+      ],
+      [
+       "no-wait:least-visited",
+       5
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       21
+      ]
+     ],
+     "keys": [
+      [
+       "rf",
+       12
+      ],
+      [
+       "4",
+       5
+      ],
+      [
+       "rj",
+       2
+      ],
+      [
+       "ri",
+       2
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 2,
@@ -393,45 +614,86 @@
    "line": 552,
    "doc": "Break a combat-interspersed small-cell navigation oscillation.",
    "doc_from": "docstring",
-   "hits": 31,
-   "log_reasons": [
-    [
-     "nav:break-oscillation",
-     31
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     31
-    ]
-   ],
-   "log_keys": [
-    [
-     "2",
-     9
-    ],
-    [
-     "8",
-     9
-    ],
-    [
-     "6",
-     6
-    ],
-    [
-     "1",
-     4
-    ],
-    [
-     "9",
-     2
-    ],
-    [
-     "7",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 31,
+     "reasons": [
+      [
+       "nav:break-oscillation",
+       31
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       31
+      ]
+     ],
+     "keys": [
+      [
+       "2",
+       9
+      ],
+      [
+       "8",
+       9
+      ],
+      [
+       "6",
+       6
+      ],
+      [
+       "1",
+       4
+      ],
+      [
+       "9",
+       2
+      ],
+      [
+       "7",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 11,
+     "reasons": [
+      [
+       "nav:break-oscillation",
+       11
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       11
+      ]
+     ],
+     "keys": [
+      [
+       "2",
+       6
+      ],
+      [
+       "1",
+       2
+      ],
+      [
+       "8",
+       1
+      ],
+      [
+       "9",
+       1
+      ],
+      [
+       "6",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 3,
@@ -450,10 +712,20 @@
    "line": 9643,
    "doc": "Guard against re-issuing a move the game keeps rejecting.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 4,
@@ -472,10 +744,20 @@
    "line": 16918,
    "doc": "Let registered escape WAITs spend their policy budget, then stop.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 5,
@@ -494,73 +776,146 @@
    "line": 1263,
    "doc": "Enforce composable progress at the one downstream town-result seam.",
    "doc_from": "docstring",
-   "hits": 694,
-   "log_reasons": [
-    [
-     "town:blocked:no-actionable-claim-owner",
-     373
-    ],
-    [
-     "town:blocked:owner-retired",
-     114
-    ],
-    [
-     "town:blocked:route-nonprogress:quest-request",
-     54
-    ],
-    [
-     "town:blocked:equipment-home-unavailable",
-     27
-    ],
-    [
-     "town:blocked:departure-unsatisfiable",
-     21
-    ],
-    [
-     "town:blocked:home-full-no-sellable-surplus",
-     21
-    ],
-    [
-     "town:blocked:overweight-home-unreachable",
-     15
-    ],
-    [
-     "town:blocked:restock-store-unreachable",
-     8
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     694
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     608
-    ],
-    [
-     "9",
-     36
-    ],
-    [
-     "7",
-     15
-    ],
-    [
-     "1",
-     13
-    ],
-    [
-     "3",
-     5
-    ],
-    [
-     "2",
-     5
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 694,
+     "reasons": [
+      [
+       "town:blocked:no-actionable-claim-owner",
+       373
+      ],
+      [
+       "town:blocked:owner-retired",
+       114
+      ],
+      [
+       "town:blocked:route-nonprogress:quest-request",
+       54
+      ],
+      [
+       "town:blocked:equipment-home-unavailable",
+       27
+      ],
+      [
+       "town:blocked:departure-unsatisfiable",
+       21
+      ],
+      [
+       "town:blocked:home-full-no-sellable-surplus",
+       21
+      ],
+      [
+       "town:blocked:overweight-home-unreachable",
+       15
+      ],
+      [
+       "town:blocked:restock-store-unreachable",
+       8
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       694
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       608
+      ],
+      [
+       "9",
+       36
+      ],
+      [
+       "7",
+       15
+      ],
+      [
+       "1",
+       13
+      ],
+      [
+       "3",
+       5
+      ],
+      [
+       "2",
+       5
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 150,
+     "reasons": [
+      [
+       "town:blocked:owner-retired",
+       53
+      ],
+      [
+       "town:blocked:home-full-no-sellable-surplus",
+       21
+      ],
+      [
+       "town:blocked:departure-unsatisfiable",
+       15
+      ],
+      [
+       "town:blocked:overweight-home-unreachable",
+       9
+      ],
+      [
+       "town:blocked:restock-store-unreachable",
+       8
+      ],
+      [
+       "town:blocked:home-full-surplus-withdraw-failed",
+       8
+      ],
+      [
+       "town:blocked:home-full-deposit-retry-unreachable",
+       8
+      ],
+      [
+       "town:blocked:survival-mana-no-charges",
+       7
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       150
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       105
+      ],
+      [
+       "9",
+       18
+      ],
+      [
+       "1",
+       7
+      ],
+      [
+       "7",
+       6
+      ],
+      [
+       "6",
+       5
+      ],
+      [
+       "2",
+       3
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 6,
@@ -581,25 +936,50 @@
    "line": 9397,
    "doc": "Request ~f while a protocol-3 board lacks the skill list values.",
    "doc_from": "docstring",
-   "hits": 326,
-   "log_reasons": [
-    [
-     "periodic:skill-exp-knowledge",
-     326
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     326
-    ]
-   ],
-   "log_keys": [
-    [
-     "~f\u001b",
-     326
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 326,
+     "reasons": [
+      [
+       "periodic:skill-exp-knowledge",
+       326
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       326
+      ]
+     ],
+     "keys": [
+      [
+       "~f\u001b",
+       326
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 173,
+     "reasons": [
+      [
+       "periodic:skill-exp-knowledge",
+       173
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       173
+      ]
+     ],
+     "keys": [
+      [
+       "~f\u001b",
+       173
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 7,
@@ -618,25 +998,50 @@
    "line": 9484,
    "doc": "Replace a safe filler with Ctrl-S; saving consumes no game energy.",
    "doc_from": "docstring",
-   "hits": 185,
-   "log_reasons": [
-    [
-     "periodic:game-save",
-     185
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     185
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u0013",
-     185
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 186,
+     "reasons": [
+      [
+       "periodic:game-save",
+       186
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       186
+      ]
+     ],
+     "keys": [
+      [
+       "\u0013",
+       186
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 130,
+     "reasons": [
+      [
+       "periodic:game-save",
+       130
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       130
+      ]
+     ],
+     "keys": [
+      [
+       "\u0013",
+       130
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 8,
@@ -658,37 +1063,74 @@
    "line": 9501,
    "doc": "Replace a safe filler action without delaying combat or prompts.",
    "doc_from": "docstring",
-   "hits": 226,
-   "log_reasons": [
-    [
-     "periodic:character-dump",
-     213
-    ],
-    [
-     "town:character-dump",
-     13
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     213
-    ],
-    [
-     "Town maintenance and resupply",
-     13
-    ]
-   ],
-   "log_keys": [
-    [
-     "Cf\ry\u001b\u001b",
-     224
-    ],
-    [
-     "6",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 228,
+     "reasons": [
+      [
+       "periodic:character-dump",
+       215
+      ],
+      [
+       "town:character-dump",
+       13
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       215
+      ],
+      [
+       "Town maintenance and resupply",
+       13
+      ]
+     ],
+     "keys": [
+      [
+       "Cf\ry\u001b\u001b",
+       226
+      ],
+      [
+       "6",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 154,
+     "reasons": [
+      [
+       "periodic:character-dump",
+       148
+      ],
+      [
+       "town:character-dump",
+       6
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       148
+      ],
+      [
+       "Town maintenance and resupply",
+       6
+      ]
+     ],
+     "keys": [
+      [
+       "Cf\ry\u001b\u001b",
+       152
+      ],
+      [
+       "6",
+       2
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 9,
@@ -710,37 +1152,74 @@
    "line": 463,
    "doc": "Keep a filed take's knowledge request and wait with its owner.",
    "doc_from": "docstring",
-   "hits": 34,
-   "log_reasons": [
-    [
-     "home-errand:request-knowledge:identification-catalog",
-     17
-    ],
-    [
-     "home-errand:request-knowledge:full-home-sale",
-     15
-    ],
-    [
-     "home-errand:await-fresh-knowledge:full-home-sale",
-     2
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     34
-    ]
-   ],
-   "log_keys": [
-    [
-     "~9\u001b",
-     32
-    ],
-    [
-     "9",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 34,
+     "reasons": [
+      [
+       "home-errand:request-knowledge:identification-catalog",
+       17
+      ],
+      [
+       "home-errand:request-knowledge:full-home-sale",
+       15
+      ],
+      [
+       "home-errand:await-fresh-knowledge:full-home-sale",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       34
+      ]
+     ],
+     "keys": [
+      [
+       "~9\u001b",
+       32
+      ],
+      [
+       "9",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 34,
+     "reasons": [
+      [
+       "home-errand:request-knowledge:identification-catalog",
+       17
+      ],
+      [
+       "home-errand:request-knowledge:full-home-sale",
+       15
+      ],
+      [
+       "home-errand:await-fresh-knowledge:full-home-sale",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       34
+      ]
+     ],
+     "keys": [
+      [
+       "~9\u001b",
+       32
+      ],
+      [
+       "9",
+       2
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 10,
@@ -761,61 +1240,122 @@
    "line": 192,
    "doc": "",
    "doc_from": "",
-   "hits": 561,
-   "log_reasons": [
-    [
-     "home:full-queue-surplus-withdraw",
-     267
-    ],
-    [
-     "home:full-destroy-await-effect",
-     190
-    ],
-    [
-     "home:full-space-ready",
-     65
-    ],
-    [
-     "home:full-leave-with-surplus",
-     25
-    ],
-    [
-     "home:full-await-knowledge",
-     14
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     561
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u001b",
-     289
-    ],
-    [
-     "5",
-     190
-    ],
-    [
-     "6",
-     22
-    ],
-    [
-     "3",
-     21
-    ],
-    [
-     "9",
-     14
-    ],
-    [
-     "7",
-     8
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 561,
+     "reasons": [
+      [
+       "home:full-queue-surplus-withdraw",
+       267
+      ],
+      [
+       "home:full-destroy-await-effect",
+       190
+      ],
+      [
+       "home:full-space-ready",
+       65
+      ],
+      [
+       "home:full-leave-with-surplus",
+       25
+      ],
+      [
+       "home:full-await-knowledge",
+       14
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       561
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       289
+      ],
+      [
+       "5",
+       190
+      ],
+      [
+       "6",
+       22
+      ],
+      [
+       "3",
+       21
+      ],
+      [
+       "9",
+       14
+      ],
+      [
+       "7",
+       8
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 561,
+     "reasons": [
+      [
+       "home:full-queue-surplus-withdraw",
+       267
+      ],
+      [
+       "home:full-destroy-await-effect",
+       190
+      ],
+      [
+       "home:full-space-ready",
+       65
+      ],
+      [
+       "home:full-leave-with-surplus",
+       25
+      ],
+      [
+       "home:full-await-knowledge",
+       14
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       561
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       289
+      ],
+      [
+       "5",
+       190
+      ],
+      [
+       "6",
+       22
+      ],
+      [
+       "3",
+       21
+      ],
+      [
+       "9",
+       14
+      ],
+      [
+       "7",
+       8
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 11,
@@ -834,77 +1374,154 @@
    "line": 2372,
    "doc": "Equipment changes have one owner: after Home identification and the complete-page scan, execute the globally optimized loadout transaction. Legacy per-item weapon trials and jewellery upgrades must not race this plan or repeatedly withdraw and re-deposit candidates.",
    "doc_from": "call-site",
-   "hits": 488,
-   "log_reasons": [
-    [
-     "equipment-transaction:equip",
-     169
-    ],
-    [
-     "equipment-transaction:await-confirmation",
-     67
-    ],
-    [
-     "equipment-transaction:takeoff",
-     48
-    ],
-    [
-     "equipment-transaction:atomic-deposit",
-     38
-    ],
-    [
-     "home:atomic-deposit",
-     35
-    ],
-    [
-     "equipment-transaction:abandon-blocked",
-     28
-    ],
-    [
-     "equipment-transaction:deposit",
-     23
-    ],
-    [
-     "equipment-transaction:home-route-unavailable",
-     20
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     417
-    ],
-    [
-     "Town maintenance and resupply",
-     71
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     167
-    ],
-    [
-     "ta",
-     48
-    ],
-    [
-     "wj",
-     39
-    ],
-    [
-     "wky",
-     36
-    ],
-    [
-     "wja",
-     36
-    ],
-    [
-     "dl\u001b",
-     13
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 488,
+     "reasons": [
+      [
+       "equipment-transaction:equip",
+       169
+      ],
+      [
+       "equipment-transaction:await-confirmation",
+       67
+      ],
+      [
+       "equipment-transaction:takeoff",
+       48
+      ],
+      [
+       "equipment-transaction:atomic-deposit",
+       38
+      ],
+      [
+       "home:atomic-deposit",
+       35
+      ],
+      [
+       "equipment-transaction:abandon-blocked",
+       28
+      ],
+      [
+       "equipment-transaction:deposit",
+       23
+      ],
+      [
+       "equipment-transaction:home-route-unavailable",
+       20
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       417
+      ],
+      [
+       "Town maintenance and resupply",
+       71
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       167
+      ],
+      [
+       "ta",
+       48
+      ],
+      [
+       "wj",
+       39
+      ],
+      [
+       "wky",
+       36
+      ],
+      [
+       "wja",
+       36
+      ],
+      [
+       "dl\u001b",
+       13
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 288,
+     "reasons": [
+      [
+       "equipment-transaction:await-confirmation",
+       67
+      ],
+      [
+       "equipment-transaction:equip",
+       45
+      ],
+      [
+       "equipment-transaction:abandon-blocked",
+       28
+      ],
+      [
+       "equipment-transaction:atomic-deposit",
+       27
+      ],
+      [
+       "home:atomic-deposit",
+       25
+      ],
+      [
+       "equipment-transaction:home-route-unavailable",
+       20
+      ],
+      [
+       "equipment-transaction:deposit",
+       14
+      ],
+      [
+       "equipment-transaction:confirmation-stall-bound",
+       14
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       228
+      ],
+      [
+       "Town maintenance and resupply",
+       60
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       156
+      ],
+      [
+       "9",
+       13
+      ],
+      [
+       "wm",
+       12
+      ],
+      [
+       "ta",
+       11
+      ],
+      [
+       "wny",
+       9
+      ],
+      [
+       "wma",
+       9
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 12,
@@ -923,10 +1540,20 @@
    "line": 1851,
    "doc": "Give a stripped transaction exclusive ownership of town decisions.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 13,
@@ -945,10 +1572,20 @@
    "line": 1943,
    "doc": "Select normal-order step 4 through the permanent town owner.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 14,
@@ -967,10 +1604,20 @@
    "line": 806,
    "doc": "Own the fight of a committed STRONG-tier hunt (esp-threat-rest).",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 15,
@@ -991,45 +1638,78 @@
    "line": 12056,
    "doc": "Finish a summoner in at most three shots before summoning-space flee.",
    "doc_from": "docstring",
-   "hits": 35,
-   "log_reasons": [
-    [
-     "summoner:ranged-kill",
-     35
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Survive and disengage",
-     35
-    ]
-   ],
-   "log_keys": [
-    [
-     "fm*t5\u001b",
-     27
-    ],
-    [
-     "fn*t5\u001b",
-     3
-    ],
-    [
-     "fm1",
-     1
-    ],
-    [
-     "fp*p1444t5\u001b",
-     1
-    ],
-    [
-     "fp*t5\u001b",
-     1
-    ],
-    [
-     "fq*t5\u001b",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 35,
+     "reasons": [
+      [
+       "summoner:ranged-kill",
+       35
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       35
+      ]
+     ],
+     "keys": [
+      [
+       "fm*t5\u001b",
+       27
+      ],
+      [
+       "fn*t5\u001b",
+       3
+      ],
+      [
+       "fm1",
+       1
+      ],
+      [
+       "fp*p1444t5\u001b",
+       1
+      ],
+      [
+       "fp*t5\u001b",
+       1
+      ],
+      [
+       "fq*t5\u001b",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 23,
+     "reasons": [
+      [
+       "summoner:ranged-kill",
+       23
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       23
+      ]
+     ],
+     "keys": [
+      [
+       "fm*t5\u001b",
+       19
+      ],
+      [
+       "fn*t5\u001b",
+       3
+      ],
+      [
+       "fm1",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 16,
@@ -1052,61 +1732,110 @@
    "line": 1582,
    "doc": "",
    "doc_from": "",
-   "hits": 146,
-   "log_reasons": [
-    [
-     "emergency:teleport",
-     63
-    ],
-    [
-     "emergency:cure-critical",
-     45
-    ],
-    [
-     "unseen-recall:move",
-     33
-    ],
-    [
-     "emergency:quaff-speed",
-     4
-    ],
-    [
-     "guardian:teleport-to-cover",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     146
-    ]
-   ],
-   "log_keys": [
-    [
-     "qb",
-     45
-    ],
-    [
-     "7",
-     26
-    ],
-    [
-     "rf",
-     15
-    ],
-    [
-     "rg",
-     12
-    ],
-    [
-     "re",
-     12
-    ],
-    [
-     "rh",
-     10
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 147,
+     "reasons": [
+      [
+       "emergency:teleport",
+       64
+      ],
+      [
+       "emergency:cure-critical",
+       45
+      ],
+      [
+       "unseen-recall:move",
+       33
+      ],
+      [
+       "emergency:quaff-speed",
+       4
+      ],
+      [
+       "guardian:teleport-to-cover",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       147
+      ]
+     ],
+     "keys": [
+      [
+       "qb",
+       45
+      ],
+      [
+       "7",
+       26
+      ],
+      [
+       "rf",
+       16
+      ],
+      [
+       "rg",
+       12
+      ],
+      [
+       "re",
+       12
+      ],
+      [
+       "rh",
+       10
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 23,
+     "reasons": [
+      [
+       "emergency:teleport",
+       22
+      ],
+      [
+       "unseen-recall:move",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       23
+      ]
+     ],
+     "keys": [
+      [
+       "rh",
+       10
+      ],
+      [
+       "rf",
+       7
+      ],
+      [
+       "rg",
+       2
+      ],
+      [
+       "rk",
+       1
+      ],
+      [
+       "re",
+       1
+      ],
+      [
+       "rd",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 17,
@@ -1127,57 +1856,114 @@
    "line": 1367,
    "doc": "Hungry MANA-food absorption, survival return and town acquisition.",
    "doc_from": "docstring",
-   "hits": 92,
-   "log_reasons": [
-    [
-     "survival:mana-absorb",
-     74
-    ],
-    [
-     "survival:mana-shop-travel",
-     15
-    ],
-    [
-     "survival:mana-home-scan",
-     2
-    ],
-    [
-     "survival:mana-home-travel",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     92
-    ]
-   ],
-   "log_keys": [
-    [
-     "Ei",
-     25
-    ],
-    [
-     "\u001b`n&.",
-     15
-    ],
-    [
-     "Em",
-     11
-    ],
-    [
-     "Ek",
-     8
-    ],
-    [
-     "Ej",
-     7
-    ],
-    [
-     "Eh",
-     6
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 95,
+     "reasons": [
+      [
+       "survival:mana-absorb",
+       77
+      ],
+      [
+       "survival:mana-shop-travel",
+       15
+      ],
+      [
+       "survival:mana-home-scan",
+       2
+      ],
+      [
+       "survival:mana-home-travel",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       95
+      ]
+     ],
+     "keys": [
+      [
+       "Ei",
+       26
+      ],
+      [
+       "\u001b`n&.",
+       15
+      ],
+      [
+       "Em",
+       11
+      ],
+      [
+       "Ek",
+       8
+      ],
+      [
+       "Ej",
+       7
+      ],
+      [
+       "El",
+       6
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 76,
+     "reasons": [
+      [
+       "survival:mana-absorb",
+       58
+      ],
+      [
+       "survival:mana-shop-travel",
+       15
+      ],
+      [
+       "survival:mana-home-scan",
+       2
+      ],
+      [
+       "survival:mana-home-travel",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       76
+      ]
+     ],
+     "keys": [
+      [
+       "Ei",
+       21
+      ],
+      [
+       "\u001b`n&.",
+       15
+      ],
+      [
+       "Em",
+       11
+      ],
+      [
+       "El",
+       6
+      ],
+      [
+       "Ek",
+       4
+      ],
+      [
+       "Ep",
+       4
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 18,
@@ -1199,10 +1985,20 @@
    "line": 2274,
    "doc": "Refuse melee and walk away whenever a paralyzer is adjacent.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 19,
@@ -1221,10 +2017,20 @@
    "line": 1716,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 20,
@@ -1245,57 +2051,106 @@
    "line": 1739,
    "doc": "",
    "doc_from": "",
-   "hits": 2260,
-   "log_reasons": [
-    [
-     "unseen:reverse-choke",
-     1408
-    ],
-    [
-     "unseen:choke-wait",
-     848
-    ],
-    [
-     "loop-detected",
-     4
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Survive and disengage",
-     2256
-    ],
-    [
-     "Stopped for loop investigation",
-     4
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     848
-    ],
-    [
-     "7",
-     269
-    ],
-    [
-     "6",
-     254
-    ],
-    [
-     "1",
-     237
-    ],
-    [
-     "4",
-     213
-    ],
-    [
-     "9",
-     153
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 2265,
+     "reasons": [
+      [
+       "unseen:reverse-choke",
+       1413
+      ],
+      [
+       "unseen:choke-wait",
+       848
+      ],
+      [
+       "loop-detected",
+       4
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       2261
+      ],
+      [
+       "Stopped for loop investigation",
+       4
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       848
+      ],
+      [
+       "7",
+       270
+      ],
+      [
+       "6",
+       254
+      ],
+      [
+       "1",
+       240
+      ],
+      [
+       "4",
+       214
+      ],
+      [
+       "9",
+       153
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 478,
+     "reasons": [
+      [
+       "unseen:choke-wait",
+       278
+      ],
+      [
+       "unseen:reverse-choke",
+       200
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       478
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       278
+      ],
+      [
+       "1",
+       56
+      ],
+      [
+       "4",
+       30
+      ],
+      [
+       "3",
+       28
+      ],
+      [
+       "2",
+       25
+      ],
+      [
+       "7",
+       20
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 21,
@@ -1316,61 +2171,71 @@
    "line": 17806,
    "doc": "Anticipate detected threats without treating them as attack targets.",
    "doc_from": "docstring",
-   "hits": 210,
-   "log_reasons": [
-    [
-     "detected:prepare-choke",
-     140
-    ],
-    [
-     "summoner:hold-choke",
-     68
-    ],
-    [
-     "loop-detected",
-     2
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     140
-    ],
-    [
-     "Survive and disengage",
-     68
-    ],
-    [
-     "Stopped for loop investigation",
-     2
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     68
-    ],
-    [
-     "3",
-     60
-    ],
-    [
-     "2",
-     32
-    ],
-    [
-     "4",
-     13
-    ],
-    [
-     "6",
-     10
-    ],
-    [
-     "9",
-     8
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 210,
+     "reasons": [
+      [
+       "detected:prepare-choke",
+       140
+      ],
+      [
+       "summoner:hold-choke",
+       68
+      ],
+      [
+       "loop-detected",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       140
+      ],
+      [
+       "Survive and disengage",
+       68
+      ],
+      [
+       "Stopped for loop investigation",
+       2
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       68
+      ],
+      [
+       "3",
+       60
+      ],
+      [
+       "2",
+       32
+      ],
+      [
+       "4",
+       13
+      ],
+      [
+       "6",
+       10
+      ],
+      [
+       "9",
+       8
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 22,
@@ -1389,10 +2254,20 @@
    "line": 6669,
    "doc": "A fled breeder floor turns the ordinary return into a persistent walk-out, but it remains a navigation owner: survival/combat above and the livelock escape immediately above must retain priority.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 23,
@@ -1413,10 +2288,20 @@
    "line": 324,
    "doc": "Move without light, then expose exhaustion as a visible stop.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 24,
@@ -1437,10 +2322,20 @@
    "line": 15845,
    "doc": "Re-arm the weapon displaced solely for a dig-to-stairs breakout.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 25,
@@ -1459,10 +2354,20 @@
    "line": 1287,
    "doc": "Starvation safety, independent of mode and objective (R1).",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 26,
@@ -1481,10 +2386,20 @@
    "line": 75,
    "doc": "User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 27,
@@ -1505,77 +2420,87 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 829,
-   "log_reasons": [
-    [
-     "quest-strategy:placement-sweep",
-     512
-    ],
-    [
-     "quest-strategy:q2-post-blue-nether-worm",
-     83
-    ],
-    [
-     "quest-strategy:q2-fire",
-     52
-    ],
-    [
-     "quest-strategy:q2-residual-153-sweep",
-     36
-    ],
-    [
-     "quest-strategy:melee",
-     30
-    ],
-    [
-     "quest-strategy:q2-light-area",
-     24
-    ],
-    [
-     "quest-strategy:q2-residual-86-sweep",
-     23
-    ],
-    [
-     "quest-strategy:q2-approach-residual-multiplier",
-     20
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     826
-    ],
-    [
-     "Stopped for loop investigation",
-     3
-    ]
-   ],
-   "log_keys": [
-    [
-     "4",
-     238
-    ],
-    [
-     "6",
-     228
-    ],
-    [
-     "8",
-     110
-    ],
-    [
-     "2",
-     72
-    ],
-    [
-     "7",
-     65
-    ],
-    [
-     "rh",
-     24
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 829,
+     "reasons": [
+      [
+       "quest-strategy:placement-sweep",
+       512
+      ],
+      [
+       "quest-strategy:q2-post-blue-nether-worm",
+       83
+      ],
+      [
+       "quest-strategy:q2-fire",
+       52
+      ],
+      [
+       "quest-strategy:q2-residual-153-sweep",
+       36
+      ],
+      [
+       "quest-strategy:melee",
+       30
+      ],
+      [
+       "quest-strategy:q2-light-area",
+       24
+      ],
+      [
+       "quest-strategy:q2-residual-86-sweep",
+       23
+      ],
+      [
+       "quest-strategy:q2-approach-residual-multiplier",
+       20
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       826
+      ],
+      [
+       "Stopped for loop investigation",
+       3
+      ]
+     ],
+     "keys": [
+      [
+       "4",
+       238
+      ],
+      [
+       "6",
+       228
+      ],
+      [
+       "8",
+       110
+      ],
+      [
+       "2",
+       72
+      ],
+      [
+       "7",
+       65
+      ],
+      [
+       "rh",
+       24
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 28,
@@ -1596,45 +2521,90 @@
    "line": 4590,
    "doc": "Approach and kill every visible town monster except the player's pets.",
    "doc_from": "docstring",
-   "hits": 511,
-   "log_reasons": [
-    [
-     "town:kill-mob-approach",
-     511
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     511
-    ]
-   ],
-   "log_keys": [
-    [
-     "7",
-     148
-    ],
-    [
-     "6",
-     82
-    ],
-    [
-     "4",
-     73
-    ],
-    [
-     "9",
-     67
-    ],
-    [
-     "3",
-     57
-    ],
-    [
-     "1",
-     46
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 511,
+     "reasons": [
+      [
+       "town:kill-mob-approach",
+       511
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       511
+      ]
+     ],
+     "keys": [
+      [
+       "7",
+       148
+      ],
+      [
+       "6",
+       82
+      ],
+      [
+       "4",
+       73
+      ],
+      [
+       "9",
+       67
+      ],
+      [
+       "3",
+       57
+      ],
+      [
+       "1",
+       46
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 222,
+     "reasons": [
+      [
+       "town:kill-mob-approach",
+       222
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       222
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       44
+      ],
+      [
+       "9",
+       43
+      ],
+      [
+       "4",
+       40
+      ],
+      [
+       "7",
+       39
+      ],
+      [
+       "3",
+       36
+      ],
+      [
+       "1",
+       13
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 29,
@@ -1656,49 +2626,90 @@
    "line": 3486,
    "doc": "Leave upward once extermination on this floor proved impossible.",
    "doc_from": "docstring",
-   "hits": 281,
-   "log_reasons": [
-    [
-     "breeder-breakthrough:wait-recall",
-     266
-    ],
-    [
-     "breeder-breakthrough:recall",
-     15
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     281
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     266
-    ],
-    [
-     "rg",
-     5
-    ],
-    [
-     "ri",
-     3
-    ],
-    [
-     "re",
-     3
-    ],
-    [
-     "rf",
-     2
-    ],
-    [
-     "rh",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 281,
+     "reasons": [
+      [
+       "breeder-breakthrough:wait-recall",
+       266
+      ],
+      [
+       "breeder-breakthrough:recall",
+       15
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       281
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       266
+      ],
+      [
+       "rg",
+       5
+      ],
+      [
+       "ri",
+       3
+      ],
+      [
+       "re",
+       3
+      ],
+      [
+       "rf",
+       2
+      ],
+      [
+       "rh",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 125,
+     "reasons": [
+      [
+       "breeder-breakthrough:wait-recall",
+       119
+      ],
+      [
+       "breeder-breakthrough:recall",
+       6
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       125
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       119
+      ],
+      [
+       "rg",
+       4
+      ],
+      [
+       "rf",
+       1
+      ],
+      [
+       "ri",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 30,
@@ -1719,53 +2730,90 @@
    "line": 3342,
    "doc": "",
    "doc_from": "",
-   "hits": 67,
-   "log_reasons": [
-    [
-     "melee:choke-hold",
-     39
-    ],
-    [
-     "melee:choke",
-     14
-    ],
-    [
-     "melee:choke-reposition",
-     14
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Fight visible threats",
-     67
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     39
-    ],
-    [
-     "9",
-     7
-    ],
-    [
-     "3",
-     7
-    ],
-    [
-     "4",
-     6
-    ],
-    [
-     "1",
-     4
-    ],
-    [
-     "2",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 67,
+     "reasons": [
+      [
+       "melee:choke-hold",
+       39
+      ],
+      [
+       "melee:choke",
+       14
+      ],
+      [
+       "melee:choke-reposition",
+       14
+      ]
+     ],
+     "objectives": [
+      [
+       "Fight visible threats",
+       67
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       39
+      ],
+      [
+       "9",
+       7
+      ],
+      [
+       "3",
+       7
+      ],
+      [
+       "4",
+       6
+      ],
+      [
+       "1",
+       4
+      ],
+      [
+       "2",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 38,
+     "reasons": [
+      [
+       "melee:choke-hold",
+       36
+      ],
+      [
+       "melee:choke",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Fight visible threats",
+       38
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       36
+      ],
+      [
+       "4",
+       1
+      ],
+      [
+       "6",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 31,
@@ -1784,10 +2832,20 @@
    "line": 1121,
    "doc": "Fire at (or throw oil at) a hostile before it closes.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 32,
@@ -1809,10 +2867,20 @@
    "line": 17034,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 33,
@@ -1833,65 +2901,122 @@
    "line": 3544,
    "doc": "The breakthrough's own exits: ascend, route upstairs, or discover.",
    "doc_from": "docstring",
-   "hits": 753,
-   "log_reasons": [
-    [
-     "breeder-breakthrough:seek-frontier",
-     484
-    ],
-    [
-     "breeder-breakthrough:seek-upstairs",
-     130
-    ],
-    [
-     "breeder-breakthrough:clear-escape-path",
-     126
-    ],
-    [
-     "loop-detected",
-     8
-    ],
-    [
-     "breeder-breakthrough:ascend",
-     5
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     745
-    ],
-    [
-     "Stopped for loop investigation",
-     8
-    ]
-   ],
-   "log_keys": [
-    [
-     "4",
-     340
-    ],
-    [
-     "6",
-     200
-    ],
-    [
-     "7",
-     78
-    ],
-    [
-     "1",
-     44
-    ],
-    [
-     "8",
-     36
-    ],
-    [
-     "2",
-     31
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 753,
+     "reasons": [
+      [
+       "breeder-breakthrough:seek-frontier",
+       484
+      ],
+      [
+       "breeder-breakthrough:seek-upstairs",
+       130
+      ],
+      [
+       "breeder-breakthrough:clear-escape-path",
+       126
+      ],
+      [
+       "loop-detected",
+       8
+      ],
+      [
+       "breeder-breakthrough:ascend",
+       5
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       745
+      ],
+      [
+       "Stopped for loop investigation",
+       8
+      ]
+     ],
+     "keys": [
+      [
+       "4",
+       340
+      ],
+      [
+       "6",
+       200
+      ],
+      [
+       "7",
+       78
+      ],
+      [
+       "1",
+       44
+      ],
+      [
+       "8",
+       36
+      ],
+      [
+       "2",
+       31
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 78,
+     "reasons": [
+      [
+       "breeder-breakthrough:seek-frontier",
+       74
+      ],
+      [
+       "breeder-breakthrough:clear-escape-path",
+       3
+      ],
+      [
+       "loop-detected",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       77
+      ],
+      [
+       "Stopped for loop investigation",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "4",
+       30
+      ],
+      [
+       "2",
+       15
+      ],
+      [
+       "8",
+       14
+      ],
+      [
+       "6",
+       11
+      ],
+      [
+       "7",
+       6
+      ],
+      [
+       "1",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 34,
@@ -1910,10 +3035,20 @@
    "line": 3115,
    "doc": "Order ranged repelling, re-arming, and choke combat for melee swarms.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 35,
@@ -1934,53 +3069,63 @@
    "line": 3897,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 35,
-   "log_reasons": [
-    [
-     "status-threat:retreat",
-     18
-    ],
-    [
-     "status-threat:scroll",
-     14
-    ],
-    [
-     "status-threat:stairs",
-     3
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     35
-    ]
-   ],
-   "log_keys": [
-    [
-     "rd",
-     8
-    ],
-    [
-     "re",
-     6
-    ],
-    [
-     "8",
-     6
-    ],
-    [
-     "6",
-     3
-    ],
-    [
-     "9",
-     3
-    ],
-    [
-     "<",
-     3
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 35,
+     "reasons": [
+      [
+       "status-threat:retreat",
+       18
+      ],
+      [
+       "status-threat:scroll",
+       14
+      ],
+      [
+       "status-threat:stairs",
+       3
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       35
+      ]
+     ],
+     "keys": [
+      [
+       "rd",
+       8
+      ],
+      [
+       "re",
+       6
+      ],
+      [
+       "8",
+       6
+      ],
+      [
+       "6",
+       3
+      ],
+      [
+       "9",
+       3
+      ],
+      [
+       "<",
+       3
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 36,
@@ -2001,10 +3146,20 @@
    "line": 18367,
    "doc": "Bump a weak adjacent blocker when it is the door to an escape route.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 37,
@@ -2025,53 +3180,98 @@
    "line": 3897,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 323,
-   "log_reasons": [
-    [
-     "summoner:retreat",
-     314
-    ],
-    [
-     "loop-detected",
-     9
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Survive and disengage",
-     314
-    ],
-    [
-     "Stopped for loop investigation",
-     9
-    ]
-   ],
-   "log_keys": [
-    [
-     "3",
-     236
-    ],
-    [
-     "6",
-     23
-    ],
-    [
-     "1",
-     18
-    ],
-    [
-     "9",
-     12
-    ],
-    [
-     "2",
-     11
-    ],
-    [
-     "",
-     9
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 323,
+     "reasons": [
+      [
+       "summoner:retreat",
+       314
+      ],
+      [
+       "loop-detected",
+       9
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       314
+      ],
+      [
+       "Stopped for loop investigation",
+       9
+      ]
+     ],
+     "keys": [
+      [
+       "3",
+       236
+      ],
+      [
+       "6",
+       23
+      ],
+      [
+       "1",
+       18
+      ],
+      [
+       "9",
+       12
+      ],
+      [
+       "2",
+       11
+      ],
+      [
+       "",
+       9
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 27,
+     "reasons": [
+      [
+       "summoner:retreat",
+       27
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       27
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       11
+      ],
+      [
+       "7",
+       7
+      ],
+      [
+       "3",
+       3
+      ],
+      [
+       "1",
+       2
+      ],
+      [
+       "6",
+       2
+      ],
+      [
+       "4",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 38,
@@ -2092,10 +3292,20 @@
    "line": 19066,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 39,
@@ -2116,57 +3326,114 @@
    "line": 19066,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 1462,
-   "log_reasons": [
-    [
-     "melee",
-     1449
-    ],
-    [
-     "melee:restore-weapon",
-     8
-    ],
-    [
-     "unique:quaff-speed",
-     5
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Fight visible threats",
-     1457
-    ],
-    [
-     "Continue conservative progression",
-     5
-    ]
-   ],
-   "log_keys": [
-    [
-     "9",
-     218
-    ],
-    [
-     "3",
-     209
-    ],
-    [
-     "6",
-     201
-    ],
-    [
-     "7",
-     187
-    ],
-    [
-     "8",
-     178
-    ],
-    [
-     "4",
-     158
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 1537,
+     "reasons": [
+      [
+       "melee",
+       1524
+      ],
+      [
+       "melee:restore-weapon",
+       8
+      ],
+      [
+       "unique:quaff-speed",
+       5
+      ]
+     ],
+     "objectives": [
+      [
+       "Fight visible threats",
+       1532
+      ],
+      [
+       "Continue conservative progression",
+       5
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       225
+      ],
+      [
+       "3",
+       213
+      ],
+      [
+       "6",
+       208
+      ],
+      [
+       "7",
+       195
+      ],
+      [
+       "8",
+       194
+      ],
+      [
+       "2",
+       172
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 799,
+     "reasons": [
+      [
+       "melee",
+       792
+      ],
+      [
+       "melee:restore-weapon",
+       4
+      ],
+      [
+       "unique:quaff-speed",
+       3
+      ]
+     ],
+     "objectives": [
+      [
+       "Fight visible threats",
+       796
+      ],
+      [
+       "Continue conservative progression",
+       3
+      ]
+     ],
+     "keys": [
+      [
+       "8",
+       142
+      ],
+      [
+       "2",
+       123
+      ],
+      [
+       "3",
+       109
+      ],
+      [
+       "9",
+       109
+      ],
+      [
+       "6",
+       106
+      ],
+      [
+       "7",
+       87
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 40,
@@ -2187,53 +3454,106 @@
    "line": 1121,
    "doc": "Fire at (or throw oil at) a hostile before it closes.",
    "doc_from": "docstring",
-   "hits": 1354,
-   "log_reasons": [
-    [
-     "ranged:fire-target",
-     707
-    ],
-    [
-     "ranged:fire",
-     546
-    ],
-    [
-     "ranged:fire-offset",
-     101
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     1354
-    ]
-   ],
-   "log_keys": [
-    [
-     "fn*t5\u001b",
-     134
-    ],
-    [
-     "fu*t5\u001b",
-     92
-    ],
-    [
-     "fq*t5\u001b",
-     84
-    ],
-    [
-     "fk*t5\u001b",
-     67
-    ],
-    [
-     "fo*t5\u001b",
-     62
-    ],
-    [
-     "fr*t5\u001b",
-     55
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 1392,
+     "reasons": [
+      [
+       "ranged:fire-target",
+       722
+      ],
+      [
+       "ranged:fire",
+       569
+      ],
+      [
+       "ranged:fire-offset",
+       101
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       1392
+      ]
+     ],
+     "keys": [
+      [
+       "fn*t5\u001b",
+       134
+      ],
+      [
+       "fq*t5\u001b",
+       92
+      ],
+      [
+       "fu*t5\u001b",
+       92
+      ],
+      [
+       "fk*t5\u001b",
+       67
+      ],
+      [
+       "fo*t5\u001b",
+       66
+      ],
+      [
+       "fr*t5\u001b",
+       55
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 497,
+     "reasons": [
+      [
+       "ranged:fire-target",
+       271
+      ],
+      [
+       "ranged:fire",
+       193
+      ],
+      [
+       "ranged:fire-offset",
+       33
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       497
+      ]
+     ],
+     "keys": [
+      [
+       "ft*t5\u001b",
+       54
+      ],
+      [
+       "fn*t5\u001b",
+       43
+      ],
+      [
+       "fu*t5\u001b",
+       42
+      ],
+      [
+       "fo*t5\u001b",
+       40
+      ],
+      [
+       "fm*t5\u001b",
+       29
+      ],
+      [
+       "fs*t5\u001b",
+       16
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 41,
@@ -2254,10 +3574,20 @@
    "line": 3897,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 42,
@@ -2278,10 +3608,20 @@
    "line": 3952,
    "doc": "7. Opportunistic hunt for easy XP while no downstairs is in sight.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 43,
@@ -2303,85 +3643,158 @@
    "line": 1287,
    "doc": "Starvation safety, independent of mode and objective (R1).",
    "doc_from": "docstring",
-   "hits": 137,
-   "log_reasons": [
-    [
-     "item:cure-critical",
-     63
-    ],
-    [
-     "town:recover",
-     33
-    ],
-    [
-     "rest",
-     12
-    ],
-    [
-     "item:heal",
-     11
-    ],
-    [
-     "item:cure-status-healing",
-     7
-    ],
-    [
-     "item:strong-fight-speed",
-     7
-    ],
-    [
-     "wilderness:flee",
-     3
-    ],
-    [
-     "town:seek-shelter",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Survive and disengage",
-     88
-    ],
-    [
-     "Town maintenance and resupply",
-     34
-    ],
-    [
-     "Recover and maintain supplies",
-     12
-    ],
-    [
-     "Continue conservative progression",
-     3
-    ]
-   ],
-   "log_keys": [
-    [
-     "R&\r",
-     45
-    ],
-    [
-     "qc",
-     40
-    ],
-    [
-     "qb",
-     39
-    ],
-    [
-     "qa",
-     6
-    ],
-    [
-     "1",
-     3
-    ],
-    [
-     "qe",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 137,
+     "reasons": [
+      [
+       "item:cure-critical",
+       63
+      ],
+      [
+       "town:recover",
+       33
+      ],
+      [
+       "rest",
+       12
+      ],
+      [
+       "item:heal",
+       11
+      ],
+      [
+       "item:cure-status-healing",
+       7
+      ],
+      [
+       "item:strong-fight-speed",
+       7
+      ],
+      [
+       "wilderness:flee",
+       3
+      ],
+      [
+       "town:seek-shelter",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       88
+      ],
+      [
+       "Town maintenance and resupply",
+       34
+      ],
+      [
+       "Recover and maintain supplies",
+       12
+      ],
+      [
+       "Continue conservative progression",
+       3
+      ]
+     ],
+     "keys": [
+      [
+       "R&\r",
+       45
+      ],
+      [
+       "qc",
+       40
+      ],
+      [
+       "qb",
+       39
+      ],
+      [
+       "qa",
+       6
+      ],
+      [
+       "1",
+       3
+      ],
+      [
+       "qe",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 86,
+     "reasons": [
+      [
+       "item:cure-critical",
+       45
+      ],
+      [
+       "town:recover",
+       13
+      ],
+      [
+       "rest",
+       12
+      ],
+      [
+       "item:heal",
+       7
+      ],
+      [
+       "item:strong-fight-speed",
+       7
+      ],
+      [
+       "item:cure-status-healing",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Survive and disengage",
+       61
+      ],
+      [
+       "Town maintenance and resupply",
+       13
+      ],
+      [
+       "Recover and maintain supplies",
+       12
+      ]
+     ],
+     "keys": [
+      [
+       "qc",
+       35
+      ],
+      [
+       "R&\r",
+       25
+      ],
+      [
+       "qb",
+       20
+      ],
+      [
+       "qa",
+       3
+      ],
+      [
+       "qe",
+       2
+      ],
+      [
+       "qf",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 44,
@@ -2402,45 +3815,98 @@
    "line": 1191,
    "doc": "Recover visible device food before stairs or an ordinary return.",
    "doc_from": "docstring",
-   "hits": 10,
-   "log_reasons": [
-    [
-     "mana-food:seek-device",
-     9
-    ],
-    [
-     "mana-food:pickup-device",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     10
-    ]
-   ],
-   "log_keys": [
-    [
-     "2",
-     3
-    ],
-    [
-     "9",
-     2
-    ],
-    [
-     "8",
-     2
-    ],
-    [
-     "4",
-     2
-    ],
-    [
-     "g",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 15,
+     "reasons": [
+      [
+       "mana-food:seek-device",
+       13
+      ],
+      [
+       "mana-food:pickup-device",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       15
+      ]
+     ],
+     "keys": [
+      [
+       "2",
+       4
+      ],
+      [
+       "8",
+       4
+      ],
+      [
+       "g",
+       2
+      ],
+      [
+       "9",
+       2
+      ],
+      [
+       "4",
+       2
+      ],
+      [
+       "3",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 15,
+     "reasons": [
+      [
+       "mana-food:seek-device",
+       13
+      ],
+      [
+       "mana-food:pickup-device",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       15
+      ]
+     ],
+     "keys": [
+      [
+       "2",
+       4
+      ],
+      [
+       "8",
+       4
+      ],
+      [
+       "g",
+       2
+      ],
+      [
+       "9",
+       2
+      ],
+      [
+       "4",
+       2
+      ],
+      [
+       "3",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 45,
@@ -2461,10 +3927,20 @@
    "line": 5713,
    "doc": "Recover an overshoot, or finish the downward half of regeneration.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 46,
@@ -2485,73 +3961,146 @@
    "line": 3226,
    "doc": "",
    "doc_from": "",
-   "hits": 1145,
-   "log_reasons": [
-    [
-     "home:atomic-deposit-await-confirmation",
-     263
-    ],
-    [
-     "home:atomic-deposit",
-     190
-    ],
-    [
-     "home:weight-overload-deposit",
-     160
-    ],
-    [
-     "home:atomic-withdraw",
-     146
-    ],
-    [
-     "home:leave-for-pending-withdraw",
-     141
-    ],
-    [
-     "home:route-claim-unfulfilled",
-     80
-    ],
-    [
-     "town:entrance-step-off:home:atomic-deposit-await-confirmation",
-     55
-    ],
-    [
-     "home:queue-catalogue-shortage",
-     39
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     1145
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     373
-    ],
-    [
-     "\u001b",
-     291
-    ],
-    [
-     "9",
-     53
-    ],
-    [
-     "6",
-     22
-    ],
-    [
-     "dh2\r\u001b",
-     21
-    ],
-    [
-     "5pl1\r\u001b",
-     14
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 1145,
+     "reasons": [
+      [
+       "home:atomic-deposit-await-confirmation",
+       263
+      ],
+      [
+       "home:atomic-deposit",
+       190
+      ],
+      [
+       "home:weight-overload-deposit",
+       160
+      ],
+      [
+       "home:atomic-withdraw",
+       146
+      ],
+      [
+       "home:leave-for-pending-withdraw",
+       141
+      ],
+      [
+       "home:route-claim-unfulfilled",
+       80
+      ],
+      [
+       "town:entrance-step-off:home:atomic-deposit-await-confirmation",
+       55
+      ],
+      [
+       "home:queue-catalogue-shortage",
+       39
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       1145
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       373
+      ],
+      [
+       "\u001b",
+       291
+      ],
+      [
+       "9",
+       53
+      ],
+      [
+       "6",
+       22
+      ],
+      [
+       "dh2\r\u001b",
+       21
+      ],
+      [
+       "5pl1\r\u001b",
+       14
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 837,
+     "reasons": [
+      [
+       "home:atomic-deposit-await-confirmation",
+       263
+      ],
+      [
+       "home:atomic-deposit",
+       143
+      ],
+      [
+       "home:weight-overload-deposit",
+       126
+      ],
+      [
+       "home:atomic-withdraw",
+       90
+      ],
+      [
+       "home:leave-for-pending-withdraw",
+       85
+      ],
+      [
+       "town:entrance-step-off:home:atomic-deposit-await-confirmation",
+       55
+      ],
+      [
+       "home:queue-catalogue-shortage",
+       23
+      ],
+      [
+       "town:entrance-step-off:home:atomic-withdraw-complete",
+       11
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       837
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       343
+      ],
+      [
+       "\u001b",
+       130
+      ],
+      [
+       "9",
+       46
+      ],
+      [
+       "6",
+       21
+      ],
+      [
+       "dh2\r\u001b",
+       20
+      ],
+      [
+       "5pl1\r\u001b",
+       14
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 47,
@@ -2570,10 +4119,20 @@
    "line": 3278,
    "doc": "An already-required combat-weapon restoration is an equipment safety continuation, not new town work.  Finish it before pack-pressure routing can relocate the player and invalidate the prepared mutation.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 48,
@@ -2592,10 +4151,20 @@
    "line": 3905,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 49,
@@ -2614,10 +4183,20 @@
    "line": 1907,
    "doc": "Route shortage relief before any transaction that may need a slot.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 50,
@@ -2638,10 +4217,20 @@
    "line": 16083,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 51,
@@ -2662,53 +4251,63 @@
    "line": 1563,
    "doc": "",
    "doc_from": "",
-   "hits": 37,
-   "log_reasons": [
-    [
-     "conquest:seek-loot",
-     29
-    ],
-    [
-     "conquest:pickup",
-     6
-    ],
-    [
-     "conquest:trigger-autodestroy",
-     2
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     37
-    ]
-   ],
-   "log_keys": [
-    [
-     "9",
-     7
-    ],
-    [
-     "1",
-     7
-    ],
-    [
-     "g",
-     6
-    ],
-    [
-     "3",
-     6
-    ],
-    [
-     "7",
-     4
-    ],
-    [
-     "6",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 37,
+     "reasons": [
+      [
+       "conquest:seek-loot",
+       29
+      ],
+      [
+       "conquest:pickup",
+       6
+      ],
+      [
+       "conquest:trigger-autodestroy",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       37
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       7
+      ],
+      [
+       "1",
+       7
+      ],
+      [
+       "g",
+       6
+      ],
+      [
+       "3",
+       6
+      ],
+      [
+       "7",
+       4
+      ],
+      [
+       "6",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 52,
@@ -2729,77 +4328,122 @@
    "line": 3905,
    "doc": "",
    "doc_from": "",
-   "hits": 1159,
-   "log_reasons": [
-    [
-     "quest:sweep:collect",
-     495
-    ],
-    [
-     "quest:blocked:q2-breeder-recommit",
-     144
-    ],
-    [
-     "fixedquest:q2-travel",
-     132
-    ],
-    [
-     "quest:exit:route",
-     110
-    ],
-    [
-     "fixedquest:q2-teleport",
-     62
-    ],
-    [
-     "fixedquest:request:approach",
-     58
-    ],
-    [
-     "fixedquest:prepare-return",
-     36
-    ],
-    [
-     "fixedquest:claim:approach",
-     36
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     1155
-    ],
-    [
-     "Stopped for loop investigation",
-     4
-    ]
-   ],
-   "log_keys": [
-    [
-     "4",
-     253
-    ],
-    [
-     "6",
-     178
-    ],
-    [
-     "5",
-     168
-    ],
-    [
-     "9",
-     151
-    ],
-    [
-     "8",
-     118
-    ],
-    [
-     "7",
-     90
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 1159,
+     "reasons": [
+      [
+       "quest:sweep:collect",
+       495
+      ],
+      [
+       "quest:blocked:q2-breeder-recommit",
+       144
+      ],
+      [
+       "fixedquest:q2-travel",
+       132
+      ],
+      [
+       "quest:exit:route",
+       110
+      ],
+      [
+       "fixedquest:q2-teleport",
+       62
+      ],
+      [
+       "fixedquest:request:approach",
+       58
+      ],
+      [
+       "fixedquest:prepare-return",
+       36
+      ],
+      [
+       "fixedquest:claim:approach",
+       36
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       1155
+      ],
+      [
+       "Stopped for loop investigation",
+       4
+      ]
+     ],
+     "keys": [
+      [
+       "4",
+       253
+      ],
+      [
+       "6",
+       178
+      ],
+      [
+       "5",
+       168
+      ],
+      [
+       "9",
+       151
+      ],
+      [
+       "8",
+       118
+      ],
+      [
+       "7",
+       90
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 62,
+     "reasons": [
+      [
+       "fixedquest:q2-teleport",
+       62
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       62
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       38
+      ],
+      [
+       "6",
+       12
+      ],
+      [
+       "7",
+       6
+      ],
+      [
+       "8",
+       2
+      ],
+      [
+       "3",
+       2
+      ],
+      [
+       "3ma",
+       2
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 53,
@@ -2820,41 +4464,78 @@
    "line": 496,
    "doc": "",
    "doc_from": "",
-   "hits": 6,
-   "log_reasons": [
-    [
-     "restore:quaff-str",
-     3
-    ],
-    [
-     "restore:quaff-dex",
-     2
-    ],
-    [
-     "restore:quaff-int",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     6
-    ]
-   ],
-   "log_keys": [
-    [
-     "qd",
-     4
-    ],
-    [
-     "qb",
-     1
-    ],
-    [
-     "qe",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 6,
+     "reasons": [
+      [
+       "restore:quaff-str",
+       3
+      ],
+      [
+       "restore:quaff-dex",
+       2
+      ],
+      [
+       "restore:quaff-int",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       6
+      ]
+     ],
+     "keys": [
+      [
+       "qd",
+       4
+      ],
+      [
+       "qb",
+       1
+      ],
+      [
+       "qe",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 3,
+     "reasons": [
+      [
+       "restore:quaff-dex",
+       1
+      ],
+      [
+       "restore:quaff-int",
+       1
+      ],
+      [
+       "restore:quaff-str",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       3
+      ]
+     ],
+     "keys": [
+      [
+       "qd",
+       2
+      ],
+      [
+       "qe",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 54,
@@ -2875,10 +4556,20 @@
    "line": 668,
    "doc": "Drink Restore Life Levels, then the Potion of Experience.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 55,
@@ -2899,10 +4590,20 @@
    "line": 14457,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 56,
@@ -2923,41 +4624,66 @@
    "line": 1943,
    "doc": "Select normal-order step 4 through the permanent town owner.",
    "doc_from": "docstring",
-   "hits": 220,
-   "log_reasons": [
-    [
-     "bounty:approach",
-     205
-    ],
-    [
-     "bounty:leave-supplier",
-     15
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     220
-    ]
-   ],
-   "log_keys": [
-    [
-     "7",
-     92
-    ],
-    [
-     "4",
-     83
-    ],
-    [
-     "1",
-     30
-    ],
-    [
-     "\u001b",
-     15
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 220,
+     "reasons": [
+      [
+       "bounty:approach",
+       205
+      ],
+      [
+       "bounty:leave-supplier",
+       15
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       220
+      ]
+     ],
+     "keys": [
+      [
+       "7",
+       92
+      ],
+      [
+       "4",
+       83
+      ],
+      [
+       "1",
+       30
+      ],
+      [
+       "\u001b",
+       15
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 2,
+     "reasons": [
+      [
+       "bounty:leave-supplier",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       2
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       2
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 57,
@@ -2978,73 +4704,146 @@
    "line": 1090,
    "doc": "",
    "doc_from": "",
-   "hits": 7830,
-   "log_reasons": [
-    [
-     "fundraise:dig-to-treasure",
-     2436
-    ],
-    [
-     "fundraise:seek-treasure",
-     2302
-    ],
-    [
-     "fundraise:seek-loot",
-     1748
-    ],
-    [
-     "fundraise:seek-upstairs",
-     1010
-    ],
-    [
-     "fundraise:mining-hard-limit",
-     64
-    ],
-    [
-     "fundraise:eliminate-multiplier-last-seen",
-     60
-    ],
-    [
-     "fundraise:seek-upstairs-explore",
-     60
-    ],
-    [
-     "fundraise:wield-digging-tool",
-     42
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Raise funds on Yeek cave level 1",
-     7830
-    ]
-   ],
-   "log_keys": [
-    [
-     "3",
-     1113
-    ],
-    [
-     "7",
-     1113
-    ],
-    [
-     "1",
-     988
-    ],
-    [
-     "9",
-     883
-    ],
-    [
-     "T3",
-     535
-    ],
-    [
-     "T1",
-     521
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 7830,
+     "reasons": [
+      [
+       "fundraise:dig-to-treasure",
+       2436
+      ],
+      [
+       "fundraise:seek-treasure",
+       2302
+      ],
+      [
+       "fundraise:seek-loot",
+       1748
+      ],
+      [
+       "fundraise:seek-upstairs",
+       1010
+      ],
+      [
+       "fundraise:mining-hard-limit",
+       64
+      ],
+      [
+       "fundraise:eliminate-multiplier-last-seen",
+       60
+      ],
+      [
+       "fundraise:seek-upstairs-explore",
+       60
+      ],
+      [
+       "fundraise:wield-digging-tool",
+       42
+      ]
+     ],
+     "objectives": [
+      [
+       "Raise funds on Yeek cave level 1",
+       7830
+      ]
+     ],
+     "keys": [
+      [
+       "3",
+       1113
+      ],
+      [
+       "7",
+       1113
+      ],
+      [
+       "1",
+       988
+      ],
+      [
+       "9",
+       883
+      ],
+      [
+       "T3",
+       535
+      ],
+      [
+       "T1",
+       521
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 4953,
+     "reasons": [
+      [
+       "fundraise:dig-to-treasure",
+       1550
+      ],
+      [
+       "fundraise:seek-treasure",
+       1474
+      ],
+      [
+       "fundraise:seek-loot",
+       1102
+      ],
+      [
+       "fundraise:seek-upstairs",
+       686
+      ],
+      [
+       "fundraise:mining-hard-limit",
+       31
+      ],
+      [
+       "fundraise:wield-digging-tool",
+       30
+      ],
+      [
+       "fundraise:eliminate-multiplier-last-seen",
+       24
+      ],
+      [
+       "fundraise:ascend",
+       17
+      ]
+     ],
+     "objectives": [
+      [
+       "Raise funds on Yeek cave level 1",
+       4953
+      ]
+     ],
+     "keys": [
+      [
+       "7",
+       729
+      ],
+      [
+       "3",
+       622
+      ],
+      [
+       "1",
+       620
+      ],
+      [
+       "9",
+       564
+      ],
+      [
+       "T7",
+       334
+      ],
+      [
+       "T1",
+       310
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 58,
@@ -3065,61 +4864,122 @@
    "line": 75,
    "doc": "User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.",
    "doc_from": "docstring",
-   "hits": 52,
-   "log_reasons": [
-    [
-     "chest:search",
-     20
-    ],
-    [
-     "chest:collect-contents",
-     16
-    ],
-    [
-     "chest:step-off",
-     7
-    ],
-    [
-     "chest:disarm",
-     6
-    ],
-    [
-     "chest:open",
-     3
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     52
-    ]
-   ],
-   "log_keys": [
-    [
-     "s",
-     20
-    ],
-    [
-     "g",
-     7
-    ],
-    [
-     "9",
-     6
-    ],
-    [
-     "4",
-     6
-    ],
-    [
-     "D6",
-     3
-    ],
-    [
-     "D1",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 52,
+     "reasons": [
+      [
+       "chest:search",
+       20
+      ],
+      [
+       "chest:collect-contents",
+       16
+      ],
+      [
+       "chest:step-off",
+       7
+      ],
+      [
+       "chest:disarm",
+       6
+      ],
+      [
+       "chest:open",
+       3
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       52
+      ]
+     ],
+     "keys": [
+      [
+       "s",
+       20
+      ],
+      [
+       "g",
+       7
+      ],
+      [
+       "9",
+       6
+      ],
+      [
+       "4",
+       6
+      ],
+      [
+       "D6",
+       3
+      ],
+      [
+       "D1",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 26,
+     "reasons": [
+      [
+       "chest:search",
+       12
+      ],
+      [
+       "chest:collect-contents",
+       8
+      ],
+      [
+       "chest:step-off",
+       3
+      ],
+      [
+       "chest:disarm",
+       2
+      ],
+      [
+       "chest:open",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       26
+      ]
+     ],
+     "keys": [
+      [
+       "s",
+       12
+      ],
+      [
+       "4",
+       6
+      ],
+      [
+       "g",
+       3
+      ],
+      [
+       "6",
+       2
+      ],
+      [
+       "D4",
+       1
+      ],
+      [
+       "D6",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 59,
@@ -3140,45 +5000,90 @@
    "line": 1157,
    "doc": "Collect visible drops before shopping or ordinary exploration.",
    "doc_from": "docstring",
-   "hits": 208,
-   "log_reasons": [
-    [
-     "return:seek-loot",
-     208
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Return to town",
-     208
-    ]
-   ],
-   "log_keys": [
-    [
-     "6",
-     80
-    ],
-    [
-     "9",
-     26
-    ],
-    [
-     "3",
-     26
-    ],
-    [
-     "7",
-     25
-    ],
-    [
-     "4",
-     23
-    ],
-    [
-     "1",
-     14
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 208,
+     "reasons": [
+      [
+       "return:seek-loot",
+       208
+      ]
+     ],
+     "objectives": [
+      [
+       "Return to town",
+       208
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       80
+      ],
+      [
+       "9",
+       26
+      ],
+      [
+       "3",
+       26
+      ],
+      [
+       "7",
+       25
+      ],
+      [
+       "4",
+       23
+      ],
+      [
+       "1",
+       14
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 87,
+     "reasons": [
+      [
+       "return:seek-loot",
+       87
+      ]
+     ],
+     "objectives": [
+      [
+       "Return to town",
+       87
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       28
+      ],
+      [
+       "9",
+       17
+      ],
+      [
+       "4",
+       16
+      ],
+      [
+       "7",
+       11
+      ],
+      [
+       "1",
+       6
+      ],
+      [
+       "3",
+       4
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 60,
@@ -3202,41 +5107,82 @@
    "line": 698,
    "doc": "Leave (or visibly stop on) a floor where navigation is exhausted (R1).",
    "doc_from": "docstring",
-   "hits": 10,
-   "log_reasons": [
-    [
-     "livelock:recall-escape",
-     5
-    ],
-    [
-     "livelock:seek-window-edge",
-     5
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     10
-    ]
-   ],
-   "log_keys": [
-    [
-     "rf",
-     5
-    ],
-    [
-     "3",
-     3
-    ],
-    [
-     "4",
-     1
-    ],
-    [
-     "7",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 10,
+     "reasons": [
+      [
+       "livelock:recall-escape",
+       5
+      ],
+      [
+       "livelock:seek-window-edge",
+       5
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       10
+      ]
+     ],
+     "keys": [
+      [
+       "rf",
+       5
+      ],
+      [
+       "3",
+       3
+      ],
+      [
+       "4",
+       1
+      ],
+      [
+       "7",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 10,
+     "reasons": [
+      [
+       "livelock:recall-escape",
+       5
+      ],
+      [
+       "livelock:seek-window-edge",
+       5
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       10
+      ]
+     ],
+     "keys": [
+      [
+       "rf",
+       5
+      ],
+      [
+       "3",
+       3
+      ],
+      [
+       "4",
+       1
+      ],
+      [
+       "7",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 61,
@@ -3255,10 +5201,20 @@
    "line": 6669,
    "doc": "A fled breeder floor turns the ordinary return into a persistent walk-out, but it remains a navigation owner: survival/combat above and the livelock escape immediately above must retain priority.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 62,
@@ -3279,69 +5235,138 @@
    "line": 6669,
    "doc": "A fled breeder floor turns the ordinary return into a persistent walk-out, but it remains a navigation owner: survival/combat above and the livelock escape immediately above must retain priority.",
    "doc_from": "call-site",
-   "hits": 2346,
-   "log_reasons": [
-    [
-     "return:wait-recall",
-     2026
-    ],
-    [
-     "return:explore",
-     225
-    ],
-    [
-     "return:recall",
-     81
-    ],
-    [
-     "descend",
-     11
-    ],
-    [
-     "return:seek-upstairs",
-     2
-    ],
-    [
-     "return:ascend",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Return to town",
-     2335
-    ],
-    [
-     "Reach the next dungeon level",
-     11
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     2026
-    ],
-    [
-     "6",
-     90
-    ],
-    [
-     "4",
-     68
-    ],
-    [
-     "rg",
-     22
-    ],
-    [
-     "9",
-     18
-    ],
-    [
-     "1",
-     17
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 2346,
+     "reasons": [
+      [
+       "return:wait-recall",
+       2026
+      ],
+      [
+       "return:explore",
+       225
+      ],
+      [
+       "return:recall",
+       81
+      ],
+      [
+       "descend",
+       11
+      ],
+      [
+       "return:seek-upstairs",
+       2
+      ],
+      [
+       "return:ascend",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Return to town",
+       2335
+      ],
+      [
+       "Reach the next dungeon level",
+       11
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       2026
+      ],
+      [
+       "6",
+       90
+      ],
+      [
+       "4",
+       68
+      ],
+      [
+       "rg",
+       22
+      ],
+      [
+       "9",
+       18
+      ],
+      [
+       "1",
+       17
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 1762,
+     "reasons": [
+      [
+       "return:wait-recall",
+       1479
+      ],
+      [
+       "return:explore",
+       225
+      ],
+      [
+       "return:recall",
+       46
+      ],
+      [
+       "descend",
+       9
+      ],
+      [
+       "return:seek-upstairs",
+       2
+      ],
+      [
+       "return:ascend",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Return to town",
+       1753
+      ],
+      [
+       "Reach the next dungeon level",
+       9
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       1479
+      ],
+      [
+       "6",
+       90
+      ],
+      [
+       "4",
+       68
+      ],
+      [
+       "9",
+       18
+      ],
+      [
+       "1",
+       17
+      ],
+      [
+       "rg",
+       15
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 63,
@@ -3363,33 +5388,66 @@
    "line": 5038,
    "doc": "Ride native town travel toward the store, walking only as fallback.",
    "doc_from": "docstring",
-   "hits": 146,
-   "log_reasons": [
-    [
-     "equipment-transaction:travel-home",
-     89
-    ],
-    [
-     "equipment-transaction:travel-home:await-entry",
-     57
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     146
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u001b`n(.",
-     89
-    ],
-    [
-     "5",
-     57
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 146,
+     "reasons": [
+      [
+       "equipment-transaction:travel-home",
+       89
+      ],
+      [
+       "equipment-transaction:travel-home:await-entry",
+       57
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       146
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b`n(.",
+       89
+      ],
+      [
+       "5",
+       57
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 102,
+     "reasons": [
+      [
+       "equipment-transaction:travel-home",
+       64
+      ],
+      [
+       "equipment-transaction:travel-home:await-entry",
+       38
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       102
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b`n(.",
+       64
+      ],
+      [
+       "5",
+       38
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 64,
@@ -3408,73 +5466,142 @@
    "line": 2782,
    "doc": "Identify worn gear that the equipment optimizer counts incomplete.",
    "doc_from": "docstring",
-   "hits": 247,
-   "log_reasons": [
-    [
-     "identify:dungeon-equipment",
-     129
-    ],
-    [
-     "identify:full",
-     75
-    ],
-    [
-     "identify:normal",
-     26
-    ],
-    [
-     "identify:full-equipped",
-     8
-    ],
-    [
-     "inventory:destroy-disposable-item",
-     4
-    ],
-    [
-     "identify:pack-pressure",
-     3
-    ],
-    [
-     "identify:normal-equipped",
-     2
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     243
-    ],
-    [
-     "Continue conservative progression",
-     4
-    ]
-   ],
-   "log_keys": [
-    [
-     "ulp",
-     20
-    ],
-    [
-     "rhm\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
-     14
-    ],
-    [
-     "uik",
-     13
-    ],
-    [
-     "ujm",
-     11
-    ],
-    [
-     "rhm",
-     11
-    ],
-    [
-     "rmq\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
-     7
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 272,
+     "reasons": [
+      [
+       "identify:dungeon-equipment",
+       153
+      ],
+      [
+       "identify:full",
+       75
+      ],
+      [
+       "identify:normal",
+       26
+      ],
+      [
+       "identify:full-equipped",
+       8
+      ],
+      [
+       "identify:pack-pressure",
+       4
+      ],
+      [
+       "inventory:destroy-disposable-item",
+       4
+      ],
+      [
+       "identify:normal-equipped",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       268
+      ],
+      [
+       "Continue conservative progression",
+       4
+      ]
+     ],
+     "keys": [
+      [
+       "ulp",
+       20
+      ],
+      [
+       "ujn",
+       17
+      ],
+      [
+       "rhm\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
+       14
+      ],
+      [
+       "uik",
+       13
+      ],
+      [
+       "ujm",
+       12
+      ],
+      [
+       "rhm",
+       11
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 204,
+     "reasons": [
+      [
+       "identify:dungeon-equipment",
+       115
+      ],
+      [
+       "identify:full",
+       70
+      ],
+      [
+       "identify:normal",
+       9
+      ],
+      [
+       "inventory:destroy-disposable-item",
+       4
+      ],
+      [
+       "identify:full-equipped",
+       4
+      ],
+      [
+       "identify:pack-pressure",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       200
+      ],
+      [
+       "Continue conservative progression",
+       4
+      ]
+     ],
+     "keys": [
+      [
+       "ujn",
+       17
+      ],
+      [
+       "ulp",
+       16
+      ],
+      [
+       "rhm\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
+       14
+      ],
+      [
+       "ujm",
+       12
+      ],
+      [
+       "rmq\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
+       7
+      ],
+      [
+       "ujo",
+       6
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 65,
@@ -3495,45 +5622,78 @@
    "line": 2084,
    "doc": "",
    "doc_from": "",
-   "hits": 12,
-   "log_reasons": [
-    [
-     "identify:device",
-     12
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     12
-    ]
-   ],
-   "log_keys": [
-    [
-     "rhl",
-     4
-    ],
-    [
-     "rfk",
-     2
-    ],
-    [
-     "rhn",
-     1
-    ],
-    [
-     "reg",
-     1
-    ],
-    [
-     "rgh",
-     1
-    ],
-    [
-     "ril",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 12,
+     "reasons": [
+      [
+       "identify:device",
+       12
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       12
+      ]
+     ],
+     "keys": [
+      [
+       "rhl",
+       4
+      ],
+      [
+       "rfk",
+       2
+      ],
+      [
+       "rhn",
+       1
+      ],
+      [
+       "reg",
+       1
+      ],
+      [
+       "rgh",
+       1
+      ],
+      [
+       "ril",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 3,
+     "reasons": [
+      [
+       "identify:device",
+       3
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       3
+      ]
+     ],
+     "keys": [
+      [
+       "ril",
+       1
+      ],
+      [
+       "rgi",
+       1
+      ],
+      [
+       "rgk",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 66,
@@ -3552,10 +5712,20 @@
    "line": 15581,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 67,
@@ -3574,53 +5744,90 @@
    "line": 4814,
    "doc": "Read a Remove Curse scroll during town prep when a cursed item is worn, so it can be swapped/upgraded and its penalties lifted before diving.",
    "doc_from": "docstring",
-   "hits": 39,
-   "log_reasons": [
-    [
-     "town:remove-curse",
-     22
-    ],
-    [
-     "town:enchant-launcher-tohit",
-     10
-    ],
-    [
-     "town:enchant-launcher-todam",
-     7
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     39
-    ]
-   ],
-   "log_keys": [
-    [
-     "rhc",
-     13
-    ],
-    [
-     "rh",
-     9
-    ],
-    [
-     "rj",
-     6
-    ],
-    [
-     "rg",
-     3
-    ],
-    [
-     "rgc",
-     2
-    ],
-    [
-     "rf",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 39,
+     "reasons": [
+      [
+       "town:remove-curse",
+       22
+      ],
+      [
+       "town:enchant-launcher-tohit",
+       10
+      ],
+      [
+       "town:enchant-launcher-todam",
+       7
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       39
+      ]
+     ],
+     "keys": [
+      [
+       "rhc",
+       13
+      ],
+      [
+       "rh",
+       9
+      ],
+      [
+       "rj",
+       6
+      ],
+      [
+       "rg",
+       3
+      ],
+      [
+       "rgc",
+       2
+      ],
+      [
+       "rf",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 17,
+     "reasons": [
+      [
+       "town:remove-curse",
+       17
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       17
+      ]
+     ],
+     "keys": [
+      [
+       "rh",
+       9
+      ],
+      [
+       "rj",
+       6
+      ],
+      [
+       "ri",
+       1
+      ],
+      [
+       "rm",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 68,
@@ -3639,10 +5846,20 @@
    "line": 3451,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 69,
@@ -3661,10 +5878,20 @@
    "line": 4870,
    "doc": "Suppress visible or still-hidden random teleport before equipping.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 70,
@@ -3683,77 +5910,154 @@
    "line": 2372,
    "doc": "Equipment changes have one owner: after Home identification and the complete-page scan, execute the globally optimized loadout transaction. Legacy per-item weapon trials and jewellery upgrades must not race this plan or repeatedly withdraw and re-deposit candidates.",
    "doc_from": "call-site",
-   "hits": 662,
-   "log_reasons": [
-    [
-     "equipment-transaction:await-confirmation",
-     99
-    ],
-    [
-     "equipment-transaction:takeoff",
-     78
-    ],
-    [
-     "equipment-transaction:approach-home",
-     74
-    ],
-    [
-     "home:store-context-exit",
-     69
-    ],
-    [
-     "town:restore-combat-weapon",
-     63
-    ],
-    [
-     "equipment-transaction:deposit",
-     62
-    ],
-    [
-     "home:leave-after-one-operation",
-     27
-    ],
-    [
-     "town:entrance-step-off:equipment-transaction:await-confirmation",
-     23
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     464
-    ],
-    [
-     "Town maintenance and resupply",
-     198
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u001b",
-     143
-    ],
-    [
-     "5",
-     140
-    ],
-    [
-     "tb",
-     71
-    ],
-    [
-     "6",
-     29
-    ],
-    [
-     "~9\u001b",
-     23
-    ],
-    [
-     " ",
-     21
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 662,
+     "reasons": [
+      [
+       "equipment-transaction:await-confirmation",
+       99
+      ],
+      [
+       "equipment-transaction:takeoff",
+       78
+      ],
+      [
+       "equipment-transaction:approach-home",
+       74
+      ],
+      [
+       "home:store-context-exit",
+       69
+      ],
+      [
+       "town:restore-combat-weapon",
+       63
+      ],
+      [
+       "equipment-transaction:deposit",
+       62
+      ],
+      [
+       "home:leave-after-one-operation",
+       27
+      ],
+      [
+       "town:entrance-step-off:equipment-transaction:await-confirmation",
+       23
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       464
+      ],
+      [
+       "Town maintenance and resupply",
+       198
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       143
+      ],
+      [
+       "5",
+       140
+      ],
+      [
+       "tb",
+       71
+      ],
+      [
+       "6",
+       29
+      ],
+      [
+       "~9\u001b",
+       23
+      ],
+      [
+       " ",
+       21
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 494,
+     "reasons": [
+      [
+       "equipment-transaction:await-confirmation",
+       99
+      ],
+      [
+       "equipment-transaction:approach-home",
+       72
+      ],
+      [
+       "home:store-context-exit",
+       57
+      ],
+      [
+       "equipment-transaction:deposit",
+       53
+      ],
+      [
+       "equipment-transaction:takeoff",
+       28
+      ],
+      [
+       "town:restore-combat-weapon",
+       25
+      ],
+      [
+       "town:entrance-step-off:equipment-transaction:await-confirmation",
+       23
+      ],
+      [
+       "equipment-transaction:confirmation-stall-bound",
+       23
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       359
+      ],
+      [
+       "Town maintenance and resupply",
+       135
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       140
+      ],
+      [
+       "\u001b",
+       100
+      ],
+      [
+       "6",
+       29
+      ],
+      [
+       "tb",
+       24
+      ],
+      [
+       "3",
+       21
+      ],
+      [
+       "1",
+       18
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 71,
@@ -3775,65 +6079,122 @@
    "line": 1157,
    "doc": "Collect visible drops before shopping or ordinary exploration.",
    "doc_from": "docstring",
-   "hits": 2654,
-   "log_reasons": [
-    [
-     "seek-loot",
-     2426
-    ],
-    [
-     "pickup",
-     150
-    ],
-    [
-     "trigger-autodestroy",
-     74
-    ],
-    [
-     "loop-detected",
-     4
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Collect visible floor items",
-     2576
-    ],
-    [
-     "Continue conservative progression",
-     74
-    ],
-    [
-     "Stopped for loop investigation",
-     4
-    ]
-   ],
-   "log_keys": [
-    [
-     "7",
-     493
-    ],
-    [
-     "6",
-     404
-    ],
-    [
-     "1",
-     324
-    ],
-    [
-     "4",
-     312
-    ],
-    [
-     "3",
-     303
-    ],
-    [
-     "9",
-     282
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 2808,
+     "reasons": [
+      [
+       "seek-loot",
+       2546
+      ],
+      [
+       "pickup",
+       169
+      ],
+      [
+       "trigger-autodestroy",
+       89
+      ],
+      [
+       "loop-detected",
+       4
+      ]
+     ],
+     "objectives": [
+      [
+       "Collect visible floor items",
+       2715
+      ],
+      [
+       "Continue conservative progression",
+       89
+      ],
+      [
+       "Stopped for loop investigation",
+       4
+      ]
+     ],
+     "keys": [
+      [
+       "7",
+       503
+      ],
+      [
+       "6",
+       422
+      ],
+      [
+       "1",
+       346
+      ],
+      [
+       "4",
+       325
+      ],
+      [
+       "3",
+       324
+      ],
+      [
+       "9",
+       294
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 1236,
+     "reasons": [
+      [
+       "seek-loot",
+       1038
+      ],
+      [
+       "pickup",
+       126
+      ],
+      [
+       "trigger-autodestroy",
+       72
+      ]
+     ],
+     "objectives": [
+      [
+       "Collect visible floor items",
+       1164
+      ],
+      [
+       "Continue conservative progression",
+       72
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       186
+      ],
+      [
+       "2",
+       170
+      ],
+      [
+       "4",
+       153
+      ],
+      [
+       "3",
+       142
+      ],
+      [
+       "1",
+       140
+      ],
+      [
+       "7",
+       122
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 72,
@@ -3852,81 +6213,154 @@
    "line": 5038,
    "doc": "Ride native town travel toward the store, walking only as fallback.",
    "doc_from": "docstring",
-   "hits": 2620,
-   "log_reasons": [
-    [
-     "shop:travel",
-     1225
-    ],
-    [
-     "shop:approach",
-     1075
-    ],
-    [
-     "shop:travel:await-entry",
-     143
-    ],
-    [
-     "wilderness:enter-global",
-     75
-    ],
-    [
-     "store:entry-interrupted-replan",
-     48
-    ],
-    [
-     "wilderness:global-travel",
-     27
-    ],
-    [
-     "town:travel-entrance",
-     10
-    ],
-    [
-     "town:entrance-step-off:shop:approach",
-     8
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     2461
-    ],
-    [
-     "Continue conservative progression",
-     153
-    ],
-    [
-     "Stopped for loop investigation",
-     6
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u001b`n(.",
-     504
-    ],
-    [
-     "1",
-     358
-    ],
-    [
-     "9",
-     280
-    ],
-    [
-     "\u001b`n%.",
-     250
-    ],
-    [
-     "\u001b`n#.",
-     148
-    ],
-    [
-     "\u001b`n&.",
-     146
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 2620,
+     "reasons": [
+      [
+       "shop:travel",
+       1225
+      ],
+      [
+       "shop:approach",
+       1075
+      ],
+      [
+       "shop:travel:await-entry",
+       143
+      ],
+      [
+       "wilderness:enter-global",
+       75
+      ],
+      [
+       "store:entry-interrupted-replan",
+       48
+      ],
+      [
+       "wilderness:global-travel",
+       27
+      ],
+      [
+       "town:travel-entrance",
+       10
+      ],
+      [
+       "town:entrance-step-off:shop:approach",
+       8
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       2461
+      ],
+      [
+       "Continue conservative progression",
+       153
+      ],
+      [
+       "Stopped for loop investigation",
+       6
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b`n(.",
+       504
+      ],
+      [
+       "1",
+       358
+      ],
+      [
+       "9",
+       280
+      ],
+      [
+       "\u001b`n%.",
+       250
+      ],
+      [
+       "\u001b`n#.",
+       148
+      ],
+      [
+       "\u001b`n&.",
+       146
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 1308,
+     "reasons": [
+      [
+       "shop:travel",
+       715
+      ],
+      [
+       "shop:approach",
+       460
+      ],
+      [
+       "shop:travel:await-entry",
+       78
+      ],
+      [
+       "store:entry-interrupted-replan",
+       38
+      ],
+      [
+       "town:travel-entrance",
+       8
+      ],
+      [
+       "town:entrance-step-off:shop:approach",
+       6
+      ],
+      [
+       "store:entry-await-observation",
+       3
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       1267
+      ],
+      [
+       "Continue conservative progression",
+       41
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b`n(.",
+       325
+      ],
+      [
+       "\u001b`n%.",
+       156
+      ],
+      [
+       "1",
+       127
+      ],
+      [
+       "\u001b`n&.",
+       119
+      ],
+      [
+       "7",
+       109
+      ],
+      [
+       "5",
+       78
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 73,
@@ -3947,25 +6381,35 @@
    "line": 2065,
    "doc": "Free town pack space without creating floor-item pickup loops.",
    "doc_from": "docstring",
-   "hits": 6,
-   "log_reasons": [
-    [
-     "town:blocked:overflow-no-legal-disposal",
-     6
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     6
-    ]
-   ],
-   "log_keys": [
-    [
-     "1",
-     6
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 6,
+     "reasons": [
+      [
+       "town:blocked:overflow-no-legal-disposal",
+       6
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       6
+      ]
+     ],
+     "keys": [
+      [
+       "1",
+       6
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 74,
@@ -3986,25 +6430,50 @@
    "line": 1090,
    "doc": "",
    "doc_from": "",
-   "hits": 1,
-   "log_reasons": [
-    [
-     "town:entrance-step-off:town:identify-staff-stockout-mining",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     1
-    ]
-   ],
-   "log_keys": [
-    [
-     "8",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 1,
+     "reasons": [
+      [
+       "town:entrance-step-off:town:identify-staff-stockout-mining",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "8",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 1,
+     "reasons": [
+      [
+       "town:entrance-step-off:town:identify-staff-stockout-mining",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "8",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 75,
@@ -4023,10 +6492,20 @@
    "line": 774,
    "doc": "Route to a supplier made eligible by completed stock turnover.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 76,
@@ -4048,10 +6527,20 @@
    "line": 968,
    "doc": "Replace a rest that awake detection-only hostiles would interrupt.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 77,
@@ -4072,29 +6561,39 @@
    "line": 3897,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 5,
-   "log_reasons": [
-    [
-     "threat:avoid-engagement",
-     5
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     5
-    ]
-   ],
-   "log_keys": [
-    [
-     "6",
-     3
-    ],
-    [
-     "1",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 5,
+     "reasons": [
+      [
+       "threat:avoid-engagement",
+       5
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       5
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       3
+      ],
+      [
+       "1",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 78,
@@ -4116,41 +6615,82 @@
    "line": 1174,
    "doc": "Follow the ledger-owned route to one committed descent target.",
    "doc_from": "docstring",
-   "hits": 32,
-   "log_reasons": [
-    [
-     "seek-downstairs",
-     32
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Reach the next dungeon level",
-     32
-    ]
-   ],
-   "log_keys": [
-    [
-     "9",
-     13
-    ],
-    [
-     "6",
-     12
-    ],
-    [
-     "8",
-     3
-    ],
-    [
-     "3",
-     3
-    ],
-    [
-     "7",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 32,
+     "reasons": [
+      [
+       "seek-downstairs",
+       32
+      ]
+     ],
+     "objectives": [
+      [
+       "Reach the next dungeon level",
+       32
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       13
+      ],
+      [
+       "6",
+       12
+      ],
+      [
+       "8",
+       3
+      ],
+      [
+       "3",
+       3
+      ],
+      [
+       "7",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 32,
+     "reasons": [
+      [
+       "seek-downstairs",
+       32
+      ]
+     ],
+     "objectives": [
+      [
+       "Reach the next dungeon level",
+       32
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       13
+      ],
+      [
+       "6",
+       12
+      ],
+      [
+       "8",
+       3
+      ],
+      [
+       "3",
+       3
+      ],
+      [
+       "7",
+       1
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 79,
@@ -4171,10 +6711,20 @@
    "line": 3952,
    "doc": "7. Opportunistic hunt for easy XP while no downstairs is in sight.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 80,
@@ -4195,41 +6745,74 @@
    "line": 3952,
    "doc": "7. Opportunistic hunt for easy XP while no downstairs is in sight.",
    "doc_from": "call-site",
-   "hits": 80,
-   "log_reasons": [
-    [
-     "hunt",
-     80
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Fight visible threats",
-     80
-    ]
-   ],
-   "log_keys": [
-    [
-     "8",
-     55
-    ],
-    [
-     "7",
-     8
-    ],
-    [
-     "9",
-     8
-    ],
-    [
-     "4",
-     7
-    ],
-    [
-     "6",
-     2
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 80,
+     "reasons": [
+      [
+       "hunt",
+       80
+      ]
+     ],
+     "objectives": [
+      [
+       "Fight visible threats",
+       80
+      ]
+     ],
+     "keys": [
+      [
+       "8",
+       55
+      ],
+      [
+       "7",
+       8
+      ],
+      [
+       "9",
+       8
+      ],
+      [
+       "4",
+       7
+      ],
+      [
+       "6",
+       2
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 62,
+     "reasons": [
+      [
+       "hunt",
+       62
+      ]
+     ],
+     "objectives": [
+      [
+       "Fight visible threats",
+       62
+      ]
+     ],
+     "keys": [
+      [
+       "8",
+       55
+      ],
+      [
+       "7",
+       4
+      ],
+      [
+       "9",
+       3
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 81,
@@ -4248,10 +6831,20 @@
    "line": 15845,
    "doc": "Re-arm the weapon displaced solely for a dig-to-stairs breakout.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 82,
@@ -4273,65 +6866,130 @@
    "line": 1377,
    "doc": "8. If we are circling the same few tiles (frontiers whose unknown side the pathfinder can't reach), break out by stepping directly into an adjacent unknown tile to reveal it. Only when actually oscillating, so normal directed exploration is unaffected. Wall bumps are harmless and bounded by PROBE_LIMIT.",
    "doc_from": "call-site",
-   "hits": 506,
-   "log_reasons": [
-    [
-     "stuck:wander",
-     366
-    ],
-    [
-     "breakout:seek-frontier",
-     71
-    ],
-    [
-     "breakout:least-visited",
-     65
-    ],
-    [
-     "stuck:recall-escape",
-     3
-    ],
-    [
-     "loop-detected",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Explore and break out of dead ends",
-     505
-    ],
-    [
-     "Stopped for loop investigation",
-     1
-    ]
-   ],
-   "log_keys": [
-    [
-     "6",
-     131
-    ],
-    [
-     "7",
-     78
-    ],
-    [
-     "4",
-     75
-    ],
-    [
-     "9",
-     59
-    ],
-    [
-     "1",
-     54
-    ],
-    [
-     "8",
-     42
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 510,
+     "reasons": [
+      [
+       "stuck:wander",
+       366
+      ],
+      [
+       "breakout:seek-frontier",
+       75
+      ],
+      [
+       "breakout:least-visited",
+       65
+      ],
+      [
+       "stuck:recall-escape",
+       3
+      ],
+      [
+       "loop-detected",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Explore and break out of dead ends",
+       509
+      ],
+      [
+       "Stopped for loop investigation",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       132
+      ],
+      [
+       "7",
+       78
+      ],
+      [
+       "4",
+       76
+      ],
+      [
+       "9",
+       59
+      ],
+      [
+       "1",
+       54
+      ],
+      [
+       "8",
+       42
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 371,
+     "reasons": [
+      [
+       "stuck:wander",
+       252
+      ],
+      [
+       "breakout:least-visited",
+       64
+      ],
+      [
+       "breakout:seek-frontier",
+       51
+      ],
+      [
+       "stuck:recall-escape",
+       3
+      ],
+      [
+       "loop-detected",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Explore and break out of dead ends",
+       370
+      ],
+      [
+       "Stopped for loop investigation",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       68
+      ],
+      [
+       "4",
+       54
+      ],
+      [
+       "9",
+       53
+      ],
+      [
+       "7",
+       51
+      ],
+      [
+       "1",
+       45
+      ],
+      [
+       "8",
+       39
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 83,
@@ -4352,10 +7010,20 @@
    "line": 17713,
    "doc": "A released immobile-breeder plan is only an exploration fallback. Ordinary combat, threat, loot, descent, and hunting owners above must retain their normal priority when another mobile hostile is present.",
    "doc_from": "call-site",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 84,
@@ -4379,61 +7047,114 @@
    "line": 1377,
    "doc": "8. If we are circling the same few tiles (frontiers whose unknown side the pathfinder can't reach), break out by stepping directly into an adjacent unknown tile to reveal it. Only when actually oscillating, so normal directed exploration is unaffected. Wall bumps are harmless and bounded by PROBE_LIMIT.",
    "doc_from": "call-site",
-   "hits": 18881,
-   "log_reasons": [
-    [
-     "explore",
-     17668
-    ],
-    [
-     "search",
-     806
-    ],
-    [
-     "probe",
-     406
-    ],
-    [
-     "loop-detected",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Explore and break out of dead ends",
-     18880
-    ],
-    [
-     "Stopped for loop investigation",
-     1
-    ]
-   ],
-   "log_keys": [
-    [
-     "6",
-     5434
-    ],
-    [
-     "4",
-     3967
-    ],
-    [
-     "7",
-     1887
-    ],
-    [
-     "1",
-     1609
-    ],
-    [
-     "8",
-     1555
-    ],
-    [
-     "2",
-     1504
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 20982,
+     "reasons": [
+      [
+       "explore",
+       19730
+      ],
+      [
+       "search",
+       838
+      ],
+      [
+       "probe",
+       413
+      ],
+      [
+       "loop-detected",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Explore and break out of dead ends",
+       20981
+      ],
+      [
+       "Stopped for loop investigation",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       6087
+      ],
+      [
+       "4",
+       4485
+      ],
+      [
+       "7",
+       2088
+      ],
+      [
+       "1",
+       1820
+      ],
+      [
+       "8",
+       1688
+      ],
+      [
+       "2",
+       1672
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 14419,
+     "reasons": [
+      [
+       "explore",
+       13633
+      ],
+      [
+       "search",
+       718
+      ],
+      [
+       "probe",
+       68
+      ]
+     ],
+     "objectives": [
+      [
+       "Explore and break out of dead ends",
+       14419
+      ]
+     ],
+     "keys": [
+      [
+       "6",
+       4152
+      ],
+      [
+       "4",
+       2994
+      ],
+      [
+       "7",
+       1342
+      ],
+      [
+       "1",
+       1293
+      ],
+      [
+       "2",
+       1208
+      ],
+      [
+       "8",
+       1080
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 85,
@@ -4454,10 +7175,20 @@
    "line": 18145,
    "doc": "Start UP-then-DOWN regeneration at the existing exhausted-floor seam.",
    "doc_from": "docstring",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 86,
@@ -4476,73 +7207,130 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 227,
-   "log_reasons": [
-    [
-     "home-errand:atomic-withdraw:full-home-sale",
-     176
-    ],
-    [
-     "home-errand:atomic-withdraw:identification-catalog",
-     29
-    ],
-    [
-     "home-errand:atomic-withdraw:identification",
-     7
-    ],
-    [
-     "home-errand:request-knowledge:identification",
-     6
-    ],
-    [
-     "home-errand:request-knowledge:identification-catalog",
-     5
-    ],
-    [
-     "home-errand:await-fresh-knowledge:identification-catalog",
-     2
-    ],
-    [
-     "home-errand:await-fresh-knowledge:identification",
-     1
-    ],
-    [
-     "home-errand:request-knowledge:full-home-sale",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     227
-    ]
-   ],
-   "log_keys": [
-    [
-     "~9\u001b\u001b",
-     10
-    ],
-    [
-     "5 pl\u001b",
-     9
-    ],
-    [
-     "5pF\u001b",
-     9
-    ],
-    [
-     "5pl\u001b",
-     8
-    ],
-    [
-     "5pj\u001b",
-     7
-    ],
-    [
-     "5pm\u001b",
-     6
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 227,
+     "reasons": [
+      [
+       "home-errand:atomic-withdraw:full-home-sale",
+       176
+      ],
+      [
+       "home-errand:atomic-withdraw:identification-catalog",
+       29
+      ],
+      [
+       "home-errand:atomic-withdraw:identification",
+       7
+      ],
+      [
+       "home-errand:request-knowledge:identification",
+       6
+      ],
+      [
+       "home-errand:request-knowledge:identification-catalog",
+       5
+      ],
+      [
+       "home-errand:await-fresh-knowledge:identification-catalog",
+       2
+      ],
+      [
+       "home-errand:await-fresh-knowledge:identification",
+       1
+      ],
+      [
+       "home-errand:request-knowledge:full-home-sale",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       227
+      ]
+     ],
+     "keys": [
+      [
+       "~9\u001b\u001b",
+       10
+      ],
+      [
+       "5 pl\u001b",
+       9
+      ],
+      [
+       "5pF\u001b",
+       9
+      ],
+      [
+       "5pl\u001b",
+       8
+      ],
+      [
+       "5pj\u001b",
+       7
+      ],
+      [
+       "5pm\u001b",
+       6
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 199,
+     "reasons": [
+      [
+       "home-errand:atomic-withdraw:full-home-sale",
+       176
+      ],
+      [
+       "home-errand:atomic-withdraw:identification-catalog",
+       19
+      ],
+      [
+       "home-errand:request-knowledge:identification-catalog",
+       3
+      ],
+      [
+       "home-errand:request-knowledge:full-home-sale",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       199
+      ]
+     ],
+     "keys": [
+      [
+       "5 pl\u001b",
+       9
+      ],
+      [
+       "5pF\u001b",
+       9
+      ],
+      [
+       "5pl\u001b",
+       8
+      ],
+      [
+       "5pj\u001b",
+       7
+      ],
+      [
+       "5pm\u001b",
+       6
+      ],
+      [
+       "5 po\u001b",
+       6
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 87,
@@ -4561,53 +7349,106 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 706,
-   "log_reasons": [
-    [
-     "home:request-knowledge-scan",
-     603
-    ],
-    [
-     "home:scan-incomplete-open-page",
-     101
-    ],
-    [
-     "home:seek-combat-weapon-page",
-     2
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     706
-    ]
-   ],
-   "log_keys": [
-    [
-     "~9\u001b\u001b",
-     340
-    ],
-    [
-     "~9\u001b",
-     198
-    ],
-    [
-     "\u001b",
-     101
-    ],
-    [
-     "1",
-     31
-    ],
-    [
-     "7",
-     18
-    ],
-    [
-     "4",
-     16
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 706,
+     "reasons": [
+      [
+       "home:request-knowledge-scan",
+       603
+      ],
+      [
+       "home:scan-incomplete-open-page",
+       101
+      ],
+      [
+       "home:seek-combat-weapon-page",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       706
+      ]
+     ],
+     "keys": [
+      [
+       "~9\u001b\u001b",
+       340
+      ],
+      [
+       "~9\u001b",
+       198
+      ],
+      [
+       "\u001b",
+       101
+      ],
+      [
+       "1",
+       31
+      ],
+      [
+       "7",
+       18
+      ],
+      [
+       "4",
+       16
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 532,
+     "reasons": [
+      [
+       "home:request-knowledge-scan",
+       475
+      ],
+      [
+       "home:scan-incomplete-open-page",
+       55
+      ],
+      [
+       "home:seek-combat-weapon-page",
+       2
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       532
+      ]
+     ],
+     "keys": [
+      [
+       "~9\u001b\u001b",
+       226
+      ],
+      [
+       "~9\u001b",
+       184
+      ],
+      [
+       "\u001b",
+       55
+      ],
+      [
+       "1",
+       31
+      ],
+      [
+       "7",
+       18
+      ],
+      [
+       "4",
+       16
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 88,
@@ -4626,73 +7467,146 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 1053,
-   "log_reasons": [
-    [
-     "shop:one-shot-buy",
-     426
-    ],
-    [
-     "shop:in-store-buy",
-     241
-    ],
-    [
-     "shop:observe-and-leave",
-     200
-    ],
-    [
-     "shop:in-store-done",
-     161
-    ],
-    [
-     "town:entrance-step-off:shop:observed-operation-uncomposable",
-     16
-    ],
-    [
-     "town:wait-restock:temple",
-     6
-    ],
-    [
-     "town:wait-restock:magic",
-     2
-    ],
-    [
-     "town:wait-restock:alchemist",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     1053
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u001b",
-     361
-    ],
-    [
-     "5",
-     219
-    ],
-    [
-     "pl1\r\r",
-     21
-    ],
-    [
-     "pi3\r\r",
-     15
-    ],
-    [
-     "ph1\r\r\u001b",
-     13
-    ],
-    [
-     "pg1\r\r",
-     13
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 1053,
+     "reasons": [
+      [
+       "shop:one-shot-buy",
+       426
+      ],
+      [
+       "shop:in-store-buy",
+       241
+      ],
+      [
+       "shop:observe-and-leave",
+       200
+      ],
+      [
+       "shop:in-store-done",
+       161
+      ],
+      [
+       "town:entrance-step-off:shop:observed-operation-uncomposable",
+       16
+      ],
+      [
+       "town:wait-restock:temple",
+       6
+      ],
+      [
+       "town:wait-restock:magic",
+       2
+      ],
+      [
+       "town:wait-restock:alchemist",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       1053
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       361
+      ],
+      [
+       "5",
+       219
+      ],
+      [
+       "pl1\r\r",
+       21
+      ],
+      [
+       "pi3\r\r",
+       15
+      ],
+      [
+       "ph1\r\r\u001b",
+       13
+      ],
+      [
+       "pg1\r\r",
+       13
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 518,
+     "reasons": [
+      [
+       "shop:in-store-buy",
+       233
+      ],
+      [
+       "shop:in-store-done",
+       153
+      ],
+      [
+       "shop:one-shot-buy",
+       70
+      ],
+      [
+       "shop:observe-and-leave",
+       54
+      ],
+      [
+       "town:wait-restock:temple",
+       3
+      ],
+      [
+       "town:entrance-step-off:shop:observed-operation-uncomposable",
+       2
+      ],
+      [
+       "town:wait-restock:magic",
+       2
+      ],
+      [
+       "town:wait-restock:alchemist",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       518
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       207
+      ],
+      [
+       "5",
+       35
+      ],
+      [
+       "pl1\r\r",
+       21
+      ],
+      [
+       "pi3\r\r",
+       15
+      ],
+      [
+       "pg1\r\r",
+       13
+      ],
+      [
+       "pj2\r\r\u001b",
+       13
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 89,
@@ -4711,73 +7625,146 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 498,
-   "log_reasons": [
-    [
-     "shop:one-shot-sell",
-     135
-    ],
-    [
-     "shop:in-store-inscribe",
-     128
-    ],
-    [
-     "shop:in-store-sell",
-     118
-    ],
-    [
-     "shop:batch-inscribe",
-     73
-    ],
-    [
-     "shop:in-store-done",
-     12
-    ],
-    [
-     "shop:one-shot-in-flight",
-     12
-    ],
-    [
-     "shop:retain-standing-digging-tool",
-     10
-    ],
-    [
-     "shop:one-shot-sale-compose",
-     6
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     498
-    ]
-   ],
-   "log_keys": [
-    [
-     "d0y",
-     104
-    ],
-    [
-     "5",
-     64
-    ],
-    [
-     "d0y\u001b",
-     28
-    ],
-    [
-     "{o@0\r",
-     25
-    ],
-    [
-     "{m@0\r",
-     20
-    ],
-    [
-     "{k@0\r",
-     17
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 498,
+     "reasons": [
+      [
+       "shop:one-shot-sell",
+       135
+      ],
+      [
+       "shop:in-store-inscribe",
+       128
+      ],
+      [
+       "shop:in-store-sell",
+       118
+      ],
+      [
+       "shop:batch-inscribe",
+       73
+      ],
+      [
+       "shop:in-store-done",
+       12
+      ],
+      [
+       "shop:one-shot-in-flight",
+       12
+      ],
+      [
+       "shop:retain-standing-digging-tool",
+       10
+      ],
+      [
+       "shop:one-shot-sale-compose",
+       6
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       498
+      ]
+     ],
+     "keys": [
+      [
+       "d0y",
+       104
+      ],
+      [
+       "5",
+       64
+      ],
+      [
+       "d0y\u001b",
+       28
+      ],
+      [
+       "{o@0\r",
+       25
+      ],
+      [
+       "{m@0\r",
+       20
+      ],
+      [
+       "{k@0\r",
+       17
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 438,
+     "reasons": [
+      [
+       "shop:in-store-inscribe",
+       128
+      ],
+      [
+       "shop:in-store-sell",
+       118
+      ],
+      [
+       "shop:one-shot-sell",
+       100
+      ],
+      [
+       "shop:batch-inscribe",
+       52
+      ],
+      [
+       "shop:in-store-done",
+       12
+      ],
+      [
+       "shop:one-shot-in-flight",
+       12
+      ],
+      [
+       "shop:retain-standing-digging-tool",
+       10
+      ],
+      [
+       "shop:one-shot-sale-compose",
+       6
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       438
+      ]
+     ],
+     "keys": [
+      [
+       "d0y",
+       104
+      ],
+      [
+       "5",
+       50
+      ],
+      [
+       "{o@0\r",
+       24
+      ],
+      [
+       "d0y\u001b",
+       23
+      ],
+      [
+       "{m@0\r",
+       20
+      ],
+      [
+       "{k@0\r",
+       17
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 90,
@@ -4796,10 +7783,20 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 91,
@@ -4818,45 +7815,90 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 185,
-   "log_reasons": [
-    [
-     "town:cross-town-shopping:travel-1",
-     185
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     185
-    ]
-   ],
-   "log_keys": [
-    [
-     "9",
-     63
-    ],
-    [
-     "3",
-     53
-    ],
-    [
-     "6",
-     28
-    ],
-    [
-     "8",
-     12
-    ],
-    [
-     "7",
-     12
-    ],
-    [
-     "1",
-     6
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 185,
+     "reasons": [
+      [
+       "town:cross-town-shopping:travel-1",
+       185
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       185
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       63
+      ],
+      [
+       "3",
+       53
+      ],
+      [
+       "6",
+       28
+      ],
+      [
+       "8",
+       12
+      ],
+      [
+       "7",
+       12
+      ],
+      [
+       "1",
+       6
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 100,
+     "reasons": [
+      [
+       "town:cross-town-shopping:travel-1",
+       100
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       100
+      ]
+     ],
+     "keys": [
+      [
+       "9",
+       26
+      ],
+      [
+       "3",
+       20
+      ],
+      [
+       "6",
+       16
+      ],
+      [
+       "8",
+       12
+      ],
+      [
+       "7",
+       12
+      ],
+      [
+       "1",
+       6
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 92,
@@ -4875,10 +7917,20 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 93,
@@ -4902,65 +7954,130 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 309,
-   "log_reasons": [
-    [
-     "town:wait-recall",
-     263
-    ],
-    [
-     "town:entrance-step-off:town:unsafe-recall-fallback",
-     27
-    ],
-    [
-     "town:recall-to-alt-dungeon",
-     9
-    ],
-    [
-     "town:wait-recall-step-off",
-     7
-    ],
-    [
-     "town:repetition-depart:recall",
-     2
-    ],
-    [
-     "town:unsafe-recall-fallback",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Town maintenance and resupply",
-     309
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     264
-    ],
-    [
-     "1",
-     13
-    ],
-    [
-     "6",
-     6
-    ],
-    [
-     "2",
-     6
-    ],
-    [
-     "3",
-     5
-    ],
-    [
-     "rfc",
-     3
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 314,
+     "reasons": [
+      [
+       "town:wait-recall",
+       268
+      ],
+      [
+       "town:entrance-step-off:town:unsafe-recall-fallback",
+       27
+      ],
+      [
+       "town:recall-to-alt-dungeon",
+       9
+      ],
+      [
+       "town:wait-recall-step-off",
+       7
+      ],
+      [
+       "town:repetition-depart:recall",
+       2
+      ],
+      [
+       "town:unsafe-recall-fallback",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       314
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       269
+      ],
+      [
+       "1",
+       13
+      ],
+      [
+       "6",
+       6
+      ],
+      [
+       "2",
+       6
+      ],
+      [
+       "3",
+       5
+      ],
+      [
+       "rfc",
+       3
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 185,
+     "reasons": [
+      [
+       "town:wait-recall",
+       161
+      ],
+      [
+       "town:entrance-step-off:town:unsafe-recall-fallback",
+       15
+      ],
+      [
+       "town:recall-to-alt-dungeon",
+       4
+      ],
+      [
+       "town:wait-recall-step-off",
+       2
+      ],
+      [
+       "town:repetition-depart:recall",
+       2
+      ],
+      [
+       "town:unsafe-recall-fallback",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Town maintenance and resupply",
+       185
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       162
+      ],
+      [
+       "1",
+       6
+      ],
+      [
+       "6",
+       5
+      ],
+      [
+       "rfc",
+       3
+      ],
+      [
+       "rgc",
+       3
+      ],
+      [
+       "9",
+       2
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 94,
@@ -4982,53 +8099,102 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 226,
-   "log_reasons": [
-    [
-     "policy:none-store-exit",
-     199
-    ],
-    [
-     "town:entrance-step-off:policy:none-wait",
-     19
-    ],
-    [
-     "policy:none-wait",
-     8
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     207
-    ],
-    [
-     "Town maintenance and resupply",
-     19
-    ]
-   ],
-   "log_keys": [
-    [
-     "\u001b",
-     196
-    ],
-    [
-     "1",
-     15
-    ],
-    [
-     "5",
-     8
-    ],
-    [
-     "9",
-     4
-    ],
-    [
-     "8",
-     3
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 226,
+     "reasons": [
+      [
+       "policy:none-store-exit",
+       199
+      ],
+      [
+       "town:entrance-step-off:policy:none-wait",
+       19
+      ],
+      [
+       "policy:none-wait",
+       8
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       207
+      ],
+      [
+       "Town maintenance and resupply",
+       19
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       196
+      ],
+      [
+       "1",
+       15
+      ],
+      [
+       "5",
+       8
+      ],
+      [
+       "9",
+       4
+      ],
+      [
+       "8",
+       3
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 64,
+     "reasons": [
+      [
+       "policy:none-store-exit",
+       57
+      ],
+      [
+       "town:entrance-step-off:policy:none-wait",
+       4
+      ],
+      [
+       "policy:none-wait",
+       3
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       60
+      ],
+      [
+       "Town maintenance and resupply",
+       4
+      ]
+     ],
+     "keys": [
+      [
+       "\u001b",
+       54
+      ],
+      [
+       "9",
+       4
+      ],
+      [
+       "1",
+       3
+      ],
+      [
+       "5",
+       3
+      ]
+     ]
+    }
+   }
   },
   {
    "index": 95,
@@ -5047,10 +8213,20 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 0,
-   "log_reasons": [],
-   "log_objectives": [],
-   "log_keys": []
+   "w": {
+    "all": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    },
+    "h48": {
+     "hits": 0,
+     "reasons": [],
+     "objectives": [],
+     "keys": []
+    }
+   }
   },
   {
    "index": 96,
@@ -5069,37 +8245,74 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 3,
-   "log_reasons": [
-    [
-     "sub-hand-requires-main-hand",
-     2
-    ],
-    [
-     "shop:home-full-surplus-sale-refused",
-     1
-    ]
-   ],
-   "log_objectives": [
-    [
-     "Continue conservative progression",
-     2
-    ],
-    [
-     "Town maintenance and resupply",
-     1
-    ]
-   ],
-   "log_keys": [
-    [
-     "5",
-     2
-    ],
-    [
-     "\u001b",
-     1
-    ]
-   ]
+   "w": {
+    "all": {
+     "hits": 3,
+     "reasons": [
+      [
+       "sub-hand-requires-main-hand",
+       2
+      ],
+      [
+       "shop:home-full-surplus-sale-refused",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       2
+      ],
+      [
+       "Town maintenance and resupply",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       2
+      ],
+      [
+       "\u001b",
+       1
+      ]
+     ]
+    },
+    "h48": {
+     "hits": 3,
+     "reasons": [
+      [
+       "sub-hand-requires-main-hand",
+       2
+      ],
+      [
+       "shop:home-full-surplus-sale-refused",
+       1
+      ]
+     ],
+     "objectives": [
+      [
+       "Continue conservative progression",
+       2
+      ],
+      [
+       "Town maintenance and resupply",
+       1
+      ]
+     ],
+     "keys": [
+      [
+       "5",
+       2
+      ],
+      [
+       "\u001b",
+       1
+      ]
+     ]
+    }
+   }
   }
  ]
 }
