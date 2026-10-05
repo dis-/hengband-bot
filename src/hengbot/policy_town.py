@@ -931,8 +931,10 @@ class TownMixin:
             return True
         goal = self._shopping_approach_goal
         slot = getattr(self, "_decision_goal", None)
-        if ((self.last_reason or "").startswith("bounty:")
-                and slot is not None and slot[0] == "quest-request"
+        if (slot is not None and (
+                ((self.last_reason or "").startswith("bounty:")
+                 and slot[0] == "quest-request")
+                or slot[0] == "cross-town")
                 and slot[1].kind == "Reach" and slot[1].cell is not None):
             # The producer's declared destination is authoritative.  A shop
             # route left by an earlier errand cannot judge this owner's walk.
@@ -1156,10 +1158,13 @@ class TownMixin:
                 self._close_store_visit("town-progress-invariant-reroute")
 
         supplier = None
+        blocked_stops = getattr(self._town_errand_plan, "blocked_this_visit", ()) or ()
         for store_type, known_stock in getattr(
             self, "_town_supplier_stock", {}
         ).items():
-            if store_type == STORE_HOME:
+            if (store_type == STORE_HOME
+                    or store_type in blocked_stops
+                    or store_type in self._town_visit_ledger.nonhome_attempted_without_effect):
                 continue
             stock_snapshot = replace(snapshot, store=known_stock)
             wanted = self._next_purchase_unreserved(stock_snapshot)

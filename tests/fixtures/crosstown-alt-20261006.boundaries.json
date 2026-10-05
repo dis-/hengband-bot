@@ -1,0 +1,668 @@
+{
+ "source": {
+  "bot-decisions.jsonl": "df3a4365f98e826a34bb6e7bb44b7e18c69d7e9e4927d4c398539994583f60d6",
+  "bot-state-tail.jsonl": "3c07338701e2788af7803cb7cc5b68fe2bd75d63dd3f134660cf9624cf628615"
+ },
+ "base": "4d864cb36cd3ee6d4f887a937c974214e8b17ea0",
+ "fixture_sha256": "9db9172afbcf1d6a633939313e864ad0408cf640238123576e8a1afa1d3d09fe",
+ "input_rows": [
+  2,
+  1,
+  1,
+  2,
+  1,
+  1,
+  2,
+  1
+ ],
+ "state_line_ranges": [
+  [
+   1461,
+   1462
+  ],
+  [
+   1463,
+   1463
+  ],
+  [
+   1464,
+   1464
+  ],
+  [
+   1465,
+   1466
+  ],
+  [
+   1467,
+   1467
+  ],
+  [
+   1468,
+   1468
+  ],
+  [
+   1469,
+   1470
+  ],
+  [
+   1471,
+   1471
+  ]
+ ],
+ "decisions": [
+  {
+   "decision_sequence": 1497,
+   "turn": 12756725,
+   "key": "\u001b",
+   "reason": "town-progress-invariant:continue-observed-shop",
+   "position": {
+    "y": 38,
+    "x": 106
+   },
+   "store_type": 5,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1495,
+    "phase": "leaving",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": 1497,
+    "posted_turn": 12756725
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "gold": 16260,
+    "wanted_purchase": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "considered_candidate": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 16260,
+     "allow_set": []
+    }
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": null,
+    "visit_store": 5,
+    "phase": "entering",
+    "in_flight_clause": "entering-with-posted-sequence",
+    "target_source": "store-exit-key"
+   }
+  },
+  {
+   "decision_sequence": 1498,
+   "turn": 12756740,
+   "key": "9",
+   "reason": "town:cross-town-shopping:travel-2",
+   "position": {
+    "y": 38,
+    "x": 106
+   },
+   "store_type": null,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1498,
+    "phase": "entering",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": null,
+    "posted_turn": null
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "shop:sell-rebuy-churn-defect",
+    "gold": 16260,
+    "wanted_purchase": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "considered_candidate": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "rejection_reason": "preempted",
+    "composition_refusal": "shop:sell-rebuy-churn-defect",
+    "composition_refusal_sequence": 1498
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": 5,
+    "visit_store": 5,
+    "phase": "leaving",
+    "in_flight_clause": "leaving-with-posted-sequence",
+    "target_source": "_shopping_approach_store_type"
+   }
+  },
+  {
+   "decision_sequence": 1499,
+   "turn": 12756747,
+   "key": "1",
+   "reason": "town-progress-invariant:defect:town:cross-town-shopping:travel-2=>town:cross-town-shopping:travel-2",
+   "position": {
+    "y": 37,
+    "x": 107
+   },
+   "store_type": null,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1498,
+    "phase": "entering",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": null,
+    "posted_turn": null
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:defect:town:cross-town-shopping:travel-2=>town:cross-town-shopping:travel-2",
+    "gold": 16260,
+    "wanted_purchase": null,
+    "considered_candidate": null,
+    "rejection_reason": "no-store-page-observed",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "town:cross-town-shopping:travel-2",
+     "progress_action": "town:cross-town-shopping:travel-2",
+     "gold": 16260,
+     "allow_set": []
+    }
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": 5,
+    "visit_store": 5,
+    "phase": "entering",
+    "in_flight_clause": null,
+    "target_source": "stepped-onto-store-grid"
+   }
+  },
+  {
+   "decision_sequence": 1500,
+   "turn": 12756747,
+   "key": "\u001b",
+   "reason": "town-progress-invariant:continue-observed-shop",
+   "position": {
+    "y": 38,
+    "x": 106
+   },
+   "store_type": 5,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1498,
+    "phase": "leaving",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": 1500,
+    "posted_turn": 12756747
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "gold": 16260,
+    "wanted_purchase": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "considered_candidate": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 16260,
+     "allow_set": []
+    }
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": null,
+    "visit_store": 5,
+    "phase": "entering",
+    "in_flight_clause": "entering-with-posted-sequence",
+    "target_source": "store-exit-key"
+   }
+  },
+  {
+   "decision_sequence": 1501,
+   "turn": 12756758,
+   "key": "7",
+   "reason": "shop:approach",
+   "position": {
+    "y": 38,
+    "x": 106
+   },
+   "store_type": null,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1501,
+    "phase": "entering",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": null,
+    "posted_turn": null
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "shop:sell-rebuy-churn-defect",
+    "gold": 16260,
+    "wanted_purchase": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "considered_candidate": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "rejection_reason": "preempted",
+    "composition_refusal": "shop:sell-rebuy-churn-defect",
+    "composition_refusal_sequence": 1501
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": 5,
+    "visit_store": 5,
+    "phase": "leaving",
+    "in_flight_clause": "leaving-with-posted-sequence",
+    "target_source": "_shopping_approach_store_type"
+   }
+  },
+  {
+   "decision_sequence": 1502,
+   "turn": 12756768,
+   "key": "3",
+   "reason": "shop:approach",
+   "position": {
+    "y": 37,
+    "x": 105
+   },
+   "store_type": null,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1501,
+    "phase": "entering",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": null,
+    "posted_turn": null
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "shop:sell-rebuy-churn-defect",
+    "gold": 16260,
+    "wanted_purchase": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "considered_candidate": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "rejection_reason": "preempted",
+    "composition_refusal": "shop:sell-rebuy-churn-defect",
+    "composition_refusal_sequence": 1501
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": 5,
+    "visit_store": 5,
+    "phase": "entering",
+    "in_flight_clause": null,
+    "target_source": "stepped-onto-store-grid"
+   }
+  },
+  {
+   "decision_sequence": 1503,
+   "turn": 12756768,
+   "key": "\u001b",
+   "reason": "town-progress-invariant:continue-observed-shop",
+   "position": {
+    "y": 38,
+    "x": 106
+   },
+   "store_type": 5,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1501,
+    "phase": "leaving",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": 1503,
+    "posted_turn": 12756768
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "gold": 16260,
+    "wanted_purchase": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "considered_candidate": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 16260,
+     "allow_set": []
+    }
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": null,
+    "visit_store": 5,
+    "phase": "entering",
+    "in_flight_clause": "entering-with-posted-sequence",
+    "target_source": "store-exit-key"
+   }
+  },
+  {
+   "decision_sequence": 1504,
+   "turn": 12756781,
+   "key": "9",
+   "reason": "town:cross-town-shopping:travel-2",
+   "position": {
+    "y": 38,
+    "x": 106
+   },
+   "store_type": null,
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 5,
+    "visit_origin": "acquire",
+    "opened_sequence": 1504,
+    "phase": "entering",
+    "operation_posted": false,
+    "operation_released": false,
+    "operation_effect_observed": false,
+    "posted_sequence": null,
+    "posted_turn": null
+   },
+   "cross_town_shopping": {
+    "trigger_town_id": 0,
+    "blocking_categories": [
+     "identification-source:full"
+    ],
+    "shortage_costs": {
+     "identification-source:full": 19618,
+     "identify-staff": 829
+    },
+    "reserve": 1000,
+    "required_gold": 21447,
+    "candidate_order": [
+     1,
+     2,
+     3
+    ],
+    "tried_towns": [
+     1
+    ],
+    "target_town_id": 2
+   },
+   "shop_selector": {
+    "winning_rung": "shop:sell-rebuy-churn-defect",
+    "gold": 16260,
+    "wanted_purchase": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "considered_candidate": {
+     "category": "identify-staff",
+     "name": "\u9451\u5b9a\u306e\u6756 (2x 12\u56de\u5206)",
+     "letter": "f",
+     "price": 734,
+     "count": 2,
+     "charges": 12
+    },
+    "rejection_reason": "preempted",
+    "composition_refusal": "shop:sell-rebuy-churn-defect",
+    "composition_refusal_sequence": 1504
+   },
+   "town_emit_ownership": {
+    "blocked": false,
+    "target_store": 5,
+    "visit_store": 5,
+    "phase": "leaving",
+    "in_flight_clause": "leaving-with-posted-sequence",
+    "target_source": "_shopping_approach_store_type"
+   }
+  }
+ ]
+}

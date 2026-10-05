@@ -1129,20 +1129,30 @@ class ObservationMixin:
             )
         )
 
-    def _resolve_observed_uncomposable_stop(self, snapshot: Snapshot) -> bool:
-        """Advance an observed stop whose one-shot command cannot be composed."""
+    def _resolve_observed_uncomposable_stop(
+        self, snapshot: Snapshot, *, observed_no_operation: bool = False
+    ) -> bool:
+        """Settle an observed stop whose one-shot command cannot be composed.
+
+        A terminal shop refusal also settles a shelf after its plan cursor moved.
+        Other results (including restock waits) retain the current-stop gate.
+        """
         store_type = (
             self._shop_observation[0].store_type
             if self._shop_observation is not None
             else self._shopping_approach_store_type
         )
         plan = self._town_errand_plan
+        current_stop = bool(
+            plan is not None
+            and plan.index < len(plan.stops)
+            and plan.stops[plan.index] == store_type
+        )
         if (
             store_type is None
             or snapshot.store is not None
-            or plan is None
-            or plan.index >= len(plan.stops)
-            or plan.stops[plan.index] != store_type
+            or (not current_stop
+                and (store_type == STORE_HOME or not observed_no_operation))
         ):
             return False
         here = snapshot.grid_at(snapshot.player.position)
@@ -1164,9 +1174,9 @@ class ObservationMixin:
             )
         if not observed:
             return False
-        if store_type != STORE_HOME and self._wanted_purchase_is_home_first_refused(
-            snapshot, store_type
-        ):
+        if (not observed_no_operation and store_type != STORE_HOME
+                and self._wanted_purchase_is_home_first_refused(
+                    snapshot, store_type)):
             # The supplier page was observed, but Home-first arbitration
             # refused to ask the shop for the selected item.  Preserve both
             # the page and plan stop so this pass cannot become durable
@@ -1178,14 +1188,22 @@ class ObservationMixin:
             )
             if observation_generation == self._decision_sequence:
                 return True
-            plan.current_stop_passes = 0
-            plan.index += 1
+            if current_stop:
+                plan.current_stop_passes = 0
+                plan.index += 1
             self._shop_observation = None
             self._close_store_visit("home-first-yield")
             return False
-        plan.blocked_this_visit.append(store_type)
-        plan.current_stop_passes = 0
-        plan.index += 1
+        # The observed shelf, rather than the mutable plan cursor, owns this
+        # result. _shop may already have moved the plan to another stop; that
+        # must not discard the no-operation evidence and re-arm this visit.
+        if plan is not None and (
+            current_stop or store_type not in plan.blocked_this_visit
+        ):
+            plan.blocked_this_visit.append(store_type)
+        if current_stop:
+            plan.current_stop_passes = 0
+            plan.index += 1
         self._set_town_store_attempted(store_type, snapshot.turn, "observed-operation-uncomposable")
         if store_type == STORE_HOME:
             home_visit = getattr(self, "_home_visit", None)
@@ -1206,6 +1224,17 @@ class ObservationMixin:
                 store_type
             ] = self._town_observable_effect_state(snapshot)
             self._shop_observation = None
+            visit = self._store_visit
+            if (observed_no_operation and visit is not None
+                    and visit.store_type == store_type
+                    and not visit.operation_posted):
+                self._close_store_visit("observed-operation-uncomposable")
+            if observed_no_operation:
+                self._shop_selector_diagnostics["observed_stop_settlement"] = {
+                    "store_type": store_type,
+                    "reason": "shop:observed-operation-uncomposable",
+                    "decision_sequence": self._decision_sequence,
+                }
         self.last_reason = "shop:observed-operation-uncomposable"
         return True
 

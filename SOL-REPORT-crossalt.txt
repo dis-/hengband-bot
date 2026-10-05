@@ -1,0 +1,97 @@
+crossalt completion report - 2026-10-06
+
+Scope
+Worked only in C:\hengband\bot-client-crossalt, branch crosstown-alt-1006,
+base 4d864cb36cd3ee6d4f887a937c974214e8b17ea0. No push, game/bot launch,
+other worktree changes, full suite, or autorecover modification.
+
+Evidence and root cause
+The supplied decision file contains 629 decisions (876..1504). The state tail
+starts mid-row, so this is not a complete process-lifetime replay. The frozen
+late cycle is decisions 1498..1504: 9,1,ESC,7,3,ESC,9. The observed store is
+numeric 5, STORE_MAGIC in this emitter, although called Alchemist in the brief.
+
+The real shop selector chooses Identify staff f, then refuses the sale/rebuy
+churn. It posts no operation. That early refusal bypassed the normal shop
+tail. The outside settlement helper required the mutable plan cursor to still
+name this stop; an advanced/exhausted cursor therefore lost the durable refusal
+and left the visit unsettled. The invariant's known-supplier repair path also
+ignored blocked/no-effect stops, allowing the router to reacquire the shelf.
+
+Separately, the movement invariant judged cross-town travel against the stale
+shop approach goal (38,106), rather than its declared Reach (37,119). At the
+recorded (37,107) board it changed the valid producer key 9 into 1, back onto
+the shop entrance. Two owners could then alternate without an observed effect.
+
+Changes
+policy_observation.py settles an actually observed terminal no-operation refusal
+by shelf identity even after the cursor moves. It records the existing
+observed-operation-uncomposable outcome, blocks that stop for this town visit,
+updates the no-effect ledger, consumes the stale page, and closes the matching
+unposted visit. It advances only the cursor that really names this shelf.
+
+policy_shop.py preserves normal completed shop exits and Home-first handoffs.
+Terminal refusals use the new settlement path and return no command, allowing
+the next owner to run on the outside board. Waiting on the entrance would
+re-enter the shop. A structured observed_stop_settlement in shop_selector
+records store, existing reason, and decision sequence even when travel becomes
+the final decision. Stale Home flags cannot reinterpret a terminal refusal.
+
+policy_town.py judges cross-town Reach movement against the declared target,
+including the existing BFS detour contract. Supplier repair skips blocked and
+observed-no-effect stops. No timeout or new stop reason was introduced; the
+sequence field only scopes diagnostics. Settlement releases the shop owner
+before travel resumes, and movement progress uses the travel owner's goal.
+
+Recorded pin and revert proof
+tests/extract_crosstown_alt_fixture.py extracts raw input boundaries 1497..1504
+from the supplied backup. The committed compressed fixture has 8 inputs / 11
+state rows, source hashes, and recorded decision/ownership diagnostics.
+tests/test_crosstown_alt_recorded.py has five tests: original cycle/refusal,
+cursor-independent settlement, stale-goal movement, subsequent travel, and
+terminal refusal versus stale Home knowledge. Boundary state seeds are explicit;
+the actual selector, fallback, composition, router, and travel/invariant seams
+run unpatched. After divergence, later boards are counterfactual positions on
+the same recorded map/inventory, not claimed recorded effects. Travel reaches
+(37,119) in 13 steps without re-entering the store or repeating a position.
+
+Final-source revert checks: reverting all three source files to the base causes
+four pin failures; reverting settlement alone causes three; reverting town
+Reach/router alone causes three. All have zero errors. Restoring the final
+source passes all five. Existing recorded-test expectations were not changed.
+
+Validation
+Windows PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1,
+with output redirected and summaries printed. test_policy_town ran alone:
+589 passed. The selected batch passed 123: the new crosstown pin,
+test_s33_shadow_zero, test_town_structure_lint, test_item_sink_lint,
+test_oneshot_preempt_recorded, test_unaffordable_claim_tour_recorded, plus three
+justified extras: test_town_progress_invariant (changed progress seam),
+test_store_reentry_recorded (cached refusal and normal shop exit compatibility),
+test_town_emit_ownership_recorded (released visit versus foreign route ownership).
+No other crosstown/cross_town test modules existed. Total final coverage: 712
+tests, zero failures/errors. The pin also passed after the revert checks and
+metadata hash newline normalization. git diff --check passed.
+Summaries: jsonlog/crossalt-policy-town-release.json,
+jsonlog/crossalt-targeted-release.json, jsonlog/crossalt-pin-release.json,
+jsonlog/crossalt-revert-proof-release.json.
+
+Autorecover finding (report only)
+bot_autorecover can detect some non-stopping town loops: town_cycle examines the
+last 200 decisions, requires at least 150 non-periodic rows, all on floor 0,
+and at most three distinct reasons. This incident's last 200 contain 197
+non-periodic rows and six reasons, so it does not fire. Four core reasons plus
+await-entry and mana-absorb exceed the threshold; the bot need not stop first.
+
+The existing CLI loop-detected cell detector uses 40 samples and at most six
+distinct cells on one floor. The raw final window has only three cells, but
+_cell_loop_guard_applies deliberately excludes all town boards, and observed
+shop pages clear recent_cells. Thus that small detector is not active here.
+The separate town residence fuse is 1500 decisions; the supplied 629-row excerpt
+cannot establish total residence since town entry. No detector fix was made.
+
+Tokens-used estimate: approximately 130,000 for this task, including earlier
+analysis/tool output; exact cumulative metering is unavailable. Below the
+250,000 hard cap. Work is complete and testing stopped.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

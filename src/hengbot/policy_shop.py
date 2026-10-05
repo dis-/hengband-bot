@@ -2191,6 +2191,7 @@ class ShopMixin(InStoreMixin):
         home_deposit_refusal_sequence = self._shop_selector_diagnostics.get(
             "home_deposit_batch_refusal_sequence"
         )
+        settlement = self._shop_selector_diagnostics.get("observed_stop_settlement")
         self._shop_selector_diagnostics = {
             "winning_rung": self.last_reason,
             "gold": snapshot.player.gold,
@@ -2198,6 +2199,9 @@ class ShopMixin(InStoreMixin):
             "considered_candidate": considered,
             "rejection_reason": rejection_reason,
         }
+        if (settlement is not None
+                and settlement["decision_sequence"] == self._decision_sequence):
+            self._shop_selector_diagnostics["observed_stop_settlement"] = settlement
         if (
             composition_refusal is not None
             and composition_refusal_sequence == self._decision_sequence
@@ -5454,9 +5458,22 @@ class ShopMixin(InStoreMixin):
         # Decide the observed no-op while this page is still current, then
         # consume it exactly as the pre-composition contract did.  A later
         # pack/gold change must re-observe the shelf before using its letters.
-        if self._resolve_observed_uncomposable_stop(snapshot):
-            offer_outcome(WAIT_KEY, "uncomposable-stop-advanced")
-            return WAIT_KEY
+        terminal_refusal = (
+            inner == LEAVE_STORE_KEY
+            and composition_refusal not in {
+                "shop:leave",  # the normal tail already settled its stop
+                "shop:home-first-before-purchase",
+                "shop:home-first-yields-to-current-visit",
+            }
+        )
+        if self._resolve_observed_uncomposable_stop(
+            snapshot, observed_no_operation=terminal_refusal,
+        ):
+            # No operation was bound. Resume the next owner on this outside
+            # board; WAIT on a store entrance would start another empty visit.
+            key = None if terminal_refusal else WAIT_KEY
+            offer_outcome(key, "uncomposable-stop-advanced")
+            return key
         if composition_refusal in {
             "town:blocked:procurement-home-unavailable",
             "town:blocked:procurement-home-unroutable",
