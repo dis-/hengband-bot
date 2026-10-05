@@ -29,5 +29,18 @@ class OwnerRetiredLogOnlyTest(unittest.TestCase):
         self.assertFalse(arbiter._transfer_exhausted)
 
 
+class OwnerRetiredLogOnlyBurstTest(unittest.TestCase):
+    def test_third_retirement_within_the_window_stops_again(self):
+        from hengbot import cli
+
+        class Policy:
+            pass
+
+        policy = Policy()
+        self.assertTrue(cli._owner_retired_log_only_allows(policy))
+        self.assertTrue(cli._owner_retired_log_only_allows(policy))
+        self.assertFalse(cli._owner_retired_log_only_allows(policy))
+
+
 if __name__ == "__main__":
     unittest.main()
