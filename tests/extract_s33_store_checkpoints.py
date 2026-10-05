@@ -3,7 +3,8 @@
 Run against group 2's source, with S33_CHECKPOINT_SOURCE naming that revision.
 These are baseline-policy states produced by the existing frozen replay and
 its documented walls, not recovered live checkpoints or current trajectories.
-The current replay must stop at its first changed key (802).
+The extraction-era replay stopped at its first changed key (802). Current
+replays stop at 212 and use additional 3b12a514 independent substrates.
 """
 import base64
 import gzip

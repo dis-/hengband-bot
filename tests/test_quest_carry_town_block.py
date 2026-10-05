@@ -243,14 +243,23 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         self.assertNotEqual(
             policy.last_reason, "town:blocked:departure-unsatisfiable"
         )
-        # Equipped C-sheet calibration rework: the base route here was the
-        # strip calibration's Home deposit trip (store 7, armed because this
-        # fresh policy had no calibration).  Without the strip phase the
-        # ordinary errand route continues to the next supplier (store 4).
+        # e371f9a6: rows 2873665 (Alchemist, no *Identify*) and 2873956
+        # prove the carried freezing Beaked Axe's full ID unavailable.
+        # Deferring that optional candidate exposes the Weapon ammo errand;
+        # the old Alchemist retry was the unresolved full-ID owner, not a
+        # required supply stop. End at this first changed command.
         self.assertEqual(
             (str(stop_key), policy.last_reason),
-            ("\x1b`n%.", "shop:travel"),
+            ("\x1b`n#.", "shop:travel"),
         )
+        self.assertIsNone(policy._identification_need)
+        target = next(item for item in recorded_stop.inventory
+                      if item.slot == "l")
+        self.assertFalse(target.fully_known)
+        self.assertIn(policy._item_signature(target),
+                      policy._unbuyable_full_identify_sigs)
+        self.assertEqual(policy._identification_source_obtainability(
+            recorded_stop, full=True), "unavailable")
         self.assertFalse(policy._fixed_quest_ready_for_travel(recorded_stop, 31))
 
     def test_remote_scan_with_matching_plain_ammo_routes_home_first(self):

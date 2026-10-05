@@ -1,0 +1,136 @@
+suitefix4: triage of the three f8678cb5 full-suite failures
+Worktree: C:\hengband\bot-client-suitefix4
+Branch: suite-fix4-1005
+
+Result: all three differences are EXPECTED. No production-code change.
+The changing implementation is e24d3de9, introduced to main by merge
+e371f9a6 (parents 3b12a514 and e24d3de9). Sources for both main revisions
+were archived within this worktree; no checkout or other worktree was used.
+Each original failing identity passes on 3b12a514 and fails on e371f9a6.
+The 2026-09-02 decision is authoritative:
+「鑑定不能品があっても出発は許可・次回以降帰還時鑑定を試みる」.
+
+Row references below are ZERO-BASED rows of the named frozen JSONL fixture,
+not live jsonlog files. Decision indices use the fixture boundaries JSON.
+
+1. tests.test_quest_carry_town_block.QuestCarryTownBlockPins.
+   test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop
+   -> e24d3de9 / e371f9a6 -> EXPECTED
+   Fixture: quest-carry-town-block-r3-20260915.jsonl.gz.
+   Row 30 (Alchemist, turn 2873665) has no *Identify*. Row 39
+   (turn 2873956) still carries the incompletely identified freezing Beaked
+   Axe, signature (name, 22, 10), slot l. On the old source the full-ID owner
+   remains active and the enumerated need is only Alchemist identification;
+   it emits ESC ` n % . / shop:travel. On the new source the axe is excluded
+   for this visit and that owner clears. The real quest-ammo/ordinary ammo
+   and launcher-enchantment claims become visible. The next stop is Weapon:
+   ESC ` n # . / shop:travel. This ends the unavailable identification retry;
+   it does not introduce an unnecessary Alchemist visit or reorder a set of
+   pre-existing independent mandatory errands.
+   Change: update this final command pin, add assertions for unavailable
+   stock, cleared need, and the deferred axe identity. Keep every ammo,
+   abandonment, departure, Home scan, and fixed-quest readiness assertion.
+   The test ends at the changed command; no historical effect is replayed.
+
+2. tests.test_store_reentry_recorded.StoreReentryRecordedTest.setUpClass
+   -> e24d3de9 / e371f9a6 -> EXPECTED
+   Fixture: store-reentry-20261003.jsonl.gz.
+   Rows 259-260 (Alchemist, turn 6091524) show no *Identify*. At decision
+   212, row 261 (turn 6091532), the pack still contains the not-fully-known
+   Crusader Tulwar (23, 15). Old source: need=full, source=unavailable,
+   Alchemist identification plus Temple recall claims; recorded next command
+   ESC ` n $ . / shop:travel. New source: the Tulwar is deferred, full-ID
+   need clears, and ordinary equipment-catalog/Home work is exposed; command
+   ESC ` n ( . / shop:travel. The optional full-ID owner was the cause.
+   Change: first-change boundary 802 -> 212, pin both old and new commands,
+   source absence and deferred identity, and preserve the no-stop/no-owner-
+   conflict checks. Current replay still stops immediately at its first
+   difference. Later Phase 1 tests use explicitly independent, hashed
+   3b12a514 substrates; the existing 90fca3b7 substrates remain unchanged.
+   Preserve all operation bodies, price/confirmation gates, sale/buy checks,
+   fruitless-stop skips, restock evidence, breaker and refusal assertions,
+   later live-key-wall checks, and the old index-802 partial-Home absence
+   proof on its own independent substrate.
+   Removing the setUpClass error also exposed four EXPECTED stale assertions:
+   - Independent decisions 216 (row 269) and 795 (row 1018) now clear the
+     unavailable full-ID owner and choose Home. Update the flag-off keys;
+     retain every flag-on/off shelf-skip telemetry and latching assertion.
+   - The independent Home-first continuation at 787 (row 1004, turn 6099312)
+     defers the carried light Helmet (32, 5) and emits Home travel instead
+     of the recorded '7' approach. Pin both commands and stop there, before
+     feeding the obsolete 788/789 effects. Keep the initial Home-first
+     operation refusal and all later independent operation tests.
+   - Decision 834's observed Alchemist page (row 1093, turn 6105464) stocks
+     *Identify* at letter p for 10239 gold. Deferred incomplete candidates
+     exist and mandatory_purchase returns None. New selection pp1 CR CR
+     is the intended purchase-on-visited-stock behavior, ahead of the
+     optional Healing purchase pi CR. A new independent pin validates
+     that selection, exact price confirmation and mismatch rejection.
+     The original Healing operation-body/price/item assertions remain in
+     P1 under one declared counterfactual: no deferred full-ID retry demand.
+     Its page and all other state are unchanged; no production gate is mocked.
+
+3. tests.test_identify_staff_swap_churn_recorded.
+   IdentifyStaffSwapChurnRecordedTest.test_walled_replay_reproduces_the_recorded_keys
+   -> e24d3de9 / e371f9a6 -> EXPECTED
+   Fixture: identify-staff-swap-churn-20261003.jsonl.gz.
+   Rows 1994-1995 (Alchemist, turn 6066916) show no *Identify*. At decision
+   1714, row 1997 (turn 6066930), slot m is the incomplete Crusader Tulwar
+   (23, 15). Old source retains full-ID work with unavailable stock and emits
+   ESC ` n & . / shop:travel (Black Market). New source defers that identity
+   and exposes ordinary Home/catalog/deposit work, emitting ESC ` n ( . /
+   shop:travel. This is the same intended unavailable-candidate exclusion.
+   Change: stop the current replay at 1714, strictly compare every earlier
+   key/reason, and assert the exact old/new boundary commands, absence of
+   stock, cleared need and deferred identity. Independently constructed
+   baseline substrates at 2817 and 2846 preserve the existing live-key wall
+   and every key/reason at 2846-2853. The latter continuation reaches the
+   shared swap checkpoint only while its keys remain identical. Preserve
+   fuller-staff buying, equal/emptier-staff churn rejection, the 2870 stop,
+   and the separate constructed Home-withdrawal rejection.
+
+Checkpoint provenance and isolation:
+- tests/extract_suitefix4_checkpoints.py loads the unchanged historical
+  drivers from 3b12a514 with their original dump/timer/combat/live-key walls.
+  It verifies loaded production source against that revision and runs the
+  original test class. Store: 27 passed; staff: 5 passed. Baseline prefix
+  checks remain exact except for the already-declared historical walls.
+- New fixtures declare construction, source revision and input SHA256;
+  the current tests pin each compressed fixture's SHA256. New substrates
+  are independent baseline states, never effects of the new route.
+- tests/suitefix4_checkpoints.py restores captured test files and redirects
+  every nested Path beneath the old temporary directory into the current
+  test directory. Existing tests/__init__.py runtime isolation stays active.
+- Original JSONL fixtures, their boundaries and existing SHA256 pins are
+  unchanged. No opaque new live-key wall or production method mock is added.
+
+Module counts (Codex runtime Python; modules run sequentially):
+Baseline 3b12a514, original tests:
+  tests.test_quest_carry_town_block: 4 passed.
+  tests.test_store_reentry_recorded: 34 passed.
+  tests.test_identify_staff_swap_churn_recorded: 5 passed.
+Merge e371f9a6, original failing identities / bounded diagnostic replays:
+  quest carry: 1 failure, exact original command difference.
+  store reentry: 1 setUpClass error, first_changed=212.
+  identify staff: 1 failure, exact original difference at 1714.
+Fixed f8678cb5 tests:
+  tests.test_quest_carry_town_block: 4 passed (17.925s).
+  tests.test_store_reentry_recorded: 35 passed (148.159s).
+  tests.test_identify_staff_swap_churn_recorded: 5 passed (169.273s).
+  tests.test_star_identify_departure_recorded: 8 passed (7.867s).
+  tests.test_policy_identification: 48 passed (0.114s).
+  tests.test_item_sink_lint: 18 passed (31.339s).
+  tests.test_town_structure_lint: 19 passed (44.355s).
+  Total: 137 passed; no failures, errors or skips in these seven modules.
+  git diff --check: passed. Production src diff: empty.
+
+The supplied full-suite summary was used for triage; no full-suite rerun.
+The three known environment errors were excluded as instructed:
+test_travel_interrupted_store_await x1; test_store_visit_round3_gates x2.
+test_policy_town was not run: production code is unchanged, and the affected
+recorded modules plus related identification/structure checks cover this edit.
+No push. No game/BOT launch or control. No other worktree changes.
+C:\hengband\bot-client\jsonlog was not accessed or modified.
+SOL-TASK-suitefix4.txt and SUITE-f8678cb5.txt remain untracked inputs.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
