@@ -5075,7 +5075,11 @@ class ShopMixin(InStoreMixin):
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )
         if not entry_failed_here:
-            if self._shopping_approach_store_type == STORE_HOME:
+            survival_home = (writer_family == "survival"
+                             and self._shopping_approach_store_type == STORE_HOME
+                             and snapshot.player.food_type == FOOD_TYPE_MANA
+                             and snapshot.player.hungry)
+            if self._shopping_approach_store_type == STORE_HOME and not survival_home:
                 self._bind_catalogued_home_identification_withdrawal(snapshot)
             atomic_shop = self._atomic_shop_transaction_key(snapshot)
             if atomic_shop is not None:
@@ -5083,7 +5087,8 @@ class ShopMixin(InStoreMixin):
             atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
             if atomic_withdrawal is not None:
                 return atomic_withdrawal
-            atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
+            atomic_deposit = (None if survival_home else
+                              self._atomic_home_deposit_key(snapshot, step))
             if atomic_deposit is not None:
                 return atomic_deposit
             # This is one observed-uncomposable-stop rule with two entry

@@ -1,0 +1,100 @@
+SOL-REPORT-manahome.txt
+
+Completed in C:\hengband\bot-client-manahome on mana-home-fallthrough-1005,
+based on main 82fcaeb9. Commit subject:
+Fix hungry MANA Home survival handover and resume suspended work
+
+Fix
+Hungry MANA survival now files its own Home scan/withdrawal before optional
+Home work. An unposted deposit, relief request, errand, or equipment request
+is retained in the physical Home executor queue. Survival takes one device,
+absorbs its charge, and the interrupted request resumes. Its pending item,
+quantity, errand state, equipment session, and visit budget are preserved.
+Old address evidence is discarded and the withdrawal uses fresh evidence.
+
+Sent entry/operation input finishes its bounded observation first. A valid
+registered posted observer keeps its owner until that effect is settled;
+a pending operation no longer causes a terminal no-charges stop. Partial or
+refused deposits still use the existing bounded observer and relief handling.
+
+Incomplete Home pages yield to survival without optional deposits. Missing
+or shortened catalogue knowledge requests ~9 before withdrawal. An in-flight
+scan is observed rather than repeatedly sent. Home-first procurement and the
+existing measured fresh-catalogue-absence / static-no-Home purchase fallbacks
+remain intact; no shop purchase was substituted for an available Home device.
+
+Recorded evidence
+Source directory (read only):
+C:\hengband-backups\state-logs\mana-home-blocked-20261005-1342
+The following rows are from decisions.jsonl.gz:
+  row 8931: 2026-10-05T13:41:57+0900, turn 11698758, survival:mana-home-travel, key='\x1b`n(.'
+  row 8932: 2026-10-05T13:41:57+0900, turn 11699143, home:scan-incomplete-open-page, key='\x1b'
+  row 8933: 2026-10-05T13:41:58+0900, turn 11699153, home:atomic-deposit, key='5'
+  row 8934: 2026-10-05T13:42:00+0900, turn 11699153, home:atomic-deposit, key='dt21\rdpdn\x1b'
+  row 8935: 2026-10-05T13:42:00+0900, turn 11699160, town:blocked:survival-mana-no-charges, key='9'
+  row 8938: 2026-10-05T13:42:27+0900, turn 11699160, home:atomic-deposit, key='5'
+  row 8939: 2026-10-05T13:42:27+0900, turn 11699160, home:atomic-deposit, key='dn\x1b'
+  row 8942: 2026-10-05T13:42:30+0900, turn 11699170, town:blocked:survival-mana-no-charges, key='9'
+Rows 8935 and 8942 both report Home available, home_visit_filed=False,
+no approach step, and an EXIT_PENDING executor. Both characters are Hungry
+with 6,315 gold and zero carried food-device uses.
+
+Verbatim recovery boards: state.jsonl.gz row 1792 (turn 11699160) and
+row 1804 (turn 11699170). The initial copied state file also has the first
+blocked board at row 54. The before/after pin now checks that both verbatim
+boards, with a declared fresh Home-device supplier and interrupted owner,
+produce 5pa + Escape, reason survival:mana-home-withdraw, requester and
+registered execution producer survival. The interrupted claim id/goal and
+queued Home request are retained, with enforcement both off and on.
+
+Evidence limit: no checkpoint or complete Home catalogue was captured.
+The charged-device catalogue, held executor requests, and post-withdrawal /
+post-absorption effects are explicitly CONSTRUCTED test conditions. The
+captured incomplete pages do not establish charged-device presence or absence.
+This is an offline recorded-board regression, not a live-game replay.
+
+Fixture: tests/fixtures/mana-home-20261005.json.gz
+SHA256: cf5dd406e406370d03fdeeb9cff631ad7a73e57e9ecc6ea8c0fbe6322e220ca3
+Its provenance records the source hashes and exact row numbers. Re-extraction
+with python -m tests.extract_mana_home_fixture reproduced the same checksum.
+
+Validation (read summaries; failures were investigated and corrected)
+Interpreter: C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+PYTHONPATH=src;tests. The WindowsApps stub was not used.
+
+1. test_policy_town alone: 589 tests, OK (252.168 seconds).
+2. Required suites plus Home executor/recorded tests and 84 extra tests
+   selected by changed function names: 400 tests, OK, 9 existing skips
+   (256.802 seconds). Required suites: test_policy_supply,
+   test_manafood_departure_recorded, test_town_restock_trajectory,
+   test_hungry_mana_purchase_trajectory, test_item_sink_lint,
+   test_town_structure_lint, test_s33_shadow_zero.
+3. After the final posted-observer/restored-policy adjustments:
+   test_policy_supply + test_mana_home_recorded + test_item_sink_lint +
+   test_town_structure_lint: 255 tests, OK (147.785 seconds).
+   All existing A21 pins pass unchanged. The new recorded/executor module
+   contains 13 tests covering interruption, withdrawal, absorption, resumption,
+   same-device errands, equipment sessions, pending observations, stale
+   catalogues, and restored policies.
+
+Changed-function selection searched test methods for:
+_mana_food_survival_override_key, _ensure_home_visit_request,
+_derived_home_visit_request, _atomic_home_withdraw_key,
+_atomic_home_withdraw_dispatch_key, _shopping_approach_key,
+_observe_home_atomic_withdrawal_outside.
+
+python -m tests.revert_mana_home_pins: PASS. Individually loading the actual
+82fcaeb9 versions of _ensure_home_visit_request, _derived_home_visit_request,
+and _atomic_home_withdraw_dispatch_key in memory makes the relevant pins
+fail, without errors. No files were reverted and no other worktree was used.
+
+The lint manifests retain exact call-site checking: two existing Home
+adapter paths gained the survival guard; three reachable data/status helpers
+were explicitly classified. No blanket exemption was introduced.
+git diff --check: PASS.
+
+No push. No game or bot start/stop operations. No live jsonlog files were
+accessed. Only this worktree was modified; incident copies were read only.
+The supplied SOL-TASK-manahome.txt remains untracked and unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

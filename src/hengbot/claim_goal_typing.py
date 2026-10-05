@@ -356,6 +356,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "survival",
         ("survival:", T, EFFECT),
+        ("survival:mana-home-scan", O, KNOWLEDGE),
+        ("survival:mana-home-await-operation", O, STORE_OPERATION),
+        ("survival:mana-home-withdraw", O, STORE_OPERATION),
         ("survival:mana-home-approach", R, ENTRANCE),
         ("survival:mana-sale-approach", R, ENTRANCE),
         ("survival:mana-shop-approach", R, ENTRANCE),

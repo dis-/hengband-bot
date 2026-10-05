@@ -7304,6 +7304,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
+            visit_request = getattr(self._home_visit, "request", None)
+            suspended_same_item = (
+                visit_request is not None and visit_request.requester == "survival"
+                and (any(request.item_identity == signature or request.address == signature
+                         for request in self._home_visit.queued)
+                     or (self._home_errand.active and self._home_errand.request is not None
+                         and self._home_errand.request.signature == signature))
+            )
             procurement_class = self._home_atomic_withdraw_procurement_class
             move_identity = getattr(
                 self, "_home_atomic_withdraw_move_identity", None
@@ -7364,11 +7372,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._confirm_home_withdrawal_address(
                     signature, self._home_atomic_withdraw_index
                 )
-                if signature == self._home_pending_item:
-                    self._home_pending_take_confirmed = signature
-                if signature in self._home_pending_batch:
-                    self._home_pending_batch.remove(signature)
-                self._home_pending_quantities.pop(signature, None)
+                if not suspended_same_item:
+                    if signature == self._home_pending_item:
+                        self._home_pending_take_confirmed = signature
+                    if signature in self._home_pending_batch:
+                        self._home_pending_batch.remove(signature)
+                    self._home_pending_quantities.pop(signature, None)
                 if withdrawn.is_digging_tool:
                     # The queued operation, rather than the standing two-tool
                     # optimization target, is the departure premise.  Its
@@ -7418,7 +7427,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._home_pending_slot = None
                     self._home_candidate_waiting = True
                 if (
-                    withdrawn.tval == TVAL_STAFF
+                    not suspended_same_item
+                    and withdrawn.tval == TVAL_STAFF
                     and withdrawn.sval == SV_STAFF_IDENTIFY
                 ):
                     if self._home_pending_item == signature:
@@ -8774,7 +8784,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_errand_hold("__none__")
                 if getattr(self, "_town_claim_bar_enforced", False) else None
             )
-            if (self._home_catalogue_sequence_enforced()
+            if (snapshot.player.food_type == FOOD_TYPE_MANA
+                    and snapshot.player.hungry and self._find_edible(snapshot) is None
+                    and self._home_atomic_deposit_pending is None
+                    and self._home_atomic_withdraw_pending is None):
+                # Recovery pages must return to the survival owner before any
+                # optional Home deposit, errand, or equipment work is selected.
+                self.last_reason = "survival:mana-leave-wrong-store"
+                key = LEAVE_STORE_KEY
+                self._offer_execution(
+                    key, producer="survival", work_id="survival:mana-home",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                    continuation="survival.mana-home.resume",
+                )
+            elif (self._home_catalogue_sequence_enforced()
                     and (catalogue_key := self._home_catalogue_work_key(snapshot)) is not None):
                 key = catalogue_key
             elif (active_holder is not None

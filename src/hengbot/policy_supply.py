@@ -29,7 +29,7 @@ from hengbot.policy_constants import (
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
     SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
     TORCH_REFILL_FUEL, TORCH_THROW_TARGET, UP_STAIRS_KEY, USE_DEVICE_MIN,
-    WAIT_KEY,
+    WAIT_KEY, HOME_KNOWLEDGE_MACRO,
     permitted_dive_depth, required_destruction_uses,
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
@@ -1419,14 +1419,72 @@ class SupplyMixin:
         home_bearing_town = self._current_town_has_home(snapshot)
         if home_needed and home_bearing_town and self._home_available(snapshot):
             self._home_procurement_probe = (-1, -1)
-            if home_device is not None:
-                identity = self._item_signature(home_device)
-                self._home_pending_item = identity
+            if (home_device is not None and self._home_pending_item is None
+                    and not self._home_errand.active):
+                # Preserve the A21 queued-item contract when no other errand
+                # owns this slot. Existing work is never overwritten.
+                self._home_pending_item = self._item_signature(home_device)
                 self._home_pending_quantity = 1
+            # Posted input cannot be preempted. Wait for its existing bounded
+            # observer rather than declaring the reachable Home unavailable.
+            if (self._home_atomic_deposit_pending is not None
+                    or self._home_atomic_withdraw_pending is not None
+                    or getattr(getattr(self, "_home_visit", None), "entry_pending", False)):
+                holder = getattr(getattr(self, "_claim_register", None), "current", None)
+                execution = getattr(holder, "execution", None)
+                if (holder is not None and holder.is_open and execution is not None
+                        and execution.state == "awaiting"
+                        and (execution.operation_ref or "").startswith("decision:")
+                        and holder.goal.source in {"store-operation", "transaction"}
+                        and holder.owner.value in {"home-visit", "home-errand", "equipment-txn"}):
+                    # The sent operation retains its one registered observer.
+                    # Survival takes over after that bounded observer releases it.
+                    self.last_reason = (
+                        "equipment-transaction:await-confirmation"
+                        if holder.owner.value == "equipment-txn"
+                        else "home:atomic-withdraw-await-confirmation"
+                        if holder.owner.value == "home-errand"
+                        else "home:atomic-deposit-await-confirmation"
+                    )
+                    self._offer_execution(
+                        WAIT_KEY, producer=holder.owner.value,
+                        work_id=execution.work_id,
+                        next_step="home.operation.observe",
+                        expected_effect=execution.expected_effect,
+                        continuation=execution.continuation,
+                        budget_ref=execution.budget_ref,
+                    )
+                    return WAIT_KEY
+                self.last_reason = "survival:mana-home-await-operation"
+                self._offer_execution(
+                    WAIT_KEY, producer="survival", work_id="survival:mana-home",
+                    next_step="home.operation.observe",
+                    expected_effect="home-inventory-effect",
+                    continuation="survival.mana-home.resume",
+                    budget_ref="home-operation-existing-budget",
+                )
+                return WAIT_KEY
             self._rearm_town_store_for_new_work(
                 STORE_HOME, release_visit_bound=True
             )
             filed = self._ensure_home_visit_request(snapshot)
+            if filed and not self._home_knowledge_current:
+                if snapshot.store is not None:
+                    self.last_reason = "survival:mana-leave-wrong-store"
+                    return LEAVE_STORE_KEY
+                self.last_reason = "survival:mana-home-scan"
+                if self._home_knowledge_scan_inflight:
+                    self._offer_execution(
+                        WAIT_KEY, producer="survival",
+                        work_id=f"home-knowledge:{self._town_visit_epoch}",
+                        next_step="home.knowledge.observe",
+                        expected_effect="catalogue-adopted",
+                        continuation="survival.mana-home.resume",
+                        budget_ref="home-knowledge-existing-epoch",
+                    )
+                    return WAIT_KEY
+                self._offer_home_knowledge_request(producer="survival")
+                return HOME_KNOWLEDGE_MACRO
             step = (
                 self._shopping_approach_step(
                     snapshot, STORE_HOME, requester="survival"
