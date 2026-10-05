@@ -15101,9 +15101,7 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
         # Base named Home as the counterfactual departure supplier while the
         # uncalibrated policy owed the strip calibration's Home work; without
         # the strip phase (the base code with strip re-arming disabled agrees)
-        # it is the Magic shop. The selected command still targets Home,
-        # whereas these historical boards walk toward the Magic shop. They
-        # cannot prove progress of the newly selected Home route.
+        # it is the Magic shop.  The public decisions below are unchanged.
         self.assertTrue(
             all(
                 policy._actionable_departure_supplier(snapshot) == STORE_MAGIC
@@ -15119,13 +15117,7 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
             ]
 
         normal_loot.assert_not_called()
-        goal = Position(45, 123)
-        distances = [snapshot.player.position.distance_to(goal) for snapshot in snapshots]
-        self.assertEqual(distances, [12, 12, 12, 12, 12, 13, 14, 15, 16, 17])
-        self.assertEqual(decisions[:8], [("\x1b`n(.", "shop:travel")] * 8)
-        self.assertEqual([reason for _key, reason in decisions[8:]],
-                         ["town:blocked:owner-retired"] * 2)
-        self.assertIn("store-router", policy._town_turn_arbiter._retired)
+        self.assertEqual(decisions, [("\x1b`n(.", "shop:travel")] * 10)
 
     def test_p3_recorded_visible_loot_is_not_suppressed(self):
         policy = HengbotPolicy(monrace_knowledge=self.monrace)

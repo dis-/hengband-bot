@@ -45,92 +45,6 @@ RECALL_ACTIVATION_MAX_GAME_TURNS = (
 # decision row's ``arbiter.owner``), so the claim register enumerates it too.
 UNREGISTERED_FAMILY = "unregistered"
 
-
-def town_progress_parts(vector: object) -> tuple[object, object | None, object | None]:
-    """Observed goal effects and declared route rank, without bookkeeping.
-
-    Older checkpoints and standalone arbiter callers can carry opaque vectors.
-    Production vectors start with OwnerProgressCore; their policy flags and
-    command-language context are not evidence that a goal took effect.
-    """
-    if not isinstance(vector, tuple) or not vector or not isinstance(vector[0], OwnerProgressCore):
-        return vector, None, None
-    core = vector[0]
-    effects = (core.floor, core.inventory, core.equipment)
-    target = distance = None
-    for part in vector[1:]:
-        if not isinstance(part, tuple) or not part:
-            continue
-        if part[0] in {"observed-home", "home-full-relief", "observed-survival", "observed-departure"}:
-            effects += (part,)
-        elif part[0] == "locomotion":
-            # The generic route keeps its old Manhattan diagnostic after the
-            # declared goal and step rank. BFS declarations end in their rank.
-            if len(part) == 6 and isinstance(part[3], Position):
-                target, distance = part[:4], part[4]
-            elif isinstance(part[-1], int):
-                target, distance = part[:-1], part[-1]
-    return effects, target, distance
-
-
-def town_owner_progress(previous: object | None, current: object) -> bool:
-    """One rule for budgets, recurrence, transfer release and admission."""
-    if previous is None:
-        return True  # establish the first observation; no failed step yet
-    before_effect, before_target, before_rank = town_progress_parts(previous)
-    effect, target, rank = town_progress_parts(current)
-    relief_progress = False
-    if (isinstance(previous, tuple) and previous and isinstance(previous[0], OwnerProgressCore)
-            and isinstance(current, tuple) and current and isinstance(current[0], OwnerProgressCore)):
-        before_relief = next((part for part in before_effect if isinstance(part, tuple)
-                              and part and part[0] == "home-full-relief"), None)
-        relief = next((part for part in effect if isinstance(part, tuple)
-                       and part and part[0] == "home-full-relief"), None)
-        relief_progress = (before_relief is not None and relief is not None
-                           and before_relief[1] == relief[1] and relief[2] < before_relief[2])
-        # Filing or cancelling relief is a goal transition, not an observed
-        # disposal. Only its producer's observed remaining-space decrease counts.
-        before_effect = tuple(part for part in before_effect if part != before_relief)
-        effect = tuple(part for part in effect if part != relief)
-    ranks = rank if isinstance(rank, tuple) else (None, rank)
-    before_ranks = before_rank if isinstance(before_rank, tuple) else (None, before_rank)
-    return effect != before_effect or relief_progress or (
-        target is not None and target == before_target
-        and any(new < old for new, old in zip(ranks, before_ranks)
-                if new is not None and old is not None)
-    )
-
-
-def town_interruption_family(arbiter, reason: str) -> str | None:
-    family = (arbiter.ownership_family(reason) if arbiter is not None
-              else reason_owner_family(reason))
-    return family if family in {
-        "survival", "combat", "floor-loot", "bookkeeping", "escape",
-        "positioning", "hunt", "esp-threat",
-    } else None
-
-
-def town_retirement_changed(previous: object, current: object) -> bool:
-    if isinstance(previous, tuple) and previous and isinstance(previous[0], OwnerProgressCore):
-        return town_owner_progress(previous, current)
-    # Structural route-unavailable verdicts and legacy opaque checkpoints.
-    return previous != current
-
-
-def town_recurrence_key(vector: object) -> object:
-    """A repeated route state is stronger evidence than repeated step rank.
-
-    The secondary distance distinguishes a detour's two different places with
-    equal step rank. It never awards progress; only town_owner_progress does.
-    """
-    parts = town_progress_parts(vector)
-    if isinstance(vector, tuple):
-        for part in vector:
-            if (isinstance(part, tuple) and len(part) == 6
-                    and part[0] == "locomotion" and isinstance(part[3], Position)):
-                return parts, part[-1]
-    return parts
-
 RECALL_WAIT_REASONS = frozenset({
     "town:wait-recall",
     "town:wait-recall-leave",
@@ -446,9 +360,8 @@ class TownTurnArbiter:
     def _decision_owner(self, reason: str) -> str:
         """Bind ordinary work to the active errand; survival may hand off."""
         reason_owner = self.owner_for_reason(reason)
-        interruption = town_interruption_family(self, reason)
-        if interruption is not None:
-            return interruption
+        if reason_owner == "survival":
+            return reason_owner
         visit = getattr(self, "store_visit", None)
         if visit is None:
             return reason_owner
@@ -516,38 +429,21 @@ class TownTurnArbiter:
             self._transferred_visit = None
             self.telemetry = None
             return None
-        owner = self.owner_for_reason(reason)
-        interruption = town_interruption_family(self, reason)
-        if retirement_key_for is not None and interruption is None:
+        if retirement_key_for is not None:
             self._retired = {
                 owner: vector for owner, vector in self._retired.items()
-                if not town_retirement_changed(vector, retirement_key_for(owner))
+                if vector == retirement_key_for(owner)
             }
-        elif (interruption is None and self._visit_vector is not None
-              and self._visit_vector != progress_vector):
+        elif self._visit_vector is not None and self._visit_vector != progress_vector:
             self._retired = {
                 owner: vector for owner, vector in self._retired.items()
-                if not town_retirement_changed(vector, progress_vector)
+                if vector == progress_vector
             }
-        if interruption is None:
-            self._visit_vector = progress_vector
+        self._visit_vector = progress_vector
         # Keep per-producer progress budgets independent.  The externally
         # attributed owner is the visit/errand owner in telemetry and at the
         # emit boundary; contributors do not inherit one another's budget.
-        if interruption in {"combat", "floor-loot", "bookkeeping"}:
-            # These census owners share misc's legacy registration, but their
-            # work must never spend or replace that interrupted owner's budget.
-            registration = self.registry.get(owner)
-            self.telemetry = {
-                "owner": interruption, "producer_owner": owner,
-                "tenure": 0, "progress": False,
-                "budget_remaining_estimate": max(
-                    0, registration.budget - self._no_progress_by_owner.get(owner, 0)
-                ) if registration is not None else None,
-                "would_retire": False, "retired": False,
-                "retirement_set": sorted(self._retired),
-            }
-            return dict(self.telemetry)
+        owner = self.owner_for_reason(reason)
         recall_wait_progress = (
             owner == "departure"
             and reason in RECALL_WAIT_REASONS
@@ -559,7 +455,7 @@ class TownTurnArbiter:
         )
         same_owner = owner == self._owner
         previous_vector = self._vector_by_owner.get(owner)
-        recurrence_key = (owner, town_recurrence_key(progress_vector))
+        recurrence_key = (owner, progress_vector)
         if (
             not observation_wait
             and not recall_wait_progress
@@ -571,20 +467,16 @@ class TownTurnArbiter:
         progress = (
             not terminal
             and (
-                previous_vector is None
-                or town_owner_progress(previous_vector, progress_vector)
+                recall_wait_progress
+                or previous_vector is None
+                or previous_vector != progress_vector
             )
             and not recurrent
         )
         durable_progress = (
             progress
             and previous_vector is not None
-            and (self._pending_transfer is None or (
-                isinstance(previous_vector, tuple) and previous_vector
-                and isinstance(previous_vector[0], OwnerProgressCore)
-                and town_progress_parts(previous_vector)[0]
-                != town_progress_parts(progress_vector)[0]
-            ))
+            and self._pending_transfer is None
         )
         if durable_progress:
             # Transfer recurrence detects a tight store-to-store bounce.  Scope
@@ -609,7 +501,7 @@ class TownTurnArbiter:
         self._tenure = self._tenure + 1 if same_owner else 1
         no_progress = (
             self._no_progress_by_owner.get(owner, 0)
-            if observation_wait or recall_wait_progress
+            if observation_wait
             else 0 if progress
             else self._no_progress_by_owner.get(owner, 0) + 1
         )
@@ -626,7 +518,6 @@ class TownTurnArbiter:
         would_retire = (
             registration is not None
             and not observation_wait
-            and not recall_wait_progress
             and not progress
             and (remaining == 0 or recurrence_exhausted)
         )
@@ -658,8 +549,7 @@ class TownTurnArbiter:
         # Exempt waits do not enter recurrence accounting, so they must not
         # split its last counted pair either. Otherwise a cancelled recall
         # manufactures a recurrence of the board before the designed wait.
-        if (not observation_wait and not recall_wait_progress
-                and town_interruption_family(self, reason) is None):
+        if not observation_wait and not recall_wait_progress:
             self._last_pair = recurrence_key
         return dict(self.telemetry)
 
@@ -673,33 +563,18 @@ class TownTurnArbiter:
         if _mutate and not hasattr(self, "_recurrences"):
             self._recurrences = Counter()
         owner = self.owner_for_reason(reason)
-        if town_interruption_family(self, reason) is not None:
-            return True
-        previous = getattr(self, "_vector_by_owner", {}).get(owner)
-        if (isinstance(previous, tuple) and previous
-                and isinstance(previous[0], OwnerProgressCore)
-                and town_owner_progress(previous, progress_vector)
-                and getattr(self, "_recurrences", Counter())[
-                    (owner, town_recurrence_key(progress_vector))
-                ] < self.registry["detectors"].budget):
-            if _mutate and owner in self._retired:
-                del self._retired[owner]
-                self._no_progress_by_owner[owner] = 0
-                self._recurrences = Counter({pair: count for pair, count in self._recurrences.items()
-                                             if pair[0] != owner})
-            return True
         if getattr(self, "_transfer_exhausted", False):
             return False
         recurrences = getattr(self, "_recurrences", Counter())
         if (
-            recurrences[(owner, town_recurrence_key(progress_vector))]
+            recurrences[(owner, progress_vector)]
             >= self.registry["detectors"].budget
         ):
             return False
         retired_at = getattr(self, "_retired", {}).get(owner)
         if retired_at is None:
             return True
-        if town_retirement_changed(retired_at, retirement_key if retirement_key is not None else progress_vector):
+        if retired_at != (retirement_key if retirement_key is not None else progress_vector):
             if _mutate:
                 del self._retired[owner]
                 self._no_progress_by_owner[owner] = 0

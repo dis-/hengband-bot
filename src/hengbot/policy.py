@@ -2785,14 +2785,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self.last_reason = "home:scan-await-observation"
                 if (key is None and (released_any or self._decision_no_step_release)
                         and self._claim_errand_hold("__none__") is None):
-                    self.last_reason = (
-                        "town:blocked:owner-retired" if (
-                            arbiter.telemetry is not None
-                            and arbiter.telemetry.get("retired")
-                            and arbiter.telemetry.get("budget_remaining_estimate") == 0
-                        )
-                        else "town:blocked:no-actionable-claim-owner"
-                    )
+                    self.last_reason = "town:blocked:owner-retired"
                     key = WAIT_KEY
                 if (self.last_reason or "").startswith((
                     "ownership:holder-silent:", "ownership:declaration-",
@@ -7324,9 +7317,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self, "_home_atomic_withdraw_move_identity", None
             )
             after_count = (
-                self._home_transfer_count(snapshot, withdrawn)
-                if withdrawn.tval in {TVAL_STAFF, TVAL_WAND} and withdrawn.known
-                and not withdrawn.is_ego and not withdrawn.is_artifact else
                 self._inventory_move_identity_count(snapshot, move_identity)
                 if move_identity is not None
                 else self._inventory_signature_count(snapshot, signature)

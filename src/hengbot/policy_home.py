@@ -22,20 +22,6 @@ import re
 
 class HomeMixin:
 
-    def _home_transfer_count(self, snapshot: Snapshot, item) -> int:
-        """Count a posted take even when the game pools device charges.
-
-        Ordinary known staffs/wands of one kind merge on withdrawal. The
-        resulting charge-bearing display name is not the Home shelf name.
-        Equipment and unidentified objects still require their exact identity.
-        """
-        if (item.tval in {TVAL_STAFF, TVAL_WAND} and item.known
-                and not item.is_ego and not item.is_artifact):
-            return sum(carried.count for carried in snapshot.inventory
-                       if carried.tval == item.tval and carried.sval == item.sval
-                       and carried.known and not carried.is_ego and not carried.is_artifact)
-        return self._inventory_signature_count(snapshot, self._item_signature(item))
-
     def _home_is_full(self, snapshot: Snapshot) -> bool:
         fact = getattr(self, "_home_capacity_observation", None)
         return bool(fact and fact[1] > 0 and fact[0] >= fact[1]
@@ -85,8 +71,6 @@ class HomeMixin:
                 or signature in self._home_pending_batch
                 or any(self._sale_item_identity(carried) == self._sale_item_identity(item)
                        for carried in snapshot.inventory)
-                or (item.tval in {TVAL_STAFF, TVAL_WAND}
-                    and self._home_transfer_count(snapshot, item) > 0)
                 or item.is_bounty
                 # The store-side sale guard keeps the standing digging tool;
                 # selecting it here would withdraw an item no store sale may
@@ -280,17 +264,6 @@ class HomeMixin:
                                      self._sale_item_identity(item) == sale_identity)
             count = sum(item.count for item in snapshot.inventory
                         if self._sale_item_identity(item) == sale_identity)
-            if signature[1] in {TVAL_STAFF, TVAL_WAND}:
-                pooled = self._first_item(snapshot, lambda item:
-                    item.tval == signature[1] and item.sval == signature[2]
-                    and item.known and not item.is_ego and not item.is_artifact)
-                if pooled is not None:
-                    target = pooled
-                    count = self._home_transfer_count(snapshot, pooled)
-                    if count > before_count:
-                        signature = self._item_signature(pooled)
-                        relief["sale"] = (signature, store_type, before_count)
-                        sale_identity = self._sale_item_identity(pooled)
             identifying = relief.get("identifying")
             if identifying is not None and count <= before_count:
                 self._town_blocked_reason = "home-full-identification-effect-unresolved"
@@ -369,19 +342,6 @@ class HomeMixin:
                 if (not target.known or self._disposal_protected_by_identification(target)
                         or self._retention_reservation(snapshot, target) > 0
                         ):
-                    if target.tval in {TVAL_STAFF, TVAL_WAND} and before_count > 0:
-                        # A legacy relief request can merge into a kept supply
-                        # stack. Its take succeeded, but that stack is retained;
-                        # release this disposal goal and choose other surplus.
-                        relief["sale"] = None
-                        relief["withdrawn"] = False
-                        relief.pop("mode", None)
-                        self._home_errand.finish()
-                        return self._town_producer_entry(
-                            "home-full-retained-pooled-device",
-                            lambda: self._home_full_relief_key(snapshot),
-                            family="home-visit",
-                        )
                     self._town_blocked_reason = "home-full-surplus-now-reserved"
                     return self._town_blocked_key(snapshot)
                 if snapshot.store is not None:
@@ -410,8 +370,6 @@ class HomeMixin:
                 self._home_errand.finish()
                 self._invalidate_home_observation()
                 if relief["remaining"] == 0:
-                    if (self._town_blocked_reason or "").startswith("home-full-"):
-                        self._town_blocked_reason = None
                     self._home_rejected_deposits.difference_update(
                         entry[0] for entry in relief["deposits"])
                     self._home_deposit_abandoned = False
@@ -470,7 +428,7 @@ class HomeMixin:
                     knowledge_current=True):
                 return None
             relief["sale"] = (signature, store_type,
-                self._home_transfer_count(snapshot, item))
+                self._inventory_signature_count(snapshot, signature))
             self._home_pending_item = signature
             self._home_pending_quantity = item.count
             self._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
@@ -2338,9 +2296,6 @@ class HomeMixin:
             else None
         )
         before_count = (
-            self._home_transfer_count(snapshot, item)
-            if item.tval in {TVAL_STAFF, TVAL_WAND} and item.known
-            and not item.is_ego and not item.is_artifact else
             self._inventory_move_identity_count(snapshot, move_identity)
             if move_identity is not None
             else self._inventory_signature_count(snapshot, signature)
