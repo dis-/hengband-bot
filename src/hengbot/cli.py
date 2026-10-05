@@ -59,6 +59,7 @@ from hengbot.policy_constants import (
     IN_STORE_BREAKER_REASON_PREFIX,
     IN_STORE_BUY_REASON,
     IN_STORE_OPERATION_REASONS,
+    LEAVE_STORE_KEY,
     POLICY_FINAL_STOP_REASONS,
     SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
@@ -4377,6 +4378,11 @@ def _run_follow(
                             and policy.last_reason == "town:blocked:owner-retired"
                             and _owner_retired_log_only_allows(policy)):
                         _record_owner_retired_log_only(args, snapshot, key, policy)
+                        if getattr(snapshot, "store", None) is not None:
+                            # The retired producer's map key is invalid on a
+                            # store page (live 2026-10-05 21:06 stuck-prompt);
+                            # leave the page and decide again outside.
+                            key = LEAVE_STORE_KEY
                     elif (policy.last_reason in POLICY_FINAL_STOP_REASONS
                             or (policy.last_reason or "").startswith(
                                 ("ownership:holder-silent:",
