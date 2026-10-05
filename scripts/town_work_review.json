@@ -10332,5 +10332,31 @@
     "admission": "parent _town_producer_entry / town_work.validate_emit",
     "observer": "legacy/shadow-v1; no new effect credit",
     "delegation": "supports selected child; no independent success"
+  },
+  "cli.py:_handle_owner_retirement": {
+    "classification": "driver",
+    "rows": [
+      "store-exit",
+      "bookkeeping",
+      "plan-routing"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_work.py:bind_driver_override": {
+    "classification": "driver",
+    "rows": [
+      "store-exit",
+      "bookkeeping",
+      "plan-routing"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

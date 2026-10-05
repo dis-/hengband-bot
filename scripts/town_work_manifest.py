@@ -25,7 +25,9 @@ REGISTRY_REVIEW = ROOT / 'scripts/town_work_registry_review.json'
 SEAM_NAMES = {'_offer_execution', '_offer_execution_awaiting',
               '_offer_execution_no_step', '_offer_execution_done',
               '_town_producer_entry', 'send', 'submit_operation',
-              '_post_and_barrier', '_post_wm', 'post_keys', 'wm_post'}
+              '_post_and_barrier', '_post_wm', 'post_keys', 'wm_post',
+              # A driver rewrite of the decided key is an emission too.
+              'bind_driver_override'}
 REGISTRIES = {'_town_need_registry', '_purchase_rungs'}
 
 

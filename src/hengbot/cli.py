@@ -528,7 +528,7 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
             if snapshot.store is not None:
                 key = LEAVE_STORE_KEY
                 from hengbot.town_work import bind_driver_override
-                bind_driver_override(policy, key, site='cli.py:main')
+                bind_driver_override(policy, key, site='cli.py:_handle_owner_retirement')
             return key
         policy.last_reason = "town:blocked:owner-retired-burst"
     else:

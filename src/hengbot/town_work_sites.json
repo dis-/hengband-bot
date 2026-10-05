@@ -185,6 +185,18 @@
     "end_line": 5524,
     "ast_sha256": "8ad521e691b3242916d3b44d9b1f71c72007fbed6534ef32d64f0986024b3e33"
   },
+  "cli.py:_handle_owner_retirement": {
+    "classification": "driver",
+    "rows": [
+      "store-exit",
+      "bookkeeping",
+      "plan-routing"
+    ],
+    "delegation": "selected child; no independent success",
+    "line": 504,
+    "end_line": 537,
+    "ast_sha256": "1075051681ead2434ded4cab9fdb268a7c75d65462a06df46484c1d4fdf52b7d"
+  },
   "cli.py:_release_prompt_gated_tail": {
     "classification": "driver",
     "rows": [
@@ -9361,6 +9373,18 @@
     "line": 50,
     "end_line": 51,
     "ast_sha256": "2199ef17444a25a7b198a7f84ab57cbcef6e4c0f1683c5837e856e19335d8ec9"
+  },
+  "town_work.py:bind_driver_override": {
+    "classification": "driver",
+    "rows": [
+      "store-exit",
+      "bookkeeping",
+      "plan-routing"
+    ],
+    "delegation": "selected child; no independent success",
+    "line": 105,
+    "end_line": 110,
+    "ast_sha256": "3837bf3c39ed0491c97f254b7604686e21493171cfe251deac000e73d9f39078"
   },
   "town_work.py:code_site": {
     "classification": "data",
