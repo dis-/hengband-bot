@@ -8920,7 +8920,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if (
                     routed_home_visit
-                    and self._home_knowledge_invalidated
                     and not self._home_knowledge_scan_requested
                     and self._home_knowledge_scan_epoch is None
                     and not (
@@ -8938,6 +8937,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         "home-scan", "open-home-scan"
                     )
                 ):
+                    # A fresh policy has no catalogue and is not invalidated.
+                    # It still needs ~9: re-entering page zero of a 240-slot
+                    # Home cannot reveal the other pages or finish the scan.
                     self.last_reason = "home:request-knowledge-scan"
                     key = HOME_KNOWLEDGE_MACRO
                     self._offer_home_knowledge_request(producer="home-scan")

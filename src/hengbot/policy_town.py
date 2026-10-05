@@ -140,10 +140,11 @@ class TownMixin:
             decision_sequence=0,
             # Spending is not work: inventory/shelf/goal changes prove procurement.
             gold=0,
-            inventory=(tuple(sorted((observed_item(item) for item in snapshot.inventory), key=repr))
-                       if owner != "store-router" else ()),
-            equipment=(tuple(sorted((observed_item(item) for item in snapshot.equipment), key=repr))
-                       if owner != "store-router" else ()),
+            # A store trip includes the observed operation between its route
+            # legs. Keep that effect when the next leg re-enters the same
+            # entrance; distance alone repeats the pre-purchase route state.
+            inventory=tuple(sorted((observed_item(item) for item in snapshot.inventory), key=repr)),
+            equipment=tuple(sorted((observed_item(item) for item in snapshot.equipment), key=repr)),
         )
         home_blocked = (
             STORE_HOME in self._town_visit_ledger.blocked_stores
