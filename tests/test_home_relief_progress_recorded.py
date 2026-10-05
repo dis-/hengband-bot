@@ -65,6 +65,13 @@ class RecordedHomeReliefProgressTest(unittest.TestCase):
         self.assertEqual(p._home_full_relief['remaining'], old_remaining)
         key = p._home_full_relief_key(sold)
         self.assertEqual(p._home_full_relief['remaining'], old_remaining - 1)
+        self.assertEqual(key, '\x1b')
+        self.assertEqual(p.last_reason, 'home:scan-leave-store')
+        # CONSTRUCTED outside response to the changed exit. A census cannot
+        # be posted on the captured in-store sale-effect screen.
+        from dataclasses import replace
+        sold = replace(sold, store=None, turn=sold.turn + 1)
+        key = p._home_full_relief_key(sold)
         self.assertEqual(p.last_reason, 'home:request-knowledge-scan')
         self.assertTrue(key.startswith('~9'))
         # Posting is outside this focused producer/arbitration pin. Clear the

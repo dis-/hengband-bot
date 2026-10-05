@@ -225,7 +225,8 @@ _RUNGS: tuple[Rung, ...] = (
     ),
     # -- decide: the order _decide consults them ------------------------------
     _decide("_home_errand_knowledge_key", "home-errand",
-            "home-errand:request-knowledge:", "home-errand:await-fresh-knowledge:"),
+            "home-errand:request-knowledge:", "home-errand:await-fresh-knowledge:",
+            "home-errand:leave-for-knowledge:"),
     _decide("_home_full_relief_key", "home-visit", "home:full-"),
     _decide("_equipment_transaction_town_key", "equipment-txn",
             owns_transaction=True),                                    # 5765
@@ -354,6 +355,7 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_start_kill_quest_regeneration", "quest-request",
             "quest:regen:exhausted"),                                  # 7344
     # -- town: errands no _decide call site names; departure in town --------
+    _town("_home_full_skip_key", "home-visit", "home:full-skip:", ordinary=False),
     _town("town-errand:home-errand", "home-errand"),
     _town("town-errand:home-scan", "home-scan"),
     _town("town-errand:shop-buy", "shop-buy"),

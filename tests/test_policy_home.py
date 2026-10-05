@@ -5231,6 +5231,12 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
         scan_key = policy.choose_key(parse_snapshot(rows[1]))
+        self.assertEqual(scan_key, LEAVE_STORE_KEY)
+        policy.confirm_key_posted(scan_key)
+        # CONSTRUCTED outside response to the changed exit; the historical
+        # inside ~9 command could not safely open the knowledge menu.
+        page = parse_snapshot(rows[1])
+        scan_key = policy.choose_key(replace(page, store=None, turn=page.turn + 1))
         self.assertEqual(scan_key, "~9\x1b")
         policy.confirm_key_posted(scan_key)
         self.assertEqual(
@@ -5262,6 +5268,11 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
         scan_key = policy.choose_key(parse_snapshot(rows[1]))
+        self.assertEqual(scan_key, LEAVE_STORE_KEY)
+        policy.confirm_key_posted(scan_key)
+        # CONSTRUCTED outside board after the changed store exit.
+        page = parse_snapshot(rows[1])
+        scan_key = policy.choose_key(replace(page, store=None, turn=page.turn + 1))
         self.assertEqual(scan_key, "~9\x1b")
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
         policy.confirm_key_posted(scan_key)
@@ -5372,6 +5383,12 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
         scan_key = policy.choose_key(parse_snapshot(rows[1]))
+        self.assertEqual(scan_key, LEAVE_STORE_KEY)
+        policy.confirm_key_posted(scan_key)
+        # CONSTRUCTED outside response before the modified catalogue reply.
+        page = parse_snapshot(rows[1])
+        scan_key = policy.choose_key(replace(page, store=None, turn=page.turn + 1))
+        self.assertEqual(scan_key, "~9\x1b")
         policy.confirm_key_posted(scan_key)
         self.assertEqual(
             _dispatch_response_lines(
@@ -5549,7 +5566,7 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
 
 
 class RecordedStaleHomeScanInsideTest(unittest.TestCase):
-    def test_invalidated_multi_page_home_scans_before_leaving(self):
+    def test_invalidated_multi_page_home_leaves_before_scanning(self):
         raw_lines = (
             Path(__file__).parents[1]
             / "jsonlog"
@@ -5591,7 +5608,10 @@ class RecordedStaleHomeScanInsideTest(unittest.TestCase):
             # Re-file it through its production derivation from the recorded
             # outside board instead of assigning executor state.
             self.assertTrue(policy._ensure_home_visit_request(parse_snapshot(rows[3])))
-            inside_scan = policy.choose_key(first_page)
+            # CONSTRUCTED outside response after the changed exit. Reuse the
+            # frozen catalogue content as a reply to this outside scan.
+            outside = replace(first_page, store=None, turn=first_page.turn + 1)
+            inside_scan = policy.choose_key(outside)
             self.assertEqual(inside_scan, policy_module.HOME_KNOWLEDGE_MACRO)
             self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
             policy.confirm_key_posted(inside_scan)
@@ -5602,13 +5622,13 @@ class RecordedStaleHomeScanInsideTest(unittest.TestCase):
             self.assertEqual(len(policy._home_knowledge_items), 87)
 
             next_key = policy.choose_key(first_page)
-            self.assertEqual(next_key, "\r")
-            self.assertEqual(policy.last_reason, "shop:await-leave-confirmation")
+            self.assertNotIn("~9", next_key)
+            self.assertTrue(policy._home_knowledge_current)
             self.assertNotEqual(policy.last_reason, "home:scan-incomplete-open-page")
 
 
 class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
-    def test_live_errand_shopping_home_visit_scans_before_exit(self):
+    def test_live_errand_shopping_home_visit_exits_before_scan(self):
         raw_lines = (
             Path(__file__).parents[1]
             / "jsonlog"
@@ -5645,29 +5665,14 @@ class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
         self.assertTrue(policy._home_knowledge_invalidated)
         policy.confirm_key_posted(stale_key)
 
-        route_key = policy.choose_key(parse_snapshot(rows[3]))
-        self.assertEqual(route_key, "\x1b`n(.")
-        self.assertIsNotNone(policy._store_visit)
-        self.assertEqual(
-            (
-                policy._store_visit.owner,
-                policy._store_visit.purpose,
-                policy._store_visit.store_type,
-                policy._store_visit.visit_origin,
-            ),
-            ("town-errand", "shopping", STORE_HOME, "acquire"),
-        )
-        policy.confirm_key_posted(route_key)
-        self.assertEqual(policy.choose_key(parse_snapshot(rows[4])), "")
-        self.assertEqual(policy.last_reason, "store:entry-await-observation")
-
-        self.assertIsNotNone(policy._store_visit)
-        self.assertEqual(policy._store_visit.owner, "town-errand")
+        # CONSTRUCTED outside response after the changed exit. The old travel
+        # and Home reentry rows are not responses to this new scan command.
+        outside = replace(stale_page, store=None, turn=stale_page.turn + 1)
         self.assertFalse(policy._home_knowledge_scan_requested)
         self.assertIsNone(policy._home_knowledge_scan_epoch)
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertFalse(policy._town_space_deposit_actionable(parse_snapshot(rows[5])))
-        inside_scan = policy.choose_key(parse_snapshot(rows[5]))
+        inside_scan = policy.choose_key(outside)
         self.assertEqual(inside_scan, policy_module.HOME_KNOWLEDGE_MACRO)
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
         policy.confirm_key_posted(inside_scan)

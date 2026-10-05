@@ -15322,7 +15322,13 @@ class TownNeedRecursionRecordedTest(unittest.TestCase):
 
 
 class TownWeightDepartureRecordedTest(unittest.TestCase):
-    """Pins overweight Home work from the immutable post-bounty recording."""
+    """Pins overweight Home work from the immutable post-bounty recording.
+
+    DECLARED DIVERGENCE (2026-10-05): board 141's incomplete Home catalogue
+    now exits before requesting knowledge. The fixed exit charges one more
+    observed unfinished visit in this historical substrate. Subsequent frozen
+    boards are not claimed to be effects of the changed command.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -15342,12 +15348,14 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
             ]
         assert len(cls.rows) == 177
         cls.replay_result = None
+        cls.replay_home_passes = ()
 
     def _replay(self):
         if self.replay_result is not None:
             return self.replay_result
         policy = HengbotPolicy(monrace_knowledge=self.monrace)
         decisions = []
+        pass_transitions = []
         selected = None
         selected_snapshot = None
         for index, snapshot in enumerate(self.rows):
@@ -15356,6 +15364,11 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
                 selected_snapshot = snapshot
             key = policy.choose_key(snapshot)
             decisions.append((str(key), policy.last_reason))
+            before = pass_transitions[-1][2] if pass_transitions else 0
+            after = policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+            if after != before:
+                pass_transitions.append((index, before, after, str(key), policy.last_reason))
+        type(self).replay_home_passes = tuple(pass_transitions)
         type(self).replay_result = (
             policy, decisions, selected_snapshot, selected
         )
@@ -15364,7 +15377,10 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
     def test_r1_recorded_public_replay_posts_named_weight_owner(self):
         policy, decisions, _snapshot, _selected = self._replay()
 
-        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 5)
+        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 6)
+        self.assertEqual(self.replay_home_passes[-1],
+                         (141, 5, 6, LEAVE_STORE_KEY, 'home:scan-incomplete-open-page'))
+        self.assertEqual(self.rows[141].store.store_type, STORE_HOME)
         self.assertIn("home:weight-overload-deposit", {
             reason for _key, reason in decisions
         })
