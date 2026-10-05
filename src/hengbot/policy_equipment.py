@@ -1990,6 +1990,15 @@ class EquipmentMixin:
             return self._equipment_home_outcome(
                 LEAVE_STORE_KEY, label="abandon-blocked",
             )
+        if self._home_full_relief is None and self._home_full_retry_deposits is not None:
+            # The admitted transaction resumes after space relief. Explicitly
+            # hand its remaining deposits back from the retry ledger; unrelated
+            # retry items retain their Home owner until this session finishes.
+            reserved = {self._item_signature(item) for item in snapshot.inventory
+                        if self._equipment_transaction_deposit_owns_item(item)}
+            self._home_full_retry_deposits = tuple(
+                entry for entry in self._home_full_retry_deposits
+                if entry[0] not in reserved) or None
         if session.pending_action is not None:
             # A STORE board is the causal post-command barrier.  ``prime``
             # reconciles it before policy dispatch; never leave merely to make
@@ -2157,7 +2166,11 @@ class EquipmentMixin:
             quantity = f"{target.count}\r" if target.count > 1 else ""
             prefix = reserved_item_command(self, snapshot, "deposit", target, "equipment-txn")
             if prefix is None:
-                return None
+                self._block_equipment_transaction("deposit-reservation-refused")
+                self.last_reason = "equipment-transaction:deposit-reservation-refused"
+                return self._equipment_home_outcome(
+                    LEAVE_STORE_KEY, label="deposit-reservation-refused",
+                )
             key = prefix + quantity
             if not self._prepare_equipment_transaction_command(
                 session,
@@ -2224,7 +2237,11 @@ class EquipmentMixin:
                 }
                 prefix = reserved_item_command(self, snapshot, "withdraw", target, "equipment-txn", address=letter)
                 if prefix is None:
-                    return None
+                    self._block_equipment_transaction("withdraw-reservation-refused")
+                    self.last_reason = "equipment-transaction:withdraw-reservation-refused"
+                    return self._equipment_home_outcome(
+                        LEAVE_STORE_KEY, label="withdraw-reservation-refused",
+                    )
                 key = prefix + quantity
                 if not self._prepare_equipment_transaction_command(
                     session, action, observation, key,

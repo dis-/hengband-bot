@@ -8491,13 +8491,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and (self._home_full_relief is not None
-                 or self._home_full_retry_deposits is not None)
+                 or (self._home_full_retry_deposits is not None
+                     and self._equipment_transaction_session is None))
             and not self._equipment_transaction_owned_items
             and self._home_atomic_deposit_pending is None
             and self._home_atomic_withdraw_pending is None
         ):
-            # The suspended equipment continuation cannot deposit more items
-            # into this full Home while its prerequisite sale is still pending.
+            # A pending sale precedes equipment work. After space is ready,
+            # unrelated retry deposits must not intercept the transaction's
+            # Home page through a home-visit producer its holder cannot admit.
             key = self._town_producer_entry(
                 "_home_full_relief_key", lambda: self._home_full_relief_key(snapshot),
                 family="home-visit")
