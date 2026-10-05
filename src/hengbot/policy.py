@@ -5878,7 +5878,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and visit.claim_operation_identity is None
             and not self._town_posted_route_entry_wait(
                 self._claim_errand_hold("__none__", enforced=True))
+            and not self._town_offered_route_entry_wait(key)
         )
+
+    def _town_offered_route_entry_wait(self, key) -> bool:
+        """The arrived route's Observe is bound to its actual entry receipt."""
+        visit = getattr(self, "_store_visit", None)
+        buffer = _decision_offers.get(self)
+        return bool(key == "" and visit is not None
+                    and not visit.operation_posted
+                    and visit.posted_sequence is not None
+                    and visit.phase == StoreVisitPhase.ENTERING
+                    and self._store_entry_posted_owner == visit.store_type
+                    and self._store_entry_wait_owner == visit.store_type
+                    and self._store_entry_wait_key and buffer is not None
+                    and any(wait[0] == key and wait[1] == "store-router"
+                            and wait[3] == f"decision:{visit.posted_sequence}:{self._store_entry_wait_key}"
+                            and wait[4] == "store-page-open" for wait in buffer.waits))
 
     def _town_posted_route_entry_wait(self, route) -> bool:
         """An entry post can still belong to its Reach route, before a sale/buy."""
@@ -6958,6 +6974,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if reason == "store:entry-await-observation" and key == "":
             if snapshot.store is None and self._town_posted_route_entry_wait(route):
                 return None
+            # Arrival can complete the Reach before the exit binds its new
+            # Observe. Accept only the producer's wait for this exact posted
+            # entrance receipt; the exit then records that same declaration.
+            if snapshot.store is None and self._town_offered_route_entry_wait(key):
+                return None
             # Check the entry declaration first.  An entry can be armed before
             # its store operation exists; the final emit seam rejects an
             # unbound empty wait if procurement cannot replace it.
@@ -7970,6 +7991,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # snapshots are routing observations, so release the
                     # posted owner instead of absorbing the captured window.
                     self._store_entry_posted_owner = None
+                    self._release_claim_goal(
+                        "store-entry-unobserved", owners=("store-router",),
+                        kinds=("Observe",), sources=(CLAIM_OBSERVE_STORE_ENTRY,))
                     if self._store_visit is not None:
                         self._store_visit.transition(StoreVisitPhase.APPROACHING)
                 state = self._town_travel_state
@@ -8054,6 +8078,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         and visit.operation_producer_family in {"shop-buy", "shop-sell"}
                         else "store:entry-await-observation"
                     )
+                    self._offer_execution_awaiting(
+                        "", producer=(visit.operation_producer_family
+                                      if visit is not None and visit.operation_posted
+                                      else "store-router"),
+                        work_id=f"store-entry:{posted_entry_owner}",
+                        operation_ref=f"decision:{visit.posted_sequence}:{self._store_entry_wait_key}",
+                        expected_effect="store-page-open", continuation="store.entry.observe")
                     return ""
         pending_store_transaction = (
             self._town_visit_ledger.pending_store_transaction

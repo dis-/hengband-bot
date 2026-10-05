@@ -14,6 +14,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
+import tempfile
 
 import tests  # noqa: F401
 from hengbot.model import (InventoryItem, Position, StoreItem, StoreState,
@@ -44,6 +45,21 @@ def relief_scene(pin, enforced, *, safe=3, excellent=False):
                             fully_known=False, pseudo_feeling="special"),
                      *catalogue[2:])
     policy.consume_home_knowledge(catalogue)
+    if safe == 0:
+        # DECLARED CONSTRUCTED no-sale scene: pack surplus is explicitly kept.
+        # Home-full relief now searches carried surplus even with free pack
+        # slots; without these approvals the captured Restore Mana potion is
+        # a legitimate sale before the intended shelf destruction/ID scenario.
+        from hengbot.home_disposal import signature_key
+        # Keep constructed approvals local to this policy, not the worker's
+        # shared approval file used by unrelated recorded pins.
+        policy._test_home_approval_directory = tempfile.TemporaryDirectory(
+            prefix="home-full-approvals-")
+        policy._home_disposal.relocate(Path(policy._test_home_approval_directory.name))
+        policy._home_disposal._atomic_write_json(policy._home_disposal.decisions_path, {
+            "decisions": {signature_key(policy._item_signature(item)): "keep"
+                          for item in board.inventory}})
+        policy._home_disposal.reload_decisions()
     board = replace(board, messages=tuple(pin["refused"]["messages"]),
         grids={**board.grids, Position(10, 9):
                replace(grid(10, 9), store_number=STORE_ALCHEMIST)})

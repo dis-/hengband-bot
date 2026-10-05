@@ -135,6 +135,19 @@ def _flag_cost(flags, pval, knowledge):
 
 
 def has_positive_sale_value(item: InventoryItem, base_cost: int | None) -> bool:
+    return _visible_sale_value(item, base_cost) > 0
+
+
+def known_sale_value(item: InventoryItem, base_cost: int | None) -> int | None:
+    """Known per-item valuation, including enchantments, ego and charges.
+
+    Unknown items must be identified before this value can rank disposal.
+    This shares the sale tester's conservative handling of unexported facts.
+    """
+    return _visible_sale_value(item, base_cost) if item.known else None
+
+
+def _visible_sale_value(item: InventoryItem, base_cost: int | None) -> int:
     """Project calc_price/object_value_real using player-visible item knowledge.
 
     Unknown flavors use the game's guesses. Named fixed artifacts bypass the
@@ -148,42 +161,44 @@ def has_positive_sale_value(item: InventoryItem, base_cost: int | None) -> bool:
     if base_cost is None and base is not None and item.aware:
         base_cost = base["cost"]
     if (item.known or item.pseudo_feeling) and (item.is_broken or item.is_cursed):
-        return False
+        return 0
     if not item.known and not item.aware:
         if item.tval == 8:
             race = sale_monrace(item)
-            return race is not None and race["level"] > 0
-        return item.tval in {80, 75, 70, 55, 65, 66, 40, 45, 11}
+            return max(0, race["level"] * 50) if race is not None else 0
+        # Preserve the positive guessed-price tester for unaware flavors.
+        # known_sale_value never exposes this sentinel as a ranked valuation.
+        return int(item.tval in {80, 75, 70, 55, 65, 66, 40, 45, 11})
     if item.aware and (base_cost is not None and base_cost <= 0
                        or (item.tval, item.sval) in ZERO_BASE_KINDS):
-        return False
+        return 0
     if base_cost is None or (item.known and base is None):
-        return False
+        return 0
     if not item.known:
-        return True
+        return max(0, base_cost)
     flags = set(item.known_flags) | set(base["flags"] if base else ())
     fixed = (_named_definition(item, knowledge["artifacts"])
              if item.is_artifact else None)
     ego = _named_definition(item, knowledge["egos"]) if item.is_ego else None
     if (item.is_ego or item.is_artifact) and not item.fully_known:
-        return False
+        return 0
     if item.is_ego and (ego is None or ego["cost"] <= 0):
-        return False
+        return 0
     if fixed is not None:
         if fixed["cost"] <= 0:
-            return False
+            return 0
         extra_flags = flags - set(base["flags"] if base else ()) - set(fixed["flags"])
-        return fixed["cost"] + _flag_cost(extra_flags, item.pval, knowledge) > 0
+        return max(0, fixed["cost"] + _flag_cost(extra_flags, item.pval, knowledge))
     if item.tval in WEARABLE and item.pval < 0:
-        return False
+        return 0
     if item.tval in ARMOUR and item.to_a < 0:
-        return False
+        return 0
     if item.tval in WEAPONS | AMMO and item.to_h + item.to_d < 0:
-        return False
+        return 0
     if item.tval in {40, 45} and item.to_h + item.to_d + item.to_a < 0:
-        return False
+        return 0
     if item.tval == 7 and item.pval == 0:
-        return False
+        return 0
     value = base_cost
     if ego is not None:
         flags.update(ego["flags"])
@@ -224,8 +239,8 @@ def has_positive_sale_value(item: InventoryItem, base_cost: int | None) -> bool:
     if item.tval == 8:  # Figurine: object_value_real replaces the base value.
         race = sale_monrace(item)
         if race is None:
-            return False
+            return 0
         value = race["level"] * 50  # Sign is positive in every higher level band.
     if item.tval == 11:  # Capture balls are worth at least 1000, even empty.
-        return True
-    return value > 0
+        return max(1000, value)
+    return max(0, value)

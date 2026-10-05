@@ -222,6 +222,14 @@ class ConstructedDiscardTest(unittest.TestCase):
             stock = (*stock[:-1], unknown)
             source = InventoryItem('t', 'Identify', 1, TVAL_SCROLL, SV_SCROLL_IDENTIFY, True, True)
             b = replace(b, inventory=(*b.inventory, source))
+            # CONSTRUCTED approval for the added ID source: this scene checks
+            # identification, rather than selling an optional spare scroll.
+            from hengbot.home_disposal import signature_key
+            p._home_disposal._atomic_write_json(p._home_disposal.decisions_path, {
+                "decisions": {signature_key(sig): decision for sig, decision in {
+                    **p._home_disposal.decisions,
+                    p._item_signature(source): "keep"}.items()}})
+            p._home_disposal.reload_decisions()
             p.consume_home_knowledge(stock)
             b, key = self.refuse(p, b)
             self.assertEqual(p._home_full_relief.get('mode'), 'identify')

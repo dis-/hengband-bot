@@ -1,0 +1,1122 @@
+PRE-CODE AUDIT: d6a68666, 2026-10-05 23:56:56+0900, decision line 8507, turn 12692322.
+Source: C:/hengband-backups/state-logs/home-full-nosurplus-20261005-2356/.
+Board state-tail line 1039; complete Home knowledge line 1038. Indexes below are catalogue indexes (zero-based).
+DECLARED CONSTRUCTED: no checkpoint. Policy primed from captured board, captured skill knowledge line 1009, refreshed carried catalogue, captured optimization depth 49. Defaults: no sale-refusal/unsellable ledgers or explicit keep decisions are recorded. All Home sales already fail independently of those missing ledgers.
+Pack has 20 stacks / 3 free: pack-only branch is NOT reached; pack sale/discard results below evaluate the same selector as if space were needed, removing the tested physical stack from its probe. ACCEPTED means genuinely eligible, not rejected. The reported no-surplus terminal therefore does NOT prove every carried stack is protected.
+
+Home: 238 stacks
+  sale: groups are disjoint; indexes are zero-based
+    5: any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))
+      indexes: [0, 1, 2, 3, 4]
+    212: item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 197, 198, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237]
+    2: self._retention_reservation(probe, item) > 0; self._equipment_disposal_reserved(snapshot, item); item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [35, 37]
+    1: self._equipment_disposal_reserved(snapshot, item); item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [36]
+    3: item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item)); store_type is None
+      indexes: [62, 96, 142]
+    1: relief skipped signature (unresolved identification of another physical stack); not item.known; item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [97]
+    1: store_type is None
+      indexes: [99]
+    1: self._sale_retains_digging_tool(probe, item)
+      indexes: [196]
+    12: self._retention_reservation(probe, item) > 0; item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210]
+  discard: groups are disjoint; indexes are zero-based
+    5: any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))
+      indexes: [0, 1, 2, 3, 4]
+    163: equipment not R1-disposable dominated armour/launcher; destroy superior/procurement guard
+      indexes: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 63, 64, 65, 66, 67, 68, 69, 70, 72, 73, 74, 75, 76, 77, 79, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 93, 94, 95, 96, 98, 100, 101, 102, 103, 104, 105, 106, 107, 109, 110, 111, 112, 113, 115, 116, 117, 118, 119, 120, 123, 124, 125, 126, 127, 128, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 143, 145, 146, 147, 148, 149, 150, 152, 153, 154, 156, 157, 158, 160, 161, 162, 163, 164, 165, 167, 168, 169, 170, 171, 172, 173, 175, 176, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195]
+    32: equipment not R1-disposable dominated armour/launcher
+      indexes: [17, 21, 22, 197, 198, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237]
+    2: self._retention_reservation(probe, item) > 0; self._equipment_disposal_reserved(snapshot, item); equipment not R1-disposable dominated armour/launcher; destroy superior/procurement guard
+      indexes: [35, 37]
+    1: self._equipment_disposal_reserved(snapshot, item); equipment not R1-disposable dominated armour/launcher
+      indexes: [36]
+    19: item.is_artifact; equipment not R1-disposable dominated armour/launcher; destroy superior/procurement guard
+      indexes: [38, 71, 78, 80, 91, 92, 108, 114, 121, 122, 129, 142, 144, 151, 155, 159, 166, 174, 177]
+    1: item.is_artifact; equipment not R1-disposable dominated armour/launcher
+      indexes: [62]
+    1: relief skipped signature (unresolved identification of another physical stack); needs identification (identify selector allowed only if earlier guards pass); equipment not R1-disposable dominated armour/launcher
+      indexes: [97]
+    2: destroy superior/procurement guard
+      indexes: [99, 196]
+    11: self._retention_reservation(probe, item) > 0; equipment not R1-disposable dominated armour/launcher; destroy superior/procurement guard
+      indexes: [199, 200, 201, 202, 203, 204, 205, 206, 207, 209, 210]
+    1: self._retention_reservation(probe, item) > 0; self._item_matches_purchase_rung(probe, item); equipment not R1-disposable dominated armour/launcher; destroy superior/procurement guard
+      indexes: [208]
+pack: 20 stacks
+  sale: groups are disjoint; indexes are zero-based
+    6: self._retention_reservation(probe, item) > 0
+      indexes: [0, 2, 3, 6, 8, 14]
+    10: ACCEPTED
+      indexes: [1, 4, 5, 7, 9, 10, 11, 12, 13, 15]
+    1: store_type is None
+      indexes: [16]
+    1: self._sale_retains_digging_tool(probe, item); item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [17]
+    1: self._retention_reservation(probe, item) > 0; item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [18]
+    1: item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))
+      indexes: [19]
+  discard: groups are disjoint; indexes are zero-based
+    4: self._retention_reservation(probe, item) > 0; destroy superior/procurement guard
+      indexes: [0, 2, 3, 14]
+    10: ACCEPTED
+      indexes: [1, 4, 5, 7, 9, 10, 11, 12, 13, 16]
+    2: self._retention_reservation(probe, item) > 0; self._item_matches_purchase_rung(probe, item); destroy superior/procurement guard
+      indexes: [6, 8]
+    1: self._item_matches_purchase_rung(probe, item); destroy superior/procurement guard
+      indexes: [15]
+    2: equipment not R1-disposable dominated armour/launcher
+      indexes: [17, 19]
+    1: self._retention_reservation(probe, item) > 0; self._item_matches_purchase_rung(probe, item); equipment not R1-disposable dominated armour/launcher; destroy superior/procurement guard
+      indexes: [18]
+
+PER STACK (all failing guards, not just first failure)
+Home[0] slot=0 count=99 kind=75/29 スピードの薬 {25%引き}
+  sale: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  discard: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  retention=(0, None); identify eligible=False
+Home[1] slot=1 count=99 kind=75/29 スピードの薬 {25%引き}
+  sale: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  discard: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  retention=(0, None); identify eligible=False
+Home[2] slot=2 count=99 kind=75/29 スピードの薬 {25%引き}
+  sale: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  discard: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  retention=(0, None); identify eligible=False
+Home[3] slot=3 count=8 kind=75/29 スピードの薬 {25%引き}
+  sale: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  discard: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  retention=(0, None); identify eligible=False
+Home[4] slot=4 count=5 kind=75/37 体力回復の薬 {50%引き}
+  sale: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  discard: ['any((self._sale_item_identity(carried) == self._sale_item_identity(item) for carried in snapshot.inventory))']
+  retention=(0, None); identify eligible=False
+Home[5] slot=5 count=1 kind=45/7 浮遊の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[6] slot=6 count=1 kind=45/9 耐冷の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[7] slot=7 count=1 kind=45/10 腕力維持の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[8] slot=8 count=1 kind=45/11 知能維持の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[9] slot=9 count=1 kind=45/12 賢さ維持の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[10] slot=10 count=1 kind=45/13 耐久力維持の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[11] slot=11 count=1 kind=45/14 器用さ維持の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[12] slot=12 count=1 kind=45/15 魅力維持の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[13] slot=13 count=1 kind=45/16 大防御の守りの指輪 [+19] {.}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[14] slot=14 count=1 kind=45/17 酸の指輪 [+7]
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[15] slot=15 count=1 kind=45/19 氷の指輪 [+12]
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[16] slot=16 count=1 kind=45/20 耐毒の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[17] slot=17 count=1 kind=45/24 腕力の指輪 (+3)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[18] slot=18 count=1 kind=45/25 電撃の指輪 [+10]
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[19] slot=19 count=1 kind=45/26 器用さの指輪 (+4)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[20] slot=20 count=1 kind=45/26 器用さの指輪 (+2)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[21] slot=21 count=1 kind=45/28 精度の指輪 (+9)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[22] slot=22 count=1 kind=45/29 ダメージの指輪 (+11)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[23] slot=23 count=1 kind=45/38 恐れ知らずの指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[24] slot=24 count=1 kind=45/39 耐光耐暗の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[25] slot=25 count=1 kind=45/41 耐因果混乱の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[26] slot=26 count=1 kind=45/42 耐轟音の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[27] slot=27 count=1 kind=45/44 耐破片の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[28] slot=28 count=1 kind=45/46 耐カオスの指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[29] slot=29 count=1 kind=45/47 耐盲目の指輪
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[30] slot=30 count=1 kind=40/5 経験値保持の探索のアミュレット (+4) {+探赤;経~善オデ}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[31] slot=31 count=2 kind=40/13 反魔法のアミュレット
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[32] slot=32 count=1 kind=40/15 耐性のアミュレット
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[33] slot=33 count=1 kind=40/15 耐性のアミュレット
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[34] slot=34 count=1 kind=40/16 テレパシーのアミュレット
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[35] slot=35 count=6 kind=39/0 松明(2300ターンの寿命) {明, @v0=g}
+  sale: ['self._retention_reservation(probe, item) > 0', 'self._equipment_disposal_reserved(snapshot, item)', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'self._equipment_disposal_reserved(snapshot, item)', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(5, 'torch-carry'); identify eligible=False
+Home[36] slot=36 count=1 kind=39/0 松明(0ターンの寿命) {明, @v0=g}
+  sale: ['self._equipment_disposal_reserved(snapshot, item)', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._equipment_disposal_reserved(snapshot, item)', 'equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[37] slot=37 count=57 kind=39/0 松明(2500ターンの寿命) {明}
+  sale: ['self._retention_reservation(probe, item) > 0', 'self._equipment_disposal_reserved(snapshot, item)', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'self._equipment_disposal_reserved(snapshot, item)', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(5, 'torch-carry'); identify eligible=False
+Home[38] slot=38 count=1 kind=39/3 ★ヱヅソンの白熱灯 (+3赤外線視力) {+赤;明[炎電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[39] slot=39 count=1 kind=38/1 ブラックドラゴン・スケイルメイル (-2) [40,+17]
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[40] slot=40 count=1 kind=38/2 ブルードラゴン・スケイルメイル (-2) [40,+10]
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[41] slot=41 count=1 kind=38/16 ゴールドドラゴン・スケイルメイル (-2) [40,+14]
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[42] slot=42 count=1 kind=37/1 エルフの錆びた鎖かたびら (-5) [14,+1] (+2隠密) {+隠r酸電火冷暗}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[43] slot=43 count=1 kind=37/6 オログの重鎖かたびら (+1,+1) [16,+21] (+3) {+腕r酸}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[44] slot=44 count=1 kind=37/6 オログの重鎖かたびら (+0,+1) [16,+15] (+1) {+腕r冷}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[45] slot=45 count=1 kind=37/6 ドワーフの重鎖かたびら (-2) [21,+12] (+1) {+耐r電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[46] slot=46 count=1 kind=37/7 全耐性の二重鎖かたびら (-2) [16,+12] {r酸電火冷毒乱}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[47] slot=47 count=1 kind=37/7 オログの二重鎖かたびら (-1,+6) [16,+11] (+3) {+腕r酸}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[48] slot=48 count=1 kind=37/9 オログの金属製ブリガンダイン・アーマー (-2,+7) [19,+23] (+1) {+腕r冷}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[49] slot=49 count=1 kind=37/11 オログの当世具足 (+1,+7) [20,+14] (+3) {+腕r冷}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[50] slot=50 count=1 kind=37/11 ドワーフの当世具足 (-2) [25,+15] (+2) {+耐r火}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[51] slot=51 count=1 kind=37/12 オログのパーシャル・プレート・メイル (-1,+1) [22,+9] (+3) {+腕r冷}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[52] slot=52 count=1 kind=37/13 オログの金属製ラメラー・アーマー (+0,+7) [23,+7] (+3) {+腕r火}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[53] slot=53 count=1 kind=37/13 オログの金属製ラメラー・アーマー (+0,+7) [23,+6] (+2) {+腕r酸}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[54] slot=54 count=1 kind=37/13 ドワーフの金属製ラメラー・アーマー (-3) [28,+11] (+2) {+耐r冷}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[55] slot=55 count=1 kind=37/13 ドワーフの金属製ラメラー・アーマー (-3) [28,+6] (+3) {+耐r酸}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[56] slot=56 count=1 kind=37/14 全耐性の胴丸 (-2) [17,+11] {r酸電火冷破, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[57] slot=57 count=1 kind=37/16 全耐性の大鎧 (-2) [24,+12] {r酸電火冷沌}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[58] slot=58 count=1 kind=37/18 全耐性の強化プレート・アーマー (-3) [28,+14] {r酸電火冷破}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[59] slot=59 count=1 kind=37/18 オログの強化プレート・アーマー (+0,+2) [28,+13] (+2) {+腕r冷}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[60] slot=60 count=1 kind=37/18 オログの強化プレート・アーマー (-1,+2) [28,+8] (+3) {+腕r火}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[61] slot=61 count=1 kind=37/18 オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[62] slot=62 count=1 kind=36/0 ★Ｔシャツ『GHB を倒したけどこんな嫌なＴシャツしか手に入らなかったよ！』 [1,+0]
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))', 'store_type is None']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[63] slot=63 count=1 kind=36/1 ウルクの汚れたボロ服 (+1,+2) [1,+5] {r酸電火冷破, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[64] slot=64 count=1 kind=36/1 ドルイドの汚れたボロ服 [1,+15] (+1) {+賢r電暗}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[65] slot=65 count=1 kind=36/2 全耐性のローブ [2,+10] {r酸電火冷沌}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[66] slot=66 count=1 kind=36/3 ウルクの紙甲 (+5,+1) [4,+10] {r酸電火冷毒}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[67] slot=67 count=1 kind=36/5 オログの鋲付軟革よろい (+2,+3) [5,+13] (+3) {+腕r火}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[68] slot=68 count=1 kind=36/6 ドルイドの硬革よろい (-1) [6,+11] (+2) {+賢r酸暗}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[69] slot=69 count=1 kind=36/8 全耐性のサイ皮よろい (-1) [8,+3] {r酸電火冷劣}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[70] slot=70 count=1 kind=36/8 ドルイドのサイ皮よろい (-1) [8,+9] (+1) {+賢r火盲}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[71] slot=71 count=1 kind=36/9 ★防護服『化粧回し』 [4,+0] (+4) {+腕耐r恐;麻(腕耐}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[72] slot=72 count=1 kind=36/10 エルフの厚布よろい [5,+11] (+2隠密) {+隠r酸電火冷破}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[73] slot=73 count=1 kind=36/12 ドルイドの皮ジャケット (-1) [12,+4] (+1) {+賢r火時}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[74] slot=74 count=1 kind=36/60 宵闇のローブ [0,+0] {r酸電火冷毒閃暗破盲乱轟獄因沌劣時水恐;反麻視経浮(腕知賢器耐魅}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[75] slot=75 count=1 kind=35/1 至福の地アマンのクローク [1,+4] (+3隠密) {+隠r劣, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[76] slot=76 count=1 kind=35/1 蝙蝠のクローク (-12,-10) [1,+0] (+1) {+速隠赤r暗;視浮}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[77] slot=77 count=1 kind=35/1 電撃のクローク [1,+6] {r電[電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[78] slot=78 count=1 kind=35/1 ★クローク『コランノン』 [1,+15] (+5隠密) {+隠r酸冷;麻}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[79] slot=79 count=1 kind=35/2 エルフのクローク [4,+9] (+1隠密)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[80] slot=80 count=1 kind=35/2 ★エルフのクローク『ホルコルレス』 [4,+4] (+3) {+知賢隠探r酸;視(知賢}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[81] slot=81 count=1 kind=35/3 至福の地アマンの毛皮のクローク [3,+14] (+2隠密) {+隠r毒}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[82] slot=82 count=1 kind=35/6 灼熱の影のクローク [6,+14] {r火閃暗[炎, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[83] slot=83 count=1 kind=34/2 耐火の革製スモール・シールド [3,+9] {r火}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[84] slot=84 count=1 kind=34/5 耐火の金属製ラージ・シールド [8,+7] {r火}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[85] slot=85 count=1 kind=34/5 耐電の金属製ラージ・シールド [8,+8] {r電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[86] slot=86 count=1 kind=34/6 ドラゴン・シールド [8,+10] {r酸盲乱呪}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[87] slot=87 count=1 kind=34/6 ドラゴン・シールド [8,+10] {r水, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[88] slot=88 count=1 kind=34/6 ドラゴン・シールド [8,+15] {r乱}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[89] slot=89 count=1 kind=33/11 鋭敏の金の冠 [0,+8] (+6探索) {+探r盲;視}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[90] slot=90 count=1 kind=32/2 赤外線視力の硬革帽子 [2,+6] (+4) {+赤}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[91] slot=91 count=1 kind=32/2 ★スランドゥイル王の硬革帽子 [2,+10] (+2) {+知賢r盲時~感}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[92] slot=92 count=1 kind=32/3 ★センゲル王の金属帽子 [3,+12] (+3) {+賢魅r沌, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[93] slot=93 count=1 kind=32/5 知性の鉄ヘルメット [5,+7] (+2) {+知賢魅(知賢魅}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[94] slot=94 count=1 kind=32/6 光の鋼鉄ヘルメット [6,+5] {r閃;明}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[95] slot=95 count=1 kind=32/8 赤外線視力の星兜 [7,+7] (+2) {+赤}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[96] slot=96 count=1 kind=31/1 麻痺知らずの革グローブ [1,-1] {麻}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))', 'store_type is None']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[97] slot=97 count=1 kind=31/1 革グローブ [1] {並}
+  sale: ['relief skipped signature (unresolved identification of another physical stack)', 'not item.known', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['relief skipped signature (unresolved identification of another physical stack)', 'needs identification (identify selector allowed only if earlier guards pass)', 'equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=True
+Home[98] slot=98 count=1 kind=31/2 魔力支配のガントレット [2,+5] (+1) {+道}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[99] slot=99 count=1 kind=30/2 浮遊の軟革ブーツ [2,-2] {r閃;浮, @0}
+  sale: ['store_type is None']
+  discard: ['destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[100] slot=100 count=1 kind=30/3 浮遊の硬革ブーツ [3,+6] {r閃;浮}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[101] slot=101 count=1 kind=30/4 ドラゴン・ブーツ [5,+10] {r劣}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[102] slot=102 count=1 kind=30/4 ドラゴン・ブーツ [5,+17] {r電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[103] slot=103 count=1 kind=30/4 ドラゴン・ブーツ [5,+4] {r閃}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[104] slot=104 count=1 kind=30/4 ドラゴン・ブーツ [5,+11] {r酸, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[105] slot=105 count=1 kind=23/4 (パターン)ダガー (1d4) (+7,+15) (+1) {+腕耐r因;麻視/邪デ死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[106] slot=106 count=1 kind=23/4 凍結のダガー (1d4) (+8,+12) {r冷|凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[107] slot=107 count=1 kind=23/5 (混沌)マン・ゴーシュ (1d5) (+6,+4) {r沌時|沌}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[108] slot=108 count=1 kind=23/6 ★暗殺者荊軻の短刀 (2d5) (-2,+13) (+1) {+攻速器r恐|凍毒切}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[109] slot=109 count=1 kind=23/7 オークスレイヤーのレイピア (1d6) (+4,+7) (+3赤外線視力) {+器赤r暗/Xオ~オ}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[110] slot=110 count=1 kind=23/7 殺戮のレイピア (2d7) (+13,+1) {|切}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[111] slot=111 count=1 kind=23/8 滅善のスモール・ソード (1d6) (+8,+6) (+3) {+腕r盲;視/善~善}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[112] slot=112 count=1 kind=23/9 切れ味のバゼラード (1d8) (+10,+3) (+2) {+掘|切}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[113] slot=113 count=1 kind=23/11 虹色のサーベル (1d7) (+9,+10) {明|電焼凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[114] slot=114 count=1 kind=23/11 ★サーベル『カレス・アスドリアグ』 (1d7) (+6,+8) (+1攻撃) {+攻/X人龍オト巨動}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[115] slot=115 count=1 kind=23/12 切れ味のカットラス (1d7) (+8,+5) (+1) {+掘|切}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[116] slot=116 count=1 kind=23/14 (パターン)コペシュ (2d4) (+7,+12) (+2) {+腕耐r暗恐;麻視/邪デ死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[117] slot=117 count=1 kind=23/15 (聖戦者)タルワール (2d4) (+11,+10) [+1] (+1攻撃) {+攻賢r恐;視祝/邪デ死(耐}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[118] slot=118 count=1 kind=23/15 (聖戦者)タルワール (2d4) (+5,+11) [+3] (+3) {+賢r恐;視祝/邪デ死(耐}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[119] slot=119 count=1 kind=23/15 (トランプ)タルワール (2d4) (+12,+11) (+2探索) {+探r轟因;麻遅活瞬/邪, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[120] slot=120 count=1 kind=23/16 電撃のブロード・ソード (2d5) (+8,+7) {r電|電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[121] slot=121 count=1 kind=23/16 ★ブロード・ソード『ゴルン・ノヴァ』 (2d5) (+10,+10) (+2) {+腕器|理/X邪}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[122] slot=122 count=1 kind=23/16 ★ブロード・ソード『オルクリスト』 (2d5) (+10,+15) (+3隠密) {+器隠探赤r冷;遅明|凍/Xオ/邪ト巨~オト巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[123] slot=123 count=1 kind=23/17 溶解のロング・ソード (2d5) (+9,+9) {r酸|酸}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[124] slot=124 count=1 kind=23/17 滅邪のロング・ソード (2d5) (+13,+3) (+1) {+賢r恐;祝/邪~邪}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[125] slot=125 count=1 kind=23/17 人喰いのロング・ソード (2d5) (+9,+2) (+3隠密) {+器隠r恐/X人~人}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[126] slot=126 count=1 kind=23/17 ジャイアントスレイヤーのロング・ソード (2d5) (+5,+4) (+1) {+腕;麻/X巨~巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[127] slot=127 count=1 kind=23/17 切れ味のロング・ソード (2d5) (+5,+5) (+2) {+掘|切}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[128] slot=128 count=1 kind=23/17 電撃のロング・ソード (2d5) (+4,+3) {r電|電, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[129] slot=129 count=1 kind=23/17 ★ロング・ソード『デーモンベーン』 (2d5) (+5,+0) {/デ}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[130] slot=130 count=1 kind=23/18 追加攻撃のシミター (2d5) (+5,+8) (+1攻撃) {+攻}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[131] slot=131 count=1 kind=23/18 (吸血)シミター (2d5) (+7,+5) {経|吸/人}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[132] slot=132 count=1 kind=23/18 (トランプ)シミター (2d5) (+8,+8) (+2探索) {+探r轟因;麻遅活瞬/邪, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[133] slot=133 count=1 kind=23/20 切れ味のカタナ (3d4) (+6,+6) (+1) {+掘|切}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[134] slot=134 count=1 kind=23/25 毒殺のグレート・ソード (3d6) (+6,+8) {r毒|毒}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[135] slot=135 count=1 kind=23/25 電撃のグレート・ソード (3d6) (+5,+8) {r電|電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[136] slot=136 count=1 kind=23/26 (パターン)フランベルジュ (3d7) (+13,+14) (+1) {+腕耐r恐;麻視/邪デ死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[137] slot=137 count=1 kind=23/28 理力の首切りソード (4d5) (+6,+7) (+2) {+知賢;視|理}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[138] slot=138 count=1 kind=23/28 虹色の首切りソード (4d5) (+5,+8) {明|電焼凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[139] slot=139 count=1 kind=23/28 ジャイアントスレイヤーの首切りソード (4d5) (+8,+9) (+1) {+腕;麻/X巨~巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[140] slot=140 count=1 kind=23/29 滅邪のツヴァイハンダー (4d6) (+8,+6) (+1) {+賢r恐;祝/邪~邪}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[141] slot=141 count=1 kind=23/29 デーモンスレイヤーのツヴァイハンダー (4d6) (+11,+4) (+2) {+知r火/Xデ~デ}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[142] slot=142 count=1 kind=23/30 ★カオス・ブレード『ストームブリンガー』 (6d6) (+16,+16) (+2) {呪われている, +腕耐r乱獄沌;麻経怒|吸/人}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))', 'store_type is None']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[143] slot=143 count=1 kind=22/2 (防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[144] slot=144 count=1 kind=22/2 ★ハーゲンのスピア (1d6) (+11,+13) (+3加速) {+速隠赤r冷暗;投視|凍/死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[145] slot=145 count=1 kind=22/4 妖精のオウル・パイク (1d8) (+5,+1) (+2加速) {+速器魅道隠r酸;遅浮明}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[146] slot=146 count=1 kind=22/4 (防衛者)オウル・パイク (1d8) (+9,+9) [+3] (+4隠密) {+隠r酸電火冷呪;麻視活浮(賢}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[147] slot=147 count=1 kind=22/4 殺戮のオウル・パイク (3d9) (+3,+9)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[148] slot=148 count=1 kind=22/5 人喰いのトライデント (1d8) (+4,+8) (+1隠密) {+器隠r恐/X人~人}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[149] slot=149 count=1 kind=22/7 西方国のブロード・スピア (1d9) (+4,+11) (+1) {+腕器耐;麻視/オト巨~オト巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[150] slot=150 count=1 kind=22/8 西方国のパイク (2d5) (+3,+8) (+1) {+腕器耐;麻視/オト巨~オト巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[151] slot=151 count=1 kind=22/8 ★パイク『ティル=イ=アルク』 (3d5) (+10,+12) [+10] (+2) {+腕知耐r火冷;遅活明|焼凍/ト巨デ(腕知耐}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[152] slot=152 count=1 kind=22/10 追加攻撃のビークド・アックス (2d6) (+11,+8) (+1攻撃) {+攻}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[153] slot=153 count=1 kind=22/10 毒殺のビークド・アックス (2d6) (+5,+11) {r毒|毒}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[154] slot=154 count=1 kind=22/10 凍結のビークド・アックス (2d6) (+14,+4) {r冷|凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[155] slot=155 count=1 kind=22/11 ☆ブロード・アックス『ヘビ使い』 (2d6) (+18,+12) (+4) {+掘|毒~死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[156] slot=156 count=1 kind=22/12 ルツェルン・ハンマー (2d5) (+4,+5)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[157] slot=157 count=1 kind=22/12 虹色のルツェルン・ハンマー (2d5) (+7,+6) {明|電焼凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[158] slot=158 count=1 kind=22/13 (祝福)グレイブ (2d6) (+12,+11) [+3] (+3) {+賢r毒;明祝/デ死~善動}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[159] slot=159 count=1 kind=22/13 ☆グレイブ『鮫！鮫！鮫！』 (2d6) (+8,+10) (+2攻撃) {+攻探;浮/X龍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[160] slot=160 count=1 kind=22/15 西方国のハルベルト (3d5) (+4,+6) (+2) {+腕器耐;麻視/オト巨~オト巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[161] slot=161 count=1 kind=22/15 理力のハルベルト (3d5) (+6,+9) (+2) {+知賢;視|理}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[162] slot=162 count=1 kind=22/16 トロルスレイヤーのギザルム (2d5) (+4,+6) (+3) {+腕;活/Xト~ト}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[163] slot=163 count=1 kind=22/16 殺戮のギザルム (4d5) (+4,+8)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[164] slot=164 count=1 kind=22/17 (トランプ)大鎌 (5d3) (+6,+8) (+2探索) {+探r因呪;麻遅活瞬/邪, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[165] slot=165 count=1 kind=22/17 (吸血)大鎌 (5d3) (+12,+9) {経|吸}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[166] slot=166 count=1 kind=22/17 ★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃破;麻視明|電焼凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[167] slot=167 count=1 kind=22/22 虹色のバトル・アックス (2d8) (+5,+10) {明|電焼凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[168] slot=168 count=1 kind=22/25 西方国のグレート・アックス (4d4) (+10,+15) (+1) {+腕器耐r恐;麻視/オト巨~オト巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[169] slot=169 count=1 kind=22/25 アニマルスレイヤーのグレート・アックス (4d4) (+6,+8) (+3) {+知;活/X動~動}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[170] slot=170 count=1 kind=22/25 トロルスレイヤーのグレート・アックス (4d4) (+4,+5) (+1) {+腕;活/Xト~ト}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[171] slot=171 count=1 kind=22/25 凍結のグレート・アックス (4d4) (+9,+2) {r冷|凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[172] slot=172 count=1 kind=22/28 理力のロッホアーバー・アックス (3d8) (+12,+3) (+1) {+知賢;視|理}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[173] slot=173 count=1 kind=22/28 トロルスレイヤーのロッホアーバー・アックス (3d8) (+2,+1) (+2) {+腕;活/Xト~ト}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[174] slot=174 count=1 kind=22/40 ★太公望の釣り竿 (1d1) (+0,+0)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[175] slot=175 count=1 kind=21/2 妖精のムチ (1d6) (+11,+2) (+1加速) {+速器魅道隠r冷;遅浮明}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[176] slot=176 count=1 kind=21/2 アンデッドスレイヤーのムチ (1d6) (+11,+6) (+2) {+賢r獄;視祝/X死~死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[177] slot=177 count=1 kind=21/3 ★巨人夸父のクォータースタッフ (3d9) (+5,+10) (+2) {+速腕耐/邪デ死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['item.is_artifact', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[178] slot=178 count=1 kind=21/5 西方国のメイス (2d4) (+10,+11) (+2) {+腕器耐r恐;麻視/オト巨~オト巨, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[179] slot=179 count=1 kind=21/5 オークスレイヤーのメイス (2d4) (+4,+5) (+2赤外線視力) {+器赤r暗/Xオ~オ}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[180] slot=180 count=1 kind=21/6 (トランプ)鎖つき鉄球 (2d4) (+5,+11) (+1探索) {+探r因劣;麻遅活瞬/邪デ, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[181] slot=181 count=1 kind=21/6 理力の鎖つき鉄球 (2d4) (+6,+4) (+1) {+知賢;視|理}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[182] slot=182 count=1 kind=21/6 ドラゴンスレイヤーの鎖つき鉄球 (2d4) (+4,+3) (+1) {+耐r電毒/X龍~竜}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[183] slot=183 count=1 kind=21/8 (パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[184] slot=184 count=1 kind=21/8 虹色のウォー・ハンマー (3d3) (+5,+6) {明|電焼凍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[185] slot=185 count=1 kind=21/13 アンデッドスレイヤーのフレイル (2d6) (+7,+9) (+1) {+賢r獄;視祝/X死~死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[186] slot=186 count=1 kind=21/13 トロルスレイヤーのフレイル (2d6) (+5,+4) (+3) {+腕;活/Xト~ト}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[187] slot=187 count=1 kind=21/14 理力の六尺棒 (1d11) (+13,+6) (+2) {+知賢;視|理}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[188] slot=188 count=1 kind=21/15 ジャイアントスレイヤーの鉛詰めメイス (3d4) (+2,+8) (+2) {+腕;麻/X巨~巨}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[189] slot=189 count=1 kind=21/15 地震の鉛詰めメイス (3d4) (+7,+5) (+2) {+掘|震強}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[190] slot=190 count=1 kind=21/15 地震の鉛詰めメイス (3d4) (+5,+5) (+2) {+掘|震強}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[191] slot=191 count=1 kind=21/15 焼棄の鉛詰めメイス (3d4) (+3,+7) {r火;明|焼}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[192] slot=192 count=1 kind=21/16 地震の鉄棒 (2d7) (+3,+13) (+3) {+掘|震強}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[193] slot=193 count=1 kind=21/18 追加攻撃のヘヴィ・フレイル (3d6) (+5,+4) (+1攻撃) {+攻}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[194] slot=194 count=1 kind=21/18 滅邪のヘヴィ・フレイル (3d6) (+6,+10) (+1) {+賢r恐;祝/邪~邪}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[195] slot=195 count=1 kind=21/18 電撃のヘヴィ・フレイル (3d6) (+5,+3) {r電|電}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[196] slot=196 count=1 kind=20/6 穴掘りのドワーフのつるはし (1d4) (+4,+1) (+6) {+掘|酸}
+  sale: ['self._sale_retains_digging_tool(probe, item)']
+  discard: ['destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+Home[197] slot=197 count=1 kind=19/12 強力射のショート・ボウ (x3) (0.54turn) (+9,+11) {r冷;倍}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[198] slot=198 count=1 kind=19/12 高速度のショート・ボウ (x2) (0.54turn) (+10,+19) {.}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[199] slot=199 count=23 kind=18/1 クロスボウの矢 (1d5) (+1,+2) (58/shot 87/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(23, 'ammo:carry-plan'); identify eligible=False
+Home[200] slot=200 count=27 kind=18/1 クロスボウの矢 (1d5) (+4,+2) (58/shot 87/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(27, 'ammo:carry-plan'); identify eligible=False
+Home[201] slot=201 count=25 kind=18/1 クロスボウの矢 (1d5) (+3,+3) (62/shot 94/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(25, 'ammo:carry-plan'); identify eligible=False
+Home[202] slot=202 count=23 kind=18/1 クロスボウの矢 (1d5) (+2,+5) (69/shot 104/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(23, 'ammo:carry-plan'); identify eligible=False
+Home[203] slot=203 count=13 kind=18/1 クロスボウの矢 (1d5) (+4,+5) (69/shot 104/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(13, 'ammo:carry-plan'); identify eligible=False
+Home[204] slot=204 count=23 kind=18/1 クロスボウの矢 (1d5) (+7,+3) (62/shot 94/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(23, 'ammo:carry-plan'); identify eligible=False
+Home[205] slot=205 count=21 kind=18/1 クロスボウの矢 (1d5) (+5,+5) (69/shot 104/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(21, 'ammo:carry-plan'); identify eligible=False
+Home[206] slot=206 count=22 kind=18/1 クロスボウの矢 (1d5) (+7,+5) (69/shot 104/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(22, 'ammo:carry-plan'); identify eligible=False
+Home[207] slot=207 count=21 kind=18/1 ドラゴンキラーのクロスボウの矢 (1d5) (+5,+3) (62/shot 94/turn) {/竜}
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(21, 'ammo:carry-plan'); identify eligible=False
+Home[208] slot=208 count=26 kind=18/3 鋼鉄のクロスボウの矢 (3d5) (+0,+0) (76/shot 115/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'self._item_matches_purchase_rung(probe, item)', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(26, 'ammo:carry-plan'); identify eligible=False
+Home[209] slot=209 count=21 kind=18/3 鋼鉄のクロスボウの矢 (3d5) (+2,+2) (84/shot 127/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(21, 'ammo:carry-plan'); identify eligible=False
+Home[210] slot=210 count=18 kind=18/3 鋼鉄のクロスボウの矢 (3d5) (+3,+2) (84/shot 127/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(18, 'ammo:carry-plan'); identify eligible=False
+Home[211] slot=211 count=99 kind=17/1 矢 (1d4) (+0,+0)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[212] slot=212 count=12 kind=17/1 矢 (1d4) (+0,+0)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[213] slot=213 count=21 kind=17/1 矢 (1d4) (+2,+2)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[214] slot=214 count=26 kind=17/1 矢 (1d4) (+1,+4)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[215] slot=215 count=25 kind=17/1 矢 (1d4) (+2,+4)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[216] slot=216 count=26 kind=17/1 矢 (1d4) (+3,+3)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[217] slot=217 count=38 kind=17/1 矢 (1d4) (+5,+2)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[218] slot=218 count=32 kind=17/1 矢 (1d4) (+5,+3)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[219] slot=219 count=1 kind=17/1 矢 (1d4) (+2,+6)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[220] slot=220 count=26 kind=17/1 矢 (1d4) (+2,+7)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[221] slot=221 count=23 kind=17/1 矢 (1d4) (+5,+5)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[222] slot=222 count=10 kind=17/1 矢 (1d4) (+6,+6)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[223] slot=223 count=14 kind=17/1 破邪の矢 (1d4) (+3,+1) {/邪}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[224] slot=224 count=20 kind=17/1 殺傷の矢 (1d4) (+7,+5)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[225] slot=225 count=18 kind=17/1 アニマルキラーの矢 (1d4) (+7,+6) {/動}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[226] slot=226 count=24 kind=17/1 聖なる矢 (1d4) (+15,+6) {祝|焼/邪デ死}
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[227] slot=227 count=18 kind=17/3 束矢 (2d4) (+0,+0)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[228] slot=228 count=30 kind=17/3 束矢 (2d4) (+2,+4)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[229] slot=229 count=27 kind=17/3 束矢 (2d4) (+5,+5)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[230] slot=230 count=14 kind=17/3 束矢 (2d4) (+7,+7)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[231] slot=231 count=27 kind=17/4 細矢 (1d3) (+0,+0)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[232] slot=232 count=31 kind=17/4 細矢 (1d3) (+3,+4)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[233] slot=233 count=25 kind=17/4 細矢 (1d3) (+1,+6)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[234] slot=234 count=17 kind=17/4 細矢 (1d3) (+2,+5)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[235] slot=235 count=18 kind=17/4 細矢 (1d3) (+5,+6)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[236] slot=236 count=17 kind=17/4 細矢 (1d3) (+6,+6)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+Home[237] slot=237 count=28 kind=16/1 鉄弾 (1d3) (+0,+0)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+pack[0] slot=a count=10 kind=75/29 スピードの薬 {25%引き}
+  sale: ['self._retention_reservation(probe, item) > 0']
+  discard: ['self._retention_reservation(probe, item) > 0', 'destroy superior/procurement guard']
+  retention=(10, 'emergency-potion:speed'); identify eligible=False
+pack[1] slot=b count=1 kind=75/31 耐冷の薬
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[2] slot=c count=10 kind=75/36 致命傷の治癒の薬
+  sale: ['self._retention_reservation(probe, item) > 0']
+  discard: ['self._retention_reservation(probe, item) > 0', 'destroy superior/procurement guard']
+  retention=(10, 'supply-ledger:cure'); identify eligible=False
+pack[3] slot=d count=10 kind=75/37 体力回復の薬 {50%引き}
+  sale: ['self._retention_reservation(probe, item) > 0']
+  discard: ['self._retention_reservation(probe, item) > 0', 'destroy superior/procurement guard']
+  retention=(10, 'emergency-potion:heal'); identify eligible=False
+pack[4] slot=e count=1 kind=75/60 耐性の薬
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[5] slot=f count=3 kind=75/61 癒しの薬
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[6] slot=g count=14 kind=70/9 テレポートの巻物
+  sale: ['self._retention_reservation(probe, item) > 0']
+  discard: ['self._retention_reservation(probe, item) > 0', 'self._item_matches_purchase_rung(probe, item)', 'destroy superior/procurement guard']
+  retention=(14, 'supply-ledger:teleport'); identify eligible=False
+pack[7] slot=h count=1 kind=70/10 テレポート・レベルの巻物
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[8] slot=i count=9 kind=70/11 帰還の詔の巻物 {50%引き}
+  sale: ['self._retention_reservation(probe, item) > 0']
+  discard: ['self._retention_reservation(probe, item) > 0', 'self._item_matches_purchase_rung(probe, item)', 'destroy superior/procurement guard']
+  retention=(9, 'supply-ledger:recall'); identify eligible=False
+pack[9] slot=j count=2 kind=70/12 鑑定の巻物
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[10] slot=k count=2 kind=70/16 防具強化の巻物
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[11] slot=l count=2 kind=70/17 武器命中率上昇の巻物
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[12] slot=m count=2 kind=70/18 武器ダメージ増加の巻物
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[13] slot=n count=1 kind=70/35 聖祈言の巻物
+  sale: ACCEPTED
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[14] slot=o count=2 kind=65/6 岩石溶解の魔法棒 (21回分)
+  sale: ['self._retention_reservation(probe, item) > 0']
+  discard: ['self._retention_reservation(probe, item) > 0', 'destroy superior/procurement guard']
+  retention=(2, 'mana-device'); identify eligible=False
+pack[15] slot=p count=3 kind=55/5 鑑定の杖 (3x 4回分)
+  sale: ACCEPTED
+  discard: ['self._item_matches_purchase_rung(probe, item)', 'destroy superior/procurement guard']
+  retention=(0, None); identify eligible=False
+pack[16] slot=q count=1 kind=31/1 革グローブ [1,-1]
+  sale: ['store_type is None']
+  discard: ACCEPTED
+  retention=(0, None); identify eligible=False
+pack[17] slot=r count=1 kind=20/3 穴掘りのドワーフのシャベル (1d3) (+4,+6) (+6) {+掘|酸}
+  sale: ['self._sale_retains_digging_tool(probe, item)', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+pack[18] slot=s count=96 kind=18/1 クロスボウの矢 (1d5) (+0,+0) (50/shot 75/turn)
+  sale: ['self._retention_reservation(probe, item) > 0', 'item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['self._retention_reservation(probe, item) > 0', 'self._item_matches_purchase_rung(probe, item)', 'equipment not R1-disposable dominated armour/launcher', 'destroy superior/procurement guard']
+  retention=(96, 'ammo:carry-plan'); identify eligible=False
+pack[19] slot=t count=25 kind=17/1 矢 (1d4) (+2,+3)
+  sale: ['item.is_equipment and (not self._is_disposable_dominated_armour(snapshot, item))']
+  discard: ['equipment not R1-disposable dominated armour/launcher']
+  retention=(0, None); identify eligible=False
+
+ROOT FINDINGS (written before production/test changes)
+1. The sale selector rejects 231 Home stacks via the equipment/R1 guard (including guard overlaps). R1 is a Warrior equipment-search prune, not a universal definition of unneeded items. The equipment catalogue explicitly omits ammunition; arrows and shots therefore can never satisfy this guard. Home indexes 211..237 (27 stacks) have zero retention and no superior/procurement guard and are known surplus for the currently equipped crossbow; nevertheless BOTH selectors reject all 27. This alone causes the recorded no-surplus terminal. R1 also refuses broken/cursed junk and is not a general-purpose disposal authority.
+2. Discard adds a pack-only superiority check after the full-catalogue R1 proof. A Home item dominated by another Home item can pass R1 yet fail the pack-only guard after withdrawal. Recorded shoes at Home[99] show this inconsistency; the shovel at Home[196] is R1-disposable but protected as a standing digging tool for sale and as superior for destruction. These proofs must be consistent before/after take. Do not weaken protection of artifacts or nondominated equipment candidates.
+3. Home[0..4] consumable stacks collide with carried identities; the selector rejects them to avoid merging with reserved carried stacks. Ten carried stacks are actually sale-eligible and ten discard-eligible under the reconstructed ledger, but none is considered because 20 < 23 pack capacity. A no-candidate terminal must not be inferred from a partial shelf-only search.
+4. The skipped unknown glove signature is shared by Home[97] and the withdrawn unidentified glove (state 1035 slot s). Signature-wide skipping suppresses a distinct physical stack, even though that stack has not had identification attempted. The first protected glove was removed from the Home list; the still-present glove must not be confused with it.
+5. Identification command ups selected staff p, but the next board does not prove a unique renamed item: declining knowledge does not permit destruction. A visible skip is appropriate; the next candidate must remain selectable.
+6. At 23:55:51 (decision 8478) routing acquired Home store 7 (granted-new, approaching) but returned no step. The decision reports zero known/marked map cells, one visited cell, no active transaction and no blocked Home allowance (0 approach failures, 0 unsatisfied passes, limit 300). This is not an observed shop sale refusal. The recorded player-turn at state-tail 991 actually contains Home terrain; independently parsing it produces a valid route. No policy checkpoint exists, so the initiating absent/stale terrain view cannot be uniquely reconstructed. What IS provable in code: the relief installs home-full-surplus-store-unreachable, then _shopping_approach_step refuses ANY subsequent route while _town_blocked_reason is set, before looking at the now-visible map. It is a self-locking terminal. Changing owner every few waits cannot discharge that routing latch; the same relief continues to return wait. Re-evaluate the relief's own route failure from current item/map facts instead of feeding its prior diagnostic into route admission. No time guard.
+
+Counts are exhaustive and disjoint in the grouped sections; guard-overlap counts above are intentionally not additive. Sale refusal / durable approval files were not copied in the evidence; missing checkpoint state is explicitly not presented as recorded fact. The recorded terminal is independently explained by the identified exclusions.
+
+Post-code arithmetic erratum: the root narrative originally said 232; the already-recorded disjoint groups give 231 stacks failing R1. Grouped/per-stack audit data is unchanged.

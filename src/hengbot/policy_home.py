@@ -16,6 +16,7 @@ from hengbot.equipment_optimizer import AMMUNITION_TVALS, equipment_identity, eq
 from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import fields, replace
 from hengbot.baseitem_knowledge import item_base_cost
+from hengbot.store_sale import known_sale_value
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.model import STORE_ARMOURY, STORE_TEMPLE
 import re
@@ -66,24 +67,69 @@ class HomeMixin:
                 or signature in self._unsellable_items
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
-                or self._equipment_disposal_reserved(snapshot, item)
+                or self._home_full_equipment_reserved(snapshot, item)
+                or self._item_matches_purchase_rung(probe, item)
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
-                or any(self._sale_item_identity(carried) == self._sale_item_identity(item)
-                       for carried in snapshot.inventory)
+                or self._home_full_merge_reserved(snapshot, item, destroy=False)
                 or item.is_bounty
                 # The store-side sale guard keeps the standing digging tool;
                 # selecting it here would withdraw an item no store sale may
                 # take (live 2026-10-05 05:14 retain-standing-digging-tool loop).
                 or self._sale_retains_digging_tool(probe, item)
-                or (item.is_equipment
-                    and not self._is_disposable_dominated_armour(snapshot, item))
+                or not self._home_full_equipment_surplus(snapshot, item)
                 or store_type is None):
             return None
         value = item_base_cost(item, self._baseitem_costs)
         if value is not None and value <= 0:
             return None
         return item, store_type, value or 0
+
+    def _home_full_equipment_reserved(self, snapshot: Snapshot, item: InventoryItem) -> bool:
+        # The ordinary Home equipment guard retains every torch. An observed
+        # exhausted torch cannot supply light or throwing fuel; retain only
+        # real transaction/purchase ownership in that case.
+        if item.is_torch and item.known and item.fuel <= 0:
+            return (self._equipment_transaction_owns_item(item)
+                    or self._item_signature(item) in self._town_visit_purchases)
+        return self._equipment_disposal_reserved(snapshot, item)
+
+    def _home_full_merge_reserved(
+        self, snapshot: Snapshot, item: InventoryItem, *, destroy: bool,
+    ) -> bool:
+        """A matching pack stack is a barrier only when it needs protection."""
+        for carried in snapshot.inventory:
+            if self._sale_item_identity(carried) != self._sale_item_identity(item):
+                continue
+            sig = self._item_signature(carried)
+            relief = self._home_full_relief or {}
+            if (not item_available(self, snapshot, carried, "home-visit",
+                                   "destroy" if destroy else "home-full-sale")
+                    or sig in relief.get("skipped", {})
+                    or sig in {entry[0] for entry in relief.get("deposits", ())}
+                    or not carried.known or self._disposal_protected_by_identification(carried)
+                    or (destroy and carried.is_artifact)
+                    or carried.is_bounty or self._home_disposal.decision(sig) == "keep"
+                    or self._retention_reservation(snapshot, carried) > 0
+                    or self._home_full_equipment_reserved(snapshot, carried)
+                    or self._item_matches_purchase_rung(snapshot, carried)
+                    or not self._home_full_equipment_surplus(snapshot, carried)):
+                return True
+        return False
+
+    def _home_full_equipment_surplus(
+        self, snapshot: Snapshot, item: InventoryItem,
+    ) -> bool:
+        """Keep loadout candidates; R1 is not the retention authority for ammo."""
+        if not item.is_equipment or item.is_ammo:
+            # Ammunition has its own quantity/launcher reservation, applied by
+            # both callers. It is deliberately absent from the R1 catalogue.
+            return True
+        if self._sale_retains_digging_tool(snapshot, item):
+            return False
+        return ((item.is_torch and item.known and item.fuel <= 0)
+                or self._is_spare_lantern(snapshot, item)
+                or self._is_disposable_dominated_armour(snapshot, item))
 
     def _home_full_discard_candidate(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
@@ -100,22 +146,24 @@ class HomeMixin:
                 or signature in self._undestroyable_sigs
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
-                or self._equipment_disposal_reserved(snapshot, item)
+                or self._home_full_equipment_reserved(snapshot, item)
                 or self._item_matches_purchase_rung(probe, item)
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
-                or any(self._sale_item_identity(carried) == self._sale_item_identity(item)
-                       for carried in snapshot.inventory)):
+                or self._home_full_merge_reserved(snapshot, item, destroy=True)):
             return None
         needs_id = not item.known or self._disposal_protected_by_identification(item)
         if needs_id:
             return item if identify else None
         if identify:
             return None
-        if (item.is_equipment
-                and not self._is_disposable_dominated_armour(snapshot, item)):
+        if not self._home_full_equipment_surplus(probe, item):
             return None
-        if self._destroy_would_discard_superior_item(probe, item):
+        # Equipment surplus already has a full-catalogue proof (or is junk /
+        # unused ammunition). A pack-only comparison would discard that proof
+        # when its better counterpart remains on a Home shelf after the take.
+        if (not item.is_equipment
+                and self._destroy_would_discard_superior_item(probe, item)):
             return None
         return item
 
@@ -124,7 +172,7 @@ class HomeMixin:
         # or an observed refused sale, has zero realizable store buy value.
         stores = (STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC, STORE_GENERAL,
                   STORE_TEMPLE, STORE_ALCHEMIST)
-        value = (item_base_cost(item, self._baseitem_costs) or 0
+        value = (known_sale_value(item, item_base_cost(item, self._baseitem_costs)) or 0
                  if not item.is_empty_bottle
                  and any(self._store_accepts_sale(store, item)
                          and store not in self._store_sale_refused for store in stores)
@@ -216,10 +264,13 @@ class HomeMixin:
         relief = self._home_full_relief
         signature = relief["sale"][0]
         relief.setdefault("skipped", {})[signature] = reason
+        if not relief.get("pack_only") and "stock_count" in relief:
+            relief.setdefault("skipped_home_counts", {})[signature] = relief["stock_count"]
         relief["sale"] = None
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
-        for field in ("identifying", "identification_counts", "mode", "destroy_posted", "pack_only"):
+        for field in ("identifying", "identification_counts", "mode", "destroy_posted",
+                      "destroy_before_count", "pack_only", "stock_count"):
             relief.pop(field, None)
         self._release_claim_goal(
             reason, owners=("identification",), kinds=("Observe",),
@@ -314,6 +365,12 @@ class HomeMixin:
         relief = self._home_full_relief
         if relief is None:
             return None
+        if self._town_blocked_reason in {
+                "home-full-surplus-store-unreachable", "home-full-no-sellable-surplus",
+                "home-full-surplus-now-reserved"}:
+            # These diagnostics are results of this selector/route, not input
+            # restrictions on it. Re-evaluate current stock and map evidence.
+            self._town_blocked_reason = None
         if relief["town"] != self._effective_town_id(snapshot):
             self._town_blocked_reason = "home-full-town-changed"
             return self._town_blocked_key(snapshot)
@@ -385,6 +442,15 @@ class HomeMixin:
                         return self._town_producer_entry("_home_full_skip_key",
                             lambda: self._home_full_skip_key("identified-item-protected"))
                     posted = relief.get("destroy_posted", False)
+                    if posted and count < relief.get("destroy_before_count", count):
+                        # Several physical stacks can share the sale identity.
+                        # Consume this observed removal before sending another
+                        # destroy for the still-carried surplus, never wait for
+                        # all copies to vanish from one stack's command.
+                        self._complete_claim_goal(
+                            "home-full-destroy-stack-observed", owners=("home-visit",),
+                            kinds=("Observe",), sources=("effect",))
+                        posted = False
                     key = WAIT_KEY if posted else self._destroy_item_key(target, snapshot, "home-visit", policy=self)
                     if key is None:
                         return None
@@ -397,6 +463,8 @@ class HomeMixin:
                         continuation="home.full-destroy.observe",
                         budget_ref="home-visit-existing-budget")
                     relief["destroy_posted"] = True
+                    if not posted:
+                        relief["destroy_before_count"] = count
                     return key
                 if (signature in self._unsellable_items
                         or store_type in self._store_sale_refused):
@@ -418,8 +486,8 @@ class HomeMixin:
                 if (not target.known or self._disposal_protected_by_identification(target)
                         or self._retention_reservation(snapshot, target) > 0
                         ):
-                    self._town_blocked_reason = "home-full-surplus-now-reserved"
-                    return self._town_blocked_key(snapshot)
+                    return self._town_producer_entry("_home_full_skip_key",
+                        lambda: self._home_full_skip_key("sale-item-now-reserved"))
                 if snapshot.store is not None:
                     if snapshot.store.store_type != store_type:
                         return self._home_full_leave_key("home:full-leave-with-surplus")
@@ -444,6 +512,7 @@ class HomeMixin:
                 relief["sale"] = None
                 relief["withdrawn"] = False
                 relief.pop("destroy_posted", None)
+                relief.pop("destroy_before_count", None)
                 relief.pop("mode", None)
                 self._home_errand.finish()
                 self._invalidate_home_observation()
@@ -468,59 +537,84 @@ class HomeMixin:
                 return self._town_producer_entry(
                     "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
                     family="home-scan")
+            counts = {}
+            for item in self._home_knowledge_items:
+                sig = self._item_signature(item)
+                counts[sig] = counts.get(sig, 0) + item.count
             stock = tuple(item for item in self._home_knowledge_items
-                          if self._item_signature(item) not in relief.get("skipped", {}))
+                          if self._item_signature(item) not in relief.get("skipped", {})
+                          or counts[self._item_signature(item)] < relief.get(
+                              "skipped_home_counts", {}).get(self._item_signature(item), 0))
             # A full pack cannot take shelf surplus. Free a carried surplus
             # stack first under the same sale-first retention authority.
-            pack_only = len(snapshot.inventory) >= PACK_CAPACITY
-            if pack_only:
-                stock = tuple(item for item in snapshot.inventory
-                              if self._item_signature(item) not in relief.get("skipped", {})
-                              and self._retention_reservation(snapshot, item) == 0
-                              and not self._equipment_disposal_reserved(snapshot, item))
+            carried_stock = tuple(item for item in snapshot.inventory
+                                 if self._item_signature(item) not in relief.get("skipped", {})
+                                 and self._item_signature(item) not in {
+                                     entry[0] for entry in relief["deposits"]}
+                                 and self._retention_reservation(snapshot, item) == 0
+                                 and not self._home_full_equipment_reserved(snapshot, item))
+            pack_ids = {id(item) for item in carried_stock}
+            stock = ((*stock, *carried_stock) if len(snapshot.inventory) < PACK_CAPACITY
+                     else carried_stock)
             probes = {id(item): (replace(snapshot, inventory=tuple(
                     carried for carried in snapshot.inventory if carried is not item))
-                    if pack_only else snapshot) for item in stock}
-            candidates = [result for item in stock
+                    if id(item) in pack_ids else snapshot) for item in stock}
+            candidates = [(result, item) for item in stock
                           if not item.is_equipment
                           and (result := self._home_full_sale_candidate(probes[id(item)], item))]
             if not candidates:
-                candidates = [result for item in stock
+                candidates = [(result, item) for item in stock
                               if item.is_equipment
                               and (result := self._home_full_sale_candidate(probes[id(item)], item))]
             if not candidates:
-                discard = [candidate for item in stock
+                discard = [(candidate, item) for item in stock
                            if (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
-                unidentified = [candidate for item in stock
+                unidentified = [(candidate, item) for item in stock
                                 if (candidate := self._home_full_discard_candidate(
                                     probes[id(item)], item, identify=True))]
+                if len(snapshot.inventory) < PACK_CAPACITY:
+                    # Free a shelf, not more pack space, whenever a Home
+                    # candidate exists. Carried sales still take precedence.
+                    shelf_discard = [entry for entry in discard if id(entry[1]) not in pack_ids]
+                    shelf_unidentified = [entry for entry in unidentified if id(entry[1]) not in pack_ids]
+                    if shelf_discard or shelf_unidentified:
+                        discard, unidentified = shelf_discard, shelf_unidentified
                 if discard:
-                    item = min(discard, key=lambda candidate:
-                               self._home_full_discard_rank(snapshot, candidate))
+                    item, source = min(discard, key=lambda entry:
+                                       self._home_full_discard_rank(snapshot, entry[0]))
                     relief["mode"] = "destroy"
                 elif unidentified:
-                    item = min(unidentified, key=self._item_signature)
+                    item, source = min(unidentified, key=lambda entry: self._item_signature(entry[0]))
                     relief["mode"] = "identify"
                 else:
                     self._town_blocked_reason = "home-full-no-sellable-surplus"
                     return self._town_blocked_key(snapshot)
                 store_type = STORE_HOME
             else:
-                item, store_type, _value = max(candidates, key=lambda result: result[2])
+                (item, store_type, _value), source = max(candidates, key=lambda entry: entry[0][2])
                 relief["mode"] = "sale"
             signature = self._item_signature(item)
+            # Retain the physical source row even when a shelf and pack stack
+            # share the same signature. A shelf take earns a shelf slot.
+            pack_only = id(source) in pack_ids
             if pack_only:
-                relief["sale"] = (signature, store_type, 0)
+                first = next(source for source in carried_stock
+                             if self._sale_item_identity(source) == self._sale_item_identity(item))
+                count = sum(source.count for source in snapshot.inventory
+                            if self._sale_item_identity(source) == self._sale_item_identity(item))
+                relief["sale"] = (signature, store_type, count - first.count)
                 relief["withdrawn"] = True
                 relief["pack_only"] = True
                 return self._home_full_relief_key(snapshot)
+            relief["stock_count"] = counts[signature]
             if not self._file_home_errand(snapshot, HomeErrandRequest(
                     signature, item.count, "home-catalog",
                     "full-home-sale" if relief["mode"] == "sale" else "full-home-discard"),
                     knowledge_current=True):
                 return None
             relief["sale"] = (signature, store_type,
-                self._inventory_signature_count(snapshot, signature))
+                sum(carried.count for carried in snapshot.inventory
+                    if self._sale_item_identity(carried) == self._sale_item_identity(item)))
             self._home_pending_item = signature
             self._home_pending_quantity = item.count
             self._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)

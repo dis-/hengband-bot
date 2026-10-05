@@ -5170,6 +5170,9 @@ class ShopMixin(InStoreMixin):
             )
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
+            if (writer_family == "store-router" and travel_reason.startswith("shop:")
+                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)):
+                self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
                 snapshot, self._step_toward(snapshot, step),
                 claim_family=writer_family,
@@ -5180,6 +5183,9 @@ class ShopMixin(InStoreMixin):
             return clear_traveler
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
+            if (writer_family == "store-router" and travel_reason.startswith("shop:")
+                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)):
+                self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
                 snapshot, self._step_toward(snapshot, step),
                 claim_family=writer_family,
@@ -5215,6 +5221,9 @@ class ShopMixin(InStoreMixin):
             self._store_entry_wait_key = travel
             self._store_entry_wait_turn = snapshot.turn
             return travel
+        if (writer_family == "store-router" and travel_reason.startswith("shop:")
+                and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)):
+            self.last_reason = "shop:approach"
         return self._stage_shopping_approach_key(
             snapshot, self._step_toward(snapshot, step),
             claim_family=writer_family,

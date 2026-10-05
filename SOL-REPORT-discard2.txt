@@ -1,0 +1,115 @@
+Issue #33 follow-up: recorded Home-full relief repaired.
+Worktree: C:\hengband\bot-client-discard
+Branch: home-full-discard2-1006; base d6a686665038c18046dcc4c50e8b6feb90fe8baf.
+Commit subject: Fix home-full surplus rejection and observed discard progress (#33).
+
+SOL-DIAG-discard2.txt was written BEFORE production/test changes. It lists every
+Home stack (238) and carried stack (20), all failing guards, and exhaustive,
+disjoint groups for both selectors at 23:56:56 (decision 8507, turn 12692322).
+Source: home-full-nosurplus-20261005-2356, state-tail 1039/Home catalogue 1038.
+The grouped audit is unchanged; a narrative total was corrected from 232 to 231
+with an explicit arithmetic erratum.
+
+Root cause: the equipment/R1 prune was treated as a universal surplus rule,
+although its catalogue deliberately excludes ammunition. Both selectors rejected
+all 27 unused arrow/shot stacks at Home[211..237], despite zero retention and no
+superior/procurement exclusion. Across overlapping sale guards R1 rejected 231
+Home stacks. The disjoint sale groups are 212 R1-only; 5 pack-identity collisions;
+2 retention+equipment-reserved+R1; 1 equipment-reserved+R1; 3 R1+no-buyer;
+1 skipped/unknown+R1; 1 no-buyer; 1 standing digger; 12 retained ammo+R1.
+Discard additionally protected 20 artifacts and applied the inconsistent
+pack-only superiority check; full discard grouping/per-stack reasons are in DIAG.
+Ten carried stacks were sale-eligible and ten discard-eligible under the declared
+reconstruction, but were not searched because pack occupancy was 20 < 23.
+Missing checkpoint, sale-refusal ledger and durable approvals are explicitly
+acknowledged; their contents are not claimed as recorded facts.
+
+The 23:55:51 route acquired Home, then produced an unreachable diagnostic with
+no usable map memory. Captured state 991 independently has a valid Home route.
+Without a checkpoint the initial stale/absent terrain cause cannot be uniquely
+reconstructed. The subsequent self-lock is proven: the relief's own blocked
+reason was fed back into _shopping_approach_step before re-reading map evidence.
+Owner-retired logging did not release that latch.
+
+The fix searches shelf and carried sale surplus even with free pack slots.
+Ammo uses its real launcher/quantity reservations, not the R1 equipment filter.
+Equipment/departure candidates, artifacts (for destruction), keep approvals,
+bounties, purchase/transaction ownership and planned deposits remain protected.
+A known exhausted torch is no longer retained merely because it is a torch;
+real transaction/purchase ownership still protects it. Full-catalogue equipment
+dominance remains valid after a Home take, instead of being overridden by a
+pack-only comparison. Average/cursed feelings cannot bypass candidate protection.
+
+Matching pack identities block a take only when genuinely protected, including
+pending deposits and previously skipped peers. Candidate selection retains its
+physical source, rather than inferring shelf/pack provenance from its name.
+Before/after quantities use the same inscription-independent identity. A carried
+surplus removal never earns a Home slot; shelf disposal is preferred when possible.
+Protected/unresolved skips advance to other candidates; observed stock counts
+separate remaining physical shelf copies. Relief route diagnostics are rechecked
+from current facts. Entry waits bind to the exact posted entrance receipt, and
+route labels stay scoped to relief so ordinary equipment/departure routing keeps
+its authority. No time guard was added.
+
+Sale remains first; disposal then ranks auto-destroy kinds and lowest visible
+item value (ego/enchantments/charges included), with nonbuyers/refused items zero.
+After posting destruction, unchanged inventory waits for its effect. A partial
+multi-stack removal permits the next command only after observing the prior one.
+Only an observed shelf-surplus removal credits a Home slot for deposit continuation.
+The recorded torch test exercises take -> destroy -> unchanged-board wait ->
+observed removal -> Home rescan -> deposit, with enforcement both off and on.
+
+Validation used Python 3.13.14 at
+C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe.
+All runs used PYTHONPATH=src and scripts/test_parallel_runner.py --workers 1.
+The final required batch used --purity always (lint was not cached away):
+  test_home_discard_incidents_recorded, test_homefull3_recorded,
+  test_home_full_relief_recorded, test_home_relief_progress_recorded,
+  test_home_surplus_sale_screen_recorded, test_policy_home, test_item_sink_lint,
+  test_town_structure_lint, test_s33_shadow_zero, plus the new follow-up pin.
+Result: 271 tests, PASS, 4 existing skips, no failures/errors (212.896s).
+Two obsolete pure-helper producer baseline entries were removed after the changed
+call graph stopped classifying them as action producers; no lint exemption added.
+test_policy_town alone: 589 tests, PASS, no failures/errors (273.478s).
+Final restored follow-up pin: 12 tests, PASS (38.118s).
+
+Changed-name grep selected 16 additional modules (full grep saved in the local
+validation archive). Result: 970 tests, 9 skips, 5 failures, no errors. To determine
+whether these were regressions, the four changed production files were temporarily
+replaced by git show HEAD versions IN THIS SAME worktree, and the two failing
+modules rerun: 88 tests, identical five failures and identical assertion text.
+These are pre-existing d6a68666 failures; expectations were not weakened:
+  test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_h1_the_observed_ring_swap_releases_the_mutation_gate
+  test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target
+  test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_replay_decides_as_live_until_the_first_overweight_board
+  test_ownership_s2a1_closure.ClosingPathsTest.test_posted_effect_captures_close_what_they_can
+  test_ownership_s2a1_closure.ClosingPathsTest.test_revert_proof_without_the_effect_confirmation_no_sale_completes
+
+Revert proof: only policy_home.py was replaced with its HEAD version, retaining
+the new recorded tests and other production changes. On the same 238/20 board:
+  Before: key "5", town:blocked:home-full-no-sellable-surplus, no selected mode.
+  After: native store travel, shop:travel, mode "sale".
+The reverted 12-test pin failed with 35 assertion failures and zero errors;
+restoring the implementation byte-for-byte made all 12 pass. Selectors/dispatch/
+reservations are real; later alternative boards and unavailable checkpoint state
+are explicitly labelled CONSTRUCTED. Fixture SHA256:
+ac59ef30ddbb91d2f3855bbd94017dbc1195df8c435ddc03c5a2955a6ea07560.
+
+Claude Code performed read-only reviews with the supported exact model
+claude-opus-5-5. Confirmed findings were fixed, including reserved merges,
+source provenance and inscription counts; final review found no remaining
+concrete correctness issues. The suggestion to exclude carried disposal whenever
+pack slots are free was not adopted because the user's explicit exhaustive-
+carried-surplus rule takes precedence; a new test verifies that carried disposal
+never credits Home capacity.
+
+Local evidence: jsonlog/discard2-required-pass.json,
+jsonlog/discard2-town-complete.json, jsonlog/discard2-related-final.json,
+jsonlog/discard2-related-baseline.json, jsonlog/discard2-restored-pin-final.json,
+jsonlog/discard2-validation/baseline-comparison.json and revert-proof.json.
+Temporary review/grep/test outputs are archived under jsonlog/discard2-validation.
+
+No push; no game/bot launch; no work in another worktree; the prohibited
+C:\hengband\bot-client\jsonlog was untouched. SOL-TASK-discard2.txt is preserved.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
