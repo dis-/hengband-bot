@@ -1,0 +1,68 @@
+Full-Home relief progress fix
+Worktree: C:\hengband\bot-client-reliefprog
+Branch: relief-progress-1005; base: bdfa0a00
+
+Result: the arbiter now includes (Home relief town, remaining) in its durable
+progress vector. The existing relief producer reduces remaining only after
+observing the withdrawn surplus and its subsequent inventory disposal effect.
+The counter survives the pack returning to its original state after each sale,
+so the next scan and other round-trip producers see the space already earned.
+Gold remains excluded. Budgets, recurrence limits, item commands, reservations,
+Home-first rules, and distance progress retain their existing behavior.
+Outside an active relief the original eight-part durable vector is preserved.
+No time guard or optional withdrawal batching was added.
+
+Evidence (1-based JSONL rows in the immutable backup directory
+C:\hengband-backups\state-logs\owner-retired-20261005-1450):
+autorecover-20261005-145000-town-blocked-owner-retired.bot-decisions.jsonl.gz
+  205 / 224 / 232: full-home-sale withdrawal, 14:48:35 / 14:49:22 / 14:49:42.
+  219 / 227 / 235: shop:in-store-sell, 14:49:09 / 14:49:29 / 14:49:49.
+  220 / 228: home:request-knowledge-scan after the first two sales.
+  236: town:blocked:owner-retired at 14:49:51, turn 11771896;
+       arbiter.progress=False and budget_remaining_estimate=2.
+autorecover-20261005-145000-town-blocked-owner-retired.bot-state-fixed.jsonl.gz
+  31 / 57 / 73: observed Home catalogues contain 240 / 239 / 238 stacks.
+  38 / 66 / 82: Home withdrawal pages report 239 / 238 / 237 stacks.
+  56 / 72 / 88: post-sale carried inventories match; gold alone differs in
+       the durable core and is deliberately excluded from progress.
+
+Recorded pin: tests/test_home_relief_progress_recorded.py and
+tests/fixtures/home-relief-progress-20261005.json.gz. The extractor reads only
+the backup and retains exact rows, source names, and SHA-256 digests.
+Fixture SHA-256:
+401859e31d77e2c28957ef18cf91b09e26b0211a2a72a23c5cda2023d06548d1
+
+There is no policy checkpoint in these backups. The pin explicitly reconstructs
+the seven-slot relief obligation and selected sale from recorded item deltas,
+and supplies static monster lore. It exercises the real relief producer,
+progress vector, and arbiter; it is not a full choose_key/checkpoint replay.
+Before: removing the added fact reproduces scan-owner retirement after repeated
+round trips. After: observed remaining 7 -> 6 -> 5 -> 4 permits each scan, records
+progress=True, and does not retire. A no-space-effect control still retires.
+Additional controls prove gold alone leaves the vector unchanged and an
+unobserved withdrawal leaves remaining unchanged.
+
+Validation (Codex runtime Python; PYTHONPATH=src;tests):
+  Focused recorded pin: 4 tests passed.
+  test_policy_town alone, final rerun: 589 tests passed (273.875 seconds).
+  Required and changed-name regression suites, final rerun: 398 tests passed
+  across 20 modules (groups: 30 / 258 / 40 / 70 tests, all OK).
+  Final total including test_policy_town alone: 987 tests passed.
+  git diff --check: passed.
+
+Regression modules (split into independent processes for the final rerun):
+  test_entrance_travel_retired_recorded, test_equipment_swap_loop_incident,
+  test_goldburn_shopping_constructed, test_home_full_relief_recorded,
+  test_home_relief_progress_recorded, test_homefull3_recorded,
+  test_item_reservation, test_item_sink_lint,
+  test_morivant_return_walks_away_recorded, test_policy_supply,
+  test_q2travel_progress_recorded, test_quest_enter_approach_progress,
+  test_quest_prepare_return_stage2, test_quest_travel_progress,
+  test_s33_phase2_quest, test_s33_shadow_zero, test_surface_map_walks,
+  test_town_arbiter, test_town_plan_exhausted_wander, test_town_structure_lint.
+
+No push, game/bot start or stop, live jsonlog access, or other-worktree work.
+The report and code/tests are committed together; SOL-TASK-reliefprog.txt is
+left as the original untracked user task file.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

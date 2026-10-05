@@ -132,6 +132,16 @@ class TownMixin:
             or STORE_HOME in self._town_visit_ledger.nonhome_attempted_without_effect
             or self._store_entry_failed_owner == STORE_HOME
         )
+        relief = getattr(self, "_home_full_relief", None)
+        # The pack returns to the same state after each surplus sale, and gold
+        # deliberately cannot prove progress. Remaining decreases only after
+        # an observed withdrawal and its disposal effect (policy_home.py).
+        # Retain that space relief across every producer in the round trip,
+        # including the next knowledge scan's recurrence/retirement check.
+        home_relief = (
+            ("home-full-relief", relief["town"], relief["remaining"])
+            if relief is not None else None
+        )
         durable = (
             durable_core,
             self._town_progress_fingerprint(snapshot),
@@ -142,6 +152,8 @@ class TownMixin:
             getattr(self, "_descent_refusal_reason", None),
             bool(getattr(self, "_descent_blocked", False)),
         )
+        if home_relief is not None:
+            durable += (home_relief,)
         arbiter = getattr(self, "_town_turn_arbiter", None)
         owner = (
             arbiter.owner_for_reason(reason or self.last_reason)
