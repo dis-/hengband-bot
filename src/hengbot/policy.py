@@ -5876,6 +5876,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and visit is not None
             and not visit.operation_posted
             and visit.claim_operation_identity is None
+            and not self._town_posted_route_entry_wait(
+                self._claim_errand_hold("__none__", enforced=True))
+        )
+
+    def _town_posted_route_entry_wait(self, route) -> bool:
+        """An entry post can still belong to its Reach route, before a sale/buy."""
+        declaration = getattr(route, "execution", None)
+        visit = self._store_visit
+        return bool(
+            route is not None and declaration is not None and visit is not None
+            and route.owner.value == declaration.producer == "store-router"
+            and declaration.claim_id == route.claim_id
+            and route.goal.kind == CLAIM_GOAL_REACH
+            and isinstance(route.goal.cell, tuple) and len(route.goal.cell) == 2
+            and declaration.state == "awaiting"
+            and declaration.continuation == "route.resume"
+            and declaration.arguments == ("store", route.goal.cell)
+            and declaration.expected_effect == f"arrive:{route.goal.cell[0]},{route.goal.cell[1]}"
+            and visit.phase == StoreVisitPhase.ENTERING
+            and (visit.goal is None or (visit.goal.y, visit.goal.x) == route.goal.cell)
+            and visit.posted_sequence is not None
+            and self._store_entry_wait_key
+            and declaration.operation_ref == f"decision:{visit.posted_sequence}:{self._store_entry_wait_key}"
+            and self._store_entry_posted_owner == visit.store_type
+            and self._store_entry_wait_owner == visit.store_type
+            and not visit.operation_posted
         )
 
     def _town_shop_entry_family(self) -> str:
@@ -6730,6 +6756,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         return key
 
+    def _town_refused_output_entry(self, snapshot, key, reason, family, holder):
+        """Bind a refused OFF producer through its declared entrance envelope."""
+        buffer = _decision_offers.get(self)
+        offers = () if buffer is None else buffer.steps
+        step_off = bool(
+            snapshot is not None and snapshot.store is None
+            and reason.startswith("town:entrance-step-off:")
+            and any(offer[0] == key and offer[1] == family
+                    and offer[2] == "town:entrance-step-off"
+                    and offer[3] == "departure.step-off-entrance"
+                    and len(offer[4]) == 2
+                    and DIRECTION_KEYS.get((offer[4][0] - snapshot.player.position.y,
+                                            offer[4][1] - snapshot.player.position.x)) == key
+                    and offer[5] == "entrance-cell-cleared"
+                    for offer in offers))
+        return any(
+            (row.get("producer_key") == key
+             or (step_off and row.get("producer_key") == WAIT_KEY))
+            and row.get("holder_claim_id") == holder.claim_id
+            and row.get("holder_family") == holder.owner.value
+            and row.get("deferred_family") == family
+            and row.get("token_would_admit") is False
+            for row in getattr(self, "_decision_errand_deferred", ()) or ())
+
     def _s33_shadow_verdict(self, snapshot, key):
         """Resolve ON admission for the decided OFF board, without dispatch."""
         reason = self.last_reason or ""
@@ -6762,14 +6812,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                                      arrival_board=snapshot)
                     if (foreign is not None and self._recorded_execution_token(
                             foreign, family, f"final:{reason}") is None):
-                        entry_refused = any(
-                            row.get("producer_key") == key
-                            and row.get("holder_claim_id") == foreign.claim_id
-                            and row.get("holder_family") == foreign.owner.value
-                            and row.get("deferred_family") == family
-                            and row.get("token_would_admit") is False
-                            for row in getattr(self, "_decision_errand_deferred", ()) or ()
-                        )
+                        entry_refused = self._town_refused_output_entry(
+                            snapshot, key, reason, family, foreign)
                         # A gated OFF output is not an ON gate escape. Keep
                         # genuine final-only outputs visible, and still verify
                         # that the holder has a valid registered continuation.
@@ -6786,6 +6830,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if reason.startswith(("ownership:declaration-", "ownership:holder-silent:",
                               "ownership:gate-missing:")):
             stop = reason
+        if key is None:
+            # A denied command can suppress its key before the final result.
+            # Its emission verdict still takes precedence in OFF shadow.
+            stop = self._town_final_declaration_stop(snapshot, key, holder) or stop
         return {"would_stop": stop, "would_skip_families": sorted(skipped),
                 "holder_family": holder.owner.value if holder is not None else None,
                 "holder_claim_id": holder.claim_id if holder is not None else None,
@@ -6889,8 +6937,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # envelope to the next prepared action. This is an exact
                     # observed session transition, not foreign admission.
                     return None
+                if (family == "equipment-txn" and session is not None
+                        and session.current_action is not None
+                        and session.pending_action is None
+                        and route.goal.source == "transaction"
+                        and str(tuple(map(repr, session.plan.actions))) in route.goal.expectation
+                        and snapshot.store is not None
+                        and snapshot.store.store_type == STORE_HOME
+                        and declaration.continuation == "equipment.next-action"
+                        and any(offer[2] == "home:store-context-exit"
+                                and offer[3] == "store.leave.send"
+                                and offer[4] == (STORE_HOME,)
+                                and offer[5] == "outside-store"
+                                and offer[6] == "equipment.next-action"
+                                for offer in own)):
+                    # Arrival at Home changes this same session's travel step
+                    # into its declared exit; recording consumes the new offer.
+                    return None
                 return f"ownership:declaration-stale:{family}"
         if reason == "store:entry-await-observation" and key == "":
+            if snapshot.store is None and self._town_posted_route_entry_wait(route):
+                return None
             # Check the entry declaration first.  An entry can be armed before
             # its store operation exists; the final emit seam rejects an
             # unbound empty wait if procurement cannot replace it.
@@ -11429,6 +11496,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         ):
             self.last_reason = "descend"
+            key = self._town_producer_entry(
+                "direct-descent", lambda: (
+                    ENTER_DUNGEON_MACRO
+                    if static_entrance_here or (here is not None and here.has_entrance)
+                    else DOWN_STAIRS_KEY), family="departure")
+            if key is None:
+                return None
             if (getattr(self, "_crossarea_fundraising_enforced", False)
                     and snapshot.in_town
                     and self._fundraising_mode in {"mine", "scavenge"}):
@@ -11446,11 +11520,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         ),
                     )
                 )
-            return (
-                ENTER_DUNGEON_MACRO
-                if static_entrance_here or (here is not None and here.has_entrance)
-                else DOWN_STAIRS_KEY
-            )
+            return key
 
         # If every known way forward fails the next-depth resistance gate,
         # invalidate the descent route and keep exploring this (highest safe)

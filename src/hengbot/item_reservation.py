@@ -99,7 +99,7 @@ def reservation_query(function):
 def reservation_decision(function):
     @wraps(function)
     def run(policy, snapshot):
-        token = _decision.set({"policy": policy, "view": None, "shadow": []})
+        token = _decision.set({"policy": policy, "view": None, "shadow": [], "skips": {}})
         try:
             return function(policy, snapshot)
         finally:
@@ -110,6 +110,27 @@ def reservation_decision(function):
 def reservation_shadow(policy):
     state = _decision.get()
     return list(state["shadow"]) if state and state["policy"] is policy else []
+
+
+def _selector_skip(policy, verdict):
+    """Count filtered candidates without changing the acting producer's reason."""
+    state = _decision.get()
+    if state is not None and state["policy"] is policy:
+        key = ("query_skip" if _query.get() else "selector_skip", verdict.reason)
+        row = state["skips"].get(key)
+        if row is None:
+            row = {key[0]: verdict.reason, "count": 0, "ambiguous": verdict.ambiguous}
+            state["skips"][key] = row
+            state["shadow"].append(row)
+        row["count"] += 1
+        row["ambiguous"] |= verdict.ambiguous
+
+
+def _emission_denied(policy, verdict):
+    """A foreign verdict is terminal only at the command serialization seam."""
+    _shadow(policy, {"would_stop": verdict.reason, "ambiguous": verdict.ambiguous})
+    if getattr(policy, "_town_claim_bar_enforced", False):
+        policy.last_reason = verdict.reason
 
 
 def _row_key(snapshot, item):
@@ -250,16 +271,11 @@ def _shadow(policy, row):
 
 
 def reservation_verdict(policy, snapshot, item, owner, sink):
-    """OFF exceptions preserve historical behavior; conflicts skip in both modes."""
+    """Select a permitted item; foreign candidates are filtered in both modes."""
     try:
         denied = item_reserved_by_other(policy, snapshot, item, (owner, sink))
         if denied is not None and denied.owner is not None:
-            if _query.get():
-                _shadow(policy, {"query_skip": denied.reason, "ambiguous": denied.ambiguous})
-                return denied
-            _shadow(policy, {"would_stop": denied.reason, "ambiguous": denied.ambiguous})
-            if getattr(policy, "_town_claim_bar_enforced", False):
-                policy.last_reason = denied.reason
+            _selector_skip(policy, denied)
             return denied
         if denied is not None:
             return ReservationVerdict(sink, quantity=denied.quantity, item_id=id(item))
@@ -269,9 +285,9 @@ def reservation_verdict(policy, snapshot, item, owner, sink):
         return ReservationVerdict(sink, quantity=quantity, item_id=id(item))
     except Exception as error:
         if getattr(policy, "_town_claim_bar_enforced", False):
-            policy.last_reason = f"ownership:item-reserved:{sink}:predicate-error"
-            _shadow(policy, {"would_stop": policy.last_reason, "error": type(error).__name__})
-            return ReservationVerdict(sink, "predicate-error")
+            denied = ReservationVerdict(sink, "predicate-error")
+            _selector_skip(policy, denied)
+            return denied
         _shadow(policy, {"error": type(error).__name__, "sink": sink})
         return ReservationVerdict(sink, item_id=id(item))
 
@@ -299,7 +315,12 @@ def item_command(kind, item, verdict: ReservationVerdict):
     actual, address = item if isinstance(item, tuple) else (item, None)
     if not isinstance(verdict, ReservationVerdict):
         raise TypeError('item command requires ReservationVerdict')
-    if verdict.owner is not None or verdict.item_id != id(actual):
+    if verdict.owner is not None:
+        state = _decision.get()
+        if state is not None:
+            _emission_denied(state["policy"], verdict)
+        raise ValueError('item command has a denied verdict')
+    if verdict.item_id != id(actual):
         raise ValueError('item command has a denied or different-item verdict')
     if verdict.sink != kind.split('-')[0]:
         raise ValueError('item command has a different-sink verdict')
@@ -324,6 +345,7 @@ _historical_item_command = item_command
 
 def checked_item_command(policy, kind, item, verdict: ReservationVerdict):
     if isinstance(verdict, ReservationVerdict) and verdict.owner is not None:
+        _emission_denied(policy, verdict)
         return None
     try:
         return item_command(kind, item, verdict)
@@ -350,8 +372,6 @@ def reserved_item_command(policy, snapshot, kind, item, owner=None, *, address=N
         # last_reason must not borrow the owner of an item's pending deposit.
         owner = "consumption"
     verdict = reservation_verdict(policy, snapshot, item, owner, kind.split('-')[0])
-    if verdict.owner is not None:
-        return None
     selected = (item, address) if address is not None else item
     key = checked_item_command(policy, kind, selected, verdict)
     return key + suffix if key is not None else None

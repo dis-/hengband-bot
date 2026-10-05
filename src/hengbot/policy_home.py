@@ -334,8 +334,6 @@ class HomeMixin:
                     self._town_blocked_reason = "home-full-surplus-sale-refused"
                     return self._town_blocked_key(snapshot)
                 if not item_available(self, snapshot, target, "home-visit", "home-full-sale"):
-                    if getattr(self, "_town_claim_bar_enforced", False):
-                        return None
                     relief["sale"] = None
                     relief["withdrawn"] = False
                     relief.pop("mode", None)

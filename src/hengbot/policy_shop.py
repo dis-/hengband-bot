@@ -3182,6 +3182,15 @@ class ShopMixin(InStoreMixin):
             return False
         return item.tval in STORE_ACCEPTED_TVALS.get(store_type, frozenset())
 
+    def _offer_store_sale_leave(self, snapshot):
+        self._offer_execution(
+            LEAVE_STORE_KEY, producer=self._claim_family_of(self.last_reason),
+            work_id=f"sale:leave:{snapshot.store.store_type if snapshot.store else None}",
+            next_step="store.leave.send",
+            arguments=(snapshot.store.store_type,) if snapshot.store else (),
+            expected_effect="outside-store",
+        )
+
     @claims(ClaimOwner.SHOP_SELL)
     def _store_sell_key(
         self,
@@ -3206,13 +3215,17 @@ class ShopMixin(InStoreMixin):
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
         item = current
         if not item_available(self, snapshot, item, "shop-sell", "sell"):
+            self.last_reason = rejected_reason
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
         if self._sale_retains_digging_tool(snapshot, item):
             self._batch_sell_pending = None
             self.last_reason = "shop:retain-standing-digging-tool"
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
         if store is None or not self._store_accepts_sale(store.store_type, item):
             # 'd' can be rejected before opening an item prompt.  Never attach
@@ -3224,12 +3237,14 @@ class ShopMixin(InStoreMixin):
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
         if (
             self._item_signature(item) in self._unsellable_items
             or store.store_type in self._store_sale_refused
         ):
             self.last_reason = rejected_reason
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
 
         item_signature = self._item_signature(item)
@@ -3278,6 +3293,7 @@ class ShopMixin(InStoreMixin):
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
         # Three cross-snapshot attempts are enough to prove that the prompt
         # chain is not completing; continuing risks leaking tail keys.
@@ -3289,12 +3305,14 @@ class ShopMixin(InStoreMixin):
             self._store_sell_stuck_count = 0
             self._store_sell_attempt = None
             self.last_reason = rejected_reason
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
         # Even specialized disposal paths use the same inscription-observed
         # transaction; this helper never composes an item-letter sale key.
         key = self._batch_sell_key(snapshot, [item])
         if key is None:
             self.last_reason = "shop:sale-requires-inscription-leave"
+            self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
         return key
 
