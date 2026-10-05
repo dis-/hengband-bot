@@ -407,6 +407,25 @@ def _declaration_requires_no_send(key: str | None, reason: str | None) -> bool:
         "ownership:declaration-"))
 
 
+OWNER_RETIRED_LOG_ONLY_WINDOW_SECONDS = 600.0
+OWNER_RETIRED_LOG_ONLY_LIMIT = 3
+
+
+def _owner_retired_log_only_allows(policy) -> bool:
+    """Log-only mode still stops when retirements repeat quickly.
+
+    A burst (OWNER_RETIRED_LOG_ONLY_LIMIT within the window) means the reset
+    does not let the town owner progress (e.g. an equipment swap alternating
+    every few seconds, live 2026-10-05 19:33), so the visible stop returns.
+    """
+    now = time.monotonic()
+    recent = [t for t in getattr(policy, "_owner_retired_log_only_times", ())
+              if now - t < OWNER_RETIRED_LOG_ONLY_WINDOW_SECONDS]
+    recent.append(now)
+    policy._owner_retired_log_only_times = recent
+    return len(recent) < OWNER_RETIRED_LOG_ONLY_LIMIT
+
+
 def _record_owner_retired_log_only(args, snapshot, key, policy) -> None:
     """Log an owner retirement and give town owners a fresh budget."""
     arbiter = getattr(policy, "_town_turn_arbiter", None)
@@ -4355,7 +4374,8 @@ def _run_follow(
                         )
                         return incident_stop("loop-detected", snapshot)
                     if (getattr(args, "owner_retired_log_only", False)
-                            and policy.last_reason == "town:blocked:owner-retired"):
+                            and policy.last_reason == "town:blocked:owner-retired"
+                            and _owner_retired_log_only_allows(policy)):
                         _record_owner_retired_log_only(args, snapshot, key, policy)
                     elif (policy.last_reason in POLICY_FINAL_STOP_REASONS
                             or (policy.last_reason or "").startswith(
