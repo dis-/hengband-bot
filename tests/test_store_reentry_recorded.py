@@ -16,8 +16,14 @@ its 13 shop transactions was observed in one entry and performed in a second
 (design 1.3); the one-shot release keys are the operation bodies an in-store
 operation must reproduce.
 
-The current replay stops at its first changed key, index 802: a partial
-Home page cannot prove withdrawal absence. Later ordinary-shop pins use
+The current replay stops at its first changed key, index 212 (state rows
+260-261, turn 6091532): e371f9a6 excludes the carried Crusader Tulwar after
+the Alchemist at rows 258-260 proves *Identify* absent, exposing the Home
+equipment-catalog claim. Later ordinary-shop pins through the old boundary
+802 use DECLARED CONSTRUCTED independent 3b12a514 checkpoints frozen by
+extract_suitefix4_checkpoints.py. The old partial-Home absence-proof boundary
+802 and the later live-key walls are still checked on independent substrates.
+Pins beyond 802 use
 DECLARED CONSTRUCTED independent baseline-policy checkpoints from group 2
 (90fca3b7), produced by extract_s33_store_checkpoints.py and frozen with a
 hash. These are independent operation substrates, not a continued current
@@ -47,8 +53,9 @@ Declared walls, all in ``_step``/``_dump_wall``/``_switch_on``:
   these divergences: Home travel/scan/reserve after dumps (9-12), town
   probe versus boxed-breakout travel (17), store observation ownership
   rewriting/suppressing kill-mob approach (171, 219), ranged fire before recall wait (159),
-  and strong-fight-speed use (267, 273). The live keys are posted.  With the walls every other recorded key and
-  reason is reproduced, switch off (pin P0).
+  and strong-fight-speed use (267, 273). The live keys are posted. With the
+  walls every other key and reason before 212 is reproduced, switch off
+  (pin P0); later wall sites use independent baseline substrates.
 - SCREEN WALL: the capture holds no screen.  Phase 1 acts only when the
   executor's slot-by-slot screen check passed on the same board (design 3.1
   condition 3); the CLI supplies it through ``observe_store_screen``.  On a
@@ -93,6 +100,8 @@ from hengbot.model import (
     STORE_BLACK,
     STORE_MAGIC,
     STORE_TEMPLE,
+    SV_SCROLL_STAR_IDENTIFY,
+    TVAL_SCROLL,
     TVAL_WAND,
     TVAL_STAFF,
     StoreItem,
@@ -117,6 +126,7 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 from test_input_executor import (
     FaithfulHookGame, command_screen, prompt_screen, store_screen,
 )
+from suitefix4_checkpoints import restore as restore_independent
 
 FIXTURES = Path(__file__).parent / "fixtures"
 STEM = "store-reentry-20261003"
@@ -140,7 +150,10 @@ SHA256 = {
 # 159: main ranged-fire precedence replaces return:wait-recall.
 # 267, 273: main strong-fight-speed decisions added after capture.
 LIVE_KEY_WALL = frozenset({9, 10, 11, 12, 17, 159, 171, 219, 267, 273})
-S33_FIRST_CHANGED = 802
+S33_FIRST_CHANGED = 212
+PRE_STAR_ID_FIRST_CHANGED = 802
+STAR_ID_CHECKPOINTS = FIXTURES / "store.suitefix4-independent-checkpoints.json.gz"
+STAR_ID_CHECKPOINTS_SHA256 = "76859f45c779daf79f2888b26a618f0ecfdff3c8e921a8b1eceeff45a23dd529"
 S33_CHECKPOINTS = FIXTURES / "store-reentry.s33-independent-checkpoints.json.gz"
 S33_CHECKPOINTS_SHA256 = "3a56680f4c0dcf802b89757ab9e4395d8415a6439745893218da95caf6ccd824"
 
@@ -274,6 +287,11 @@ class StoreReentryRecordedTest(unittest.TestCase):
                         would_stop=policy._s33_shadow_verdict(board, key)["would_stop"],
                         declaration_mismatch=policy.decision_claim["declaration_mismatch"],
                         claim_verdict_conflict=policy.decision_claim["claim_verdict_conflict"])
+                    cls.first_full_id_state = (
+                        policy._identification_need,
+                        set(policy._unbuyable_full_identify_sigs),
+                        policy._identification_source_obtainability(board, full=True),
+                    )
                     break  # Never feed an old effect board after this changed key.
         assert cls.first_changed == S33_FIRST_CHANGED, cls.first_changed
         assert hashlib.sha256(S33_CHECKPOINTS.read_bytes()).hexdigest() == S33_CHECKPOINTS_SHA256
@@ -281,9 +299,15 @@ class StoreReentryRecordedTest(unittest.TestCase):
         assert independent["source_revision"] == "90fca3b7"
         assert independent["input_sha256"] == SHA256[FIXTURE]
         cls.independent_indices = {int(index) for index in independent["checkpoints"]}
-        assert all(index > S33_FIRST_CHANGED for index in cls.independent_indices)
+        assert all(index > PRE_STAR_ID_FIRST_CHANGED for index in cls.independent_indices)
         cls.checkpoints.update({int(index): base64.b64decode(data)
                                 for index, data in independent["checkpoints"].items()})
+        assert hashlib.sha256(STAR_ID_CHECKPOINTS.read_bytes()).hexdigest() == STAR_ID_CHECKPOINTS_SHA256
+        substrates = json.loads(gzip.decompress(STAR_ID_CHECKPOINTS.read_bytes()))
+        assert substrates["source_revision"] == "3b12a514"
+        assert substrates["input_sha256"] == SHA256[FIXTURE]
+        cls.star_id_checkpoints = {int(i): record for i, record in substrates["checkpoints"].items()}
+        assert all(S33_FIRST_CHANGED < i <= PRE_STAR_ID_FIRST_CHANGED for i in cls.star_id_checkpoints)
 
     @classmethod
     def tearDownClass(cls):
@@ -333,6 +357,10 @@ class StoreReentryRecordedTest(unittest.TestCase):
                 {"outcome": "released", "posted": str(posted)})
 
     def _resume(self, index):
+        if index in self.star_id_checkpoints:
+            policy = restore_independent(self.star_id_checkpoints[index], self.monrace, self.directory)
+            normalize_policy_state(policy)
+            return policy
         policy = _Unpickler(io.BytesIO(self.checkpoints[index]), self.monrace).load()
         if index in self.independent_indices:
             old_directory = policy._character_calibration_path.parent
@@ -371,19 +399,35 @@ class StoreReentryRecordedTest(unittest.TestCase):
         self.assertEqual(len(self.prefix), S33_FIRST_CHANGED + 1)
         self.assertEqual(self.first_diagnostics, dict(
             would_stop=None, declaration_mismatch=None, claim_verdict_conflict=None))
+        need, deferred, source = self.first_full_id_state
+        self.assertIsNone(need)
+        self.assertEqual(source, "unavailable")
+        self.assertTrue(any(signature[1:] == (23, 15) for signature in deferred))
 
     # ------------------------------------------------------------ P0
     def test_p0_switch_off_replay_reproduces_every_recorded_key(self):
-        """Flag off: faithful prefix, then the required absence-proof divergence."""
+        """Flag off: faithful prefix, then unavailable full ID is deferred."""
         for index, row in enumerate(self.prefix):
             if index == S33_FIRST_CHANGED:
-                self.assertEqual(row, (" ", "equipment-transaction:seek-home-page"))
-                self.assertEqual(self._live(index), ("\x1b", "equipment-transaction:withdraw-missing"))
+                self.assertEqual(row, ("\x1b`n(.", "shop:travel"))
+                self.assertEqual(self._live(index), ("\x1b`n$.", "shop:travel"))
             elif index not in LIVE_KEY_WALL:
                 self.assertEqual(row, self._live(index), index)
         # The live-key wall is load-bearing.
         for index in LIVE_KEY_WALL:
-            self.assertNotEqual(self.prefix[index], self._live(index), index)
+            if index < S33_FIRST_CHANGED:
+                self.assertNotEqual(self.prefix[index], self._live(index), index)
+            else:
+                with _dump_wall():
+                    result = self._step(self._resume(index), index)[:2]
+                self.assertNotEqual(result, self._live(index), index)
+        # Preserve the original absence-proof assertion on its independent
+        # baseline substrate; it is not an effect of the changed Home trip.
+        with _dump_wall():
+            result = self._step(self._resume(PRE_STAR_ID_FIRST_CHANGED), PRE_STAR_ID_FIRST_CHANGED)[:2]
+        self.assertEqual(result, (" ", "equipment-transaction:seek-home-page"))
+        self.assertEqual(self._live(PRE_STAR_ID_FIRST_CHANGED),
+                         ("\x1b", "equipment-transaction:withdraw-missing"))
         # Every shop transaction of the capture used two entries.
         for observe, release in P1_RELEASES.items():
             self.assertEqual(self._live(observe)[0], "\x1b")
@@ -421,6 +465,15 @@ class StoreReentryRecordedTest(unittest.TestCase):
             with self.subTest(index=observe):
                 policy = self._switch_on(self._resume(observe))
                 board = self._board(observe)
+                if observe == 834:
+                    # DECLARED COUNTERFACTUAL: no deferred full-ID retry
+                    # demand. The observed page and all other state remain
+                    # recorded. Its healing operation still tests the exact
+                    # original release body. The real stocked-*Identify*
+                    # selection is pinned separately below (e371f9a6).
+                    self.assertIsNone(policy._identification_need)
+                    self.assertTrue(policy._unbuyable_full_identify_sigs)
+                    policy._unbuyable_full_identify_sigs.clear()
                 key, reason = self._decide(policy, board)
                 body = self._live(release)[0][:-1]
                 self.assertEqual(key, body)
@@ -435,6 +488,34 @@ class StoreReentryRecordedTest(unittest.TestCase):
                                  (wanted["letter"], wanted["name"], wanted["price"]))
                 # P4 (review change 2): no composable observation is left.
                 self.assertIsNone(policy._shop_observation)
+
+    def test_visited_restocked_shop_buys_star_identify_for_deferred_candidate(self):
+        # DECLARED CONSTRUCTED independent 90fca3b7 substrate at 834, not
+        # an effect of current decision 212. State row 1093 stocks *Identify*
+        # at letter p; it supersedes the optional Healing buy at letter i.
+        policy = self._switch_on(self._resume(834))
+        board = self._board(834)
+        self.assertIsNone(policy._identification_need)
+        self.assertTrue(policy._full_identification_purchase_wanted())
+        self.assertIsNone(policy._mandatory_purchase(board))
+        key, reason = self._decide(policy, board)
+        self.assertEqual((key, reason), ("pp1\r\r", "shop:in-store-buy"))
+        scroll = next(item for item in board.store.items if item.letter == "p")
+        self.assertEqual((scroll.tval, scroll.sval, scroll.price),
+                         (TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, 10239))
+        self.assertEqual(policy._shop_selector_diagnostics["wanted_purchase"]["category"],
+                         "star-identify")
+        self.assertIsNone(policy._shop_observation)
+        self.assertEqual(policy._town_progress_invariant_defect, {})
+        prefix, steps = _store_buy_continuations(key, reason, board)
+        compile_observed_input(prefix, ScreenKind.STORE, {}, reason, steps)
+        import re
+        confirm = steps[-1]
+        self.assertEqual(confirm.kinds, frozenset({ScreenKind.CONFIRM}))
+        self.assertTrue(any(re.fullmatch(pattern, "買値 $10239 で買いますか？[Y/n]")
+                            for pattern in confirm.feature))
+        self.assertFalse(any(re.fullmatch(pattern, "買値 $10240 で買いますか？[Y/n]")
+                             for pattern in confirm.feature))
 
     # ------------------------------------------------------------ P2
     def test_p2_confirmation_gate_is_the_exact_total(self):
@@ -625,9 +706,16 @@ class StoreReentryRecordedTest(unittest.TestCase):
         self.assertIsNone(policy._store_buy_inflight)
         self._post(policy, key)
         with _dump_wall():
-            for index in (787, 788, 789):
-                key, reason, _board = self._step(policy, index)
-                self.assertEqual((key, reason), self._live(index))
+            key, reason, board = self._step(policy, 787)
+        # e371f9a6 defers the unavailable carried light Helmet (32, 5)
+        # and uses Home travel. Stop before feeding old 788/789 effects.
+        self.assertEqual((key, reason), ("\x1b`n(.", "shop:travel"))
+        self.assertEqual(self._live(787), ("7", "shop:approach"))
+        self.assertIsNone(policy._identification_need)
+        self.assertEqual(policy._identification_source_obtainability(board, full=True),
+                         "unavailable")
+        self.assertTrue(any(signature[1:] == (32, 5)
+                            for signature in policy._unbuyable_full_identify_sigs))
 
     # ------------------------------------------------------------ P5 / P6
     def test_p5_shelf_proven_fruitless_stops_are_skipped(self):
@@ -635,7 +723,14 @@ class StoreReentryRecordedTest(unittest.TestCase):
             with self.subTest(index=index):
                 off = self._resume(index)
                 key, reason = self._decide(off, self._board(index))
-                self.assertEqual((key, reason), self._live(index))
+                expected = (("\x1b`n(.", "shop:travel")
+                            if index in {216, 795} else self._live(index))
+                self.assertEqual((key, reason), expected)
+                if index in {216, 795}:
+                    self.assertIsNone(off._identification_need)
+                    self.assertEqual(off._identification_source_obtainability(
+                        self._board(index), full=True), "unavailable")
+                    self.assertTrue(off._unbuyable_full_identify_sigs)
                 would = off.in_store_decision_telemetry()["plan_shadow_would_skip"]
                 self.assertIn((store, category),
                               {(entry["store"], entry["category"]) for entry in would})

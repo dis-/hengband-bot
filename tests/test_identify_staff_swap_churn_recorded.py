@@ -26,10 +26,15 @@ equal or emptier is still refused.  Fix 2 (policy_supply): a Home staff the
 swap would release again at once (kept charges do not rise after the release
 plan) is not worth withdrawing.
 
-One replay of the process through ``CHECKPOINT`` is shared by every pin
-(setUpClass); each pin continues from a deep copy (R4: no board after a
-changed key is used).  Declared walls in ``_step``/``_dump_wall`` and the
-shared prefix replay (S3.3: current continuation stops at 2870; the Home
+The current replay ends at its first changed key, 1714 (state row 1997,
+turn 6066930): e371f9a6 defers the carried Crusader Tulwar after the
+Alchemist at rows 1993-1996 proves *Identify* absent and routes to Home.
+Later swap pins use DECLARED CONSTRUCTED independent 3b12a514 substrates
+at 2817 (the existing live-key wall) and 2846 (the unchanged sell prefix),
+frozen by extract_suitefix4_checkpoints.py. These are baseline-policy states,
+not effects of the new Home trip. Each pin continues from a deep copy.
+Declared walls in ``_step``/``_dump_wall`` and the
+independent swap continuation (S3.3: it stops at 2870; the Home
 staff site is a DECLARED CONSTRUCTED fresh observer of frozen shelves, not
 its later effect):
 
@@ -44,8 +49,9 @@ its later effect):
 - LIVE-KEY WALL 2817-2845: at 2817 the replay defers the Alchemist
   *Identify* errand for the (聖戦者)タルワール (``_defer_identification_for_conquest``,
   replay '8' probe) where the live process kept it ('2' shop:approach); the
-  cause was not found, so the live keys are posted there.  With the walls,
-  0-2816 and 2846-2853 reproduce the recorded keys exactly.
+  cause was not found, so the historical baseline posts the live keys there.
+  Current 0-1713 and independent 2846-2853 reproduce the recorded keys
+  exactly; the 2817 difference is checked on its independent substrate.
 - COMBAT DECISION WALL: the pending emergency escape uses the recorded
   escape-first rule, pre-teleport unseen-hit memory, pre-Speed-filter rule
   and pre-unseen-scratch-bound rule
@@ -74,6 +80,7 @@ from hengbot.warrior_optimization import load_character_calibration
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 from combat_decision_walls import pre_combat_decisions_rule
+from suitefix4_checkpoints import restore as restore_independent
 
 FIXTURES = Path(__file__).parent / "fixtures"
 STEM = "identify-staff-swap-churn-20261003"
@@ -90,6 +97,9 @@ SHA256 = {
 }
 LIVE_KEY_WALL = range(2817, 2846)
 CHECKPOINT = 2853
+FIRST_CHANGED = 1714
+INDEPENDENT = FIXTURES / "staff.suitefix4-independent-checkpoints.json.gz"
+INDEPENDENT_SHA256 = "5c028f838663935a0da61d04ea35e5f16b66a6f7f87d67bd2e635dc9d08f6f77"
 BUY = 2854
 HOME_WITHDRAW = 2874
 S33_FIRST_CHANGED = 2870
@@ -159,9 +169,33 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
         policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
         # The CLI sets the dump path; the dump wall supplies its contents.
         policy._character_dump_path = cls.directory / "character-dump.txt"
+        cls.prefix = []
         with _dump_wall(), pre_combat_decisions_rule():
-            cls.prefix = [cls._step(policy, index)[:2]
-                          for index in range(CHECKPOINT + 1)]
+            for index in range(FIRST_CHANGED + 1):
+                result = cls._step(policy, index)
+                row = result[:2]
+                cls.prefix.append(row)
+                if index < FIRST_CHANGED:
+                    assert row == (cls.recorded[index]["key"], cls.recorded[index]["reason"]), index
+        cls.first_full_id_state = (
+            policy._identification_need,
+            set(policy._unbuyable_full_identify_sigs),
+            policy._identification_source_obtainability(result[2], full=True),
+        )
+        assert hashlib.sha256(INDEPENDENT.read_bytes()).hexdigest() == INDEPENDENT_SHA256
+        substrates = json.loads(gzip.decompress(INDEPENDENT.read_bytes()))
+        assert substrates["source_revision"] == "3b12a514"
+        assert substrates["input_sha256"] == SHA256[FIXTURE]
+        assert set(substrates["checkpoints"]) == {"2817", "2846"}
+        with _dump_wall():
+            observer = restore_independent(substrates["checkpoints"]["2817"], cls.monrace, cls.directory)
+            cls.live_wall_result = cls._step(observer, 2817)[:2]
+            policy = restore_independent(substrates["checkpoints"]["2846"], cls.monrace, cls.directory)
+            cls.independent_prefix = []
+            for index in range(2846, CHECKPOINT + 1):
+                row = cls._step(policy, index)[:2]
+                assert row == (cls.recorded[index]["key"], cls.recorded[index]["reason"]), index
+                cls.independent_prefix.append(row)
         cls.files = {path: path.read_bytes()
                      for path in cls.directory.rglob("*") if path.is_file()}
         cls.checkpoint = copy.deepcopy(policy, {id(cls.monrace): cls.monrace})
@@ -229,11 +263,21 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
 
     def test_walled_replay_reproduces_the_recorded_keys(self):
         for index, row in enumerate(self.prefix):
-            if index not in LIVE_KEY_WALL:
+            if index == FIRST_CHANGED:
+                self.assertEqual(row, ("\x1b`n(.", "shop:travel"))
+                self.assertEqual(self._live(index), ("\x1b`n&.", "shop:travel"))
+            elif index not in LIVE_KEY_WALL:
                 self.assertEqual(row, self._live(index), index)
+        self.assertEqual(len(self.prefix), FIRST_CHANGED + 1)
+        need, deferred, source = self.first_full_id_state
+        self.assertIsNone(need)
+        self.assertEqual(source, "unavailable")
+        self.assertTrue(any(signature[1:] == (23, 15) for signature in deferred))
+        for index, row in enumerate(self.independent_prefix, 2846):
+            self.assertEqual(row, self._live(index), index)
         # The live-key wall is load-bearing: the replay's own 2817 differs.
         self.assertEqual(self._live(LIVE_KEY_WALL[0]), ("2", "shop:approach"))
-        self.assertNotEqual(self.prefix[LIVE_KEY_WALL[0]], self._live(LIVE_KEY_WALL[0]))
+        self.assertNotEqual(self.live_wall_result, self._live(LIVE_KEY_WALL[0]))
 
     # ------------------------------------------------------------ fix 1
     def test_swap_buys_the_fuller_staff(self):
