@@ -115,10 +115,24 @@ class TownMixin:
     def _town_arbiter_progress_vector(
         self, snapshot: Snapshot, reason: str | None = None,
         candidate: DecisionCandidate | None = None,
+        *, owner_family: str | None = None,
     ) -> tuple[object, ...]:
         """Read durable facts plus the registered locomotion owner's distance."""
         departure = getattr(self, "_departure_block", {}) or {}
         core = self._owner_progress_core(snapshot)
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        owner = owner_family or (arbiter.owner_for_reason(reason or self.last_reason)
+                                 if arbiter is not None else "unregistered")
+        def observed_item(item):
+            # Pack letters and burning lamp fuel are not an owner's effect.
+            return (
+                item.tval, item.sval, "" if item.tval == TVAL_LITE else item.name,
+                item.count, 0 if item.tval == TVAL_LITE else item.charges,
+                item.inscription, item.known, item.fully_known,
+                item.to_h, item.to_d, item.to_a,
+                0 if item.tval == TVAL_LITE else item.pval,
+                tuple(sorted(item.known_flags)),
+            )
         durable_core = replace(
             core,
             position=Position(0, 0),
@@ -126,6 +140,10 @@ class TownMixin:
             decision_sequence=0,
             # Spending is not work: inventory/shelf/goal changes prove procurement.
             gold=0,
+            inventory=(tuple(sorted((observed_item(item) for item in snapshot.inventory), key=repr))
+                       if owner != "store-router" else ()),
+            equipment=(tuple(sorted((observed_item(item) for item in snapshot.equipment), key=repr))
+                       if owner != "store-router" else ()),
         )
         home_blocked = (
             STORE_HOME in self._town_visit_ledger.blocked_stores
@@ -152,14 +170,19 @@ class TownMixin:
             getattr(self, "_descent_refusal_reason", None),
             bool(getattr(self, "_descent_blocked", False)),
         )
+        # Keep the last authoritative Home stock across the outside/sale legs.
+        # Page context and pending-command flags do not prove a stock effect.
+        durable += (("observed-home", tuple(sorted(
+            (observed_item(item) for item in self._home_knowledge_items),
+            key=repr,
+        ))),)
         if home_relief is not None:
             durable += (home_relief,)
-        arbiter = getattr(self, "_town_turn_arbiter", None)
-        owner = (
-            arbiter.owner_for_reason(reason or self.last_reason)
-            if arbiter is not None
-            else "unregistered"
-        )
+        if owner == "survival":
+            durable += (("observed-survival", snapshot.player.hp,
+                         snapshot.player.food_state),)
+        elif owner == "departure":
+            durable += (("observed-departure", snapshot.player.recalling),)
         goal: Position | None = None
         if owner == "store-router" or (
             owner == "equipment-txn"
@@ -363,10 +386,6 @@ class TownMixin:
             ),)
         if goal is None:
             return durable
-        if owner == "misc":
-            return durable + (
-                ("locomotion", owner, snapshot.floor_key, snapshot.player.position),
-            )
         return durable + (
             self._locomotion_part(snapshot, owner, goal),
         )
@@ -407,31 +426,23 @@ class TownMixin:
             return observation[0].store_type
         return getattr(self, "_shopping_approach_store_type", None)
 
-    @staticmethod
     def _locomotion_part(
-        snapshot: Snapshot, owner: str, goal: Position
+        self, snapshot: Snapshot, owner: str, goal: Position
     ) -> tuple[object, ...]:
-        """The distance part of a walking owner's progress vector.
+        """Declared target, step/BFS distances and a recurrence diagnostic.
 
-        It carries the walk's distance to its goal as the policy measures it,
-        ``Position.distance_to`` -- the eight-way step count the claim ledger
-        records for the walk's Reach goal -- beside the Manhattan sum the
-        arbiter read alone before.  The sum stays flat on every diagonal step
-        that closes one axis while opening the other, so a walk whose claimed
-        distance fell on every decision read as no progress and its owner
-        retired mid-walk (2026-09-25 06:23, store 7: claim distance 33 -> 20,
-        arbiter progress on 3 of 14 steps).  A strictly falling step
-        distance changes this part on every step and never repeats a value,
-        so it is progress and never a recurrence.  The sum stays in the part
-        so that every step that changed the old part still changes this one:
-        the recorded bounty approach (tests/test_town_arbiter.py) opens its
-        step distance 52 -> 53 -> 52 around an obstacle, which the step
-        distance alone would read as a recurrence and retire.
+        Only falling step or BFS distance proves movement progress. Manhattan
+        distance distinguishes different places with the same step rank, such
+        as the recorded bounty detour; changing it alone earns no budget.
         """
         position = snapshot.player.position
+        route = self._nearest_goal_route(snapshot, lambda grid: grid.position == goal)
+        if route is None:
+            route = self._town_map_goal_route(snapshot, goal)
         return (
             "locomotion", owner, snapshot.floor_key,
-            position.distance_to(goal),
+            goal,
+            (position.distance_to(goal), route.remaining_edges if route is not None else None),
             abs(position.y - goal.y) + abs(position.x - goal.x),
         )
 
@@ -719,7 +730,9 @@ class TownMixin:
             if (entry_unresolved is not None or q22_unresolved is not None
                     or prepare_return_unresolved is not None):
                 return entry_unresolved, q22_unresolved, prepare_return_unresolved
-        vector = self._town_arbiter_progress_vector(snapshot, reason, candidate)
+        vector = self._town_arbiter_progress_vector(
+            snapshot, reason, candidate, owner_family=owner
+        )
         if owner != "departure":
             return vector
         return (
@@ -1282,6 +1295,13 @@ class TownMixin:
                 )
             return None
         proposed_reason = self.last_reason or ""
+        from hengbot.town_arbiter import town_interruption_family
+        interruption = town_interruption_family(self._town_turn_arbiter, proposed_reason)
+        if (interruption == "bookkeeping" or (
+                interruption is not None and key not in {None, "", WAIT_KEY, LEAVE_STORE_KEY})):
+            # A save, fight or pickup suspends procurement. Its command shape
+            # and repeated pack fingerprint cannot reroute the pending errand.
+            return key
         if (
             snapshot.store is None
             and self._town_committed_loot()
@@ -3862,6 +3882,10 @@ class TownMixin:
         effect can exhaust the bound for later Home work.
         """
         ledger = self._town_visit_ledger
+        if (self._town_blocked_reason or "").startswith("home-full-"):
+            # The declared Home operation actually changed stock/pack. Earlier
+            # relief route failures no longer describe this outstanding work.
+            self._town_blocked_reason = None
         ledger.unsatisfied_passes[STORE_HOME] = 0
         ledger.approach_fails.pop(STORE_HOME, None)
         # ``blocked_store_limits`` names a block the pass count installed; a

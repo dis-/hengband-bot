@@ -1,0 +1,205 @@
+Owner retirement class sweep, 2026-10-05
+Worktree: C:\hengband\bot-client-retire
+Branch: owner-retired-class-1005; intended base: main 04d9c6fe.
+
+Scope and evidence
+Only this worktree was changed. No push, game launch, bot launch, or live
+jsonlog access was performed. The input archives were read from
+C:\hengband-backups\state-logs\owner-retired-20261005-1605.
+tests/fixtures/owner-retired-class-20261005.json.gz retains the last 41 decision
+rows and every state-fixed row for each of the three captures, with original
+line numbers, source filenames and compressed-source SHA-256 hashes. Fixture
+SHA-256: 2ba6724d02a6c87a7a6a40caa114b8b84479cbf7bf24a8f918c71c93c8ed1ce9.
+The extractor never reads the live jsonlog. These archives have no policy
+checkpoint: the new pins explicitly reconstruct owner state and exercise real
+effect/route/public-policy seams, rather than claiming an exact policy replay.
+
+Path inventory (references at base 04d9c6fe; names also identify final code)
+Path | Base file:line | Progress/retirement signal and interruption behavior
+Released-claim fallback emitter | policy.py:2788 | Previously a no-step release,
+not a failed-owner proof, was enough to emit owner-retired. Now requires the
+arbiter's retired verdict and zero remaining budget; otherwise retains the
+existing no-actionable-claim-owner terminal. A completed/released operation
+alone cannot claim that its owner retired.
+Equipment-owned relocation rejection emitter | policy.py:3025 | After final
+preview refusal, a counterfactual foreign route cannot displace an equipment
+transaction. Retirement admission now uses the same observed-effect/distance
+comparison as accounting; real progressing claims remain admitted.
+No-counterfactual rejection emitter | policy.py:3031 | Final preview refuses
+the selected family and no supplier alternative is available. This is the
+emitter consistent with all three recorded stops. Interruption families are
+admitted independently and procurement preserves their real commands.
+Ordinary budget retirement | town_arbiter.py:502-527 | Per-producer consecutive
+no-progress budget; writes _retired and closes that owner's store resource.
+Uses town_owner_progress, not arbitrary vector inequality. Purchase/sale pack
+effects, equipment/identification facts, authoritative Home stock and completed
+relief effects are observed facts; position, turn, gold and policy flags are not.
+Owner/vector recurrence retirement | town_arbiter.py:458-471,514-527 | Existing
+detector recurrence ceiling can prove a repeated ineffective state before the
+ordinary budget. Keys use the same observed effects and declared goal/rank,
+with a secondary route-distance diagnostic to distinguish detours. That
+diagnostic does not earn progress. Interruptions do not split an interrupted
+owner's last counted pair or spend its budget.
+Store-transfer rejection | town_arbiter.py:246,489-500,566 | Repeated store-pair
+transfers without effect set _transfer_exhausted; may_select/preview consult it.
+Observed progress releases the transfer history through the common comparator;
+an actual effect is credited even on the board that transfers a store. A new
+store target or an acquisition sequence alone does not prove movement progress.
+Retirement/recurrence/transfer preview | town_arbiter.py:555-594 | All final
+emitters above and producer-side admission consult may_select or its read-only
+preview. Real production-vector progress can re-admit a continuing goal;
+recurrence proof remains authoritative. Combat, survival, loot and bookkeeping
+cannot be rejected as a stalled ordinary errand.
+Retirement clearance | town_arbiter.py:432-441,574-590;
+policy_town.py:647 | Production-vector clearance now uses town_owner_progress,
+so changing a blocker flag or UI context alone does not lift retirement.
+Structural quest-route-unavailable evidence retains its own clearance shape.
+Store resource close on retirement | policy_shop.py:151-164 | Closes only the
+visit whose token family matches the retired owner. It is not a separate
+progress detector and cannot close a foreign interrupted errand.
+Store close during transfer | town_arbiter.py:246 | The pre-existing
+arbiter-retired close label releases a replaced resource. It is a transfer,
+not an owner-budget retirement or visible stop; the errand owner is retained.
+Claim retirement reflection | policy.py:4038-4059,4569;
+claim_register.py:870 | _claim_owner_retired reads final arbiter telemetry;
+register.retire reflects that verdict, with the existing held-route exception.
+It creates no independent budget or progress definition.
+Plan retirement for rebuilding | policy_town.py:3818 | Advances a replaceable
+plan index so it can rebuild, retaining visit facts. It does not retire the
+arbiter owner or emit owner-retired.
+Finished Home-plan retirement | policy.py:5750 | Removes a Home plan stop once
+its sole requester has finished. It is observed completion, not a stall stop.
+Optional failed-equipment retirement | policy.py:14914-14924 | Marks an
+unexecutable optional equipment claim for the established safe-departure path.
+It is an explicit equipment failure verdict, not this arbiter's owner-retired
+emitter. Mandatory equipment/depth requirements were not changed.
+
+The exhaustive production search found exactly three assignments of the
+town:blocked:owner-retired literal, one _retired owner insertion site, and one
+register.retire call. CLI/constants occurrences describe or classify the stop;
+they do not emit it. Existing Home pass/executor limits are separate physical
+operation failure evidence, not additional owner-retirement insertion sites.
+No time/attempt guard or budget was added or increased.
+
+Final-code anchors: policy.py:2789,3032,3038 are the three emitters;
+town_arbiter.py:634 is the sole _retired insertion; policy.py:4576 reflects
+the verdict in the claim register. The shared effect/distance rule is
+town_arbiter.py:49,76; interruption admission/accounting is :104,520,676;
+recurrence projection is :120,562; retirement clearance is :113,524,702.
+The owner-specific clearance projection is policy_town.py:734, pooled-device
+observation is policy_home.py:25 and policy.py:7327, and interruption command
+preservation is policy_town.py:1298.
+
+Per-stop causes (all line numbers below refer to the original archive)
+
+15:49:33, autorecover-20261005-154937:
+Decision 178 / sequence 7208 emits owner-retired. Decisions 174-177 / sequences
+7204-7207 first repeat home-full-deposit-retry-unreachable, with the town-plan
+budget 3 -> 2 -> 1 -> 0; decision 178 uses the final rejection emitter above.
+Earlier decisions 168-173 contain the withdrawal, sale and Home-space-ready
+continuation. State-fixed 77-78 shows Home stock 239 -> 238 and the mushroom
+entering the pack; 83-84 shows it leaving the pack on sale; 85 is the subsequent
+Home knowledge response. This is disposal/space progress, independently of
+gold. Final telemetry also has home_approach_fails=0, home_unsatisfied_passes=0,
+home_blocked=false and a non-exhausted plan [5,3,6,7]. The repeated local route
+failure had obscured the earned relief and was then treated as an entire-plan
+stall. Observed Home effects and completed relief now invalidate stale
+home-full-* route verdicts. The reconstructed recorded pin confirms the sale,
+settles relief, and produces a Home travel continuation on the final board.
+There is no checkpoint proving which earlier private route/refusal latch first
+made _shopping_approach_step return None; that narrower claim is not inferred
+from the tail alone.
+
+15:53:23, autorecover-20261005-155328:
+Decision 282 / sequence 1503 posts the full-home-sale withdrawal. Decision 283
+releases its Home errand as target-unobserved and emits
+home-full-surplus-withdraw-failed; decisions 284-286 repeat that verdict and
+spend town-plan's budget; 287 / sequence 1508 reaches the final rejection
+emitter. State-fixed 84-85 records Home stock 239 -> 238 and tval=65,sval=6
+pack count 1 -> 2. The shelf wand has a zero-charge display name, but pooling
+into the existing pack wand changes that name and exposes seven charges.
+Exact signature counting therefore reports zero instead of the actual gain.
+The real outside observer now confirms the known ordinary wand/staff take by
+kind count; equipment/unidentified objects retain exact matching. Relief also
+avoids selecting a device already held as a supply stack, and a restored legacy
+request that merges into a reserved stack releases that disposal goal and
+continues with other surplus. The recorded pin confirms DONE and continued
+route admission; it also pins the old exact-name count of zero.
+
+16:05:40, autorecover-20261005-160548:
+Decision 247 / sequence 5339 emits owner-retired, while town-plan has remaining
+budget 2, would_retire=false and retirement_set=[]. Decisions 207-208 contain
+town:kill-mob-approach; 209 is melee; 210 onward contains the loot interruption;
+decision 209 already reports misc retired with budget zero despite being a
+combat interruption of the errand.
+225-246 return to shop:approach. Decisions 243-246 move (42,95) -> (42,94) ->
+(43,92), closing the declared (45,84) goal. State-fixed 99-100 advances from
+(43,92) to (44,91). The selected pre-rewrite rung is periodic:game-save and the
+diagnostics call its unchanged procurement fingerprint an oscillation. The
+closed route claim 4196 is suspended as preempted-by:town-plan, not retired.
+The final residual preview-rejection emitter can therefore stop on a rejected
+misc/bookkeeping vector without the new town-plan token ever exhausting its
+budget; route distance is absent from that bookkeeping vector. Combat, loot
+and saves previously shared misc recurrence accounting or inherited the visit
+owner in telemetry. The exact historical recurrence counter versus transfer
+counter is not serialized, so that subguard cannot be claimed as checkpoint-
+proven. Both class paths now share the goal-progress comparison; saves/loot/
+combat do not spend or replace the interrupted route's observations, and a save
+is preserved at the public emission boundary. The recorded pin confirms the
+save survives, the route budget/vector/recurrences stay unchanged and the next
+observed board is closer to the same target.
+
+Fix and controls
+town_progress_parts/town_owner_progress are the shared production comparison
+for retirement budgets, recurrence projections, transfer release and admission.
+The target identity is part of every generic locomotion observation. Only a
+decrease of step/BFS distance to that same target counts; arbitrary movement,
+retargeting, pack letters, burning lamp fuel, gold and internal blocker flags
+do not. A router's movement budget does not earn credit for unrelated carried
+item changes during a fight/loot/survival interruption. Authoritative Home
+stock persists in observations across the outside/sale legs; completed relief
+counts remain the existing observed-withdrawal-plus-disposal evidence.
+The initial observation establishes a baseline without spending a failed-step
+budget. Posted observation waits and the existing bounded Recall wait suspend
+budget accounting; elapsed Recall turns are no longer labelled goal progress.
+The arbitration/census registration table and all existing budget constants
+are retained. Three new exact producer-baseline entries describe pure count,
+family and boolean helpers; no action producer or blanket lint exemption was
+added. The old loot-preemption assertion was updated to the supplied October 4
+suspension contract; distance-vector assertions retain their recorded values.
+New pins include a public-policy true-stall control that still emits the exact
+visible owner-retired stop, unchanged-distance/changed-target controls, gold/
+internal-flag exclusion, and Home-stock progress with an unchanged pack.
+Retirement clearance projects the requested owner even on another family's
+decision, so an interrupted router cannot be rearmed by another owner's pack
+projection. The town-only historical supplier pin now also proves a true Home
+route stall: its captured boards have Home distances 12,12,12,12,12,13,14,15,
+16,17 while the selected command names Home. Walking toward the Magic shop
+in those old boards cannot be credited to the newly selected Home goal.
+
+Validation
+Runtime: normal Windows Python 3.13; PYTHONPATH=src; all runner invocations
+use scripts/test_parallel_runner.py --workers 1. Only summaries/timing metadata
+were read for passing runs; failure output was read when correcting failures.
+Required core suite plus new recorded pins: 126 tests PASS, 306.907 seconds.
+  test_town_arbiter: 30
+  test_town_progress_invariant: 22
+  test_home_relief_progress_recorded: 4
+  test_ownership_s2a_classification: 16
+  test_item_sink_lint: 18
+  test_town_structure_lint: 19
+  test_s33_shadow_zero: 9
+  test_owner_retired_class_recorded: 8
+Receipt: jsonlog/receipts/test_parallel_runner-full-20261005T164804+0900.json
+Receipt SHA-256: 678fd1a7cb1f1a374c97a5eaa0c0e2a3611a2298239954e482d48f24427d2bb1.
+test_policy_town run alone: 589 tests PASS, 411.567 seconds.
+Receipt: jsonlog/receipts/test_parallel_runner-full-20261005T165401+0900.json
+Receipt SHA-256: d48da0bcb666fe052c4ca8d5469a59a8f78c355c54a147d44d211372f4d2e141.
+Final required runs: 715 tests PASS; no failures or errors; runtime-input
+purity checks ran in both runs. No source/test changes followed these runs.
+Changed-name grep: all six new helpers and their production call sites were
+searched using Select-String/Python (rg is unavailable). The exhaustive literal,
+_retired insertion and register.retire searches match the inventory above.
+git diff --check: PASS.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

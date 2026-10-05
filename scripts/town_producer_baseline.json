@@ -1,4 +1,7 @@
 {
+  "policy_home.py:HomeMixin._home_transfer_count": "pure helper: counts inventory units matching a posted Home take, including pooled known devices; never a game command",
+  "town_arbiter.py:town_interruption_family": "pure helper: returns a census family or None for suspension accounting; never a game command",
+  "town_arbiter.py:town_owner_progress": "pure helper: returns a boolean comparing observed goal effects and declared route ranks; never a game command",
   "ammo_carry.py:AmmoCarryPlan.kept_slots": "pure helper: kept_slots returns frozenset[str] used as input/observation, not an independently selected game action",
   "ammo_carry.py:AmmoCarryPlan.reservation": "pure helper: reservation returns int used as input/observation, not an independently selected game action",
   "ammo_carry.py:ammo_carry_plan": "pure helper: ammo_carry_plan returns AmmoCarryPlan used as input/observation, not an independently selected game action",
