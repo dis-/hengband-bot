@@ -3509,7 +3509,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             inscription="@0",
         )
         staff = replace(
-            item("m", TVAL_STAFF, 1, count=1, name="Light staff"),
+            item("m", TVAL_STAFF, 8, count=1, name="Light staff"),
             inscription="@0",
         )
         snap = Snapshot(
@@ -3531,7 +3531,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             self.assertNotIn("d0", first + "d1y")
 
     def test_unique_preinscribed_sale_still_composes_directly(self):
-        sale = replace(item("m", TVAL_STAFF, 1, name="staff"), inscription="@7")
+        sale = replace(item("m", TVAL_STAFF, 8, name="staff"), inscription="@7")
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)}, [], inventory=[sale],
@@ -3543,7 +3543,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
 
     def test_sale_refuses_when_no_unique_numeric_tag_is_available(self):
         blockers = [
-            replace(item(chr(ord("a") + digit), TVAL_STAFF, digit + 1),
+            replace(item(chr(ord("a") + digit), TVAL_STAFF, digit + 8),
                     inscription=f"@{digit}")
             for digit in range(10)
         ]
@@ -3686,7 +3686,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         # hide the shortage from the purchase executor either.
         self.assertIs(policy._next_purchase_unreserved(stocked), ware)
 
-    def test_known_cursed_ego_is_selected_for_sale(self):
+    def test_known_cursed_ego_is_not_selected_for_sale(self):
         target = item(
             "a", 23, 1, name="cursed ego sword", known=True,
             fully_known=False, is_equipment=True, is_ego=True, is_cursed=True,
@@ -3700,7 +3700,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._find_low_level_sale(snap), target)
+        self.assertIsNone(policy._find_low_level_sale(snap))
 
     def test_equipped_unidentified_weapon_without_source_routes_to_buy_identify(self):
         # The incident state: a worn, unidentified weapon and no identify
