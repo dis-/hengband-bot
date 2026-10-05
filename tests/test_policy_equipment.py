@@ -6221,13 +6221,15 @@ class RestoreCountIdentityIncidentTest(unittest.TestCase):
         )
         self.assertTrue(policy._equipment_transaction_owns_item(stacked))
 
-    def test_recorded_restore_with_physically_absent_shovel_reaches_terminal(self):
+    def test_interrupted_recorded_swap_with_physically_absent_shovel_reaches_terminal(self):
         policy, snapshots = self._transaction_replay()
-        for snapshot in snapshots[29:34]:
+        # Stop before the final equip is observed. A completed swap now
+        # discharges these takeoffs; only an interrupted swap owes restoration.
+        for snapshot in snapshots[29:33]:
             key = policy.choose_key(snapshot)
             if key is not None:
                 policy.confirm_key_posted(key)
-        final = snapshots[-1]
+        interrupted = snapshots[32]
         shovel_move_identity = equipment_move_identity(
             next(
                 item for item in snapshots[29].equipment
@@ -6242,11 +6244,16 @@ class RestoreCountIdentityIncidentTest(unittest.TestCase):
             ],
         )
         absent = replace(
-            final,
-            inventory=[item for item in final.inventory if not item.is_digging_tool],
+            interrupted,
+            inventory=[item for item in interrupted.inventory if not item.is_digging_tool],
         )
-
-        policy.choose_key(absent)
+        # DECLARED CONSTRUCTED failure: the pending combat equip cannot finish,
+        # and both removed shovels are physically absent on the observed board.
+        policy._block_equipment_transaction("recorded-swap-interrupted")
+        policy._abandon_blocked_equipment_transaction(absent)
+        # Verify the recovery owner's terminal directly; unrelated initial
+        # Home acquisition is outside this constructed interruption seam.
+        self.assertEqual(policy._equipment_transaction_town_owner_key(absent), WAIT_KEY)
         self.assertEqual(
             policy.last_reason,
             "equipment-transaction:restore-blocked-terminal",
