@@ -1,0 +1,104 @@
+S3.3 shadow-zero change, 2026-10-05
+Worktree: C:\hengband\bot-client-shadowzero
+Branch: shadow-zero-1005; base: bf842046.
+
+The frozen 80-row incident test has zero would_stop verdicts under the current
+code. Foreign-reserved item emission remains an ON terminal stop. No game or
+bot was started/stopped, no main jsonlog was accessed, and nothing was pushed.
+This report is committed with the implementation; the commit ID is printed
+separately after commit.
+
+Evidence is tests/fixtures/s33-shadow-zero-20261005.json.gz, SHA256
+2dd71ebcaecb6e3a3baffb2add351c9ddb0d8f3bccb2133a2a6d11d838af685c.
+It retains all 80 original rows, backup source hashes, three exact boards,
+preceding captured skill/Home knowledge and four preceding claim rows.
+The extraction script reads backup copies only. Row numbers below are 1-based
+positions in shadow-rows-since-1000.jsonl.gz, not full decision-log line numbers.
+
+Root causes and corrections:
+
+1. Reservation selectors: 59 equipment-txn and 11 home-full-retry stops,
+   including rows 2-13, 15-24, 27, 38-40, 43-66 and 75. Filtering a foreign
+   candidate was incorrectly logged as command emission, poisoning decisions
+   from travel, Home errands, combat and bookkeeping. Selection now records
+   aggregated selector_skip/query_skip counters without changing last_reason
+   or producing would_stop. Inscribe and wield obey the same rule. The Home
+   surplus selector also abandons its rejected candidate in ON mode.
+   checked_item_command/item_command record an emission violation and refuse
+   the command; reserved_item_command routes its denied verdict to that seam.
+   A suppressed None key retains its emission violation in OFF shadow as well.
+
+2. Row 1 (10:02:06, decision 564): the posted route to store 2 was awaiting
+   observation under a Reach declaration. The final check incorrectly demanded
+   a store-operation/entry Observe declaration before such an operation existed.
+   It now accepts only the same owner, claim, cell, post reference, visit and
+   registered route continuation. Changed bindings and unposted waits still stop.
+
+3. Rows 14, 69, 78, 79: an observed Home/session transition produced its own
+   declared exit while the preceding declaration named a travel/action step.
+   The final validator now permits this exact same-plan exit transition, with
+   equipment.next-action retained, no pending action and an observed Home page.
+   A different goal or pending operation still fails. Recomputed decisions on
+   captured boards 78/79 are respectively dp/dq, equipment-transaction:deposit,
+   in both OFF and ON, advancing the existing owner instead of the old ESC.
+   Row 30 (decision 14091, policy:none-store-exit) is a gated idle fallback
+   during a pending deposit. Its reconstructed pending ledger validates the
+   holder's observation continuation; existing owner dispatch suppresses idle.
+
+4. Row 25 (decision 3549, descend): direct descent lacked an entry gate, and
+   OFF abandonment could leave a ghost equipment transaction claim. Descent
+   now uses the registered departure gate before transport-purpose mutations.
+   Abandonment releases the transaction claim in OFF as well as ON.
+
+5. Row 76 (decision 1132): shop:home-full-surplus-sale-refused was unregistered.
+   It is now classified and goal-typed as shop-sell. Rejected sales explicitly
+   declare their exit under the acting owner instead of emitting an ownerless ESC.
+
+6. Rows 77/80 (decisions 13313/20): OFF's refused idle WAIT was changed to an
+   entrance step-off after its gate probe, losing the original producer_key
+   match. Shadow now recognizes only the declared adjacent movement envelope
+   with the same holder ID, family and refused WAIT. It still checks the holder
+   continuation; changed keys/targets/families/claim IDs are rejected. On the
+   captured row-80 board, ON selects the held quest's step-off continuation.
+
+Coverage limits are explicit: 3 exact boards are independently recomputed;
+77 absent-board rows pin the relevant shared verdict using recorded inputs.
+There was no checkpoint for this incident. Reconstructed pre-declarations,
+pending ledgers, visit/cursor state, static resident lore and row-77 weapon
+effect are labelled CONSTRUCTED in the test. Row 77 uses a later captured
+weapon solely as an identity template, never as a response to a changed key.
+This proves the incident seams, not a continuous historical or new live run.
+No new time or attempt guard was introduced.
+
+Validation uses the Codex runtime Python 3.14.4 via WSL. The disposable local
+launcher .venv/shadowzero-run-tests.py translates static Windows paths and
+checkpoint path objects, and resolves fd-relative temporary cleanup correctly
+for the existing write guard. Restricted live log paths are redirected to
+local fixture locations, never read from the main checkout.
+
+Validation results (summaries only; failure details inspected when necessary):
+- Frozen incident and negative controls: 9 tests PASS. All 80 rows are checked
+  with OFF and ON contexts; 3 boards use public decisions, 77 use verdict pins.
+- Required core: 60 tests across 8 modules PASS, including ownership ON replay,
+  item reservation/serialization, S3.3 shadow/report and recorded equipment/Home
+  exits.
+- Focused final checks: 197 tests across 7 modules PASS, including both item-sink
+  and town-structure linters, Live37 missing-board cases, S3a/S2b.2 ownership and
+  the shop probe subprocess. Initial batch failures were corrected and their
+  affected modules/cases rerun against the final source.
+- Changed-name grep batch: 884 tests exercised, 1 existing skip; affected cases
+  are covered by the successful focused rechecks above.
+- Further matching navigation/combat/declaration/Home pins: 494 tests PASS,
+  8 existing skips.
+- test_policy_home ALONE: 171 tests PASS, 4 existing skips.
+- test_policy_town ALONE: 589 tests PASS, no skips.
+- test_s33_shadow_recorded: 5 tests, 2 pass and 3 unavailable-input errors below.
+- git diff --check: PASS. No lint baseline was broadened or rewritten.
+
+Three pre-existing test_s33_shadow_recorded cases cannot run within the allowed
+inputs: Live8 (1932), Live10 (2149) and Live11 (2231), all dated 2026-09-30,
+require incident logs that their source points at the prohibited main jsonlog.
+No matching copy was found in the allowed backup/fixture locations. Their
+FileNotFoundError results are retained; the logs were not accessed or invented.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

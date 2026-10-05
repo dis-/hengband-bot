@@ -72,14 +72,9 @@ class ItemReservationTest(unittest.TestCase):
                 sale.reset_mock()
                 key = HomeMixin._home_full_relief_key(policy, board)
                 sale.assert_not_called()
-                if enforced:
-                    self.assertIsNone(key)
-                    self.assertEqual(policy.last_reason,
-                        'ownership:item-reserved:home-full-sale:equipment-txn')
-                else:
-                    self.assertEqual(key, 'retry')
-                    self.assertIsNone(policy._home_full_relief['sale'])
-                    retry.assert_called_once_with(board)
+                self.assertEqual(key, 'retry')
+                self.assertIsNone(policy._home_full_relief['sale'])
+                retry.assert_called_once_with(board)
             self.assertFalse(item_available(policy, board, target, 'home-visit', 'home-full-sale'))
             self.assertEqual(item_reserved_by_other(policy, board, target,
                 ('home-visit', 'home-full-sale')).owner, 'equipment-txn')
@@ -141,7 +136,7 @@ class ItemReservationTest(unittest.TestCase):
         policy.last_reason = 'equipment-transaction:home-prepare'
         self.assertIsNone(reserved_item_command(policy, board, 'staff', staff))
 
-    def test_public_decision_is_terminal_on_and_shadow_skip_off(self):
+    def test_public_decision_selector_skip_preserves_acting_producer(self):
         for enforced in (False, True):
             policy, board, target = self.scene(enforced)
             def producer(snapshot):
@@ -151,15 +146,12 @@ class ItemReservationTest(unittest.TestCase):
             with patch.object(policy, '_skill_exp_request_key', return_value=None), \
                     patch.object(policy, '_choose_key_with_latch_capture', side_effect=producer):
                 key = policy.choose_key(board)
-            if enforced:
-                self.assertIsNone(key)
-                self.assertEqual(policy.last_reason,
-                    'ownership:item-reserved:weight-deposit:equipment-txn')
-            else:
-                self.assertIsNotNone(key)
-                self.assertFalse(policy.last_reason.startswith('ownership:item-reserved:'))
-            self.assertEqual(policy.decision_claim['item_reservation_shadow'][0]['would_stop'],
+            self.assertIsNotNone(key)
+            self.assertFalse(policy.last_reason.startswith('ownership:item-reserved:'))
+            self.assertEqual(policy.decision_claim['item_reservation_shadow'][0]['selector_skip'],
                 'ownership:item-reserved:weight-deposit:equipment-txn')
+            self.assertFalse(any(row.get('would_stop') for row in
+                                 policy.decision_claim['item_reservation_shadow']))
 
     def test_off_predicate_exception_is_shadow_and_historical_fallback(self):
         policy, board, target = self.scene()
@@ -170,10 +162,13 @@ class ItemReservationTest(unittest.TestCase):
             self.assertEqual(reservation_shadow(policy)[0]['error'], 'RuntimeError')
         decide(policy, board)
 
-    def test_on_predicate_exception_stops(self):
+    def test_on_predicate_exception_filters_then_emission_stops(self):
         policy, board, target = self.scene(True)
+        policy.last_reason = 'equipment-transaction:travel-home'
         with patch('hengbot.item_reservation.item_reserved_by_other', side_effect=RuntimeError('pin')):
             self.assertFalse(item_available(policy, board, target, 'home-visit', 'deposit'))
+            self.assertEqual(policy.last_reason, 'equipment-transaction:travel-home')
+            self.assertIsNone(reserved_item_command(policy, board, 'deposit', target))
         self.assertEqual(policy.last_reason, 'ownership:item-reserved:deposit:predicate-error')
 
     def test_view_built_once_and_does_not_add_policy_attributes(self):
@@ -226,9 +221,8 @@ class ItemReservationTest(unittest.TestCase):
                 self.assertFalse(item_available(policy, board, target, 'foreign', 'sell'))
                 row = reservation_shadow(policy)[0]
                 self.assertTrue(row['ambiguous'])
-                self.assertEqual(row['would_stop'], 'ownership:item-reserved:sell:equipment-txn')
-                if enforced:
-                    self.assertEqual(policy.last_reason, row['would_stop'])
+                self.assertEqual(row['selector_skip'], 'ownership:item-reserved:sell:equipment-txn')
+                self.assertNotIn('would_stop', row)
             decide(policy, board)
 
     def test_need_query_skips_foreign_items_without_poisoning_owner_handoff(self):
@@ -247,6 +241,6 @@ class ItemReservationTest(unittest.TestCase):
                     'ownership:item-reserved:weight-deposit:equipment-txn')
                 self.assertNotIn('would_stop', reservation_shadow(policy)[0])
                 self.assertFalse(item_available(policy, board, target, 'home-visit', 'weight-deposit'))
-                self.assertEqual(reservation_shadow(policy)[1]['would_stop'],
+                self.assertEqual(reservation_shadow(policy)[1]['selector_skip'],
                     'ownership:item-reserved:weight-deposit:equipment-txn')
             decide(policy, board)
