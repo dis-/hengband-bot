@@ -1,0 +1,81 @@
+Baseline 82fcaeb9: A/B historical d0y reproduced=True; failures=4; errors=0
+
+test_A_recorded_failure_and_reconstructed_owned_refusal (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_A_recorded_failure_and_reconstructed_owned_refusal) ...
+  test_A_recorded_failure_and_reconstructed_owned_refusal (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_A_recorded_failure_and_reconstructed_owned_refusal) (enforced=False) ... FAIL
+  test_A_recorded_failure_and_reconstructed_owned_refusal (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_A_recorded_failure_and_reconstructed_owned_refusal) (enforced=True) ... FAIL
+test_B_recorded_singleton_and_posted_tail_now_leave (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_B_recorded_singleton_and_posted_tail_now_leave) ...
+  test_B_recorded_singleton_and_posted_tail_now_leave (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_B_recorded_singleton_and_posted_tail_now_leave) (enforced=False) ... FAIL
+  test_B_recorded_singleton_and_posted_tail_now_leave (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_B_recorded_singleton_and_posted_tail_now_leave) (enforced=True) ... FAIL
+
+======================================================================
+FAIL: test_A_recorded_failure_and_reconstructed_owned_refusal (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_A_recorded_failure_and_reconstructed_owned_refusal) (enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 85, in test_A_recorded_failure_and_reconstructed_owned_refusal
+    self.assert_owned_leave(policy, board)
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 55, in assert_owned_leave
+    self.assertEqual((key, policy.last_reason),
+AssertionError: Tuples differ: ('d0y', 'shop:in-store-sell') != ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+First differing element 0:
+'d0y'
+'\x1b'
+
+- ('d0y', 'shop:in-store-sell')
++ ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+======================================================================
+FAIL: test_A_recorded_failure_and_reconstructed_owned_refusal (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_A_recorded_failure_and_reconstructed_owned_refusal) (enforced=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 85, in test_A_recorded_failure_and_reconstructed_owned_refusal
+    self.assert_owned_leave(policy, board)
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 55, in assert_owned_leave
+    self.assertEqual((key, policy.last_reason),
+AssertionError: Tuples differ: ('d0y', 'shop:in-store-sell') != ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+First differing element 0:
+'d0y'
+'\x1b'
+
+- ('d0y', 'shop:in-store-sell')
++ ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+======================================================================
+FAIL: test_B_recorded_singleton_and_posted_tail_now_leave (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_B_recorded_singleton_and_posted_tail_now_leave) (enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 105, in test_B_recorded_singleton_and_posted_tail_now_leave
+    self.assert_owned_leave(policy, board)
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 55, in assert_owned_leave
+    self.assertEqual((key, policy.last_reason),
+AssertionError: Tuples differ: ('d0y', 'shop:one-shot-sale-compose') != ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+First differing element 0:
+'d0y'
+'\x1b'
+
+- ('d0y', 'shop:one-shot-sale-compose')
++ ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+======================================================================
+FAIL: test_B_recorded_singleton_and_posted_tail_now_leave (test_home_surplus_sale_screen_recorded.HomeSurplusSaleScreenRecordedTest.test_B_recorded_singleton_and_posted_tail_now_leave) (enforced=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 105, in test_B_recorded_singleton_and_posted_tail_now_leave
+    self.assert_owned_leave(policy, board)
+  File "C:\hengband\bot-client-salescreen\tests\test_home_surplus_sale_screen_recorded.py", line 55, in assert_owned_leave
+    self.assertEqual((key, policy.last_reason),
+AssertionError: Tuples differ: ('d0y', 'shop:one-shot-sale-compose') != ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+First differing element 0:
+'d0y'
+'\x1b'
+
+- ('d0y', 'shop:one-shot-sale-compose')
++ ('\x1b', 'shop:home-full-surplus-sale-refused')
+
+----------------------------------------------------------------------
+Ran 2 tests in 2.013s
+
+FAILED (failures=4)

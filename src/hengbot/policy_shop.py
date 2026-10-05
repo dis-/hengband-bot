@@ -3171,8 +3171,23 @@ class ShopMixin(InStoreMixin):
 
     @staticmethod
     def _store_accepts_sale(store_type: int, item: InventoryItem) -> bool:
-        """Conservative tval gate mirroring Hengband's store_will_buy switch."""
-        if store_type in {STORE_HOME, STORE_BLACK}:
+        """Conservative type/value gate for the store's item selection prompt."""
+        if store_type == STORE_HOME:
+            return True
+        # object_value_real makes known non-artifact armour with a negative
+        # armour bonus worthless, even when it is ego and has a positive base
+        # cost. store_will_buy excludes it from the item prompt entirely;
+        # sending its tag and a price answer would leave those keys unowned.
+        # Fixed artifacts return their value before this check. The emitter
+        # only exposes a combined artifact flag, so leave artifacts alone.
+        if (item.known and not item.is_artifact and item.to_a < 0
+                and item.tval in {
+                    TVAL_BOOTS, TVAL_GLOVES, TVAL_CROWN, TVAL_HELM,
+                    TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR,
+                    TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR,
+                }):
+            return False
+        if store_type == STORE_BLACK:
             return True
         if (
             store_type == STORE_WEAPON
@@ -3229,11 +3244,12 @@ class ShopMixin(InStoreMixin):
             return LEAVE_STORE_KEY
         if store is None or not self._store_accepts_sale(store.store_type, item):
             # 'd' can be rejected before opening an item prompt.  Never attach
-            # Return/yes tail keys unless the C++ store tval gate says the prompt
-            # exists; otherwise those keys execute raw in the store command loop.
+            # Return/yes tail keys unless the store eligibility gate admits the
+            # item; otherwise those keys land in an unrelated prompt or command.
             self._unsellable_items.add(self._item_signature(item))
             if store is not None:
                 self._set_town_store_attempted(store.store_type, snapshot.turn, "sell-no-item")
+            self._batch_sell_pending = None
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
@@ -3286,7 +3302,7 @@ class ShopMixin(InStoreMixin):
         if self._store_sell_stuck_count >= 1:
             self._unsellable_items.add(self._item_signature(item))
             self._set_town_store_attempted(store.store_type, snapshot.turn, "sell-stuck")
-            # The store accepts this item's type (it passed _store_accepts_sale)
+            # The store accepts this item (it passed _store_accepts_sale)
             # yet rejected the sale: it is FULL. Latch it so the withdraw/route
             # logic stops feeding more spares to a store with no room.
             self._store_sale_refused.add(store.store_type)
@@ -3329,6 +3345,7 @@ class ShopMixin(InStoreMixin):
             return [item for item in snapshot.inventory
                     if store.store_type == store_type
                     and self._sale_item_identity(item) == identity
+                    and self._store_accepts_sale(store.store_type, item)
                     and item.known
                     and not self._disposal_protected_by_identification(item)
                     and self._retention_reservation(snapshot, item) == 0
@@ -3371,7 +3388,8 @@ class ShopMixin(InStoreMixin):
                 if not self._equipment_transaction_owns_item(organization):
                     result.append(organization)
         return [item for item in result
-                if item_available(self, snapshot, item, "shop-sell", "sell")]
+                if self._store_accepts_sale(store.store_type, item)
+                and item_available(self, snapshot, item, "shop-sell", "sell")]
 
     @claims(ClaimOwner.SHOP_SELL)
     def _batch_sell_key(
@@ -3419,6 +3437,10 @@ class ShopMixin(InStoreMixin):
                     item = observed_tagged(entry)
                     if item is None:
                         continue
+                    if not self._store_accepts_sale(store.store_type, item):
+                        self._batch_sell_pending = None
+                        self.last_reason = "shop:sale-unaccepted-leave"
+                        return LEAVE_STORE_KEY
                     if not self._sale_tag_is_unique(
                         snapshot, item, str(entry["tag"])
                     ):
@@ -3489,7 +3511,8 @@ class ShopMixin(InStoreMixin):
             else candidates
         )
         candidates = [item for item in candidates
-                      if item_available(self, snapshot, item, "shop-sell", "sell")]
+                      if self._store_accepts_sale(store.store_type, item)
+                      and item_available(self, snapshot, item, "shop-sell", "sell")]
         if not candidates:
             return None
 

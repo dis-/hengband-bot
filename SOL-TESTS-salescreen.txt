@@ -1,0 +1,23 @@
+test_home_full_relief_recorded: Ran 4 tests in 10.360s; exit=0
+test_home_light_alternation: Ran 36 tests in 279.147s; exit=0
+test_home_surplus_inscription_recorded: Ran 2 tests in 1.948s; exit=0
+test_home_surplus_sale_screen_recorded: Ran 7 tests in 6.091s; exit=0 (corrected test setup; final rerun)
+test_homefull3_recorded: Ran 8 tests in 25.037s; exit=0
+test_item_reservation: Ran 17 tests in 29.288s; exit=0
+test_item_sink_lint: Ran 18 tests in 36.636s; exit=0
+test_policy_equipment: Ran 191 tests in 17.662s; exit=0
+test_policy_fundraising: Ran 51 tests in 0.087s; exit=0
+test_policy_home: Ran 171 tests in 34.181s; exit=0
+test_policy_shop: Ran 273 tests in 24.274s; exit=0
+test_policy_town: Ran 589 tests in 255.313s; exit=0
+test_s33_shadow_zero: Ran 9 tests in 9.977s; exit=0
+test_sale_key_lint: Ran 2 tests in 1.519s; exit=0
+test_shop_one_shot: Ran 53 tests in 2.262s; exit=0
+test_store_reentry_recorded: Ran 35 tests in 169.218s; exit=0
+test_test_fakery_lint: Ran 13 tests in 78.952s; exit=0
+test_town_structure_lint: Ran 19 tests in 50.631s; exit=0
+
+FINAL: 18 modules, 1498 tests; all passed.
+The initial new merge test used an incomplete reconstructed pending ledger. It was corrected to issue and confirm an actual inscription decision before observing the merged stack; its final 7-test rerun passed.
+Revert proof: base 82fcaeb9; A/B historical d0y reproduced=True; four expected subtest failures, zero errors.
+Runtime: C:/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe; PYTHONPATH=src;tests.
