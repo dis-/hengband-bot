@@ -4590,9 +4590,11 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         self.assertEqual(book_policy.last_reason, "shop:batch-inscribe")
 
         potion_policy = HengbotPolicy()
+        # Sleep has base cost 0 and the store will not buy it; use a
+        # disposable low-level potion with a positive base cost.
         potion = item(
-            "d", TVAL_POTION, SV_POTION_SLEEP,
-            name="Potion of Sleep", known=True, aware=True,
+            "d", TVAL_POTION, SV_POTION_RESIST_COLD,
+            name="Potion of Resist Cold", known=True, aware=True,
         )
         potion_snapshot = self._store_snapshot([potion], STORE_ALCHEMIST)
         potion_policy.prime(potion_snapshot)
