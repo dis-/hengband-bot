@@ -1,0 +1,337 @@
+Guard4 ownership ON replay report - 2026-10-05
+Worktree: C:\hengband\bot-client-guard4
+Branch: ownership-on-replay-1005; base: 361dd9ef84525bae355052dba7dd5dbaf40d6ae7.
+
+PASS: 62 windows, 253 decisions evaluated, 204 matching historical decisions, 154 town boards and 154 actual S3.3 shadow evaluations. Ownership violations: 0.
+No ownership:* terminal reason, item-reserved stop, or nonempty s33_shadow.would_stop occurred in the evaluated prefixes, including divergent decisions.
+
+The public choose_key runs with town claims, crossarea fundraising and in-store operations enabled. Matching keys are confirmed as posted and matching staged prompt chains are released. Each window ends at its first key OR reason difference; no following historical board or knowledge response is consumed.
+Production writes s33_shadow telemetry only with enforcement OFF. The ON harness observes the same pure _s33_shadow_verdict at the recording seam after claim completions and before offers/declarations, keeping enforcement ON. A focused control checks this ordering and flag. Instrumenting the observer preserved every previously measured key/reason prefix and divergence in the initial 60-window corpus.
+
+Coverage: 21 process-start windows and 8 independent exact pre-decision checkpoints; 33 explicitly labelled independent restart/control windows. Restart windows do not reconstruct the original process claims and are supplemental evidence only. Many end immediately at the restart skill-knowledge request. The choke capture contains dungeon decisions and supplies a dungeon restart control; its older decision rotation has no matching board retained in the copied state tail.
+Rows replayed includes the first divergent decision. P = process start; C = exact checkpoint; R = independent restart/control. Existing boundary row numbers are zero-based indices; checkpoint rows are captured decision_index values; copied-log rows are one-based source decision lines; restart fixture rows are one-based fixture entries.
+
+Window | Rows replayed | First divergence (row; [recorded key, reason] -> [new key, reason]) | Violations
+--- | ---: | --- | ---:
+[R] entrance-travel-retired-20260922.jsonl | 1 | 0; ["\u001b`n>.","town:travel-entrance"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[P] home-withdraw-failed-stock-present-20260925.jsonl | 4 | 3; ["~9\u001b","home:request-knowledge-scan"] -> ["\u001b","equipment-transaction:catalogue-leave-for-scan"] | 0
+[P] morivant-return-walks-away-20260925.jsonl | 3 | 2; ["\u001b`n%.","town-progress-invariant:defect:town:remove-curse=>town-progress-invariant:approach"] -> ["\u001b`n(.","shop:travel"] | 0
+[R] morivant-travel-retired-20260922.jsonl | 61 | 60; ["4","melee"] -> ["qb","item:strong-fight-speed"] | 0
+[P] overweight-home-hold-20261002 | 4 | 3; ["\u001b","home:route-claim-unfulfilled"] -> ["dk\u001b","home:weight-overload-deposit"] | 0
+[P] overweight-home-unreachable-20260925.jsonl | 4 | 3; ["de\u001b","home:atomic-deposit"] -> ["de1\r\u001b","home:atomic-deposit"] | 0
+[R] stuck-prompt-staged-tail-20260925.jsonl | 1 | 0; ["4","explore"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[P] town-approach-retired-20260925.jsonl | 53 | 52; ["\u001b`n'.","shop:travel"] -> ["\u001b`n$.","shop:travel"] | 0
+[P] town-blackmarket-stall-20261002 | 3 | 2; ["9","shop:approach"] -> ["\u001b`n&.","shop:travel"] | 0
+[P] town-cure-supplier-20261003 | 4 | 3; ["\u0013","periodic:game-save"] -> ["5","shop:travel:await-entry"] | 0
+[P] unaffordable-claim-tour-20260922.jsonl | 6 | 5; ["db\u001b","home:atomic-deposit"] -> ["db1\r\u001b","home:atomic-deposit"] | 0
+[C] town-restock-stall-hungry-checkpoints.jsonl.gz:2331 | 1 | 2331; ["5","town:blocked:restocked-recall-store-unreachable"] -> ["5","town:blocked:survival-mana-no-charges"] | 0
+[C] town-restock-stall-hungry-checkpoints.jsonl.gz:2333 | 1 | 2333; ["R300\r","town:wait-restock:temple"] -> ["5","town:blocked:survival-mana-no-charges"] | 0
+[C] food-store-unreachable-checkpoints.jsonl.gz:220 | 1 | 220; ["5","town:blocked:restocked-food-store-unreachable"] -> ["~9\u001b\u001b","home:request-knowledge-scan"] | 0
+[C] food-store-unreachable-checkpoints.jsonl.gz:221 | 1 | 221; ["5","town:blocked:restocked-food-store-unreachable"] -> ["~9\u001b\u001b","home:request-knowledge-scan"] | 0
+[C] food-store-unreachable-checkpoints.jsonl.gz:223 | 1 | 223; ["5","town:blocked:restocked-food-store-unreachable"] -> ["~9\u001b\u001b","home:request-knowledge-scan"] | 0
+[C] food-store-unreachable-checkpoints.jsonl.gz:242 | 1 | 242; ["5","town:blocked:restocked-food-store-unreachable"] -> ["~9\u001b\u001b","home:request-knowledge-scan"] | 0
+[C] recall-store-unreachable-checkpoints.jsonl.gz:220 | 1 | 220; ["5","town:blocked:restocked-food-store-unreachable"] -> ["~9\u001b\u001b","home:request-knowledge-scan"] | 0
+[C] device-purchase-preempted-checkpoint.jsonl.gz:253 | 1 | 253; ["\u001b`n&.","shop:travel"] -> ["wd","wield-light"] | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-122359-exit-no-marker.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-134213-equipment-transaction-home-route-repeat-terminal.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261004-134314-town-blocked-owner-retired.bot-decisions.jsonl.gz | 5 | 253; ["\u001b`n%.","shop:travel"] -> ["9","home:full-queue-surplus-withdraw"] | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-172904-exit-no-marker.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-173350-no-key-exhausted.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261004-191741-town-blocked-owner-retired.bot-decisions.jsonl.gz | 3 | 168; ["\u001b","home:scan-incomplete-open-page"] -> ["~9\u001b","home:request-knowledge-scan"] | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-192945-no-key-exhausted.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-201929-town-blocked-owner-retired.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-210535-no-key-exhausted.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261004-210649-no-key-exhausted.bot-decisions.jsonl.gz | 6 | 221; ["\u0013","periodic:game-save"] -> ["9","town:entrance-step-off:home:atomic-deposit-await-confirmation"] | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261004-210741-no-key-exhausted.bot-decisions.jsonl.gz | 8 | 224; ["7","town-progress-invariant:defect:periodic:game-save=>town:entrance-step-off:home:scan-step-off"] -> ["7","town-progress-invariant:defect:survival:mana-absorb=>town:entrance-step-off:home:scan-step-off"] | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261004-234518-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261004-235238-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz | 4 | 262; ["\u0013","periodic:game-save"] -> ["9","town:entrance-step-off:home:atomic-deposit-await-confirmation"] | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261004-235938-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz | 4 | 262; ["\u0013","periodic:game-save"] -> ["9","town:entrance-step-off:home:atomic-deposit-await-confirmation"] | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261005-001905-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz | 4 | 265; ["\u0013","periodic:game-save"] -> ["9","town:entrance-step-off:home:atomic-deposit-await-confirmation"] | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261005-002247-stuck-prompt-home-full-queue-surplus-withdraw.bot-decisions.jsonl.gz | 4 | none (frozen window exhausted) | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261005-013027-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz | 4 | 150; ["7","town-progress-invariant:defect:fixedquest:q2-teleport=>town:entrance-step-off:home:scan-step-off"] -> ["7","fixedquest:q2-teleport"] | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261005-013108-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz | 13 | 196; ["5","town:blocked:departure-unsatisfiable"] -> ["5","fundraise:supply-stockout-mining"] | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261005-051458-town-blocked-owner-retired.bot-decisions.jsonl.gz | 9 | 196; ["\u0013","periodic:game-save"] -> ["5   pU\u001b","home-errand:atomic-withdraw:identification-catalog"] | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261005-071353-town-blocked-owner-retired.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261005-071639-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz | 5 | 233; ["\u001b","home:scan-incomplete-open-page"] -> ["~9\u001b","home:request-knowledge-scan"] | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261005-090213-town-blocked-owner-retired.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[R] s33-phase2b-shadow-20261004/autorecover-20261005-093106-town-blocked-owner-retired.bot-decisions.jsonl.gz | 1 | none (frozen window exhausted) | 0
+[P] s33-phase2b-shadow-20261004/autorecover-20261005-093156-town-blocked-owner-retired.bot-decisions.jsonl.gz | 2 | 208; ["5","home:atomic-deposit"] -> ["5","shop:travel:await-entry"] | 0
+[R] town-owner-cluster-20260910.json.gz:restart:1 | 1 | none (frozen window exhausted) | 0
+[R] town-overflow-20261003.json.gz:restart:1 | 1 | 1; ["1","town:blocked:overflow-no-legal-disposal"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] town-overflow-20261003.json.gz:restart:2 | 1 | 2; ["1","town:blocked:overflow-no-legal-disposal"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] town-overflow-20261003.json.gz:restart:3 | 1 | 3; ["1","town:blocked:overflow-no-legal-disposal"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] town-home-candidate-stall-20260927.json.gz:restart:1 | 1 | 1; ["5","town:blocked:no-actionable-claim-owner"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] s33-live-short-entrance-224.json.gz:restart:1 | 1 | 1; [null,"ownership:holder-silent:store-router"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] town-loot-store-20260926.jsonl.gz:restart:1 | 1 | 1; ["9","melee"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] town-plan-exhausted-wander-20260923.jsonl.gz:restart:2 | 1 | 2; ["\u001b","shop:observe-and-leave"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] town-plan-exhausted-wander-20260923.jsonl.gz:restart:9 | 1 | 9; ["\u001b","shop:observe-and-leave"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] town-plan-exhausted-wander-20260923.jsonl.gz:restart:16 | 1 | 16; ["\u001b","shop:observe-and-leave"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] posted-effect-unobserved-20260923.jsonl.gz:restart:2 | 1 | 2; ["\u001b","home:leave-for-pending-withdraw"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] posted-effect-unobserved-20260923.jsonl.gz:restart:7 | 1 | 7; ["Eh","town-progress-invariant:defect:home:queue-withdraw-identify-staff-reserve=>survival:mana-absorb"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] posted-effect-unobserved-20260923.jsonl.gz:restart:10 | 1 | 10; ["\u001b","town-progress-invariant:continue-observed-shop"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] loot-choke-oscillation-20260923.jsonl.gz:restart:3 | 1 | 3; ["4","seek-loot"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] calibration-visit-blocked-loop-20260923.jsonl.gz:restart:3 | 1 | 3; ["tc","equipment-transaction:takeoff"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] newchar-town-wander-20260928.jsonl.gz:restart:1 | 1 | 1; ["5","shop:one-shot-buy"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] choke-hold-loop-20261005-0611/decisions.jsonl.gz:dungeon-control | 1 | 1081; ["5","melee:choke-hold"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] s33-phase2b-shadow-20261004/decisions-1301-1344.jsonl:restart | 1 | 13148; ["7","shop:approach"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+[R] s33-phase2b-shadow-20261004/decisions-1436-1447.jsonl:restart | 1 | 2580; ["\u001b`n%.","shop:travel"] -> ["~f\u001b","periodic:skill-exp-knowledge"] | 0
+
+Validation used the Codex runtime Python at C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe with PYTHONPATH=src:
+test_ownership_on_replay: 5 tests passed; 89.830s unittest time, 91.423s wall time (<180s), run alone.
+test_town_structure_lint: 19 tests passed in 45.896s.
+test_item_sink_lint: 18 tests passed in 31.440s.
+test_decision_return_boundary: 3 tests passed in 2.283s.
+git diff --cached --check: passed.
+
+Added tests/test_ownership_on_replay.py, reusable ownership_on_replay.py and ownership_on_corpus.py adapters, a reproducible extract_ownership_on_replay.py tool, and one compact frozen fixture. Test execution reads the committed fixture and existing pinned checkpoint/calibration files; it does not depend on the backup directories. Mutable policy paths use temporary directories.
+Frozen fixture: ownership-on-replay-20261005.json.gz, 1033023 bytes, SHA256 abc34d1afba4703989bfefb4acd3c5106546880aa79d11a001dd39724bbbbd02.
+
+Existing recorded-fixture inventory from town/ownership pins (58 files; the replayable subset and supplemental substrates appear above):
+  barrier-provenance-s3-r12-20260915.jsonl.gz
+  batch_sell_stack_quantity_20260810.json
+  bounty-locomotion-progress-20260919.jsonl
+  calibration-visit-blocked-loop-20260923.jsonl.gz
+  character-calibration-20260911.json
+  departure-blocked-ammo-fragmentation-20260910.json.gz
+  device-purchase-preempted-checkpoint.jsonl.gz
+  equipment-in-home-town0-2305.jsonl.gz
+  evidence-stairwait-selfstop-20260817-0450.jsonl
+  food-store-unreachable-checkpoints.jsonl.gz
+  guardian-recall-pingpong-20260925.character-calibration.json
+  home-deferral-absorbing-state.json.gz
+  incident-20260919-1509-departure-unsatisfiable.jsonl
+  incident-20260919-1619-identification-catalog-spin.jsonl
+  incident-20260920-1233-recall-stock-race.jsonl.gz
+  incident-20260920-1846-owner-retired.jsonl.gz
+  incident-20260920-2025-kill-mob-shop-alternation.jsonl.gz
+  incident-20260920-2112-seek-loot-shop-alternation.jsonl.gz
+  incident-20260921-0204-equipment-withdraw-item-missing.jsonl.gz
+  incident-20260921-0255-bounty-shop-alternation.jsonl.gz
+  incident-20260921-0536-no-claim-after-bounty.jsonl.gz
+  incident-alchemist-repetition-20260823.jsonl
+  incident-calibration-entry-await-20260823.jsonl
+  incident-equipment-abandon-loop-20260822.jsonl
+  incident-launcher-repetition-20260823.jsonl
+  incident-magic-abandon-cycle-20260823.jsonl
+  incident-postlevel-repetition-turn-1006064.jsonl.gz
+  incident-restock-rest-burn-window-20260825.jsonl.gz
+  loot-choke-oscillation-20260923.jsonl.gz
+  measured-outside-repetition-stall.jsonl
+  newchar-town-wander-20260928.jsonl.gz
+  organization-blocks-departure.jsonl.gz
+  ownership-claims-20260925-2041-in-scope-violations.jsonl.gz
+  ownership-claims-20260925-excerpt.jsonl.gz
+  ownership-s3a-verdict-recorded.jsonl
+  posted-effect-unobserved-20260923.jsonl.gz
+  quest-carry-town-block-20260915.jsonl.gz
+  quest-carry-town-block-r3-20260915.jsonl.gz
+  recall-store-unreachable-checkpoints.jsonl.gz
+  s33-live-short-entrance-224.json.gz
+  survival-locomotion-progress-20260919.jsonl
+  town-approach-retired-20260925.jsonl.gz
+  town-approach.s33-independent-checkpoints.json.gz
+  town-blackmarket-stall-20261002.boundaries.json
+  town-blackmarket-stall-20261002.character-calibration.json
+  town-blackmarket-stall-20261002.jsonl.gz
+  town-home-candidate-stall-20260927.json.gz
+  town-loot-store-20260926.jsonl.gz
+  town-loot-supplier-alternation-20260921.jsonl.gz
+  town-overflow-20261003.json.gz
+  town-owner-cluster-20260910.json.gz
+  town-plan-exhausted-wander-20260923.jsonl.gz
+  town-priority-stage1-live-boards-20260915.jsonl.gz
+  town-restock-stall-hungry-checkpoints.jsonl.gz
+  town-stall-restart-20260911.json.gz
+  town-unaffordable-supplies-20260915.jsonl.gz
+  town-unaffordable-supplies-restart-20260915.jsonl.gz
+  unaffordable-claim-tour-20260922.jsonl.gz
+
+Existing pins without a complete input/command trajectory or exact checkpoint (not counted as historical zero-violation windows):
+  barrier-provenance-s3-r12-20260915.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  batch_sell_stack_quantity_20260810.json - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  bounty-locomotion-progress-20260919.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  character-calibration-20260911.json - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  departure-blocked-ammo-fragmentation-20260910.json.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  equipment-in-home-town0-2305.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  evidence-stairwait-selfstop-20260817-0450.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  home-deferral-absorbing-state.json.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260919-1509-departure-unsatisfiable.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260919-1619-identification-catalog-spin.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260920-1233-recall-stock-race.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260920-1846-owner-retired.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260920-2025-kill-mob-shop-alternation.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260920-2112-seek-loot-shop-alternation.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260921-0204-equipment-withdraw-item-missing.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260921-0255-bounty-shop-alternation.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-20260921-0536-no-claim-after-bounty.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-alchemist-repetition-20260823.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-calibration-entry-await-20260823.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-equipment-abandon-loop-20260822.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-launcher-repetition-20260823.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-magic-abandon-cycle-20260823.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-postlevel-repetition-turn-1006064.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  incident-restock-rest-burn-window-20260825.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  measured-outside-repetition-stall.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  organization-blocks-departure.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  ownership-claims-20260925-2041-in-scope-violations.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  ownership-claims-20260925-excerpt.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  ownership-s3a-verdict-recorded.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  quest-carry-town-block-20260915.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  quest-carry-town-block-r3-20260915.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  survival-locomotion-progress-20260919.jsonl - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  town-approach.s33-independent-checkpoints.json.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  town-loot-supplier-alternation-20260921.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  town-priority-stage1-live-boards-20260915.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  town-stall-restart-20260911.json.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  town-unaffordable-supplies-20260915.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+  town-unaffordable-supplies-restart-20260915.jsonl.gz - no complete decision boundaries or exact predecision checkpoint; seam/telemetry/scenario pin only
+
+Copied captures not admitted as complete historical process windows (some supply a separately labelled restart/control above):
+  autorecover-20261004-121956-exit-no-marker.bot-decisions.jsonl.gz - town board absent from copied state tail
+  autorecover-20261004-143915-stuck-prompt-town-recall-to-alt-dungeon.bot-decisions.jsonl.gz - process-start board not retained in copied state tail
+  autorecover-20261004-144525-loop-detected.bot-decisions.jsonl.gz - no town decisions in retained process
+  autorecover-20261004-163617-town-blocked-survival-mana-no-charges.bot-decisions.jsonl.gz - no town decisions in retained process
+  autorecover-20261004-163636-town-blocked-survival-mana-no-charges.bot-decisions.jsonl.gz - no town decisions in retained process
+  autorecover-20261004-163655-town-blocked-survival-mana-no-charges.bot-decisions.jsonl.gz - no town decisions in retained process
+  autorecover-20261004-183329-town-blocked-owner-retired.bot-decisions.jsonl.gz - town board absent from copied state tail
+  autorecover-20261004-183442-no-key-exhausted.bot-decisions.jsonl.gz - process-start board not retained in copied state tail
+  autorecover-20261004-191650-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz - town board absent from copied state tail
+  autorecover-20261004-193603-stuck-prompt-stuck-recall-escape.bot-decisions.jsonl.gz - no town decisions in retained process
+  autorecover-20261005-012936-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz - town board absent from copied state tail
+  autorecover-20261005-051201-town-blocked-owner-retired.bot-decisions.jsonl.gz - town board absent from copied state tail
+  autorecover-20261005-051407-town-blocked-owner-retired.bot-decisions.jsonl.gz - process-start board not retained in copied state tail
+  autorecover-20261005-070711-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz - town board absent from copied state tail
+  autorecover-20261005-071527-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz - process-start board not retained in copied state tail
+  decisions-1-at-1740.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-1-at-1955.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-1.upto-1441.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-1441-1637.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-1714-1740.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-at-1955.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-tail-1150.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-upto-1834.jsonl.gz - no paired state file (overlapping decision-only copy)
+  decisions-1.jsonl.gz - no town decisions in retained process
+  decisions.jsonl.gz - no town decisions in retained process
+
+Frozen-source SHA256 digests (file bytes, including original gzip bytes; archive paths relative to C:/hengband-backups/state-logs):
+  calibration-visit-blocked-loop-20260923.jsonl.gz a7e6389d6fd161ef4bd4ce5564eb115d0fa232de7b0cea21e19176a81a1d7fc8
+  choke-hold-loop-20261005-0611\decisions.jsonl.gz 6bffe63b8dfa329d9be8cfd5a96412129b18a331a3669f4ff8253dfd1b8cd3bc
+  choke-hold-loop-20261005-0611\state.jsonl.gz 5d3719b347ac850aa449c6a10ac81344a13698432729b3c9d56dbd053765022e
+  device-purchase-preempted-checkpoint.jsonl.gz 437d2a7f4d3c3237e849abb28f70d4e82ae265035997bf8e3dce86fa8c3153cb
+  entrance-travel-retired-20260922.jsonl.boundaries.json 6cb56ffbf308c7264f5ea6782e62c93b973b62445138acc374f964044c37e5d3
+  entrance-travel-retired-20260922.jsonl.gz 7f3c944aceb5afaed1d0c0c8b37b036db139144a67d09a3aa2887f605db2b76e
+  food-store-unreachable-checkpoints.jsonl.gz 2f8085c365e7d2af762a40b1c003a0abbbcb6b66bf90d23995e0edd11f8c86a9
+  guardian-recall-pingpong-20260925.character-calibration.json a90e4700854b1b3cf839a278a846078c7f9d768c82c058551c6f52173660016b
+  home-withdraw-failed-stock-present-20260925.jsonl.boundaries.json fa25476f1f8ac7f4a18419a28dd1e6f8ddc8e33bcb9ce06aa03fe964df624eec
+  home-withdraw-failed-stock-present-20260925.jsonl.gz 041b395d5882c9eeee2232fb82ce98686bb955a0250b23f0c2f8c7b06330019a
+  loot-choke-oscillation-20260923.jsonl.gz a6195e5ed8f0c5d947b34f07d287fde139e0fd569ca98950af53ae74e1586442
+  morivant-return-walks-away-20260925.jsonl.boundaries.json e9ba914b047705537055c4f0c09f3f941aed1964a092ff2aa3d65e1e12efb1cf
+  morivant-return-walks-away-20260925.jsonl.gz 58c64d58e129cf6da0cba5c81f16826cb5f292bc05f3639851e1dd9a871da2a1
+  morivant-travel-retired-20260922.jsonl.boundaries.json 0858a57d73d6933db11b817cdec96fbe858ab73ae5a3ea0575e8b7138702f62a
+  morivant-travel-retired-20260922.jsonl.gz 285b1b312642a9b004759fb209538efc8f9b95dbc3a9b5abccac9f030a3ff28a
+  newchar-town-wander-20260928.jsonl.gz 8e903bc8dccb31ed7d8b111ed4bd40a512e7c50e40867b04c2539390ea4cf672
+  overweight-home-hold-20261002.boundaries.json 254746265f8fea1712d690bd8c8fa593f96fab3aa4d82957f0c16370f1c517d0
+  overweight-home-hold-20261002.character-calibration.json 0b64f6942910ac432bda1e2c29a7347447d8842de63059628e6eb6f923e6c86e
+  overweight-home-hold-20261002.jsonl.gz 6c5778fab95c12c979924d9582fef7f6f22865c6f5cb196901b89b27c1664ebf
+  overweight-home-unreachable-20260925.jsonl.boundaries.json df03223131b213afe99980b3c2bbfb4590e6912d7743bcda1735e7118a3df278
+  overweight-home-unreachable-20260925.jsonl.gz f0eee9ea489edb276f7deed60696140ace323c301a465ec88201a89d5f8dae9a
+  posted-effect-unobserved-20260923.jsonl.gz 70855683534d285c13d6849eab1a74c3b7824575efac9c3d54a772d60842bab0
+  recall-store-unreachable-checkpoints.jsonl.gz fbaba096bd93165b9c75287ef2f1806989443d1b398521a7c3dd5746e40853b4
+  s33-live-short-entrance-224.json.gz c57f7f152b6deb983bc666260351834e8e0bcdab61c54c88c515fec176ad4321
+  s33-phase2b-shadow-20261004\autorecover-20261004-122359-exit-no-marker.bot-decisions.jsonl.gz d7fcd57f04e0f2e1cd89526bc75d5e070a6635217dc2767e18526982b255be22
+  s33-phase2b-shadow-20261004\autorecover-20261004-122359-exit-no-marker.bot-state-fixed.jsonl.gz ffa06577715fe9042234a5b7c9c9c7437c7ffaa223f9f4d3d87e43113b8df2ac
+  s33-phase2b-shadow-20261004\autorecover-20261004-134213-equipment-transaction-home-route-repeat-terminal.bot-decisions.jsonl.gz 1873ea57f3011db5f2d793cada56e8de8495295ffc11d718e34935e62ebdcc6f
+  s33-phase2b-shadow-20261004\autorecover-20261004-134213-equipment-transaction-home-route-repeat-terminal.bot-state-fixed.jsonl.gz af8ac3d4a40d85c7241d283d994dc1e8cfb2fc93af3542246eff6badf0c2c1f8
+  s33-phase2b-shadow-20261004\autorecover-20261004-134314-town-blocked-owner-retired.bot-decisions.jsonl.gz fe9e62bc795e75b477ac940f53d8b6e2c420eddf568ca58a46f4c01227ce4fec
+  s33-phase2b-shadow-20261004\autorecover-20261004-134314-town-blocked-owner-retired.bot-state-fixed.jsonl.gz 21484cc28bb401dc6896b663235c0115ff018b784110ce6165d3d2c7c2090d9c
+  s33-phase2b-shadow-20261004\autorecover-20261004-172904-exit-no-marker.bot-decisions.jsonl.gz 648ddad482f1d9fb21fb6a4a72df5a92e4d7ac354b023ee4104c2157f8deac8c
+  s33-phase2b-shadow-20261004\autorecover-20261004-172904-exit-no-marker.bot-state-fixed.jsonl.gz ed15e71b51be9990f22530fcef3f2ea97185fb15e7f7acd9f11cc19d3cb91d25
+  s33-phase2b-shadow-20261004\autorecover-20261004-173350-no-key-exhausted.bot-decisions.jsonl.gz 75a43d5b5b28da0cb90ff4d185ddfc6903ec6c761ebef10ed18f60b08da244af
+  s33-phase2b-shadow-20261004\autorecover-20261004-173350-no-key-exhausted.bot-state-fixed.jsonl.gz 8a7d6b58df9ebeb3efdcd864cffa327423c159b6bf5c8420404a350d65541e1a
+  s33-phase2b-shadow-20261004\autorecover-20261004-191741-town-blocked-owner-retired.bot-decisions.jsonl.gz a114a70e6fb5df287ee96c22f2853a46d5f3374678b7e9ce50fa94c0811bf7cf
+  s33-phase2b-shadow-20261004\autorecover-20261004-191741-town-blocked-owner-retired.bot-state-fixed.jsonl.gz 99a03b6350413e2d1456bb8656b62d5db9ca660086fae9f40782597cc25b707b
+  s33-phase2b-shadow-20261004\autorecover-20261004-192945-no-key-exhausted.bot-decisions.jsonl.gz 0358e87c8a3108de154ceeddfa8000a7ee03a41937bb14494a6c7eb6fa016900
+  s33-phase2b-shadow-20261004\autorecover-20261004-192945-no-key-exhausted.bot-state-fixed.jsonl.gz b9b9821f00573b9edb9059738079cdf8878f403d25d4544485bd046a34703bc1
+  s33-phase2b-shadow-20261004\autorecover-20261004-201929-town-blocked-owner-retired.bot-decisions.jsonl.gz 9fb0c83713ff9c2218b91e752a1948b0d3ee065a3c5fdf5691fe36490d096b7b
+  s33-phase2b-shadow-20261004\autorecover-20261004-201929-town-blocked-owner-retired.bot-state-fixed.jsonl.gz 774b9d508e34ca9391c3e7f3407486ec237bd92b8d32ef259f9e3459625168c2
+  s33-phase2b-shadow-20261004\autorecover-20261004-210535-no-key-exhausted.bot-decisions.jsonl.gz aee6d3924f8d1f7855d0a1414e96bc5df936f9033112f3ca7fbb178c2e28b704
+  s33-phase2b-shadow-20261004\autorecover-20261004-210535-no-key-exhausted.bot-state-fixed.jsonl.gz b0a3f9ce2e326b18cd5ff3db112d3ccd92a20c5f88c0ca3c1462bfa6ff1a61f8
+  s33-phase2b-shadow-20261004\autorecover-20261004-210649-no-key-exhausted.bot-decisions.jsonl.gz bac1048a791ca7ae0dba3b1c826643b65940613919caedc5570b1ced398340de
+  s33-phase2b-shadow-20261004\autorecover-20261004-210649-no-key-exhausted.bot-state-fixed.jsonl.gz 2644e818eda3bd82ae01c485511883be9e679ddf6256e61410504d874cc7a8e2
+  s33-phase2b-shadow-20261004\autorecover-20261004-210741-no-key-exhausted.bot-decisions.jsonl.gz c1c22f7a58db36cff88c3c04ffda41b7777021b1e10c1aed0e452b7b57ed3520
+  s33-phase2b-shadow-20261004\autorecover-20261004-210741-no-key-exhausted.bot-state-fixed.jsonl.gz 3a2ef1841461286475a5975f6d6a37c6da252e1c28b458860011827001176737
+  s33-phase2b-shadow-20261004\autorecover-20261004-234518-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz 34c6d783c4e5cebbbbc30fd876c7e2cd05d8b07e581db9fc60967b337ad5a8f0
+  s33-phase2b-shadow-20261004\autorecover-20261004-234518-stuck-prompt-home-request-knowledge-scan.bot-state-fixed.jsonl.gz e0fc10bfcc536d06bf05d97314d7899795de58734ad318f1fe931b619021d194
+  s33-phase2b-shadow-20261004\autorecover-20261004-235238-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz 3aef74686a3ab351e56f58313662beccd61e6668946bac23e0441b55806233c3
+  s33-phase2b-shadow-20261004\autorecover-20261004-235238-stuck-prompt-home-request-knowledge-scan.bot-state-fixed.jsonl.gz ece49d841d08fb6a8eb8ec4907667e848fa6c74611d467d1ac5ee402baee13c0
+  s33-phase2b-shadow-20261004\autorecover-20261004-235938-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz 17afc26bf28f71007ff26c7d2fdc8f6225170868abc0a10567c6ecf8e7938bd0
+  s33-phase2b-shadow-20261004\autorecover-20261004-235938-stuck-prompt-home-request-knowledge-scan.bot-state-fixed.jsonl.gz f377bc85398b2313d485f981c67f8cedb1d77dc9f6fe0b7927b4ad856acc8641
+  s33-phase2b-shadow-20261004\autorecover-20261005-001905-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz 7ccd1273124c110b576f7fc002b3799a8c2bf2d8d953bb12007b044fb8e2dbb7
+  s33-phase2b-shadow-20261004\autorecover-20261005-001905-stuck-prompt-home-request-knowledge-scan.bot-state-fixed.jsonl.gz 82316c4360cb625aded4c749293186e4dbb18c9eebe0c6365648144b40f9c322
+  s33-phase2b-shadow-20261004\autorecover-20261005-002247-stuck-prompt-home-full-queue-surplus-withdraw.bot-decisions.jsonl.gz 90d93eacaccbf13f15f8fda564b68dab6dba45391e2b8e6aa7450910ee77b9d0
+  s33-phase2b-shadow-20261004\autorecover-20261005-002247-stuck-prompt-home-full-queue-surplus-withdraw.bot-state-fixed.jsonl.gz e5c9c4426ac041982e80d86c5ecb5b4eaa92a158b711af2d0f66454eae51b741
+  s33-phase2b-shadow-20261004\autorecover-20261005-013027-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz 24781d0c8305010ec6c33f9ac9041b03bb45b5edf489a42e693c792096a2147a
+  s33-phase2b-shadow-20261004\autorecover-20261005-013027-town-blocked-departure-unsatisfiable.bot-state-fixed.jsonl.gz d6ef142de0579bd922d07e328fec44809a68d3f9c37eb6639930c170854a37da
+  s33-phase2b-shadow-20261004\autorecover-20261005-013108-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz b61157384f53723a723f3cc8e49f7d921dbc603aedbacf4384ec6ad286973e43
+  s33-phase2b-shadow-20261004\autorecover-20261005-013108-town-blocked-departure-unsatisfiable.bot-state-fixed.jsonl.gz 674c7182c726900481ab83e84d21741c1030777f7dced55c61c509cfa1394dee
+  s33-phase2b-shadow-20261004\autorecover-20261005-051458-town-blocked-owner-retired.bot-decisions.jsonl.gz a4e630ba81091a6972ae29b497d0d89d72b663b405cc0a0cd8797791ff39e72b
+  s33-phase2b-shadow-20261004\autorecover-20261005-051458-town-blocked-owner-retired.bot-state-fixed.jsonl.gz 0c630afff5257ce644f41917c45ce79e54c66826e3633e5c841ac2b9d00394d6
+  s33-phase2b-shadow-20261004\autorecover-20261005-071353-town-blocked-owner-retired.bot-decisions.jsonl.gz b77fda1319fb4b4d4e9bc46be21fc16977da9b09f5479dcd7e4f50442c2eca1a
+  s33-phase2b-shadow-20261004\autorecover-20261005-071353-town-blocked-owner-retired.bot-state-fixed.jsonl.gz b112c8f0685e4f52fef4758ad72f01ee0e954f736941c9b0464eac542dec36a7
+  s33-phase2b-shadow-20261004\autorecover-20261005-071639-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz 49c15eb511388f2d071276e607f5590a46917e8f9c8954d33cccc96a1631a939
+  s33-phase2b-shadow-20261004\autorecover-20261005-071639-town-blocked-departure-unsatisfiable.bot-state-fixed.jsonl.gz 6bcf32cc881cd7451b776ae122508a4a584df55c208a766d1e333fb83cbebaf0
+  s33-phase2b-shadow-20261004\autorecover-20261005-090213-town-blocked-owner-retired.bot-decisions.jsonl.gz 00a5b8190b5cfc23ef957a2ad55c66b33933364c5d54c197f0aee54c3e08c6bf
+  s33-phase2b-shadow-20261004\autorecover-20261005-090213-town-blocked-owner-retired.bot-state-fixed.jsonl.gz 07435502ea41ff83f909a3c7ba56a64d124b0a763bcfcb0ed943b22ea301d53e
+  s33-phase2b-shadow-20261004\autorecover-20261005-093106-town-blocked-owner-retired.bot-decisions.jsonl.gz ad7e8556f57e09c144ec7066e08fa1df09e8fb7172f295c4442b60d886114994
+  s33-phase2b-shadow-20261004\autorecover-20261005-093106-town-blocked-owner-retired.bot-state-fixed.jsonl.gz bc3e81dd5476dba4fb895d202b73c603a33c32d84365a0d17851a9c06fc92cb8
+  s33-phase2b-shadow-20261004\autorecover-20261005-093156-town-blocked-owner-retired.bot-decisions.jsonl.gz 24c1e7316cfe524fbf0b6ba30dfb1e70828b4ea6856493293240d8d12f02d36d
+  s33-phase2b-shadow-20261004\autorecover-20261005-093156-town-blocked-owner-retired.bot-state-fixed.jsonl.gz a0ef2b7c26bc19fc6f0b66c229dce0c4d910af5a3c70fe3f4b08140c0dee512d
+  s33-phase2b-shadow-20261004\decisions-1301-1344.jsonl 89952dda731a035e0ae0c8f47570883674e5ee80b0670124ead3eacd3fa0febe
+  s33-phase2b-shadow-20261004\decisions-1436-1447.jsonl 99731bb2384c80cb629d8265696f02b0cb89a8129119e3d24a93164a2d23d54b
+  s33-phase2b-shadow-20261004\state-upto-1344.jsonl.gz f05caa34bde7525d93cbfa8b71ba2691b49266232077de09dc5583cb8d1212f0
+  s33-phase2b-shadow-20261004\state-upto-1447.jsonl.gz b63462bd286d1465f9b4dcb7f6d30fe8d2a4f1a8d3ebee9ea16d66ef4abe80e4
+  stuck-prompt-staged-tail-20260925.character-calibration.json 44cd2ac4e61a12417967cdc1e9c24d306d09ef69a3f994e1611cf5eb54721697
+  stuck-prompt-staged-tail-20260925.jsonl.boundaries.json 38a0346c0dc9fd9fbbf7e0f60b76f0033bc278633876b72d12ec7f9411bca04c
+  stuck-prompt-staged-tail-20260925.jsonl.gz e47a45e211b2d7f5e2c98873e3a1c56789f0b597de5be80eacb9169a1f27918a
+  town-approach-retired-20260925.jsonl.boundaries.json 9706267ad37124770d48b06af6281f8876aed2c3244b66680d0b1de63ea88a20
+  town-approach-retired-20260925.jsonl.gz 249feeff221d652c51bb8b56d9c4ec021ce17bd309f39b17d9d53f940e106093
+  town-blackmarket-stall-20261002.boundaries.json bd70eb5ace54e75aa4748dcba1857861c9318d2e9221c5b2e927b8936af1e96e
+  town-blackmarket-stall-20261002.character-calibration.json 78ba2af16831a9a9211784eacedc74599c53de6a9dfffe68dbb5f7ae88af6220
+  town-blackmarket-stall-20261002.jsonl.gz 28e85c0ef9d52cdfd76dc2c8d99ceefe28484a520925e69e44f23db9cc74cd36
+  town-cure-supplier-20261003.boundaries.json 2d7bc580efc7b664973ddcf077e00866c4e4578ae73d401a2239e2f23a09e834
+  town-cure-supplier-20261003.jsonl.gz 8f882502cc6fca6905a9fe15c57003554b6b0904911750b17ddf08ab2d0f556f
+  town-home-candidate-stall-20260927.json.gz 99501ba3dfb757fd0387229b6410915e30737d4ef08c73438104e77554742e6c
+  town-loot-store-20260926.jsonl.gz 6cf18440b200d73a1e84265a987fa8302f82332cfeae9f8bfe85f81bc530a4af
+  town-overflow-20261003.json.gz 81fbc948a1030c8834a0c9424371224cfaa6c7aa2b9ce1ac1580f8edcca9da2c
+  town-owner-cluster-20260910.json.gz 6da04c73ff639092b93481381fb96220d382f18b344665e62de5c1b597739c58
+  town-plan-exhausted-wander-20260923.jsonl.gz 8e10aa20de3ec80c0b832befa01a7946d1a6248597efcd3cb540e17a979f8aba
+  town-restock-stall-hungry-checkpoints.jsonl.gz ce2bda5a8205aa77ca708ceeb6e351967f25a82c0eaa4e3028370f809867eafd
+  unaffordable-claim-tour-20260922.character-calibration.json 94e45131a9f886e13ad4f4fcf01ba127384ccea9e8dfbc0b8fea32fff023cfd8
+  unaffordable-claim-tour-20260922.jsonl.boundaries.json 59d574ab2830846cd7d324907ed397ff2ef97ca5660b7d8334298d08960d1b47
+  unaffordable-claim-tour-20260922.jsonl.gz ee4c27fa348569fe8274767cbfc9c1ce76a4f54cf8a102768216cb42995c024d
+
+Copied shadow audit: s33-phase2b-shadow-20261004\shadow-rows-live.jsonl; SHA256 ccceb519a206585286d391144401ad7b9e0c91eb3711bc89144c8b38b7425da0; 133 rows and 133 historical would_stop records.
+  ownership:declaration-missing:home-visit: 1
+  ownership:declaration-missing:store-router: 2
+  ownership:declaration-stale:equipment-txn: 13
+  ownership:declaration-stale:shop-sell: 2
+  ownership:gate-missing:departure: 6
+  ownership:gate-missing:home-visit: 1
+  ownership:gate-missing:idle: 3
+  ownership:gate-missing:shop-buy: 1
+  ownership:gate-missing:store-router: 1
+  ownership:gate-missing:town-plan: 1
+  ownership:gate-missing:unregistered: 1
+  ownership:item-reserved:home-full-sale:equipment-txn: 1
+  ownership:item-reserved:inscribe:home-visit: 7
+  ownership:item-reserved:sell:home-full-retry: 1
+  ownership:item-reserved:sell:home-visit: 2
+  ownership:item-reserved:weight-deposit:equipment-txn: 66
+  ownership:item-reserved:weight-deposit:home-full-retry: 21
+  ownership:item-reserved:wield:home-full-retry: 3
+These are archived observations, not a current live-shadow check. The separate condition that the live shadow shows no NEW would_stop remains unverified. Permanent enforcement readiness is limited by that condition and by the explicitly documented replay coverage gaps.
+
+Found product defects within evaluated valid prefixes: none. No production policy fix or registration exception was needed.
+All work and the commit stay in this worktree. The game/bot were not started or stopped, no push was performed, and C:\hengband\bot-client\jsonlog was not accessed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
