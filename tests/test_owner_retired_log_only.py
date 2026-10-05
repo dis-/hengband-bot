@@ -30,7 +30,7 @@ class OwnerRetiredLogOnlyTest(unittest.TestCase):
 
 
 class OwnerRetiredLogOnlyBurstTest(unittest.TestCase):
-    def test_third_retirement_within_the_window_stops_again(self):
+    def test_third_retirement_without_productive_work_stops_again(self):
         from hengbot import cli
 
         class Policy:

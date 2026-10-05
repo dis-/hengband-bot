@@ -1,0 +1,27 @@
+SOL-REPORT-slice1 -- budget stop, 2026-10-06
+Worktree: C:\hengband\bot-client-slice1; branch town-progress-slice1; base cf50a891.
+
+Implemented:
+- One arbiter retirement receipt, including accounting, mutating selection refusals, and final-policy refusals before reason rewrites. Driver handles hidden and labelled retirement before empty/poll branches. Log-only records original reason, retirement owners, canonical retirement reason and forgiveness outcome. Independent final/contract stops remain stops.
+- Survival (including no-wait escape/flee) cannot be retired or suppressed by errand budgets, recurrence or transfer exhaustion. Interrupts freeze errand counters. Survival store routes bypass the equipment relocation hold without clearing its session.
+- Removed the 600-second monotonic window. Three retirement events without productive admitted work in one town visit stop visibly with town:blocked:owner-retired-burst. Forgiveness preserves the independent count. Observed store effects and evidenced completion of previously admitted execution reset it; admitted legal-route BFS minima reset it only on a new minimum. Baselines, admissions, UI transitions, changed labels, and distance bounces earn no credit. Store openings retain the visit; departure/town change resets it. Existing observer receipts are used; comprehensive new all-kind business observers remain outside this narrowed slice.
+
+Recorded pins:
+- c: mana-shop-wait-20261006-0724/bot-decisions.jsonl physical row 10751, turn 12870609, decision 10118; matched bot-state-tail.jsonl row 897. Live hidden survival retirement and key 5 are frozen. Driver pin records/forgives it; route component pin reconstructs the disclosed Home relocation hold and isolates the movement adapter, advancing to key 6. Parsing-only monster lookup is constructed. No historical continuation/checkpoint replay or later game effect is claimed.
+- a: home-full-nosurplus-20261005-2356/bot-decisions.jsonl row 2521, turn 12611801. Hidden detectors retirement is recorded/forgiven. No matching board exists in its truncated state tail; driver state alone is reconstructed.
+- Fixture includes exact original row bytes and SHA256; extractor reads only those physical rows. Tests verify hashes and decoded content.
+
+Validation:
+- Final new pins + tests.test_owner_retired_log_only: PASS, 17 tests; jsonlog/slice1-pins-timings.json.
+- Initial parsing-only missing monster lookup error was corrected; final pin run passes.
+- Started the requested arbiter/work-contract/structure/item-sink/s33-shadow module group and tests.test_policy_town alone. Both remained running at the budget stop and their workers were terminated. They are INCOMPLETE, not certified passing. Initial group imported earlier source revisions while the final driver refinements were made. No full suite or extra replay was run.
+- town_work_manifest.py --write: 800 candidates, 19511 call sites, zero unmapped. No entries added/removed; no classification, work rows, context, evidence or delegation changes. Digests/line locations and corresponding call-site inventory changed with the implementation.
+
+Limitation: Remaining requested test validation and any findings it reveals are unfinished because of the explicit 200k stop. This commit is an implementation checkpoint, not a completed slice certification.
+No push; no game/bot execution; no other worktree operations.
+
+Tokens used at report generation: 204,291 non-cached input + output tokens.
+Raw session counters: input=4339547, cached input=4161664, output=26408, reasoning output=10091 (included in output), total including repeated cached input=4365955.
+This uses non-cached input plus output for the task budget; report/commit/final-message overhead follows this measurement.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

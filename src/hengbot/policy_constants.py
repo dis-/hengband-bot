@@ -314,6 +314,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:overflow-no-legal-disposal',
         'town:blocked:overweight-home-unreachable',
         'town:blocked:owner-retired',
+        'town:blocked:owner-retired-burst',
         'town:blocked:procurement-home-unavailable',
         'town:blocked:procurement-home-unroutable',
         'town:blocked:recall-readiness-contradiction',

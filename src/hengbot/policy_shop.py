@@ -5083,13 +5083,14 @@ class ShopMixin(InStoreMixin):
                 and self._defer_town_errand(writer_family, "shopping-approach")):
             return None
         if (
-            self._equipment_transaction_owns_town_relocation(snapshot)
+            writer_family != "survival"
+            and self._equipment_transaction_owns_town_relocation(snapshot)
             and self._shopping_approach_store_type != STORE_HOME
             and self._home_full_relief is None
         ):
-            # Every store route, including candidate probes and one-step
-            # fallbacks, converges here.  Refusal is deliberately pure: only
-            # the transaction executor may mutate or abandon its session.
+            # Ordinary errands cannot relocate a transaction. Survival is
+            # an interrupt and returns to that same session after safety work;
+            # the route neither mutates nor abandons the transaction.
             self._offer_execution(
                 WAIT_KEY, producer="store-router",
                 work_id=f"route-refused:{self._shopping_approach_store_type}",

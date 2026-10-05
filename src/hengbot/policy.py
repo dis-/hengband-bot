@@ -2963,6 +2963,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 rejected_candidate = key
                 retired_owner = arbiter.owner_for_reason(self.last_reason)
+                arbiter.retire(retired_owner, current_retirement_key)
                 self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
                 supplier = self._departure_supplier_counterfactual(snapshot)
                 step = (
@@ -3037,6 +3038,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                   and not arbiter.preview_may_select(
                       self.last_reason, vector,
                       retirement_key=current_retirement_key)):
+                arbiter.retire(current_owner, current_retirement_key)
                 self._town_refuse_rewrite(
                     "arbiter-retirement", self._town_held_decision(key))
             if snapshot.store is not None and key in DIRECTION_KEYS.values():

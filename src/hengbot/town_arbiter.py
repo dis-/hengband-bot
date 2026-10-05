@@ -286,6 +286,8 @@ class TownTurnArbiter:
             "town:ascend": "departure",
             "town:descend": "departure",
         }
+        if normalized in {"no-wait:escape-scroll", "no-wait:flee"}:
+            return "survival"
         if normalized in explicit:
             return explicit[normalized]
         for entry in self._ordered:
@@ -364,6 +366,7 @@ class TownTurnArbiter:
         (2026-10-05): a retirement is recorded, not a stop, and the town
         owners start again from a fresh budget.
         """
+        self._pending_retirements = set()
         self._owner = None
         self._tenure = 0
         for name in ("_no_progress_by_owner", "_vector_by_owner", "_retired",
@@ -378,6 +381,32 @@ class TownTurnArbiter:
         self._pending_transfer = None
         self._transfer_exhausted = False
         self._transferred_visit = None
+
+    @property
+    def retirement_pending(self) -> bool:
+        """One receipt for accounting retirement and selection refusal alike.
+
+        Read old checkpoint retirement state as well; forgiveness consumes the
+        receipt without destroying the telemetry of the logged decision.
+        """
+        return bool(self.pending_retirement_owners)
+
+    @property
+    def pending_retirement_owners(self) -> tuple[str, ...]:
+        owners = set(getattr(self, "_pending_retirements", ()))
+        owners.update(getattr(self, "_retired", {}))
+        if not owners and getattr(self, "_transfer_exhausted", False):
+            owners.add("store-transfer")
+        return tuple(sorted(owners))
+
+    def retire(self, owner, retirement_key, close_visit=None) -> None:
+        """Publish retirement before a caller can rewrite its reason or key."""
+        if owner == "survival":
+            return  # Safety interrupts and returns; only its own producer can fail.
+        self.__dict__.setdefault("_retired", {})[owner] = retirement_key
+        self.__dict__.setdefault("_pending_retirements", set()).add(owner)
+        if close_visit is not None:
+            close_visit(owner, "arbiter-retired")
 
     def _decision_owner(self, reason: str) -> str:
         """Bind ordinary work to the active errand; survival may hand off."""
@@ -435,6 +464,7 @@ class TownTurnArbiter:
         if not hasattr(self, "_transferred_visit"):
             self._transferred_visit = None
         if not in_town:
+            self._pending_retirements = set()
             self._owner = None
             self._tenure = 0
             self._no_progress_by_owner.clear()
@@ -451,6 +481,17 @@ class TownTurnArbiter:
             self._transferred_visit = None
             self.telemetry = None
             return None
+        if self.owner_for_reason(reason) == "survival":
+            # An interrupt freezes the errand's counters and transfer history.
+            # Do not retire safety, even at a repeated vector or a terminal
+            # result: its producer supplies its own visible impossibility.
+            self.telemetry = {
+                "owner": "survival", "producer_owner": "survival",
+                "tenure": 1, "progress": False,
+                "budget_remaining_estimate": None, "would_retire": False,
+                "retired": False, "retirement_set": sorted(self._retired),
+            }
+            return dict(self.telemetry)
         if retirement_key_for is not None:
             self._retired = {
                 owner: vector for owner, vector in self._retired.items()
@@ -539,14 +580,14 @@ class TownTurnArbiter:
             remaining = 0
         would_retire = (
             registration is not None
+            and owner != "survival"
             and not observation_wait
             and not progress
             and (remaining == 0 or recurrence_exhausted)
         )
         if would_retire:
-            self._retired[owner] = retirement_key if retirement_key is not None else progress_vector
-            if close_visit is not None:
-                close_visit(owner, "arbiter-retired")
+            self.retire(owner, retirement_key if retirement_key is not None else progress_vector,
+                        close_visit)
         self.telemetry = {
             "owner": self._decision_owner(reason),
             # The visit owner is the authority for the errand, while this
@@ -585,13 +626,19 @@ class TownTurnArbiter:
         if _mutate and not hasattr(self, "_recurrences"):
             self._recurrences = Counter()
         owner = self.owner_for_reason(reason)
+        if owner == "survival":
+            return True
         if getattr(self, "_transfer_exhausted", False):
+            if _mutate:
+                self.retire(owner, retirement_key if retirement_key is not None else progress_vector)
             return False
         recurrences = getattr(self, "_recurrences", Counter())
         if (
             recurrences[(owner, progress_vector)]
             >= self.registry["detectors"].budget
         ):
+            if _mutate:
+                self.retire(owner, retirement_key if retirement_key is not None else progress_vector)
             return False
         retired_at = getattr(self, "_retired", {}).get(owner)
         if retired_at is None:

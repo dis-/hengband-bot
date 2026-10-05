@@ -18,6 +18,7 @@ from typing import Iterable, Mapping
 _CONTROL_OWNER_HANDLES: dict[int, object] = {}
 
 from hengbot.model import (
+    Position,
     STORE_HOME,
     TVAL_WAND,
     MissingMonraceKnowledgeError,
@@ -408,26 +409,135 @@ def _declaration_requires_no_send(key: str | None, reason: str | None) -> bool:
         "ownership:declaration-"))
 
 
-OWNER_RETIRED_LOG_ONLY_WINDOW_SECONDS = 600.0
 OWNER_RETIRED_LOG_ONLY_LIMIT = 3
 
 
-def _owner_retired_log_only_allows(policy) -> bool:
-    """Log-only mode still stops when retirements repeat quickly.
+def _owner_retired_log_only_allows(policy, retirements=1) -> bool:
+    """Count retirements since admitted work last made observed progress.
 
-    A burst (OWNER_RETIRED_LOG_ONLY_LIMIT within the window) means the reset
-    does not let the town owner progress (e.g. an equipment swap alternating
-    every few seconds, live 2026-10-05 19:33), so the visible stop returns.
+    This checkpointed counter is independent of arbiter forgiveness. There is
+    no elapsed-time window, and different owners share the same visit counter.
     """
-    now = time.monotonic()
-    recent = [t for t in getattr(policy, "_owner_retired_log_only_times", ())
-              if now - t < OWNER_RETIRED_LOG_ONLY_WINDOW_SECONDS]
-    recent.append(now)
-    policy._owner_retired_log_only_times = recent
-    return len(recent) < OWNER_RETIRED_LOG_ONLY_LIMIT
+    count = getattr(policy, "_owner_retired_no_progress_count", 0) + retirements
+    policy._owner_retired_no_progress_count = count
+    return count < OWNER_RETIRED_LOG_ONLY_LIMIT
 
 
-def _record_owner_retired_log_only(args, snapshot, key, policy) -> None:
+def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) -> None:
+    """Settle bounded existing effect receipts and observed route minima.
+
+    Slice 1 does not activate new all-kind business observers. Only a completed
+    admitted execution with evidence, or the existing store effect observer,
+    earns effect credit. Baselines, admissions and UI state changes earn none.
+    """
+    from hengbot.town_work import current_record
+    state = getattr(policy, "_owner_retired_progress", None)
+    visit = ((getattr(snapshot, "town_id", -1), snapshot.floor_key)
+             if snapshot.in_town or snapshot.store is not None else None)
+    if state is None or state["visit"] != visit:
+        state = dict(visit=visit, routes={}, effects=set(), admitted=set(),
+                     sequence=None)
+        policy._owner_retired_progress = state
+        policy._owner_retired_no_progress_count = 0
+        baseline = True
+    else:
+        baseline = False
+    sequence = getattr(policy, "_decision_sequence", None)
+    if visit is None or (sequence is not None and state["sequence"] == sequence):
+        return
+    state["sequence"] = sequence
+    tokens = set()
+    for candidate in (observed_visit, getattr(policy, "_store_visit", None)):
+        if (candidate is not None and candidate.operation_effect_observed
+                and candidate.posted_sequence is not None):
+            tokens.add(("store-effect", candidate.store_type, candidate.posted_sequence))
+    buffer_method = getattr(policy, "_decision_offer_buffer", None)
+    if buffer_method is not None:
+        for producer, work_id, evidence, _, status in buffer_method().no_steps:
+            if status == "done" and evidence and work_id in state["admitted"]:
+                tokens.add(("execution-effect", producer, work_id, evidence))
+    productive = bool(tokens - state["effects"]) and not baseline
+    state["effects"].update(tokens)
+    record = current_record(policy, key)
+    if record is not None:
+        claim = getattr(getattr(policy, "_claim_register", None), "current", None)
+        execution = getattr(claim, "execution", None)
+        if execution is not None and execution.state in {"ready", "posted", "awaiting"}:
+            state["admitted"].add(execution.work_id)
+        # Do not use the legacy vector's final integer: some walkers put
+        # Manhattan distance there, and some do not name a target at all.
+        # Measure the current admitted Reach goal on the observed legal map.
+        goal = getattr(getattr(claim, "goal", None), "cell", None)
+        arbiter = getattr(policy, "_town_turn_arbiter", None)
+        owner = arbiter.owner_for_reason(policy.last_reason) if arbiter else None
+        if goal is not None:
+            goal = Position(*goal)
+        elif owner in {"store-router", "equipment-txn", "survival"}:
+            goal = getattr(policy, "_shopping_approach_goal", None)
+        route_method = getattr(policy, "_town_map_goal_route", None)
+        route = (route_method(snapshot, goal)
+                 if route_method is not None and goal is not None and snapshot.store is None
+                 else None)
+        if route is not None:
+            target = (visit, route.target)
+            rank = route.remaining_edges
+            minimum = state["routes"].get(target)
+            if minimum is not None and rank < minimum:
+                productive = True
+            state["routes"][target] = rank if minimum is None else min(rank, minimum)
+    if productive:
+        policy._owner_retired_no_progress_count = 0
+
+
+def _policy_final_stop_required(policy) -> bool:
+    reason = policy.last_reason or ""
+    sequence = getattr(policy, "_decision_sequence", None)
+    forgiven = (reason == "town:blocked:owner-retired"
+                and sequence is not None
+                and getattr(policy, "_owner_retired_forgiven_sequence", None) == sequence)
+    return ((reason in POLICY_FINAL_STOP_REASONS and not forgiven)
+            or reason.startswith(("ownership:holder-silent:",
+                                  "ownership:declaration-",
+                                  "ownership:contract-conflict:fundraising:")))
+
+
+def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
+    """The single driver retirement entrance, before polls and final stops."""
+    _observe_owner_retired_progress(policy, snapshot, key, observed_visit)
+    arbiter = getattr(policy, "_town_turn_arbiter", None)
+    pending = bool(arbiter is not None and arbiter.retirement_pending)
+    labelled = policy.last_reason == "town:blocked:owner-retired"
+    if not (pending or labelled):
+        return key
+    # Independent typed failures retain their own final stop; log-only is
+    # permission to forgive errand retirement alone.
+    if _policy_final_stop_required(policy) and not labelled:
+        if getattr(args, "owner_retired_log_only", False):
+            _record_owner_retired_log_only(args, snapshot, key, policy, forgive=False)
+        return key
+    if getattr(args, "owner_retired_log_only", False):
+        sequence = getattr(policy, "_decision_sequence", None)
+        if sequence is not None and getattr(policy, "_owner_retired_handled_sequence", None) == sequence:
+            return key
+        policy._owner_retired_handled_sequence = sequence
+        owners = arbiter.pending_retirement_owners if arbiter is not None else ()
+        allowed = _owner_retired_log_only_allows(policy, max(1, len(owners)))
+        _record_owner_retired_log_only(args, snapshot, key, policy, forgive=allowed)
+        if allowed:
+            policy._owner_retired_forgiven_sequence = sequence
+            if snapshot.store is not None:
+                key = LEAVE_STORE_KEY
+                from hengbot.town_work import bind_driver_override
+                bind_driver_override(policy, key, site='cli.py:main')
+            return key
+        policy.last_reason = "town:blocked:owner-retired-burst"
+    else:
+        policy.last_reason = "town:blocked:owner-retired"
+    # Route empty/poll retirements through the existing final-stop machinery.
+    return WAIT_KEY
+
+
+def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True) -> None:
     """Log an owner retirement and give town owners a fresh budget."""
     arbiter = getattr(policy, "_town_turn_arbiter", None)
     telemetry = getattr(arbiter, "telemetry", None) if arbiter is not None else None
@@ -437,6 +547,10 @@ def _record_owner_retired_log_only(args, snapshot, key, policy) -> None:
         "floor": list(getattr(snapshot, "floor_key", ()) or ()),
         "key": key,
         "reason": policy.last_reason,
+        "retirement_reason": "town:blocked:owner-retired",
+        "forgiven": forgive,
+        "retirement_owners": list(arbiter.pending_retirement_owners) if arbiter is not None else [],
+        "retirements_without_progress": getattr(policy, "_owner_retired_no_progress_count", 0),
         "arbiter": telemetry if isinstance(telemetry, dict) else None,
     }
     path = None
@@ -448,9 +562,10 @@ def _record_owner_retired_log_only(args, snapshot, key, policy) -> None:
                 stream.write(json.dumps(record, ensure_ascii=False) + "\n")
         except OSError:
             pass
-    print(f"<owner-retired-log-only> turn={record['turn']} recorded; continuing",
+    outcome = "continuing" if forgive else "stopping"
+    print(f"<owner-retired-log-only> turn={record['turn']} recorded; {outcome}",
           file=sys.stderr, flush=True)
-    if arbiter is not None and hasattr(arbiter, "forgive_retirement"):
+    if forgive and arbiter is not None and hasattr(arbiter, "forgive_retirement"):
         arbiter.forgive_retirement()
 
 
@@ -472,6 +587,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:overweight-home-unreachable": "the overweight character cannot reach Home to deposit surplus",
         "town:blocked:home-withdraw-failed-stock-present": "Home still records the requested item after its bounded withdrawal failed",
         "town:blocked:owner-retired": "the town arbiter exhausted the selected owner's visit budget",
+        "town:blocked:owner-retired-burst": "three retirements in this town visit had no observed work or distance progress",
         "town:blocked:home-known-empty-withdrawal": "current Home knowledge proves the requested withdrawal is absent",
         "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
         "town:blocked:procurement-home-unroutable": "required Home procurement has no route",
@@ -4283,6 +4399,7 @@ def _run_follow(
                     )
                     phase_started_at = time.perf_counter()
                     key = policy.validate_read_key(snapshot, chosen_key)
+                    key = _handle_owner_retirement(args, snapshot, key, policy, emit_visit)
                     emit_ownership = emit_ownership_verdict(
                         emit_visit, snapshot, key, emit_approach_store
                     ).as_dict()
@@ -4424,22 +4541,7 @@ def _run_follow(
                             flush=True,
                         )
                         return incident_stop("loop-detected", snapshot)
-                    if (getattr(args, "owner_retired_log_only", False)
-                            and policy.last_reason == "town:blocked:owner-retired"
-                            and _owner_retired_log_only_allows(policy)):
-                        _record_owner_retired_log_only(args, snapshot, key, policy)
-                        if getattr(snapshot, "store", None) is not None:
-                            # The retired producer's map key is invalid on a
-                            # store page (live 2026-10-05 21:06 stuck-prompt);
-                            # leave the page and decide again outside.
-                            key = LEAVE_STORE_KEY
-                            from hengbot.town_work import bind_driver_override
-                            bind_driver_override(policy, key, site='cli.py:main')
-                    elif (policy.last_reason in POLICY_FINAL_STOP_REASONS
-                            or (policy.last_reason or "").startswith(
-                                ("ownership:holder-silent:",
-                                 "ownership:declaration-",
-                                 "ownership:contract-conflict:fundraising:"))):
+                    if _policy_final_stop_required(policy):
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, repeating_reason_count,
