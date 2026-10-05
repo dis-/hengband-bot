@@ -46,7 +46,7 @@ One replay of the process through ``CHECKPOINT`` is shared by every pin
   calibration of its 11:59:55 dump and ran equipment transactions on it; the
   dump file is not in the capture, so the replay has no calibration and
   decides differently on the boards listed in ``PREFIX_DIVERGENCES``
-  (9-73: the Home equipment work; 1057: the transaction's stale-identity
+  (9-92: the Home equipment work; 1057: the transaction's stale-identity
   label; 1377-1378: the live ``town:kill-mob-approach`` the replay reads as
   ``store:entry-await-observation`` -- not explained).  The live key is posted
   on every prefix board, so every later board is the one live observed.
@@ -63,6 +63,12 @@ One replay of the process through ``CHECKPOINT`` is shared by every pin
   new request's prerequisite facts, command, claim and declaration are pinned
   separately. The supplier fix itself changes no prefix decision (1388 is
   its first changed key).
+  DECLARED DIVERGENCE (2026-10-05 full-Home discard repair): Home knowledge
+  requests leave the store before opening ~9, and that exit owns its outside
+  continuation. Added differences 47, 56-57, 61, 68, 75, 80-81 and 87-92,
+  with restored parity at 72, are pinned below along with the actual scan
+  surfaces. They remain within this LIVE-KEY WALL: later captured boards are
+  historical inputs after the original keys, not effects of repaired commands.
 - CLI TIMER WALL: the periodic dump/save requests come from the CLI wall
   clock; each is delivered on the board where the live process posted it.
 - PRE-FIX WALL (``_pre_fix_supply_rule``): ``_shortage_supplier_visit_page``
@@ -119,9 +125,27 @@ FIRST_CHANGED = 1388
 STOP = 1390
 PREFIX_DIVERGENCES = (
     9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
-    27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 53,
-    69, 70, 71, 72, 73, 1057, 1377, 1378,
+    27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 53,
+    56, 57, 61, 68, 69, 70, 71, 73, 75, 80, 81, 87, 88, 89, 90, 91, 92,
+    1057, 1377, 1378,
 )
+DISCARD_PREFIX_CHANGES = {
+    47: ('7', 'shop:approach'),
+    56: ('\x1b', 'home:scan-incomplete-open-page'),
+    57: ('\r', 'shop:await-leave-confirmation'),
+    61: ('~9\x1b', 'home:request-knowledge-scan'),
+    68: ('~9\x1b', 'home:request-knowledge-scan'),
+    72: ('\x1b', 'home:scan-incomplete-open-page'),
+    75: ('\x1b`n%.', 'shop:travel'),
+    80: ('\x1b', 'home:scan-incomplete-open-page'),
+    81: ('\r', 'shop:await-leave-confirmation'),
+    87: ('do\x1b', 'home:weight-overload-deposit'),
+    88: ('\x1b', 'home:leave-after-one-operation'),
+    89: ('\x1b`n>.', 'town:travel-entrance'),
+    90: ('\x1b`n%.', 'shop:travel'),
+    91: ('\x1b', 'home:store-context-exit'),
+    92: ('9', 'shop:approach'),
+}
 PERIODIC_REQUESTS = {
     "periodic:character-dump": "request_character_dump",
     "periodic:game-save": "request_game_save",
@@ -185,6 +209,7 @@ class _RecordedProcess(unittest.TestCase):
         cls.prefix = []
         cls.detect_boards = {}
         cls.home_knowledge_boundary = {}
+        cls.discard_scan_surfaces = {}
 
         def inspect_knowledge(index, policy, board):
             if index != 15:
@@ -205,6 +230,9 @@ class _RecordedProcess(unittest.TestCase):
             key, reason, board = cls._step(
                 policy, index, live_key=True, inspect=inspect_knowledge)
             cls.prefix.append((key, reason))
+            if index in (56, 61, 68, 80, 87):
+                cls.discard_scan_surfaces[index] = (
+                    board.store.store_type if board.store is not None else None)
             if cls.recorded[index]["reason"] == "fundraise:detect-treasure":
                 cls.detect_boards[index] = (
                     board.floor_key[0], board.dungeon_level, board.in_town)
@@ -315,6 +343,10 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
             if self.prefix[index] != self._live(index)
         )
         self.assertEqual(divergent, PREFIX_DIVERGENCES)
+        for index, expected in DISCARD_PREFIX_CHANGES.items():
+            self.assertEqual(self.prefix[index], expected, index)
+        self.assertEqual(self.discard_scan_surfaces,
+                         {56: STORE_HOME, 61: None, 68: None, 80: STORE_HOME, 87: STORE_HOME})
         self.assertEqual(self._live(15),
                          ("5", "equipment-transaction:travel-home:await-entry"))
         self.assertEqual(self.prefix[15],

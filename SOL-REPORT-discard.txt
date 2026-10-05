@@ -1,0 +1,76 @@
+Home-full discard repair (GitHub issue dis-/hengband-bot#33)
+Worktree: C:\hengband\bot-client-discard
+Branch: home-full-discard-1005; intended base: main 27cea611.
+
+Root causes and fixes
+1. 220530: the full pack (23 stacks) eliminated every Home withdrawal candidate,
+   repeatedly returning home-full-no-sellable-surplus. Relief now frees an
+   identified, unreserved carried surplus stack first: sell when possible,
+   otherwise destroy. A pack-only disposal does not earn a Home shelf slot.
+2. 220912: the posted Identify command 'upr' identified the unknown cloak and
+   the game's auto-destroy removed it before the next board (state lines 68-69).
+   Identification now settles that observed absence. Unresolved effects or
+   unavailable sources retain the item and record a visible skip reason instead
+   of repeating identification. Renamed targets require an observed increase
+   in identified quantity; a used source changing its charge display cannot
+   impersonate the target. A retained withdrawal also invalidates old
+   shelf addresses and requests a fresh catalogue.
+3. 221036: '5 pR ESC' moved dominated gloves to the pack, but the disposal proof
+   accepted only Home-origin equipment. Its loss caused Home reentry instead of
+   destruction. The same capacity-aware dominance proof now covers unequipped
+   carried gear, with the existing retention and superior-item guards intact.
+   The captured first outside board now emits '01kr', with a declared owner.
+4. Knowledge acquisition exits store UI first and resumes from an observed
+   outside board under its existing owner. Pending errands, relief, retries,
+   and exits prevent competing equipment catalogue acquisition. The affected
+   store paths no longer emit '~9' inside Home or interrupt a pending exit.
+
+Disposal still sells first, then ranks destruction by auto-destroy kind and
+realizable value. Artifact, identification, equipment/departure, and reservation
+guards remain. Sale refusal revalidates the carried item for destruction.
+Home deposit retries begin only after observed disposal and a fresh catalogue.
+No time guards were introduced.
+
+Regression evidence
+tests/fixtures/home-discard-20261005.json.gz contains immutable rows for all
+three failure kinds, source filenames/line numbers, and source SHA-256 hashes.
+Fixture SHA-256: 65d0410ee93e88d95c065fb56eb3c0e1b05d75f862c525a498af9ca1bc144747.
+The new test module checks the recorded historical stop/loop reasons and the
+new advancing decisions, with claim enforcement both off and on. It also
+checks unresolved-ID skip/refresh, sale refusal, store exit before knowledge,
+and a constructed full Home withdraw -> destroy effect -> fresh catalogue ->
+deposit effect cycle. Missing checkpoints and changed-command responses are
+explicitly declared constructed; no captured successful live recovery is claimed.
+Older inside-scan pins retain their immutable records and now construct the
+outside response before consuming catalogue content. The historical cure
+supplier prefix records explicit changed-key pairs and store surfaces; the
+town weight replay records the extra declared exit at row 141 rather than
+weakening the original selection or reservation assertions.
+
+Validation
+All runs use normal Windows Python, PYTHONPATH=src and
+scripts/test_parallel_runner.py --workers 1.
+- Required Home/relief/sale/ownership/lint/S33 modules plus the new incident
+  module and ownership ladder: 300 tests, 4 pre-existing skips, exit 0.
+  Receipt: jsonlog/receipts/test_parallel_runner-full-20261005T234114+0900.json
+  SHA-256: 95ff9ade7d5b69e2054b1deb01b5eb5c3e3d4ea15d249744050959c1dd091cac.
+- Reference grep selected equipment disposal, equipment deposit owner,
+  Home exit, reservation, town approach and cure supplier modules:
+  53 tests, exit 0 (before the final ID name/quantity guard; required tests
+  above were rerun after that guard).
+  Receipt: jsonlog/receipts/test_parallel_runner-full-20261005T231110+0900.json
+  SHA-256: 6dbbab823facf85f7fd5160dcf32c7061db4daa5bd0fa2393ea3c986e633aa3b.
+- test_policy_town alone: 589 tests, no skips, exit 0.
+  Receipt: jsonlog/receipts/test_parallel_runner-full-20261005T234459+0900.json
+  SHA-256: d2d6445edec068714053bde587be858b3494e5cab01a8ee7175c404f917205be.
+- Total across these successful runs: 942 tests, 4 skips, 938 passing.
+- Changed-name references searched across src/tests/scripts; relevant modules
+  included above. git diff --check passed. No test failures remain in the
+  completed runs.
+
+Scope
+Only this worktree was changed. Backup captures were read; the live jsonlog
+directory, other worktrees, game and bot were not operated on. No push.
+Commit subject: Fix full Home relief disposal and observed knowledge handoffs
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
