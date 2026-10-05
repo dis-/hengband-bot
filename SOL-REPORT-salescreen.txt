@@ -1,0 +1,115 @@
+Home-surplus sale screen repair — 2026-10-05
+
+Workspace: C:\hengband\bot-client-salescreen
+Branch/base: home-sale-screen-1005 / 82fcaeb9
+
+Finding
+The recorded B item is a singleton, known/fully-known ego pair of boots:
+slot q, tval/sval 30/2, count 1, to_a -2, inscription @0. It is neither
+cursed, broken, nor an artifact. The Armoury accepts boots as a type, but
+Hengband's object_value_real returns zero for known non-artifact armour with
+a negative armour bonus. store_will_buy requires calc_price() > 0, so these
+boots are excluded BEFORE the quantity/price prompt chain. A positive base
+kind cost and ego status do not override that rule.
+
+Thus B's d0y is not missing a quantity answer: count is 1. The normal price
+confirmation does accept y. The defect is assuming a type-accepted item can
+be selected for sale, and sending its tag/confirmation when the item tester
+rejects it. A's recorded remove-curse message names the same boots [2,-2],
+which supports the same cause; A's actual inventory count is unavailable.
+
+Screen inference: the sale item chooser remains open. d opens the chooser;
+0 cannot resolve a store-eligible @0, and y is not a valid pack/equipment
+selection. The chooser rejects each key and waits again. In the unchanged
+input_executor.py, unrecognized-store-input specifically requires a complete
+store footer plus a visible cursor on row zero; ordinary quantity and price
+confirmations are classified earlier. This supports an active sale item
+chooser over the store menu, rather than a quantity/price confirmation.
+
+Primary source verification:
+https://github.com/hengband/hengband/blob/develop/src/store/service-checker.cpp
+  store_will_buy: type check followed by calc_price() > 0.
+https://github.com/hengband/hengband/blob/develop/src/object/object-value.cpp
+  object_value_real: negative armour bonus returns zero; fixed artifacts
+  return their value earlier.
+https://github.com/hengband/hengband/blob/develop/src/store/sell-order.cpp
+  choose_item uses store_will_buy; quantity is asked only for count > 1;
+  price confirmation uses the ordinary yes check.
+https://github.com/hengband/hengband/blob/develop/src/inventory/floor-item-getter.cpp
+  Numeric-tag rejection rings the bell and continues the item input loop;
+  invalid alphabetic item selections likewise remain in the loop.
+
+Observed evidence and limits
+A: decisions-3-1049-1132.jsonl.gz, lines 6646-6650, seq 1128-1132:
+  withdrawal '5  pb\x1b'; travel '\x1b`n".'; inscription '{o@0\r';
+  sale 'd0y'; refusal ESC. in-store-breaker.json records unowned-screen
+  at seq 1131, 11:19:12.171432+09:00.
+B: autorecover-20261005-121931-stuck-prompt-shop-one-shot-sale-compose:
+  decisions lines 220-223, seq 6333-6336; the last key is 'd0y'.
+  state-fixed lines 70-74 show the withdrawn, already-tagged singleton;
+  line 74 is the Armoury board at turn 11524631, before the sale.
+  posted-characters lines 4932-4934 prove all of d, 0, y were posted.
+  stderr records the pre-existing breaker and the terminal stuck-prompt:
+  'unowned unknown: unrecognized-store-input'.
+
+The supplied copies contain NO A snapshots and NO A/B post-sale screen rows.
+The B state stream ends on its pre-sale store board. No exact rendered
+post-d0y prompt can honestly be quoted or pinned from these files. The
+diagnostic screen classifications above are recorded; the rejected-item
+prompt-chain explanation is inferred from the actual B item and game source.
+A's policy replay explicitly reconstructs its named item/slot from B's board
+and A's decisions. It is not represented as an exact A snapshot replay.
+The missing-screen limitation remains; a path for additional saved evidence
+was requested without accessing the forbidden live jsonlog directory.
+
+Changes
+The shared _store_accepts_sale predicate now excludes known non-artifact
+armour with negative to_a, including at the Black Market. Home still accepts
+deposits. Unknown items/artifacts are not assigned an unsupported zero value.
+Home-surplus selection already uses this predicate; current store candidates,
+explicit batch candidates, and the observed post-inscription batch now apply
+the same predicate before any sale bytes are composed. A stale refused sale
+clears its pending batch and emits the existing owned leave path. An item
+rejection does not falsely mark the entire store full.
+
+reserved_item_command/item_command, item availability/verdict checks,
+inscription addressing, and in-store ownership/operation rules remain in
+the execution path. Accepted stacks still use the observed count, including
+an inscription merge from one item to three.
+
+Pins and before/after
+Immutable fixture: tests/fixtures/home-surplus-sale-screen-20261005.json.gz
+SHA256: e4c80991c8e2a6008d6558cbcac9e19ef08652ff97702381b3acb3b4844182f2
+It preserves source rows, failure diagnostics, and original source hashes.
+tests/test_home_surplus_sale_screen_recorded.py covers:
+  A recorded failure + explicitly reconstructed in-store replay:
+    before 'd0y' / unowned-screen; after owned '\x1b', without a sale.
+  B recorded board + reconstructed relief/visit, in-store operations disabled:
+    before 'd0y' / stuck; after owned '\x1b', without a sale.
+  Both replays run with claim enforcement off and on.
+  Shared eligibility, pending inscription rejection, item/owner checks,
+  accepted singleton 'd0y', and accepted count-3 stack 'd03\ry'.
+  A real inscription decision/posted confirmation followed by a constructed
+  merged stack verifies recomposition from the observed count, not the plan.
+
+Revert proof: scripts/revert_salescreen.py loads only the base policy_shop
+module in memory. It leaves all worktree/runtime files unchanged. At base
+82fcaeb9 both incident tests fail with historical 'd0y', for all four claim
+mode subtests, with zero errors. See SOL-REVERT-salescreen.txt.
+
+Validation
+All 1498 tests across 18 modules passed (final results).
+See SOL-TESTS-salescreen.txt for individual summaries. Selection was by grep
+of _store_accepts_sale, _current_store_sale_candidates, _batch_sell_key, and
+_store_sell_key in test modules, plus test_item_sink_lint,
+test_town_structure_lint, test_store_reentry_recorded,
+test_home_surplus_inscription_recorded, test_homefull3_recorded,
+test_policy_shop, and the additional Home-relief/sale/test-fakery lints.
+The new merge test initially used an incomplete reconstructed pending
+ledger; its corrected actual-inscription trajectory passed all seven cases.
+Revert proof passed, and git diff --check was clean.
+
+No game/bot was started or stopped, no other worktree was used, no live
+jsonlog was accessed, and no push was performed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
