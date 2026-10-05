@@ -34,6 +34,7 @@ FIXTURE = Path(__file__).parent / 'fixtures/s33-shadow-zero-20261005.json.gz'
 assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == (
     '2dd71ebcaecb6e3a3baffb2add351c9ddb0d8f3bccb2133a2a6d11d838af685c')
 DATA = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+HOME_SURPLUS_REFUSAL = 'shop:unsellable-home-full-surplus-sale-refused'
 
 
 def tuples(value):
@@ -194,7 +195,11 @@ class ShadowZeroTest(unittest.TestCase):
             policy.last_reason = row['reason']
             return policy._s33_shadow_verdict(board, key)['would_stop']
         if n == 76:
-            self.assertEqual(policy._claim_family_of(row['reason']), 'shop-sell')
+            # Keep the frozen historical reason; replay its renamed production
+            # spelling under the pre-existing arbitration/goal-typing prefix.
+            self.assertEqual(row['reason'], 'shop:home-full-surplus-sale-refused')
+            policy.last_reason = HOME_SURPLUS_REFUSAL
+            self.assertEqual(policy._claim_family_of(policy.last_reason), 'shop-sell')
             # CONSTRUCTED observed-sale holder; the reason must keep its owner.
             holder = policy._claim_register.declare('shop-sell', observe(('sale',), 8, 'store-operation'))
             policy._claim_register.declare_execution(holder.claim_id, producer='shop-sell',
@@ -421,7 +426,8 @@ class ShadowZeroTest(unittest.TestCase):
         from hengbot.model import STORE_WEAPON
         policy, board, target = ItemReservationTest().scene(True)
         board = replace(board, store=StoreState(STORE_WEAPON, []))
-        reason = DATA['rows'][75]['reason']
+        self.assertEqual(DATA['rows'][75]['reason'], 'shop:home-full-surplus-sale-refused')
+        reason = HOME_SURPLUS_REFUSAL
         key = policy._store_sell_key(board, target, 'shop:sell-home-full-surplus', rejected_reason=reason)
         self.assertEqual((key, policy.last_reason), ('\x1b', reason))
         self.assertEqual(policy._claim_family_of(reason), 'shop-sell')

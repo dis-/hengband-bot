@@ -53,7 +53,7 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
     def assert_owned_leave(self, policy, board):
         key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason),
-                         ('\x1b', 'shop:home-full-surplus-sale-refused'))
+                         ('\x1b', 'shop:unsellable-home-full-surplus-sale-refused'))
         self.assertIsNone(policy._batch_sell_pending)
         self.assertEqual(policy.decision_claim['owner'], 'shop-sell')
         self.assertEqual(policy._claim_register.current.execution.producer, 'shop-sell')

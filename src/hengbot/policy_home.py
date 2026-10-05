@@ -349,7 +349,7 @@ class HomeMixin:
                         return self._home_full_leave_key("home:full-leave-with-surplus")
                     key = self._store_sell_key(snapshot, target,
                         "shop:sell-home-full-surplus",
-                        rejected_reason="shop:home-full-surplus-sale-refused")
+                        rejected_reason="shop:unsellable-home-full-surplus-sale-refused")
                     if (key and key.startswith(("d", "{"))
                             and self._in_store_ops_active()
                             and self._store_visit is not None):

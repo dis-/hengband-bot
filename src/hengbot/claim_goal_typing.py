@@ -235,7 +235,6 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("shop:stuck-leave", T, EFFECT),
         ("shop:invalid", T, EFFECT),
         ("shop:retain-standing-digging-tool", T, EFFECT),
-        ("shop:home-full-surplus-sale-refused", T, EFFECT),
         ("town:destroy-overflow", T, EFFECT),
         ("equipment:sale", T, EFFECT),
     ),
