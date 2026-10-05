@@ -650,5 +650,6 @@
   "warrior_optimization.py:prepare_warrior_optimization": "pure helper: Evaluate and plan without emitting any game command.",
   "warrior_optimization.py:warrior_optimizer_input_key": "pure helper: Digest every semantic input consumed by preparation and planning.",
   "warrior_optimization.py:warrior_optimizer_knowledge_key": "pure helper: Digest immutable monster knowledge once for reuse by per-state keys.",
-  "wilderness_map.py:WildernessMap.next_key_to_town": "town producer to migrate: Return the first step on the least-danger route to any town."
+  "wilderness_map.py:WildernessMap.next_key_to_town": "town producer to migrate: Return the first step on the least-danger route to any town.",
+  "town_work.py:code_site": "pure helper: source identity for coverage receipts, not a command; consumed only by work observer."
 }

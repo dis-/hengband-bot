@@ -1,0 +1,880 @@
+{
+  "schema": 1,
+  "windows": [
+    {
+      "name": "entrance-travel-retired-20260922.jsonl",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 0,
+        "recorded": [
+          "\u001b`n>.",
+          "town:travel-entrance"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "home-withdraw-failed-stock-present-20260925.jsonl",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 3,
+        "recorded": [
+          "~9\u001b",
+          "home:request-knowledge-scan"
+        ],
+        "new": [
+          "\u001b",
+          "equipment-transaction:catalogue-leave-for-scan"
+        ]
+      }
+    },
+    {
+      "name": "morivant-return-walks-away-20260925.jsonl",
+      "rows": 3,
+      "matched": 2,
+      "first_divergence": {
+        "row": 2,
+        "recorded": [
+          "\u001b`n%.",
+          "town-progress-invariant:defect:town:remove-curse=>town-progress-invariant:approach"
+        ],
+        "new": [
+          "\u001b`n(.",
+          "shop:travel"
+        ]
+      }
+    },
+    {
+      "name": "morivant-travel-retired-20260922.jsonl",
+      "rows": 61,
+      "matched": 60,
+      "first_divergence": {
+        "row": 60,
+        "recorded": [
+          "4",
+          "melee"
+        ],
+        "new": [
+          "qb",
+          "item:strong-fight-speed"
+        ]
+      }
+    },
+    {
+      "name": "overweight-home-hold-20261002",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 3,
+        "recorded": [
+          "\u001b",
+          "home:route-claim-unfulfilled"
+        ],
+        "new": [
+          "dk\u001b",
+          "home:weight-overload-deposit"
+        ]
+      }
+    },
+    {
+      "name": "overweight-home-unreachable-20260925.jsonl",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 3,
+        "recorded": [
+          "de\u001b",
+          "home:atomic-deposit"
+        ],
+        "new": [
+          "de1\r\u001b",
+          "home:atomic-deposit"
+        ]
+      }
+    },
+    {
+      "name": "stuck-prompt-staged-tail-20260925.jsonl",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 0,
+        "recorded": [
+          "4",
+          "explore"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-approach-retired-20260925.jsonl",
+      "rows": 53,
+      "matched": 52,
+      "first_divergence": {
+        "row": 52,
+        "recorded": [
+          "\u001b`n'.",
+          "shop:travel"
+        ],
+        "new": [
+          "\u001b`n$.",
+          "shop:travel"
+        ]
+      }
+    },
+    {
+      "name": "town-blackmarket-stall-20261002",
+      "rows": 3,
+      "matched": 2,
+      "first_divergence": {
+        "row": 2,
+        "recorded": [
+          "9",
+          "shop:approach"
+        ],
+        "new": [
+          "\u001b`n&.",
+          "shop:travel"
+        ]
+      }
+    },
+    {
+      "name": "town-cure-supplier-20261003",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 3,
+        "recorded": [
+          "\u0013",
+          "periodic:game-save"
+        ],
+        "new": [
+          "5",
+          "shop:travel:await-entry"
+        ]
+      }
+    },
+    {
+      "name": "unaffordable-claim-tour-20260922.jsonl",
+      "rows": 6,
+      "matched": 5,
+      "first_divergence": {
+        "row": 5,
+        "recorded": [
+          "db\u001b",
+          "home:atomic-deposit"
+        ],
+        "new": [
+          "db1\r\u001b",
+          "home:atomic-deposit"
+        ]
+      }
+    },
+    {
+      "name": "town-restock-stall-hungry-checkpoints.jsonl.gz:2331",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 2331,
+        "recorded": [
+          "5",
+          "town:blocked:restocked-recall-store-unreachable"
+        ],
+        "new": [
+          "5",
+          "town:blocked:survival-mana-no-charges"
+        ]
+      }
+    },
+    {
+      "name": "town-restock-stall-hungry-checkpoints.jsonl.gz:2333",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 2333,
+        "recorded": [
+          "R300\r",
+          "town:wait-restock:temple"
+        ],
+        "new": [
+          "5",
+          "town:blocked:survival-mana-no-charges"
+        ]
+      }
+    },
+    {
+      "name": "food-store-unreachable-checkpoints.jsonl.gz:220",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 220,
+        "recorded": [
+          "5",
+          "town:blocked:restocked-food-store-unreachable"
+        ],
+        "new": [
+          "~9\u001b\u001b",
+          "home:request-knowledge-scan"
+        ]
+      }
+    },
+    {
+      "name": "food-store-unreachable-checkpoints.jsonl.gz:221",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 221,
+        "recorded": [
+          "5",
+          "town:blocked:restocked-food-store-unreachable"
+        ],
+        "new": [
+          "~9\u001b\u001b",
+          "home:request-knowledge-scan"
+        ]
+      }
+    },
+    {
+      "name": "food-store-unreachable-checkpoints.jsonl.gz:223",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 223,
+        "recorded": [
+          "5",
+          "town:blocked:restocked-food-store-unreachable"
+        ],
+        "new": [
+          "~9\u001b\u001b",
+          "home:request-knowledge-scan"
+        ]
+      }
+    },
+    {
+      "name": "food-store-unreachable-checkpoints.jsonl.gz:242",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 242,
+        "recorded": [
+          "5",
+          "town:blocked:restocked-food-store-unreachable"
+        ],
+        "new": [
+          "~9\u001b\u001b",
+          "home:request-knowledge-scan"
+        ]
+      }
+    },
+    {
+      "name": "recall-store-unreachable-checkpoints.jsonl.gz:220",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 220,
+        "recorded": [
+          "5",
+          "town:blocked:restocked-food-store-unreachable"
+        ],
+        "new": [
+          "~9\u001b\u001b",
+          "home:request-knowledge-scan"
+        ]
+      }
+    },
+    {
+      "name": "device-purchase-preempted-checkpoint.jsonl.gz:253",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 253,
+        "recorded": [
+          "\u001b`n&.",
+          "shop:travel"
+        ],
+        "new": [
+          "wd",
+          "wield-light"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-122359-exit-no-marker.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-134213-equipment-transaction-home-route-repeat-terminal.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-134314-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 252,
+        "recorded": [
+          "\u001b",
+          "home:full-queue-surplus-withdraw"
+        ],
+        "new": [
+          "\u001b",
+          "home:full-leave-with-surplus"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-172904-exit-no-marker.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-173350-no-key-exhausted.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-191741-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 3,
+      "matched": 2,
+      "first_divergence": {
+        "row": 168,
+        "recorded": [
+          "\u001b",
+          "home:scan-incomplete-open-page"
+        ],
+        "new": [
+          "~9\u001b",
+          "home:request-knowledge-scan"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-192945-no-key-exhausted.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-201929-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-210535-no-key-exhausted.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-210649-no-key-exhausted.bot-decisions.jsonl.gz",
+      "rows": 6,
+      "matched": 5,
+      "first_divergence": {
+        "row": 221,
+        "recorded": [
+          "\u0013",
+          "periodic:game-save"
+        ],
+        "new": [
+          "9",
+          "town:entrance-step-off:home:atomic-deposit-await-confirmation"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-210741-no-key-exhausted.bot-decisions.jsonl.gz",
+      "rows": 8,
+      "matched": 7,
+      "first_divergence": {
+        "row": 224,
+        "recorded": [
+          "7",
+          "town-progress-invariant:defect:periodic:game-save=>town:entrance-step-off:home:scan-step-off"
+        ],
+        "new": [
+          "7",
+          "town-progress-invariant:defect:survival:mana-absorb=>town:entrance-step-off:home:scan-step-off"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-234518-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-235238-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 262,
+        "recorded": [
+          "\u0013",
+          "periodic:game-save"
+        ],
+        "new": [
+          "9",
+          "town:entrance-step-off:home:atomic-deposit-await-confirmation"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261004-235938-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 262,
+        "recorded": [
+          "\u0013",
+          "periodic:game-save"
+        ],
+        "new": [
+          "9",
+          "town:entrance-step-off:home:atomic-deposit-await-confirmation"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-001905-stuck-prompt-home-request-knowledge-scan.bot-decisions.jsonl.gz",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 265,
+        "recorded": [
+          "\u0013",
+          "periodic:game-save"
+        ],
+        "new": [
+          "9",
+          "town:entrance-step-off:home:atomic-deposit-await-confirmation"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-002247-stuck-prompt-home-full-queue-surplus-withdraw.bot-decisions.jsonl.gz",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 274,
+        "recorded": [
+          "\u001b",
+          "home:full-queue-surplus-withdraw"
+        ],
+        "new": [
+          "\u001b",
+          "home:full-leave-with-surplus"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-013027-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz",
+      "rows": 4,
+      "matched": 3,
+      "first_divergence": {
+        "row": 150,
+        "recorded": [
+          "7",
+          "town-progress-invariant:defect:fixedquest:q2-teleport=>town:entrance-step-off:home:scan-step-off"
+        ],
+        "new": [
+          "7",
+          "fixedquest:q2-teleport"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-013108-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz",
+      "rows": 13,
+      "matched": 12,
+      "first_divergence": {
+        "row": 196,
+        "recorded": [
+          "5",
+          "town:blocked:departure-unsatisfiable"
+        ],
+        "new": [
+          "5",
+          "fundraise:supply-stockout-mining"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-051458-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 9,
+      "matched": 8,
+      "first_divergence": {
+        "row": 196,
+        "recorded": [
+          "\u0013",
+          "periodic:game-save"
+        ],
+        "new": [
+          "5   pU\u001b",
+          "home-errand:atomic-withdraw:identification-catalog"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-071353-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-071639-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz",
+      "rows": 5,
+      "matched": 4,
+      "first_divergence": {
+        "row": 233,
+        "recorded": [
+          "\u001b",
+          "home:scan-incomplete-open-page"
+        ],
+        "new": [
+          "~9\u001b",
+          "home:request-knowledge-scan"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-090213-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-093106-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/autorecover-20261005-093156-town-blocked-owner-retired.bot-decisions.jsonl.gz",
+      "rows": 2,
+      "matched": 1,
+      "first_divergence": {
+        "row": 208,
+        "recorded": [
+          "5",
+          "home:atomic-deposit"
+        ],
+        "new": [
+          "5",
+          "shop:travel:await-entry"
+        ]
+      }
+    },
+    {
+      "name": "town-owner-cluster-20260910.json.gz:restart:1",
+      "rows": 1,
+      "matched": 1,
+      "first_divergence": null
+    },
+    {
+      "name": "town-overflow-20261003.json.gz:restart:1",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 1,
+        "recorded": [
+          "1",
+          "town:blocked:overflow-no-legal-disposal"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-overflow-20261003.json.gz:restart:2",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 2,
+        "recorded": [
+          "1",
+          "town:blocked:overflow-no-legal-disposal"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-overflow-20261003.json.gz:restart:3",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 3,
+        "recorded": [
+          "1",
+          "town:blocked:overflow-no-legal-disposal"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-home-candidate-stall-20260927.json.gz:restart:1",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 1,
+        "recorded": [
+          "5",
+          "town:blocked:no-actionable-claim-owner"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "s33-live-short-entrance-224.json.gz:restart:1",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 1,
+        "recorded": [
+          null,
+          "ownership:holder-silent:store-router"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-loot-store-20260926.jsonl.gz:restart:1",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 1,
+        "recorded": [
+          "9",
+          "melee"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-plan-exhausted-wander-20260923.jsonl.gz:restart:2",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 2,
+        "recorded": [
+          "\u001b",
+          "shop:observe-and-leave"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-plan-exhausted-wander-20260923.jsonl.gz:restart:9",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 9,
+        "recorded": [
+          "\u001b",
+          "shop:observe-and-leave"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "town-plan-exhausted-wander-20260923.jsonl.gz:restart:16",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 16,
+        "recorded": [
+          "\u001b",
+          "shop:observe-and-leave"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "posted-effect-unobserved-20260923.jsonl.gz:restart:2",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 2,
+        "recorded": [
+          "\u001b",
+          "home:leave-for-pending-withdraw"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "posted-effect-unobserved-20260923.jsonl.gz:restart:7",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 7,
+        "recorded": [
+          "Eh",
+          "town-progress-invariant:defect:home:queue-withdraw-identify-staff-reserve=>survival:mana-absorb"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "posted-effect-unobserved-20260923.jsonl.gz:restart:10",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 10,
+        "recorded": [
+          "\u001b",
+          "town-progress-invariant:continue-observed-shop"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "loot-choke-oscillation-20260923.jsonl.gz:restart:3",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 3,
+        "recorded": [
+          "4",
+          "seek-loot"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "calibration-visit-blocked-loop-20260923.jsonl.gz:restart:3",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 3,
+        "recorded": [
+          "tc",
+          "equipment-transaction:takeoff"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "newchar-town-wander-20260928.jsonl.gz:restart:1",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 1,
+        "recorded": [
+          "5",
+          "shop:one-shot-buy"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "choke-hold-loop-20261005-0611/decisions.jsonl.gz:dungeon-control",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 1081,
+        "recorded": [
+          "5",
+          "melee:choke-hold"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/decisions-1301-1344.jsonl:restart",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 13148,
+        "recorded": [
+          "7",
+          "shop:approach"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    },
+    {
+      "name": "s33-phase2b-shadow-20261004/decisions-1436-1447.jsonl:restart",
+      "rows": 1,
+      "matched": 0,
+      "first_divergence": {
+        "row": 2580,
+        "recorded": [
+          "\u001b`n%.",
+          "shop:travel"
+        ],
+        "new": [
+          "~f\u001b",
+          "periodic:skill-exp-knowledge"
+        ]
+      }
+    }
+  ],
+  "receipts": 697,
+  "required": 344,
+  "unmapped": 0
+}

@@ -10,6 +10,7 @@ import unicodedata
 import re
 import time
 import uuid
+from collections import deque
 
 from hengbot.control_client import KeyPostOutcome, KeyPostStatus, raw_keys_to_macro_notation
 
@@ -429,6 +430,7 @@ class Operation:
     accepted_segment_records: list["AcceptedSegment"] = field(default_factory=list)
     dropped_continuations: list[str] = field(default_factory=list)
     timing: dict[str, object] = field(default_factory=dict)
+    work_record: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -897,9 +899,12 @@ class OperationExecutor:
 
     def __init__(self, client=None, *, drain: Callable[[], object] | None = None,
                  wm_post: Callable[[str], bool] | None = None,
-                 accepted: Callable[[Operation, str], None] | None = None) -> None:
+                 accepted: Callable[[Operation, str], None] | None = None,
+                 work_receipt: Callable[[dict], None] | None = None) -> None:
         self.client, self.drain, self.wm_post = client, drain or (lambda: None), wm_post
         self.accepted = accepted or (lambda _operation, _segment: None)
+        self.work_receipt = work_receipt or (lambda _receipt: None)
+        self.work_receipts = deque(maxlen=256)
         self.active: Operation | None = None
         self.ready_board: Mapping[str, object] | None = None
         self.ready_screen: ScreenMatch | None = None
@@ -1118,6 +1123,23 @@ class OperationExecutor:
 
     def _post_and_barrier(self, keys: str, deadline: float, *, role: str = "answer") -> OperationResult:
         assert self.active is not None
+        # One logical validation seam for TCP, WM and every executor-released
+        # prompt/tail segment. The verdict is shadow-only in slice 0.
+        from hengbot.town_work import frame_site, manifest, town_context, validate_emit
+        import sys
+        caller = sys._getframe(1)
+        site = frame_site(caller)
+        work = self.active.work_record
+        segment_work = (dict(work, key=keys, segment_producer=site,
+                             segment_line=caller.f_lineno, segment_role=role)
+                        if work and site in manifest() else None)
+        board = self._bound_state_value or self.active.observation
+        if town_context(self.active.observation) and not town_context(board):
+            board = self.active.observation
+        receipt = validate_emit(board, keys, segment_work,
+                                seam='executor-post', producer=site)
+        self.work_receipts.append(receipt)
+        self.work_receipt(receipt)
         if self.active.transport is Transport.WM:
             return self._post_wm(keys, deadline, role=role)
         try:
