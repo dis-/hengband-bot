@@ -6620,8 +6620,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1233,
-    "end_line": 1256,
+    "line": 1262,
+    "end_line": 1285,
     "ast_sha256": "47e52a899253ccdf7ce33335283f6710df7f55af48b17f108c784e7021c8a354"
   },
   "policy_observation.py:ObservationMixin._strategy_force_for_snapshot": {
@@ -6630,8 +6630,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1213,
-    "end_line": 1231,
+    "line": 1242,
+    "end_line": 1260,
     "ast_sha256": "d1cb5055e6db5ef3779c20e2e84eb1fc6d4a77cccfc3fb625c2b2e7b8fa6666f"
   },
   "policy_quest.py:QuestMixin._conquest_loot_key": {
@@ -7197,8 +7197,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2451,
-    "end_line": 2461,
+    "line": 2455,
+    "end_line": 2465,
     "ast_sha256": "c4f80263688ef85e73cb48507dea2397eb62f8f8ae92e8c7f28c1bd820f17327"
   },
   "policy_shop.py:ShopMixin._atomic_shop_transaction_key": {
@@ -7214,9 +7214,9 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5250,
-    "end_line": 5472,
-    "ast_sha256": "7129dba06ece9ae5277872101e96592cb7b8a7fa1785e4e71ebe1488f420ec47"
+    "line": 5254,
+    "end_line": 5489,
+    "ast_sha256": "ef1c017995675336bbe5207fc6c3be7e97905c1f1bf1c1e8a8b2f3428688035d"
   },
   "policy_shop.py:ShopMixin._atomic_shop_transaction_key.offer_outcome": {
     "classification": "producer",
@@ -7230,8 +7230,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5253,
-    "end_line": 5269,
+    "line": 5257,
+    "end_line": 5273,
     "ast_sha256": "94b548957064004441f3a2bde56a5348d6ed565b6f0be8670bd5d9feb3f51595"
   },
   "policy_shop.py:ShopMixin._batch_sale_entry": {
@@ -7241,8 +7241,8 @@
       "sale-address"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3657,
-    "end_line": 3696,
+    "line": 3661,
+    "end_line": 3700,
     "ast_sha256": "81a9cfe1a25f12eeca826f28f96db9b1c87abb2c17ebdee8ee18fbe0d1247838"
   },
   "policy_shop.py:ShopMixin._batch_sell_key": {
@@ -7253,8 +7253,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3406,
-    "end_line": 3585,
+    "line": 3410,
+    "end_line": 3589,
     "ast_sha256": "100ac1ae75d43888b2e654fb9d7c6211add9aeedda463877c3b38b8d9ed9afdb"
   },
   "policy_shop.py:ShopMixin._black_market_optional_purchase": {
@@ -7263,8 +7263,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2272,
-    "end_line": 2314,
+    "line": 2276,
+    "end_line": 2318,
     "ast_sha256": "cd3bd8936ec9640f766d5cbe56e1e741f14d827c7030cd41a6a174f4d02bd90c"
   },
   "policy_shop.py:ShopMixin._black_market_optional_purchase.held": {
@@ -7273,8 +7273,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2304,
-    "end_line": 2307,
+    "line": 2308,
+    "end_line": 2311,
     "ast_sha256": "e78aca96e0e41b93c718d98a383851e35fa2d218ab6b22980ec88145d370c745"
   },
   "policy_shop.py:ShopMixin._black_market_optional_purchase.kind_rank": {
@@ -7283,8 +7283,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2309,
-    "end_line": 2312,
+    "line": 2313,
+    "end_line": 2316,
     "ast_sha256": "b0223ab8c98f7c664dda8c42ce2d8bd12ace88606cc3dde06716f70cefa67a4e"
   },
   "policy_shop.py:ShopMixin._black_market_optional_reserve_cap": {
@@ -7293,8 +7293,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3156,
-    "end_line": 3176,
+    "line": 3160,
+    "end_line": 3180,
     "ast_sha256": "4397789ce51d370596fc583cfd12f4f61496857d6b98b1862d06b0b252ce835d"
   },
   "policy_shop.py:ShopMixin._carried_aware_potion": {
@@ -7343,8 +7343,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3345,
-    "end_line": 3403,
+    "line": 3349,
+    "end_line": 3407,
     "ast_sha256": "d4af93341846d545f620d68fb6b969f182334a83e6c020d93db1d7c61021e957"
   },
   "policy_shop.py:ShopMixin._destruction_purchase": {
@@ -7353,8 +7353,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2240,
-    "end_line": 2270,
+    "line": 2244,
+    "end_line": 2274,
     "ast_sha256": "61763f801ddbc7558543798909e34b14dfb6baad09ce89e5c3b45608a7dd5650"
   },
   "policy_shop.py:ShopMixin._enumerate_live_store_claims": {
@@ -7423,8 +7423,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3044,
-    "end_line": 3049,
+    "line": 3048,
+    "end_line": 3053,
     "ast_sha256": "3160860c9eccd92bec11c1212fe00d09347027e5a87a07d5c2f814136f112d64"
   },
   "policy_shop.py:ShopMixin._inventory_item_from_store_item": {
@@ -7443,8 +7443,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3610,
-    "end_line": 3613,
+    "line": 3614,
+    "end_line": 3617,
     "ast_sha256": "61b28046515ff445af0ff259f74b25e34be7a91d6640952f170648f357dee983"
   },
   "policy_shop.py:ShopMixin._legacy_next_purchase_unreserved": {
@@ -7453,8 +7453,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2640,
-    "end_line": 3042,
+    "line": 2644,
+    "end_line": 3046,
     "ast_sha256": "6674c3cb9fa84e2e5235182377350b14be7c239e085f3d58ba14bcab41dc9049"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
@@ -7473,8 +7473,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2550,
-    "end_line": 2605,
+    "line": 2554,
+    "end_line": 2609,
     "ast_sha256": "f368b906b07f28626cf30b1ab315d69061798cd872b84c2c3f58f1d8186835f7"
   },
   "policy_shop.py:ShopMixin._next_purchase": {
@@ -7493,8 +7493,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2607,
-    "end_line": 2617,
+    "line": 2611,
+    "end_line": 2621,
     "ast_sha256": "76eda4920e95bad7a2f3abefc0266638e8fecada26852a7e6304502970bd0e3b"
   },
   "policy_shop.py:ShopMixin._next_required_store_type": {
@@ -7515,8 +7515,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3210,
-    "end_line": 3217,
+    "line": 3214,
+    "end_line": 3221,
     "ast_sha256": "733d703e644ed5ad479f23cf2bdc31dc2b381eeb5e3ef84a8381989c4c48a840"
   },
   "policy_shop.py:ShopMixin._purchase_diagnostic_category": {
@@ -7535,8 +7535,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2339,
-    "end_line": 2343,
+    "line": 2343,
+    "end_line": 2347,
     "ast_sha256": "09bddce333d21051f01894933581489421221cffb9ca46513a6cbf064bef5e3d"
   },
   "policy_shop.py:ShopMixin._purchase_quantity": {
@@ -7545,8 +7545,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3059,
-    "end_line": 3154,
+    "line": 3063,
+    "end_line": 3158,
     "ast_sha256": "fd2415b9fa47f63e1c7cc6310b238b8c1589061074c4b5d7052c2e4c319f1ce4"
   },
   "policy_shop.py:ShopMixin._purchase_rungs": {
@@ -7555,8 +7555,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2345,
-    "end_line": 2445,
+    "line": 2349,
+    "end_line": 2449,
     "ast_sha256": "f9526d05e516c36c282eeca047866d2b98a0feb50cb020c3d1fa6c6159b7d7c9"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.rung.match": {
@@ -7565,8 +7565,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2352,
-    "end_line": 2361,
+    "line": 2356,
+    "end_line": 2365,
     "ast_sha256": "73c7e3bcf9dd2e75acc52b60affaab55b7506a70796c786c9088e2b8d6b47ccb"
   },
   "policy_shop.py:ShopMixin._release_staged_store_operation": {
@@ -7611,8 +7611,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2316,
-    "end_line": 2325,
+    "line": 2320,
+    "end_line": 2329,
     "ast_sha256": "be2556a78a729df79014199d75bb4b974d551749eff602311412a2b258a6ae79"
   },
   "policy_shop.py:ShopMixin._restore_life_levels_purchase": {
@@ -7632,8 +7632,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5485,
-    "end_line": 5593,
+    "line": 5502,
+    "end_line": 5610,
     "ast_sha256": "546b2c121d66eb6dd325d50451efa60115696070b3b9d2c0b84553a5b0807219"
   },
   "policy_shop.py:ShopMixin._restore_potion_purchase": {
@@ -7662,8 +7662,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4664,
-    "end_line": 4718,
+    "line": 4668,
+    "end_line": 4722,
     "ast_sha256": "fc084dd26adc1529400aa2cbcc1127c22bd50a4398e994ad780412ea15a6fec5"
   },
   "policy_shop.py:ShopMixin._router_plan_stop_family": {
@@ -7672,8 +7672,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4720,
-    "end_line": 4722,
+    "line": 4724,
+    "end_line": 4726,
     "ast_sha256": "f9285abed8818069455ea305b168b22cf3b5ea6a84f08a49f9d1c46257c0fad0"
   },
   "policy_shop.py:ShopMixin._sale_inscription_text": {
@@ -7682,8 +7682,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3605,
-    "end_line": 3607,
+    "line": 3609,
+    "end_line": 3611,
     "ast_sha256": "1cf35345d18e97ef03fb7e69d9bfbfb754c90952a8d90f9d667f7d5e4a47840d"
   },
   "policy_shop.py:ShopMixin._sale_item_identity": {
@@ -7692,8 +7692,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3649,
-    "end_line": 3654,
+    "line": 3653,
+    "end_line": 3658,
     "ast_sha256": "2164ab3842b5c0dbe7a9d873e8f8745d2e0b4d9af43c12745703257ba709258e"
   },
   "policy_shop.py:ShopMixin._shop": {
@@ -7709,8 +7709,8 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3698,
-    "end_line": 3746,
+    "line": 3702,
+    "end_line": 3750,
     "ast_sha256": "68ec77b9c955e0f4760c9b27580e0e08bed97c4f65959c4ebb6648096eedee6f"
   },
   "policy_shop.py:ShopMixin._shop_candidate_diagnostics": {
@@ -7736,8 +7736,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3748,
-    "end_line": 4662,
+    "line": 3752,
+    "end_line": 4666,
     "ast_sha256": "1603b6fd69acdb4b146d9477672f48ecc9ffc26c6288132f2eb7e022516e3999"
   },
   "policy_shop.py:ShopMixin._shopping_approach_key": {
@@ -7746,8 +7746,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5060,
-    "end_line": 5232,
+    "line": 5064,
+    "end_line": 5236,
     "ast_sha256": "87e5c54ead444b9991cf8ca237f31fcd6770ae479e3762269860e08877e3273e"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
@@ -7756,8 +7756,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4724,
-    "end_line": 4950,
+    "line": 4728,
+    "end_line": 4954,
     "ast_sha256": "e39215178b9fa327600120f0a000d49d541f056092d23120929a6b1f89946fd5"
   },
   "policy_shop.py:ShopMixin._stage_shopping_approach_key": {
@@ -7766,8 +7766,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4952,
-    "end_line": 5000,
+    "line": 4956,
+    "end_line": 5004,
     "ast_sha256": "af5954bc43ab8af7816ed5efded72aa43d6234760115f84bd4474a9af684c719"
   },
   "policy_shop.py:ShopMixin._stat_restore_quaff_key": {
@@ -7786,8 +7786,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3178,
-    "end_line": 3208,
+    "line": 3182,
+    "end_line": 3212,
     "ast_sha256": "2900bfd81a3acafeedac3f62e0290be61e38880cc552925403f6bed7a8f1240d"
   },
   "policy_shop.py:ShopMixin._store_item_is_supply": {
@@ -7806,8 +7806,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2464,
-    "end_line": 2545,
+    "line": 2468,
+    "end_line": 2549,
     "ast_sha256": "da023ce89f01c595392d51b2a736b0dab62bfffb0f76f405fd7c752fbd321781"
   },
   "policy_shop.py:ShopMixin._store_sell_key": {
@@ -7818,8 +7818,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3220,
-    "end_line": 3343,
+    "line": 3224,
+    "end_line": 3347,
     "ast_sha256": "4977a9d45b4cdcc42109762c74bf01db0fc86c449b55af753b46f13d441c7199"
   },
   "policy_shop.py:_ShoppingApproachEmission.__new__": {
@@ -8263,8 +8263,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1632,
-    "end_line": 1646,
+    "line": 1637,
+    "end_line": 1651,
     "ast_sha256": "28e2f6ae7dbec44847ba2618eda309cd5185439c5cf8cc8221c1bc69a33663e7"
   },
   "policy_town.py:TownMixin._build_town_errand_plan": {
@@ -8273,8 +8273,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3725,
-    "end_line": 3816,
+    "line": 3730,
+    "end_line": 3821,
     "ast_sha256": "1815ebbbac24f4a0083d54f55eabaf791fa4b353762cf272cc2db4745850ecec"
   },
   "policy_town.py:TownMixin._commit_boxed_town_breakout_key": {
@@ -8283,8 +8283,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1687,
-    "end_line": 1704,
+    "line": 1692,
+    "end_line": 1709,
     "ast_sha256": "102cbf2c7ed0c2cfdf024401ff310735c2f57b9e7cb3dc7e1757e509f8bbaa86"
   },
   "policy_town.py:TownMixin._cross_town_item_categories": {
@@ -8293,8 +8293,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4059,
-    "end_line": 4092,
+    "line": 4064,
+    "end_line": 4097,
     "ast_sha256": "de8a43dfca79b46d2a6e89ae66047175d39c02eb7a0d0519339d649b8c1eef9e"
   },
   "policy_town.py:TownMixin._cross_town_shortages": {
@@ -8303,8 +8303,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4169,
-    "end_line": 4215,
+    "line": 4174,
+    "end_line": 4220,
     "ast_sha256": "d6d3a090f4a047130cc4235644272563e858a3509dc727218472de5c4da4eb6c"
   },
   "policy_town.py:TownMixin._cross_town_unobtainable_categories": {
@@ -8313,8 +8313,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4217,
-    "end_line": 4241,
+    "line": 4222,
+    "end_line": 4246,
     "ast_sha256": "6135b731d53948aa15a32ac8c33dafe2726af1c47a2d34a2d9fe97c95b0ce588"
   },
   "policy_town.py:TownMixin._departure_block_state": {
@@ -8323,8 +8323,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 6292,
-    "end_line": 6322,
+    "line": 6297,
+    "end_line": 6327,
     "ast_sha256": "9588339387f599e7845f679dd4692fa87abe0872886ddb6f983a6e5e6430945b"
   },
   "policy_town.py:TownMixin._departure_food_ready": {
@@ -8333,8 +8333,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1796,
-    "end_line": 1803,
+    "line": 1801,
+    "end_line": 1808,
     "ast_sha256": "e1cb28ecf234014407d441a83922627f9f6f065ae411a8c573a73707c7cde1ec"
   },
   "policy_town.py:TownMixin._departure_supplier_counterfactual": {
@@ -8343,8 +8343,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3482,
-    "end_line": 3491,
+    "line": 3487,
+    "end_line": 3496,
     "ast_sha256": "6549a0f4687015b63ea35f8d56997bcd94c6fe24663e1cd179a8e183df7e9831"
   },
   "policy_town.py:TownMixin._dungeon_recall_confirmation_key": {
@@ -8353,8 +8353,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6447,
-    "end_line": 6509,
+    "line": 6452,
+    "end_line": 6514,
     "ast_sha256": "3d585de66e6eb59158956957cb745a199e8f1ffcc9ef687dde8c14b4343a6f2f"
   },
   "policy_town.py:TownMixin._effective_town_id": {
@@ -8363,8 +8363,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 7115,
-    "end_line": 7139,
+    "line": 7120,
+    "end_line": 7144,
     "ast_sha256": "542dbabb8889bfb863d758d8f298b1f3c701df7cf68cf96d492c2ce0209c16fa"
   },
   "policy_town.py:TownMixin._enumerate_town_needs": {
@@ -8373,8 +8373,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3404,
-    "end_line": 3435,
+    "line": 3409,
+    "end_line": 3440,
     "ast_sha256": "50c964fa16b071dbf6b64357a6ff324ecdeb6b063b786919bc305af6e0888589"
   },
   "policy_town.py:TownMixin._find_town_organization_surplus": {
@@ -8383,8 +8383,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4431,
-    "end_line": 4478,
+    "line": 4436,
+    "end_line": 4483,
     "ast_sha256": "203bb6b80180d2cd7e2a79ca2199fcf93871e521b17161c79c68aa0e4c739592"
   },
   "policy_town.py:TownMixin._observe_town_equipment_work": {
@@ -8393,8 +8393,8 @@
       "equipment-inscription"
     ],
     "delegation": "supports selected child; no independent success",
-    "line": 4971,
-    "end_line": 4993,
+    "line": 4976,
+    "end_line": 4998,
     "ast_sha256": "75be2fd94831f1d7231c18ded93e84a81832a5937161aceb378cb11ba4aa2fb1"
   },
   "policy_town.py:TownMixin._read_dungeon_recall_scroll_key": {
@@ -8403,8 +8403,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6430,
-    "end_line": 6444,
+    "line": 6435,
+    "end_line": 6449,
     "ast_sha256": "b0a4457cf1a8f0c9a85f8f1969f965a42b8d1e268553225a7db578421f306241"
   },
   "policy_town.py:TownMixin._recall_town_departure_conjuncts": {
@@ -8413,8 +8413,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2001,
-    "end_line": 2020,
+    "line": 2006,
+    "end_line": 2025,
     "ast_sha256": "c41154c03936c1ec144b48ef2ee5e1a706c06b6f1d2263c4e930ef891e76bd57"
   },
   "policy_town.py:TownMixin._return_route_key": {
@@ -8423,8 +8423,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6620,
-    "end_line": 6636,
+    "line": 6625,
+    "end_line": 6641,
     "ast_sha256": "935b5ccb5a1c0238307e01318d26bda49f03adf3830efb7c8a6b738a1af669b3"
   },
   "policy_town.py:TownMixin._return_to_town_key": {
@@ -8433,8 +8433,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6669,
-    "end_line": 6976,
+    "line": 6674,
+    "end_line": 6981,
     "ast_sha256": "77500e19ef42d16272a2c3250cfafeeb3b5c6dc8cc3fb0816cf6c96051dfdb36"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_dispatch_key": {
@@ -8443,8 +8443,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6222,
-    "end_line": 6290,
+    "line": 6227,
+    "end_line": 6295,
     "ast_sha256": "2f61d77c8b9ca5032dd93cafde0379216598cecc88309b953a3fd83803e01df8"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_key": {
@@ -8453,8 +8453,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6214,
-    "end_line": 6219,
+    "line": 6219,
+    "end_line": 6224,
     "ast_sha256": "74b246823af5726da84f1bc7c5e8d253663bc98cb44ee2f630b61037d6292611"
   },
   "policy_town.py:TownMixin._town_blocked_key": {
@@ -8464,8 +8464,8 @@
       "plan-routing"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5163,
-    "end_line": 5401,
+    "line": 5168,
+    "end_line": 5406,
     "ast_sha256": "61e6db7a183bcbe156fccba9a9e7b43f38cf7c073b827482565567ad191bc529"
   },
   "policy_town.py:TownMixin._town_cancel_unsafe_recall_key": {
@@ -8474,8 +8474,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4737,
-    "end_line": 4811,
+    "line": 4742,
+    "end_line": 4816,
     "ast_sha256": "f4ceb53a810b837d67b4d9855c87dc0fed0e2b71aad3079e2fc1be3417a595b5"
   },
   "policy_town.py:TownMixin._town_claims_active": {
@@ -8484,8 +8484,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3237,
-    "end_line": 3353,
+    "line": 3242,
+    "end_line": 3358,
     "ast_sha256": "cfd79a8f9c06fc663047d29e6beafb20de4aacfd5e5192a04fb4f7c957a1ae98"
   },
   "policy_town.py:TownMixin._town_clear_traveler_key": {
@@ -8494,8 +8494,8 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4583,
-    "end_line": 4587,
+    "line": 4588,
+    "end_line": 4592,
     "ast_sha256": "8f2959fa881bc1b982938dd9020ec9de09312740a73c5f4f7c937f393bbd29d0"
   },
   "policy_town.py:TownMixin._town_departure_conjuncts": {
@@ -8504,8 +8504,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1805,
-    "end_line": 1873,
+    "line": 1810,
+    "end_line": 1878,
     "ast_sha256": "af1ce522c11a9af7f3a968247e2482c478bce9664073cbac5582aa41338302c6"
   },
   "policy_town.py:TownMixin._town_destroy_key": {
@@ -8514,8 +8514,8 @@
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2402,
-    "end_line": 2448,
+    "line": 2407,
+    "end_line": 2453,
     "ast_sha256": "63f1320ea13d70581cf826d58a4ef0c4006833f1843fe8b980c28fabf13ca777"
   },
   "policy_town.py:TownMixin._town_device_processing_key": {
@@ -8524,8 +8524,8 @@
       "device"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2084,
-    "end_line": 2158,
+    "line": 2089,
+    "end_line": 2163,
     "ast_sha256": "edb32abf99452590945fd2d99a9b3f764d0b0de47483b48d873cc20fa26da09c"
   },
   "policy_town.py:TownMixin._town_entrance_step_off_key": {
@@ -8535,8 +8535,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1706,
-    "end_line": 1769,
+    "line": 1711,
+    "end_line": 1774,
     "ast_sha256": "0b206bd315975e4cfd8414d2a593e318b9f076f72f51fba8c6b08ee1827a2591"
   },
   "policy_town.py:TownMixin._town_item_processing_dispatch_key": {
@@ -8546,8 +8546,8 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2165,
-    "end_line": 2400,
+    "line": 2170,
+    "end_line": 2405,
     "ast_sha256": "b9264002c03dc5eb075ab44ad91b6194b21de7c5d56532d6bc3fc61dc3a0a28b"
   },
   "policy_town.py:TownMixin._town_item_processing_key": {
@@ -8557,8 +8557,8 @@
       "identification"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2160,
-    "end_line": 2163,
+    "line": 2165,
+    "end_line": 2168,
     "ast_sha256": "e892044591a6a76601620ea05a2bd2ef046877b5d9d9b34659229a0091336c1a"
   },
   "policy_town.py:TownMixin._town_kill_mob_key": {
@@ -8567,8 +8567,8 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4590,
-    "end_line": 4735,
+    "line": 4595,
+    "end_line": 4740,
     "ast_sha256": "f8ad418d4f9a44ad91cbc2cc0c0f40e55cf4df6792c42cebdc51ce900224614a"
   },
   "policy_town.py:TownMixin._town_map_active": {
@@ -8577,8 +8577,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 7141,
-    "end_line": 7158,
+    "line": 7146,
+    "end_line": 7163,
     "ast_sha256": "9c8e1a68ac9f4d715c552b07dab354da5ab5d8c266057fb044f6ad1367aff3c7"
   },
   "policy_town.py:TownMixin._town_map_goal_route": {
@@ -8587,8 +8587,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 7022,
-    "end_line": 7064,
+    "line": 7027,
+    "end_line": 7069,
     "ast_sha256": "805a53372da25684e3a28dd7665b5d19551f6ae2bd28f8c35cd7f8fe5958eb34"
   },
   "policy_town.py:TownMixin._town_map_goal_step": {
@@ -8597,8 +8597,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 7000,
-    "end_line": 7020,
+    "line": 7005,
+    "end_line": 7025,
     "ast_sha256": "14c5b984bedbd33cfc673535c1b0e80d0805b3fbf955e8f5c9b5510a167f8dc2"
   },
   "policy_town.py:TownMixin._town_need_registry": {
@@ -8607,8 +8607,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3145,
-    "end_line": 3235,
+    "line": 3150,
+    "end_line": 3240,
     "ast_sha256": "a4f8d794015fa4362daf9c986fb1235accb1b093e6e56bb8a6fe852e8729f1f9"
   },
   "policy_town.py:TownMixin._town_need_supplier_reachable": {
@@ -8617,8 +8617,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3461,
-    "end_line": 3480,
+    "line": 3466,
+    "end_line": 3485,
     "ast_sha256": "b6cfce95976fabf3470c55084e498f5036b44bfca0df3e73a4c24ff53e6f9a69"
   },
   "policy_town.py:TownMixin._town_observed_purchase_is_composable": {
@@ -8630,8 +8630,8 @@
       "optional-buy"
     ],
     "delegation": "supports selected child; no independent success",
-    "line": 1187,
-    "end_line": 1196,
+    "line": 1192,
+    "end_line": 1201,
     "ast_sha256": "d99a428fcdccec4120f9d6521b15e50738e2be42303b5d014c95224cea40ec3b"
   },
   "policy_town.py:TownMixin._town_order_step4_key": {
@@ -8640,8 +8640,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1943,
-    "end_line": 1985,
+    "line": 1948,
+    "end_line": 1990,
     "ast_sha256": "2a7399ec9dc0db9e560bbb46395ec9de5705990e01e02cfbd4cdbf76b963b74a"
   },
   "policy_town.py:TownMixin._town_organization_home_routable": {
@@ -8650,8 +8650,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4480,
-    "end_line": 4496,
+    "line": 4485,
+    "end_line": 4501,
     "ast_sha256": "7c767f72f9efe17f1203de21257b6a87d3b26d8b2b025d91bf0f109a7eb9ce77"
   },
   "policy_town.py:TownMixin._town_overflow_destroy_key": {
@@ -8660,8 +8660,8 @@
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2065,
-    "end_line": 2081,
+    "line": 2070,
+    "end_line": 2086,
     "ast_sha256": "8370d0e3c57475cabfa71e02bde99c76a936ac9878d7d73b9b6dfddb481c3e55"
   },
   "policy_town.py:TownMixin._town_pack_space_ready": {
@@ -8670,8 +8670,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1875,
-    "end_line": 1884,
+    "line": 1880,
+    "end_line": 1889,
     "ast_sha256": "4b8b1f6d73eeb1f9bf048fe68771cfbc44ef81ce8bdb880557b326b2811d2a64"
   },
   "policy_town.py:TownMixin._town_procurement_decision": {
@@ -8713,8 +8713,8 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1263,
-    "end_line": 1573,
+    "line": 1268,
+    "end_line": 1578,
     "ast_sha256": "92be98b3c835875df8348f98f8aebfc7cb6eb92162a98dd81d5744b647d3d756"
   },
   "policy_town.py:TownMixin._town_procurement_progress_key": {
@@ -8729,9 +8729,9 @@
       "device"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1094,
-    "end_line": 1185,
-    "ast_sha256": "c070f33e5e1d202c4015dab5f288215332335005b2f72d4109e6122e1a6006a3"
+    "line": 1096,
+    "end_line": 1190,
+    "ast_sha256": "3d7e06a99eb929f3ff6341796bb6ed1aaca2417f1f44ce295a5fb65ada37632a"
   },
   "policy_town.py:TownMixin._town_progress_allow_members": {
     "classification": "data",
@@ -8739,8 +8739,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1061,
-    "end_line": 1092,
+    "line": 1063,
+    "end_line": 1094,
     "ast_sha256": "673de6dd6c6670e11d9d3966c583ddd2a072bbb4d795565eb3be512854e7c2e8"
   },
   "policy_town.py:TownMixin._town_random_teleport_suppression_key": {
@@ -8750,8 +8750,8 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4870,
-    "end_line": 4969,
+    "line": 4875,
+    "end_line": 4974,
     "ast_sha256": "9f4cfb3bc19f65235db775343a43f38257b2a2353da313e562cebb6188dcee84"
   },
   "policy_town.py:TownMixin._town_recall_destination": {
@@ -8760,8 +8760,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5403,
-    "end_line": 5447,
+    "line": 5408,
+    "end_line": 5452,
     "ast_sha256": "4a38c364bf9fcc0bc34e420e6930e50dff42882f0d1a9e19cc653db2fb655e02"
   },
   "policy_town.py:TownMixin._town_remove_curse_key": {
@@ -8770,8 +8770,8 @@
       "remove-curse"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4814,
-    "end_line": 4867,
+    "line": 4819,
+    "end_line": 4872,
     "ast_sha256": "dbd7bcfe5adc61fa878477384f1e197b88ad22f223d3bf99ef7ab91504357d6b"
   },
   "policy_town.py:TownMixin._town_restock_wait_key": {
@@ -8780,8 +8780,8 @@
       "restock"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5466,
-    "end_line": 5475,
+    "line": 5471,
+    "end_line": 5480,
     "ast_sha256": "a98ec160afe0346d6bce485373ebfdf9a61c0c5ebb773f1a6106ce322cded12f"
   },
   "policy_town.py:TownMixin._town_space_deposit_key": {
@@ -8790,8 +8790,8 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1907,
-    "end_line": 1932,
+    "line": 1912,
+    "end_line": 1937,
     "ast_sha256": "233798c6cc3e8a1bd3db1e4f78b5e08a8531f7c5986ac30ca20384c860018d1d"
   },
   "policy_town.py:TownMixin._town_special_key": {
@@ -8833,8 +8833,8 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5477,
-    "end_line": 6212,
+    "line": 5482,
+    "end_line": 6217,
     "ast_sha256": "610690b76d3f6535bbc162e0717199322e1dc7eb1ae4f6cad9e5c01d8715c127"
   },
   "policy_town.py:TownMixin._town_teleport_building_positions": {
@@ -8843,8 +8843,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 6400,
-    "end_line": 6414,
+    "line": 6405,
+    "end_line": 6419,
     "ast_sha256": "99ffbedd689f0ea00c1c8ca69e2de55e99c101f3166b4468f123d8b25548f6c7"
   },
   "policy_town.py:TownMixin._town_teleport_building_route": {
@@ -8853,8 +8853,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 6416,
-    "end_line": 6428,
+    "line": 6421,
+    "end_line": 6433,
     "ast_sha256": "05e585b9dd48fb49fc3d8106edae783577b4011f143e6711c6e23a9ddd89ec7f"
   },
   "policy_town.py:TownMixin._town_teleport_dispatch_key": {
@@ -8863,8 +8863,8 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6335,
-    "end_line": 6370,
+    "line": 6340,
+    "end_line": 6375,
     "ast_sha256": "ad683fcb38d4dd1bc450415e0ea90bdacee7fc33ab5923919d0f9a18c9599fac"
   },
   "policy_town.py:TownMixin._town_teleport_key": {
@@ -8873,8 +8873,8 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 6325,
-    "end_line": 6333,
+    "line": 6330,
+    "end_line": 6338,
     "ast_sha256": "40b075e11c14bc35fd73543dfa78bf1382b9d66e2b1a1a7a41ae3c37daabfcac"
   },
   "policy_town.py:TownMixin._town_teleport_route": {
@@ -8883,8 +8883,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 6372,
-    "end_line": 6398,
+    "line": 6377,
+    "end_line": 6403,
     "ast_sha256": "87da33c9b85811c9c5995be5e17c21822ba10a7cdddf02ed1ecfa803903f22ec"
   },
   "policy_town.py:TownMixin._town_travel_key": {
@@ -8893,8 +8893,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4524,
-    "end_line": 4581,
+    "line": 4529,
+    "end_line": 4586,
     "ast_sha256": "42bb5200c2eabe40125675c4e2d300c647578c0edf03cff5a81f039691ef7ef8"
   },
   "policy_town.py:TownMixin._town_travel_key.no_route": {
@@ -8903,8 +8903,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4538,
-    "end_line": 4541,
+    "line": 4543,
+    "end_line": 4546,
     "ast_sha256": "e5ddf94b44534c452fcdd7721f65d81b4aa4910bddd5d3792aa173d3c870c5a7"
   },
   "policy_types.py:DecisionCandidate.__new__": {
