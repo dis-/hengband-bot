@@ -21,7 +21,7 @@ import re
 import subprocess
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
@@ -35,6 +35,7 @@ DEFAULT_LOGS = (
     "jsonlog/*.bot-decisions.jsonl.gz",
 )
 BLOB_BASE = "https://github.com/dis-/hengband-bot/blob"
+DEFAULT_WINDOWS = (48,)
 SECTION_ORDER = ("rewrite", "decide", "town", "fallback")
 
 # The page is read in Japanese; the ladder names itself in English.
@@ -171,17 +172,73 @@ def open_log(path):
     return open(path, encoding="utf-8", errors="replace")
 
 
-def collect_logs(patterns):
-    """Count decisions per rung across every matching decision log."""
-    hits = Counter()
-    reasons = defaultdict(Counter)
-    objectives = defaultdict(Counter)
-    keys = defaultdict(Counter)
-    files = 0
-    rows = 0
-    unrunged = 0
-    first = None
-    last = None
+def parse_time(stamp):
+    """A decision's ``time`` as an aware datetime, or None."""
+    if not stamp:
+        return None
+    try:
+        moment = datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment
+
+
+class Window:
+    """One period the page can be read in: everything, or a recent span."""
+
+    def __init__(self, key, label, hours, now):
+        self.key = key
+        self.label = label
+        self.hours = hours
+        self.since = None if hours is None else now - timedelta(hours=hours)
+        self.hits = Counter()
+        self.reasons = defaultdict(Counter)
+        self.objectives = defaultdict(Counter)
+        self.keys = defaultdict(Counter)
+        self.files = set()
+        self.rows = 0
+        self.unrunged = 0
+        self.first = None
+        self.last = None
+
+    def holds(self, moment):
+        if self.since is None:
+            return True
+        return moment is not None and moment >= self.since
+
+    def add(self, rung, row, stamp, path):
+        self.rows += 1
+        self.files.add(path)
+        self.hits[rung] += 1
+        self.reasons[rung][row.get("reason") or "(none)"] += 1
+        self.objectives[rung][row.get("objective") or "(none)"] += 1
+        key = row.get("key")
+        if key is not None:
+            self.keys[rung][str(key)] += 1
+        if stamp:
+            if self.first is None or stamp < self.first:
+                self.first = stamp
+            if self.last is None or stamp > self.last:
+                self.last = stamp
+
+    def meta(self):
+        return {
+            "key": self.key,
+            "label": self.label,
+            "hours": self.hours,
+            "since": self.since.isoformat() if self.since else None,
+            "files": len(self.files),
+            "decisions": self.rows,
+            "unrunged": self.unrunged,
+            "first": self.first,
+            "last": self.last,
+        }
+
+
+def collect_logs(patterns, windows):
+    """Count decisions per rung, into every window that holds the row."""
     seen = set()
     for pattern in patterns:
         for path in sorted(glob.glob(os.path.join(ROOT, pattern))):
@@ -193,7 +250,6 @@ def collect_logs(patterns):
                 handle = open_log(path)
             except OSError:
                 continue
-            files += 1
             with handle:
                 for line in handle:
                     line = line.strip()
@@ -203,35 +259,20 @@ def collect_logs(patterns):
                         row = json.loads(line)
                     except ValueError:
                         continue
+                    stamp = row.get("time")
+                    moment = parse_time(stamp)
+                    live = [w for w in windows if w.holds(moment)]
+                    if not live:
+                        continue
                     claim = row.get("claim") or {}
                     rung = claim.get("rung")
                     if not rung:
-                        unrunged += 1
+                        for window in live:
+                            window.unrunged += 1
                         continue
-                    rows += 1
-                    hits[rung] += 1
-                    reasons[rung][row.get("reason") or "(none)"] += 1
-                    objectives[rung][row.get("objective") or "(none)"] += 1
-                    key = row.get("key")
-                    if key is not None:
-                        keys[rung][str(key)] += 1
-                    stamp = row.get("time")
-                    if stamp:
-                        first = stamp if first is None or stamp < first else first
-                        last = stamp if last is None or stamp > last else last
-    return {
-        "hits": hits,
-        "reasons": reasons,
-        "objectives": objectives,
-        "keys": keys,
-        "meta": {
-            "files": files,
-            "decisions": rows,
-            "unrunged": unrunged,
-            "first": first,
-            "last": last,
-        },
-    }
+                    for window in live:
+                        window.add(rung, row, stamp, real)
+    return windows
 
 
 def git(*args):
@@ -260,11 +301,13 @@ def top(counter, limit=8):
     return [[name, count] for name, count in counter.most_common(limit)]
 
 
-def build(patterns):
+def build(patterns, spans):
     sources = source_index()
     groups = ladder_groups()
     notes = callsite_notes({r.producer for r in cl.CLAIM_LADDER})
-    log = collect_logs(patterns)
+    now = datetime.now(timezone.utc)
+    windows = collect_logs(patterns, [Window(key, label, hours, now)
+                                      for key, label, hours in spans])
     sha = git_sha()
     rungs = []
     for index, rung in enumerate(cl.CLAIM_LADDER):
@@ -287,10 +330,12 @@ def build(patterns):
             "doc": (where[2] if where else "") or notes.get(rung.producer, ""),
             "doc_from": ("docstring" if where and where[2]
                          else ("call-site" if notes.get(rung.producer) else "")),
-            "hits": log["hits"].get(rung.name, 0),
-            "log_reasons": top(log["reasons"][rung.name]),
-            "log_objectives": top(log["objectives"][rung.name], 6),
-            "log_keys": top(log["keys"][rung.name], 6),
+            "w": {w.key: {
+                "hits": w.hits.get(rung.name, 0),
+                "reasons": top(w.reasons[rung.name]),
+                "objectives": top(w.objectives[rung.name], 6),
+                "keys": top(w.keys[rung.name], 6),
+            } for w in windows},
         })
     return {
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -303,10 +348,11 @@ def build(patterns):
                      if any(r["section"] == s for r in rungs)],
         "families": [{"name": f, "label": FAMILY_LABELS.get(f, f),
                       "count": sum(1 for r in rungs if r["family"] == f),
-                      "hits": sum(r["hits"] for r in rungs
-                                  if r["family"] == f)}
+                      "hits": {w.key: sum(r["w"][w.key]["hits"] for r in rungs
+                                          if r["family"] == f)
+                               for w in windows}}
                      for f in sorted({r["family"] for r in rungs})],
-        "log": log["meta"],
+        "windows": [w.meta() for w in windows],
         "rungs": rungs,
     }
 
@@ -318,18 +364,28 @@ def main():
                              "(repeatable; default: every bot-decisions log)")
     parser.add_argument("--out", default=os.path.join(ROOT, "docs", "data",
                                                       "ladder.json"))
+    parser.add_argument("--window", action="append", default=None,
+                        metavar="HOURS",
+                        help="a recent period the page can switch to, in "
+                             "hours (repeatable; default: 48)")
     args = parser.parse_args()
-    data = build(args.log_glob or list(DEFAULT_LOGS))
+    spans = [("all", "全期間", None)]
+    for hours in args.window or [str(h) for h in DEFAULT_WINDOWS]:
+        hours = int(hours)
+        label = ("直近%d時間" % hours if hours < 48 * 2
+                 else "直近%d日" % round(hours / 24))
+        spans.append(("h%d" % hours, label, hours))
+    data = build(args.log_glob or list(DEFAULT_LOGS), spans)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(data, handle, ensure_ascii=False, indent=1, sort_keys=False)
         handle.write("\n")
-    meta = data["log"]
-    print("%d rungs, %d decisions from %d logs -> %s"
-          % (len(data["rungs"]), meta["decisions"], meta["files"], args.out))
-    cold = [r["name"] for r in data["rungs"] if not r["hits"]]
-    print("%d rungs observed, %d cold"
-          % (len(data["rungs"]) - len(cold), len(cold)))
+    for window in data["windows"]:
+        observed = sum(1 for r in data["rungs"] if r["w"][window["key"]]["hits"])
+        print("%-10s %7d decisions / %3d logs / %2d rungs observed, %2d cold"
+              % (window["label"], window["decisions"], window["files"],
+                 observed, len(data["rungs"]) - observed))
+    print("-> %s" % args.out)
     return 0
 
 

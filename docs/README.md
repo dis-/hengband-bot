@@ -27,12 +27,18 @@ python scripts/build_ladder_page.py          # -> docs/data/ladder.json
 | `src/hengbot/policy.py` | the comment above a rung's `_decide` call site, when it has no docstring |
 | `jsonlog/*bot-decisions.jsonl[.gz]` | how often each rung answered, with its reasons, objectives and keys |
 
-The generator takes `--log-glob` (repeatable, relative to `bot-client`) to
-count a narrower set of runs, and `--out` to write elsewhere:
+Every run is counted twice: over the whole log, and over the last 48 hours,
+which the page switches between.  `--window` replaces that recent period
+(repeatable, in hours); `--log-glob` (repeatable, relative to `bot-client`)
+counts a narrower set of runs, and `--out` writes elsewhere:
 
 ```sh
+python scripts/build_ladder_page.py --window 24 --window 168
 python scripts/build_ladder_page.py --log-glob 'jsonlog/bot-decisions.jsonl'
 ```
+
+A window only ever sees what the logs still hold, so the counts under it
+are a floor once rotation has discarded a run.
 
 Regenerate after a ladder change, and after a run worth publishing; commit the
 refreshed `docs/data/ladder.json` with it.  The page links each rung to its

@@ -230,6 +230,7 @@ footer { margin-top: 48px; font-size: .78rem; color: var(--text-muted); }
 <div class="meta" id="meta"></div>
 
 <div class="controls">
+  <select id="win" aria-label="期間を選ぶ"></select>
   <input type="search" id="q" placeholder="段・家族・理由で絞る" aria-label="絞り込み">
   <select id="fam" aria-label="家族で絞る"><option value="">すべての家族</option></select>
   <label class="check"><input type="checkbox" id="hot"> 答えた段だけ</label>
@@ -259,7 +260,10 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const num = n => n.toLocaleString('ja-JP');
 
-let DATA = null, MAX = 1;
+let DATA = null, MAX = 1, WIN = 'all';
+
+const win = r => r.w[WIN] || { hits: 0, reasons: [], objectives: [], keys: [] };
+const winMeta = () => DATA.windows.find(w => w.key === WIN) || DATA.windows[0];
 
 function barWidth(n) {
   if (n <= 0) return 0;
@@ -297,17 +301,19 @@ function detail(r) {
     dl.push('<dt>受け持つ理由</dt><dd>' +
       r.reasons.map(x => `<code>${esc(x)}</code>`).join(' ') + '</dd>');
   }
-  dl.push(counts('実機の理由', r.log_reasons));
-  dl.push(counts('目的', r.log_objectives));
-  dl.push(counts('送ったキー', r.log_keys));
+  const w = win(r);
+  dl.push(counts('実機の理由', w.reasons));
+  dl.push(counts('目的', w.objectives));
+  dl.push(counts('送ったキー', w.keys));
   dl.push(`<dt>ソース</dt><dd class="src">${sourceLink(r)}</dd>`);
   parts.push('<dl>' + dl.filter(Boolean).join('') + '</dl>');
   return `<div class="detail">${parts.join('')}</div>`;
 }
 
 function rungHtml(r) {
-  const cold = r.hits === 0;
-  const w = barWidth(r.hits);
+  const hits = win(r).hits;
+  const cold = hits === 0;
+  const w = barWidth(hits);
   return `<details class="rung${cold ? ' cold' : ''}" id="r-${esc(r.name)}">` +
     `<summary class="row">` +
       `<span class="rank">${r.rank}</span>` +
@@ -316,9 +322,9 @@ function rungHtml(r) {
         (r.doc ? `<span class="doc">${esc(r.doc)}</span>` : '') +
       `</span>` +
       `<span class="bar" aria-hidden="true">` +
-        (w ? `<i style="width:${w.toFixed(1)}%;background:${shade(r.hits)}"></i>` : '') +
+        (w ? `<i style="width:${w.toFixed(1)}%;background:${shade(hits)}"></i>` : '') +
       `</span>` +
-      `<span class="hits">${cold ? '—' : num(r.hits)}</span>` +
+      `<span class="hits">${cold ? '—' : num(hits)}</span>` +
     `</summary>${detail(r)}</details>`;
 }
 
@@ -328,7 +334,7 @@ function tableHtml(rows) {
     `<td><code>${esc(r.name)}</code></td>` +
     `<td>${esc(r.family_ja)}</td>` +
     `<td>${esc(sectionLabel(r.section))}</td>` +
-    `<td class="num">${r.hits ? num(r.hits) : '—'}</td>` +
+    `<td class="num">${win(r).hits ? num(win(r).hits) : '—'}</td>` +
     `<td>${esc(r.doc)}</td></tr>`).join('');
   return `<div class="scroller"><table class="grid"><thead><tr>` +
     `<th>rank</th><th>段</th><th>家族</th><th>区分</th>` +
@@ -343,11 +349,11 @@ function filtered() {
   const fam = document.getElementById('fam').value;
   const hot = document.getElementById('hot').checked;
   return DATA.rungs.filter(r => {
-    if (hot && !r.hits) return false;
+    if (hot && !win(r).hits) return false;
     if (fam && r.family !== fam) return false;
     if (!q) return true;
     const hay = [r.name, r.family, r.family_ja, r.doc, r.reasons.join(' '),
-      r.log_reasons.map(x => x[0]).join(' ')].join(' ').toLowerCase();
+      win(r).reasons.map(x => x[0]).join(' ')].join(' ').toLowerCase();
     return hay.includes(q);
   });
 }
@@ -361,7 +367,7 @@ function render() {
   out.innerHTML = DATA.sections.map(sec => {
     const mine = rows.filter(r => r.section === sec.name);
     if (!mine.length) return '';
-    const hits = mine.reduce((a, r) => a + r.hits, 0);
+    const hits = mine.reduce((a, r) => a + win(r).hits, 0);
     return `<section class="band"><h2>${esc(sec.label)}` +
       `<span class="en">${esc(sec.name)} · ${mine.length}段 · ${num(hits)}回</span></h2>` +
       `<p class="note">${esc(sec.note)}</p>` +
@@ -369,27 +375,52 @@ function render() {
   }).join('');
 }
 
-function boot(data) {
-  DATA = data;
-  MAX = Math.max(1, ...data.rungs.map(r => r.hits));
-  const hot = data.rungs.filter(r => r.hits).length;
-  const span = data.log.first && data.log.last
-    ? `${data.log.first.slice(0, 16).replace('T', ' ')} 〜 ${data.log.last.slice(0, 16).replace('T', ' ')}`
-    : '—';
+function refreshWindow() {
+  const m = winMeta();
+  MAX = Math.max(1, ...DATA.rungs.map(r => win(r).hits));
+  const hot = DATA.rungs.filter(r => win(r).hits).length;
+  const stamp = s => s.slice(0, 16).replace('T', ' ');
+  const span = m.first && m.last ? `${stamp(m.first)} 〜 ${stamp(m.last)}` : '—';
   document.getElementById('meta').innerHTML = [
-    `段の数 <b>${data.rungs.length}</b>`,
-    `答えた段 <b>${hot}</b> ／ 眠っている段 <b>${data.rungs.length - hot}</b>`,
-    `決定 <b>${num(data.log.decisions)}</b> 件（${data.log.files} 本のログ）`,
-    `期間 <b>${span}</b>`,
+    `期間 <b>${esc(m.label)}</b>`,
+    `段の数 <b>${DATA.rungs.length}</b>`,
+    `答えた段 <b>${hot}</b> ／ 眠っている段 <b>${DATA.rungs.length - hot}</b>`,
+    `決定 <b>${num(m.decisions)}</b> 件（${m.files} 本のログ）`,
+    `<b>${span}</b>`,
   ].map(x => `<span>${x}</span>`).join('');
 
   const sel = document.getElementById('fam');
-  data.families.slice().sort((a, b) => b.hits - a.hits).forEach(f => {
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">すべての家族</option>';
+  DATA.families.slice()
+    .sort((a, b) => b.hits[WIN] - a.hits[WIN])
+    .forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.name;
+      o.textContent = `${f.label}（${f.count}段・${num(f.hits[WIN])}回）`;
+      sel.appendChild(o);
+    });
+  sel.value = keep;
+}
+
+function boot(data) {
+  DATA = data;
+  WIN = data.windows[0].key;
+
+  const wsel = document.getElementById('win');
+  data.windows.forEach(w => {
     const o = document.createElement('option');
-    o.value = f.name;
-    o.textContent = `${f.label}（${f.count}段・${num(f.hits)}回）`;
-    sel.appendChild(o);
+    o.value = w.key;
+    o.textContent = w.label;
+    wsel.appendChild(o);
   });
+  wsel.value = WIN;
+  wsel.addEventListener('change', e => {
+    WIN = e.target.value;
+    refreshWindow();
+    render();
+  });
+  refreshWindow();
 
   document.getElementById('legend').innerHTML =
     '<span>答えた回数</span>' +
