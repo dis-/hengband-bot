@@ -536,7 +536,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                 and vector[-1][:2] == ("locomotion", "quest-request")
             )
             distances.append(vector[-1][-1] if locomotion else None)
-            step_distances.append(vector[-1][-2] if locomotion else None)
+            step_distances.append(vector[-1][-2][0] if locomotion else None)
             observations.append(policy._town_turn_arbiter.observe(
                 in_town=True,
                 reason="bounty:approach",
@@ -982,7 +982,8 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         self.assertEqual(sorted(policy._town_turn_arbiter._retired), [])
         self.assertEqual(chosen_keys, [key for _, key in decisions])
         self.assertEqual(rows[-1]["producer_owner"], "departure")
-        self.assertTrue(rows[-1]["progress"])
+        # Waiting suspends the budget; elapsed turns are not a goal effect.
+        self.assertFalse(rows[-1]["progress"])
         self.assertEqual(rows[-1]["budget_remaining_estimate"], 8)
         self.assertEqual(rows[-1]["retirement_set"], [])
 

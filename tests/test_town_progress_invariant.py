@@ -460,7 +460,7 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "seek-loot")
         self.assertEqual(policy._town_progress_invariant_defect, {})
 
-    def test_net_zero_goal_walk_is_still_preempted(self):
+    def test_loot_interruption_is_not_judged_by_procurement_fingerprint(self):
         policy, snapshot, store = self._case(on_door=False)
         policy._town_supplier_stock = {STORE_MAGIC: store}
         policy._shop_observation = None
@@ -481,12 +481,11 @@ class TownProgressInvariantTest(unittest.TestCase):
 
         policy._choose_key_with_latch_capture = injected_cyclic_walk
         key = policy.choose_key(snapshot)
-        self.assertNotEqual(key, seek_key)
-        self.assertIn("town-progress-invariant:defect:seek-loot", policy.last_reason)
-        self.assertEqual(
-            policy._town_progress_invariant_defect["marker"],
-            "TOWN_PROGRESS_INVARIANT_DEFECT",
-        )
+        # The supplied October 4 ownership contract supersedes this old
+        # procurement preemption: loot owns its own goal and suspends the shop.
+        self.assertEqual(key, seek_key)
+        self.assertEqual(policy.last_reason, "seek-loot")
+        self.assertEqual(policy._town_progress_invariant_defect, {})
 
     def test_detector_fires_for_revisited_equipment_macro(self):
         policy, snapshot, _store = self._case(on_door=False)
