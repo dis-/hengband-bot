@@ -405,8 +405,10 @@ def analyze_sources(sources, producer_baseline, intent_baseline):
 def analyze_repository():
     sources = {path.relative_to(POLICY_ROOT).as_posix(): path.read_text(encoding='utf8')
                for path in POLICY_ROOT.rglob('*.py')}
-    return analyze_sources(sources, json.loads(PRODUCER_BASELINE.read_text(encoding='utf8')),
-                           json.loads(INTENT_BASELINE.read_text(encoding='utf8')))
+    findings = analyze_sources(sources, json.loads(PRODUCER_BASELINE.read_text(encoding='utf8')),
+                               json.loads(INTENT_BASELINE.read_text(encoding='utf8')))
+    from town_work_manifest import check_repository
+    return findings + check_repository()
 
 
 def main():

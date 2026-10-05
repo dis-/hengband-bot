@@ -1,0 +1,56 @@
+SOL-REPORT-slice0.txt -- town progress slice 0
+Worktree: C:\hengband\bot-client-progdef; branch town-progress-design-1006.
+Scope: source coverage and emit receipts only. All rows remain shadow/legacy.
+Operator override: unmapped coverage is fail-closed in the receipt verdict;
+it records town:blocked:work-contract:unmapped-producer and DOES NOT change keys.
+
+Manifest: 800 candidates; 19488 call/reference/branch sites;
+110 individual need/purchase occurrences; 98 ladder occurrences; zero unmapped.
+All 44 legacy delegated adapters reconciled. AST digests, concrete returns,
+predicates, callers, row mappings and delegation evidence are pinned.
+12 old pure-helper classifications corrected: cursor delta, recall selection,
+standing Home digger, tunnel approach, Home-full knowledge, return-1/return-3/
+return candidates, batch sale entry, procurement progress, unavailable quest
+entry candidate, and EquipmentMutationExecutor._prepare.
+Dungeon exclusions use caller/profile or explicit town predicates, not module labels.
+
+One validate_emit covers offers, policy-final, driver submit and executor posts.
+Normal sends cannot synthesize a missing policy work record. Explicit LEAVE
+overrides, prompt clears, compiled prefixes and executor-released tails are mapped.
+Missing/wrong-key/unknown work, override, prompt and TCP/WM-tail controls passed.
+No new effect credit, retirement/descent changes, game/bot runs or push.
+
+Corpus: 62 frozen windows; 252 decisions evaluated;
+202 matched; 50 first-divergence boundaries; 697 receipts, 344 requiring work; zero unmapped.
+No later historical response is delivered after a divergent decision.
+crosstown-loop-20261006-0355: 629 recorded-key reconstructions,
+  1452 independent board controls, 3153 runtime receipts,
+  2903 requiring work; zero unmapped in both kinds of control.
+  Removing work records rejects every nonempty recorded key in the validator.
+home-full-nosurplus-20261005-2356: 656 recorded-key reconstructions,
+  203 independent board controls, 835 runtime receipts,
+  514 requiring work; zero unmapped in both kinds of control.
+  Removing work records rejects every nonempty recorded key in the validator.
+Capture boundary: both tails start mid-record (physical row 1 excluded).
+Neither capture supplies policy checkpoints. Board controls reconstruct state
+independently, use only previously recorded skill evidence in the same observed
+town/level span, and never claim continuous historical replay or effect proof.
+Other missing checkpoint knowledge may still select an initial knowledge probe.
+15/17 non-board response rows are classified separately, never parsed as boards.
+Raw recorded rungs/execution entries are reconciled separately from board controls.
+
+Validation: required five modules plus test_town_work_contract: 114 tests passed.
+Strengthened contract/capture rerun: 9 tests passed (workers 1, normal Windows Python).
+Commands used PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules ...
+Town structure lint: 0 violations. Ownership claim lint: 0 unexcused sites,
+0 stale exceptions (482 legacy excused sites retained). git diff --check clean.
+
+Evidence: SOL-EVIDENCE-slice0-corpus.json; SOL-EVIDENCE-slice0-captures.json.
+Manifest: scripts/town_work_manifest.json.gz; runtime index: src/hengbot/town_work_sites.json.
+Fixture: tests/fixtures/town-work-slice0-captures-20261006.json.gz.
+Next slices: persistent semantic identity/effect observers, live row activation
+and graduation remain pending. This slice does not authorize live qualification.
+Tokens used: approximately 55,000 (estimate; exact token counter unavailable).
+Commit: local slice-0 implementation commit, including this report; no push.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

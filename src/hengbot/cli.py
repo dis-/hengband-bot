@@ -1869,6 +1869,9 @@ def _write_decision(
                         else None
                     ),
                 )
+            if policy is not None:
+                from hengbot.town_work import receipts
+                record['town_work'] = receipts(policy)
             in_store = (
                 policy.in_store_decision_telemetry()
                 if policy is not None
@@ -2219,11 +2222,13 @@ class _ExecutorInputPort:
     """
 
     def __init__(self, executor: OperationExecutor, *, tunnel_macros_ready: bool,
-                 request_budget: float) -> None:
+                 request_budget: float, policy=None, work_receipt=None) -> None:
         self.executor = executor
         self.tunnel_macros_ready = tunnel_macros_ready
         self.request_budget = request_budget
         self.last_result = None
+        self.policy = policy
+        self.work_receipt = work_receipt
 
     def __call__(self, key: str, *, in_store: bool = False,
                  decision: dict | None = None) -> SendResult:
@@ -2232,6 +2237,34 @@ class _ExecutorInputPort:
     def submit_operation(self, key: str, *, decision: dict | None = None,
                          continuations: list[Continuation] | None = None) -> SendResult:
         decision = decision or {}
+        from hengbot.town_work import (current_record, driver_record, frame_site,
+                                       note, validate_emit)
+        frame = sys._getframe(1)
+        if frame.f_code.co_name == '__call__':
+            frame = frame.f_back
+        site = frame_site(frame)
+        work = current_record(self.policy, key) if self.policy is not None else None
+        if work is None:
+            parent = (current_record(self.policy, decision.get('key'))
+                      if self.policy is not None else None)
+            if parent and site in {
+                    'cli.py:_send_new_decision_key',
+                    'cli.py:_send_prompt_gated_decision_key',
+                    'cli.py:_release_prompt_gated_tail'}:
+                # The exact mapped parent authorizes its compiled prefix/tail.
+                work = dict(parent, key=key, segment_producer=site,
+                            segment_line=frame.f_lineno)
+            elif site in {'cli.py:main', 'cli.py:_send_stall_recovery_nudge'}:
+                # Only actual driver-owned clears/probes synthesize cleanup
+                # work. Normal policy sends cannot hide an unmapped producer.
+                work = driver_record(self.policy, key, site=site,
+                                     sequence=decision.get('sequence'))
+        receipt = validate_emit(self.executor.ready_board, key, work,
+                                seam='driver-submit', producer=site)
+        if self.policy is not None:
+            note(self.policy, receipt)
+        if self.work_receipt is not None:
+            self.work_receipt(receipt)
         operation = Operation(
             decision.get("sequence"),
             str(decision.get("reason", "unknown")),
@@ -2244,6 +2277,7 @@ class _ExecutorInputPort:
             response_grace=COMMAND_RESPONSE_GRACE,
             transport=(Transport.TCP if self.executor.client is not None
                        else Transport.WM),
+            work_record=work,
         )
         from hengbot.observed_input import compile_observed_input
         if self.executor.active is None and self.executor.ready_board is not None:
@@ -3689,15 +3723,31 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"failed to send key: {exc}", file=sys.stderr)
                 return False
 
+    def work_receipt(receipt: dict) -> None:
+        # Separate durable file: driver overrides and prompt tails can occur
+        # after the decision row was written. Receipts never change actuation.
+        if receipt.get('reason'):
+            print(receipt['reason'], file=sys.stderr, flush=True)
+        if args.decision_log is not None:
+            path = args.decision_log.with_name('town-work-receipts.jsonl')
+            try:
+                with path.open('a', encoding='utf8') as stream:
+                    stream.write(json.dumps(receipt, ensure_ascii=False) + '\n')
+            except OSError as error:
+                print(f'failed to write town work receipt: {error}', file=sys.stderr)
+
     executor = OperationExecutor(
         shadow_client, drain=_make_jsonl_barrier_drain(args.state_file),
         wm_post=wm_post, accepted=accepted_segment,
+        work_receipt=work_receipt,
     )
     args.operation_executor = executor
     send = _ExecutorInputPort(
         executor,
         tunnel_macros_ready=tunnel_macros_ready,
         request_budget=args.stall_timeout,
+        policy=policy,
+        work_receipt=work_receipt,
     )
 
     live_actuation = shadow_client is not None or args.send_to_window
@@ -4383,6 +4433,8 @@ def _run_follow(
                             # store page (live 2026-10-05 21:06 stuck-prompt);
                             # leave the page and decide again outside.
                             key = LEAVE_STORE_KEY
+                            from hengbot.town_work import bind_driver_override
+                            bind_driver_override(policy, key, site='cli.py:main')
                     elif (policy.last_reason in POLICY_FINAL_STOP_REASONS
                             or (policy.last_reason or "").startswith(
                                 ("ownership:holder-silent:",

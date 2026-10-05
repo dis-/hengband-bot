@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, reservation_shadow, item_available
+from hengbot.town_work import town_work_decision
 
 from collections import Counter, deque
 import random
@@ -2557,6 +2558,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
+    @town_work_decision
     @reservation_decision
     def choose_key(self, snapshot: Snapshot) -> str | None:
         # Recorded checkpoints predating full-Home recovery lack these fields.
@@ -3377,6 +3379,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                          cause: str | None = None,
                          post_on_emit: bool = True) -> None:
         """Producer's plain-data step; the exit accepts only its final key."""
+        from hengbot.town_work import observe_offer
+        observe_offer(self, key, work_id)
         buffer = self._decision_offer_buffer()
         # Keep the producer's board entry for diagnostics and checkpoint
         # compatibility. The normal ladder calls the producer on each board.
@@ -3432,6 +3436,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         continuation: str | None = None,
     ) -> None:
         """A producer names an already accepted operation it is observing."""
+        from hengbot.town_work import observe_offer
+        observe_offer(self, key, work_id)
         buffer = self._decision_offer_buffer()
         buffer.waits.append((
             key, producer, work_id, operation_ref, expected_effect,

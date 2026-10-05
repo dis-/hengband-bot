@@ -1,0 +1,400 @@
+{
+  "purchase:curse:required": [
+    "supply-buy"
+  ],
+  "purchase:legacy:lantern": [
+    "supply-buy"
+  ],
+  "purchase:legacy:oil": [
+    "supply-buy"
+  ],
+  "purchase:legacy:ration": [
+    "supply-buy"
+  ],
+  "purchase:mining:digger": [
+    "mining-buy"
+  ],
+  "purchase:mining:treasure-detection": [
+    "mining-buy"
+  ],
+  "purchase:mandatory:recall": [
+    "supply-buy"
+  ],
+  "purchase:mandatory:food": [
+    "supply-buy"
+  ],
+  "purchase:mandatory:teleport": [
+    "supply-buy"
+  ],
+  "purchase:mandatory:cure": [
+    "supply-buy"
+  ],
+  "purchase:mandatory:destruction": [
+    "supply-buy"
+  ],
+  "purchase:identify:normal": [
+    "supply-buy"
+  ],
+  "purchase:identify:full": [
+    "supply-buy"
+  ],
+  "purchase:f'restore:{stat}'": [
+    "supply-buy"
+  ],
+  "purchase:restore:proactive": [
+    "optional-buy"
+  ],
+  "purchase:experience:restore-life-levels": [
+    "supply-buy"
+  ],
+  "purchase:quest:carry": [
+    "quest-buy"
+  ],
+  "purchase:quest:speed": [
+    "quest-buy"
+  ],
+  "purchase:quest:healing": [
+    "quest-buy"
+  ],
+  "purchase:tail:recall": [
+    "supply-buy"
+  ],
+  "purchase:tail:mana-food": [
+    "supply-buy"
+  ],
+  "purchase:tail:torch": [
+    "optional-buy"
+  ],
+  "purchase:tail:teleport": [
+    "supply-buy"
+  ],
+  "purchase:tail:cure": [
+    "supply-buy"
+  ],
+  "purchase:tail:ammo": [
+    "optional-buy"
+  ],
+  "purchase:tail:identify-staff": [
+    "supply-buy"
+  ],
+  "purchase:black-market:speed": [
+    "optional-buy"
+  ],
+  "purchase:black-market:healing": [
+    "optional-buy"
+  ],
+  "purchase:black-market:stone-to-mud": [
+    "optional-buy"
+  ],
+  "purchase:curse:normal": [
+    "supply-buy"
+  ],
+  "purchase:curse:star-reserve": [
+    "optional-buy"
+  ],
+  "purchase:tail:launcher-enchant": [
+    "optional-buy"
+  ],
+  "need:idle-consumable-scan:home-first:0": [
+    "home-catalogue"
+  ],
+  "need:home-disposal-identify:normal:0": [
+    "home-disposal",
+    "identification"
+  ],
+  "need:home-disposal-sale:normal:0": [
+    "home-disposal",
+    "sale"
+  ],
+  "need:birth-supplies:normal:0": [
+    "supply-buy"
+  ],
+  "need:birth-supplies:normal:1": [
+    "supply-buy"
+  ],
+  "need:quest-throwing-items:opening-quest:0": [
+    "quest-buy",
+    "home-withdraw"
+  ],
+  "need:quest-throwing-items:home-first:0": [
+    "quest-buy",
+    "home-withdraw"
+  ],
+  "need:disposal:normal:0": [
+    "destruction",
+    "sale"
+  ],
+  "need:safe-weapon:home-first:0": [
+    "home-withdraw",
+    "equipment-transaction"
+  ],
+  "need:combat-weapon:home-first:0": [
+    "home-withdraw",
+    "equipment-transaction"
+  ],
+  "need:book-sale:normal:0": [
+    "sale"
+  ],
+  "need:organization-sale:normal:0": [
+    "sale"
+  ],
+  "need:weight-overload:home-first:0": [
+    "home-deposit"
+  ],
+  "need:space-deposit:home-first:0": [
+    "home-deposit"
+  ],
+  "need:deposit:home-first:0": [
+    "home-deposit"
+  ],
+  "need:stat-restore:normal:0": [
+    "stat-recovery",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:experience-restore:normal:0": [
+    "stat-recovery",
+    "supply-buy"
+  ],
+  "need:experience-restore-check:normal:0": [
+    "browse"
+  ],
+  "need:experience-potion-home:home-first:0": [
+    "home-withdraw",
+    "stat-recovery"
+  ],
+  "need:low-level-sale:normal:0": [
+    "sale"
+  ],
+  "need:mana-food-sale:normal:0": [
+    "sale"
+  ],
+  "need:device-sale:normal:0": [
+    "sale"
+  ],
+  "need:weapon-sale:normal:0": [
+    "sale"
+  ],
+  "need:light-sale:normal:0": [
+    "sale"
+  ],
+  "need:fundraising-kit:home-first:0": [
+    "mining-buy",
+    "home-withdraw",
+    "fundraising"
+  ],
+  "need:fundraising-digger:normal:0": [
+    "mining-buy"
+  ],
+  "need:fundraising-detection:normal:0": [
+    "mining-buy"
+  ],
+  "need:fundraising-food:normal:0": [
+    "mining-buy"
+  ],
+  "need:stored-detection:home-first:0": [
+    "home-withdraw"
+  ],
+  "need:mining-detection:normal:0": [
+    "mining-buy"
+  ],
+  "need:stored-digger:home-first:0": [
+    "home-withdraw"
+  ],
+  "need:mining-digger:normal:0": [
+    "mining-buy"
+  ],
+  "need:fundraising-light:normal:0": [
+    "mining-buy"
+  ],
+  "need:fundraising-oil:normal:0": [
+    "mining-buy"
+  ],
+  "need:identification-source:before-withdrawal:0": [
+    "identification",
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:identification-withdrawal:post-alchemist-home:0": [
+    "home-withdraw"
+  ],
+  "need:recall:normal:0": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:recall:normal:1": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:recall:normal:2": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:teleport:normal:0": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:teleport:normal:1": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:cure-critical:normal:0": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:cure-critical:normal:1": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:cure-critical:normal:2": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:oil:normal:0": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:oil:normal:1": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:food:normal:0": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:food:normal:1": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:quest-throwing-items:normal:0": [
+    "quest-buy",
+    "home-withdraw"
+  ],
+  "need:quest-launcher:home-first:0": [
+    "home-withdraw"
+  ],
+  "need:quest-ranged-kit:normal:0": [
+    "quest-buy"
+  ],
+  "need:quest-scrolls:normal:0": [
+    "quest-buy"
+  ],
+  "need:quest-carry:normal:0": [
+    "quest-buy"
+  ],
+  "need:quest-speed:normal:0": [
+    "quest-buy"
+  ],
+  "need:quest-healing:normal:0": [
+    "quest-buy"
+  ],
+  "need:quest-healing:normal:1": [
+    "quest-buy"
+  ],
+  "need:light:normal:0": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:identify-staff:normal:0": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
+  "need:ammo-home-first:home-first:0": [
+    "home-withdraw"
+  ],
+  "need:ammo:normal:0": [
+    "optional-buy"
+  ],
+  "need:throwing-torches:normal:0": [
+    "optional-buy"
+  ],
+  "need:remove-curse:normal:0": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:remove-curse:normal:1": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:remove-curse:normal:2": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:remove-curse:normal:3": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:home-star-remove-curse-use:home-first:0": [
+    "remove-curse",
+    "home-withdraw"
+  ],
+  "need:home-star-remove-curse-check:home-first:0": [
+    "home-catalogue"
+  ],
+  "need:home-star-remove-curse-stock:normal:0": [
+    "optional-buy"
+  ],
+  "need:required-star-remove-curse:normal:0": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:required-star-remove-curse:normal:1": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:required-star-remove-curse:normal:2": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:required-star-remove-curse:normal:3": [
+    "remove-curse",
+    "supply-buy",
+    "home-withdraw"
+  ],
+  "need:star-remove-curse:normal:0": [
+    "optional-buy"
+  ],
+  "need:launcher-enchant:normal:0": [
+    "enchant",
+    "optional-buy"
+  ],
+  "need:equipment-catalog:home-first:0": [
+    "home-catalogue",
+    "equipment-optimization"
+  ],
+  "need:equipment-work:home-first:0": [
+    "equipment-transaction",
+    "equipment-inscription"
+  ],
+  "need:equipment-transaction:home-first:0": [
+    "equipment-transaction",
+    "home-withdraw",
+    "home-deposit"
+  ],
+  "need:black-market:normal:0": [
+    "optional-buy",
+    "browse"
+  ]
+}
