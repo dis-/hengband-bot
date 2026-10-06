@@ -2117,6 +2117,17 @@ class EquipmentMixin:
                 return self._equipment_home_outcome(
                     LEAVE_STORE_KEY, label="deposit-item-missing",
                 )
+            if session is not None and session.index == 0 and self._home_is_full(snapshot):
+                # A transaction's first deposit cannot create Home capacity.
+                # End it before posting so Home-full recovery can run, and
+                # expose the reason instead of repeating the attempt. Later
+                # deposits may be the next step after an observed transaction
+                # effect, so keep that existing continuation intact.
+                self._abandon_blocked_equipment_transaction(snapshot)
+                self.last_reason = "equipment-transaction:deposit-home-full"
+                return self._equipment_home_outcome(
+                    LEAVE_STORE_KEY, label="deposit-home-full",
+                )
             if self._retention_reservation(snapshot, target) > 0:
                 # A transaction cached before a purchase or plan transition is
                 # stale. Replan without ever dispatching its reserved deposit.
