@@ -82,9 +82,11 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
         )
         worn_loadout = current_loadout(policy._equipment_catalog.items)
         self.assertIsInstance(worn_loadout, Loadout)
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: reconstructs the recorded optimizer input key absent from the capture; the departure gate is the subject
         policy._equipment_optimizer_input_key = "recorded-home-full-input"
         preparation = SimpleNamespace(
             blockers=("equipment-transaction-failed",),
+            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: the recorded board has no optimizer checkpoint; the worn loadout stands in for the confirmed-loadout gate under test
             result=SimpleNamespace(best=SimpleNamespace(loadout=worn_loadout)),
             transaction=None,
         )
