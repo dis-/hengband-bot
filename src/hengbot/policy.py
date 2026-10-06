@@ -6749,10 +6749,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if snapshot.store.store_type != STORE_HOME:
                 self._release_claim_goal("catalogue-wrong-store", owners=(family,))
                 return None
-            if self._open_home_page_is_complete(snapshot):
-                self._adopt_home_catalogue(tuple(
-                    self._inventory_item_from_store_item(item)
-                    for item in snapshot.store.items))
+            if (self._open_home_page_is_complete(snapshot)
+                    or self._home_knowledge_current):
+                if not self._home_knowledge_current:
+                    self._adopt_home_catalogue(tuple(
+                        self._inventory_item_from_store_item(item)
+                        for item in snapshot.store.items))
                 self._claim_exit_completion(snapshot, holder, [])
                 self.last_reason = "equipment-transaction:home-catalog-acquired"
                 self._offer_execution(
