@@ -66,7 +66,7 @@ class CatcycleTest(unittest.TestCase):
                           for r in posted if r["decision"]["sequence"] in (1064, 1065)],
                          [(1064, "\x1b"), (1065, "5")])
 
-    def test_public_leave_then_same_owner_scan_before_reentry(self):
+    def test_partial_home_requests_catalogue_before_other_errands(self):
         for enforced, crossarea in ((False, True), (True, False), (False, False)):
             for restored in (False, True):
                 with self.subTest(enforced=enforced, crossarea=crossarea, restored=restored):
@@ -77,21 +77,22 @@ class CatcycleTest(unittest.TestCase):
                     policy.confirm_key_posted(key)
                     holder_id = policy._claim_register.current.claim_id
                     if not (enforced or crossarea):
-                        # Supplemental legacy declaration: the recorded partial
-                        # exit is callable with either sequencing switch OFF.
+                        # Supplemental legacy declaration keeps this path
+                        # callable with either sequencing switch OFF.
                         key = policy._home_catalogue_work_key(boards[1])
                         policy._record_decision_claim(boards[1], key)
                     else:
                         key = policy.choose_key(boards[1])
                     self.assertEqual((key, policy.last_reason),
-                                     ("\x1b", "equipment-transaction:catalogue-leave-for-scan"))
+                                     (HOME_KNOWLEDGE_MACRO,
+                                      "equipment-transaction:catalogue-request-knowledge"))
                     self.assertEqual((boards[1].store.stock_num, len(boards[1].store.items)), (63, 52))
                     policy.confirm_key_posted(key)
                     if restored:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
                     key = policy.choose_key(boards[2])
                     self.assertEqual((key, policy.last_reason),
-                                     (HOME_KNOWLEDGE_MACRO, "equipment-transaction:catalogue-request-knowledge"))
+                                     ("", "equipment-transaction:catalogue-await-knowledge"))
                     self.assertEqual(policy.decision_claim["claim_id"], holder_id)
                     self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
                     self.assertIsNone(policy.decision_claim["violation"])
@@ -100,17 +101,14 @@ class CatcycleTest(unittest.TestCase):
                     self.assertFalse(policy._home_knowledge_current)
                     # Diverges from recorded 1065's 5: no later historic board.
 
-    def test_separate_recorded_scan_reply_adopts_before_next_home_work(self):
+    def test_in_home_catalogue_reply_adopts_before_next_home_work(self):
         from tempfile import TemporaryDirectory
         for restored in (False, True):
             policy, boards, reply = attach()
             key = policy._home_catalogue_work_key(boards[1])
             policy._record_decision_claim(boards[1], key)
             policy.confirm_key_posted(key)
-            scan = policy.choose_key(boards[2])
-            self.assertEqual(scan, HOME_KNOWLEDGE_MACRO)
             holder_id = policy._claim_register.current.claim_id
-            policy.confirm_key_posted(scan)
             if restored:
                 policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
             with TemporaryDirectory() as raw:
@@ -134,8 +132,9 @@ class CatcycleTest(unittest.TestCase):
         policy._record_decision_claim(boards[1], key)
         policy.confirm_key_posted(key)
         scan = policy.choose_key(boards[2])
-        self.assertEqual(scan, HOME_KNOWLEDGE_MACRO)
-        policy.confirm_key_posted(scan)
+        self.assertEqual(scan, "")
+        self.assertEqual(policy.last_reason,
+                         "equipment-transaction:catalogue-await-knowledge")
         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
         key = policy.choose_key(boards[2])
         self.assertEqual(key, "")
@@ -143,7 +142,7 @@ class CatcycleTest(unittest.TestCase):
         self.assertTrue(policy._home_knowledge_scan_inflight)
         self.assertEqual(policy._claim_register.current.execution.state, "awaiting")
         self.assertEqual(policy._claim_register.current.execution.operation_ref,
-                         f"decision:{policy._decision_sequence - 1}:{HOME_KNOWLEDGE_MACRO}")
+                         f"decision:{policy._decision_sequence - 2}:{HOME_KNOWLEDGE_MACRO}")
 
 
 if __name__ == "__main__":
