@@ -434,13 +434,16 @@ class ShopMixin(InStoreMixin):
             released = self._retention_surplus(
                 snapshot, surplus_identify_staff
             )
+            total_identify_charges = self._total_identify_staff_charges(snapshot)
             remaining_identify_charges = (
-                self._total_identify_staff_charges(snapshot)
+                total_identify_charges
                 - max(0, surplus_identify_staff.charges) * released
             )
-            if remaining_identify_charges < STAFF_IDENTIFY_MIN_CHARGES:
-                # The cap selector may nominate an Identify staff even when
-                # releasing it would break the mandatory charge reserve.
+            if (total_identify_charges >= STAFF_IDENTIFY_MIN_CHARGES
+                    and remaining_identify_charges < STAFF_IDENTIFY_MIN_CHARGES):
+                # A sale must not break a mandatory reserve that is currently
+                # met (2026-10-06 #35). Below the reserve, the user 10-03 rule
+                # still releases the fewest-charge staves to buy fuller ones.
                 surplus_identify_staff = None
         surplus_slot = (
             surplus_identify_staff.slot
@@ -459,6 +462,7 @@ class ShopMixin(InStoreMixin):
                     not (
                         item.tval == TVAL_STAFF
                         and item.sval == SV_STAFF_IDENTIFY
+                        and item.charges > 0  # a drained staff stays junk
                     )
                     and item.tval in {TVAL_WAND, TVAL_STAFF}
                     and not self._is_useful_device(item)
