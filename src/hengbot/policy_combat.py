@@ -379,7 +379,17 @@ class CombatMixin:
         # an already-selected unsanctioned WAIT.
         only_suppressed_weak_breeders = bool(hostiles) and not strategic_hostiles
         if not only_suppressed_weak_breeders:
-            scroll = self._escape_scroll(snapshot)
+            # Rejecting an idle turn is not permission to spend a teleport.
+            # The same material-loss / low-HP rule as unseen fire applies;
+            # below it, use the movement/attack alternatives in this ladder.
+            material_threat = self._unseen_loss_is_material(
+                snapshot.player,
+                max(
+                    self._attributable_observed_loss(snapshot),
+                    self._predicted_damage(snapshot, hostiles, turns=3),
+                ),
+            )
+            scroll = self._escape_scroll(snapshot) if material_threat else None
             if scroll is not None:
                 self.last_reason = "no-wait:escape-scroll"
                 return self._read_key(snapshot, scroll)

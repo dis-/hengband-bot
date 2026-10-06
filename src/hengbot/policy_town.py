@@ -4607,6 +4607,17 @@ class TownMixin:
                 cause="outside-town",
             )
             return None
+        # Supplier travel calls this global hunt before emitting its route.
+        # Starvation must keep that route, even when the hunt remembers a
+        # monster outside sight. Preserve the hunt for after feeding; actual
+        # route blockers can still be attacked by movement, and the earlier
+        # emergency ladder handles threats that kill before starvation.
+        if snapshot.player.hungry and self._find_edible(snapshot) is None:
+            self._offer_execution_no_step(
+                producer="survival", work_id="town-kill-mob",
+                cause="food-survival-owns-route",
+            )
+            return None
         player = snapshot.player
         targets = sorted(
             (monster for monster in snapshot.visible_monsters if not monster.pet),
