@@ -1265,19 +1265,30 @@ class CombatTest(unittest.TestCase):
                 item("q", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR, count=1),
             ],
         )
+        # User 10-03: escape scrolls only for >=10% of max HP or low HP.
+        # At low HP the genuine hostile still triggers the escape scroll.
+        low = replace(snapshot, player=replace(
+            snapshot.player, hp=snapshot.player.max_hp // 3))
         for took_damage in (False, True):
             with self.subTest(took_damage=took_damage):
                 policy = HengbotPolicy()
-                policy._breeder_breakthrough_floor = snapshot.floor_key
+                policy._breeder_breakthrough_floor = low.floor_key
                 policy._took_damage = took_damage
                 policy.last_reason = "fundraise:upstairs-not-found"
 
-                key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
+                key = policy._forbid_wait_while_damaged(low, WAIT_KEY)
 
                 self.assertEqual(
                     (key, policy.last_reason),
                     (READ_KEY + "q", "no-wait:escape-scroll"),
                 )
+        # Near full HP against a sub-10% threat the scroll is kept and the
+        # ladder's attack alternative is used instead.
+        policy = HengbotPolicy()
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy.last_reason = "fundraise:upstairs-not-found"
+        key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
+        self.assertNotEqual(policy.last_reason, "no-wait:escape-scroll")
 
     def test_choke_hold_ignores_adjacent_suppressed_weak_breeder(self):
         base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)

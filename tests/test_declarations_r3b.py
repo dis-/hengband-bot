@@ -62,7 +62,7 @@ class TownMobDeclarationTest(unittest.TestCase):
         )
         board = SimpleNamespace(
             in_town=True, dungeon_level=0,
-            player=SimpleNamespace(position=Position(1, 1)),
+            player=SimpleNamespace(position=Position(1, 1), hungry=False),
             visible_monsters=(target,),
         )
         key = policy._town_kill_mob_key(board)

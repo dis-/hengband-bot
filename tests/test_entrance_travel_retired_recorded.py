@@ -39,6 +39,8 @@ Walls, each declared:
 
 from __future__ import annotations
 
+import copy
+
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import gzip
 import hashlib
@@ -152,7 +154,16 @@ class EntranceTravelRetiredRecordedTest(unittest.TestCase):
             _new_town_turn_arbiter(), strip=True
         )
         self.assertEqual(decided, self.boundaries["recorded"])
-        self.assertEqual(telemetry, self.boundaries["recorded_arbiter"])
+        # DECLARED DIVERGENCE (slice 1, 2026-10-06): a survival interrupt no
+        # longer splits the errand's recurrence pair, so the recorded
+        # retirement of store-router at 20635 no longer happens. Decisions
+        # are unchanged; only that accounting row and its retirement_set
+        # follow-on differ.
+        recorded = copy.deepcopy(self.boundaries["recorded_arbiter"])
+        recorded[2].update(budget_remaining_estimate=7, would_retire=False,
+                           retirement_set=[])
+        recorded[3].update(retirement_set=[])
+        self.assertEqual(telemetry, recorded)
         self.assertEqual(
             [[board.player.position.y, board.player.position.x]
              for board in self.boards],
