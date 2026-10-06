@@ -57,7 +57,10 @@ from hengbot.policy_constants import (
     ZAP_ROD_KEY,
 )
 
-UNSEEN_LOOT_QUIET_TURNS = 10
+# Game turns without a new unseen hit before retreat-side loot is eligible
+# again. The 2026-10-06 23F capture had unseen hits 8-110 game turns apart,
+# so the quiet window must exceed that gap or loot returns between hits.
+UNSEEN_LOOT_QUIET_TURNS = 200
 
 SOURCE_PROMPT = {
     USE_STAFF_KEY: ("どの杖を使いますか? ", "Use which staff? "),

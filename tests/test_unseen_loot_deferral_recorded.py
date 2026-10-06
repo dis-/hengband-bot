@@ -5,6 +5,8 @@ import tests  # noqa: F401 -- isolate live runtime files
 from types import SimpleNamespace
 import unittest
 
+from hengbot.policy_identification import UNSEEN_LOOT_QUIET_TURNS
+
 from hengbot.model import Position
 from hengbot.policy import HengbotPolicy
 
@@ -53,7 +55,7 @@ class UnseenLootDeferralRecordedTest(unittest.TestCase):
             policy._unseen_reverse_choke_step(board), Position(12, 62)
         )
 
-    def test_deferred_item_is_picked_up_after_ten_quiet_game_turns(self):
+    def test_deferred_item_is_picked_up_after_the_quiet_window(self):
         row = RECORDED_SEEK_ROW
         policy = self._policy()
         target = row["target"]
@@ -79,7 +81,7 @@ class UnseenLootDeferralRecordedTest(unittest.TestCase):
         board = SimpleNamespace(
             player=SimpleNamespace(position=target),
             floor_key=FLOOR,
-            turn=row["turn"] + 10,
+            turn=row["turn"] + UNSEEN_LOOT_QUIET_TURNS,
             in_town=False,
         )
 
