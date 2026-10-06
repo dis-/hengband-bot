@@ -2465,13 +2465,11 @@ class EquipmentMixin:
                         dict.fromkeys(plan.blocked_this_visit)
                     )
                 self._town_errand_plan = replacement
-            last_failure = getattr(
-                self, "_equipment_transaction_last_failure", None
-            )
+            # Once this town visit has recorded Home as unavailable, no new
+            # equipment session may route back there (whatever ended the last
+            # one); only restoration of removed gear may still use Home.
             home_route_blocked = (
                 STORE_HOME in self._town_visit_ledger.blocked_stores
-                and isinstance(last_failure, dict)
-                and last_failure.get("reason") == "confirmation-stall-bound"
                 and not self._equipment_transaction_restoring
             )
             step = (
