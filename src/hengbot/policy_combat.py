@@ -3710,6 +3710,12 @@ class CombatMixin:
         handoff.
         """
         start = snapshot.player.position
+        # Restored checkpoints predate these fields (landmine 09-20/21).
+        for name, default in (('_breeder_breakthrough_frontier_floor', None),
+                              ('_breeder_breakthrough_frontier_goal', None),
+                              ('_breeder_breakthrough_frontier_origin', None)):
+            self.__dict__.setdefault(name, default)
+        self.__dict__.setdefault('_breeder_breakthrough_frontier_retired', set())
         if self._breeder_breakthrough_frontier_floor != snapshot.floor_key:
             self._breeder_breakthrough_frontier_floor = snapshot.floor_key
             self._breeder_breakthrough_frontier_goal = None
