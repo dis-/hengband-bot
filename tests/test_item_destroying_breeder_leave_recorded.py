@@ -1,4 +1,4 @@
-﻿import tests  # noqa: F401 -- isolate runtime files for bare module runs
+import tests  # noqa: F401 -- isolate runtime files for bare module runs
 
 import json
 import unittest

@@ -5263,6 +5263,8 @@ class ShopMixin(InStoreMixin):
             if (writer_family == "store-router" and travel_reason.startswith("shop:")
                     and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
                     and not self._home_knowledge_scan_requested):
+                self._declare_reach(self._shopping_approach_goal,
+                                    family="store-router")
                 self.last_reason = "shop:approach"
             return travel
         if (writer_family == "store-router" and travel_reason.startswith("shop:")

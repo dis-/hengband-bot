@@ -287,6 +287,7 @@ class CombatMixin:
             ):
                 step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
                 if step is not None:
+                    self._declare_reach(upstairs, family="escape")
                     self.last_reason = "breeder-item-damage:seek-stairs"
                     return self._step_toward(snapshot, step)
 

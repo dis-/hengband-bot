@@ -141,7 +141,7 @@ class TownTurnArbiter:
             registration("fundraising", ("fundraise:", "fundraising:", "mining:", "town:recall-stockout-mining", "town:identify-staff-stockout-mining"), "gold or vein delta"),
             registration("curse-enchant", ("town:remove-curse", "town:enchant-launcher-", "curse:", "remove-curse:", "enchant:"), "curse or enchantment delta"),
             registration("cross-town", ("town:cross-town", "town:morivant"), "expedition state advance"),
-            registration("survival", ("survival:", "weak-fainting", "status-threat:", "town:kill-mob", "town:eat-before-travel", "town:recover", "town:seek-shelter", "confused:", "item:", "mana-food:", "stat-gain:", "experience:", "wilderness:escape-scroll", "wilderness:flee", "refill-light", "restore-lantern", "eat", "rest"), "survival supply or status delta"),
+            registration("survival", ("survival:", "weak-fainting", "status-threat:", "town:kill-mob", "town:eat-before-travel", "town:recover", "town:seek-shelter", "confused:", "item:", "mana-food:", "stat-gain:", "experience:", "wilderness:escape-scroll", "wilderness:flee", "refill-light", "restore-lantern", "eat", "rest"), "survival supply or status delta", census=("no-wait:escape-scroll", "no-wait:flee")),
             registration("departure", ("depart", "descend", "recall", "return:", "stair:", "postlevel:", "repetition-depart", "town:repetition-depart", "town:entrance", "town:wait-recall", "town:await-recall-confirmation", "town:recall-to-", "town:cancel-", "town:unsafe-recall-fallback", "wilderness:no-safe-route", "esp-threat:leave-"), "stairs, recall, or floor delta",
                 # S2a census: the dungeon's own way down is the same owner as
                 # ``descend`` and ``stair:``.  It only ever runs outside town,
@@ -162,7 +162,7 @@ class TownTurnArbiter:
             # Each is named after what it owns, not after where it runs.
             classification("positioning", ("detected:", "melee:choke", "summoner:hold-choke", "threat:reposition", "threat:avoid-engagement", "threat:paralyzer-avoid", "paralyzer-guard:"), "distance to the chosen stand-off cell"),
             classification("esp-threat", ("esp-threat:hunt-", "melee:esp-threat-hunt"), "telepathic contact resolved"),
-            classification("escape", ("emergency:", "flee", "combat:disengage", "combat:fruitless", "unseen:", "unseen-recall:", "breeder-breakthrough:", "guardian:teleport-to-cover", "summoner:retreat", "summoner:stairs", "threat:scroll", "threat:wait"), "EscapeState rung released"),
+            classification("escape", ("emergency:", "flee", "combat:disengage", "combat:fruitless", "unseen:", "unseen-recall:", "breeder-breakthrough:", "breeder-item-damage:", "guardian:teleport-to-cover", "summoner:retreat", "summoner:stairs", "threat:scroll", "threat:wait"), "EscapeState rung released"),
             classification("combat", ("melee", "ranged:", "summoner:ranged-kill", "unique:quaff-"), "hostile hit points or count delta"),
             classification("hunt", ("hunt",), "distance to the chosen hostile"),
             classification("explore", ("explore", "search", "seek-secret-wall", "probe"), "newly seen floor cells"),

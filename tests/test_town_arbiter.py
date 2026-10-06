@@ -38,7 +38,8 @@ DECISION_CAPTURES = (
 # quest:, fundraise:, return:, and wilderness: stay included because at least one
 # of their producers can run during town/departure handling.
 DUNGEON_ONLY_REASON_PREFIXES = (
-    "breeder-breakthrough:", "chest:", "combat:", "conquest:", "detected:",
+    "breeder-breakthrough:", "breeder-item-damage:", "chest:", "combat:",
+    "conquest:", "detected:",
     "emergency:", "flee:", "guardian:", "loot:", "melee:", "paralyzer-guard:",
     "quest-strategy:", "ranged:", "summoner:", "threat:", "unique:",
     "unseen:", "unseen-recall:", "victory:",
