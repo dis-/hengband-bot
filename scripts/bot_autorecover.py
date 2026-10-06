@@ -47,6 +47,9 @@ def log(event: dict) -> None:
     print(json.dumps(event, ensure_ascii=False), flush=True)
 
 
+_last_bot_pids: list[int] | None = None
+
+
 def bot_pids() -> list[int]:
     """Live bot processes found by command line, not by bot.pid.
 
@@ -58,9 +61,22 @@ def bot_pids() -> list[int]:
     script = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and "
               "$_.CommandLine -match '-m hengbot' -and $_.CommandLine -match 'bot-state-fixed' } | "
               "ForEach-Object { $_.ProcessId }")
-    out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                         capture_output=True, text=True, timeout=60)
+    global _last_bot_pids
+    out = None
+    for _attempt in range(3):
+        try:
+            out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                                 capture_output=True, text=True, timeout=60)
+            break
+        except subprocess.TimeoutExpired:
+            # A busy machine can stall the WMI query (2026-10-06 11:11 the
+            # supervisor died on this). Unknown is not "dead": retry, then
+            # fall back to the last observed answer rather than resuming.
+            time.sleep(5)
+    if out is None:
+        return list(_last_bot_pids) if _last_bot_pids is not None else [0]
     pids = [int(x) for x in out.stdout.split() if x.isdigit()]
+    _last_bot_pids = pids
     if len(pids) == 1:
         try:
             if (J / "bot.pid").read_text().strip() != str(pids[0]):
