@@ -117,6 +117,7 @@
   "_undestroyable_sigs": "Negative destruction eligibility history; no pending operation.",
   "_unenterable_explore_goals": "Negative navigation eligibility cache; not item identities.",
   "_unidentifiable_sigs": "Negative identification eligibility history; no pending operation.",
+  "_unseen_deferred_loot": "Floor positions deferred while unseen attacks continue (user 2026-10-06); no carried item identity or pending operation.",
   "_unseen_hit_pending_floor": "Floor ID for unseen damage observation; no item identity.",
   "_unsellable_items": "Negative store eligibility history; no pending operation.",
   "_warning_step_pending": "Movement warning step expectation; no item identity.",

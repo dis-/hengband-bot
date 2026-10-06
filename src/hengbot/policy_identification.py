@@ -1162,10 +1162,13 @@ class IdentificationMixin:
         return None
 
     def _refresh_unseen_loot_deferral(self, snapshot: Snapshot) -> None:
-        retreat_active = getattr(self, "_unseen_retreat_floor", None) == snapshot.floor_key
+        floor_key = getattr(snapshot, "floor_key", None)
+        retreat_active = (floor_key is not None
+                          and getattr(self, "_unseen_retreat_floor", None) == floor_key)
         last_hit_turn = getattr(self, "_unseen_last_hit_turn", None)
         recent_unseen_hit = (
-            getattr(self, "_unseen_last_hit_floor", None) == snapshot.floor_key
+            floor_key is not None
+            and getattr(self, "_unseen_last_hit_floor", None) == floor_key
             and last_hit_turn is not None
             and 0 <= snapshot.turn - last_hit_turn < UNSEEN_LOOT_QUIET_TURNS
         )

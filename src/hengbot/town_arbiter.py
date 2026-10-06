@@ -306,6 +306,8 @@ class TownTurnArbiter:
         that would otherwise fall through to ``misc`` or ``unregistered``.
         """
         normalized = reason or "policy:none"
+        if normalized in {"no-wait:escape-scroll", "no-wait:flee"}:
+            return "survival"  # same answer as owner_for_reason (slice 1)
         for entry in self._ordered:
             if entry.census_prefixes and normalized.startswith(
                 entry.census_prefixes

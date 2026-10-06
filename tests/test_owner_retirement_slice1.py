@@ -117,6 +117,7 @@ class RecordedRetirementTest(unittest.TestCase):
         policy.last_reason = pin['decision']['reason']
         # No real checkpoint: reconstruct the recorded blocking predicate only.
         # Isolate the movement adapter, rather than inventing later game effects.
+        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: no checkpoint exists for the live hold; the recorded blocking predicate is reconstructed and only the movement adapter is the subject
         with patch.object(policy, '_equipment_transaction_owns_town_relocation', return_value=True), \
              patch.object(policy, '_atomic_shop_transaction_key', return_value=None), \
              patch.object(policy, '_atomic_home_withdraw_key', return_value=None), \
