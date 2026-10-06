@@ -1,1 +1,14 @@
-The regression came from the 1f95ca16 town-progress hunk that let any `cross-town` decision goal override the shop approach goal, even when that goal belonged to an earlier owner; `_town_result_makes_progress` was consulting mutable `last_reason` instead of the current proposal. It now uses the captured proposal reason and honors the declared Reach only for an active cross-town proposal, preserving the cross-town route while letting the guardian fallback step off the unsafe entrance and select Forest. The recorded fixture is unchanged; its replay now permits only this named safe-fallback divergence at decision 8. Verification: `tests.test_guardian_recall_pingpong_recorded` and `tests.test_crosstown_alt_recorded` passed together (13 tests); `tests.test_town_progress_invariant` passed in the prior constrained three-module run.
+﻿# LUNA Report
+
+Implemented one visible-threat rule: when four or more visible hostile breeders have known melee blows that damage carried items (acid, cold, electricity, or fire), the bot leaves. It tries a known nearby upstairs within five steps, then Teleport Level, Recall, and Teleport. Below four, ordinary combat continues.
+
+The threshold is four because the incident recording first shows four marked-in-view breeders at dungeon level 23, HP 1069, with Teleport and Recall still carried; the recorded action was `melee`. Later rows grew to 12–15 visible breeders. The recorded pin now leaves with Recall on that board, and the three-breeder control still melees.
+
+Validation:
+
+- `PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules tests.test_item_destroying_breeder_leave_recorded tests.test_policy_combat` — passed, 305 tests.
+- `python scripts/town_work_manifest.py --write` — refreshed the review entry and generated manifest/site index for the new escape producer and claim-ladder rung.
+- `python scripts/town_work_manifest.py` — zero violations.
+- `git diff --check` — clean.
+
+The test runner reported `weights: ... fallback=1/2; stale=yes`, but exited 0 with no test failures or errors.

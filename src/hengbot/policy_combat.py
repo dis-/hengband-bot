@@ -232,6 +232,15 @@ from hengbot.model import (
     StoreItem,
     item_requires_full_identification,
 )
+
+
+# The 2026-10-06 incident recording reached four marked-in-view breeders while
+# the player still had full HP and carried Teleport and Recall; the old policy
+# kept fighting, and later rows reached 12-15 visible breeders.
+ITEM_DESTROYING_BREEDER_LEAVE_THRESHOLD = 4
+ITEM_DESTROYING_BREEDER_STAIR_DISTANCE = 5
+ITEM_DESTROYING_MELEE_EFFECTS = frozenset({"ACID", "COLD", "ELEC", "FIRE"})
+SV_SCROLL_TELEPORT_LEVEL = 10
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
@@ -243,6 +252,71 @@ from hengbot.policy_constants import (
 
 
 class CombatMixin:
+    @claims(ClaimOwner.ESCAPE)
+    def _item_destroying_breeder_leave_key(
+        self, snapshot: Snapshot
+    ) -> str | None:
+        """Leave once enough visible breeders can damage carried items."""
+        dangerous_breeders = []
+        for monster in snapshot.visible_monsters:
+            if not monster.hostile or not monster.can_multiply:
+                continue
+            knowledge = self._monrace_knowledge.get(monster.race_id)
+            if knowledge is None or not any(
+                blow.effect in ITEM_DESTROYING_MELEE_EFFECTS
+                for blow in knowledge.blows
+            ):
+                continue
+            dangerous_breeders.append(monster)
+        if len(dangerous_breeders) < ITEM_DESTROYING_BREEDER_LEAVE_THRESHOLD:
+            return None
+
+        # Stair travel is preferred only when the known upstairs is close
+        # enough to reach before the group can continue multiplying.
+        if not self._quest_floor_exit_locked(snapshot):
+            here = snapshot.grid_at(snapshot.player.position)
+            if here is not None and self._is_upstairs_target(here):
+                self._defer_descent(snapshot)
+                self.last_reason = "breeder-item-damage:stairs"
+                return UP_STAIRS_KEY
+            upstairs = self._nearest_upstairs(snapshot)
+            if (
+                upstairs is not None
+                and snapshot.player.position.distance_to(upstairs)
+                <= ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
+            ):
+                step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+                if step is not None:
+                    self.last_reason = "breeder-item-damage:seek-stairs"
+                    return self._step_toward(snapshot, step)
+
+        if not self._can_read_scrolls(snapshot):
+            return None
+        teleport_level = self._first_item(
+            snapshot,
+            lambda item: (
+                item.is_scroll and item.aware and item.sval == SV_SCROLL_TELEPORT_LEVEL
+            ),
+        )
+        if teleport_level is not None:
+            self.last_reason = "breeder-item-damage:teleport-level"
+            return reserved_item_command(self, snapshot, "read", teleport_level)
+
+        if not snapshot.player.recalling:
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None:
+                self.last_reason = "breeder-item-damage:recall"
+                return self._read_dungeon_recall_scroll_key(snapshot, recall)
+
+        teleport = self._first_item(
+            snapshot,
+            lambda item: item.is_scroll and item.aware and item.sval == SV_SCROLL_TELEPORT,
+        )
+        if teleport is not None:
+            self.last_reason = "breeder-item-damage:teleport"
+            return reserved_item_command(self, snapshot, "read", teleport)
+        return None
+
     def _forbid_wait_on_town_entrance(
         self, snapshot: Snapshot, key: str
     ) -> str:
