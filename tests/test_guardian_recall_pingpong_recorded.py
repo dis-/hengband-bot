@@ -310,15 +310,17 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
             self.assertEqual(recorded[index]["dungeon_id"], 0)
             self.assertEqual(recorded[index]["alternate_dungeon_id"], ORC_CAVE)
 
-    def test_live_replay_reproduces_every_recorded_decision(self):
+    def test_live_replay_only_changes_the_guardian_safe_fallback(self):
         decided, _arrivals, _valve = self._live()
+        divergences = [
+            index
+            for index, pair in enumerate(decided)
+            if pair != (self.recorded[index]["key"], self.recorded[index]["reason"])
+        ]
+        self.assertEqual(divergences, [FALLBACK])
         self.assertEqual(
-            [
-                index
-                for index, pair in enumerate(decided)
-                if pair != (self.recorded[index]["key"], self.recorded[index]["reason"])
-            ],
-            [],
+            decided[FALLBACK],
+            ("1", "town:entrance-step-off:town:unsafe-recall-fallback"),
         )
 
     def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
@@ -426,13 +428,18 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ G1
     def test_g1_fallback_does_not_choose_a_blocked_guardian_landing(self):
         policy, decided, board = self._fixed_until_first_recall()
-        # Everything before the first recall is the recorded run ...
+        # Everything before the first recall follows the recorded run except
+        # the safe step-off that follows the guardian-landing switch.
+        expected = [
+            (self.recorded[index]["key"], self.recorded[index]["reason"])
+            for index in range(FIRST_RECALL)
+        ]
+        expected[FALLBACK] = (
+            "1", "town:entrance-step-off:town:unsafe-recall-fallback"
+        )
         self.assertEqual(
             decided,
-            [
-                (self.recorded[index]["key"], self.recorded[index]["reason"])
-                for index in range(FIRST_RECALL)
-            ],
+            expected,
         )
         # ... but the fallback at decision 8 skipped the Orc cave.
         self.assertEqual(policy._alternate_dungeon, FOREST)

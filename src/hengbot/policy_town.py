@@ -845,7 +845,9 @@ class TownMixin:
             "eligible-route-unavailable",
         )
 
-    def _town_result_makes_progress(self, snapshot: Snapshot, key: str) -> bool:
+    def _town_result_makes_progress(
+        self, snapshot: Snapshot, key: str, *, reason: str | None = None
+    ) -> bool:
         """Positively classify a town result by its effect, never its label."""
         if (
             key == LEAVE_STORE_KEY
@@ -931,10 +933,14 @@ class TownMixin:
             return True
         goal = self._shopping_approach_goal
         slot = getattr(self, "_decision_goal", None)
+        decision_reason = (
+            (self.last_reason or "") if reason is None else reason
+        )
         if (slot is not None and (
-                ((self.last_reason or "").startswith("bounty:")
+                (decision_reason.startswith("bounty:")
                  and slot[0] == "quest-request")
-                or slot[0] == "cross-town")
+                or (decision_reason.startswith("town:cross-town")
+                    and slot[0] == "cross-town"))
                 and slot[1].kind == "Reach" and slot[1].cell is not None):
             # The producer's declared destination is authoritative.  A shop
             # route left by an earlier errand cannot judge this owner's walk.
@@ -1317,7 +1323,9 @@ class TownMixin:
             # loop.  Its leave/no-op result is not a stalled surface route
             # for the progress invariant to replace with an approach step.
             return key
-        result_makes_progress = self._town_result_makes_progress(snapshot, key)
+        result_makes_progress = self._town_result_makes_progress(
+            snapshot, key, reason=proposed_reason
+        )
         if not snapshot.in_town or result_makes_progress:
             if (
                 key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}
