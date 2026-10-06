@@ -538,8 +538,12 @@ class HomeMixin:
                     return self._home_full_relief_key(snapshot)
                 sale = None
             elif self._home_errand.state.value in {"failed", "stopped"}:
-                self._town_blocked_reason = "home-full-surplus-withdraw-failed"
-                return self._town_blocked_key(snapshot)
+                # A failed/stopped take is an observed address miss, not a
+                # reason to hold the whole full-Home relief loop.  Retain this
+                # candidate with a visible reason and refresh the catalogue
+                # before choosing another shelf item.
+                return self._town_producer_entry("_home_full_skip_key",
+                    lambda: self._home_full_skip_key("surplus-withdraw-failed"))
         if sale is None:
             if not self._home_knowledge_current:
                 return self._town_producer_entry(
