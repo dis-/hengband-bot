@@ -1949,6 +1949,13 @@ class EquipmentMixin:
             )
         return key
 
+    def _mark_equipment_home_full_unavailable(self, snapshot: Snapshot) -> None:
+        """Retire this visit's Home route after an observed full-store refusal."""
+        self._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        self._set_town_store_attempted(
+            STORE_HOME, snapshot.turn, "equipment-transaction-home-full"
+        )
+
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
         if self._release_stalled_equipment_transaction(snapshot):
@@ -1981,8 +1988,18 @@ class EquipmentMixin:
                 LEAVE_STORE_KEY, label="leave-for-equip",
             )
         if not session.executable:
+            full_home_deposit_refusal = bool(
+                session.current_action is not None
+                and session.current_action.kind == "deposit"
+                and "deposit-refused" in session.blockers
+                and self._home_is_full(snapshot)
+            )
             self._abandon_blocked_equipment_transaction(snapshot)
-            self.last_reason = "equipment-transaction:abandon-blocked-home"
+            if full_home_deposit_refusal:
+                self._mark_equipment_home_full_unavailable(snapshot)
+                self.last_reason = "equipment-transaction:deposit-home-full"
+            else:
+                self.last_reason = "equipment-transaction:abandon-blocked-home"
             return self._equipment_home_outcome(
                 LEAVE_STORE_KEY, label="abandon-blocked",
             )
@@ -2124,6 +2141,12 @@ class EquipmentMixin:
                 # deposits may be the next step after an observed transaction
                 # effect, so keep that existing continuation intact.
                 self._abandon_blocked_equipment_transaction(snapshot)
+                # This observed refusal exhausts Home for this town visit.
+                # Without recording it, the failed optional transaction looks
+                # executable again as soon as the page is exited, so routing
+                # returns here before the normal confirmed-loadout departure
+                # check can stage its named outcome.
+                self._mark_equipment_home_full_unavailable(snapshot)
                 self.last_reason = "equipment-transaction:deposit-home-full"
                 return self._equipment_home_outcome(
                     LEAVE_STORE_KEY, label="deposit-home-full",
@@ -3109,7 +3132,10 @@ class EquipmentMixin:
             include_launcher_enchant
         )
         try:
-            if self._home_owner_goal_pending(snapshot):
+            if (
+                STORE_HOME not in self._town_visit_ledger.blocked_stores
+                and self._home_owner_goal_pending(snapshot)
+            ):
                 return False
         finally:
             self._town_need_evaluation_include_launcher_enchant = (
@@ -3117,6 +3143,7 @@ class EquipmentMixin:
             )
         if (
             STORE_HOME not in self._town_store_attempted
+            and STORE_HOME not in self._town_visit_ledger.blocked_stores
             and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] == 0
             and self._town_visit_ledger.approach_fails[STORE_HOME] == 0
             and self._town_need_supplier_reachable(
