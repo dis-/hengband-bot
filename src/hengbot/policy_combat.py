@@ -3710,6 +3710,61 @@ class CombatMixin:
         handoff.
         """
         start = snapshot.player.position
+        # Restored checkpoints predate these fields (landmine 09-20/21).
+        for name, default in (('_breeder_breakthrough_frontier_floor', None),
+                              ('_breeder_breakthrough_frontier_goal', None),
+                              ('_breeder_breakthrough_frontier_origin', None)):
+            self.__dict__.setdefault(name, default)
+        self.__dict__.setdefault('_breeder_breakthrough_frontier_retired', set())
+        if self._breeder_breakthrough_frontier_floor != snapshot.floor_key:
+            self._breeder_breakthrough_frontier_floor = snapshot.floor_key
+            self._breeder_breakthrough_frontier_goal = None
+            self._breeder_breakthrough_frontier_origin = None
+            self._breeder_breakthrough_frontier_retired.clear()
+
+        goal = self._breeder_breakthrough_frontier_goal
+        if goal == start:
+            # Reaching a committed frontier is progress. Retire the tile we
+            # left as well: it was the previous position that the old
+            # nearest-frontier search immediately selected again, undoing the
+            # route (recorded item-thief loop, 2026-10-06 21:52).
+            origin = self._breeder_breakthrough_frontier_origin
+            if origin is not None:
+                self._breeder_breakthrough_frontier_retired.add(origin)
+            self._breeder_breakthrough_frontier_goal = None
+            self._breeder_breakthrough_frontier_origin = None
+            goal = None
+        if goal is not None and not self._is_remembered_frontier(snapshot, goal):
+            self._breeder_breakthrough_frontier_goal = None
+            self._breeder_breakthrough_frontier_origin = None
+            goal = None
+
+        def route_to(target: Position) -> Position | None:
+            seen = {start}
+            queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+            while queue:
+                position, first_step = queue.popleft()
+                if position == target:
+                    return first_step
+                for dy, dx in NEIGHBOR_OFFSETS:
+                    neighbor = Position(position.y + dy, position.x + dx)
+                    if neighbor in seen or not self._breeder_route_traversable(
+                        snapshot, neighbor, dy, dx
+                    ):
+                        continue
+                    seen.add(neighbor)
+                    queue.append(
+                        (neighbor, neighbor if first_step is None else first_step)
+                    )
+            return None
+
+        if goal is not None:
+            step = route_to(goal)
+            if step is not None:
+                return step
+            self._breeder_breakthrough_frontier_goal = None
+            self._breeder_breakthrough_frontier_origin = None
+
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         while queue:
@@ -3718,7 +3773,10 @@ class CombatMixin:
                 position != start
                 and first_step is not None
                 and self._is_remembered_frontier(snapshot, position)
+                and position not in self._breeder_breakthrough_frontier_retired
             ):
+                self._breeder_breakthrough_frontier_goal = position
+                self._breeder_breakthrough_frontier_origin = start
                 return first_step
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
