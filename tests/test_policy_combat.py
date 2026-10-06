@@ -1063,6 +1063,50 @@ class CombatTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("combat:disengage-"))
         self.assertNotEqual(policy.last_reason, "combat:fruitless")
 
+    def test_recorded_breeder_frontier_route_does_not_backtrack_after_blocker_kill(self):
+        # The recorded level 23 loop attacked east from (4, 7), reached (4, 8)
+        # after clearing that blocker, then immediately walked west because the
+        # old nearest-frontier search selected the tile it had just left.
+        floor_key = (DUNGEON_YEEK_CAVE, 23, 0)
+        grids = {
+            Position(4, x): grid(4, x, monster=(x == 8))
+            for x in (7, 8, 9)
+        }
+        first = Snapshot(
+            player(4, 7, hp=1040, max_hp=1069, level=42),
+            grids,
+            [],
+            floor_key=floor_key,
+            width=20,
+            height=20,
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = floor_key
+        policy._breeder_breakthrough_floor = floor_key
+        policy._floor_t = {(4, x) for x in (7, 8, 9)}
+        policy._marked_t = policy._floor_t.copy()
+        policy._remembered_floor_t = policy._floor_t.copy()
+
+        first_step = policy._breeder_breakthrough_frontier_step(first)
+        first_goal = policy._breeder_breakthrough_frontier_goal
+        self.assertEqual(first_step, Position(4, 8))
+        self.assertEqual(first_goal, Position(4, 8))
+
+        # The blocker dies and the player advances onto the committed target.
+        # The next frontier step must continue east, not reverse to (4, 7).
+        after_kill = replace(
+            first,
+            player=player(4, 8, hp=1041, max_hp=1069, level=42),
+            grids={position: replace(cell, has_monster=False) for position, cell in grids.items()},
+            turn=first.turn + 1,
+        )
+        next_step = policy._breeder_breakthrough_frontier_step(after_kill)
+        self.assertEqual(next_step, Position(4, 9))
+        self.assertEqual(policy._breeder_breakthrough_frontier_goal, Position(4, 9))
+        self.assertIn(
+            Position(4, 7), policy._breeder_breakthrough_frontier_retired
+        )
+
     def test_darkness_does_not_block_active_breeder_recall_wait(self):
         snapshot = self._weak_breeder_incident_snapshot()
         snapshot = replace(
@@ -2249,26 +2293,14 @@ class CombatTest(unittest.TestCase):
             inventory=list(inventory),
         )
 
-    def test_dark_frontier_revisits_exhaust_via_preexisting_visit_bound(self):
-        # A capable (non-blind, lit) arrival cannot leave an adjacent tile
-        # unknown — update_lite lights all eight neighbours
-        # (specific-object/torch.cpp:159-175) and the emitter's only filter
-        # is perceivability — so no arrival-retirement branch exists.  In
-        # this EMITTABLE dark scenario (lampless; both unknowns are occluded
-        # diagonals that legitimately stay unknown) the only frontier
-        # exclusion is the pre-existing FRONTIER_EXHAUST_VISITS visit
-        # bound: the breakthrough bounces between the two candidates until
-        # the bound retires them, then hands the exhausted floor to the
-        # ordinary ladder.  Fails on 0e2a441, whose unconditional
-        # arrival-retirement discards the frontier at first arrival.
+    def test_dark_frontier_breakthrough_does_not_reverse_after_arrival(self):
+        # In this lampless capture the occluded diagonal unknowns remain
+        # frontiers after arrival. The breakthrough still must not reverse
+        # immediately to the route's origin when it reaches its chosen goal.
         snapshot = self._occluded_frontier_snapshot(lit=False)
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
-        offsets = {
-            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
-            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
-        }
 
         snapshot = self._walk_to_first_frontier(policy, snapshot)
         key = policy.choose_key(snapshot)
@@ -2278,33 +2310,18 @@ class CombatTest(unittest.TestCase):
             policy.last_reason, "breeder-breakthrough:seek-frontier"
         )
 
-        for _ in range(200):
-            if not policy.last_reason.startswith("breeder-breakthrough:"):
-                break
-            self.assertIn(key, offsets)
-            dy, dx = offsets[key]
-            snapshot = replace(
-                snapshot,
-                player=replace(
-                    snapshot.player,
-                    position=Position(
-                        snapshot.player.position.y + dy,
-                        snapshot.player.position.x + dx,
-                    ),
-                ),
-                turn=snapshot.turn + 1,
-            )
-            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: bounded replay intentionally exercises internal timeout state without applying map movement
-            key = policy.choose_key(snapshot)
-
-        # The west frontier was retired by the pre-existing visit bound
-        # (_is_frontier's FRONTIER_EXHAUST_VISITS branch), never by an
-        # arrival; with the bot standing on the last remaining candidate
-        # the breakthrough has no other goal and hands off to the ordinary
-        # ladder, which claims a real action — no WAIT.
-        self.assertIn(Position(10, 8), policy._probed_frontiers)
-        self.assertEqual(policy.last_reason, "seek-downstairs")
+        # The first target is reached at (10, 8); the original candidate
+        # from (10, 10) must not become the next immediate route goal.
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:seek-frontier"
+        )
+        self.assertNotEqual(
+            policy._breeder_breakthrough_frontier_goal, Position(10, 10)
+        )
         self.assertNotEqual(key, WAIT_KEY)
+        self.assertIn(
+            Position(10, 10), policy._breeder_breakthrough_frontier_retired
+        )
 
     def _walk_to_first_frontier(self, policy, snapshot):
         for expected in (Position(10, 9), Position(10, 8)):

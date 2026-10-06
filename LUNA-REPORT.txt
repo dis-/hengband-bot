@@ -1,0 +1,7 @@
+﻿# LUNA Report
+
+Cause: The breakthrough recomputed the nearest frontier from the player's current square every decision. When it attacked a blocker on the east route and moved onto that cleared square, the previous square itself still qualified as a frontier, so the next search chose it as the new goal and stepped west, undoing the escape route. The fix stores the selected frontier goal for the floor, routes toward it until arrival or invalidation, and excludes the route origin from subsequent goal selection after arrival; this prevents the recorded east/west oscillation while leaving normal frontier accounting unchanged.
+
+Change: Added a recorded level 23 pin for the `(4,7)` east-blocker sequence, and updated the dark-frontier pin to assert that arrival does not select the committed route's origin again.
+
+Verification: The new recorded pin passed. `PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules tests.test_policy_combat` passed: 303 tests, 0 failures, 0 errors, 5 skipped.

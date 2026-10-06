@@ -2016,6 +2016,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             release_sites=("_release_choke_plan",),
         )
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
+        self._breeder_breakthrough_frontier_floor: tuple[int, int, int] | None = None
+        self._breeder_breakthrough_frontier_goal: Position | None = None
+        self._breeder_breakthrough_frontier_origin: Position | None = None
+        self._breeder_breakthrough_frontier_retired: set[Position] = set()
         # A breeder floor left by stairs remains an observed walk-out fact until
         # town (or another dungeon) proves the escape complete.  This is not a
         # cooldown: while we are above that floor in the same dungeon, the
