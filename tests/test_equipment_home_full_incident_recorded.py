@@ -35,6 +35,39 @@ BOARD = json.loads(gzip.decompress(FIXTURE.read_bytes()))["board"]
 
 
 class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
+    def test_confirmation_stall_does_not_reapproach_a_blocked_home(self):
+        board = parse_snapshot({**BOARD, "visible_monsters": [], "detected_monsters": []})
+        board = replace(board, player=replace(
+            board.player, two_weapon_skill=0, shield_skill=0,
+        ))
+        outside = replace(board, store=None)
+        target = next(item for item in board.inventory if item.slot == "p")
+        action = EquipmentTransaction(
+            PHASE_HOME_FINALIZE, "deposit", "pack:recorded-requested-home:0", None,
+            equipment_identity(target), equipment_move_identity(target),
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0), physical_context="home",
+        )
+        policy = HengbotPolicy()
+        policy.prime(outside)
+        policy._in_store_ops_enabled = True
+        policy._town_claim_bar_enforced = True
+        policy._equipment_transaction_session = session
+        policy._home_knowledge_current = True
+        policy._equipment_catalog.home_scan_complete = True
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        policy._equipment_transaction_last_failure = {
+            "reason": "confirmation-stall-bound",
+        }
+
+        with patch.object(policy, "_prepare_equipment_optimization", return_value=None):
+            key = policy._equipment_transaction_town_key(outside)
+
+        self.assertEqual(key, "5")
+        self.assertEqual(policy.last_reason, "equipment-transaction:home-route-unavailable")
+        self.assertIsNone(policy._store_visit)
+
     def test_full_home_ends_transaction_deposit_with_visible_reason(self):
         self.assertEqual(BOARD["turn"], 12986317)
         self.assertEqual(BOARD["store"]["stock_num"], BOARD["store"]["capacity"])

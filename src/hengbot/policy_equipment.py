@@ -2465,8 +2465,20 @@ class EquipmentMixin:
                         dict.fromkeys(plan.blocked_this_visit)
                     )
                 self._town_errand_plan = replacement
+            # Once this town visit has recorded Home as unavailable, no new
+            # equipment session may route back there (whatever ended the last
+            # one); only restoration of removed gear may still use Home.
+            home_route_blocked = (
+                STORE_HOME in self._town_visit_ledger.blocked_stores
+                and not self._equipment_transaction_restoring
+            )
             step = (
-                self._shopping_approach_step(snapshot, STORE_HOME, requester='equipment-txn') if self._ensure_home_visit_request(snapshot) else None
+                self._shopping_approach_step(
+                    snapshot, STORE_HOME, requester='equipment-txn'
+                )
+                if not home_route_blocked
+                and self._ensure_home_visit_request(snapshot)
+                else None
             )
             if step is None or self._shopping_approach_store_type != STORE_HOME:
                 self._block_equipment_transaction("home-route-unavailable")
