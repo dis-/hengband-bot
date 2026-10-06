@@ -1,0 +1,11 @@
+﻿# LUNA report: unseen retreat loot deferral
+
+Defect fixed in `src/hengbot/policy_identification.py`: while an unseen retreat is armed, or for ten game turns after the most recent unseen hit on this floor, loot behind the retreat heading is temporarily excluded from loot target selection. The temporary set is independent of persistent loot deferrals, so quiet-period release does not clear quest, pickup-failure, or navigation-ledger deferrals. The last retreat direction is retained through retreat release to cover the quiet period. No damage threshold was added and retreat behavior was left intact.
+
+Added `tests/test_unseen_loot_deferral_recorded.py` with a pin from the 2026-10-06 recorded seek-loot row at turn 12913141, position (11,61), targeting (9,56), plus a control that checks the item is picked up after ten quiet game turns. `test_reverse_choke_loot_loop_recorded` was not modified.
+
+Verification (Windows, requested parallel runner; no full suite):
+
+`PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules tests.test_unseen_loot_deferral_recorded tests.test_reverse_choke_loot_loop_recorded tests.test_choke_hold_loop_recorded tests.test_policy_identification tests.test_policy_observation`
+
+Result: 125 tests passed; failures 0; errors 0. `git diff --check` passed.

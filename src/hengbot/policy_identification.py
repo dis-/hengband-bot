@@ -57,6 +57,8 @@ from hengbot.policy_constants import (
     ZAP_ROD_KEY,
 )
 
+UNSEEN_LOOT_QUIET_TURNS = 10
+
 SOURCE_PROMPT = {
     USE_STAFF_KEY: ("どの杖を使いますか? ", "Use which staff? "),
     ZAP_ROD_KEY: ("どのロッドを振りますか? ", "Zap which rod? "),
@@ -1094,6 +1096,7 @@ class IdentificationMixin:
         include_unsafe: bool = False,
         max_path_distance: int | None = None,
     ) -> Position | None:
+        self._refresh_unseen_loot_deferral(snapshot)
         avoided_loot = self._known_loot & self._engagement_avoid_cells
         if avoided_loot:
             self._deferred_loot.update(avoided_loot)
@@ -1101,6 +1104,7 @@ class IdentificationMixin:
             if avoided_loot & self._paralyzer_avoid_cells:
                 self._loot_defer_blocker = "paralyzer-ring"
         candidates = self._known_loot - self._deferred_loot
+        candidates -= getattr(self, "_unseen_deferred_loot", set())
         if include_unsafe:
             candidates |= {
                 grid.position
@@ -1108,6 +1112,7 @@ class IdentificationMixin:
                 if grid.object_count > 0 and grid.passable
             }
         candidates -= self._deferred_loot
+        candidates -= getattr(self, "_unseen_deferred_loot", set())
         candidates -= self._engagement_avoid_cells
         if candidates and self._loot_defer_blocker == "navigation-ledger:loot":
             self._loot_defer_blocker = None
@@ -1152,6 +1157,33 @@ class IdentificationMixin:
                     )
                 )
         return None
+
+    def _refresh_unseen_loot_deferral(self, snapshot: Snapshot) -> None:
+        retreat_active = getattr(self, "_unseen_retreat_floor", None) == snapshot.floor_key
+        last_hit_turn = getattr(self, "_unseen_last_hit_turn", None)
+        recent_unseen_hit = (
+            getattr(self, "_unseen_last_hit_floor", None) == snapshot.floor_key
+            and last_hit_turn is not None
+            and 0 <= snapshot.turn - last_hit_turn < UNSEEN_LOOT_QUIET_TURNS
+        )
+        unseen_deferred = getattr(self, "_unseen_deferred_loot", set())
+        if retreat_active or recent_unseen_hit:
+            direction = (
+                getattr(self, "_unseen_retreat_direction", None)
+                or getattr(self, "_unseen_loot_direction", None)
+            )
+            if direction is not None:
+                dy, dx = direction
+                origin = snapshot.player.position
+                toward_retreat_origin = {
+                    position
+                    for position in self._known_loot
+                    if (position.y - origin.y) * dy
+                    + (position.x - origin.x) * dx <= 0
+                }
+                unseen_deferred.update(toward_retreat_origin)
+        elif unseen_deferred:
+            unseen_deferred.clear()
 
     @claims(ClaimOwner.FLOOR_LOOT)
     def _normal_loot_key(
@@ -1232,6 +1264,7 @@ class IdentificationMixin:
                 self._safety_deferred_loot.add(self._loot_target)
                 self._loot_target = None
             return None
+        self._refresh_unseen_loot_deferral(snapshot)
         current_loot = self._current_floor_item_key(
             snapshot,
             pickup_reason="pickup",

@@ -1738,6 +1738,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
+        self._unseen_deferred_loot: set[Position] = set()
+        self._unseen_last_hit_floor: tuple[int, int, int] | None = None
+        self._unseen_last_hit_turn: int | None = None
+        self._unseen_loot_direction: tuple[int, int] | None = None
         self._safety_deferred_loot: set[Position] = set()
         # Of the deferred positions, the ones the navigation ledger expired
         # (blocker "navigation-ledger:loot"), and positions that already used
@@ -16855,7 +16859,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "deferred": [
                 {"y": position.y, "x": position.x}
                 for position in sorted(
-                    self._deferred_loot, key=lambda pos: (pos.y, pos.x)
+                    self._deferred_loot | self._unseen_deferred_loot,
+                    key=lambda pos: (pos.y, pos.x),
                 )
             ],
             "blocker": (
@@ -18303,6 +18308,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _clear_unseen_retreat(self) -> None:
+        if self._unseen_retreat_direction is not None:
+            self._unseen_loot_direction = self._unseen_retreat_direction
         if self._escape_state.owner == "unseen":
             self._escape_state.release()
         self._unseen_retreat_floor = None

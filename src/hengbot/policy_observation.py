@@ -974,8 +974,15 @@ class ObservationMixin:
             and not self._took_trap_or_terrain_damage
         ):
             self._unseen_hit_pending_floor = snapshot.floor_key
+            self._unseen_last_hit_floor = snapshot.floor_key
+            self._unseen_last_hit_turn = snapshot.turn
         elif getattr(self, "_unseen_hit_pending_floor", None) != snapshot.floor_key:
             self._unseen_hit_pending_floor = None
+        if getattr(self, "_unseen_last_hit_floor", None) != snapshot.floor_key:
+            self._unseen_last_hit_floor = None
+            self._unseen_last_hit_turn = None
+            stale = getattr(self, "_unseen_deferred_loot", set())
+            stale.clear()
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from
