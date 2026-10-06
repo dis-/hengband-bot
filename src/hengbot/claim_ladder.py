@@ -239,6 +239,8 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_emergency_item", "escape",
             "emergency:", "unseen-recall:", "guardian:teleport-to-cover",
             marked=False),                                             # 5996
+    _decide("_item_destroying_breeder_leave_key", "escape",
+            "breeder-item-damage:"),                                  # 6001
     _decide("_mana_food_survival_override_key", "survival",
             "survival:mana-", marked=False),                           # 6011
     _decide("_paralyzer_prevention_key", "positioning",

@@ -10382,6 +10382,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
 
+        item_destroying_breeder_exit = self._town_producer_entry(
+            "_item_destroying_breeder_leave_key",
+            lambda: self._item_destroying_breeder_leave_key(snapshot),
+        )
+        if item_destroying_breeder_exit is not None:
+            return item_destroying_breeder_exit
+
         mana_survival = self._town_producer_entry("_mana_food_survival_override_key", lambda: self._mana_food_survival_override_key(snapshot))
         if mana_survival is not None:
             return mana_survival
