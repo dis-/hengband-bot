@@ -3658,6 +3658,40 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         self.assertIsNone(policy._next_purchase_unreserved(stocked_shop))
 
+    def test_identify_staff_sale_selector_preserves_recorded_reserve_and_releases_fewest(self):
+        # Recorded 2026-10-06 09:16 sale: the just-bought 20-charge staff
+        # must stay because the other carried Identify staves total only 11.
+        # Model the generic device fallback's false "not useful" classification
+        # so this pin fails if it can bypass the dedicated Identify selector.
+        recorded_staves = [
+            item("h", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20,
+                 name="Staff of Identify (20 charges)"),
+            item("j", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=6,
+                 name="Staff of Identify (6 charges)"),
+            item("k", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=5,
+                 name="Staff of Identify (5 charges)"),
+        ]
+        recorded = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=recorded_staves,
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy._total_identify_staff_charges(recorded), 31)
+        with patch.object(policy, "_is_useful_device", return_value=False):
+            self.assertIsNone(policy._find_device_sale(recorded))
+
+        # Control: a genuine fifth staff is still released, and the selector
+        # chooses the emptiest one while leaving at least 20 charges carried.
+        fifth_staves = [
+            item(slot, TVAL_STAFF, SV_STAFF_IDENTIFY, charges=charges,
+                 name=f"Staff of Identify ({charges} charges)")
+            for slot, charges in zip("abcde", (10, 8, 7, 6, 5))
+        ]
+        fifth = replace(recorded, inventory=fifth_staves)
+        self.assertEqual(policy._total_identify_staff_charges(fifth), 36)
+        self.assertEqual(policy._find_device_sale(fifth).slot, "e")
+
     def test_mana_reserve_requires_withdrawing_home_device_charges(self):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR,

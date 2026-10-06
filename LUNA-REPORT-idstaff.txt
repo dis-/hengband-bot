@@ -1,0 +1,13 @@
+﻿# Identify staff sale selector fix
+
+Issue: https://github.com/dis-/hengband-bot/issues/35
+
+Changed `ShopMixin._find_device_sale` in `src/hengbot/policy_shop.py`. Identify staffs can now reach sale only through the dedicated surplus/release selector, and the selector refuses an Identify staff sale when the remaining carried charges would fall below 20. The release selector continues to choose the fewest-charge staff first.
+
+Regression pin: the recorded 2026-10-06 09:16 carrying state (20-charge newly bought staff plus two staffs with 11 charges combined) stays unsold even when the generic device classifier calls Identify staffs non-useful. Control: with five Identify staffs totaling 36 charges, the fifth staff with the fewest charges is selected and 31 charges remain.
+
+Verification:
+- New regression pin: 1 test passed.
+- `PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules test_policy_shop`: 274 tests; 270 passed, 1 skipped, 2 failures and 1 error. The failures/errors were in `TownErrandPlanTest` and `ProbePurityIncidentPinsTest`, outside the changed selector.
+- No full suite, game, bot, push, or other worktree used.
+

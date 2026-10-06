@@ -11,6 +11,7 @@ from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
+from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.town_arbiter import _new_town_turn_arbiter
 from hengbot.home_errand import HomeErrandRequest
@@ -429,6 +430,18 @@ class ShopMixin(InStoreMixin):
                 return surplus
             return None
         surplus_identify_staff = self._find_surplus_identify_staff(snapshot)
+        if surplus_identify_staff is not None:
+            released = self._retention_surplus(
+                snapshot, surplus_identify_staff
+            )
+            remaining_identify_charges = (
+                self._total_identify_staff_charges(snapshot)
+                - max(0, surplus_identify_staff.charges) * released
+            )
+            if remaining_identify_charges < STAFF_IDENTIFY_MIN_CHARGES:
+                # The cap selector may nominate an Identify staff even when
+                # releasing it would break the mandatory charge reserve.
+                surplus_identify_staff = None
         surplus_slot = (
             surplus_identify_staff.slot
             if surplus_identify_staff is not None
@@ -442,7 +455,14 @@ class ShopMixin(InStoreMixin):
             and (
                 item.slot == surplus_slot
                 or
-                (item.tval in {TVAL_WAND, TVAL_STAFF} and not self._is_useful_device(item))
+                (
+                    not (
+                        item.tval == TVAL_STAFF
+                        and item.sval == SV_STAFF_IDENTIFY
+                    )
+                    and item.tval in {TVAL_WAND, TVAL_STAFF}
+                    and not self._is_useful_device(item)
+                )
                 # A Rod of Light is redundant beside the lantern; sell it too. Only
                 # this sval is listed, so useful rods (e.g. Identify) are kept.
                 or (item.tval == TVAL_ROD and item.sval == SV_ROD_LITE)
