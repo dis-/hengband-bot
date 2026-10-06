@@ -14586,14 +14586,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or not self._equipment_catalog.home_scan_complete
         ):
             return False
-        catalog = self._equipment_catalog.items
-        protected = frozenset(
-            owned.id
-            for owned in catalog
-            if owned.origin == "equipped"
-            or owned.item.is_cursed
-            or self._equipment_disposal_reserved(snapshot, owned.item)
+        scan_cache = getattr(self, "_disposable_armour_scan_cache", None)
+        catalog_owner = self._equipment_catalog
+        catalog_fingerprint = (
+            id(catalog_owner._carried), id(catalog_owner._home),
+            len(catalog_owner._carried), len(catalog_owner._home),
         )
+        if (scan_cache is not None and scan_cache[0] is snapshot
+                and scan_cache[1] is catalog_owner
+                and scan_cache[2] == catalog_fingerprint
+                and scan_cache[3] == self._decision_sequence):
+            catalog, protected = scan_cache[4], scan_cache[5]
+        else:
+            catalog = catalog_owner.items
+            protected = frozenset(
+                owned.id
+                for owned in catalog
+                if owned.origin == "equipped"
+                or owned.item.is_cursed
+                or self._equipment_disposal_reserved(snapshot, owned.item)
+            )
         candidate_identity = equipment_identity(candidate)
         # Full-Home relief asks this before and after the take. Preserve the
         # dominance proof as the item moves from Home to the pack. It depends
@@ -14611,6 +14623,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             cached = (catalog, protected, identities)
             self._disposable_armour_cache = cached
         return candidate_identity in cached[2]
+
+    def _prime_disposable_armour_scan(self, snapshot: Snapshot) -> None:
+        """Share stable ownership protection across one Home candidate scan."""
+        catalog_owner = self._equipment_catalog
+        catalog_fingerprint = (
+            id(catalog_owner._carried), id(catalog_owner._home),
+            len(catalog_owner._carried), len(catalog_owner._home),
+        )
+        catalog = catalog_owner.items
+        protected = frozenset(
+            owned.id
+            for owned in catalog
+            if owned.origin == "equipped"
+            or owned.item.is_cursed
+            or self._equipment_disposal_reserved(snapshot, owned.item)
+        )
+        self._disposable_armour_scan_cache = (
+            snapshot, catalog_owner, catalog_fingerprint,
+            self._decision_sequence, catalog, protected,
+        )
 
 
     def _begin_pack_dominated_launcher_disposal(

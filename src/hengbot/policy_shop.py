@@ -2569,6 +2569,13 @@ class ShopMixin(InStoreMixin):
         ) and (not pack.inscription or pack.inscription == item.inscription)
 
     def _item_matches_purchase_rung(self, snapshot: Snapshot, item) -> bool:
+        # Equipment can match only the four purchase rungs that explicitly
+        # target an equipment category. Avoid rebuilding the full live supply
+        # ladder for ordinary weapons, armour, jewellery, and other gear.
+        if (getattr(item, "is_equipment", False)
+                and not (item.is_lantern or item.is_torch
+                         or item.is_digging_tool or item.is_ammo)):
+            return False
         return bool(self._matching_live_purchase_rungs(snapshot, item))
 
     def _mandatory_purchase(self, snapshot: Snapshot) -> StoreItem | None:
@@ -5198,7 +5205,8 @@ class ShopMixin(InStoreMixin):
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             if (writer_family == "store-router" and travel_reason.startswith("shop:")
-                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)):
+                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
+                    and not self._home_knowledge_scan_requested):
                 self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
                 snapshot, self._step_toward(snapshot, step),
@@ -5211,7 +5219,8 @@ class ShopMixin(InStoreMixin):
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
             if (writer_family == "store-router" and travel_reason.startswith("shop:")
-                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)):
+                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
+                    and not self._home_knowledge_scan_requested):
                 self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
                 snapshot, self._step_toward(snapshot, step),
@@ -5247,9 +5256,14 @@ class ShopMixin(InStoreMixin):
             self._store_entry_wait_owner = store_type
             self._store_entry_wait_key = travel
             self._store_entry_wait_turn = snapshot.turn
+            if (writer_family == "store-router" and travel_reason.startswith("shop:")
+                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
+                    and not self._home_knowledge_scan_requested):
+                self.last_reason = "shop:approach"
             return travel
         if (writer_family == "store-router" and travel_reason.startswith("shop:")
-                and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)):
+                and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
+                and not self._home_knowledge_scan_requested):
             self.last_reason = "shop:approach"
         return self._stage_shopping_approach_key(
             snapshot, self._step_toward(snapshot, step),

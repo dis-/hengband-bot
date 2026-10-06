@@ -564,14 +564,17 @@ class HomeMixin:
             pack_ids = {id(item) for item in carried_stock}
             stock = ((*stock, *carried_stock) if len(snapshot.inventory) < PACK_CAPACITY
                      else carried_stock)
+            sale_stock = (carried_stock if len(snapshot.inventory) >= PACK_CAPACITY
+                          else tuple(item for item in stock if id(item) not in pack_ids))
             probes = {id(item): (replace(snapshot, inventory=tuple(
                     carried for carried in snapshot.inventory if carried is not item))
                     if id(item) in pack_ids else snapshot) for item in stock}
-            candidates = [(result, item) for item in stock
+            self._prime_disposable_armour_scan(snapshot)
+            candidates = [(result, item) for item in sale_stock
                           if not item.is_equipment
                           and (result := self._home_full_sale_candidate(probes[id(item)], item))]
             if not candidates:
-                candidates = [(result, item) for item in stock
+                candidates = [(result, item) for item in sale_stock
                               if item.is_equipment
                               and (result := self._home_full_sale_candidate(probes[id(item)], item))]
             if not candidates:
@@ -580,6 +583,10 @@ class HomeMixin:
                 unidentified = [(candidate, item) for item in stock
                                 if (candidate := self._home_full_discard_candidate(
                                     probes[id(item)], item, identify=True))]
+            else:
+                discard = unidentified = []
+            self.__dict__.pop("_disposable_armour_scan_cache", None)
+            if not candidates:
                 if len(snapshot.inventory) < PACK_CAPACITY:
                     # Free a shelf, not more pack space, whenever a Home
                     # candidate exists. Carried sales still take precedence.
@@ -1348,7 +1355,7 @@ class HomeMixin:
         target = 0
         branch = None
         matches = lambda candidate: False
-        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        ledger = None
         strategy = (
             self._carry_procurement_strategy(
                 snapshot, cache_fixed_quest_head=False
@@ -1399,6 +1406,7 @@ class HomeMixin:
             kept = item.count - min(item.count, release.get(item.slot, 0))
             return kept, ("identify-staff-cap" if kept > 0 else None)
         if item.is_recall_scroll:
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
             target = max(
                 ledger["recall"].required_departure,
                 self._recall_required_target(snapshot),
@@ -1406,10 +1414,12 @@ class HomeMixin:
             matches = lambda candidate: candidate.is_recall_scroll
             branch = "supply-ledger:recall"
         elif item.is_teleport_scroll:
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
             target = ledger["teleport"].required_departure
             matches = lambda candidate: candidate.is_teleport_scroll
             branch = "supply-ledger:teleport"
         elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
             target = ledger["cure"].required_departure
             matches = lambda candidate: (
                 candidate.tval == TVAL_POTION
@@ -1417,6 +1427,7 @@ class HomeMixin:
             )
             branch = "supply-ledger:cure"
         elif item.is_oil:
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
             target = ledger["oil"].required_departure
             matches = lambda candidate: candidate.is_oil
             branch = "supply-ledger:oil"
@@ -1426,6 +1437,7 @@ class HomeMixin:
             and item.sval >= FOOD_MIN_SVAL
             and snapshot.player.food_type != FOOD_TYPE_MANA
         ):
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
             target = ledger["food"].required_departure
             matches = lambda candidate: (
                 candidate.is_food and candidate.aware and candidate.sval >= FOOD_MIN_SVAL
