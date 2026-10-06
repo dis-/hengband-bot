@@ -6762,10 +6762,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                 )
                 return LEAVE_STORE_KEY
-            # A partial page is not catalogue evidence. Exit under the same
-            # work, then request the complete ~9 list from outside the UI.
-            self.last_reason = "equipment-transaction:catalogue-leave-for-scan"
-            key = LEAVE_STORE_KEY
+            # A partial page is not catalogue evidence, but Home's ~9 list is
+            # available without leaving the store. Keep the registered
+            # transaction on this screen until its catalogue response arrives.
+            if self._home_knowledge_scan_inflight:
+                self.last_reason = "equipment-transaction:catalogue-await-knowledge"
+                self._offer_execution_awaiting(
+                    "", producer=family, work_id="equipment:acquire-home-catalog",
+                    operation_ref=holder.execution.operation_ref,
+                    expected_effect="home-catalog-available",
+                    continuation="home.catalogue.acquire",
+                )
+                return ""
+            self.last_reason = "equipment-transaction:catalogue-request-knowledge"
+            self._offer_home_knowledge_request(producer="home-scan")
+            return HOME_KNOWLEDGE_MACRO
         else:
             if self._home_knowledge_scan_inflight:
                 self.last_reason = "equipment-transaction:catalogue-await-knowledge"

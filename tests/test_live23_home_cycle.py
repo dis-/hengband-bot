@@ -6,12 +6,16 @@ import pickle
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import Mock
 
 import tests  # noqa: F401 -- protect live runtime files
 from hengbot.model import parse_snapshot
+from hengbot.cli import _dispatch_response_lines
 from hengbot.policy import HengbotPolicy
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.claim_register import observe
+from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 
 FIXTURE = Path(__file__).parent / "fixtures/live23-home-cycle"
 
@@ -39,6 +43,54 @@ def attachment(enforced=False, crossarea=True):
 
 
 class Live23HomeCycleTest(unittest.TestCase):
+    def test_recorded_partial_home_page_requests_catalogue_in_place(self):
+        fixture = json.loads((Path(__file__).parent / "fixtures"
+                              / "home-catalogue-burst-20261007.json").read_text(
+                                  encoding="utf8"))
+        page = parse_snapshot(fixture, {})
+        self.assertEqual(fixture["pin"]["decision_sequence"], 2)
+        self.assertEqual((page.store.stock_num, page.store.page_top,
+                          page.store.page_size, len(page.store.items)),
+                         (239, 0, 52, 52))
+
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        holder = policy._claim_register.declare(
+            "equipment-txn", observe((str(page.turn), str(page.store.store_type),
+                                      "knowledge"), 8, "knowledge"))
+        policy._claim_register.declare_execution(
+            holder.claim_id, producer="equipment-txn",
+            work_id="equipment:acquire-home-catalog", state="acting",
+            next_step="home.catalogue.acquire",
+            expected_effect="home-catalog-available",
+            continuation="home.catalogue.acquire",
+        )
+
+        key = policy._home_catalogue_work_key(page)
+
+        # Before this fix the recorded 52/239 page exited to request ~9 on the
+        # map, starting the request/approach cycle captured in the incident.
+        self.assertEqual(key, HOME_KNOWLEDGE_MACRO)
+        self.assertEqual(policy.last_reason,
+                         "equipment-transaction:catalogue-request-knowledge")
+        policy.confirm_key_posted(key)
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+        self.assertEqual(policy._home_knowledge_scan_epoch,
+                         policy._town_visit_epoch)
+
+        response = {
+            "type": "knowledge",
+            "knowledge": {"category": "home", "menu_key": "9", "items": []},
+            "player": {"position": {"y": page.player.position.y,
+                                     "x": page.player.position.x}},
+        }
+        with TemporaryDirectory() as directory:
+            self.assertEqual(_dispatch_response_lines(
+                [json.dumps(response)], policy, Mock(return_value=True),
+                knowledge_ledger_path=Path(directory) / "knowledge.jsonl"), 1)
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertEqual(policy._home_scan_source, "~9")
+
     def test_recorded_entry_completes_catalogue_before_other_errand(self):
         provenance = json.loads((FIXTURE / "provenance.json").read_text(encoding="utf8"))
         for name, digest in provenance["fixture_sha256"].items():
@@ -200,14 +252,15 @@ class Live23HomeCycleTest(unittest.TestCase):
                 holder.claim_id, producer=execution["producer"], work_id=execution["work_id"],
                 state=execution["state"], next_step=execution["next_step"],
                 expected_effect=execution["expected_effect"], continuation=execution["continuation"])
-            self.assertEqual(policy._home_catalogue_work_key(partial), "\x1b")
-            self.assertEqual(policy.last_reason, "equipment-transaction:catalogue-leave-for-scan")
+            self.assertEqual(policy._home_catalogue_work_key(partial), HOME_KNOWLEDGE_MACRO)
+            self.assertEqual(policy.last_reason,
+                             "equipment-transaction:catalogue-request-knowledge")
             self.assertFalse(policy._home_knowledge_current)
-            policy._record_decision_claim(partial, "\x1b")
+            policy._record_decision_claim(partial, HOME_KNOWLEDGE_MACRO)
             self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
-            policy.confirm_key_posted("\x1b")
+            policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-            self.assertEqual(policy._claim_register.current.execution.continuation, "home.catalogue.acquire")
+            self.assertTrue(policy._home_knowledge_scan_inflight)
             self.assertIsNone(policy._town_holder_structural_stop(policy._claim_register.current, partial))
 
 
