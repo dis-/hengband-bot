@@ -8706,12 +8706,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._home_atomic_deposit_pending is None
             and self._home_atomic_withdraw_pending is None
         ):
-            # A pending sale precedes equipment work. After space is ready,
-            # unrelated retry deposits must not intercept the transaction's
-            # Home page through a home-visit producer its holder cannot admit.
+            # Full-Home relief belongs to the Home-visit owner. Let an active
+            # equipment transaction handle its Home page first so a refused
+            # operation can abandon and block this route under its own claim.
+            equipment_home = self._equipment_transaction_session is not None
             key = self._town_producer_entry(
-                "_home_full_relief_key", lambda: self._home_full_relief_key(snapshot),
-                family="home-visit")
+                "_equipment_transaction_home_key" if equipment_home
+                else "_home_full_relief_key",
+                lambda: (self._equipment_transaction_home_key(snapshot)
+                         if equipment_home
+                         else self._home_full_relief_key(snapshot)),
+                family="equipment-txn" if equipment_home else "home-visit")
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
