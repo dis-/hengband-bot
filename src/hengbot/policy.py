@@ -1996,6 +1996,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # detected pack at a reached choke.  Retain an expired episode until an
         # inherited release stimulus occurs so it cannot immediately re-arm.
         self._detected_threat_hold: tuple[tuple[int, int, int], int] | None = None
+        # Separate position keeps restored policies with the old two-field
+        # timer compatible.
+        self._detected_threat_hold_position: Position | None = None
         # The anticipatory retreat's committed goal: floor, the covered cell it
         # chose, and the detected pack it was opened for.  Without it the owner
         # gives the decision back the moment its own step widens the gap, and
@@ -10944,6 +10947,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return ranged
 
         if summoners and all(monster.distance > 2 for monster in summoners):
+            # A detected summoner can reach this generic combat wait before
+            # detected-threat preparation runs. Start the same bounded episode
+            # here, at the choke cell, so loot cannot pull us off it and make
+            # preparation re-arm the clock on every return.
+            unseen_detected = any(
+                monster.perception == "detected"
+                for monster in self._perceived_hostiles(snapshot)
+            )
+            at_choke = (
+                self._open_neighbor_count(snapshot, player.position)
+                <= SUMMONER_CHOKE_NEIGHBORS - 1
+            )
+            if unseen_detected and at_choke and not snapshot.visible_monsters:
+                hold = getattr(self, "_detected_threat_hold", None)
+                if hold is None or hold[0] != snapshot.floor_key:
+                    hold = (snapshot.floor_key, snapshot.turn)
+                    self._detected_threat_hold = hold
+                    self._detected_threat_hold_position = player.position
+                elif getattr(self, "_detected_threat_hold_position", None) is None:
+                    # A restored pre-position checkpoint keeps its original
+                    # timer and adopts the current choke cell.
+                    self._detected_threat_hold_position = player.position
+                if snapshot.turn - hold[1] > DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
+                    return None
             self.last_reason = "summoner:hold-choke"
             return WAIT_KEY
 
@@ -17986,6 +18013,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         hold = getattr(self, "_detected_threat_hold", None)
         if hold is not None and hold[0] != snapshot.floor_key:
             self._detected_threat_hold = None
+            self._detected_threat_hold_position = None
             hold = None
         route = getattr(self, "_detected_threat_route", None)
         if route is not None and route[0] != snapshot.floor_key:
@@ -17993,6 +18021,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._detected_threat_route = route = None
         if visible_hostiles:
             self._detected_threat_hold = None
+            self._detected_threat_hold_position = None
             if route is not None:
                 self._release_claim_goal("choke-hostile-visible", route[1], owners=("positioning",))
             self._detected_threat_route = None
@@ -18009,13 +18038,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._release_claim_goal("choke-hold-expired", route[1], owners=("positioning",))
             self._detected_threat_route = None
             return None
+        if (
+            hold is not None
+            and getattr(self, "_detected_threat_hold_position", None)
+            == snapshot.player.position
+        ):
+            # Keep the bounded choke owner ahead of loot if the unseen pack's
+            # distances briefly leave the convergence window.
+            self.last_reason = "summoner:hold-choke"
+            return WAIT_KEY
         detected = [
             monster
             for monster in self._perceived_hostiles(snapshot)
             if monster.perception == "detected"
         ]
         if not detected:
-            self._detected_threat_hold = None
+            if hold is None:
+                self._detected_threat_hold_position = None
             if route is not None:
                 self._release_claim_goal("choke-threat-undetected", route[1], owners=("positioning",))
             self._detected_threat_route = None
@@ -18089,11 +18128,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if hold is None or hold[0] != snapshot.floor_key:
                 hold = (snapshot.floor_key, snapshot.turn)
                 self._detected_threat_hold = hold
+                self._detected_threat_hold_position = snapshot.player.position
+            elif getattr(self, "_detected_threat_hold_position", None) is None:
+                # Restored policies with the former timer-only state retain
+                # its start turn and learn the choke position on re-entry.
+                self._detected_threat_hold_position = snapshot.player.position
             if snapshot.turn - hold[1] <= DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
                 self.last_reason = "summoner:hold-choke"
                 return WAIT_KEY
             return None
-        self._detected_threat_hold = None
         if route is not None and committed:
             if snapshot.player.position != route[1]:
                 step = self._position_target_step(snapshot, route[1])

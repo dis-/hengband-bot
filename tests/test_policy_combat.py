@@ -739,13 +739,12 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         )
 
     def test_recorded_first_detected_hold_still_reaches_the_fifty_turn_bound(self):
-        _policy, _knowledge, replay, _recorded = self._recorded_hold_rearm_replay()
-        started_turn = next(
-            current[0].turn
-            for previous, current in zip(replay, replay[1:])
-            if previous[2] == "detected:prepare-choke"
-            and current[2] == "summoner:hold-choke"
-        )
+        policy, _knowledge, replay, _recorded = self._recorded_hold_rearm_replay()
+        # This replay first waits at the choke on 3819703.  The later
+        # detected:prepare-choke / hold transition on 3819729 is a re-entry,
+        # not a new hold start; the live incident showed why that distinction
+        # matters when loot and positioning alternate.
+        started_turn = policy._detected_threat_hold[1]
         inside = [
             decision for decision in replay
             if decision[0].turn - started_turn
