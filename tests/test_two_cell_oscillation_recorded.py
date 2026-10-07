@@ -87,6 +87,7 @@ CORRIDOR = Position(31, 15)
 
 B_WARMUP_END = 5619
 B_LATCH = 5620
+B_COMMITTED_FRONTIER_DIVERGENCE = 5644
 B_DIVERGENCE = 5647
 
 C_RETREAT = 2
@@ -277,8 +278,20 @@ class BreederBreakthroughAdjacentHostileRecordedTest(unittest.TestCase):
     def test_replay_reproduces_live_until_a_non_breeder_is_adjacent(self):
         rows, _board = self._replay_through(B_DIVERGENCE - 1)
         self.assertEqual(
-            {n: rows[n] for n in range(B_LATCH, B_DIVERGENCE)},
-            {n: self._live(n) for n in range(B_LATCH, B_DIVERGENCE)},
+            {n: rows[n] for n in range(B_LATCH, B_COMMITTED_FRONTIER_DIVERGENCE)},
+            {n: self._live(n) for n in range(B_LATCH, B_COMMITTED_FRONTIER_DIVERGENCE)},
+        )
+        # Since 8adae98b, the breakthrough commits to the frontier at (35,69).
+        # At board 5644 the replay is at (35,68), so it continues east ('6').
+        # Live instead steps west ('4'), then alternates east at 5645 and west
+        # at 5646: the exact backtracking the committed-frontier change prevents.
+        self.assertEqual(
+            rows[B_COMMITTED_FRONTIER_DIVERGENCE],
+            ("6", "breeder-breakthrough:seek-frontier"),
+        )
+        self.assertEqual(
+            self._live(B_COMMITTED_FRONTIER_DIVERGENCE),
+            ("4", "breeder-breakthrough:seek-frontier"),
         )
 
     def test_adjacent_non_breeder_is_fought_before_the_frontier_walk(self):
