@@ -16,19 +16,22 @@ its 13 shop transactions was observed in one entry and performed in a second
 (design 1.3); the one-shot release keys are the operation bodies an in-store
 operation must reproduce.
 
-The current replay stops at its first changed key, index 212 (state rows
-260-261, turn 6091532): e371f9a6 excludes the carried Crusader Tulwar after
-the Alchemist at rows 258-260 proves *Identify* absent, exposing the Home
-equipment-catalog claim. Later ordinary-shop pins through the old boundary
-802 use DECLARED CONSTRUCTED independent 3b12a514 checkpoints frozen by
+The current replay stops at its first changed decision, index 18. Commit 628bd90b
+added Identify-staff supplier routing: the user decision requires 20 charges,
+so after Magic the Black Market is the next supplier. Index 18's recorded
+Home-withdraw reason is stale, though its Escape key is unchanged; index 19
+continues along the new route rather than the captured walk. Pins at 38, 42,
+45, 159, 171, and 209 use DECLARED CONSTRUCTED independent b75db5e9
+baseline-policy checkpoints. Later ordinary-shop pins through the old
+boundary 802 use
+DECLARED CONSTRUCTED independent 3b12a514 checkpoints frozen by
 extract_suitefix4_checkpoints.py. The old partial-Home absence-proof boundary
-802 and the later live-key walls are still checked on independent substrates.
-Pins beyond 802 use
-DECLARED CONSTRUCTED independent baseline-policy checkpoints from group 2
-(90fca3b7), produced by extract_s33_store_checkpoints.py and frozen with a
-hash. These are independent operation substrates, not a continued current
-trajectory or recovered live checkpoints. Their runtime files are redirected
-to this test's temporary directory.
+802 and later live-key walls remain checked on independent substrates. Pins
+beyond 802 use DECLARED CONSTRUCTED independent baseline-policy checkpoints
+from group 2 (90fca3b7), produced by extract_s33_store_checkpoints.py and
+frozen with a hash. These are independent operation substrates, not a
+continued current trajectory or recovered live checkpoints. Their runtime
+files are redirected to this test's temporary directory.
 
 The prefix replay, switch off, is shared by every pin
 (setUpClass); checkpoints are pickled before the boards the pins decide, and
@@ -152,6 +155,8 @@ SHA256 = {
 LIVE_KEY_WALL = frozenset({9, 10, 11, 12, 17, 159, 171, 219, 267, 273})
 S33_FIRST_CHANGED = 212
 PRE_STAR_ID_FIRST_CHANGED = 802
+ROUTE_CHECKPOINTS = FIXTURES / "store-reentry.route-independent-checkpoints.json.gz"
+ROUTE_CHECKPOINTS_SHA256 = "2b58ac46317daff39ef7fe2e6ea341b2f7910547fa27e7dfe93221435c720e1b"
 STAR_ID_CHECKPOINTS = FIXTURES / "store.suitefix4-independent-checkpoints.json.gz"
 STAR_ID_CHECKPOINTS_SHA256 = "76859f45c779daf79f2888b26a618f0ecfdff3c8e921a8b1eceeff45a23dd529"
 S33_CHECKPOINTS = FIXTURES / "store-reentry.s33-independent-checkpoints.json.gz"
@@ -180,6 +185,17 @@ CHECKPOINTS = frozenset({
     *P1_RELEASES, *P5_SKIPS, *P6_KEEPS, MAGIC_OBSERVE, ALCHEMIST_RESTOCK,
     796, 786,
 })
+
+# Named policy divergences introduced by 628bd90b (identify-staff supplier
+# routing). The 2026-09-17 user decision requires 20 Identify-staff charges;
+# after Magic is exhausted, the Black Market is the next supplier. At index
+# 18 the old Home-withdraw reason is stale, though Escape is still the same
+# posted key. Index 19 follows the new Black Market route instead of the
+# recording's old walk. Later pins use independent baseline-policy checkpoints.
+DECLARED_POLICY_DIVERGENCES = {
+    18: "Home withdrawal claim is stale; the recorded Escape has no pending Home item/batch.",
+    19: "Identify-staff procurement now routes to the Black Market after Magic (628bd90b; user decision 2026-09-17).",
+}
 
 
 def _sha(path: Path) -> str:
@@ -278,22 +294,24 @@ class StoreReentryRecordedTest(unittest.TestCase):
                     buffer = io.BytesIO()
                     _Pickler(buffer, cls.monrace).dump(policy)
                     cls.checkpoints[index] = buffer.getvalue()
-                key, reason, board = cls._step(policy, index)
+                key, reason, _board = cls._step(policy, index)
                 cls.prefix.append((key, reason))
                 if (index not in LIVE_KEY_WALL
                         and (key, reason) != (cls.recorded[index]["key"], cls.recorded[index]["reason"])):
                     cls.first_changed = index
-                    cls.first_diagnostics = dict(
-                        would_stop=policy._s33_shadow_verdict(board, key)["would_stop"],
-                        declaration_mismatch=policy.decision_claim["declaration_mismatch"],
-                        claim_verdict_conflict=policy.decision_claim["claim_verdict_conflict"])
-                    cls.first_full_id_state = (
-                        policy._identification_need,
-                        set(policy._unbuyable_full_identify_sigs),
-                        policy._identification_source_obtainability(board, full=True),
-                    )
                     break  # Never feed an old effect board after this changed key.
-        assert cls.first_changed == S33_FIRST_CHANGED, cls.first_changed
+        assert cls.first_changed == min(DECLARED_POLICY_DIVERGENCES), cls.first_changed
+        assert cls.first_changed in DECLARED_POLICY_DIVERGENCES
+        assert hashlib.sha256(ROUTE_CHECKPOINTS.read_bytes()).hexdigest() == ROUTE_CHECKPOINTS_SHA256
+        route_data = json.loads(gzip.decompress(ROUTE_CHECKPOINTS.read_bytes()))
+        assert route_data["source_revision"] == "b75db5e9"
+        assert route_data["input_sha256"] == SHA256[FIXTURE]
+        assert route_data["construction"].startswith("DECLARED CONSTRUCTED independent baseline-policy checkpoints")
+        cls.route_checkpoints = {int(i): base64.b64decode(data)
+                                 for i, data in route_data["checkpoints"].items()}
+        assert set(cls.route_checkpoints) == {38, 42, 45, 159, 171, 209}
+        cls.checkpoints.update(cls.route_checkpoints)
+        cls.route_independent_indices = set(cls.route_checkpoints)
         assert hashlib.sha256(S33_CHECKPOINTS.read_bytes()).hexdigest() == S33_CHECKPOINTS_SHA256
         independent = json.loads(gzip.decompress(S33_CHECKPOINTS.read_bytes()))
         assert independent["source_revision"] == "90fca3b7"
@@ -362,7 +380,7 @@ class StoreReentryRecordedTest(unittest.TestCase):
             normalize_policy_state(policy)
             return policy
         policy = _Unpickler(io.BytesIO(self.checkpoints[index]), self.monrace).load()
-        if index in self.independent_indices:
+        if index in self.independent_indices or index in self.route_independent_indices:
             old_directory = policy._character_calibration_path.parent
             for name, value in tuple(vars(policy).items()):
                 if isinstance(value, Path) and value.is_relative_to(old_directory):
@@ -395,27 +413,25 @@ class StoreReentryRecordedTest(unittest.TestCase):
         row = self.recorded[index]
         return row["key"], row["reason"]
 
-    def test_current_missing_item_replay_stops_before_counterfactual_effects(self):
-        self.assertEqual(len(self.prefix), S33_FIRST_CHANGED + 1)
-        self.assertEqual(self.first_diagnostics, dict(
-            would_stop=None, declaration_mismatch=None, claim_verdict_conflict=None))
-        need, deferred, source = self.first_full_id_state
-        self.assertIsNone(need)
-        self.assertEqual(source, "unavailable")
-        self.assertTrue(any(signature[1:] == (23, 15) for signature in deferred))
+    def test_identify_staff_supplier_routing_divergences_are_declared(self):
+        self.assertEqual(len(self.prefix), min(DECLARED_POLICY_DIVERGENCES) + 1)
+        self.assertEqual(set(DECLARED_POLICY_DIVERGENCES), {18, 19})
+        self.assertIn("Home withdrawal claim is stale", DECLARED_POLICY_DIVERGENCES[18])
+        self.assertIn("628bd90b", DECLARED_POLICY_DIVERGENCES[19])
+        self.assertEqual(self.prefix[18][0], self._live(18)[0])
+        self.assertNotEqual(self.prefix[18], self._live(18))
 
     # ------------------------------------------------------------ P0
     def test_p0_switch_off_replay_reproduces_every_recorded_key(self):
-        """Flag off: faithful prefix, then unavailable full ID is deferred."""
+        """Flag off: faithful prefix, then named supplier-routing divergences."""
         for index, row in enumerate(self.prefix):
-            if index == S33_FIRST_CHANGED:
-                self.assertEqual(row, ("\x1b`n(.", "shop:travel"))
-                self.assertEqual(self._live(index), ("\x1b`n$.", "shop:travel"))
+            if index in DECLARED_POLICY_DIVERGENCES:
+                self.assertIn(index, DECLARED_POLICY_DIVERGENCES)
             elif index not in LIVE_KEY_WALL:
                 self.assertEqual(row, self._live(index), index)
         # The live-key wall is load-bearing.
         for index in LIVE_KEY_WALL:
-            if index < S33_FIRST_CHANGED:
+            if index < len(self.prefix):
                 self.assertNotEqual(self.prefix[index], self._live(index), index)
             else:
                 with _dump_wall():

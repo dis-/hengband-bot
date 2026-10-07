@@ -1,1 +1,11 @@
-The 2026-10-08 Magic Shop board showed 0/20 Identify charges, an affordable 21-charge staff at letter i for 851 gold, and a zero-charge Identify staff among carried sale candidates. Live selector telemetry recorded two skips owned by the Home-full retry batch, but the ordinary sale selector still selected a reserved candidate and turned the refusal into a shop leave; the current-visit Home-first gate then prevented purchase of the required staff. Sale selectors now skip reserved candidates, and Home-first yields to useful current Identify staff only when a Home-full retry reservation is active and the 10F+ reserve is unmet. The recorded-board pin constructs the retry ownership on the captured zero-charge candidate, checks the leaving-phase visit, and fails when the fix is reverted. The focused shop/equipment run passed 467 tests and the hygiene set passed 221 tests.
+Task: tests.test_store_reentry_recorded divergence at recorded indices 18 and 19
+
+Decision: both differences are intended under the 2026-09-17 decision requiring 20 Identify-staff charges. After Magic, Black Market supplier routing is the expected next route (production commit 628bd90b). At index 18, the capture's Home-withdraw reason refers to no pending Home item or batch, while the Escape key is unchanged. At index 19, current policy follows the Black Market route instead of the captured walk.
+
+Changes: declared both route differences in the recorded replay test with the reason and commit; stopped the shared prefix at its first changed decision; added DECLARED CONSTRUCTED independent b75db5e9 policy checkpoints for pins 38, 42, 45, 159, 171, and 209. Existing independent checkpoints and later pins remain in place.
+
+Verification (serial runner, only requested modules):
+- tests.test_store_reentry_recorded: 35 tests passed.
+- tests.test_test_fakery_lint: 13 tests passed.
+
+No game or bot was started. No push was performed.
