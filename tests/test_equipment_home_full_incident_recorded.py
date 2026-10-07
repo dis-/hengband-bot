@@ -56,7 +56,9 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
         policy._equipment_transaction_session = session
         policy._home_knowledge_current = True
         policy._equipment_catalog.home_scan_complete = True
-        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        # The live block came from the earlier refused full-Home deposit,
+        # which records its reason with the Home block (7da1d2cf).
+        policy._mark_equipment_home_full_unavailable(outside)
         policy._equipment_transaction_last_failure = {
             "reason": "confirmation-stall-bound",
         }
