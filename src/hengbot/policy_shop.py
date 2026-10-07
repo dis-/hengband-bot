@@ -1864,6 +1864,12 @@ class ShopMixin(InStoreMixin):
             and item.tval == TVAL_STAFF
             and item.sval == SV_STAFF_IDENTIFY
             and not self._identify_staff_ready(snapshot)
+            # Home-first still holds: a current catalogue that shows a usable
+            # Identify staff at Home keeps the ordinary Home gate.
+            and not (self._home_knowledge_current and any(
+                stored.tval == TVAL_STAFF and stored.sval == SV_STAFF_IDENTIFY
+                and stored.charges > 0
+                for stored in self._home_knowledge_items))
             and self._identify_staff_purchase_room(snapshot)
             and self._identify_staff_acquisition_worthwhile(
                 snapshot, max(item.charges, item.pval)
