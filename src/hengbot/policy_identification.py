@@ -500,7 +500,7 @@ class IdentificationMixin:
                 item.is_equipment
                 and self._identification_flow_candidate(item)
                 and not item.known
-                and item.pseudo_feeling not in {"cursed", "terrible", "worthless"}
+                and item.pseudo_feeling not in {"broken", "cursed", "terrible", "worthless"}
                 and self._item_signature(item) not in self._unidentifiable_sigs
                 and self._item_signature(item)
                 not in self._town_unidentifiable_carried_sigs
