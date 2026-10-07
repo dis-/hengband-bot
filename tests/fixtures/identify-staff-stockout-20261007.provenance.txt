@@ -1,0 +1,4 @@
+Source: C:/hengband/bot-client/jsonlog/autorecover-20261007-224534-town-blocked-owner-retired-burst.bot-state-fixed.jsonl.gz
+Source SHA-256: d49360c567ff8eaa25e0777e507827f8aa82c64ff5b341d2d35146a9d4287475
+Selected rows: 68 (Magic Shop, turn 15004409) and 69 (post-Magic town board, turn 15004415).
+The fixture preserves these complete boards and strips only visible/detected monsters at test load because monster knowledge is unrelated to the town supplier decision.

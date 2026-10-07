@@ -15019,7 +15019,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (page := supplier_pages.get(store_type)) is not None
         ):
             return False
-        return STORE_MAGIC in self._town_store_attempted
+        observed_suppliers = {
+            page.store_type for page in self._identify_staff_offer_pages(snapshot)
+        }
+        return all(
+            store_type in self._town_store_attempted
+            or store_type in observed_suppliers
+            for store_type in (STORE_MAGIC, STORE_BLACK)
+        )
 
     @claims(ClaimOwner.FUNDRAISING)
     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:

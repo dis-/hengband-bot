@@ -435,7 +435,7 @@
   "policy_town.py:_town_special_key": {
     "self._cross_town_shopping_key(snapshot) @ If:body:blocking_needs and all((need.store_type in self._town_visit_ledger.nonhome_attempted_without_effect for need in blocking_needs)) and (not self._town_claims_active(snapshot))": 1,
     "self._cross_town_shopping_key(snapshot) @ If:body:recall_dest is not None and (not departure_ok) / If:body:not self._town_claims_active(snapshot)": 1,
-    "self._identify_staff_stockout_key(snapshot) @ If:body:recall_dest is not None and (not departure_ok) / If:body:not self._town_claims_active(snapshot) / If:body:self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH and (not self._identify_staff_ready(snapshot)) and (not self._identify_staff_mining_plan)": 1,
+    "self._identify_staff_stockout_key(snapshot) @ If:body:recall_dest is not None and (not departure_ok) / If:body:not self._town_claims_active(snapshot) / If:body:self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH and (not self._identify_staff_ready(snapshot)) and (not self._identify_staff_mining_plan) and self._identify_staff_procurement_impossible(snapshot)": 1,
     "self._identify_staff_stockout_key(snapshot) @ If:body:self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH and self._fundraising_mode not in {'prepare', 'mine', 'scavenge'} and (not self._identify_staff_ready(snapshot)) and (self._home_knowledge_current or STORE_MAGIC in self._town_store_attempted) and self._identify_staff_procurement_impossible(snapshot)": 1,
     "self._morivant_full_identify_key(snapshot) @ ": 1,
     "self._town_restock_wait_key(snapshot) @ ": 1,
