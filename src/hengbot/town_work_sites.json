@@ -6208,7 +6208,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "line": 471,
     "end_line": 509,
-    "ast_sha256": "13f35b20371ad837a8253395dcdaac0d32bca122c2ac76205337af8f46eabfec"
+    "ast_sha256": "863c3789ef7dfdaea4c6cb9255909d7d2a9376951b27a2325523503d0a7fdcaa"
   },
   "policy_identification.py:IdentificationMixin._find_identification_source": {
     "classification": "data",
