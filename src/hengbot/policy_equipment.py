@@ -1466,14 +1466,10 @@ class EquipmentMixin:
                 blockers=("equipment-transaction-failed",),
             )
         elif (
-            self._equipment_home_full_refused_this_visit()
+            (self._equipment_failed_this_visit()
+             or self._equipment_home_full_refused_this_visit())
             and not self._equipment_transaction_restoring
-            and any(
-                action.phase != PHASE_EQUIP
-                for action in getattr(
-                    getattr(preparation, "transaction", None), "actions", ()
-                )
-            )
+            and getattr(getattr(preparation, "transaction", None), "actions", ())
         ):
             # This visit already recorded Home as unavailable (e.g. a refused
             # deposit into a full Home). A re-planned swap that needs Home is
@@ -1612,6 +1608,7 @@ class EquipmentMixin:
     ) -> None:
         session = self._equipment_transaction_session
         if session is not None:
+            self._mark_equipment_failure_this_visit()
             self._release_claim_goal('equipment-transaction-abandoned', owners=('equipment-txn',), kinds=('Observe',), sources=('transaction',))
         if self._store_visit is not None:
             target_store_type = (
@@ -1968,6 +1965,22 @@ class EquipmentMixin:
                 continuation="equipment.next-action",
             )
         return key
+
+    def _mark_equipment_failure_this_visit(self) -> None:
+        """Remember that an equipment swap failed during this town visit."""
+        self.__dict__["_equipment_failed_visit_epoch"] = getattr(
+            self, "_town_visit_epoch", None)
+
+    def _equipment_failed_this_visit(self) -> bool:
+        """User 10-03: a failed swap departs on the current loadout.
+
+        Once any equipment transaction failed in this town visit, no new swap
+        is planned until the next visit; the confirmed-loadout departure owns
+        the rest of the visit (restoration of removed gear excepted).
+        """
+        epoch = getattr(self, "_town_visit_epoch", None)
+        return (epoch is not None
+                and self.__dict__.get("_equipment_failed_visit_epoch") == epoch)
 
     def _equipment_home_full_refused_this_visit(self) -> bool:
         """Whether this visit blocked Home after a refused full-Home deposit.
@@ -2500,7 +2513,8 @@ class EquipmentMixin:
             # equipment session may route back there (whatever ended the last
             # one); only restoration of removed gear may still use Home.
             home_route_blocked = (
-                self._equipment_home_full_refused_this_visit()
+                (self._equipment_failed_this_visit()
+                 or self._equipment_home_full_refused_this_visit())
                 and not self._equipment_transaction_restoring
             )
             step = (
