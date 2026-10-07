@@ -207,17 +207,17 @@ class HomeFullReliefTest(unittest.TestCase):
         self.assertIsNotNone(policy._home_errand.request)
         self.assertEqual(policy._home_errand.request.purpose, "full-home-sale")
 
-    def test_pending_sale_reopens_stopped_errand_on_recorded_home_board(self):
+    def test_pending_sale_refiles_idle_errand_on_recorded_home_board(self):
         policy, board, catalogue, _entries = relief_scene(self.pins[0], False)
         board, _key = self.refuse(policy, board)
         self.assertIsNotNone(policy._home_full_relief["sale"])
         self.assertEqual(policy._home_errand.request.purpose, "full-home-sale")
 
         # The recorded refusal board establishes the pending sale. Recreate
-        # the live recovery seam: its request survived, but the errand stopped
-        # after an earlier unaddressed Home entry. This Home page observes the
+        # the live recovery seam: after the 23:04 stop and restart the relief sale
+        # survived but its errand was idle (23:06 loop). This Home page observes the
         # selected target again, so it must be filed and taken in place.
-        policy._home_errand.state = HomeErrandState.STOPPED
+        policy._home_errand.state = HomeErrandState.IDLE
         home = self.home_page(catalogue)
         home_board = replace(board, turn=board.turn + 1,
             player=replace(board.player, position=Position(10, 14)), store=home)
@@ -233,7 +233,7 @@ class HomeFullReliefTest(unittest.TestCase):
         policy, board, catalogue, _entries = relief_scene(self.pins[0], False)
         self.refuse(policy, board)
         signature = policy._home_full_relief["sale"][0]
-        policy._home_errand.state = HomeErrandState.STOPPED
+        policy._home_errand.state = HomeErrandState.IDLE
         policy._home_knowledge_items = ()
         home = self.home_page(catalogue[1:])
 

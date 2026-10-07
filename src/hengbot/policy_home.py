@@ -549,7 +549,8 @@ class HomeMixin:
                 sale = None
             elif (snapshot.store is not None
                     and snapshot.store.store_type == STORE_HOME
-                    and not relief["withdrawn"]):
+                    and not relief["withdrawn"]
+                    and self._home_errand.state.value not in {"failed", "stopped"}):
                 # A pending relief take can outlive its errand (for example,
                 # after recovery from a stopped unaddressed entry). Do not
                 # leave Home and route back without changing that owner state.
