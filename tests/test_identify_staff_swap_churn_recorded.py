@@ -26,10 +26,10 @@ equal or emptier is still refused.  Fix 2 (policy_supply): a Home staff the
 swap would release again at once (kept charges do not rise after the release
 plan) is not worth withdrawing.
 
-The current replay ends at its first changed key, 1714 (state row 1997,
-turn 6066930): e371f9a6 defers the carried Crusader Tulwar after the
-Alchemist at rows 1993-1996 proves *Identify* absent and routes to Home.
-Later swap pins use DECLARED CONSTRUCTED independent 3b12a514 substrates
+The main replay stops at its declared #35 divergence at index 4: the board
+has 22 carried charges and selling the selected 3-charge staff would break
+the reserve. Decisions 0-3 stay strict. Later swap pins use DECLARED
+CONSTRUCTED independent 3b12a514 substrates
 at 2817 (the existing live-key wall) and 2846 (the unchanged sell prefix),
 frozen by extract_suitefix4_checkpoints.py. These are baseline-policy states,
 not effects of the new Home trip. Each pin continues from a deep copy.
@@ -50,8 +50,8 @@ its later effect):
   *Identify* errand for the (聖戦者)タルワール (``_defer_identification_for_conquest``,
   replay '8' probe) where the live process kept it ('2' shop:approach); the
   cause was not found, so the historical baseline posts the live keys there.
-  Current 0-1713 and independent 2846-2853 reproduce the recorded keys
-  exactly; the 2817 difference is checked on its independent substrate.
+  The independent 2846-2853 replay reproduces the recorded keys exactly;
+  the 2817 difference is checked on its independent substrate.
 - COMBAT DECISION WALL: the pending emergency escape uses the recorded
   escape-first rule, pre-teleport unseen-hit memory, pre-Speed-filter rule
   and pre-unseen-scratch-bound rule
@@ -97,7 +97,7 @@ SHA256 = {
 }
 LIVE_KEY_WALL = range(2817, 2846)
 CHECKPOINT = 2853
-FIRST_CHANGED = 1714
+RESERVE_DIVERGENCE = 4
 INDEPENDENT = FIXTURES / "staff.suitefix4-independent-checkpoints.json.gz"
 INDEPENDENT_SHA256 = "5c028f838663935a0da61d04ea35e5f16b66a6f7f87d67bd2e635dc9d08f6f77"
 BUY = 2854
@@ -171,17 +171,20 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
         policy._character_dump_path = cls.directory / "character-dump.txt"
         cls.prefix = []
         with _dump_wall(), pre_combat_decisions_rule():
-            for index in range(FIRST_CHANGED + 1):
+            for index in range(RESERVE_DIVERGENCE + 1):
                 result = cls._step(policy, index)
                 row = result[:2]
                 cls.prefix.append(row)
-                if index < FIRST_CHANGED:
+                if index < RESERVE_DIVERGENCE:
                     assert row == (cls.recorded[index]["key"], cls.recorded[index]["reason"]), index
-        cls.first_full_id_state = (
-            policy._identification_need,
-            set(policy._unbuyable_full_identify_sigs),
-            policy._identification_source_obtainability(result[2], full=True),
-        )
+                elif index == RESERVE_DIVERGENCE:
+                    # DECLARED DIVERGENCE (#35): the board carries 22 Identify
+                    # charges; selling the nominated 3-charge staff would
+                    # leave 19, so the reserve-aware selector travels to a
+                    # different store instead of following the captured route.
+                    assert row == ("\x1b`n%.", "shop:travel"), index
+                    cls.reserve_divergence_charges = policy._total_identify_staff_charges(result[2])
+                    cls.reserve_sale_charges = policy._find_surplus_identify_staff(result[2]).charges
         assert hashlib.sha256(INDEPENDENT.read_bytes()).hexdigest() == INDEPENDENT_SHA256
         substrates = json.loads(gzip.decompress(INDEPENDENT.read_bytes()))
         assert substrates["source_revision"] == "3b12a514"
@@ -262,17 +265,15 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
         self.assertEqual(self._live(2889), ("d01\ry\x1b", "shop:one-shot-sell"))
 
     def test_walled_replay_reproduces_the_recorded_keys(self):
+        self.assertEqual(len(self.prefix), RESERVE_DIVERGENCE + 1)
         for index, row in enumerate(self.prefix):
-            if index == FIRST_CHANGED:
-                self.assertEqual(row, ("\x1b`n(.", "shop:travel"))
+            if index == RESERVE_DIVERGENCE:
+                self.assertEqual(row, ("\x1b`n%.", "shop:travel"))
                 self.assertEqual(self._live(index), ("\x1b`n&.", "shop:travel"))
+                self.assertEqual(self.reserve_divergence_charges, 22)
+                self.assertEqual(self.reserve_sale_charges, 3)
             elif index not in LIVE_KEY_WALL:
                 self.assertEqual(row, self._live(index), index)
-        self.assertEqual(len(self.prefix), FIRST_CHANGED + 1)
-        need, deferred, source = self.first_full_id_state
-        self.assertIsNone(need)
-        self.assertEqual(source, "unavailable")
-        self.assertTrue(any(signature[1:] == (23, 15) for signature in deferred))
         for index, row in enumerate(self.independent_prefix, 2846):
             self.assertEqual(row, self._live(index), index)
         # The live-key wall is load-bearing: the replay's own 2817 differs.
