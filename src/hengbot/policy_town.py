@@ -2487,6 +2487,43 @@ class TownMixin:
                 return
             needs.append(TownNeed(store_type, category, ordering_class))
 
+        def add_identify_staff_suppliers() -> None:
+            if self._identify_staff_ready(snapshot):
+                return
+            pages = {
+                page.store_type: page
+                for page in self._identify_staff_offer_pages(snapshot)
+            }
+            suppliers = (STORE_MAGIC, STORE_BLACK)
+            # Keep an affordable remembered offer actionable even after its
+            # store was visited; the shop selector may not have been able to
+            # compose that purchase on the earlier page.
+            for supplier in suppliers:
+                page = pages.get(supplier)
+                if page is not None and any(
+                    item.tval == TVAL_STAFF
+                    and item.sval == SV_STAFF_IDENTIFY
+                    and item.price <= snapshot.player.gold
+                    and self._identify_staff_acquisition_worthwhile(
+                        snapshot, max(item.charges, item.pval)
+                    )
+                    for item in page.items
+                ):
+                    add(supplier, "identify-staff")
+            # After Magic has been tried or observed, Black Market is the
+            # fallback supplier. Fundraising preparation must keep this route
+            # live too; otherwise its early return can turn a shop shortage
+            # into an unsatisfiable departure before either shelf is checked.
+            if STORE_MAGIC not in self._town_store_attempted and STORE_MAGIC not in pages:
+                add(STORE_MAGIC, "identify-staff")
+            elif (
+                (STORE_MAGIC in self._town_store_attempted
+                 or (STORE_MAGIC in pages and snapshot.store is None))
+                and STORE_BLACK not in self._town_store_attempted
+                and STORE_BLACK not in pages
+            ):
+                add(STORE_BLACK, "identify-staff")
+
         curse_kind = self._required_remove_curse_kind(snapshot)
         if curse_kind is not None and self._usable_remove_curse_scroll(snapshot) is None:
             if self._home_remove_curse_scroll(snapshot) is not None:
@@ -2826,6 +2863,7 @@ class TownMixin:
                     and STORE_GENERAL not in self._town_store_attempted
                 ):
                     add(STORE_GENERAL, "throwing-torches")
+            add_identify_staff_suppliers()
             return needs
 
         bindable_home_identification = any(
@@ -3067,43 +3105,7 @@ class TownMixin:
             if STORE_GENERAL in self._town_store_attempted:
                 return needs
             add(STORE_GENERAL, "light")
-        if not self._identify_staff_ready(snapshot):
-            pages = {
-                page.store_type: page
-                for page in self._identify_staff_offer_pages(snapshot)
-            }
-            suppliers = (STORE_MAGIC, STORE_BLACK)
-            # An attempted store may still have an affordable staff that the
-            # prior selector did not buy (for example, a useful staff shared
-            # a page with another supply). Keep that observed offer actionable
-            # so the shop owner can re-enter and complete the purchase.
-            for supplier in suppliers:
-                page = pages.get(supplier)
-                if page is not None and any(
-                    item.tval == TVAL_STAFF
-                    and item.sval == SV_STAFF_IDENTIFY
-                    and item.price <= snapshot.player.gold
-                    and self._identify_staff_acquisition_worthwhile(
-                        snapshot, max(item.charges, item.pval)
-                    )
-                    for item in page.items
-                ):
-                    add(supplier, "identify-staff")
-            # Home is already resolved upstream. Try Magic first, then keep
-            # Black Market as the next live owner after Magic has been checked,
-            # even when Magic's remembered page still has a worthwhile offer.
-            # That offer remains actionable too; the second supplier must not
-            # disappear from the town plan while another Magic errand owns the
-            # next visit.
-            if STORE_MAGIC not in self._town_store_attempted and STORE_MAGIC not in pages:
-                add(STORE_MAGIC, "identify-staff")
-            elif (
-                (STORE_MAGIC in self._town_store_attempted
-                 or (STORE_MAGIC in pages and snapshot.store is None))
-                and STORE_BLACK not in self._town_store_attempted
-                and STORE_BLACK not in pages
-            ):
-                add(STORE_BLACK, "identify-staff")
+        add_identify_staff_suppliers()
         # Ammo is an optional supply: restock when low, but never block the
         # visit on it. The Weapon Smith is tried first; the General Store when
         # the Weapon Smith was attempted or shows no affordable plain ammo.
@@ -3302,9 +3304,19 @@ class TownMixin:
             "experience-restore-check",
             "experience-potion-home",
         }
-        specs = {spec.category: spec for spec in self._town_need_registry()}
+        specs: dict[str, list[NeedSpec]] = {}
+        for spec in self._town_need_registry():
+            specs.setdefault(spec.category, []).append(spec)
         for need in self._enumerate_live_store_claims(snapshot):
-            spec = specs.get(need.category)
+            matching_specs = specs.get(need.category, ())
+            spec = next(
+                (
+                    candidate for candidate in matching_specs
+                    if candidate.produces(snapshot)
+                    if candidate.resolve_store_type(snapshot) == need.store_type
+                ),
+                matching_specs[0] if matching_specs else None,
+            )
             if (
                 need.store_type == STORE_HOME
                 and spec is not None
@@ -5630,22 +5642,6 @@ class TownMixin:
                 return self._town_blocked_key(snapshot)
 
         if (
-            self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
-            and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
-            and not self._identify_staff_ready(snapshot)
-            and (
-                self._home_knowledge_current
-                or STORE_MAGIC in self._town_store_attempted
-            )
-            and self._identify_staff_procurement_impossible(snapshot)
-        ):
-            return self._identify_staff_stockout_key(snapshot)
-
-        restock = self._town_restock_wait_key(snapshot)
-        if restock is not None:
-            return restock
-
-        if (
             (self._fundraising_mode == "mine"
              or (self._fundraising_mode == "scavenge"
                  and getattr(self, "_supply_stockout_gold_target", None) is not None))
@@ -5679,6 +5675,22 @@ class TownMixin:
                 next_step="player.rest", expected_effect="hp/mp/status-recovered",
             )
             return REST_MACRO
+
+        if (
+            self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
+            and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
+            and not self._identify_staff_ready(snapshot)
+            and (
+                self._home_knowledge_current
+                or STORE_MAGIC in self._town_store_attempted
+            )
+            and self._identify_staff_procurement_impossible(snapshot)
+        ):
+            return self._identify_staff_stockout_key(snapshot)
+
+        restock = self._town_restock_wait_key(snapshot)
+        if restock is not None:
+            return restock
 
         if self._fundraising_mode in {"mine", "scavenge"}:
             if not self._fundraising_departure_ready(snapshot):

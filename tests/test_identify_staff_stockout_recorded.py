@@ -1,5 +1,6 @@
 """Regression pin for the 2026-10-07 Identify-staff town stop."""
 
+import tests  # noqa: F401
 import gzip
 import json
 import unittest

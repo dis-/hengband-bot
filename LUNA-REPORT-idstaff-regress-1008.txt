@@ -1,0 +1,11 @@
+The live27 regression came from the fundraising preparation early return: it skipped Identify-staff supplier routing and declared departure unsatisfiable before trying Magic or Black Market. Supplier discovery now runs before that return, so the live27 recording expectation was updated to require routing to Magic first; its board showed neither supplier had been attempted.
+
+The ClassC regressions shared a priority error: stockout mining could take ownership before recovery finished, and an already installed mining plan could be rearmed as a new permission to depart. The stockout gate now runs after recovery and procurement is not considered impossible while the persisted mining plan is active.
+
+The store-reentry replay still fails at its first changed row. At index 18 the recorded reason claims a pending Home withdrawal even though the replay state has no pending item or batch; the emitted Escape is unchanged. On the next board, independently inspected at index 19, current policy routes to the Black Market with native travel while the recording walks there. Later Magic-shop pins therefore cannot be replayed from that old trajectory without feeding captured effects after a changed key. This needs a route-aware independent checkpoint update; the recorded reason and route were left untouched.
+
+The swap-churn replay now checks the current Black Market fallback at index 2850 after the captured Magic offer remains actionable; its recorded Magic-restock decision at index 2848 came from an older route state. The test was updated to assert the current supplier decision from an independently restored checkpoint rather than treating the old later path as current policy output.
+
+Runtime-file isolation failed because the stockout recording test imported runtime modules without first importing the `tests` package. Adding `import tests` restores the package path initialization required by the isolated runtime.
+
+The first hygiene run found two item-sink lint failures because moving the stockout gate changed a pinned adapter call path. The plan guard was moved into `_identify_staff_procurement_impossible`, preserving the pinned call site; `tests.test_item_sink_lint` then passed all 18 tests. The generated town-work manifest was refreshed and reports zero unmapped sites.
