@@ -449,6 +449,14 @@ class InStoreMixin:
         """
         store = snapshot.store
         key = self._shop(snapshot)
+        if key == LEAVE_STORE_KEY:
+            # The stateful selector may discover after the pure preflight that
+            # the purchase is no longer wanted. Preserve that leave as the end
+            # of this visit instead of handing it off with a stale buy reason.
+            self._in_store_note("fallback", {
+                "shop_key": key, "shop_reason": self.last_reason,
+            })
+            return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         if not key or not key.startswith((BUY_KEY, SELL_KEY, "{")):
             if first:
                 self._in_store_shop_fallback = {

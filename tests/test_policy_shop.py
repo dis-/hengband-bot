@@ -303,6 +303,36 @@ def _supply_test_case(name):
 FOOD_TYPE_MANA = 4
 
 class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
+    def test_in_store_selector_leave_ends_visit_with_nonterminal_reason(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 7
+        visit = StoreVisit(
+            "town-errand", "shopping", STORE_MAGIC, opened_sequence=6
+        )
+        policy._store_visit = visit
+        policy._in_store_entry_ledger = {
+            "store": STORE_MAGIC, "opened_sequence": 6, "ops": 0,
+            "pending": None, "ended": False,
+        }
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            store=StoreState(STORE_MAGIC, []),
+            town_flag=True,
+        )
+        policy._shop = Mock(return_value=LEAVE_STORE_KEY)
+        policy.last_reason = "shop:buy-device-food"
+
+        key = policy._in_store_emit(
+            snap, {"op": "buy", "letter": "m"}, first=True
+        )
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:in-store-done")
+        self.assertFalse(visit.operation_posted)
+        self.assertNotEqual(policy.last_reason, "shop:in-store-buy")
+
     def _consume_failed_digger_procurement_withdrawal(
         self, policy, outside, stored, offered
     ):
