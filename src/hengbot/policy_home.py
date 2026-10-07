@@ -49,6 +49,48 @@ class HomeMixin:
                 "town": self._effective_town_id(snapshot),
             }
 
+    def _revalidate_home_full_destroy_after_restore(self, snapshot: Snapshot) -> None:
+        """A checkpoint cannot prove its pending destroy was posted this run."""
+        relief = getattr(self, "_home_full_relief", None)
+        if relief is None or not relief.get("destroy_posted"):
+            return
+        sale = relief.get("sale")
+        if sale is not None:
+            signature = sale[0]
+            identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]),
+                        signature[1], signature[2])
+            count = sum(item.count for item in snapshot.inventory
+                        if self._sale_item_identity(item) == identity)
+            if count <= relief.get("destroy_before_count", count):
+                # The board itself settles a removal that happened before the
+                # restart. Otherwise the command must be selected again.
+                relief["withdrawn"] = True
+        relief.pop("destroy_posted", None)
+        relief.pop("destroy_before_count", None)
+
+    def _defer_home_full_deposit(self, snapshot: Snapshot) -> None:
+        """Carry an unserviceable Home deposit beyond this town visit."""
+        relief = self._home_full_relief
+        if relief is None:
+            return
+        self._home_full_retry_deposits = tuple(relief.get("deposits", ())) or None
+        self._home_full_relief = None
+        self._home_errand.finish()
+        self._town_blocked_reason = None
+
+        self._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        self._town_visit_ledger.blocked_store_limits[STORE_HOME] = 1
+        plan = getattr(self, "_town_errand_plan", None)
+        if (plan is not None and plan.index < len(plan.stops)
+                and plan.stops[plan.index] == STORE_HOME):
+            if STORE_HOME not in plan.blocked_this_visit:
+                plan.blocked_this_visit.append(STORE_HOME)
+            plan.current_stop_passes = 0
+            plan.index += 1
+            self._set_town_store_attempted(
+                STORE_HOME, snapshot.turn, "home-full-no-legal-relief")
+        self.last_reason = "home:full-deposit-deferred-no-legal-relief"
+
     def _home_full_sale_candidate(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
     ) -> tuple[InventoryItem, int, int] | None:
@@ -319,6 +361,10 @@ class HomeMixin:
             return None
         retry = getattr(self, "_home_full_retry_deposits", None)
         if retry is not None:
+            if STORE_HOME in self._town_visit_ledger.blocked_stores:
+                # A no-legal-relief result defers this batch until a later
+                # town visit. Keep it carried while the current plan continues.
+                return None
             if self._home_is_full(snapshot):
                 self._home_full_retry_deposits = None
                 self._begin_home_full_relief(snapshot, retry)
@@ -679,8 +725,8 @@ class HomeMixin:
                         return None
                     relief["mode"] = "identify"
                 else:
-                    self._town_blocked_reason = "home-full-no-sellable-surplus"
-                    return self._town_blocked_key(snapshot)
+                    self._defer_home_full_deposit(snapshot)
+                    return None
                 store_type = STORE_HOME
             else:
                 (item, store_type, _value), source = max(candidates, key=lambda entry: entry[0][2])
