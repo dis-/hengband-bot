@@ -2957,6 +2957,7 @@ class EquipmentMixin:
             lambda it: it.is_melee_weapon
             and self._blocks_teleport(it)
             and self._store_accepts_sale(STORE_WEAPON, it)
+            and item_available(self, snapshot, it, "shop-sell", "sell")
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
         if no_teleport is not None:
@@ -2994,6 +2995,7 @@ class EquipmentMixin:
             lambda it: self._weapon_is_inferior(it)
             and sale_quality_allows(it)
             and self._store_accepts_sale(STORE_WEAPON, it)
+            and item_available(self, snapshot, it, "shop-sell", "sell")
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 
