@@ -6273,23 +6273,12 @@ class TownMixin:
             "cure_critical_ready": "cure-critical",
             "remove_curse_ready": self._required_remove_curse_kind(snapshot),
         }
-        # No-actionable-supplier also describes an unaffordable shelf. That
-        # belongs to the existing funding remedy, never this stockout retry.
-        for name in failed:
-            category = kinds[name]
-            if any(observation for (store, observed_category), observation
-                   in self._town_visit_ledger.shelf_observations.items()
-                   if observed_category == category):
-                return None
-            supply_kind = "cure" if category == "cure-critical" else category
-            pages = dict(getattr(self, "_town_supplier_stock", {}))
-            if snapshot.store is not None:
-                pages[snapshot.store.store_type] = snapshot.store
-            if any((ware.tval in {TVAL_WAND, TVAL_STAFF} and ware.pval > 0
-                    if supply_kind == "food" and snapshot.player.food_type == FOOD_TYPE_MANA
-                    else self._store_item_is_supply(ware, supply_kind))
-                   for page in pages.values() for ware in page.items):
-                return None
+        # ``no-actionable-supplier`` covers both an exhausted shelf and stock
+        # that the player cannot currently afford. Shelf observations are
+        # historical: a previously seen ware may already have sold, and an
+        # unaffordable ware still needs the same bounded funding run. In either
+        # case, declining this owner leaves departure with no state-changing
+        # remedy, so use the one-run funding retry below.
         if getattr(self, "_supply_stockout_cycles", 0) >= 3:
             self._town_blocked_reason = "departure-unsatisfiable"
             return self._town_blocked_key(snapshot)

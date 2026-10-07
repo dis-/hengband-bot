@@ -80,6 +80,37 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
         self.assertFalse(all(policy._recall_town_departure_conjuncts(kit).values()))
         self.assertFalse(policy._dungeon_entry_allowed(kit, via_recall=True, destination_depth=50))
 
+    def test_oct7_recorded_block_retries_after_old_shelf_observation(self):
+        policy, board = self.scene()
+        board = replace(
+            board,
+            player=replace(board.player, gold=5_754),
+            inventory=tuple(
+                replace(item, count=5)
+                if item.tval == TVAL_POTION
+                and item.sval == SV_POTION_CURE_CRITICAL
+                else item
+                for item in board.inventory
+            ),
+        )
+        # The Oct 7 terminal followed a purchase of two potions (5 carried,
+        # 5,754 gold); an earlier observed Alchemist shelf had one CCW at 429.
+        self.assertEqual(
+            policy.procurement_requirements(board)[0],
+            {
+                'item': 'Cure Critical Wounds potions', 'current': 5,
+                'target': 10, 'missing': 5,
+                'blocked_reason': 'no-actionable-supplier',
+            },
+        )
+        policy._town_visit_ledger.shelf_observations[
+            (STORE_ALCHEMIST, 'cure-critical')
+        ] = ((429, 1),)
+        self.assertEqual(policy._town_special_key(board), '5')
+        self.assertEqual(policy.last_reason, 'fundraise:supply-stockout-mining')
+        self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs),
+                         ('prepare', 1))
+
     def test_three_completed_cycles_retry_stores_then_stop(self):
         policy, board = self.scene()
         for cycle in range(3):
@@ -126,14 +157,16 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
         self.assertFalse(policy._dungeon_entry_allowed(
             board, via_recall=True, destination_depth=23))
 
-    def test_unaffordable_stock_does_not_start_stockout_timepass(self):
+    def test_unaffordable_stock_starts_bounded_funding_timepass(self):
         policy, board = self.scene()
         ware = store_item('a', TVAL_POTION, SV_POTION_CURE_CRITICAL, price=100_000)
         policy._town_supplier_stock[STORE_TEMPLE] = StoreState(STORE_TEMPLE, [ware])
         self.assertEqual(policy.procurement_requirements(board)[0]['blocked_reason'],
                          'no-actionable-supplier')
-        self.assertIsNone(policy._supply_stockout_mining_key(board))
-        self.assertIsNone(policy._fundraising_mode)
+        self.assertEqual(policy._supply_stockout_mining_key(board), '5')
+        self.assertEqual(policy.last_reason, 'fundraise:supply-stockout-mining')
+        self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs),
+                         ('prepare', 1))
 
     def test_delta_gold_target_even_with_known_treasure_and_checkpoint(self):
         policy, board = self.scene()
