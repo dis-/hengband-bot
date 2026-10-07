@@ -348,6 +348,13 @@ class HomeMixin:
                 if snapshot.store.store_type == STORE_HOME:
                     return self._open_home_deposit_key(snapshot)
                 return self._home_full_leave_key("home:full-space-ready")
+            if STORE_HOME in self._town_visit_ledger.blocked_stores:
+                # This visit already recorded Home as unavailable (e.g. a
+                # refused deposit into a full Home). The retry cannot reach
+                # it either: drop it and keep the items for the next visit
+                # instead of holding the town plan on an unreachable Home.
+                self._home_full_retry_deposits = None
+                return None
             self._rearm_town_store_for_new_work(STORE_HOME)
             if not self._ensure_home_visit_request(snapshot):
                 return None
