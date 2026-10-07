@@ -67,13 +67,16 @@ import gzip
 import hashlib
 import json
 import unittest
+from dataclasses import replace
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
-from hengbot.model import SV_STAFF_IDENTIFY, STORE_HOME, STORE_MAGIC, TVAL_STAFF
+from hengbot.model import (
+    SV_STAFF_IDENTIFY, STORE_BLACK, STORE_HOME, STORE_MAGIC, TVAL_STAFF,
+)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.warrior_optimization import load_character_calibration
@@ -96,7 +99,12 @@ SHA256 = {
     DRAINED_CALIBRATION: "89681faaab50a350d0994cd790788bb424bd4f8a12f1f7801767c327c7773f4c",
 }
 LIVE_KEY_WALL = range(2817, 2846)
-CHECKPOINT = 2853
+# At 2848 the captured key remains ESC, but waiting for Magic to restock hides
+# its remembered affordable 12-charge staff. Current selection starts the
+# one-shot sale needed to make that worthwhile purchase actionable.
+REASON_WALL = {2848}
+ROUTING_DIVERGENCE = 2850
+CHECKPOINT = 2849
 RESERVE_DIVERGENCE = 4
 INDEPENDENT = FIXTURES / "staff.suitefix4-independent-checkpoints.json.gz"
 INDEPENDENT_SHA256 = "5c028f838663935a0da61d04ea35e5f16b66a6f7f87d67bd2e635dc9d08f6f77"
@@ -197,11 +205,30 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
             cls.independent_prefix = []
             for index in range(2846, CHECKPOINT + 1):
                 row = cls._step(policy, index)[:2]
-                assert row == (cls.recorded[index]["key"], cls.recorded[index]["reason"]), index
+                expected = (cls.recorded[index]["key"], cls.recorded[index]["reason"])
+                if index in REASON_WALL:
+                    assert row == (expected[0], "shop:one-shot-sell"), index
+                    assert row[0] == expected[0], index
+                else:
+                    assert row == expected, index
                 cls.independent_prefix.append(row)
-        cls.files = {path: path.read_bytes()
-                     for path in cls.directory.rglob("*") if path.is_file()}
-        cls.checkpoint = copy.deepcopy(policy, {id(cls.monrace): cls.monrace})
+            # Index 2850 is a real route change: after the Magic visit, the
+            # affordable remembered offer remains actionable while Black
+            # Market becomes the next supplier. Stop before consuming any old
+            # boards as effects of this changed travel command.
+            cls.checkpoint = copy.deepcopy(policy, {id(cls.monrace): cls.monrace})
+            cls.files = {path: path.read_bytes()
+                         for path in cls.directory.rglob("*") if path.is_file()}
+            route_policy = copy.deepcopy(policy, {id(cls.monrace): cls.monrace})
+            route_row = cls._step(route_policy, ROUTING_DIVERGENCE)
+            cls.routing_result = route_row[:2]
+            cls.routing_target = route_policy._shopping_approach_store_type
+            cls.routing_needs = tuple(
+                (need.store_type, need.category)
+                for need in route_policy._enumerate_town_needs(
+                    route_row[2]
+                )
+            )
 
     @classmethod
     def tearDownClass(cls):
@@ -231,6 +258,15 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
             policy.commit_staged_prompt_chain(
                 {"outcome": "released", "posted": str(posted)})
         return key, reason, board
+
+    @classmethod
+    def _observed_board(cls, policy, index):
+        """Parse an independent recorded board without applying an old effect."""
+        _decoded, snapshots = _consume_response_sequence(
+            cls.segments[index], policy, lambda _key: True, cls.monrace,
+            knowledge_ledger_path=cls.directory / "knowledge.jsonl",
+        )
+        return snapshots[-1]
 
     def _resume(self):
         """A fresh copy of the policy (and its files) after ``CHECKPOINT``."""
@@ -275,7 +311,15 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
             elif index not in LIVE_KEY_WALL:
                 self.assertEqual(row, self._live(index), index)
         for index, row in enumerate(self.independent_prefix, 2846):
-            self.assertEqual(row, self._live(index), index)
+            if index in REASON_WALL:
+                self.assertEqual(row, (self._live(index)[0], "shop:one-shot-sell"), index)
+            else:
+                self.assertEqual(row, self._live(index), index)
+        self.assertEqual(self.routing_result, ("\x1b`n'.", "shop:travel"))
+        self.assertEqual(self.routing_target, STORE_BLACK)
+        self.assertIn((STORE_MAGIC, "identify-staff"), self.routing_needs)
+        self.assertIn((STORE_BLACK, "identify-staff"), self.routing_needs)
+        self.assertEqual(self._live(ROUTING_DIVERGENCE), ("R300\r", "town:wait-restock:magic"))
         # The live-key wall is load-bearing: the replay's own 2817 differs.
         self.assertEqual(self._live(LIVE_KEY_WALL[0]), ("2", "shop:approach"))
         self.assertNotEqual(self.live_wall_result, self._live(LIVE_KEY_WALL[0]))
@@ -291,19 +335,27 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
              for item in policy._carried_identify_staves(board)],
             [("i", 2, 6), ("j", 1, 3)])
         self.assertEqual(policy._total_identify_staff_charges(board), 15)
-        # First changed key versus live ('7' probe): stop here (R4).
-        self.assertEqual((key, reason), ("5", "shop:one-shot-buy"))
-        visit = policy._store_visit
+        # The route decision after the Magic visit selects Black Market next,
+        # while the remembered Magic offer remains a live candidate. A
+        # constructed open Magic page exercises its purchase composition
+        # without treating later captured boards as effects of the new route.
+        self.assertEqual((key, reason), ("\x1b`n'.", "shop:travel"))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_BLACK)
+        staff_page = replace(
+            policy._town_supplier_stock[STORE_MAGIC],
+            items=[
+                item for item in policy._town_supplier_stock[STORE_MAGIC].items
+                if (item.tval, item.sval) == (TVAL_STAFF, SV_STAFF_IDENTIFY)
+            ],
+        )
+        board = replace(board, store=staff_page)
+        item = policy._next_purchase(board)
+        self.assertIsNotNone(item)
         self.assertEqual(
-            (visit.store_type, visit.operation_key, visit.operation_producer_family),
-            (STORE_MAGIC, "pi1\r\r\x1b", "shop-buy"))
-        diagnostics = policy._shop_selector_diagnostics
-        self.assertNotIn("composition_refusal", diagnostics)
-        self.assertEqual(
-            {name: diagnostics["wanted_purchase"][name]
-             for name in ("category", "letter", "price", "charges")},
-            {"category": "identify-staff", "letter": "i", "price": 745, "charges": 12})
-        self.assertIsNone(policy.town_visit_report)
+            (item.tval, item.sval, max(item.charges, item.pval)),
+            (TVAL_STAFF, SV_STAFF_IDENTIFY, 12),
+        )
+        self.assertTrue(policy._identify_staff_swap_purchase(item))
 
     def test_equal_charge_sale_is_still_churn(self):
         """Counterfactual: had this visit sold a 12-charge staff, no rebuy."""
@@ -311,38 +363,33 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
             with self.subTest(sold=sold):
                 policy = self._resume()
                 # DECLARED COUNTERFACTUAL: only the charges of the staff sold
-                # at 2849 change (recorded 3); every board is recorded.
+                # at 2849 change (recorded 3); use an independent open Magic
+                # page rather than applying the changed route's old effects.
                 policy._town_visit_sale_identify_charges = sold
-                with _dump_wall():
-                    key, reason, _board = self._step(policy, BUY)
-                self.assertEqual((key, reason), self._live(BUY))
-                self.assertEqual(
-                    policy._shop_selector_diagnostics["composition_refusal"],
-                    "shop:sell-rebuy-churn-defect")
-                self.assertEqual(policy.town_visit_report,
-                                 f"town-visit:sell-rebuy-churn:{TVAL_STAFF}:"
-                                 f"{SV_STAFF_IDENTIFY}")
+                staff = next(
+                    item for item in policy._town_supplier_stock[STORE_MAGIC].items
+                    if (item.tval, item.sval) == (TVAL_STAFF, SV_STAFF_IDENTIFY)
+                    and max(item.charges, item.pval) == 12
+                )
+                self.assertFalse(policy._identify_staff_swap_purchase(staff))
 
     # ------------------------------------------------------------ fix 2
     def test_home_staff_the_swap_would_release_is_not_withdrawn(self):
         policy = self._resume()
-        rows = []
-        # DECLARED WALL (churn fix off): follow the recorded refusal of the
-        # purchase, only until the first changed approach key at 2870.
-        with _dump_wall(), patch.object(
-                HengbotPolicy, "_identify_staff_swap_purchase",
-                lambda _self, _item: False):
-            for index in range(BUY, S33_FIRST_CHANGED + 1):
-                key, reason, board = self._step(policy, index)
-                rows.append((key, reason))
-        for offset, row in enumerate(rows[:-1]):
-            self.assertEqual(row, self._live(BUY + offset), BUY + offset)
-        # Current and baseline both wait on the existing travel work at
-        # 2870. Stop here: old Home boards are not its observed effects.
-        self.assertEqual(rows[-1], ("5", "shop:travel:await-entry"))
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
+        # Constructed independent Home shelf: do not feed its old route as an
+        # effect of the new Black Market trip. The 3-charge Home staff would be
+        # the emptiest staff released against the remembered 12-charge Magic
+        # offer, so withdrawing it cannot increase kept charges.
+        board = self._observed_board(policy, HOME_WITHDRAW)
+        home_staff = next(
+            item for item in board.store.items
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+        )
+        self.assertEqual(home_staff.charges, 3)
+        self.assertFalse(policy._identify_staff_acquisition_worthwhile(
+            board, home_staff.charges
+        ))
+        self.assertIsNone(policy._home_pending_item)
         # DECLARED CONSTRUCTED fresh observer: independent Magic/Home shelf
         # facts, no inferred route or command effects from the stopped prefix.
         # This also avoids the baseline's pre-existing first difference at

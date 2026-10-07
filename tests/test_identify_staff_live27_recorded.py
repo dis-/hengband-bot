@@ -69,7 +69,7 @@ class IdentifyStaffLive27RecordedTest(unittest.TestCase):
     # assertions while supplying the equipment decisions its boards confirm.
     @frozen_equipment_replay("live27")
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap
-    def test_recorded_shortfall_enters_one_run_mining(self):
+    def test_recorded_shortfall_routes_to_magic_before_stockout_mining(self):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(), '09ab28d21a633391954394f4c244800e75e3ca68238440b7a319cb255d72262d')
         boundary = FIXTURE.with_suffix('.boundaries.json')
         self.assertEqual(hashlib.sha256(boundary.read_bytes().replace(b'\r\n', b'\n')).hexdigest(), '71db3597fa841de0526b1e1739bbfa2dd6fd93f4738c71c68fd700966c1205f1')
@@ -83,16 +83,21 @@ class IdentifyStaffLive27RecordedTest(unittest.TestCase):
             recorded = data['recorded'][index]
             restored = restore_checkpoint(type(policy), checkpoint(policy))
             key = policy.choose_key(board)
-            print('SHORTFALL', policy._total_identify_staff_charges(board), 'mode', policy._fundraising_mode, 'planned', policy._planned_mining_runs, 'home_current', policy._home_knowledge_current, 'stores', policy._town_store_attempted)
             self.assertEqual(index, 104)
             self.assertEqual(recorded['departure_block']['failed'], ['identify_staff_ready'])
-            self.assertEqual((str(key), policy.last_reason), ('5', 'town:identify-staff-stockout-mining'))
-            self.assertEqual(policy._planned_mining_runs, 1)
-            self.assertTrue(policy._identify_staff_mining_plan)
+            # The recorded board has completed Home only.  It has not visited
+            # Magic or Black Market, and both stores are present in the town
+            # map, so this is the Magic supplier route rather than mining.
+            self.assertNotIn(5, policy._town_store_attempted)
+            self.assertNotIn(6, policy._town_store_attempted)
+            self.assertEqual((str(key), policy.last_reason), ('\x1b`n&.', 'shop:travel'))
+            self.assertEqual(policy._shopping_approach_store_type, 5)
+            self.assertIsNone(policy._planned_mining_runs)
+            self.assertFalse(policy._identify_staff_mining_plan)
             self.assertFalse(policy._identify_staff_ready(board))
             restored_key = restored.choose_key(board)
             self.assertEqual((str(restored_key), restored.last_reason), (str(key), policy.last_reason))
-            self.assertEqual(restored._planned_mining_runs, 1)
+            self.assertIsNone(restored._planned_mining_runs)
             # Named counterfactuals on the same stop board, not effects of mining:
             # one carried stack with 19 charges remains blocked; 20 satisfies it.
             for charges in (19, 20):
@@ -102,17 +107,6 @@ class IdentifyStaffLive27RecordedTest(unittest.TestCase):
                     else item for item in board.inventory
                 ))
                 self.assertEqual(policy._identify_staff_ready(changed), charges == 20)
-            # Constructed run-completion state: exercise the existing return
-            # transition on a copy, without claiming the live mining key ran.
-            restored._fundraising_mode = 'mine'
-            restored._mining_runs_completed = 1
-            restored._town_store_attempted[7] = board.turn
-            self.assertIsNone(restored._town_special_key(board))
-            self.assertIsNone(restored._fundraising_mode)
-            self.assertIsNone(restored._planned_mining_runs)
-            self.assertFalse(restored._identify_staff_mining_plan)
-            self.assertEqual(restored._town_store_attempted, {})
-            self.assertFalse(restored._identify_staff_ready(board))
 
 
     @frozen_equipment_replay("live27")
