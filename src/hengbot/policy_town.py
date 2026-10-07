@@ -3068,9 +3068,42 @@ class TownMixin:
                 return needs
             add(STORE_GENERAL, "light")
         if not self._identify_staff_ready(snapshot):
-            if STORE_MAGIC in self._town_store_attempted:
-                return needs
-            add(STORE_MAGIC, "identify-staff")
+            pages = {
+                page.store_type: page
+                for page in self._identify_staff_offer_pages(snapshot)
+            }
+            suppliers = (STORE_MAGIC, STORE_BLACK)
+            # An attempted store may still have an affordable staff that the
+            # prior selector did not buy (for example, a useful staff shared
+            # a page with another supply). Keep that observed offer actionable
+            # so the shop owner can re-enter and complete the purchase.
+            for supplier in suppliers:
+                page = pages.get(supplier)
+                if page is not None and any(
+                    item.tval == TVAL_STAFF
+                    and item.sval == SV_STAFF_IDENTIFY
+                    and item.price <= snapshot.player.gold
+                    and self._identify_staff_acquisition_worthwhile(
+                        snapshot, max(item.charges, item.pval)
+                    )
+                    for item in page.items
+                ):
+                    add(supplier, "identify-staff")
+            # Home is already resolved upstream. Try Magic first, then keep
+            # Black Market as the next live owner after Magic has been checked,
+            # even when Magic's remembered page still has a worthwhile offer.
+            # That offer remains actionable too; the second supplier must not
+            # disappear from the town plan while another Magic errand owns the
+            # next visit.
+            if STORE_MAGIC not in self._town_store_attempted and STORE_MAGIC not in pages:
+                add(STORE_MAGIC, "identify-staff")
+            elif (
+                (STORE_MAGIC in self._town_store_attempted
+                 or (STORE_MAGIC in pages and snapshot.store is None))
+                and STORE_BLACK not in self._town_store_attempted
+                and STORE_BLACK not in pages
+            ):
+                add(STORE_BLACK, "identify-staff")
         # Ammo is an optional supply: restock when low, but never block the
         # visit on it. The Weapon Smith is tried first; the General Store when
         # the Weapon Smith was attempted or shows no affordable plain ammo.
@@ -3158,7 +3191,11 @@ class TownMixin:
     def _town_need_registry(self) -> tuple[NeedSpec, ...]:
         """Build the single ordered producer/satisfaction registry once."""
         cached = getattr(self, "_town_need_specs", None)
-        if cached is not None:
+        if cached is not None and any(
+            spec.category == "identify-staff"
+            and getattr(getattr(spec.produces, "__self__", None), "occurrence", 0) >= 1
+            for spec in cached
+        ):
             return cached
         entries = (
             ("idle-consumable-scan", "home-first", 1, False),  # Idle Home scans are opportunistic.
@@ -3213,6 +3250,7 @@ class TownMixin:
             ("quest-healing", "normal", 2, True),  # Required healing potions gate the quest departure.
             ("light", "normal", 1, True),  # Expedition light gates departure.
             ("identify-staff", "normal", 1, True),  # Identification capacity gates departure.
+            ("identify-staff", "normal", 2, True),  # The ordered fallback supplier has its own live owner.
             ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
@@ -4170,7 +4208,7 @@ class TownMixin:
         if category.startswith("identification-source:"):
             return (STORE_ALCHEMIST,)
         if category == "identify-staff":
-            return (STORE_MAGIC,)
+            return (STORE_MAGIC, STORE_BLACK)
         if category == "light":
             return (STORE_GENERAL,)
         if category == "remove-curse":
@@ -6103,6 +6141,7 @@ class TownMixin:
                     self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
                     and not self._identify_staff_ready(snapshot)
                     and not self._identify_staff_mining_plan
+                    and self._identify_staff_procurement_impossible(snapshot)
                 ):
                     # The observed Home/shop routes and the counterfactual
                     # supplier have no executable procurement left. A generic

@@ -314,6 +314,11 @@
     "home-withdraw",
     "browse"
   ],
+  "need:identify-staff:normal:1": [
+    "supply-buy",
+    "home-withdraw",
+    "browse"
+  ],
   "need:ammo-home-first:home-first:0": [
     "home-withdraw"
   ],

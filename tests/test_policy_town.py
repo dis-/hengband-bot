@@ -9089,6 +9089,18 @@ class TownRecallReturnTest(unittest.TestCase):
             ],
         )
         pol._town_store_attempted[STORE_MAGIC] = snap.turn
+        pol._town_store_attempted[STORE_BLACK] = snap.turn
+        pol._town_supplier_stock[STORE_MAGIC] = StoreState(
+            STORE_MAGIC, [], stock_num=0, page_size=24,
+        )
+        pol._town_supplier_stock[STORE_BLACK] = StoreState(
+            STORE_BLACK, [], stock_num=0, page_size=24,
+        )
+        town_id = pol._effective_town_id(snap)
+        pol._town_supplier_stock_observations.update({
+            STORE_MAGIC: (town_id, snap.turn),
+            STORE_BLACK: (town_id, snap.turn),
+        })
         pol._town_visit_ledger.blocked_stores.add(STORE_HOME)
         pol._equipment_catalog.home_scan_complete = False
         pol._home_candidate_waiting = False
@@ -9744,6 +9756,7 @@ class TownRecallReturnTest(unittest.TestCase):
         ]
         pol._observe_departure_prices(snap)
         pol._observed_departure_prices["identify-staff"] = (904, 16)
+        pol._town_visit_ledger.shelf_observations[(STORE_BLACK, "identify-staff")] = ()
         shortage = [("identify-staff", 20)]
 
         self.assertEqual(
@@ -9768,6 +9781,7 @@ class TownRecallReturnTest(unittest.TestCase):
             TownNeed(STORE_MAGIC, "identify-staff", "normal")
         ]
         pol._observe_departure_prices(snap)
+        pol._town_visit_ledger.shelf_observations[(STORE_BLACK, "identify-staff")] = ()
         pol._observed_departure_prices["identify-staff"] = (904, 16)
         shortage = [("identify-staff", 20)]
 
@@ -9802,6 +9816,9 @@ class TownRecallReturnTest(unittest.TestCase):
             TownNeed(STORE_MAGIC, "identify-staff", "normal")
         ]
         pol._observe_departure_prices(snap)
+        pol._town_visit_ledger.shelf_observations[(STORE_BLACK, "identify-staff")] = (
+            (904, 16),
+        )
 
         self.assertEqual(
             pol._cross_town_unobtainable_categories(

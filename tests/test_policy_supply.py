@@ -2864,6 +2864,15 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertEqual(
             pol.choose_key(replace(magic, turn=magic.turn + 2)), LEAVE_STORE_KEY
         )
+        # Magic is the first supplier. The stock-out flow must wait for the
+        # ordered Black Market supplier to be exhausted too.
+        pol._town_store_attempted[STORE_BLACK] = magic.turn + 2
+        pol._town_supplier_stock[STORE_BLACK] = StoreState(
+            STORE_BLACK, [], stock_num=0, page_size=24,
+        )
+        pol._town_supplier_stock_observations[STORE_BLACK] = (
+            pol._effective_town_id(outside), magic.turn + 2,
+        )
         empty_operation = pol.choose_key(
             replace(magic, store=None, turn=magic.turn + 3)
         )
@@ -2903,6 +2912,14 @@ class IdentifyStaffTest(unittest.TestCase):
             pol.choose_key(replace(magic, turn=magic.turn + 2)), LEAVE_STORE_KEY
         )
         pol._town_supplier_stock.pop(STORE_MAGIC)
+        pol._town_store_attempted[STORE_BLACK] = magic.turn + 2
+        pol._town_store_attempted[STORE_MAGIC] = magic.turn + 2
+        pol._town_supplier_stock[STORE_BLACK] = StoreState(
+            STORE_BLACK, [], stock_num=0, page_size=24,
+        )
+        pol._town_supplier_stock_observations[STORE_BLACK] = (
+            pol._effective_town_id(outside), magic.turn + 2,
+        )
         key = pol.choose_key(replace(magic, store=None, turn=magic.turn + 3))
 
         self.assertEqual(
@@ -3143,6 +3160,36 @@ class IdentifyStaffTest(unittest.TestCase):
         )
 
         key = _public_shop_inner(self, pol, magic)
+
+        self.assertEqual(key, "pz\r")
+        self.assertEqual(pol.last_reason, "shop:one-shot-buy")
+        self.assertIsNone(pol._planned_mining_runs)
+
+    def test_black_market_identify_staff_offer_is_bought_after_magic_stockout(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        pol.consume_home_knowledge(())
+        pol._town_store_attempted[STORE_MAGIC] = outside.turn
+        pol._town_supplier_stock[STORE_MAGIC] = StoreState(
+            STORE_MAGIC, [], stock_num=0, page_size=24,
+        )
+        pol._town_supplier_stock_observations[STORE_MAGIC] = (
+            pol._effective_town_id(outside), outside.turn,
+        )
+        black = replace(
+            outside,
+            player=replace(outside.player, gold=1000),
+            store=StoreState(
+                STORE_BLACK,
+                [store_item(
+                    "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500,
+                    charges=18, name="Staff of Identify (18 charges)",
+                )],
+            ),
+        )
+
+        key = _public_shop_inner(self, pol, black)
 
         self.assertEqual(key, "pz\r")
         self.assertEqual(pol.last_reason, "shop:one-shot-buy")
