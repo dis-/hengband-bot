@@ -13936,7 +13936,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return False
         action = session.pending_action
-        self._mark_equipment_failure_this_visit()
         self._equipment_transaction_last_failure = {
             "reason": "confirmation-stall-bound",
             "applied": False,
