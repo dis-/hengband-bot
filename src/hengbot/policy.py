@@ -9659,6 +9659,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._last_snapshot_store_type = (
             snapshot.store.store_type if snapshot.store is not None else None
         )
+        self._revalidate_home_full_destroy_after_restore(snapshot)
         self._observe(snapshot)
         self._build_grid_index(snapshot)
         self._exploration_ledger.marked_high = max(

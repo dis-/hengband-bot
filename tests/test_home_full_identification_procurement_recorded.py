@@ -13,24 +13,71 @@ from dataclasses import replace
 
 import tests  # noqa: F401
 from hengbot.model import (
-    InventoryItem, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF, parse_snapshot,
+    InventoryItem, STORE_HOME, STORE_MAGIC, STORE_WEAPON,
+    SV_STAFF_IDENTIFY, TVAL_STAFF, parse_snapshot,
 )
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import PACK_CAPACITY
+from hengbot.policy_types import TownErrandPlan
 from test_home_discard_incidents_recorded import PINS
 
 BOARD = Path(__file__).parent / "fixtures/home-full-identification-procurement-20261008.json.gz"
 
 
 class HomeFullIdentificationProcurementRecordedTest(unittest.TestCase):
-    def test_unidentified_only_relief_yields_to_identify_source_procurement(self):
+    def recorded_board(self):
         raw = json.loads(gzip.decompress(BOARD.read_bytes()))
-        # The captured board has visible monster IDs but this town ownership
-        # seam does not use monster decisions; discard only those unrelated
-        # fields so the test remains independent of the external game data.
         raw.pop("visible_monsters", None)
         raw.pop("detected_monsters", None)
-        board = parse_snapshot(raw, monrace_knowledge={})
+        return parse_snapshot(raw, monrace_knowledge={})
+
+    def test_restored_destroy_wait_is_revalidated_against_the_board(self):
+        board = self.recorded_board()
+        policy = HengbotPolicy(monrace_knowledge={})
+        target = board.inventory[0]
+        policy._home_full_relief = {
+            "deposits": ((policy._item_signature(target), target.count, target.count),),
+            "remaining": 1, "sale": (policy._item_signature(target), STORE_HOME, 0),
+            "withdrawn": True, "mode": "destroy", "destroy_posted": True,
+            "destroy_before_count": 0, "town": policy._effective_town_id(board),
+        }
+
+        policy.prime(board)
+
+        self.assertNotIn("destroy_posted", policy._home_full_relief)
+        self.assertNotIn("destroy_before_count", policy._home_full_relief)
+        self.assertTrue(policy._home_full_relief["withdrawn"])
+
+    def test_no_legal_relief_defers_home_and_advances_the_recorded_plan(self):
+        board = self.recorded_board()
+        policy = HengbotPolicy(monrace_knowledge={})
+        policy.prime(board)
+        policy.consume_home_knowledge(())
+        deposits = ((policy._item_signature(board.inventory[0]),
+                     board.inventory[0].count, board.inventory[0].count),)
+        policy._begin_home_full_relief(board, deposits, refused=True)
+        policy._home_full_relief["skipped"] = {
+            policy._item_signature(item): "recorded-protected"
+            for item in board.inventory
+        }
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_MAGIC, STORE_WEAPON], index=0,
+        )
+
+        key = policy._home_full_relief_key(board)
+
+        self.assertIsNone(key)
+        self.assertEqual(policy.last_reason,
+                         "home:full-deposit-deferred-no-legal-relief")
+        self.assertIsNone(policy._home_full_relief)
+        self.assertEqual(policy._home_full_retry_deposits, deposits)
+        self.assertEqual(policy._town_errand_plan.index, 1)
+        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
+        self.assertIsNone(policy._home_full_relief_key(board))
+        self.assertEqual(policy._home_full_retry_deposits, deposits)
+
+    def test_unidentified_only_relief_yields_to_identify_source_procurement(self):
+        board = self.recorded_board()
         self.assertTrue(board.in_town)
         self.assertEqual(board.turn, 15372162)
         self.assertEqual(sum(item.charges for item in board.inventory
