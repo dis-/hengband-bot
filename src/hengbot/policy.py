@@ -2843,7 +2843,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "store_type",
                     "gold",
                 )
-            holder_for_key = self._town_held_decision(key)
+            holder_for_key = self._town_held_decision(key, snapshot)
             if holder_for_key is not None:
                 self._town_refuse_rewrite("no-progress", holder_for_key)
             else:
@@ -2852,7 +2852,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (self.last_reason or "").startswith("ownership:gate-missing:"):
                 key = None
                 break
-            holder_for_key = self._town_held_decision(key)
+            holder_for_key = self._town_held_decision(key, snapshot)
             if holder_for_key is not None:
                 self._town_refuse_rewrite("procurement", holder_for_key)
             else:
@@ -2944,7 +2944,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._town_order_step4_pending(snapshot)
                 and (self.last_reason or "").startswith("bounty:")
             )
-            held_claim_decision = self._town_held_decision(key) is not None
+            held_claim_decision = self._town_held_decision(key, snapshot) is not None
             visit = self._store_visit
             posted_shop_observation_wait = bool(
                 getattr(self, "_town_claim_bar_enforced", False)
@@ -3048,7 +3048,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                       retirement_key=current_retirement_key)):
                 arbiter.retire(current_owner, current_retirement_key)
                 self._town_refuse_rewrite(
-                    "arbiter-retirement", self._town_held_decision(key))
+                    "arbiter-retirement", self._town_held_decision(key, snapshot))
             if snapshot.store is not None and key in DIRECTION_KEYS.values():
                 # This is the final policy emission seam.  No producer or
                 # downstream town owner may post a bare direction into Hengband's
@@ -3174,7 +3174,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     self._post_fundraising_transport(snapshot, "depart")
             if (getattr(self, "_town_claim_bar_enforced", False)
-                    and self._town_unbound_entry_wait(key)):
+                    and self._town_unbound_entry_wait(key, snapshot)):
                 # The holder check above gave procurement a chance to replace the
                 # empty wait.  If no route exists, stop visibly rather than emit
                 # an undeclared observation from an unposted visit.
@@ -5868,23 +5868,34 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 row["producer_key"] = key
         return key
 
-    def _town_held_decision(self, key):
+    def _town_held_decision(self, key, snapshot=None):
         """The selected key belongs to the live town holder's own family."""
         if (not getattr(self, "_town_claim_bar_enforced", False)
                 or key is None):
             return None
-        if self._town_unbound_entry_wait(key):
+        if self._town_unbound_entry_wait(key, snapshot):
             # An entry sequence can be armed without a store operation.  Let
             # the downstream progress invariant route that unbound wait.
             return None
         holder = self._claim_errand_hold("__none__")
+        visit = getattr(self, "_store_visit", None)
+        if (holder is not None and snapshot is not None and key == ""
+                and self.last_reason == "store:entry-await-observation"
+                and visit is not None and visit.goal is not None
+                and visit.store_type == STORE_ALCHEMIST
+                and self._store_entry_wait_key == WAIT_KEY
+                and snapshot.player.position.distance_to(visit.goal) == 1
+                and self._town_offered_route_entry_wait(key)):
+            # A just-posted Magic-store entry wait must advance to its adjacent
+            # entrance when the next board confirms that no page opened.
+            return None
         if (holder is not None
                 and self._claim_family_of(self.last_reason or "")
                 == holder.owner.value):
             return holder
         return None
 
-    def _town_unbound_entry_wait(self, key) -> bool:
+    def _town_unbound_entry_wait(self, key, snapshot=None) -> bool:
         visit = getattr(self, "_store_visit", None)
         return bool(
             key == ""
@@ -5897,10 +5908,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._town_offered_route_entry_wait(key)
         )
 
-    def _town_offered_route_entry_wait(self, key) -> bool:
+    def _town_offered_route_entry_wait(self, key, snapshot=None) -> bool:
         """The arrived route's Observe is bound to its actual entry receipt."""
         visit = getattr(self, "_store_visit", None)
         buffer = _decision_offers.get(self)
+        position = snapshot.player.position if snapshot is not None else None
         return bool(key == "" and visit is not None
                     and not visit.operation_posted
                     and visit.posted_sequence is not None
@@ -5908,9 +5920,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and self._store_entry_posted_owner == visit.store_type
                     and self._store_entry_wait_owner == visit.store_type
                     and self._store_entry_wait_key and buffer is not None
+                    and (snapshot is None
+                         or self._town_at_store_entrance(snapshot, visit))
                     and any(wait[0] == key and wait[1] == "store-router"
                             and wait[3] == f"decision:{visit.posted_sequence}:{self._store_entry_wait_key}"
                             and wait[4] == "store-page-open" for wait in buffer.waits))
+
+    @staticmethod
+    def _town_at_store_entrance(snapshot, visit) -> bool:
+        position = snapshot.player.position
+        if (visit.goal is not None
+                and (position.y, position.x) == (visit.goal.y, visit.goal.x)):
+            return True
+        standing = snapshot.grid_at(position)
+        return bool(standing is not None
+                    and standing.store_number == visit.store_type)
 
     def _town_posted_route_entry_wait(self, route) -> bool:
         """An entry post can still belong to its Reach route, before a sale/buy."""
@@ -7000,13 +7024,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # into its declared exit; recording consumes the new offer.
                     return None
                 return f"ownership:declaration-stale:{family}"
+        visit = getattr(self, "_store_visit", None)
         if reason == "store:entry-await-observation" and key == "":
+            at_entrance = bool(
+                visit is not None
+                    and (snapshot is None
+                         or self._town_at_store_entrance(snapshot, visit))
+            )
             if snapshot.store is None and self._town_posted_route_entry_wait(route):
                 return None
             # Arrival can complete the Reach before the exit binds its new
             # Observe. Accept only the producer's wait for this exact posted
             # entrance receipt; the exit then records that same declaration.
-            if snapshot.store is None and self._town_offered_route_entry_wait(key):
+            if (snapshot.store is None and at_entrance
+                    and self._town_offered_route_entry_wait(key, snapshot)):
                 return None
             # Check the entry declaration first.  An entry can be armed before
             # its store operation exists; the final emit seam rejects an
