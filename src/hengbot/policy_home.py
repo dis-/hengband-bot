@@ -360,8 +360,11 @@ class HomeMixin:
                 return None
             step = self._shopping_approach_step(snapshot, STORE_HOME, requester="home-visit")
             if step is None:
-                self._town_blocked_reason = "home-full-deposit-retry-unreachable"
-                return self._town_blocked_key(snapshot)
+                # The retry is the relief's optional last step. An unreachable
+                # Home (whatever the cause) must not hold the town plan:
+                # keep the items for the next visit (2026-10-07 13:02).
+                self._home_full_retry_deposits = None
+                return None
             return self._shopping_approach_key(snapshot, step, "shop:travel")
         if self._home_full_relief is None and self._home_is_full(snapshot):
             first = self._find_home_deposit(snapshot)
