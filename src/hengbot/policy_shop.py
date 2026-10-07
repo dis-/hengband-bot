@@ -5501,15 +5501,35 @@ class ShopMixin(InStoreMixin):
         # pack/gold change must re-observe the shelf before using its letters.
         terminal_refusal = (
             inner == LEAVE_STORE_KEY
-            and composition_refusal not in {
-                "shop:leave",  # the normal tail already settled its stop
-                "shop:home-first-before-purchase",
-                "shop:home-first-yields-to-current-visit",
+            and composition_refusal in {
+                "shop:sell-rebuy-churn-defect",
+                "town:blocked:home-withdraw-failed-stock-present",
+                "town:blocked:procurement-home-unavailable",
+                "town:blocked:procurement-home-unroutable",
             }
         )
-        if self._resolve_observed_uncomposable_stop(
-            snapshot, observed_no_operation=terminal_refusal,
-        ):
+        observed_no_operation = (
+            inner == LEAVE_STORE_KEY
+            and (not composition_refusal or terminal_refusal)
+        )
+        plan = self._town_errand_plan
+        current_stop = bool(
+            plan is not None
+            and plan.index < len(plan.stops)
+            and plan.stops[plan.index] == store_type
+        )
+        if terminal_refusal:
+            stop_resolved = self._resolve_observed_uncomposable_stop(
+                snapshot, observed_no_operation=True,
+                settle_moved_cursor=True,
+            )
+        elif observed_no_operation and current_stop:
+            stop_resolved = self._resolve_observed_uncomposable_stop(
+                snapshot, observed_no_operation=True
+            )
+        else:
+            stop_resolved = self._resolve_observed_uncomposable_stop(snapshot)
+        if stop_resolved:
             # No operation was bound. Resume the next owner on this outside
             # board; WAIT on a store entrance would start another empty visit.
             key = None if terminal_refusal else WAIT_KEY

@@ -1137,7 +1137,8 @@ class ObservationMixin:
         )
 
     def _resolve_observed_uncomposable_stop(
-        self, snapshot: Snapshot, *, observed_no_operation: bool = False
+        self, snapshot: Snapshot, *, observed_no_operation: bool = False,
+        settle_moved_cursor: bool = False,
     ) -> bool:
         """Settle an observed stop whose one-shot command cannot be composed.
 
@@ -1159,7 +1160,7 @@ class ObservationMixin:
             store_type is None
             or snapshot.store is not None
             or (not current_stop
-                and (store_type == STORE_HOME or not observed_no_operation))
+                and (store_type == STORE_HOME or not settle_moved_cursor))
         ):
             return False
         here = snapshot.grid_at(snapshot.player.position)
@@ -1232,7 +1233,7 @@ class ObservationMixin:
             ] = self._town_observable_effect_state(snapshot)
             self._shop_observation = None
             visit = self._store_visit
-            if (observed_no_operation and visit is not None
+            if (settle_moved_cursor and observed_no_operation and visit is not None
                     and visit.store_type == store_type
                     and not visit.operation_posted):
                 self._close_store_visit("observed-operation-uncomposable")

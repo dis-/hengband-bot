@@ -6652,8 +6652,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1269,
-    "end_line": 1292,
+    "line": 1270,
+    "end_line": 1293,
     "ast_sha256": "47e52a899253ccdf7ce33335283f6710df7f55af48b17f108c784e7021c8a354"
   },
   "policy_observation.py:ObservationMixin._strategy_force_for_snapshot": {
@@ -6662,8 +6662,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1249,
-    "end_line": 1267,
+    "line": 1250,
+    "end_line": 1268,
     "ast_sha256": "d1cb5055e6db5ef3779c20e2e84eb1fc6d4a77cccfc3fb625c2b2e7b8fa6666f"
   },
   "policy_quest.py:QuestMixin._conquest_loot_key": {
@@ -7247,8 +7247,8 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "line": 5295,
-    "end_line": 5530,
-    "ast_sha256": "ef1c017995675336bbe5207fc6c3be7e97905c1f1bf1c1e8a8b2f3428688035d"
+    "end_line": 5550,
+    "ast_sha256": "6e47e77176251ce5727eb0443b7e5815ac509f03c361c5e2d624d2b5439c21cb"
   },
   "policy_shop.py:ShopMixin._atomic_shop_transaction_key.offer_outcome": {
     "classification": "producer",
@@ -7664,8 +7664,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5543,
-    "end_line": 5651,
+    "line": 5563,
+    "end_line": 5671,
     "ast_sha256": "546b2c121d66eb6dd325d50451efa60115696070b3b9d2c0b84553a5b0807219"
   },
   "policy_shop.py:ShopMixin._restore_potion_purchase": {
