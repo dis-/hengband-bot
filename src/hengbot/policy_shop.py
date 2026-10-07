@@ -281,6 +281,7 @@ class ShopMixin(InStoreMixin):
             )
             and self._retention_surplus(snapshot, it) > 0
             and self._store_accepts_sale(STORE_GENERAL, it)
+            and item_available(self, snapshot, it, "shop-sell", "sell")
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 
@@ -416,6 +417,7 @@ class ShopMixin(InStoreMixin):
             lambda item: self._book_sale_store_type(item) is not None
             and self._store_accepts_sale(store_type if store_type is not None else STORE_BLACK, item)
             and (store_type is None or self._book_sale_store_type(item) == store_type)
+            and item_available(self, snapshot, item, "shop-sell", "sell")
             and (item.name, item.tval, item.sval) not in self._unsellable_items,
         )
 
@@ -472,6 +474,7 @@ class ShopMixin(InStoreMixin):
                 or (item.tval == TVAL_ROD and item.sval == SV_ROD_LITE)
             )
             and (item.slot != reserve_slot or item.slot == surplus_slot)
+            and item_available(self, snapshot, item, "shop-sell", "sell")
             and (item.name, item.tval, item.sval) not in self._unsellable_items,
         )
 
@@ -760,6 +763,7 @@ class ShopMixin(InStoreMixin):
                 and self._sale_retains_digging_tool(snapshot, it)
             )
             and self._store_accepts_sale(STORE_ALCHEMIST, it)
+            and item_available(self, snapshot, it, "shop-sell", "sell")
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 
@@ -1658,6 +1662,14 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
         """Release a buy only for fresh absence or a statically Home-less town."""
+        if self._is_required_identify_staff_purchase(snapshot, item):
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "required-current-shelf"
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "wrapper-required-current-shelf",
+                wrapper_fallthrough="required-current-shelf",
+            )
         evaluated = self._evaluate_purchase_home_gate(snapshot, item)
         item_class = self._procurement_class(item)
         self._home_procurement_fallthrough_equivalence = (
@@ -1834,6 +1846,30 @@ class ShopMixin(InStoreMixin):
         self._home_procurement_fallthrough = "fresh-catalogue-absence"
         return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "wrapper-fresh-catalogue-absence", wrapper_fallthrough="fresh-catalogue-absence")
 
+    def _is_required_identify_staff_purchase(
+        self, snapshot: Snapshot, item: StoreItem
+    ) -> bool:
+        """Use current Magic stock when Home-full retry items block sales."""
+        retry_signatures = {
+            entry[0] for entry in (
+                getattr(self, "_home_full_retry_deposits", ()) or ()
+            )
+        }
+        return (
+            bool(retry_signatures)
+            and any(
+                self._item_signature(carried) in retry_signatures
+                for carried in snapshot.inventory
+            )
+            and item.tval == TVAL_STAFF
+            and item.sval == SV_STAFF_IDENTIFY
+            and not self._identify_staff_ready(snapshot)
+            and self._identify_staff_purchase_room(snapshot)
+            and self._identify_staff_acquisition_worthwhile(
+                snapshot, max(item.charges, item.pval)
+            )
+        )
+
     def _record_purchase_home_refusal(self, reason: str) -> None:
         """Retain a probe result without publishing it as a decided stop."""
         self._shop_selector_diagnostics["composition_refusal"] = reason
@@ -1860,6 +1896,11 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
         """Evaluate Home-first purchase policy without changing policy state."""
+        if self._is_required_identify_staff_purchase(snapshot, item):
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "evaluate-required-current-shelf",
+            )
         if not self._home_knowledge_current:
             if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
                 town_has_home = True
