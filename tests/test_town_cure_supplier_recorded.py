@@ -63,12 +63,16 @@ One replay of the process through ``CHECKPOINT`` is shared by every pin
   new request's prerequisite facts, command, claim and declaration are pinned
   separately. The supplier fix itself changes no prefix decision (1388 is
   its first changed key).
-  DECLARED DIVERGENCE (2026-10-05 full-Home discard repair): Home knowledge
-  requests leave the store before opening ~9, and that exit owns its outside
-  continuation. Added differences 47, 56-57, 61, 68, 75, 80-81 and 87-92,
-  with restored parity at 72, are pinned below along with the actual scan
-  surfaces. They remain within this LIVE-KEY WALL: later captured boards are
-  historical inputs after the original keys, not effects of repaired commands.
+  SUITEFIX6 HOME CONTINUATION: boards 47, 56-57, 61, 68, 75, 80-81 and
+  87-92 reproduce their recorded Home scan, withdrawal, identification and
+  deposit decisions. These boards observed 196-199 of 240 Home slots, so the
+  full-Home sale/discard rule does not apply; the prior declared differences
+  were caused by applying that rule without a full-Home observation. Board 72
+  is the fully rendered first page (52/52 items) of 197 Home stacks. Suitefix6
+  allows ~9 from a complete rendered page, so its request in Home intentionally
+  differs from the recorded exit. The live keys are still posted on every
+  prefix board, so later boards remain historical inputs within this LIVE-KEY
+  WALL.
 - CLI TIMER WALL: the periodic dump/save requests come from the CLI wall
   clock; each is delivered on the board where the live process posted it.
 - PRE-FIX WALL (``_pre_fix_supply_rule``): ``_shortage_supplier_visit_page``
@@ -125,26 +129,12 @@ FIRST_CHANGED = 1388
 STOP = 1390
 PREFIX_DIVERGENCES = (
     9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
-    27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 53,
-    56, 57, 61, 68, 69, 70, 71, 73, 75, 80, 81, 87, 88, 89, 90, 91, 92,
+    27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
+    53, 69, 70, 71, 72, 73,
     1057, 1377, 1378,
 )
-DISCARD_PREFIX_CHANGES = {
-    47: ('7', 'shop:approach'),
-    56: ('\x1b', 'home:scan-incomplete-open-page'),
-    57: ('\r', 'shop:await-leave-confirmation'),
-    61: ('~9\x1b', 'home:request-knowledge-scan'),
-    68: ('~9\x1b', 'home:request-knowledge-scan'),
-    72: ('\x1b', 'home:scan-incomplete-open-page'),
-    75: ('\x1b`n%.', 'shop:travel'),
-    80: ('\x1b', 'home:scan-incomplete-open-page'),
-    81: ('\r', 'shop:await-leave-confirmation'),
-    87: ('do\x1b', 'home:weight-overload-deposit'),
-    88: ('\x1b', 'home:leave-after-one-operation'),
-    89: ('\x1b`n>.', 'town:travel-entrance'),
-    90: ('\x1b`n%.', 'shop:travel'),
-    91: ('\x1b', 'home:store-context-exit'),
-    92: ('9', 'shop:approach'),
+SUITEFIX6_PREFIX_CHANGES = {
+    72: ('~9\x1b', 'home:request-knowledge-scan'),
 }
 PERIODIC_REQUESTS = {
     "periodic:character-dump": "request_character_dump",
@@ -343,7 +333,7 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
             if self.prefix[index] != self._live(index)
         )
         self.assertEqual(divergent, PREFIX_DIVERGENCES)
-        for index, expected in DISCARD_PREFIX_CHANGES.items():
+        for index, expected in SUITEFIX6_PREFIX_CHANGES.items():
             self.assertEqual(self.prefix[index], expected, index)
         self.assertEqual(self.discard_scan_surfaces,
                          {56: STORE_HOME, 61: None, 68: None, 80: STORE_HOME, 87: STORE_HOME})
