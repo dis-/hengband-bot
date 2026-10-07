@@ -4,7 +4,7 @@ from hengbot.item_reservation import item_available, reserved_item_command
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -22,6 +22,14 @@ from hengbot.model import STORE_ARMOURY, STORE_TEMPLE
 import re
 
 class HomeMixin:
+
+    def _home_full_has_normal_identification_source(self, snapshot: Snapshot) -> bool:
+        reliable_only = (
+            self._identify_staff_success_rate(snapshot) < STAFF_IDENTIFY_MIN_SUCCESS
+        )
+        return self._find_identification_source(
+            snapshot, full=False, reliable_only=reliable_only,
+        ) is not None
 
     def _home_is_full(self, snapshot: Snapshot) -> bool:
         fact = getattr(self, "_home_capacity_observation", None)
@@ -375,6 +383,12 @@ class HomeMixin:
         relief = self._home_full_relief
         if relief is None:
             return None
+        if relief.get("awaiting_identification_source"):
+            if not self._home_full_has_normal_identification_source(snapshot):
+                # Keep identify-first stock and the blocked deposit pending,
+                # while town procurement tries its existing source owners.
+                return None
+            relief.pop("awaiting_identification_source", None)
         if self._town_blocked_reason in {
                 "home-full-surplus-store-unreachable", "home-full-no-sellable-surplus",
                 "home-full-surplus-now-reserved"}:
@@ -420,6 +434,10 @@ class HomeMixin:
                             lambda: self._home_full_identify_carried_key(snapshot, target),
                             family="identification")
                         if key is None:
+                            if (not target.known
+                                    and not self._identify_staff_ready(snapshot)):
+                                relief["awaiting_identification_source"] = True
+                                return None
                             return self._town_producer_entry("_home_full_skip_key",
                                 lambda: self._home_full_skip_key("identification-source-unavailable"))
                         relief["identifying"] = (target.tval, target.count,
@@ -655,6 +673,10 @@ class HomeMixin:
                     relief["mode"] = "destroy"
                 elif unidentified:
                     item, source = min(unidentified, key=lambda entry: self._item_signature(entry[0]))
+                    if (not self._home_full_has_normal_identification_source(snapshot)
+                            and not self._identify_staff_ready(snapshot)):
+                        relief["awaiting_identification_source"] = True
+                        return None
                     relief["mode"] = "identify"
                 else:
                     self._town_blocked_reason = "home-full-no-sellable-surplus"
