@@ -547,6 +547,46 @@ class HomeMixin:
                 if self._home_full_relief is None:
                     return self._home_full_relief_key(snapshot)
                 sale = None
+            elif (snapshot.store is not None
+                    and snapshot.store.store_type == STORE_HOME
+                    and not relief["withdrawn"]):
+                # A pending relief take can outlive its errand (for example,
+                # after recovery from a stopped unaddressed entry). Do not
+                # leave Home and route back without changing that owner state.
+                # Re-file only from current catalogue or page evidence; an
+                # absent target is an observed candidate miss and uses the
+                # same skip path as other unresolved relief items.
+                observed = next((item for item in self._home_knowledge_items
+                    if self._home_knowledge_current
+                    and self._sale_item_identity(item) == sale_identity), None)
+                if observed is None:
+                    observed = next((self._inventory_item_from_store_item(item)
+                        for item in snapshot.store.items
+                        if self._sale_item_identity(
+                            self._inventory_item_from_store_item(item)
+                        ) == sale_identity), None)
+                if observed is None:
+                    return self._town_producer_entry("_home_full_skip_key",
+                        lambda: self._home_full_skip_key("surplus-target-unobserved"))
+                if (self._home_errand.active
+                        and self._home_errand.request is not None
+                        and self._home_errand.request.signature != self._item_signature(observed)):
+                    # Let a different admitted Home errand finish first. The
+                    # pending relief remains intact and is retried in place.
+                    return None
+                if not self._home_errand.active:
+                    relief["sale"] = (self._item_signature(observed), store_type,
+                                      before_count)
+                    signature = relief["sale"][0]
+                    if not self._file_home_errand(snapshot, HomeErrandRequest(
+                            signature, observed.count, "home-catalog",
+                            "full-home-sale" if relief.get("mode") == "sale"
+                            else "full-home-discard"),
+                            knowledge_current=self._home_knowledge_current):
+                        return None
+                self._home_pending_item = relief["sale"][0]
+                self._home_pending_quantity = observed.count
+                return None
             elif self._home_errand.state.value in {"failed", "stopped"}:
                 # A failed/stopped take is an observed address miss, not a
                 # reason to hold the whole full-Home relief loop.  Retain this
