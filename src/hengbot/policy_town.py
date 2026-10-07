@@ -1275,7 +1275,7 @@ class TownMixin:
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str | None:
         """Enforce composable progress at the one downstream town-result seam."""
-        holder = self._town_held_decision(key)
+        holder = self._town_held_decision(key, snapshot)
         if holder is not None:
             # Direct callers must honor the same refusal as the public seam,
             # before progress composition can mutate the visit or its offer.
