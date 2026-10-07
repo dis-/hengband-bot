@@ -1465,6 +1465,26 @@ class EquipmentMixin:
                 transaction=None,
                 blockers=("equipment-transaction-failed",),
             )
+        elif (
+            STORE_HOME in self._town_visit_ledger.blocked_stores
+            and not self._equipment_transaction_restoring
+            and any(
+                action.phase != PHASE_EQUIP
+                for action in getattr(
+                    getattr(preparation, "transaction", None), "actions", ()
+                )
+            )
+        ):
+            # This visit already recorded Home as unavailable (e.g. a refused
+            # deposit into a full Home). A re-planned swap that needs Home is
+            # not executable here either: report the visit's failure so the
+            # user's 10-03 rule departs on the confirmed current loadout
+            # instead of re-opening another Home session.
+            preparation = replace(
+                preparation,
+                transaction=None,
+                blockers=("equipment-transaction-failed",),
+            )
         self._equipment_optimization_signature = signature
         self._equipment_optimization_pack_items = len(snapshot.inventory)
         self._equipment_optimization_preparation = preparation
