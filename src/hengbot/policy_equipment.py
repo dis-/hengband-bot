@@ -1466,7 +1466,7 @@ class EquipmentMixin:
                 blockers=("equipment-transaction-failed",),
             )
         elif (
-            STORE_HOME in self._town_visit_ledger.blocked_stores
+            self._equipment_home_full_refused_this_visit()
             and not self._equipment_transaction_restoring
             and any(
                 action.phase != PHASE_EQUIP
@@ -1968,6 +1968,17 @@ class EquipmentMixin:
                 continuation="equipment.next-action",
             )
         return key
+
+    def _equipment_home_full_refused_this_visit(self) -> bool:
+        """Whether this visit blocked Home after a refused full-Home deposit.
+
+        Other Home blocks (e.g. the 3-pass town-stop limit) keep their own
+        owners' authority; only an observed full-Home refusal retires Home
+        for equipment work this visit.
+        """
+        latch = getattr(self, "_home_latch_active", None) or {}
+        return (STORE_HOME in self._town_visit_ledger.blocked_stores
+                and latch.get("site") == "equipment-transaction-home-full")
 
     def _mark_equipment_home_full_unavailable(self, snapshot: Snapshot) -> None:
         """Retire this visit's Home route after an observed full-store refusal."""
@@ -2485,11 +2496,11 @@ class EquipmentMixin:
                         dict.fromkeys(plan.blocked_this_visit)
                     )
                 self._town_errand_plan = replacement
-            # Once this town visit has recorded Home as unavailable, no new
+            # Once this town visit refused a deposit into a full Home, no new
             # equipment session may route back there (whatever ended the last
             # one); only restoration of removed gear may still use Home.
             home_route_blocked = (
-                STORE_HOME in self._town_visit_ledger.blocked_stores
+                self._equipment_home_full_refused_this_visit()
                 and not self._equipment_transaction_restoring
             )
             step = (
