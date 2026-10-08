@@ -1,0 +1,6 @@
+Recorded source: C:\hengband\bot-client\jsonlog\autorecover-20261008-175125-town-blocked-overweight-home-unreachable.*
+The fixture freezes the 17:50:17 restarted in-town board, the 17:51:01 Home page at 240/240 stock, and the 17:51:15 blocked terminal. It contains no reconstructed recovery decisions.
+State log SHA256: 8ab119155c9c481ae1b0a7e2c04149faa7209c1fa13d41cddea48b9262498ab0
+Decision log SHA256: af38abbc04af45fd45a50ebfb317925aee6be8ecedb2e0e1ed6459da3cf2ad6b
+Fixture SHA256: 54c2bb6ace8eeb980818f8a582d18b6677cd8ae8f6f6ff90acc16337ace9626f
+The equipment/Home catalogue and calibration are taken from the recorded equipment-sale-home-20261008 fixture. The test starts a fresh policy at the captured town board and asserts that the sale need is selected ahead of recorded-context deposit work.

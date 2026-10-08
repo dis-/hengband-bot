@@ -7725,6 +7725,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
+        if snapshot.in_town:
+            # A process restored directly in town has no return-start callback;
+            # create its one-per-visit optimizer sale session at the first
+            # town decision, before Home deposits or equipment staging run.
+            self._ensure_equipment_sale_session(snapshot)
         # The executor's POSTED state is the in-flight gate every reader of
         # ``state`` (weight shedding, the space deposit, Home knowledge scans,
         # destroys) consults.  Observe the posted wield/takeoff on each board,
