@@ -155,7 +155,18 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
                     and not monster.asleep and monster.can_multiply)
 
         rows = self._replay(pre_fix=True, inspect=inspect)
-        self.assertEqual(rows, [self._live(index) for index in range(LAST + 1)])
+        # e32d0f44 (2026-10-08, USER DECISION 2026-09-20 50-turn hold): once
+        # the unseen-summoner hold starts at the choke cell it owns that cell
+        # until its timer expires, so the pre-fix substrate holds one more
+        # board where the recorded run handed back to the quest strategy.
+        hold_owned = {6, 13, 20}
+        self.assertEqual(
+            [row for index, row in enumerate(rows) if index not in hold_owned],
+            [self._live(index) for index in range(LAST + 1) if index not in hold_owned])
+        self.assertEqual({index: rows[index] for index in hold_owned},
+                         {index: ("5", "summoner:hold-choke") for index in hold_owned})
+        self.assertEqual({self._live(index) for index in hold_owned},
+                         {("8", "quest-strategy:q2-post-blue-nether-worm")})
         # The two converging breeders that drive the recorded retreat.
         self.assertEqual(seen["near"], [(42, GREMLIN), (48, GREMLIN)])
 

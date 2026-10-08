@@ -98,9 +98,19 @@ CHOKE_ALTERNATION_FIXED = {
     1999: ["5", "summoner:hold-choke"],
     2001: ["5", "summoner:hold-choke"],
     2003: ["5", "summoner:hold-choke"],
-    2011: ["s", "search"],
+    # e32d0f44 (2026-10-08, USER DECISION 2026-09-20 50-turn hold): the hold
+    # timer starts at the unseen summoner choke and owns the cell until it
+    # expires (test_experience_potion.CHOKE_ALTERNATION_FIXED, same boards).
+    2004: ["5", "summoner:hold-choke"],
+    2005: ["5", "summoner:hold-choke"],
+    2006: ["5", "summoner:hold-choke"],
+    2007: ["5", "summoner:hold-choke"],
+    2008: ["5", "summoner:hold-choke"],
+    2009: ["5", "summoner:hold-choke"],
+    2010: ["5", "summoner:hold-choke"],
+    2011: ["5", "summoner:hold-choke"],
     2013: ["5", "summoner:hold-choke"],
-    2014: ["s", "search"],
+    2014: ["5", "summoner:hold-choke"],
 }
 # USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start): the tour
 # replay quaffs Speed on these dungeon boards where the recorded bot meleed
@@ -548,6 +558,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             [
                 ("8", "explore"), ("2", "explore"), ("2", "explore"),
                 ("2", "explore"), ("s", "search"),
+                *[("s", "search")] * 7,
                 ("2", "breakout:seek-frontier"), ("8", "explore"),
                 ("8", "explore"),
             ],
