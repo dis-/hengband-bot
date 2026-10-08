@@ -68,6 +68,7 @@ class HomeMixin:
         relief.pop("destroy_posted", None)
         relief.pop("destroy_before_count", None)
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _defer_home_full_deposit(self, snapshot: Snapshot) -> None:
         """Carry an unserviceable Home deposit beyond this town visit."""
         relief = self._home_full_relief
