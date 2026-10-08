@@ -259,7 +259,9 @@ class TestTreeFakeryLint(unittest.TestCase):
     # S3.3 phase-2 adds two explicitly declared final-fallback seams for the
     # missing B checkpoint; only the ladder's None sentinel is substituted.
     # The October 4 Home-hang replay helper declares its captured scan re-arm.
-    DECLARED_FINDING_RATCHET = 125
+    # The recorded 2026-10-08 transaction-yield pin reconstructs the captured
+    # catalogue and Home scan as declared checkpoint state.
+    DECLARED_FINDING_RATCHET = 126
 
     def test_capture_dependency_lint_rejects_real_directory_not_fixture(self):
         bad = 'capture = Path("incident-captures/evicted/snapshots.jsonl")\n'

@@ -10208,9 +10208,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # that may ask whether town departure is ready.  Those evaluators are
         # allowed to build a plan only when no transaction owns the character;
         # rebuilding here would discard its recorded pack-letter continuation.
+        if (
+            snapshot.in_town
+            and snapshot.store is None
+            and self._equipment_sale_should_yield_transaction(snapshot)
+            and snapshot.player.hp >= snapshot.player.max_hp
+            and not self._physical_hostiles(snapshot)
+        ):
+            sale_store = self._equipment_sale_next_store(snapshot)
+            if sale_store is not None:
+                sale_step = self._shopping_approach_step(
+                    snapshot, sale_store, router_plan_stop=True,
+                )
+                if sale_step is not None:
+                    sale_key = self._town_producer_entry(
+                        "_shopping_approach_key",
+                        lambda: self._shopping_approach_key(
+                            snapshot, sale_step, "shop:travel",
+                        ),
+                        family="store-router",
+                    )
+                    if sale_key is not None:
+                        return sale_key
         admitted_session = self._equipment_transaction_session
         if (
             snapshot.in_town and admitted_session is not None and admitted_session.executable and (admitted_session.required_context == 'home') and (admitted_session.physical_context == 'home') and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and any((grid.store_number == STORE_HOME for grid in (snapshot.grid_at(snapshot.player.position),) if grid is not None)) and (snapshot.player.hp >= snapshot.player.max_hp) and (not any((monster.hostile for monster in snapshot.visible_monsters)))
+            and not self._equipment_sale_should_yield_transaction(snapshot)
         ):
             return self._town_producer_entry("_equipment_transaction_town_key#1", lambda: self._equipment_transaction_town_key(snapshot)) or WAIT_KEY
         # A TR_WARNING prompt reported by this snapshot is disposed of before
@@ -10245,6 +10268,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.in_town
             and self._equipment_transaction_owned_items
             and not self._opening_q34_active(snapshot)
+            and not self._equipment_sale_should_yield_transaction(snapshot)
         ):
             return self._town_producer_entry("_equipment_transaction_town_owner_key", lambda: self._equipment_transaction_town_owner_key(snapshot)) or WAIT_KEY
 
@@ -11434,7 +11458,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # complete-page scan, execute the globally optimized loadout transaction.
         # Legacy per-item weapon trials and jewellery upgrades must not race this
         # plan or repeatedly withdraw and re-deposit candidates.
-        equipment_transaction = self._town_producer_entry("_equipment_transaction_town_key#2", lambda: self._equipment_transaction_town_key(snapshot))
+        equipment_transaction = None
+        if not self._equipment_sale_should_yield_transaction(snapshot):
+            equipment_transaction = self._town_producer_entry("_equipment_transaction_town_key#2", lambda: self._equipment_transaction_town_key(snapshot))
         if equipment_transaction is not None:
             return equipment_transaction
 
