@@ -4216,9 +4216,15 @@ class ShopMixin(InStoreMixin):
             if disposal_key is not None:
                 return disposal_key
 
-        if (
-            self._pending_disposal_item is not None
-        ):
+        if self._pending_disposal_item is None:
+            resumed_sale_item = self._equipment_sale_resume_carried_item(snapshot)
+            if resumed_sale_item is not None:
+                self._pending_disposal_item = self._item_signature(
+                    resumed_sale_item
+                )
+                self._pending_disposal_slot = resumed_sale_item.slot
+
+        if self._pending_disposal_item is not None:
             target = self._pending_disposal(snapshot)
             if target is None:
                 self._clear_pending_disposal()

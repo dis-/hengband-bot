@@ -3511,6 +3511,48 @@ class EquipmentMixin:
                     for entry in session.get("items", ()))
         )
 
+    def _equipment_sale_resume_carried_item(
+        self, snapshot: Snapshot,
+    ) -> InventoryItem | None:
+        """Recover a selected pack sale when its transient pointer was lost.
+
+        A visit can survive with the sale session's selected store and attempt
+        record while the private pending-item pointer is absent. Rebind only
+        an already-attempted saved pack candidate that is still carried and
+        matches the active store; this does not select any new sale candidate.
+        """
+        sale = getattr(self, "_equipment_sale_session", None)
+        store = snapshot.store
+        if (
+            not isinstance(sale, dict)
+            or not sale.get("built")
+            or not sale.get("transaction_yield")
+            or store is None
+            or sale.get("active_store") != store.store_type
+        ):
+            return None
+        attempted = sale.get("attempted", ())
+        refused = sale.get("refused", ())
+        for entry in sale.get("items", ()):
+            signature = entry.get("signature")
+            if (
+                entry.get("origin") != "pack"
+                or entry.get("store_type") != store.store_type
+                or signature not in attempted
+                or signature in refused
+                or signature in self._unsellable_items
+                or store.store_type in self._store_sale_refused
+            ):
+                continue
+            candidate = next(
+                (item for item in snapshot.inventory
+                 if self._item_signature(item) == signature),
+                None,
+            )
+            if candidate is not None:
+                return candidate
+        return None
+
     def _equipment_sale_next_store(self, snapshot: Snapshot) -> int | None:
         """Select the next never-retried item on this return's saved list."""
         self._ensure_equipment_sale_session(snapshot)
