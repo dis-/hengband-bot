@@ -132,6 +132,22 @@ class ControlClientTest(unittest.TestCase):
         self.assertEqual(self.server.connection_count, 1)
         self.wait_for_connections(active=1, closed=0)
 
+    def test_idle_connection_is_replaced_before_posting_keys(self):
+        """Live 2026-10-08 22:29/23:32: a 30 s decision let the game drop the
+        connection and the next key post ended in WinError 10053."""
+        self.server.actions[:] = [{"pushed": 1}, {"pushed": 1}, {"pushed": 1}]
+        client = self.client(idle_reconnect_seconds=0.15)
+
+        self.assertTrue(client.post_keys("6", expected_count=1).accepted)
+        self.assertTrue(client.post_keys("6", expected_count=1).accepted)
+        self.assertEqual(self.server.connection_count, 1)
+        time.sleep(0.2)
+        self.assertTrue(client.post_keys("6", expected_count=1).accepted)
+
+        self.assertEqual(self.server.connection_count, 2)
+        self.assertEqual([row["op"] for row in self.server.requests],
+                         ["keys", "keys", "keys"])
+
     def test_disconnected_read_only_request_uses_exactly_one_connection(self):
         self.server.actions[:] = [{"turn": 7}]
         client = self.client()

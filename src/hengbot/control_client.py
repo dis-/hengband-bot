@@ -60,8 +60,13 @@ class ControlClient:
         backoff: float | None = None,
         log: Callable[[str], None] | None = None,
         socket_factory: Callable[..., socket.socket] = socket.create_connection,
+        idle_reconnect_seconds: float = 20.0,
     ) -> None:
         self.port = port
+        # The game closes a client after 30 s without a completed exchange
+        # (src/bot/bot-socket-server.cpp, CLIENT_IO_TIMEOUT_SECONDS).
+        self.idle_reconnect_seconds = idle_reconnect_seconds
+        self._last_exchange_at: float | None = None
         self.request_budget = request_budget
         self.retries = retries
         self.backoff = request_budget if backoff is None else backoff
@@ -131,6 +136,7 @@ class ControlClient:
         connection.settimeout(remaining)
         self._socket = connection
         self._buffer.clear()
+        self._last_exchange_at = time.monotonic()
 
     def _request_once(self, op: str, fields: Mapping[str, object], deadline: float) -> dict:
         before = len(self._request_timings)
@@ -219,6 +225,7 @@ class ControlClient:
             raise ControlClientError("control response result is not an object")
         self._failure_visible = False
         self._consecutive_failures = 0
+        self._last_exchange_at = time.monotonic()
         return result
 
     def post_keys(
@@ -237,6 +244,16 @@ class ControlClient:
         if time.monotonic() >= deadline:
             return KeyPostOutcome(KeyPostStatus.NOT_ATTEMPTED, reason="request budget exhausted")
         attempted = False
+        if (
+            self._socket is not None
+            and self._last_exchange_at is not None
+            and time.monotonic() - self._last_exchange_at
+            >= self.idle_reconnect_seconds
+        ):
+            # The game has probably dropped this idle connection; a key sent
+            # on it would have unknown acceptance.  Nothing is sent yet, so
+            # open a fresh connection instead.
+            self.close()
         try:
             self._timing_request_id += 1
             self._current_attempt = 1
