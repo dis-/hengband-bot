@@ -1,30 +1,18 @@
-# LUNA report - recorded replay reserve decision
+LUNA task report - 2026-10-08
 
-Worktree: `bm-reserve-replays-1008` at `39604cbe`.
-Decision applied: USER DECISION 2026-10-08 - optional Black Market purchases must preserve the full cost of departure resupply. Required purchases retain their separate reserve rule.
+Implemented
+- Create the optimizer-backed equipment sale session at the first town decision when a restarted/restored policy has none.
+- During overweight or full-Home relief, prioritize carried sale candidates, then permit the bounded Home sale batch to proceed even if it temporarily raises carried weight.
+- Run relief sale needs alongside mandatory town stops and ahead of deposit-only work. Reopen Home after an equipment-transaction full-Home refusal for the saved sale plan.
+- Added a recorded restart pin from the 2026-10-08 capture and a carried-before-Home selector test.
+- Regenerated scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json: 812 candidates, 20,026 sites, zero unmapped.
 
-## Recorded boards
+Verification
+- Requested one-worker run: 324 tests; 319 passed and 5 failed initially. The failures were the item-sink producer adapter, the fake-state baseline for the new test, and two stale-manifest assertions (the manifest was regenerated before the final town policy edit).
+- After those corrections, the affected one-worker subset passed: 79 tests, no failures or errors. It covered Home relief/refusal, equipment sale selection, the recorded pin, item-sink and fakery lint, town structure, and town work contract.
+- After extending the relief predicate to include the existing Home-full relief/retry states, the final Home/sale/town subset passed: 48 tests, no failures or errors. It included the recorded pin and regenerated-manifest checks.
+- The recorded pin passed after restoring the implementation. The single revert check produced its expected failure without the implementation: no equipment-sale need was found.
+- git diff --check passed. New text files are UTF-8 without BOM.
+- No game or bot was started; no push or other worktree was used.
 
-The three store re-entry checkpoints are Black Market shelves (`store_type=6`). Their recorded full departure reserve evaluates to `None`: these restored checkpoints do not retain a complete observed price set for every required departure supply, so the optional purchase guard fails closed. This explains the new refusal under the full-resupply decision; it is not a numeric `gold - price < reserve` comparison because no numeric reserve can be calculated.
-
-| Decision index | Recorded gold | Optional ware | Price | Gold after recorded purchase | Recorded purchase key |
-| ---: | ---: | --- | ---: | ---: | --- |
-| 42 | 13,998 | Healing potion, `j` | 6,179 | 7,819 | `pj\r` |
-| 834 | 10,728 | Healing potion, `i` | 6,143 | 4,585 | `pi\r` |
-| 844 | 4,585 | Speed potion, `h`, quantity 5 | 511 each (2,555 total) | 2,030 | `ph5\r\r` |
-
-The speed-shuttle fixture shelf is also a Black Market (`store_type=6`): recorded gold 4,187, Speed potion `h` at 392 each, quantity 3. Its full departure reserve is likewise `None`; the recorded three-potion purchase would leave 3,011 gold.
-
-The P0 replay now asserts each recorded leave key and separately asserts the new optional-purchase refusal. The recorded-gold refusal pin checks the same three boards and retains each recorded release key. The one-shot Speed pin and store mechanics pins use explicitly constructed complete price data and independent gold so they still exercise quantity execution, exact confirmation totals, and refusal closure. The Speed mechanics pin also supplies constructed held Healing stock to keep the selector focused on Speed when the constructed gold makes both optional wares affordable.
-
-## Unexplained failure
-
-`tests.test_s33_shadow_recorded.RecordedShadowTest.test_live8_one_shot_identity` remains a regression and was not changed. It errors before comparing a board because `tests/fixtures/live8-one-shot.decisions.jsonl.gz.state.jsonl.gz` is absent. The available decisions log is not enough for this pin to load its state board, so there are no recorded board gold, ware, price, store, or reserve values to compare against the new purchase rule.
-
-## Verification
-
-Ran serially with the Codex Python 3.13 runtime:
-
-`python -m unittest tests.test_shop_one_shot tests.test_store_reentry_recorded tests.test_s33_shadow_recorded tests.test_black_market_optional_quantity tests.test_test_fakery_lint`
-
-Result: 112 tests ran, 110 passed, 1 skipped, 1 error (the missing S33 state fixture above). The fakery-lint acceptance matrices completed successfully. No full suite was run.
+The remaining modules in the requested set passed in the initial 324-test run; the five listed failures were rerun in the affected 79-test subset after correction.

@@ -3237,6 +3237,27 @@ class EquipmentMixin:
         session["items"] = items
         session["blocker"] = None
 
+    def _equipment_sale_relief_active(self, snapshot: Snapshot) -> bool:
+        """Whether equipment sales must precede deposits during this visit."""
+        return bool(
+            (getattr(snapshot, "player", None) is not None
+             and self._inventory_overweight(snapshot))
+            or self._home_is_full(snapshot)
+            or getattr(self, "_home_full_relief", None) is not None
+            or getattr(self, "_home_full_retry_deposits", None) is not None
+            or self._equipment_home_full_refused_this_visit()
+        )
+
+    def _ensure_equipment_sale_session(self, snapshot: Snapshot) -> None:
+        """Start this visit's sale plan after an in-town process restart."""
+        if (getattr(self, "_equipment_sale_session", None) is not None
+                or not getattr(snapshot, "in_town", False)):
+            return
+        self._equipment_sale_session = {
+            "built": False, "items": [], "attempted": set(),
+            "withdrawals": 0, "refused": set(), "active_store": None,
+        }
+
     def _equipment_sale_selected_signature(
         self, signature: tuple[str, int, int],
     ) -> bool:
@@ -3249,6 +3270,7 @@ class EquipmentMixin:
 
     def _equipment_sale_next_store(self, snapshot: Snapshot) -> int | None:
         """Select the next never-retried item on this return's saved list."""
+        self._ensure_equipment_sale_session(snapshot)
         self._build_equipment_sale_session(snapshot)
         session = getattr(self, "_equipment_sale_session", None)
         if not isinstance(session, dict) or not session.get("built"):
@@ -3293,7 +3315,22 @@ class EquipmentMixin:
         attempted = session.setdefault("attempted", set())
         refused = session.setdefault("refused", set())
         withdrawals = int(session.get("withdrawals", 0))
-        for entry in session["items"]:
+        entries = session["items"]
+        if self._equipment_sale_relief_active(snapshot):
+            # Prefer carried goods so they can reduce weight without a Home
+            # trip; if none are saleable, the bounded Home batch can free
+            # capacity even while the character remains overweight.
+            entries = [
+                *[entry for entry in entries if entry.get("origin") == "pack"],
+                *[entry for entry in entries if entry.get("origin") == "home"],
+            ]
+            if self._equipment_home_full_refused_this_visit():
+                # A refused equipment deposit blocks ordinary Home work for
+                # this visit. Reopen that route only for the saved sale plan.
+                self._rearm_town_store_for_new_work(
+                    STORE_HOME, release_visit_bound=True,
+                )
+        for entry in entries:
             signature = entry["signature"]
             if (signature in attempted or signature in refused
                     or entry["store_type"] in self._store_sale_refused):
@@ -3311,7 +3348,8 @@ class EquipmentMixin:
                 if free_pack_slots <= 2:
                     return None
                 weight_limit = self._inventory_weight_limit(snapshot)
-                if weight_limit is None:
+                relief = self._equipment_sale_relief_active(snapshot)
+                if weight_limit is None and not relief:
                     return None
                 reserved_weight = self._inventory_weight(snapshot)
                 room = min(
@@ -3328,7 +3366,8 @@ class EquipmentMixin:
                         or candidate["store_type"] in self._store_sale_refused
                     ):
                         continue
-                    if reserved_weight + candidate["weight"] > weight_limit:
+                    if (not relief
+                            and reserved_weight + candidate["weight"] > weight_limit):
                         continue
                     batch.append(candidate)
                     reserved_weight += candidate["weight"]
