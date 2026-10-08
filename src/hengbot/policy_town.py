@@ -1105,6 +1105,25 @@ class TownMixin:
         """Compose the next step of an available approach->enter->buy route."""
         if self._defer_town_errand("store-router", "procurement-progress"):
             return None
+        if self._fundraising_identify_staff_only_block(snapshot):
+            for need in self._departure_blocking_town_needs(snapshot):
+                if (
+                    need.category == "identify-staff"
+                    and need.store_type not in self._town_store_attempted
+                ):
+                    step = self._shopping_approach_step(
+                        snapshot, need.store_type, router_plan_stop=True
+                    )
+                    if step is not None:
+                        key = self._town_producer_entry(
+                            "_shopping_approach_key",
+                            lambda: self._shopping_approach_key(
+                                snapshot, step, "shop:travel"
+                            ),
+                            family="store-router",
+                        )
+                        if key is not None:
+                            return key, self.last_reason or "shop:travel"
         home_scan_pending = (
             not self._equipment_catalog.home_scan_complete
             and self._home_available_for_probe(snapshot)
@@ -1558,6 +1577,19 @@ class TownMixin:
         if progress_key == key and progress_reason == proposed_reason:
             self.last_reason = proposed_reason
             return key
+        if (
+            progress_reason == "shop:travel"
+            and self._fundraising_identify_staff_only_block(snapshot)
+        ):
+            # The identify-staff shortage owns this direct supplier route. Keep
+            # its shop reason through the progress seam so the posted visit is
+            # attributed to the supplier errand.
+            self._declare_reach(
+                self._shopping_approach_goal, family="store-router"
+            )
+            self.last_reason = "shop:travel"
+            self._record_shop_selector_diagnostics(snapshot, progress_key)
+            return progress_key
         if not self._town_result_makes_progress(snapshot, progress_key):
             self.last_reason = proposed_reason
             return key
@@ -1584,6 +1616,28 @@ class TownMixin:
         )
         self._record_shop_selector_diagnostics(snapshot, progress_key)
         return progress_key
+
+    def _fundraising_identify_staff_only_block(
+        self, snapshot: Snapshot
+    ) -> bool:
+        purpose_record = getattr(self, "_fundraising_purpose_record", None)
+        return (
+            snapshot.in_town
+            and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            and self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
+            and {
+                name
+                for name, ready in self._recall_town_departure_conjuncts(
+                    snapshot
+                ).items()
+                if not ready
+            }
+            == {"identify_staff_ready"}
+            and not (
+                purpose_record is not None
+                and getattr(purpose_record, "status", None) == "active"
+            )
+        )
 
     def _progress_only_restores_consumed_resource(
         self, snapshot: Snapshot, proposed_key: str, proposed_reason: str,
@@ -2863,7 +2917,10 @@ class TownMixin:
                     and STORE_GENERAL not in self._town_store_attempted
                 ):
                     add(STORE_GENERAL, "throwing-torches")
-            add_identify_staff_suppliers()
+            if self._fundraising_identify_staff_only_block(snapshot):
+                # A deep planned departure blocked only on identify charges
+                # needs its supplier route before fundraising can proceed.
+                add_identify_staff_suppliers()
             return needs
 
         bindable_home_identification = any(
@@ -3193,11 +3250,12 @@ class TownMixin:
     def _town_need_registry(self) -> tuple[NeedSpec, ...]:
         """Build the single ordered producer/satisfaction registry once."""
         cached = getattr(self, "_town_need_specs", None)
-        if cached is not None and any(
-            spec.category == "identify-staff"
-            and getattr(getattr(spec.produces, "__self__", None), "occurrence", 0) >= 1
-            for spec in cached
-        ):
+        cached_identify_occurrences = [
+            getattr(getattr(spec.produces, "__self__", None), "occurrence", None)
+            for spec in cached or ()
+            if spec.category == "identify-staff"
+        ]
+        if cached is not None and cached_identify_occurrences == [0, 1]:
             return cached
         entries = (
             ("idle-consumable-scan", "home-first", 1, False),  # Idle Home scans are opportunistic.
@@ -3251,8 +3309,7 @@ class TownMixin:
             ("quest-speed", "normal", 1, True),  # Required speed potions gate the quest departure.
             ("quest-healing", "normal", 2, True),  # Required healing potions gate the quest departure.
             ("light", "normal", 1, True),  # Expedition light gates departure.
-            ("identify-staff", "normal", 1, True),  # Identification capacity gates departure.
-            ("identify-staff", "normal", 2, True),  # The ordered fallback supplier has its own live owner.
+            ("identify-staff", "normal", 2, True),  # Primary and fallback suppliers each own a live route.
             ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
