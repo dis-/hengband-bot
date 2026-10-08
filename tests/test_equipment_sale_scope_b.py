@@ -99,6 +99,29 @@ class EquipmentSaleScopeB(unittest.TestCase):
         self.assertIn(("saved gear", 37, 4),
                       restored._equipment_sale_session["attempted"])
 
+    def test_withdrawn_sale_item_travels_under_the_sale_not_the_transaction(self):
+        """Live 2026-10-08 23:37: the route to the General Store was refused
+        because the equipment transaction owned relocation; the WAIT repeated
+        until the owner-retired burst stop."""
+        from hengbot.policy_types import DecisionContext
+        policy = HengbotPolicy()
+        town = SimpleNamespace(in_town=True)
+        policy._decision_context = DecisionContext(equipment_transaction_owned=True)
+        self.assertTrue(policy._equipment_transaction_owns_town_relocation(town))
+        signature = ("withdrawn sale gear", 37, 1)
+        policy._equipment_sale_session = {
+            "built": True,
+            "items": [{"signature": signature, "origin": "home",
+                       "store_type": 1, "weight": 1}],
+            "attempted": {signature}, "withdrawals": 1, "refused": set(),
+            "active_store": 1,
+        }
+        policy._pending_disposal_item = signature
+        self.assertFalse(policy._equipment_transaction_owns_town_relocation(town))
+        # Without a carried sale item the transaction keeps relocation.
+        policy._pending_disposal_item = None
+        self.assertTrue(policy._equipment_transaction_owns_town_relocation(town))
+
     def test_home_sale_batch_is_bounded_to_three_withdrawals(self):
         policy = HengbotPolicy()
         signatures = [(f"sale gear {index}", 37, 1) for index in range(5)]

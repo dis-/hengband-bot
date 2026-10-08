@@ -429,11 +429,39 @@ class EquipmentMixin:
     def _equipment_transaction_owns_town_relocation(
         self, snapshot: Snapshot
     ) -> bool:
-        """Whether this decision began with equipment locomotion ownership."""
+        """Whether this decision began with equipment locomotion ownership.
+
+        A sale item already withdrawn for the saved sale list travels to its
+        store under the sale; the transaction keeps its stripped items.
+        """
         return bool(
             snapshot.in_town
             and getattr(self, "_decision_context", None) is not None
             and self._decision_context.equipment_transaction_owned
+            and not self._equipment_sale_carries_pending_item()
+        )
+
+    def _equipment_sale_carries_pending_item(self) -> bool:
+        """Whether a saved-list sale item is on its way to a non-Home store.
+
+        Live 2026-10-08 23:37: the withdrawn sale item could not travel to the
+        General Store because the equipment transaction owned relocation, and
+        the route WAIT repeated until the owner-retired burst stop.
+        """
+        sale = getattr(self, "_equipment_sale_session", None)
+        pending = getattr(self, "_pending_disposal_item", None)
+        if (
+            not isinstance(sale, dict)
+            or not sale.get("built")
+            or sale.get("blocker")
+            or pending is None
+            or sale.get("active_store") in (None, STORE_HOME)
+        ):
+            return False
+        return any(
+            entry.get("signature") == pending
+            and entry.get("store_type") == sale.get("active_store")
+            for entry in sale.get("items", ())
         )
 
     def _equipment_transaction_home_work(self) -> bool:
