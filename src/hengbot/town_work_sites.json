@@ -4992,8 +4992,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 626,
-    "end_line": 630,
+    "line": 632,
+    "end_line": 636,
     "ast_sha256": "d304314a03d14cb47647b99fd547f6b4125271f014e86bc5f2723abe5189ccf4"
   },
   "policy_constants.py:permitted_dive_depth": {
@@ -5002,8 +5002,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 651,
-    "end_line": 663,
+    "line": 657,
+    "end_line": 669,
     "ast_sha256": "92606e2358299a704738bef959444d092fb70466bc4b6294c9a378da10591034"
   },
   "policy_constants.py:required_depth_gates": {
@@ -5012,8 +5012,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 688,
-    "end_line": 696,
+    "line": 694,
+    "end_line": 702,
     "ast_sha256": "ed6827f78822e1103d14922357d9ed504aee744cacdafe1f1827b486888c9137"
   },
   "policy_constants.py:required_destruction_uses": {
@@ -5022,8 +5022,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 669,
-    "end_line": 680,
+    "line": 675,
+    "end_line": 686,
     "ast_sha256": "f56bc499b7ee99db4d0472f15c4fa996b02f71d57d1692d847f37453c0cf1f59"
   },
   "policy_equipment.py:EquipmentMixin._current_town_supplier_page": {

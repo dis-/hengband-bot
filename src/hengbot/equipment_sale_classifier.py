@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import cmp_to_key
 from typing import Iterable, Mapping
 
 from hengbot.equipment_optimizer import (
@@ -14,6 +15,10 @@ from hengbot.launcher_damage import best_obtainable_launcher_damage, launcher_do
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR, SV_DRAGON_SHIELD,
     SV_PAIR_OF_DRAGON_GREAVE, item_requires_full_identification,
+)
+from hengbot.policy_constants import (
+    HOME_SALE_FREE_SLOT_TARGET, HOME_SALE_KEEP_TOP_ALWAYS,
+    HOME_SALE_KEEP_TOP_WHEN_SPACE,
 )
 from hengbot.warrior_loadout_search import (
     BENEFICIAL_GEAR_FLAGS, WarriorSingleSlotSearch, _loadout_value_signature,
@@ -29,6 +34,69 @@ class EquipmentSaleClassification:
     reasons: Mapping[str, str]
     dominators: Mapping[str, tuple[str, ...]]
     blockers: tuple[str, ...] = ()
+    # The optimizer's per-slot result lets the Home pressure policy choose its
+    # fallback in a stable weakest-first order without inventing a second score.
+    performance: Mapping[str, tuple[float, float]] = field(default_factory=dict)
+    eligible_ids: frozenset[str] = frozenset()
+    # Slot-local, best-first ranks include protected items when they can be
+    # scored. They still occupy a keep position, as required by the 2026-10-08
+    # sale rule.
+    ranks: Mapping[str, int] = field(default_factory=dict)
+
+
+def equipment_sale_fallback_order(
+    classification: EquipmentSaleClassification,
+    *,
+    excluded_ids: frozenset[str] = frozenset(),
+) -> tuple[str, ...]:
+    """Return safe classified candidates weakest-first with an ID tie-break."""
+    candidates = classification.eligible_ids - classification.sold_ids - excluded_ids
+    return tuple(sorted(
+        candidates,
+        key=lambda item_id: (
+            classification.performance.get(item_id, (float("inf"), float("inf"))),
+            item_id,
+        ),
+    ))
+
+
+def equipment_sale_plan(
+    classification: EquipmentSaleClassification,
+    *,
+    home_ids: frozenset[str],
+    free_home_slots: int,
+    target_free_slots: int = HOME_SALE_FREE_SLOT_TARGET,
+) -> tuple[str, ...]:
+    """Apply permanent rank-21 sales, J-D sales, then pressure fallback."""
+    rank = classification.ranks
+    selected_ids = {
+        item_id for item_id in classification.sold_ids
+        if rank.get(item_id, 0) > HOME_SALE_KEEP_TOP_ALWAYS
+    }
+    selected_ids.update(
+        item_id for item_id, item_rank in rank.items()
+        if item_rank > HOME_SALE_KEEP_TOP_WHEN_SPACE
+        and item_id in classification.eligible_ids
+    )
+    selected = sorted(selected_ids)
+    # Rank-21+ items are sold even when Home already has room, and their
+    # projected slots count toward the target.
+    projected = free_home_slots + len(home_ids & selected_ids)
+    if projected >= target_free_slots:
+        return tuple(selected)
+    already = frozenset(selected)
+    for item_id in equipment_sale_fallback_order(
+        classification, excluded_ids=already,
+    ):
+        item_rank = rank.get(item_id, 0)
+        if not HOME_SALE_KEEP_TOP_ALWAYS < item_rank <= HOME_SALE_KEEP_TOP_WHEN_SPACE:
+            continue
+        selected.append(item_id)
+        if item_id in home_ids:
+            projected += 1
+        if projected >= target_free_slots:
+            break
+    return tuple(selected)
 
 
 def equipment_sale_scope(owned: OwnedEquipment, scope: str) -> bool:
@@ -111,7 +179,9 @@ def classify_equipment_sales(
         (not catalogue_current, "stale-catalogue"),
     ) if blocked)
     if blockers:
-        return EquipmentSaleClassification(frozenset(), frozenset(), unknown, reasons, {}, blockers)
+        return EquipmentSaleClassification(
+            frozenset(), frozenset(), unknown, reasons, {}, blockers, {}, frozenset(),
+        )
 
     current = current_loadout(catalog)
     pinned = {slot: owned for slot, owned in current.slots if owned.item.is_cursed}
@@ -157,14 +227,20 @@ def classify_equipment_sales(
     )
     if result.timed_out or result.search_truncated or result.best is None:
         return EquipmentSaleClassification(
-            frozenset(), frozenset(), unknown, reasons, {}, ("optimization-incomplete",),
+            frozenset(), frozenset(), unknown, reasons, {},
+            ("optimization-incomplete",), {}, frozenset(),
         )
     for entry in (result.best, *result.band_best_loadouts):
         for item_id in entry.loadout.item_ids - protected:
             reasons[item_id] = "optimizer-or-band-winner"
             protected.add(item_id)
 
-    eligible = tuple(owned for owned in catalog if owned.id in scores)
+    # Scope limits which identities may be sold and ranked, while protected
+    # identities inside that scope still consume a rank.
+    eligible = tuple(
+        owned for owned in catalog
+        if owned.id in scores and equipment_sale_scope(owned, scope)
+    )
     damage = {owned.id: best_obtainable_launcher_damage(owned.item, ammunition)
               for owned in eligible if owned.item.tval == 19}
     # IDs are stable physical-copy identifiers. Protection precedes IDs so a
@@ -211,7 +287,34 @@ def classify_equipment_sales(
     # Compare exactly the existing strict Pareto proof under the same safety
     # and scope guards; D's physical-copy rule intentionally adds no R1 proof.
     pareto = disposable_dominated_item_ids(eligible, frozenset(protected))
+    # Rank every scoreable physical item by its best single-slot evaluation.
+    # Stable IDs break exact ties; protected equipment remains in the ranking.
+    grouped: dict[str, list[str]] = {}
+    for owned in eligible:
+        if owned.id in scores:
+            grouped.setdefault(_sale_slot(owned) or "", []).append(owned.id)
+    ranks: dict[str, int] = {}
+
+    def compare_score(left_id: str, right_id: str) -> int:
+        left, right = scores[left_id], scores[right_id]
+        left_preferred = _prefer(left, right, frozenset())
+        right_preferred = _prefer(right, left, frozenset())
+        if left_preferred != right_preferred:
+            return -1 if left_preferred else 1
+        return (left_id > right_id) - (left_id < right_id)
+
+    for ids in grouped.values():
+        for rank, item_id in enumerate(sorted(
+            ids, key=cmp_to_key(compare_score),
+        ), start=1):
+            ranks[item_id] = rank
+
     return EquipmentSaleClassification(
         sold, pareto, unknown, reasons,
         {item_id: tuple(w for w in witnesses[item_id] if w in retained) for item_id in sold},
+        (),
+        {item_id: (entry.metrics.combat_margin, entry.metrics.secondary_value)
+         for item_id, entry in scores.items()},
+        frozenset(owned.id for owned in eligible if owned.id not in protected),
+        ranks,
     )

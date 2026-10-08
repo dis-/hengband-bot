@@ -7,7 +7,10 @@ from pathlib import Path
 import unittest
 
 from hengbot.equipment_optimizer import OwnedEquipment, current_loadout, optimize_loadout
-from hengbot.equipment_sale_classifier import classify_equipment_sales, equipment_sale_scope
+from hengbot.equipment_sale_classifier import (
+    _sale_slot, classify_equipment_sales, equipment_sale_plan,
+    equipment_sale_scope,
+)
 from hengbot.launcher_damage import best_obtainable_launcher_damage, launcher_dominates
 from hengbot.model import InventoryItem, PLAYER_CLASS_WARRIOR
 
@@ -49,13 +52,44 @@ class TestRecordedEquipmentSaleClassifier(unittest.TestCase):
         self.assertEqual(len(self.data["home"]["knowledge"]["items"]), 240)
         self.assertEqual(self.data["home"]["turn"], 15798381)
         self.assertTrue(self.options["catalogue_current"])
-        for key, expected in {"ES": 41, "ED": 41, "JS": 43, "JD": 45}.items():
+        # This branch's J scope excludes ego jewelry: the recorded JD count is 44.
+        for key, expected in {"ES": 41, "ED": 41, "JS": 42, "JD": 44}.items():
             with self.subTest(variant=key):
                 result = self.results[key]
                 self.assertEqual(result.blockers, ())
                 self.assertEqual(len(home & result.sold_ids), expected)
                 self.assertEqual(len(home & result.pareto_ids), 1)
                 self.assertFalse(home & result.needs_identification_ids)
+
+    def test_recorded_jd_rank_sale_counts(self):
+        result = self.results["JD"]
+        home = {owned.id: owned for owned in self.catalog.items
+                if owned.origin == "home"}
+        selected = set(equipment_sale_plan(
+            result, home_ids=frozenset(home), free_home_slots=9,
+        )) & home.keys()
+        counts = {}
+        for item_id, owned in home.items():
+            slot = _sale_slot(owned)
+            row = counts.setdefault(slot, [0, 0, 0, 0])
+            rank = result.ranks.get(item_id, 0)
+            if item_id in selected and rank > 20:
+                row[1] += 1  # unconditional rank-21+ rule
+            elif item_id in selected and item_id in result.sold_ids:
+                row[0] += 1  # J-D in ranks 11-20
+            elif item_id in selected:
+                row[2] += 1  # Home-capacity fallback
+            else:
+                row[3] += 1  # kept
+        self.assertEqual(
+            counts,
+            {"arms": [0, 0, 0, 2], "body": [2, 18, 0, 21],
+             "bow": [0, 0, 0, 4], "feet": [0, 0, 0, 5],
+             "head": [0, 0, 0, 11], "light": [0, 0, 0, 4],
+             "main_hand": [0, 78, 0, 38],
+             "main_ring": [0, 8, 0, 19], "neck": [0, 0, 0, 6],
+             "outer": [0, 0, 0, 8], "sub_hand": [0, 0, 0, 7]},
+        )
 
     def test_recorded_artifacts_and_worn_never_selected(self):
         artifacts = {owned.id for owned in self.catalog.items if owned.origin == "home" and owned.item.is_artifact}

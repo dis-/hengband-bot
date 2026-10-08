@@ -936,3 +936,40 @@ The existing count assertion or the non-ego-only scope must be explicitly reconc
 Tokens used: exact counter unavailable (tokens_used=null); Part B cap 120000. Stopped for the
 explicit expectation conflict, not the token limit.
 {"topic":"sell-equipment-B","status":"INCOMPLETE","base":"e4efd24b","blocker":"non-ego J jewelry yields JD 44 but existing recorded expectation and Part B require 45","variants":{"ES":41,"ED":41,"JS":42,"JD":44},"sale_path_built":false,"new_policy_attributes":0,"tests":{"final_total":14,"failing_methods":1,"failing_subtests":2,"errors":0,"all_run_executions":33,"workers":1},"tokens_used":null,"token_cap":120000}
+
+PART B (luna)
+STATUS: INCOMPLETE. Continued from 6a285da9; no push or game/bot launch.
+
+Completed in this continuation:
+- Updated the branch-local recorded count pin to the clarified non-ego jewelry scope: ES 41, ED 41, JS 42, JD 44. Tests inherited from main were not edited.
+- Added optimizer score rank metadata per equipment slot, preserving scoped protected items in rank positions. Added the sale-plan helper enforcing keep ranks 1-10, rank 21+ sales, J-D sales in ranks 11-20, and weakest-first fallback in ranks 11-20 when projected Home space is below 20.
+- Added named HOME_SALE_KEEP_TOP_ALWAYS=10 and HOME_SALE_KEEP_TOP_WHEN_SPACE=20 constants with the 2026-10-08 decision comment. HOME_SALE_FREE_SLOT_TARGET=20 remains named.
+- Added branch-local pins for ego jewelry exclusion, stable fallback ordering, rank-21 sales/top-10 retention, and line-724 slot counts.
+- Regenerated scripts/town_work_manifest.py: 805 candidates, 19,774 sites, zero unmapped.
+
+Recorded line-724 JD rank projection (231 Home entries; 9 initially free slots): columns are J-D ranks 11-20 / rank 21+ / fallback / kept, using the classifier preference comparator. No fallback was needed because unconditional rank-21+ sales project more than 20 free slots.
+
+| Slot | J-D | Rank 21+ | Fallback | Kept |
+| --- | ---: | ---: | ---: | ---: |
+| arms | 0 | 0 | 0 | 2 |
+| body | 2 | 18 | 0 | 21 |
+| bow | 0 | 0 | 0 | 4 |
+| feet | 0 | 0 | 0 | 5 |
+| head | 0 | 0 | 0 | 11 |
+| light | 0 | 0 | 0 | 4 |
+| main_hand | 0 | 78 | 0 | 38 |
+| main_ring | 0 | 8 | 0 | 19 |
+| neck | 0 | 0 | 0 | 6 |
+| outer | 0 | 0 | 0 | 8 |
+| sub_hand | 0 | 0 | 0 | 7 |
+| **Total** | **2** | **104** | **0** | **125** |
+
+Validation:
+- Focused classifier/scope/manifest-lint run after regeneration: 55 tests; classifier and both lint modules passed. The first direct invocation could not import test_town_work_contract because tests/ was missing from PYTHONPATH; rerun with PYTHONPATH=src;tests passed all 9 tests in 871.483s.
+- Requested one-worker module run: 916 tests, 5 failures, 4 errors, 5 skipped. Three failures were stale-manifest checks and were addressed by regeneration. Remaining failures/errors are in tests.test_policy_shop: two failures (stockpile purchase expectation and probe-purity incident pin) and four Black Market purchase errors where _next_purchase returned None. No policy-shop source or expectations were changed here.
+- Fail-before/pass-after: no pre-change run of the new rank pins was captured; the new rank and recorded-count pins passed in the focused run.
+- Token count is unavailable in this environment (tokens_used=null); the 120,000-token limit was not reached.
+
+INCOMPLETE: DO 1 sale-path integration remains unimplemented: no once-per-return sale list, batched Home withdrawals, three-withdrawal return bound, refusal re-deposit/carry handling, or same-visit retry/destruction exclusion. DO 2 currently exists only as a classifier plan helper and is not connected to live policy. DO 3 lacks refused-item, batch-bound, and restored-checkpoint policy controls. DO 4 has the generated manifest and tests but no live sale reasons to register because DO 1 was not integrated. No new policy attributes were added.
+
+{"topic":"sell-equipment-B","part":"luna","status":"INCOMPLETE","base":"6a285da9","j_counts":{"ES":41,"ED":41,"JS":42,"JD":44},"line724_projected":{"home_entries":231,"jd_11_20":2,"rank_21_plus":104,"fallback":0,"kept":125,"by_slot":{"arms":[0,0,0,2],"body":[2,18,0,21],"bow":[0,0,0,4],"feet":[0,0,0,5],"head":[0,0,0,11],"light":[0,0,0,4],"main_hand":[0,78,0,38],"main_ring":[0,8,0,19],"neck":[0,0,0,6],"outer":[0,0,0,8],"sub_hand":[0,0,0,7]}},"sale_path_integrated":false,"tests":{"requested_total":916,"failures":5,"errors":4,"skipped":5,"post_manifest_contract_tests":9,"workers":1},"tokens_used":null,"token_cap":120000}
