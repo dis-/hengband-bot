@@ -54,7 +54,108 @@ class _SignatureScopedStoreVerdict(str):
 
 class ShopMixin(InStoreMixin):
     def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
+        """Return the known cost of unmet required stock, or unknown.
+
+        Prices come from emitter-observed shelves retained by
+        ``_observe_departure_prices``.  An unknown required price is not zero:
+        optional Black Market spending is refused until that price is known.
+        """
+        from hengbot.model import (
+            SV_FLASK_OIL,
+            SV_LITE_LANTERN,
+            SV_SCROLL_TELEPORT,
+            SV_SCROLL_WORD_OF_RECALL,
+            TVAL_FLASK,
+        )
+        from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
+
+        reserve = 0
+
+        def add(category: str, missing: int) -> bool:
+            nonlocal reserve
+            if missing <= 0:
+                return True
+            known = self._observed_departure_prices.get(category)
+            if known is None:
+                base_kinds = {
+                    "recall": ((TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),),
+                    "teleport": ((TVAL_SCROLL, SV_SCROLL_TELEPORT),),
+                    "cure-critical": ((TVAL_POTION, SV_POTION_CURE_CRITICAL),),
+                    "oil": ((TVAL_FLASK, SV_FLASK_OIL),),
+                    "light": (
+                        (TVAL_LITE, SV_LITE_TORCH),
+                        (TVAL_LITE, SV_LITE_LANTERN),
+                    ),
+                    "identify-staff": ((TVAL_STAFF, SV_STAFF_IDENTIFY),),
+                    "quest:speed": ((TVAL_POTION, SV_POTION_SPEED),),
+                    "quest:healing": ((TVAL_POTION, SV_POTION_HEALING),),
+                }.get(category, ())
+                base_prices = [
+                    self._baseitem_costs[kind]
+                    for kind in base_kinds
+                    if self._baseitem_costs.get(kind, 0) > 0
+                ]
+                if category == "food":
+                    base_prices.extend(
+                        price for (tval, sval), price in self._baseitem_costs.items()
+                        if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL and price > 0
+                    )
+                if base_prices:
+                    known = (min(base_prices), 1)
+            if known is None:
+                return False
+            price, units = known
+            reserve += ceil(missing / units) * price
+            return True
+
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        price_category = {"cure": "cure-critical"}
+        for status in ledger.values():
+            missing = max(0, status.required_departure - status.count)
+            if missing and not add(price_category.get(status.kind, status.kind), missing):
+                return None
+
+        if not self._light_ready(snapshot) and not add("light", 1):
+            return None
+
+        if not self._identify_staff_ready(snapshot):
+            missing = max(
+                0,
+                STAFF_IDENTIFY_MIN_CHARGES
+                - self._total_identify_staff_charges(snapshot),
+            )
+            if not add("identify-staff", missing):
+                return None
+
+        strategy = self._carry_procurement_strategy(snapshot)
+        if strategy is not None:
+            for name, status in self._quest_carry_status(
+                snapshot, strategy.required_force
+            ).items():
+                missing = max(
+                    0, int(status["required"]) - int(status["measured"])
+                )
+                if missing and not add(f"quest-carry:{name}", missing):
+                    return None
+            force = strategy.required_force
+            for category, sval, target_key in (
+                ("quest:speed", SV_POTION_SPEED, "speed_potions"),
+                ("quest:healing", SV_POTION_HEALING, "heal_potions"),
+            ):
+                missing = max(
+                    0,
+                    int(force.get(target_key, 0))
+                    - self._exact_potion_count(snapshot, sval),
+                )
+                if missing and not add(category, missing):
+                    return None
+        return reserve
+    def _full_departure_resupply_reserve(self, snapshot: Snapshot) -> int | None:
         """Return the known cost to rebuy the full required departure stock.
+
+        USER DECISION 2026-10-08 「必需品1回分の補充代を残す」 applies to the
+        optional Black Market purchases only; required purchases (*Destruction*,
+        Restore Life Levels) keep ``_required_departure_supply_reserve``.
 
         Prices come from emitter-observed shelves retained by
         ``_observe_departure_prices``.  This holds the full target quantity even
@@ -2375,7 +2476,7 @@ class ShopMixin(InStoreMixin):
             return None
         if self._required_remove_curse_kind(snapshot) is not None:
             return None
-        reserve = self._required_departure_supply_reserve(snapshot)
+        reserve = self._full_departure_resupply_reserve(snapshot)
         if reserve is None:
             return None
         optional = [
@@ -3275,7 +3376,7 @@ class ShopMixin(InStoreMixin):
             return None
         if item.price <= 0:
             return None
-        reserve = self._required_departure_supply_reserve(snapshot)
+        reserve = self._full_departure_resupply_reserve(snapshot)
         if reserve is None:
             return 0
         return max(0, (snapshot.player.gold - reserve) // item.price)
