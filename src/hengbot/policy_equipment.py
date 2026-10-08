@@ -3388,7 +3388,7 @@ class EquipmentMixin:
             self, "_town_need_evaluation_include_launcher_enchant", True
         )
         self._town_need_evaluation_include_launcher_enchant = (
-            include_launcher_enchant
+            include_launcher_enchant and previous_include_launcher_enchant
         )
         try:
             if (

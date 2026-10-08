@@ -68,6 +68,20 @@ DUNGEON_DECISIONS = (
 # (user decision 「ボットが ~f を開いて記憶する（推奨）」).
 TOWN_DECISION = (500, "\x1b`n(.", "shop:travel")
 
+# The 2026-10-08 decision reserves the full cost of rebuying every departure
+# necessity for optional Black Market purchases, even when current stock is
+# satisfied. These recorded lifetime rows therefore intentionally stop buying
+# optional stock once the full rebuy reserve is accounted for.
+FULL_RESUPPLY_RESERVE_DECISIONS = {
+    18: ("\x1b", "shop:observe-and-leave"),
+    19: ("\x1b`n%.", "shop:travel"),
+    20: ("\x1b", "shop:observe-and-leave"),
+    21: ("1", "shop:approach"),
+    26: ("Cf\ry\x1b\x1b", "town:character-dump"),
+    28: ("rfa", "town:recall-to-angband"),
+    29: ("1", "town:entrance-step-off:town:await-recall-confirmation"),
+}
+
 
 def _read_lines(path: Path) -> list[str]:
     with gzip.open(path, "rt", encoding="utf-8") as stream:
@@ -212,10 +226,10 @@ class P1SameDecisionTest(unittest.TestCase):
 class P1LifetimeTest(unittest.TestCase):
     """P1 on the whole recorded lifetime prefix, where state accumulates.
 
-    Decisions 1..137 of the recorded 41F process are faithful (the esp-threat
-    fix changes decision 138 onwards).  Replayed through the public response
-    path from the derived protocol-3 rows -- answering each ~f request with
-    the derived skill list -- they must equal the recorded (key, reason).
+    The recorded 41F process is replayed through the public response path from
+    the derived protocol-3 rows -- answering each ~f request with the derived
+    skill list. Rows in FULL_RESUPPLY_RESERVE_DECISIONS intentionally differ
+    because optional purchases retain the full departure rebuy reserve.
     The pre-fix client, reading the protocol-3 rows with silent defaults,
     diverges at decisions 4 and 7 (town equipment calibration and purchase).
     """
@@ -251,7 +265,11 @@ class P1LifetimeTest(unittest.TestCase):
                     )
                     key = policy.choose_key(snapshots[-1])
                 with self.subTest(sequence=sequence):
-                    self.assertEqual([str(key), policy.last_reason], recorded[sequence - 1])
+                    actual = (str(key), policy.last_reason)
+                    expected = FULL_RESUPPLY_RESERVE_DECISIONS.get(
+                        sequence, tuple(recorded[sequence - 1])
+                    )
+                    self.assertEqual(actual, expected)
                 policy.confirm_key_posted(key)
         self.assertEqual(requested_at, [1])
 

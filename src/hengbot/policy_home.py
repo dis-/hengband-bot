@@ -4099,6 +4099,12 @@ class HomeMixin:
         previous_include_launcher_enchant = getattr(
             self, "_town_need_evaluation_include_launcher_enchant", True
         )
+        if not previous_include_launcher_enchant:
+            # Equipment failure classification is itself part of town-need
+            # evaluation. A nested Home projection cannot prove the absence
+            # of an owner without re-entering that same classification, so
+            # conservatively keep the Home goal pending for this query.
+            return True
         self._town_need_evaluation_include_launcher_enchant = False
         try:
             needs = self._enumerate_town_needs(snapshot)

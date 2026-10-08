@@ -169,6 +169,7 @@ class ShopMixin(InStoreMixin):
             SV_SCROLL_WORD_OF_RECALL,
             TVAL_FLASK,
         )
+        from hengbot.policy_constants import QUEST_AMMO_TVALS, QUEST_SCROLL_SVALS
         from hengbot.policy_constants import (
             MANA_FOOD_CHARGE_TARGET,
             MANA_FOOD_DEVICE_TARGET,
@@ -180,35 +181,89 @@ class ShopMixin(InStoreMixin):
         observed_prices = getattr(self, "_observed_departure_prices", {})
         baseitem_costs = getattr(self, "_baseitem_costs", {})
 
+        def base_kinds(category: str) -> tuple[tuple[int, int], ...] | None:
+            category = category.removeprefix("quest-carry:")
+            fixed = {
+                "recall": ((TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),),
+                "teleport": ((TVAL_SCROLL, SV_SCROLL_TELEPORT),),
+                "cure-critical": ((TVAL_POTION, SV_POTION_CURE_CRITICAL),),
+                "oil": ((TVAL_FLASK, SV_FLASK_OIL),),
+                "light": (
+                    (TVAL_LITE, SV_LITE_TORCH),
+                    (TVAL_LITE, SV_LITE_LANTERN),
+                ),
+                "identify-staff": ((TVAL_STAFF, SV_STAFF_IDENTIFY),),
+                "quest:speed": ((TVAL_POTION, SV_POTION_SPEED),),
+                "quest:healing": ((TVAL_POTION, SV_POTION_HEALING),),
+                "throwing_items.lit_torch": ((TVAL_LITE, SV_LITE_TORCH),),
+                "launcher": (),
+                "launcher.average_damage": (),
+                "utility_tools.wall_breach": (
+                    (TVAL_WAND, SV_WAND_STONE_TO_MUD),
+                ),
+            }
+            if category in fixed:
+                if category in {"launcher", "launcher.average_damage"}:
+                    return tuple(
+                        kind for kind in baseitem_costs if kind[0] == TVAL_BOW
+                    )
+                if category == "utility_tools.wall_breach":
+                    return fixed[category] + tuple(
+                        kind for kind in baseitem_costs
+                        if kind[0] == TVAL_DIGGING
+                    )
+                return fixed[category]
+            if category.startswith("throwing_items."):
+                name = category.partition(".")[2]
+                ammo_tval = (
+                    self._equipped_launcher(snapshot).ammo_tval
+                    if name == "launcher_ammo"
+                    and self._equipped_launcher(snapshot) is not None
+                    else QUEST_AMMO_TVALS.get(name)
+                )
+                return (
+                    tuple(kind for kind in baseitem_costs if kind[0] == ammo_tval)
+                    if ammo_tval is not None else None
+                )
+            if category.startswith("required_scrolls."):
+                sval = QUEST_SCROLL_SVALS.get(category.partition(".")[2])
+                return ((TVAL_SCROLL, sval),) if sval is not None else None
+            if category == "food":
+                if snapshot.player.food_type == FOOD_TYPE_MANA:
+                    return tuple(
+                        kind for kind in baseitem_costs
+                        if kind[0] in {TVAL_WAND, TVAL_STAFF}
+                    )
+                return tuple(
+                    kind for kind in baseitem_costs
+                    if kind[0] == TVAL_FOOD and kind[1] >= FOOD_MIN_SVAL
+                )
+            if category == "quest-carry:launcher":
+                return tuple(kind for kind in baseitem_costs if kind[0] == TVAL_BOW)
+            if category == "quest-carry:launcher.average_damage":
+                return tuple(kind for kind in baseitem_costs if kind[0] == TVAL_BOW)
+            if category.startswith("quest-carry:throwing_items."):
+                return base_kinds(category.removeprefix("quest-carry:"))
+            if category.startswith("quest-carry:required_scrolls."):
+                return base_kinds(category.removeprefix("quest-carry:"))
+            if category == "quest-carry:utility_tools.wall_breach":
+                return base_kinds("utility_tools.wall_breach")
+            return None
+
         def add(category: str, target: int, *, minimum_units: int = 1) -> bool:
             nonlocal reserve
             if target <= 0:
                 return True
             known = observed_prices.get(category)
             if known is None:
-                base_kinds = {
-                    "recall": ((TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),),
-                    "teleport": ((TVAL_SCROLL, SV_SCROLL_TELEPORT),),
-                    "cure-critical": ((TVAL_POTION, SV_POTION_CURE_CRITICAL),),
-                    "oil": ((TVAL_FLASK, SV_FLASK_OIL),),
-                    "light": (
-                        (TVAL_LITE, SV_LITE_TORCH),
-                        (TVAL_LITE, SV_LITE_LANTERN),
-                    ),
-                    "identify-staff": ((TVAL_STAFF, SV_STAFF_IDENTIFY),),
-                    "quest:speed": ((TVAL_POTION, SV_POTION_SPEED),),
-                    "quest:healing": ((TVAL_POTION, SV_POTION_HEALING),),
-                }.get(category, ())
+                kinds = base_kinds(category)
+                if kinds is None:
+                    return False
                 base_prices = [
                     baseitem_costs[kind]
-                    for kind in base_kinds
+                    for kind in kinds
                     if baseitem_costs.get(kind, 0) > 0
                 ]
-                if category == "food" and snapshot.player.food_type != FOOD_TYPE_MANA:
-                    base_prices.extend(
-                        price for (tval, sval), price in baseitem_costs.items()
-                        if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL and price > 0
-                    )
                 if base_prices:
                     known = (min(base_prices), 1)
             if known is None:

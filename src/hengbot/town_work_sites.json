@@ -5978,8 +5978,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4116,
-    "end_line": 4125,
+    "line": 4122,
+    "end_line": 4131,
     "ast_sha256": "5121b0e375cc6e423bc1a21420286bd1199f389b9c0bb069b48743ddbf0e38f7"
   },
   "policy_home.py:HomeMixin._home_full_knowledge_key": {
@@ -6039,8 +6039,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4574,
-    "end_line": 4592,
+    "line": 4580,
+    "end_line": 4598,
     "ast_sha256": "1819e9d27142051b6c1968f8cca66bf478a7e09aca4371210289402a18f57afe"
   },
   "policy_home.py:HomeMixin._home_page_letter": {
@@ -6061,8 +6061,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4538,
-    "end_line": 4572,
+    "line": 4544,
+    "end_line": 4578,
     "ast_sha256": "92f45926ec311e65e8105d88dc091139cf0c46025ea79da222ca102de3e40d27"
   },
   "policy_home.py:HomeMixin._home_visit_retention": {
@@ -7289,8 +7289,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2650,
-    "end_line": 2660,
+    "line": 2705,
+    "end_line": 2715,
     "ast_sha256": "c4f80263688ef85e73cb48507dea2397eb62f8f8ae92e8c7f28c1bd820f17327"
   },
   "policy_shop.py:ShopMixin._atomic_shop_transaction_key": {
@@ -7306,8 +7306,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5466,
-    "end_line": 5721,
+    "line": 5521,
+    "end_line": 5776,
     "ast_sha256": "6e47e77176251ce5727eb0443b7e5815ac509f03c361c5e2d624d2b5439c21cb"
   },
   "policy_shop.py:ShopMixin._atomic_shop_transaction_key.offer_outcome": {
@@ -7322,8 +7322,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5469,
-    "end_line": 5485,
+    "line": 5524,
+    "end_line": 5540,
     "ast_sha256": "94b548957064004441f3a2bde56a5348d6ed565b6f0be8670bd5d9feb3f51595"
   },
   "policy_shop.py:ShopMixin._batch_sale_entry": {
@@ -7333,8 +7333,8 @@
       "sale-address"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3863,
-    "end_line": 3902,
+    "line": 3918,
+    "end_line": 3957,
     "ast_sha256": "81a9cfe1a25f12eeca826f28f96db9b1c87abb2c17ebdee8ee18fbe0d1247838"
   },
   "policy_shop.py:ShopMixin._batch_sell_key": {
@@ -7345,8 +7345,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3612,
-    "end_line": 3791,
+    "line": 3667,
+    "end_line": 3846,
     "ast_sha256": "100ac1ae75d43888b2e654fb9d7c6211add9aeedda463877c3b38b8d9ed9afdb"
   },
   "policy_shop.py:ShopMixin._black_market_optional_purchase": {
@@ -7355,8 +7355,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2471,
-    "end_line": 2513,
+    "line": 2526,
+    "end_line": 2568,
     "ast_sha256": "9532ce47ffc716f3bd22fb96292864fa21b8b8a2a411308e0eaf6f18a8fe2024"
   },
   "policy_shop.py:ShopMixin._black_market_optional_purchase.held": {
@@ -7365,8 +7365,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2503,
-    "end_line": 2506,
+    "line": 2558,
+    "end_line": 2561,
     "ast_sha256": "e78aca96e0e41b93c718d98a383851e35fa2d218ab6b22980ec88145d370c745"
   },
   "policy_shop.py:ShopMixin._black_market_optional_purchase.kind_rank": {
@@ -7375,8 +7375,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2508,
-    "end_line": 2511,
+    "line": 2563,
+    "end_line": 2566,
     "ast_sha256": "b0223ab8c98f7c664dda8c42ce2d8bd12ace88606cc3dde06716f70cefa67a4e"
   },
   "policy_shop.py:ShopMixin._black_market_optional_reserve_cap": {
@@ -7385,8 +7385,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3362,
-    "end_line": 3382,
+    "line": 3417,
+    "end_line": 3437,
     "ast_sha256": "4167d19e32ac0dda4ff84325054f58a0deea272c2531446e5fc8c13bd2680cf4"
   },
   "policy_shop.py:ShopMixin._carried_aware_potion": {
@@ -7395,8 +7395,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 686,
-    "end_line": 696,
+    "line": 741,
+    "end_line": 751,
     "ast_sha256": "3c39a54b9b4011f1a8c621f082a1d1c0adff31554188ddac875cc1eec26886ec"
   },
   "policy_shop.py:ShopMixin._carried_restore_potion": {
@@ -7405,8 +7405,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 606,
-    "end_line": 621,
+    "line": 661,
+    "end_line": 676,
     "ast_sha256": "8e9e81036be749d43dbd924d1229caa9ab4ef3938432b36490f485a7633fa972"
   },
   "policy_shop.py:ShopMixin._cheapest_exchange_item": {
@@ -7415,8 +7415,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 412,
-    "end_line": 429,
+    "line": 467,
+    "end_line": 484,
     "ast_sha256": "301f8b5b21e28ee03910956d64c7b1aef0394e9485b40235ebb54bc5f83eced0"
   },
   "policy_shop.py:ShopMixin._cross_town_shopping_key": {
@@ -7425,8 +7425,8 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1642,
-    "end_line": 1767,
+    "line": 1697,
+    "end_line": 1822,
     "ast_sha256": "f65b1d5d9d08621a80b97bf492ad2daff1113f638a3973f091d2ff8415628d84"
   },
   "policy_shop.py:ShopMixin._current_store_sale_candidates": {
@@ -7435,8 +7435,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3551,
-    "end_line": 3609,
+    "line": 3606,
+    "end_line": 3664,
     "ast_sha256": "d4af93341846d545f620d68fb6b969f182334a83e6c020d93db1d7c61021e957"
   },
   "policy_shop.py:ShopMixin._destruction_purchase": {
@@ -7445,8 +7445,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2439,
-    "end_line": 2469,
+    "line": 2494,
+    "end_line": 2524,
     "ast_sha256": "61763f801ddbc7558543798909e34b14dfb6baad09ce89e5c3b45608a7dd5650"
   },
   "policy_shop.py:ShopMixin._dominated_disposal_store": {
@@ -7455,8 +7455,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected sale policy; no independent success",
-    "line": 865,
-    "end_line": 869,
+    "line": 920,
+    "end_line": 924,
     "ast_sha256": "5b1c2cfb7d50c4ecea512812a33ea65e7d5f2c68b76952c5d3396181513aea21"
   },
   "policy_shop.py:ShopMixin._enumerate_live_store_claims": {
@@ -7465,8 +7465,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 998,
-    "end_line": 1069,
+    "line": 1053,
+    "end_line": 1124,
     "ast_sha256": "2d5de41d64911f1ebdfeadac6711004e62d5ef89cb102bf9022fb1a0e8b86c47"
   },
   "policy_shop.py:ShopMixin._experience_potion_quaff_key": {
@@ -7475,8 +7475,8 @@
       "stat-recovery"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 825,
-    "end_line": 863,
+    "line": 880,
+    "end_line": 918,
     "ast_sha256": "6d54686baa1116407f223efa6ee6ac4094a81009e2561638fe36501776286106"
   },
   "policy_shop.py:ShopMixin._find_book_sale": {
@@ -7485,8 +7485,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 536,
-    "end_line": 546,
+    "line": 591,
+    "end_line": 601,
     "ast_sha256": "9b96b366880ed6068e365241c99f42040f27de1cc536fac316eda7ba44a0a7eb"
   },
   "policy_shop.py:ShopMixin._find_device_sale": {
@@ -7495,8 +7495,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 548,
-    "end_line": 603,
+    "line": 603,
+    "end_line": 658,
     "ast_sha256": "7b7a35d0b27e1be60704cfaab8d7b4707d5a6da52c1cfc7c4285e7cd165c476e"
   },
   "policy_shop.py:ShopMixin._find_light_sale": {
@@ -7505,8 +7505,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 399,
-    "end_line": 410,
+    "line": 454,
+    "end_line": 465,
     "ast_sha256": "dca3ed2078b9abe80072049632dc8c9c2c07706bf84dcf32991fc03d00206cc3"
   },
   "policy_shop.py:ShopMixin._find_low_level_sale": {
@@ -7515,8 +7515,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 871,
-    "end_line": 892,
+    "line": 926,
+    "end_line": 947,
     "ast_sha256": "9303f1997b67302abef6764007635e77629483d0a1b8ba5adb0e57345fadbc8a"
   },
   "policy_shop.py:ShopMixin._full_departure_resupply_reserve": {
@@ -7526,8 +7526,8 @@
     ],
     "delegation": "selected child; no independent success",
     "line": 153,
-    "end_line": 276,
-    "ast_sha256": "601e9b86e71ac96dd779bdcb173bae9dd9946827f170233e576ec07b6f99e1d9"
+    "end_line": 331,
+    "ast_sha256": "6c6ba5648dbed565202fef9278222985c4acf3f80feecbcc1c3d93f49c4cfe2e"
   },
   "policy_shop.py:ShopMixin._identify_staff_purchase_room_count": {
     "classification": "data",
@@ -7535,8 +7535,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3250,
-    "end_line": 3255,
+    "line": 3305,
+    "end_line": 3310,
     "ast_sha256": "3160860c9eccd92bec11c1212fe00d09347027e5a87a07d5c2f814136f112d64"
   },
   "policy_shop.py:ShopMixin._inventory_item_from_store_item": {
@@ -7545,8 +7545,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 310,
-    "end_line": 339,
+    "line": 365,
+    "end_line": 394,
     "ast_sha256": "f5cbe1485f27a0f8fd6cb7f4fab4055980ec37715d2dfac36755b34749b26c94"
   },
   "policy_shop.py:ShopMixin._item_has_sale_tag": {
@@ -7555,8 +7555,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3816,
-    "end_line": 3819,
+    "line": 3871,
+    "end_line": 3874,
     "ast_sha256": "61b28046515ff445af0ff259f74b25e34be7a91d6640952f170648f357dee983"
   },
   "policy_shop.py:ShopMixin._legacy_next_purchase_unreserved": {
@@ -7565,8 +7565,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2846,
-    "end_line": 3248,
+    "line": 2901,
+    "end_line": 3303,
     "ast_sha256": "6674c3cb9fa84e2e5235182377350b14be7c239e085f3d58ba14bcab41dc9049"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
@@ -7575,8 +7575,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2161,
-    "end_line": 2179,
+    "line": 2216,
+    "end_line": 2234,
     "ast_sha256": "d03a57cd9e9f7e771d55e7962b2f4ea2157127f39f7657ca5f1e2ba2d6d55e37"
   },
   "policy_shop.py:ShopMixin._mandatory_purchase": {
@@ -7585,8 +7585,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2756,
-    "end_line": 2811,
+    "line": 2811,
+    "end_line": 2866,
     "ast_sha256": "f368b906b07f28626cf30b1ab315d69061798cd872b84c2c3f58f1d8186835f7"
   },
   "policy_shop.py:ShopMixin._next_purchase": {
@@ -7595,8 +7595,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2181,
-    "end_line": 2216,
+    "line": 2236,
+    "end_line": 2271,
     "ast_sha256": "40fe732638e6944911fbc7f721e7ff01f6d857ab412d54af7fa1eb8655caa733"
   },
   "policy_shop.py:ShopMixin._next_purchase_unreserved": {
@@ -7605,8 +7605,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2813,
-    "end_line": 2823,
+    "line": 2868,
+    "end_line": 2878,
     "ast_sha256": "76eda4920e95bad7a2f3abefc0266638e8fecada26852a7e6304502970bd0e3b"
   },
   "policy_shop.py:ShopMixin._next_required_store_type": {
@@ -7615,8 +7615,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1071,
-    "end_line": 1498,
+    "line": 1126,
+    "end_line": 1553,
     "ast_sha256": "3e6bcdc2b68f48ad99cc36acf44898447828a00b75b1d8bf739e4d45a3cb326c"
   },
   "policy_shop.py:ShopMixin._offer_store_sale_leave": {
@@ -7627,8 +7627,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3416,
-    "end_line": 3423,
+    "line": 3471,
+    "end_line": 3478,
     "ast_sha256": "733d703e644ed5ad479f23cf2bdc31dc2b381eeb5e3ef84a8381989c4c48a840"
   },
   "policy_shop.py:ShopMixin._purchase_diagnostic_category": {
@@ -7637,8 +7637,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2251,
-    "end_line": 2295,
+    "line": 2306,
+    "end_line": 2350,
     "ast_sha256": "d365a1da19fced70a65fb7e757198945b0f713beac856290404ec0cae1853d20"
   },
   "policy_shop.py:ShopMixin._purchase_item_identity": {
@@ -7647,8 +7647,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2538,
-    "end_line": 2542,
+    "line": 2593,
+    "end_line": 2597,
     "ast_sha256": "09bddce333d21051f01894933581489421221cffb9ca46513a6cbf064bef5e3d"
   },
   "policy_shop.py:ShopMixin._purchase_quantity": {
@@ -7657,8 +7657,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3265,
-    "end_line": 3360,
+    "line": 3320,
+    "end_line": 3415,
     "ast_sha256": "fd2415b9fa47f63e1c7cc6310b238b8c1589061074c4b5d7052c2e4c319f1ce4"
   },
   "policy_shop.py:ShopMixin._purchase_rungs": {
@@ -7667,8 +7667,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2544,
-    "end_line": 2644,
+    "line": 2599,
+    "end_line": 2699,
     "ast_sha256": "f9526d05e516c36c282eeca047866d2b98a0feb50cb020c3d1fa6c6159b7d7c9"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.rung.match": {
@@ -7677,8 +7677,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2551,
-    "end_line": 2560,
+    "line": 2606,
+    "end_line": 2615,
     "ast_sha256": "73c7e3bcf9dd2e75acc52b60affaab55b7506a70796c786c9088e2b8d6b47ccb"
   },
   "policy_shop.py:ShopMixin._release_staged_store_operation": {
@@ -7693,8 +7693,8 @@
       "home-withdraw"
     ],
     "delegation": "selected child; no independent success",
-    "line": 450,
-    "end_line": 490,
+    "line": 505,
+    "end_line": 545,
     "ast_sha256": "74db4d32f88e1d2d7d9a8f234273af6b844386bbf4e49e680888f2a157052df1"
   },
   "policy_shop.py:ShopMixin._released_restock_store_key": {
@@ -7703,8 +7703,8 @@
       "restock"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 932,
-    "end_line": 996,
+    "line": 987,
+    "end_line": 1051,
     "ast_sha256": "542673ec539617b5144d4773d531ff149e69010fd3b06dec0e8b4962d6c3e80e"
   },
   "policy_shop.py:ShopMixin._required_remove_curse_purchase": {
@@ -7713,8 +7713,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2515,
-    "end_line": 2524,
+    "line": 2570,
+    "end_line": 2579,
     "ast_sha256": "be2556a78a729df79014199d75bb4b974d551749eff602311412a2b258a6ae79"
   },
   "policy_shop.py:ShopMixin._restore_life_levels_purchase": {
@@ -7723,8 +7723,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 754,
-    "end_line": 776,
+    "line": 809,
+    "end_line": 831,
     "ast_sha256": "f19904c252423ee651e9c5227201174a6ee82c74b74ac46cc90f4d1df32283d5"
   },
   "policy_shop.py:ShopMixin._restore_mining_combat_hand_key": {
@@ -7734,8 +7734,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5734,
-    "end_line": 5842,
+    "line": 5789,
+    "end_line": 5897,
     "ast_sha256": "546b2c121d66eb6dd325d50451efa60115696070b3b9d2c0b84553a5b0807219"
   },
   "policy_shop.py:ShopMixin._restore_potion_purchase": {
@@ -7744,8 +7744,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 631,
-    "end_line": 650,
+    "line": 686,
+    "end_line": 705,
     "ast_sha256": "1c8d7bb410c7d32e12e98fba2b649d1b347076b5907abbd805bf8f2d4363b8a7"
   },
   "policy_shop.py:ShopMixin._retry_after_store_restock": {
@@ -7754,8 +7754,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 894,
-    "end_line": 929,
+    "line": 949,
+    "end_line": 984,
     "ast_sha256": "1908f46c0db365646aebc444c6dbef44596afaf5c35e7b5a73847fe56b58a8a6"
   },
   "policy_shop.py:ShopMixin._router_plan_stop_families": {
@@ -7764,8 +7764,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4870,
-    "end_line": 4924,
+    "line": 4925,
+    "end_line": 4979,
     "ast_sha256": "fc084dd26adc1529400aa2cbcc1127c22bd50a4398e994ad780412ea15a6fec5"
   },
   "policy_shop.py:ShopMixin._router_plan_stop_family": {
@@ -7774,8 +7774,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4926,
-    "end_line": 4928,
+    "line": 4981,
+    "end_line": 4983,
     "ast_sha256": "f9285abed8818069455ea305b168b22cf3b5ea6a84f08a49f9d1c46257c0fad0"
   },
   "policy_shop.py:ShopMixin._sale_inscription_text": {
@@ -7784,8 +7784,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3811,
-    "end_line": 3813,
+    "line": 3866,
+    "end_line": 3868,
     "ast_sha256": "1cf35345d18e97ef03fb7e69d9bfbfb754c90952a8d90f9d667f7d5e4a47840d"
   },
   "policy_shop.py:ShopMixin._sale_item_identity": {
@@ -7794,8 +7794,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3855,
-    "end_line": 3860,
+    "line": 3910,
+    "end_line": 3915,
     "ast_sha256": "2164ab3842b5c0dbe7a9d873e8f8745d2e0b4d9af43c12745703257ba709258e"
   },
   "policy_shop.py:ShopMixin._shop": {
@@ -7811,8 +7811,8 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3904,
-    "end_line": 3952,
+    "line": 3959,
+    "end_line": 4007,
     "ast_sha256": "68ec77b9c955e0f4760c9b27580e0e08bed97c4f65959c4ebb6648096eedee6f"
   },
   "policy_shop.py:ShopMixin._shop_candidate_diagnostics": {
@@ -7821,8 +7821,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2298,
-    "end_line": 2310,
+    "line": 2353,
+    "end_line": 2365,
     "ast_sha256": "07b044ba8437ac1e83b884fa6594fa5f80753b4579ba0fdcac535d9921f496f3"
   },
   "policy_shop.py:ShopMixin._shop_core": {
@@ -7838,8 +7838,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3954,
-    "end_line": 4868,
+    "line": 4009,
+    "end_line": 4923,
     "ast_sha256": "1603b6fd69acdb4b146d9477672f48ecc9ffc26c6288132f2eb7e022516e3999"
   },
   "policy_shop.py:ShopMixin._shopping_approach_key": {
@@ -7848,8 +7848,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5266,
-    "end_line": 5448,
+    "line": 5321,
+    "end_line": 5503,
     "ast_sha256": "0969224c222dd2ec492130f3a4025ae9d23e421e22ff911e81182484e9d6245c"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
@@ -7858,8 +7858,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4930,
-    "end_line": 5156,
+    "line": 4985,
+    "end_line": 5211,
     "ast_sha256": "e39215178b9fa327600120f0a000d49d541f056092d23120929a6b1f89946fd5"
   },
   "policy_shop.py:ShopMixin._stage_shopping_approach_key": {
@@ -7868,8 +7868,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5158,
-    "end_line": 5206,
+    "line": 5213,
+    "end_line": 5261,
     "ast_sha256": "af5954bc43ab8af7816ed5efded72aa43d6234760115f84bd4474a9af684c719"
   },
   "policy_shop.py:ShopMixin._stat_restore_quaff_key": {
@@ -7878,8 +7878,8 @@
       "stat-recovery"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 653,
-    "end_line": 674,
+    "line": 708,
+    "end_line": 729,
     "ast_sha256": "c7de3b7dc5754304ae7fb07f88d43934b26822017e50aafafa935c3920232e69"
   },
   "policy_shop.py:ShopMixin._store_accepts_sale": {
@@ -7888,8 +7888,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3384,
-    "end_line": 3414,
+    "line": 3439,
+    "end_line": 3469,
     "ast_sha256": "2900bfd81a3acafeedac3f62e0290be61e38880cc552925403f6bed7a8f1240d"
   },
   "policy_shop.py:ShopMixin._store_item_is_supply": {
@@ -7898,8 +7898,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 432,
-    "end_line": 448,
+    "line": 487,
+    "end_line": 503,
     "ast_sha256": "ab6e19f95155b7a2e5ad84dfbe33f1bf68eeafcdc698c832e122f33c0b18718e"
   },
   "policy_shop.py:ShopMixin._store_item_stacks_with_inventory": {
@@ -7908,8 +7908,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2663,
-    "end_line": 2744,
+    "line": 2718,
+    "end_line": 2799,
     "ast_sha256": "da023ce89f01c595392d51b2a736b0dab62bfffb0f76f405fd7c752fbd321781"
   },
   "policy_shop.py:ShopMixin._store_sell_key": {
@@ -7920,8 +7920,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3426,
-    "end_line": 3549,
+    "line": 3481,
+    "end_line": 3604,
     "ast_sha256": "4977a9d45b4cdcc42109762c74bf01db0fc86c449b55af753b46f13d441c7199"
   },
   "policy_shop.py:_ShoppingApproachEmission.__new__": {
