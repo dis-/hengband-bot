@@ -35,7 +35,8 @@ class RecordedShadowTest(unittest.TestCase):
 
     def test_live8_one_shot_identity(self):
         rows = live8.recorded_rows()
-        with gzip.open(str(live8.LOG) + ".state.jsonl.gz", "rt", encoding="utf8") as f:
+        state_row = Path(__file__).parent / "fixtures" / "live8-one-shot.state-row.jsonl.gz"
+        with gzip.open(state_row, "rt", encoding="utf8") as f:
             raw = next(r for r in map(json.loads, f) if r.get("turn") == rows[211]["turn"]
                        and not r.get("inventory") and not r.get("store"))
         board = parse_snapshot(raw, {})

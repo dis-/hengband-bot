@@ -1,0 +1,4 @@
+# Source: incident-20260930-1932-s33-live-one-shot-in-flight-after-calibration-strip.state.jsonl.gz
+# sha256 (source decompressed bytes): 92cd0a345fe253b74e81b3614488f7d0eb17176aa50127038c10d5426bbc5a6b
+# Physical row 246 (turn 433036, first board without inventory/store at that turn), verbatim.
+# Extracted row sha256: c52388ff4fa6cf186a89ad7a9ad764313fe1665b18f9452a34b8960f58cb4721

@@ -17,6 +17,7 @@ from hengbot.model import (
     SV_BOW_SLING,
     SV_DIGGING_SHOVEL,
     SV_POTION_CURE_CRITICAL,
+    SV_POTION_HEALING,
     SV_POTION_SPEED,
     SV_POTION_RESIST_COLD,
     SV_SCROLL_DETECT_TREASURE,
@@ -64,6 +65,36 @@ class ShopOneShotTest(unittest.TestCase):
             item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
             item("v", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=5),
         ]
+
+    @staticmethod
+    def _construct_full_resupply_prices(policy, snapshot):
+        """DECLARED CONSTRUCTED: known prices for the mechanics-only replay."""
+        prices = {}
+        for status in policy._supply_ledger(
+                snapshot, policy._planned_depth()).values():
+            if status.required_departure:
+                category = "cure-critical" if status.kind == "cure" else status.kind
+                prices[category] = (1, 1)
+        prices["light"] = (1, 1)
+        prices["identify-staff"] = (1, 1)
+        prices["quest:speed"] = (1, 1)
+        prices["quest:healing"] = (1, 1)
+        strategy = policy._carry_procurement_strategy(snapshot)
+        if strategy is not None:
+            for name, status in policy._quest_carry_status(
+                    snapshot, strategy.required_force).items():
+                if int(status["required"]):
+                    prices[f"quest-carry:{name}"] = (1, 1)
+        policy._observed_departure_prices.update(prices)
+        reserve = policy._full_departure_resupply_reserve(snapshot)
+        if reserve is None:
+            for category in (
+                    "recall", "teleport", "cure-critical", "oil", "food",
+                    "light", "identify-staff", "quest:speed", "quest:healing",
+                    "remove-curse"):
+                policy._observed_departure_prices.setdefault(category, (1, 1))
+            reserve = policy._full_departure_resupply_reserve(snapshot)
+        return reserve
 
     def _inside(self, store_type, inventory, wares, *, gold=7589):
         entrance = replace(grid(10, 10), store_number=store_type)
@@ -204,15 +235,53 @@ class ShopOneShotTest(unittest.TestCase):
             if row["turn"] == 2870169 and row["type"] == "store"
             and row["player"]["gold"] == 3011
         )
-        inside = parse_snapshot(first_shelf, {})
-        outside = parse_snapshot(outside_raw, {})
         reentered_raw = next(
             row for row in rows
             if row["turn"] == 2869238 and row["type"] == "store"
             and row["player"]["gold"] == 4187
         )
+        # DECLARED CONSTRUCTED: preserve the recorded shelf and transaction,
+        # but provide enough gold and known resupply prices to exercise the
+        # bounded-quantity executor mechanics under the 2026-10-08 decision.
+        reserve_policy = HengbotPolicy()
+        recorded_inside = parse_snapshot(first_shelf, {})
+        self.assertIsNone(reserve_policy._full_departure_resupply_reserve(recorded_inside))
+        reserve = self._construct_full_resupply_prices(reserve_policy, recorded_inside)
+        self.assertIsNotNone(reserve)
+        # Recompute the reserve at the actual re-entry board because its
+        # procurement strategy can have a different required target.
+        reserve_board = parse_snapshot(reentered_raw, {})
+        for _ in range(4):
+            reserve = reserve_policy._full_departure_resupply_reserve(reserve_board)
+            self.assertIsNotNone(reserve)
+            reserve_board = replace(
+                reserve_board,
+                player=replace(reserve_board.player, gold=reserve + 3 * 392 + 1),
+            )
+        constructed_gold = max(1_000_000, reserve_board.player.gold)
+        for row in (first_shelf, outside_raw, final_raw, emptied_store_raw):
+            row["player"]["gold"] = constructed_gold - (
+                3 * 392 if row is final_raw or row is emptied_store_raw else 0
+            )
+        reentered_raw["player"]["gold"] = constructed_gold
+        inside = parse_snapshot(first_shelf, {})
+        outside = parse_snapshot(outside_raw, {})
         final = parse_snapshot(final_raw, {})
+        # DECLARED CONSTRUCTED: held Healing stock keeps the optional selector
+        # focused on the recorded Speed ware when the constructed gold makes
+        # both options affordable; this pin is about Speed quantity handling.
+        held_healing = item(
+            "z", TVAL_POTION, SV_POTION_HEALING, count=20,
+            name="constructed held Healing stock",
+        )
+        inside = replace(inside, inventory=[*inside.inventory, held_healing])
+        outside = replace(outside, inventory=[*outside.inventory, held_healing])
+        reentered = replace(
+            parse_snapshot(reentered_raw, {}),
+            inventory=[*parse_snapshot(reentered_raw, {}).inventory, held_healing],
+        )
         policy = HengbotPolicy()
+        policy._observed_departure_prices.update(reserve_policy._observed_departure_prices)
 
         self.assertEqual((policy.choose_key(inside), policy.last_reason),
                          (LEAVE_STORE_KEY,
@@ -226,7 +295,7 @@ class ShopOneShotTest(unittest.TestCase):
         ):
             self.assertEqual(policy.choose_key(outside), "5")
             self.assertTrue(policy.confirm_key_posted("5"))
-            operation = policy.choose_key(parse_snapshot(reentered_raw, {}))
+            operation = policy.choose_key(reentered)
         self.assertEqual((operation, policy.last_reason),
                          ("ph3\r\r\x1b", "shop:one-shot-buy"))
 
@@ -257,6 +326,26 @@ class ShopOneShotTest(unittest.TestCase):
         )
         self.assertNotEqual(policy.choose_key(final), "")
         self.assertNotEqual(policy.last_reason, "town:blocked:owner-retired")
+
+    def test_recorded_speed_shelf_gold_is_refused_by_full_resupply_reserve(self):
+        fixture = Path("tests/fixtures/speed-potion-shuttle-20260915.jsonl.gz")
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        raw = next(
+            row for row in rows
+            if row.get("type") == "store"
+            and row["store"]["store_type"] == STORE_BLACK
+            and any(item["letter"] == "h" and item["sval"] == SV_POTION_SPEED
+                    and item["count"] == 3 and item["price"] == 392
+                    for item in row["store"]["items"])
+        )
+        board = parse_snapshot(raw, {})
+        policy = HengbotPolicy()
+        ware = next(item for item in board.store.items if item.letter == "h")
+        self.assertEqual((board.player.gold, board.store.store_type, ware.price),
+                         (4187, STORE_BLACK, 392))
+        self.assertIsNone(policy._full_departure_resupply_reserve(board))
+        self.assertIsNone(policy._black_market_optional_purchase(board))
 
     def _consume_buy(self, outside, key, ware):
         state, gold, inventory = "surface", outside.player.gold, list(outside.inventory)
