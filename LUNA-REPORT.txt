@@ -51,3 +51,46 @@ Verification
 - `git diff --check` passed.
 
 No game or bot was run. No full suite, push, or other worktree was used.
+
+Follow-up: fundraising identify-staff supplier route
+----------------------------------------------------
+The live27 constructed town board at decision 104 is in fundraising
+`prepare`, plans depth 19, has no active fundraising purpose record, and fails
+only `identify_staff_ready` (18/20 charges). Home is complete; Magic (store 5)
+and Black Market have not been attempted. Its required continuation is the
+Magic supplier trip, with no mining plan.
+
+The cure-supplier recording contains a five-run `detect-treasure` fundraising
+purpose on Yeek Cave 1F. Its purpose-owned supply continuation must remain
+intact while that purpose is active. The later cure shortage is a separate
+need: the recorded town detail at 1387 shows Cure Critical at 6/10 with
+fundraising mode already clear. Thus the routing condition is a town
+fundraising board whose planned depth is at least 10, whose sole departure
+failure is identify staff readiness, and whose purpose record is not active.
+The check uses `getattr` so restored policy snapshots without the purpose
+attribute remain supported.
+
+The live27 checkpoint also exposed duplicate `identify-staff` registry
+occurrences in restored state. The registry now has two sequential supplier
+slots and validates the cached occurrence list as exactly `[0, 1]`; its old
+cached `[0]` shape is rebuilt. The town progress seam composes the pending
+Magic approach through the registered store-router adapter and preserves the
+`shop:travel` reason. No asserted expectation was edited.
+
+Final verification
+------------------
+- Regenerated `scripts/town_work_manifest.py --write`: 804 candidates,
+  19,699 sites, zero unmapped.
+- `PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules`
+  with `tests.test_identify_staff_live27_recorded`,
+  `tests.test_town_cure_supplier_recorded`,
+  `tests.test_identify_staff_swap_churn_recorded`,
+  `tests.test_store_reentry_recorded`, `tests.test_crossarea_fundraising`,
+  `tests.test_classC_departure_remedies`,
+  `tests.test_identify_staff_stockout_recorded`,
+  `tests.test_supply_stockout_recorded`, and all seven required hygiene
+  modules passed: 300 tests, no failures or errors.
+- A focused hygiene run also passed 126 tests.
+- `git diff --check` passed before report update.
+
+No game or bot was run. No full suite, push, or other worktree was used.
