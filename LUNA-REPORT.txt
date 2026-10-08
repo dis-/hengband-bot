@@ -1,29 +1,16 @@
 LUNA task report - 2026-10-08
 
-Implemented the equipment sale prerequisite recovery in the requested worktree.
+Implemented
+- Yield the equipment transaction to a built, unsold equipment sale plan while Home is full or the transaction's Home deposit was refused.
+- Route sale work before the equipment transaction can abandon on repeated Home-route failure. Keep the transaction session and stripped-item ownership intact during the sale batch.
+- After the batch frees Home slots, clear only the deposit refusal/route blockers and resume the same transaction deposit.
+- Added a recorded 20:58 capture pin. It verifies the original terminal stop, sale-first routing, the planned three-withdrawal batch, preservation of transaction ownership, and resumption of the deposit after Home capacity returns.
+- Regenerated the town work manifest: 813 candidates, 20,112 sites, zero unmapped.
 
-The return-scoped sale session now asks the existing Home scan producer for a
-fresh catalogue when its catalogue is stale, and asks the existing character
-dump bookkeeping path for calibration when calibration is missing. At Home it
-uses the supported short C-screen macro, so neither a deposit nor an equipment
-transaction can consume the visit first. Each request is bounded once per
-sale session; if an input remains blocked after that request, normal town work
-continues. Old restored sale sessions without the new state use safe defaults.
-
-The 19:36 sequence pin is DECLARED CONSTRUCTED from the decision rows in
-LUNA-TASK.txt. No corresponding onset checkpoint was available for replay.
-Before the fix those rows record no calibration or scan request before deposit
-work. The pin now observes `~9`, then the Home C-screen calibration request,
-then a successfully built sale list after the inputs are current.
-
-Regenerated the town work manifest and updated the producer, claim ladder, and
-item sink review records.
-
-Verification: the requested module set passed serially with 365 tests in
-1811.871 seconds. This included the equipment sale scope and optimizer pins,
-the `b467b1ad` overweight restart pin, Home relief and entry-cycle pins,
-calibration modules, ownership closure/classification/S3a, town arbiter,
-town structure/item sink/fakery lints, and the town work contract.
-
-No game or bot was started, no other worktree was used, no full suite was run,
-and nothing was pushed.
+Verification
+- The requested one-worker shard ran 386 tests. It initially reported 8 failures: five expectations in the two extra overweight Home replay modules, two stale-manifest checks (regenerated after the final source edit), and one stale fakery-lint marker (removed and rerun successfully).
+- The five extra overweight replay failures remain: `test_overweight_home_hold_recorded` expects historic travel/deposit/terminal decisions, while the replay now requests sale calibration first; `test_overweight_home_unreachable_recorded` expects its former divergence boundary before the new prerequisite decisions. These modules were additional checks, not the requested sale pins. No post-divergence recorded boards were changed or treated as valid outcomes.
+- The focused one-worker rerun passed the new recorded pin, town structure lint, item-sink lint, and town work contract checks; the only failure was the stale fakery-lint marker. After removing it, `tests.test_test_fakery_lint` passed all 13 tests.
+- The `b467b1ad` sale restart pin and `7b9bc8f5` prerequisite pin passed. The latter passed 2 tests. Requested equipment sale, transaction, Home cycle/relief, arbiter, ownership S2a/S3a, and town modules passed in the initial shard or focused rerun.
+- `git diff --check` passed. The report and test source are UTF-8 without BOM.
+- No game or bot was started, no other worktree was used, no full suite was run, and nothing was pushed.
