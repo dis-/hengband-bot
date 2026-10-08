@@ -28,3 +28,37 @@ Ran serially with the Codex Python 3.13 runtime:
 `python -m unittest tests.test_shop_one_shot tests.test_store_reentry_recorded tests.test_s33_shadow_recorded tests.test_black_market_optional_quantity tests.test_test_fakery_lint`
 
 Result: 112 tests ran, 110 passed, 1 skipped, 1 error (the missing S33 state fixture above). The fakery-lint acceptance matrices completed successfully. No full suite was run.
+
+
+# LUNA report - batch 7 recorded-suite fallout
+
+Worktree: `batch7-fallout-1008`, based on `5ea827c2`.
+
+## A — town approach replay
+
+First-parent bisect of `tests.test_town_approach_retired_recorded`: all 10 tests passed at `e1592598`; at the next relevant merge, `fdc929d1` (`bm-reserve-1008`), seven tests failed because the replay first diverged at list index 53. The changed hunk in `src/hengbot/policy_shop.py` changed the optional Black Market reserve from unmet shortages to full departure targets. This is the intended effect of the 2026-10-08 decision, 「必需品1回分の補充代を残す」.
+
+The recorded decision at index 53 remains asserted as `ESC / town-progress-invariant:continue-observed-shop`; current policy observes and leaves with `ESC / shop:observe-and-leave`. The route replay declares a shortage-reserve wall after pinning the current decision, preserving its later recorded claims and independent sites.
+
+## B — unaffordable claim tour
+
+The first changed board in this lifetime is list index 4264, before the later Healing purchase at 4266. The recorded side is `ESC / town-progress-invariant:continue-observed-shop`; the full-resupply rule changes it to `ESC / shop:observe-and-leave`. This is the same intended reserve decision and `fdc929d1` source change as A. That earlier refusal explains why the subsequent recorded Healing purchase and post-purchase claim/departure boards cannot be consumed continuously under the new rule.
+
+The test asserts the recorded and current sides at index 4264, then declares a shortage-reserve wall for the historical post-purchase claims. The optional-buy mechanics remain exercised separately with constructed shelf prices and gold (`reserve + price + 1`) through the public shop boundary in `tests.test_black_market_optional_quantity`; a separate recorded-board pin asserts the new refusal.
+
+## C — unseen spell scratch fixture
+
+Commit `7e98415c` froze the state fixture hash over decompressed JSONL bytes, but the scratch test compared the compressed gzip container bytes. It now verifies the decompressed payload hash. The self-contained fixture contains the four hit boards, not the preceding turn; the test now checks the prior-HP seed (`841`) held by the policy instead of indexing the absent turn.
+
+## Verification
+
+All six requested modules passed serially with `--workers 1`:
+
+- Town approach, unseen spell scratch, Black Market optional quantity, test fakery lint, and runtime file isolation: 49 tests, no failures or errors.
+- Unaffordable claim tour: 8 tests, no failures or errors.
+
+`git diff --check` passed. No full suite, game, bot, push, or other worktree was used. Tests added on this branch declare the intended reserve divergence and may be corrected relative to the base revision.
+
+## First-parent check for B
+
+The same serial module passes at `e1592598` (7 tests) and reproduces the `test_u2`, post-purchase claim, and departure failures at `fdc929d1` (3 failures). At that checkpoint the full-resupply reserve first changes the later Black Market Healing purchase board (index 4266). On the current head, the reserve decision now changes the earlier Black Market visit (index 4264), which is the declared first divergence used by the replay test; the Healing-board failures are downstream consequences. This confirms both replay groups against the `fdc929d1` first-parent merge without changing production code.

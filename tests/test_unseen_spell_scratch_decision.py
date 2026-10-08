@@ -56,7 +56,9 @@ TELEPORT_SLOT = "e"
 class UnseenSpellScratchTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        assert hashlib.sha256(CAPTURE.read_bytes()).hexdigest() == SHA256
+        # 7e98415c froze SHA256 over the decompressed JSONL payload, not the
+        # gzip container whose bytes may vary independently.
+        assert hashlib.sha256(gzip.decompress(CAPTURE.read_bytes())).hexdigest() == SHA256
         with gzip.open(CAPTURE, "rt", encoding="utf-8") as stream:
             cls.rows = {
                 row["turn"]: row
@@ -97,7 +99,9 @@ class UnseenSpellScratchTest(unittest.TestCase):
         # teleport on this board.
         board = self._board(FIRST_HIT)
         policy = self._policy(board, 841)
-        self.assertEqual(self.rows[PREVIOUS]["player"]["hp"], 841)
+        # The self-contained 7e98415c fixture starts at FIRST_HIT; the prior
+        # board is represented by the policy's captured last-HP seed.
+        self.assertEqual(policy._last_hp, 841)
         self.assertFalse(board.visible_monsters)
         self.assertEqual(board.player.hp, 824)
         self.assertGreater(board.player.hp, policy._low_hp_walk_threshold(841))

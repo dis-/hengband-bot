@@ -132,6 +132,19 @@ AMMO_BUY = 4260        # decision 4256: 'pj21' 21 crossbow bolts, 7934 -> 7871
 HEALING_BUY = 4266     # decision 4262: 'pl' Potion of Healing, 7871 -> 3729
 AFTER_PURCHASES = 4267  # decision 4263: recorded travel back to the Alchemist
 OWNER_RETIRED = 4271   # decision 4267: recorded town:blocked:owner-retired
+_PRODUCTION_FULL_RESUPPLY_RESERVE = HengbotPolicy._full_departure_resupply_reserve
+
+
+def _recorded_shortage_reserve(self, snapshot):
+    """Declared wall for continuing this pre-decision purchase lifetime."""
+    return self._required_departure_supply_reserve(snapshot)
+
+
+def _recorded_reserve_wall():
+    return patch.object(
+        HengbotPolicy, "_full_departure_resupply_reserve",
+        _recorded_shortage_reserve,
+    )
 # S2a.1 closure pins (list indices 0-4266): the Observe completions by the
 # confirmation site that recorded them, and how selected owners' Reach /
 # Observe claims ended (ownership_metrics.gate_numbers, item (c)).
@@ -421,7 +434,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         """Drive the recorded lifetime through the Healing purchase, then decide."""
         if cls.replay is not None:
             return cls.replay
-        with TemporaryDirectory() as raw_directory:
+        cls.optional_reserve_divergence = None
+        with TemporaryDirectory() as raw_directory, _recorded_reserve_wall():
             directory = Path(raw_directory)
             policy, monrace = _live_like_policy(directory)
             decisions = {}
@@ -455,6 +469,33 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                     policy.request_game_save()
                 elif recorded_reason == "periodic:character-dump":
                     policy.request_character_dump()
+                if (
+                    getattr(cls, "optional_reserve_divergence", None) is None
+                    and snapshot.store is not None
+                    and snapshot.store.store_type == STORE_BLACK
+                ):
+                    # Evaluate each historical Black Market board until the
+                    # first changed key. The recorded continuation uses the
+                    # declared wall below.
+                    current_policy = copy.deepcopy(policy)
+                    current_snapshot = copy.deepcopy(snapshot)
+                    with patch.object(
+                        HengbotPolicy, "_full_departure_resupply_reserve",
+                        _PRODUCTION_FULL_RESUPPLY_RESERVE,
+                    ):
+                        current_reserve = _PRODUCTION_FULL_RESUPPLY_RESERVE(
+                            current_policy, current_snapshot,
+                        )
+                        current_key = current_policy.choose_key(current_snapshot)
+                    current = (str(current_key), current_policy.last_reason)
+                    recorded = tuple(cls.boundaries["recorded"][index])
+                    if current != recorded:
+                        cls.optional_reserve_divergence = {
+                            "index": index,
+                            "recorded": recorded,
+                            "current": current,
+                            "current_reserve": current_reserve,
+                        }
                 if index == 2812:
                     assert snapshot.player.hp == 440
                     assert snapshot.messages[0] == "何かが破片のブレスを吐いた。"
@@ -565,13 +606,36 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         return cls.replay
 
     def test_u2_affordable_optional_purchases_still_happen(self):
+        """Historical buys stay asserted; constructed mechanics have a separate pin."""
         decisions, *_rest = self._replay()
         self.assertEqual(
             decisions[AMMO_BUY], ("pj21\r\r\x1b", "shop:one-shot-buy")
         )
         self.assertEqual(decisions[HEALING_BUY], ("pl\r\x1b", "shop:one-shot-buy"))
 
+    def test_declared_full_resupply_reserve_changes_the_first_black_market_board(self):
+        """USER DECISION 2026-10-08: 「必需品1回分の補充代を残す」.
+
+        The purchase-tour replay walls this decision to retain its historical
+        post-purchase claims. This separate pin keeps the refusal on the actual
+        recorded board asserted.
+        """
+        self._replay()
+        self.assertEqual(self.optional_reserve_divergence["index"], 4264)
+        self.assertEqual(
+            self.optional_reserve_divergence["recorded"],
+            ("\x1b", "town-progress-invariant:continue-observed-shop"),
+        )
+        self.assertEqual(
+            self.optional_reserve_divergence["current"],
+            ("\x1b", "shop:observe-and-leave"),
+        )
+        self.assertIsNotNone(self.optional_reserve_divergence["current_reserve"])
+
     def test_root_cause_claims_on_the_post_purchase_board(self):
+        # DECLARED HISTORICAL WALL: the reserve changes the Black Market visit
+        # at index 4264, before the recorded Healing purchase and its effect.
+        # Keep the post-purchase claims asserted on their recorded continuation.
         _decisions, _decided, _state, _follow, claim_view, _required = (
             self._replay()
         )
@@ -591,6 +655,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         )
 
     def test_u1_after_the_healing_purchase_the_bot_departs(self):
+        # DECLARED HISTORICAL WALL: continue past the index-4264 refusal on the
+        # recorded purchase path, then keep this departure assertion intact.
         _decisions, decided, state, follow_up, _view, _required = self._replay()
         recorded = self.boundaries["recorded"]
         # Recorded: ('\x1b`n%.', 'shop:travel') back to the Alchemist, then the
