@@ -15212,6 +15212,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
                 charges = max(1, item.pval)
                 self._remember_departure_price("identify-staff", item.price, charges)
+            if (
+                item.tval in {TVAL_WAND, TVAL_STAFF}
+                and item.pval > 0
+                and not (item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY)
+            ):
+                # Mana users' food stock is measured in charges and distinct
+                # devices. Store prices are per item; pval is the stack's total
+                # charges, so retain a per-device charge yield for the reserve.
+                self._remember_departure_price(
+                    "food", item.price, max(1, item.pval // max(1, item.count))
+                )
             if item.tval == TVAL_LITE and item.sval in {
                 SV_LITE_TORCH,
                 SV_LITE_LANTERN,
