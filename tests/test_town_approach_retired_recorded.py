@@ -123,6 +123,7 @@ from hengbot.policy_state import normalize_policy_state
 # of the live keys.  A separate test pins the first changed decision.
 from hengbot.policy import HengbotPolicy as _P2Policy
 _PRODUCTION_RECALL_DESTINATION = _P2Policy._town_recall_destination
+_PRODUCTION_FULL_RESUPPLY_RESERVE = _P2Policy._full_departure_resupply_reserve
 
 
 def _pre_p2_recall_destination(self, snapshot, *, guardian_gate=True,
@@ -134,6 +135,18 @@ def _pre_p2_recall_destination(self, snapshot, *, guardian_gate=True,
 def _pre_p2_departure_count():
     return patch.object(_P2Policy, "_town_recall_destination",
                         _pre_p2_recall_destination)
+
+
+def _pre_full_resupply_reserve(self, snapshot):
+    """Wall the 2026-10-08 Black Market reserve rule for this old lifetime."""
+    return self._required_departure_supply_reserve(snapshot)
+
+
+def _recorded_optional_reserve():
+    return patch.object(
+        _P2Policy, "_full_departure_resupply_reserve",
+        _pre_full_resupply_reserve,
+    )
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -172,6 +185,7 @@ S33_CHECKPOINTS_SHA256 = "fe64591abd5fc6ecfd7e74f2170d655741544f3673fe2ba470baa4
 S33_WALK_BEGIN = WALK_START - 10
 
 P2_FIRST = 52  # first decision changed by the P2 departure recall count
+OPTIONAL_RESERVE_FIRST_CHANGED = 53  # recorded Black Market visit, decision 52
 
 
 class TownApproachRetiredRecordedTest(unittest.TestCase):
@@ -314,7 +328,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         if cls.replay is not None:
             return cls.replay
         cls.path = {}
-        with TemporaryDirectory() as raw_directory, _pre_p2_departure_count():
+        with (TemporaryDirectory() as raw_directory,
+              _pre_p2_departure_count(), _recorded_optional_reserve()):
             directory = Path(raw_directory)
             policy = cls._new_policy(directory)
             replay = []
@@ -337,9 +352,27 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                         adverse_status=bool(snapshot.player.poisoned or snapshot.player.cut
                                             or snapshot.player.confused or snapshot.player.blind),
                     )
+                live = cls.recorded[index]
+                if index == OPTIONAL_RESERVE_FIRST_CHANGED:
+                    # This route replay is not a purchase-mechanics pin. Keep
+                    # its historical continuation behind a declared wall, and
+                    # separately retain the real new refusal on the same board.
+                    observed = copy.deepcopy(policy)
+                    with patch.object(
+                        _P2Policy, "_full_departure_resupply_reserve",
+                        _PRODUCTION_FULL_RESUPPLY_RESERVE,
+                    ):
+                        changed = cls._decide(observed, snapshot)
+                    cls.optional_reserve_divergence = {
+                        "recorded": (live["key"], live["reason"]),
+                        "current": (changed["key"], changed["reason"]),
+                        "gold": snapshot.player.gold,
+                        "reserve": _PRODUCTION_FULL_RESUPPLY_RESERVE(
+                            observed, snapshot,
+                        ),
+                    }
                 row = cls._decide(policy, snapshot)
                 replay.append(row)
-                live = cls.recorded[index]
                 equivalent_quantity = (index == 1178 and row["key"] == "dm"
                                        and live["key"] == "dm\r" and row["reason"] == live["reason"])
                 if not equivalent_quantity and (row["key"], row["reason"]) != (live["key"], live["reason"]):
@@ -392,6 +425,25 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                     assert (row["key"], row["reason"]) == (live["key"], live["reason"]), index
             cls.replay = replay
         return cls.replay
+
+    def test_declared_black_market_reserve_divergence(self):
+        """USER DECISION 2026-10-08: 「必需品1回分の補充代を残す」.
+
+        The full departure resupply reserve changes this visit from the
+        recorded detector continuation to observing and leaving the Black
+        Market. The route lifetime below walls that rule so its later recorded
+        claims remain a continuous replay; this pin asserts both sides here.
+        """
+        self._replay()
+        self.assertEqual(
+            self.optional_reserve_divergence["recorded"],
+            ("\x1b", "town-progress-invariant:continue-observed-shop"),
+        )
+        self.assertEqual(
+            self.optional_reserve_divergence["current"],
+            ("\x1b", "shop:observe-and-leave"),
+        )
+        self.assertIsNotNone(self.optional_reserve_divergence["reserve"])
 
     def test_current_missing_item_prefix_ends_with_zero_diagnostics(self):
         replay = self._replay()

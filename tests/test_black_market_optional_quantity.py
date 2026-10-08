@@ -225,6 +225,22 @@ class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
         )
         self.assertIsNotNone(policy._next_purchase(control))
 
+    def test_constructed_affordable_optional_buy_reaches_public_boundary(self):
+        """CONSTRUCTED price/gold keep the selector's purchase path exercised."""
+        policy, board = self._black_market(staff_charges=36, gold=1400)
+        item = board.store.items[0]
+        reserve = policy._full_departure_resupply_reserve(board)
+        self.assertIsNotNone(reserve)
+        control = replace(
+            board,
+            player=replace(
+                board.player,
+                gold=reserve + item.price + 1,
+            ),
+        )
+        self.assertEqual(policy._next_purchase(control), item)
+        self.assertTrue(_public_shop_inner(self, policy, control).startswith("p"))
+
 
 if __name__ == "__main__":
     unittest.main()
