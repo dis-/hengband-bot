@@ -2001,6 +2001,18 @@ def _write_decision(
                     name: value for name, value in in_store.items()
                     if name != "decision_sequence"
                 }
+            sale_session = getattr(policy, "_equipment_sale_session", None)
+            if isinstance(sale_session, dict):
+                # Diagnostic only: why the per-visit equipment sale list does
+                # or does not exist (2026-10-08 live: no sale ever started).
+                record["equipment_sale"] = {
+                    "built": bool(sale_session.get("built")),
+                    "blocker": sale_session.get("blocker"),
+                    "items": len(sale_session.get("items") or ()),
+                    "withdrawals": sale_session.get("withdrawals"),
+                    "refused": len(sale_session.get("refused") or ()),
+                    "active_store": sale_session.get("active_store"),
+                }
             json.dump(record, file, ensure_ascii=False)
             file.write("\n")
             if ownership_ledger is not None:
