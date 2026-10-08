@@ -493,7 +493,7 @@
   "policy_shop.py:ShopMixin._purchase_quantity": "pure helper: Buy this ware's complete shortage in one transaction.",
   "policy_shop.py:ShopMixin._purchase_rungs.rung.match": "pure helper: match returns unannotated data used as input/observation, not an independently selected game action",
   "policy_shop.py:ShopMixin._release_staged_store_operation": "delegated adapter: forwards the bound operation tail after its store-page observation",
-  "policy_shop.py:ShopMixin._required_departure_supply_reserve": "pure helper: Return the known cost of unmet required stock, or unknown.",
+  "policy_shop.py:ShopMixin._full_departure_resupply_reserve": "pure helper: Return the known cost to rebuy the full required departure stock.",
   "policy_shop.py:ShopMixin._required_remove_curse_purchase": "pure helper: _required_remove_curse_purchase returns StoreItem | None used as input/observation, not an independently selected game action",
   "policy_shop.py:ShopMixin._restore_life_levels_purchase": "pure helper: The shelf's Restore Life Levels, if wanted and within the reserve.",
   "policy_shop.py:ShopMixin._restore_mining_combat_hand_key": "town producer to migrate: Restore each combat hand displaced by the temporary mining loadout.",

@@ -114,14 +114,14 @@ class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
         # The prior shortage-only reserve was 917g. Full departure targets cost
         # 6,484g, so this board cannot make even a one-potion optional purchase.
         policy, board = self._black_market(staff_charges=1, gold=1400)
-        self.assertEqual(policy._required_departure_supply_reserve(board), 6484)
+        self.assertEqual(policy._full_departure_resupply_reserve(board), 6484)
         self.assertEqual(1400 // self.SPEED_PRICE, 3)
 
         self.assertFalse(_public_shop_inner(self, policy, board).startswith("p"))
 
     def test_satisfied_stock_still_reserves_its_full_rebuy_cost(self):
         policy, board = self._black_market(staff_charges=20, gold=1400)
-        reserve = policy._required_departure_supply_reserve(board)
+        reserve = policy._full_departure_resupply_reserve(board)
         self.assertGreater(reserve, 0)
 
         self.assertIsNone(policy._next_purchase(board))
@@ -130,7 +130,7 @@ class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
     def test_reserve_not_kept_by_one_unit_buys_nothing(self):
         # 1300 - 400 = 900 < 917.
         policy, board = self._black_market(staff_charges=1, gold=1300)
-        self.assertEqual(policy._required_departure_supply_reserve(board), 6484)
+        self.assertEqual(policy._full_departure_resupply_reserve(board), 6484)
 
         self.assertIsNone(policy._next_purchase(board))
         self.assertFalse(
@@ -151,7 +151,7 @@ class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
         )
         # The Magic-shop observation supplies the known mana-device price.
         policy._remember_departure_price("food", self.STAFF_PRICE, 19)
-        reserve = policy._required_departure_supply_reserve(board)
+        reserve = policy._full_departure_resupply_reserve(board)
         self.assertIsNotNone(reserve)
         self.assertGreaterEqual(board.player.gold, 3 * self.LIVE_SPEED_PRICE)
         self.assertLess(board.player.gold, reserve + self.LIVE_SPEED_PRICE)
