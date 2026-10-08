@@ -7489,6 +7489,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     isinstance(sale_session, dict)
                     and signature in sale_session.get("batch", ())
                 ):
+                    sale_session.setdefault("attempted", set()).add(signature)
+                    sale_session.setdefault("planned", set()).discard(signature)
+                    sale_session["withdrawals"] = int(
+                        sale_session.get("withdrawals", 0)
+                    ) + 1
                     for sale_entry in sale_session.get("items", ()):
                         if sale_entry.get("signature") == signature:
                             sale_entry["origin"] = "pack"
@@ -7551,6 +7556,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         operation_completed=True,
                     )
             else:
+                sale_session = getattr(self, "_equipment_sale_session", None)
+                if isinstance(sale_session, dict):
+                    sale_session.setdefault("planned", set()).discard(signature)
+                    sale_session["batch"] = [
+                        planned for planned in sale_session.get("batch", ())
+                        if planned != signature
+                    ]
                 if self._home_random_teleport_withdrawal == signature:
                     self._home_random_teleport_withdrawal = None
                 retry_digger = (
@@ -10204,47 +10216,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 lambda: self._home_full_relief_key(snapshot))
             if relief_key is not None:
                 return relief_key
-        # Admission of an already-built Home transaction precedes evaluators
-        # that may ask whether town departure is ready.  Those evaluators are
-        # allowed to build a plan only when no transaction owns the character;
-        # rebuilding here would discard its recorded pack-letter continuation.
-        if (
-            snapshot.in_town
-            and snapshot.store is None
-            and self._equipment_sale_should_yield_transaction(snapshot)
-            and snapshot.player.hp >= snapshot.player.max_hp
-            and not self._physical_hostiles(snapshot)
-        ):
-            sale_store = self._equipment_sale_next_store(snapshot)
-            if sale_store is not None:
-                sale_step = self._shopping_approach_step(
-                    snapshot, sale_store, router_plan_stop=True,
-                )
-                if sale_step is not None:
-                    sale_key = self._town_producer_entry(
-                        "_shopping_approach_key",
-                        lambda: self._shopping_approach_key(
-                            snapshot, sale_step, "shop:travel",
-                        ),
-                        family="store-router",
-                    )
-                    if sale_key is not None:
-                        return sale_key
-                # A sale may own the transaction only while town routing can
-                # actually advance it. Keep the transaction available when
-                # the selected stop has no route or no route command.
-                if sale_step is None or sale_key is None:
-                    sale = self._equipment_sale_session
-                    if isinstance(sale, dict):
-                        sale["transaction_yield"] = False
-            else:
-                sale = self._equipment_sale_session
-                if isinstance(sale, dict):
-                    sale["transaction_yield"] = False
         admitted_session = self._equipment_transaction_session
         if (
             snapshot.in_town and admitted_session is not None and admitted_session.executable and (admitted_session.required_context == 'home') and (admitted_session.physical_context == 'home') and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and any((grid.store_number == STORE_HOME for grid in (snapshot.grid_at(snapshot.player.position),) if grid is not None)) and (snapshot.player.hp >= snapshot.player.max_hp) and (not any((monster.hostile for monster in snapshot.visible_monsters)))
-            and not self._equipment_sale_should_yield_transaction(snapshot)
         ):
             return self._town_producer_entry("_equipment_transaction_town_key#1", lambda: self._equipment_transaction_town_key(snapshot)) or WAIT_KEY
         # A TR_WARNING prompt reported by this snapshot is disposed of before
@@ -10279,22 +10253,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.in_town
             and self._equipment_transaction_owned_items
             and not self._opening_q34_active(snapshot)
-            and not self._equipment_sale_should_yield_transaction(snapshot)
         ):
             return self._town_producer_entry("_equipment_transaction_town_owner_key", lambda: self._equipment_transaction_town_owner_key(snapshot)) or WAIT_KEY
 
-        if (
-            snapshot.in_town
-            and self._equipment_transaction_route_terminal is not None
-            and self._equipment_sale_has_unstarted_items()
-        ):
-            # The repeat terminal means "the same Home route failure recurred
-            # without an observed state change".  A built, unstarted equipment
-            # sale (2026-10-08 sale rules) is new state-changing work that frees
-            # Home, so the premise no longer holds: drop the terminal and the
-            # visit-local Home block and let the sale run (live 22:20 stop).
-            self._equipment_transaction_route_terminal = None
-            self._town_visit_ledger.blocked_stores.discard(STORE_HOME)
         if snapshot.in_town and self._equipment_transaction_route_terminal is not None:
             # A repeated Home route failure used to become a terminal WAIT,
             # even when the confirmed current loadout was safe for the actual
@@ -11489,8 +11450,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Legacy per-item weapon trials and jewellery upgrades must not race this
         # plan or repeatedly withdraw and re-deposit candidates.
         equipment_transaction = None
-        if not self._equipment_sale_should_yield_transaction(snapshot):
-            equipment_transaction = self._town_producer_entry("_equipment_transaction_town_key#2", lambda: self._equipment_transaction_town_key(snapshot))
+        equipment_transaction = self._town_producer_entry("_equipment_transaction_town_key#2", lambda: self._equipment_transaction_town_key(snapshot))
         if equipment_transaction is not None:
             return equipment_transaction
 

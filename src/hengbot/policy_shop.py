@@ -3486,6 +3486,10 @@ class ShopMixin(InStoreMixin):
         *,
         rejected_reason: str = "shop:unsellable-leave",
     ) -> str:
+        if (reason == "equipment:sell-dominated"
+                and (self._equipment_transaction_session is not None
+                     or self._equipment_transaction_owned_items)):
+            return None
         store = snapshot.store
         current = next(
             (
@@ -3670,6 +3674,9 @@ class ShopMixin(InStoreMixin):
         candidates: list[InventoryItem] | None = None,
     ) -> str | None:
         """Advance the mandatory inscription-bound sale transaction."""
+        if (self._equipment_transaction_session is not None
+                or self._equipment_transaction_owned_items):
+            return None
         store = snapshot.store
         if store is None:
             return None

@@ -100,86 +100,17 @@ class HomeFullReliefTest(unittest.TestCase):
             for index, item in enumerate(catalogue[:12])],
             len(catalogue), 0, 12, 240)
 
-    def test_refusal_withdraws_sells_two_slots_then_retries_original_deposit(self):
+    def test_full_home_sale_does_not_preempt_an_equipment_transaction(self):
         for enforced in (False, True):
             with self.subTest(enforced=enforced):
-                policy, board, catalogue, entries = relief_scene(self.pins[0], enforced)
-                # DECLARED CONSTRUCTED: restore the capture's real equipment
-                # continuation alongside the reconstructed deposit ledger.
+                policy, board, _catalogue, _entries = relief_scene(
+                    self.pins[0], enforced,
+                )
                 _state, session = captured_session("234018", 224)
                 policy._equipment_transaction_session = session
-                board, key = self.refuse(policy, board)
-                self.assertIsNotNone(policy._home_errand.request)
-                self.assertEqual(policy._home_errand.request.purpose, "full-home-sale")
-                self.assertEqual(policy._home_full_relief["remaining"], len(entries))
-                for sale_number in range(len(entries)):
-                    if sale_number:
-                        # The asserted scan command receives the Home after the
-                        # previous take, with shifted addresses and one less row.
-                        self.assertEqual(key, "~9\x1b")
-                        policy.consume_home_knowledge(catalogue)
-                        board, key = self.decide(policy, board)
-                    self.assertEqual(policy._home_errand.request.signature[0],
-                                     catalogue[0].name)
-                    board, key = self.decide(policy, board, messages=(),
-                        player=replace(board.player, position=Position(10, 14)),
-                        store=self.home_page(catalogue))
-                    self.assertEqual(key, "\x1b")
-                    board, key = self.decide(policy, board, store=None)
-                    self.assertEqual(key, "5pa\x1b")
-                    taken = replace(catalogue[0], slot="s")
-                    catalogue = catalogue[1:]
-                    board, key = self.decide(policy, board,
-                                            inventory=(*board.inventory, taken))
-                    self.assertIsNone(policy._home_atomic_withdraw_pending)
-                    shop = StoreState(STORE_ALCHEMIST, [], 0, 0, 12)
-                    board, key = self.decide(policy, board, store=shop,
-                        player=replace(board.player, position=Position(10, 9)))
-                    self.assertEqual(key, "{s@0\r")
-                    board, key = self.decide(policy, board, inventory=tuple(
-                        replace(item, inscription="@0", name=item.name + " {@0}")
-                        if item.slot == "s" else item for item in board.inventory))
-                    self.assertEqual(key, "\x1b")
-                    board, key = self.decide(policy, board, store=None)
-                    self.assertEqual(key, "5")
-                    self.assertEqual(policy.last_reason, "shop:one-shot-sell")
-                    board, key = self.decide(policy, board, store=shop)
-                    self.assertEqual(key, "d0y\x1b")
-                    board, key = self.decide(policy, board, store=None,
-                        inventory=tuple(item for item in board.inventory if item.slot != "s"),
-                        player=replace(board.player, gold=board.player.gold + 20))
+
+                self.assertIsNone(policy._home_full_relief_key(board))
                 self.assertIsNone(policy._home_full_relief)
-                self.assertEqual(key, "~9\x1b")
-                self.assertEqual(policy.decision_claim["owner"], "home-scan")
-                self.assertTrue(policy._home_knowledge_scan_inflight)
-                self.assertIs(policy._equipment_transaction_session, session)
-                self.assertEqual(catalogue[0].name, "sale surplus 2")
-                self.assertTrue({entry[0] for entry in entries}.isdisjoint(
-                    policy._home_rejected_deposits))
-                policy.consume_home_knowledge(catalogue)
-                board, key = self.decide(policy, board,
-                    player=replace(board.player, position=Position(10, 14)),
-                    store=self.home_page(catalogue))
-                # Fresh page gives the registered equipment session priority.
-                # Home's unrelated retry batch waits for that owner's effect.
-                if key == "\x1b":
-                    board, key = self.decide(policy, board, store=None)
-                    self.assertEqual(key, "5")
-                    board, key = self.decide(policy, board, store=self.home_page(catalogue))
-                self.assertTrue(key.startswith("d"), (key, policy.last_reason))
-                self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
-                self.assertEqual(policy.last_reason, "equipment-transaction:deposit")
-                self.assertIsNone(policy._home_atomic_deposit_pending)
-                action = session.pending_action
-                self.assertIsNotNone(action)
-                from hengbot.equipment_optimizer import equipment_move_identity
-                before_index = session.index
-                board, key = self.decide(policy, board, store=None,
-                    inventory=tuple(item for item in board.inventory
-                        if equipment_move_identity(item) != action.move_identity))
-                self.assertEqual(session.index, before_index + 1)
-                self.assertNotEqual(session.pending_action, action)
-                self.assertEqual(policy._home_full_retry_deposits, (entries[0],))
                 self.assertIs(policy._equipment_transaction_session, session)
 
     def test_unidentified_excellent_and_special_are_not_selected_for_sale(self):

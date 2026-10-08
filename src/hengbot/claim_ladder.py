@@ -229,9 +229,6 @@ _RUNGS: tuple[Rung, ...] = (
             "home-errand:request-knowledge:", "home-errand:await-fresh-knowledge:",
             "home-errand:leave-for-knowledge:"),
     _decide("_home_full_relief_key", "home-visit", "home:full-"),
-    # A prepared equipment sale travels to its store before an admitted
-    # equipment transaction resumes (a428d14a).
-    _decide("_shopping_approach_key", "store-router"),
     _decide("_equipment_transaction_town_key", "equipment-txn",
             owns_transaction=True),                                    # 5765
     _decide("_equipment_transaction_town_owner_key", "equipment-txn",
