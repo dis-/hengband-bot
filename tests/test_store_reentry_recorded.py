@@ -197,6 +197,10 @@ DECLARED_POLICY_DIVERGENCES = {
     19: "Identify-staff procurement now routes to the Black Market after Magic (628bd90b; user decision 2026-09-17).",
 }
 
+# USER DECISION 2026-10-08: an optional Black Market buy is refused when the
+# full departure resupply reserve is unknown or cannot be left intact.
+DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS = {42, 834, 844}
+
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
@@ -406,6 +410,41 @@ class StoreReentryRecordedTest(unittest.TestCase):
             key = str(policy.choose_key(board))
         return key, policy.last_reason
 
+    @staticmethod
+    def _construct_known_departure_prices(policy, board):
+        """DECLARED CONSTRUCTED: price data for purchase-mechanics-only pins."""
+        prices = {}
+        for status in policy._supply_ledger(
+                board, policy._planned_depth()).values():
+            if status.required_departure:
+                category = "cure-critical" if status.kind == "cure" else status.kind
+                prices[category] = (1, 1)
+        prices.update({
+            "recall": (1, 1), "teleport": (1, 1), "cure-critical": (1, 1),
+            "oil": (1, 1), "food": (1, 1), "light": (1, 1),
+            "identify-staff": (1, 1), "quest:speed": (1, 1),
+            "quest:healing": (1, 1), "remove-curse": (1, 1),
+        })
+        strategy = policy._carry_procurement_strategy(board)
+        if strategy is not None:
+            for name, status in policy._quest_carry_status(
+                    board, strategy.required_force).items():
+                if int(status["required"]):
+                    prices[f"quest-carry:{name}"] = (1, 1)
+        policy._observed_departure_prices.update(prices)
+        return policy._full_departure_resupply_reserve(board)
+
+    def _construct_optional_purchase_board(self, policy, board, index, units):
+        reserve = self._construct_known_departure_prices(policy, board)
+        self.assertIsNotNone(reserve)
+        wanted = self.boundaries["facts"][str(index)][
+            "shop_selector"]["wanted_purchase"]
+        total = wanted["price"] * units
+        constructed = replace(
+            board, player=replace(board.player, gold=reserve + total + 1))
+        self.assertGreaterEqual(constructed.player.gold - total, reserve)
+        return constructed, reserve
+
     def _row(self, number):
         return self._parse([self.lines[number]])
 
@@ -451,7 +490,55 @@ class StoreReentryRecordedTest(unittest.TestCase):
             # Re-decide the recorded page through the public path as well;
             # this keeps the flag-off pin sensitive to a reverted guard.
             policy = self._resume(observe)
-            self.assertEqual(self._decide(policy, self._board(observe)), self._live(observe))
+            board = self._board(observe)
+            if observe in DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS:
+                self.assertEqual(self._live(observe)[0], "\x1b")
+                self.assertEqual(board.store.store_type, STORE_BLACK)
+                self.assertIsNone(policy._full_departure_resupply_reserve(board))
+                self.assertIsNone(policy._black_market_optional_purchase(board))
+                key, reason = self._decide(policy, board)
+                self.assertEqual(key, "\x1b")
+                self.assertIn(reason, {
+                    "shop:observe-and-leave",
+                    "town-progress-invariant:continue-observed-shop",
+                })
+            else:
+                self.assertEqual(self._decide(policy, board), self._live(observe))
+
+    def test_recorded_black_market_optional_gold_is_refused_by_2026_10_08_decision(self):
+        for index in sorted(DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS):
+            with self.subTest(index=index):
+                board = self._board(index)
+                policy = self._switch_on(self._resume(index))
+                wanted = self.boundaries["facts"][str(index)][
+                    "shop_selector"]["wanted_purchase"]
+                if index == 834:
+                    # Same declared counterfactual as the mechanics pin:
+                    # suppress the separate deferred full-ID retry so this
+                    # assertion isolates the recorded optional Healing ware.
+                    self.assertIsNone(policy._identification_need)
+                    self.assertTrue(policy._unbuyable_full_identify_sigs)
+                    policy._unbuyable_full_identify_sigs.clear()
+                ware = next(item for item in board.store.items
+                            if item.letter == wanted["letter"])
+                self.assertEqual(board.store.store_type, STORE_BLACK)
+                self.assertEqual(
+                    board.player.gold, {42: 13998, 834: 10728, 844: 4585}[index]
+                )
+                self.assertEqual((ware.name, ware.price),
+                                 (wanted["name"], wanted["price"]))
+                self.assertIsNone(policy._full_departure_resupply_reserve(board))
+                self.assertIsNone(policy._black_market_optional_purchase(board))
+                self.assertEqual(
+                    self._live(P1_RELEASES[index])[0][:-1],
+                    {42: "pj\r", 834: "pi\r", 844: "ph5\r\r"}[index],
+                )
+                key, reason = self._decide(policy, board)
+                self.assertEqual(key, "\x1b")
+                self.assertIn(reason, {
+                    "shop:observe-and-leave",
+                    "town-progress-invariant:continue-observed-shop",
+                })
 
     def test_p0_switch_off_shadow_records_the_would_be_operation(self):
         """Phase 0: the observe-and-leave page logs IST's would-be key only."""
@@ -490,6 +577,12 @@ class StoreReentryRecordedTest(unittest.TestCase):
                     self.assertIsNone(policy._identification_need)
                     self.assertTrue(policy._unbuyable_full_identify_sigs)
                     policy._unbuyable_full_identify_sigs.clear()
+                if observe in DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS:
+                    # DECLARED CONSTRUCTED: a complete known price catalog and
+                    # enough independent gold to exercise the recorded buy.
+                    board, _reserve = self._construct_optional_purchase_board(
+                        policy, board, observe,
+                        {42: 1, 834: 1, 844: 5}[observe])
                 key, reason = self._decide(policy, board)
                 body = self._live(release)[0][:-1]
                 self.assertEqual(key, body)
@@ -539,6 +632,11 @@ class StoreReentryRecordedTest(unittest.TestCase):
             with self.subTest(index=index):
                 policy = self._switch_on(self._resume(index))
                 board = self._board(index)
+                if index == 844:
+                    # DECLARED CONSTRUCTED: enough independent gold and known
+                    # departure prices to keep this confirmation mechanics pin.
+                    board, _reserve = self._construct_optional_purchase_board(
+                        policy, board, index, 5)
                 key, _reason = self._decide(policy, board)
                 prefix, steps = _store_buy_continuations(key, "shop:in-store-buy", board)
                 compiled = compile_observed_input(
@@ -830,7 +928,9 @@ class StoreReentryRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ P12
     def test_p12_refused_purchase_closes_the_visit(self):
         policy = self._switch_on(self._resume(42))
-        key, reason = self._decide(policy, self._board(42))
+        board, _reserve = self._construct_optional_purchase_board(
+            policy, self._board(42), 42, 1)
+        key, reason = self._decide(policy, board)
         visit = policy._store_visit
         self._post(policy, key, reason, "failed:purchase-refused")
         self.assertIsNone(policy._store_buy_inflight)
