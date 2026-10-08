@@ -12,10 +12,18 @@ from dataclasses import replace
 
 import tests  # noqa: F401
 from hengbot.model import Position
-from tests.test_homefull3_recorded import ConstructedDiscardTest
+from tests import test_homefull3_recorded as homefull3
 
 
-class DestroyPostedConfirmTest(ConstructedDiscardTest):
+class DestroyPostedConfirmTest(unittest.TestCase):
+    # Borrow the homefull3 scene drivers without inheriting (and re-running)
+    # that module's own test methods.
+    setUpClass = classmethod(homefull3.ConstructedDiscardTest.setUpClass.__func__)
+    decide = homefull3.ConstructedDiscardTest.decide
+    refuse = homefull3.ConstructedDiscardTest.refuse
+    home_page = homefull3.ConstructedDiscardTest.home_page
+    scene = homefull3.ConstructedDiscardTest.scene
+
     def _to_destroy_key(self):
         p, b, stock, _entries, _key = self.scene(False)
         b, key = self.decide(p, b, messages=(),
