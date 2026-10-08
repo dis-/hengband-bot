@@ -296,9 +296,13 @@ class LadderOrderTest(unittest.TestCase):
         self.assertEqual(_order_mismatch(CLAIM_LADDER), [])
         # Full-Home recovery and its early errand knowledge prerequisite
         # follow retirement of the strip-calibration rung: 75 + 2; the
-        # item-destroying breeder leave rung (2026-10-07) makes 78.
-        self.assertEqual(len(decide_rungs()), 78)
-        self.assertEqual(decide_rungs()[0].producer, "_home_errand_knowledge_key")
+        # item-destroying breeder leave rung (2026-10-07) makes 78; the
+        # equipment sale prerequisite (7b9bc8f5) and the sale's store travel
+        # ahead of an admitted equipment transaction (a428d14a) make 80.
+        self.assertEqual(len(decide_rungs()), 80)
+        self.assertEqual(decide_rungs()[0].producer,
+                         "_equipment_sale_prerequisite_key")
+        self.assertEqual(decide_rungs()[1].producer, "_home_errand_knowledge_key")
         for reason in ("home-errand:request-knowledge:full-home-sale",
                        "home-errand:await-fresh-knowledge:full-home-sale"):
             rung = rung_of("home-errand", reason)
