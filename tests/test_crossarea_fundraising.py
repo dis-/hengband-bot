@@ -1,6 +1,7 @@
 """Pins for the first cross-area fundraising switch and captured stair facts."""
 
 import gzip
+import hashlib
 import json
 import unittest
 from dataclasses import replace
@@ -19,10 +20,11 @@ from hengbot.policy_fundraising import (
     fundraising_run_verdict,
 )
 from hengbot.model import (
-    DUNGEON_YEEK_CAVE, Position, Snapshot, STORE_HOME, STORE_MAGIC,
-    StoreState, parse_snapshot,
+    DUNGEON_YEEK_CAVE, Position, Snapshot, STORE_GENERAL, STORE_HOME,
+    STORE_MAGIC, StoreState, parse_snapshot,
 )
 from hengbot.policy_constants import FOOD_TYPE_MANA
+from hengbot.policy_types import TownErrandPlan
 from policy_fixtures import grid, item, player, store_item
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -396,6 +398,44 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         self.assertIsNone(older._fundraising_purpose_record)
         self.assertIsNone(older._fundraising_runs_started)
         self.assertFalse(older._fundraising_affordable_food_seen)
+
+    def test_recorded_exhausted_home_shortage_reopens_fundraising_preparation(self):
+        fixture = Path(__file__).parent / "fixtures" / (
+            "unaffordable-fundraise-home-exhausted-20261008.json.gz"
+        )
+        self.assertEqual(
+            hashlib.sha256(fixture.read_bytes()).hexdigest(),
+            "986ae5551d2bb479f2778554682805b088ff7ae54fd6ea2d5db74e48bcc547e8",
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as source:
+            raw_board = json.load(source)
+        board = parse_snapshot(
+            raw_board, load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._fundraising_runs_started = 1
+        policy._town_errand_plan = TownErrandPlan([STORE_HOME], index=1)
+        policy._town_store_attempted.update({
+            STORE_HOME: board.turn, STORE_GENERAL: board.turn,
+            STORE_MAGIC: board.turn,
+        })
+
+        ledger = policy._supply_ledger(board, policy._planned_depth())
+        food = ledger["food"]
+        self.assertEqual((food.count, food.required_departure, food.obtainable),
+                         (14, 15, False))
+        with (patch.object(policy, "_skill_exp_request_key", return_value=None),
+              patch.object(policy, "_refresh_carried_equipment_catalog"),
+              patch.object(policy, "_choose_key_with_latch_capture",
+                           return_value="5")):
+            policy.choose_key(board)
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._fundraising_runs_started, 1)
+        # Preparation cannot waive the return ticket or ordinary food gate.
+        self.assertTrue(policy._descent_is_blocked(board))
+        self.assertIn(policy._descent_refusal_reason,
+                      {"recall-departure-shortage", "food-departure-shortage"})
 
 
 if __name__ == "__main__":

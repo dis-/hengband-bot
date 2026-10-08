@@ -2748,6 +2748,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._claim_exit_completion(snapshot, standing, [])
                 self._observe_execution_delegations()
                 self._retire_finished_home_errand_plan_stop()
+            self._restart_fundraising_for_unaffordable_departure(snapshot)
             home_capture = self._home_entry_capture
             def choose_ladder():
                 chosen = (home_capture.choose_key(self, snapshot)
@@ -15306,6 +15307,46 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._recall_stockout_mining_plan = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
+        return True
+
+    def _restart_fundraising_for_unaffordable_departure(
+        self, snapshot: Snapshot
+    ) -> bool:
+        """Reopen mining preparation after an exhausted unaffordable shortage.
+
+        The ordinary supply ledger is evaluated with fundraising mode cleared,
+        so this cannot mistake a mining-specific relaxed target for a town
+        departure shortage.  It deliberately leaves the run counter intact;
+        food and return-ticket requirements still decide whether another trip
+        can leave town.
+        """
+        if (
+            not snapshot.in_town
+            or self._fundraising_mode != "mine"
+            or snapshot.player.gold >= FUNDRAISING_START_GOLD
+            or getattr(self, "_equipment_transaction_owned_items", ())
+            or getattr(self, "_equipment_transaction_session", None) is not None
+            or self._home_atomic_withdraw_pending is not None
+            or self._home_atomic_deposit_pending is not None
+        ):
+            return False
+        plan = getattr(self, "_town_errand_plan", None)
+        if plan is None or plan.index < len(plan.stops):
+            return False
+        mode = self._fundraising_mode
+        self._fundraising_mode = None
+        try:
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
+        finally:
+            self._fundraising_mode = mode
+        if not any(
+            status.count < status.required_departure and not status.obtainable
+            for status in ledger.values()
+        ):
+            return False
+        self._fundraising_mode = "prepare"
+        self._town_store_attempted.clear()
+        self._retire_town_errand_plan_for_rebuild()
         return True
 
     def _start_no_safe_destination_fundraising(
