@@ -1,0 +1,978 @@
+Variant | Weapons | Body | Jewelry | Head/hands/feet | Shields | Cloaks | Lights | SOLD | Kept equipment | Kept Home entries | Existing Pareto | Needs ID
+--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:
+ES | 27 | 12 | 0 | 1 | 1 | 0 | 0 | 41 | 190 | 199 | 1 | 0
+ED | 27 | 12 | 0 | 1 | 1 | 0 | 0 | 41 | 190 | 199 | 1 | 0
+JS | 27 | 12 | 2 | 1 | 1 | 0 | 0 | 43 | 188 | 197 | 1 | 0
+JD | 27 | 12 | 4 | 1 | 1 | 0 | 0 | 45 | 186 | 195 | 1 | 0
+
+STATUS: INCOMPLETE -- stop condition in SOL-TASK.txt encountered.
+The table is provisional under the existing cumulative depth gates, not the authoritative AGENTS.md per-band gates.
+Conflict: equipment_optimizer.required_abilities (line 162) carries 20-30F requirements into 31F+. AGENTS.md requires chaos only at 31-39F and chaos/nether at 40-49F.
+Existing asserted expectation tests/test_equipment_optimizer.py:test_deeper_resists_cannot_skip_missing_free_action_band requires chaos/nether without Free Action to stop at 19F; the authoritative table allows 49F. test_elemental_resists_alone_stop_at_the_free_action_gate also contradicts the 26-30F band.
+The newly added test_depth_none_exposes_lower_band_winner_after_selection expects 39F with chaos-only armour but receives 25F. No existing assertion was changed. Stopped when this conflict was identified, as explicitly directed.
+Outstanding: reconcile existing cumulative-gate expectations with the authoritative table, rerun the measurement and tests; tighten J jewelry scope to explicitly non-ego jewelry (current measurement includes all magical jewelry). No sale-path work is authorized in Part A.
+Validation: 126 tests, 1 failure(s), 0 error(s), --workers 1; validation/sell-equipment-A/results.json and summary.json.
+All 93 existing equipment-optimizer tests, 13 fakery-lint tests and 7 existing Home equipment-disposal regression tests passed; 12 new pins passed, the new authoritative-band pin failed. Initial required-only run: 118/118 passed before adding that pin.
+Pins cover the recorded catalogue, 28 artifacts, an otherwise saleable artifact, unidentified/full-ID missing items, reserved items, S/D duplicates, ring/melee/fixed capacities, retained witnesses, ability/resistance swaps, launcher damage/ammo/grade and class/scan/freshness gates.
+Token usage: exact counter is unavailable in this environment (tokens_used=null); dispatch cap 60,000. Stopping because of the explicit expectation-conflict rule, not the token cap.
+
+E: ego/excellent weapons and armour. J: E plus magical jewelry and dragon armour/shields/boots.
+S: strict upgrades only. D: identical copies beyond capacity (rings/melee 2, other slots 1).
+Source: read-only copy of C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl; SHA256 11033b356456dd81f89962d8e1630f8de325370209b3367570edd53acea1a40b.
+Last complete Home knowledge: line 724, turn 15798381; latest board turn 15798408.
+Home equipment catalogue: 231 entries; full Home: 240 entries.
+Later Home pages and carried inventory match the complete knowledge (freshness gate).
+Japanese names and numeric/identification fields are preserved verbatim from the UTF-8 JSONL. No names or identification fields inferred from the older dump.
+Numbers are hypothetical Home-entry counts, not completed sales. Pack/worn gear participates as witnesses; consumables are outside these scopes.
+Captured durable Home keep decisions are applied with observed supplies/light/digging retention. JSONL does not serialize open transactions or visit purchases; the measurement assumes no unrecorded owners. Live callers must pass equipment_sale_reserved_ids from their actual policy.
+Existing Pareto column uses disposable_dominated_item_ids with the same scope/identification/reservation/winner guards, independently of the score result.
+Design: equipment_sale_classifier.classify_equipment_sales; policy_equipment.equipment_sale_reserved_ids; equipment_optimizer.optimize_loadout.band_best_loadouts; launcher_damage.launcher_dominates (shared legacy proof).
+Scores: confirmed-current single-slot trials, existing WarriorSingleSlotSearch hand rules, AC-100 per-turn combat/survival evaluator and _prefer; flags must cover abilities/resistances/slays/brands. No weight ranking.
+Band protection uses depth=None and retains every existing optimizer band winner. Warrior, complete Home, current catalogue and complete evaluation gates fail closed.
+Part A only: no sale path or live scope choice installed. No game/bot launch or push.
+
+Artifacts kept in all variants:
+- slot 44, tval/sval 39/3: ★ヱヅソンの白熱灯 (+3赤外線視力) {+赤;明[炎電}
+- slot 45, tval/sval 39/11: ★火消しライター (+3隠密) {+隠;闇}
+- slot 70, tval/sval 36/0: ★Ｔシャツ『GHB を倒したけどこんな嫌なＴシャツしか手に入らなかったよ！』 [1,+0]
+- slot 77, tval/sval 36/5: ☆鋲付軟革よろい『マフラー』 [5,+8] (+2探索) {+耐探r冷}
+- slot 82, tval/sval 36/9: ★防護服『化粧回し』 [4,+0] (+4) {+腕耐r恐;麻(腕耐}
+- slot 90, tval/sval 35/1: ★クローク『コランノン』 [1,+15] (+5隠密) {+隠r酸冷;麻}
+- slot 92, tval/sval 35/2: ★エルフのクローク『ホルコルレス』 [4,+4] (+3) {+知賢隠探r酸;視(知賢}
+- slot 107, tval/sval 32/2: ★スランドゥイル王の硬革帽子 [2,+10] (+2) {+知賢r盲時~感}
+- slot 108, tval/sval 32/3: ★センゲル王の金属帽子 [3,+12] (+3) {+賢魅r沌, .}
+- slot 119, tval/sval 30/6: ★鉄鋲底の靴『炎の鉄ゲタ』 (-5,+10) [6,+20] (-1加速) {+速知賢魅隠r火恐;活[炎(腕耐, .}
+- slot 120, tval/sval 23/1: ★手品師の折れたダガー (1d1) (+0,+0)
+- slot 125, tval/sval 23/6: ★暗殺者荊軻の短刀 (2d5) (-2,+13) (+1) {+攻速器r恐|凍毒切}
+- slot 133, tval/sval 23/11: ★サーベル『カレス・アスドリアグ』 (1d7) (+6,+8) (+1攻撃) {+攻/X人龍オト巨動}
+- slot 141, tval/sval 23/16: ★ブロード・ソード『ゴルン・ノヴァ』 (2d5) (+10,+10) (+2) {+腕器|理/X邪}
+- slot 142, tval/sval 23/16: ★ブロード・ソード『オルクリスト』 (2d5) (+10,+15) (+3隠密) {+器隠探赤r冷;遅明|凍/Xオ/邪ト巨~オト巨}
+- slot 143, tval/sval 23/16: ★ブロード・ソード『噛尾刀』 (2d5) (+18,+9) (+2攻撃) {+攻耐探/X龍/邪~竜}
+- slot 149, tval/sval 23/17: ★ロング・ソード『デーモンベーン』 (2d5) (+5,+0) {/デ}
+- slot 153, tval/sval 23/18: ★シミター『ソウルソード』 (2d5) (+9,+11) (+2攻撃) {+攻知賢r獄因沌劣;視経祝/邪竜デ死動}
+- slot 160, tval/sval 23/25: ★グレート・ソード『神々の黄昏』 (4d6) (-40,-60) [-50] (+10加速) {呪われている, +速*火r劣恐;明怒忌|焼}
+- slot 169, tval/sval 23/30: ★カオス・ブレード『ストームブリンガー』 (6d6) (+16,+16) (+2) {呪われている, +腕耐r乱獄沌;麻経怒|吸/人}
+- slot 182, tval/sval 22/8: ☆パイク『Ｘウィンブロウ』 (3d5) (+14,+20) {遅/Xオ}
+- slot 183, tval/sval 22/8: ★パイク『ティル=イ=アルク』 (3d5) (+10,+12) [+10] (+2) {+腕知耐r火冷;遅活明|焼凍/ト巨デ(腕知耐}
+- slot 189, tval/sval 22/11: ☆ブロード・アックス『ヘビ使い』 (2d6) (+18,+12) (+4) {+掘|毒~死}
+- slot 192, tval/sval 22/13: ☆グレイブ『鮫！鮫！鮫！』 (2d6) (+8,+10) (+2攻撃) {+攻探;浮/X龍}
+- slot 195, tval/sval 22/15: ★ハルベルト『オソンディア』 (4d5) (+6,+9) (+3) {+腕魅r火暗轟;視浮明|焼/X巨/死}
+- slot 200, tval/sval 22/17: ★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃破;麻視明|電焼凍}
+- slot 209, tval/sval 22/40: ★太公望の釣り竿 (1d1) (+0,+0)
+- slot 212, tval/sval 21/3: ★巨人夸父のクォータースタッフ (3d9) (+5,+10) (+2) {+速腕耐/邪デ死}
+
+Needs identification first (all variants):
+- none
+
+ES kept non-artifact equipment and reason:
+- slot 9, tval/sval 45/7: 浮遊の指輪 -- outside-scope
+- slot 10, tval/sval 45/9: 耐冷の指輪 -- outside-scope
+- slot 11, tval/sval 45/10: 腕力維持の指輪 -- outside-scope
+- slot 12, tval/sval 45/11: 知能維持の指輪 -- outside-scope
+- slot 13, tval/sval 45/12: 賢さ維持の指輪 -- outside-scope
+- slot 14, tval/sval 45/13: 耐久力維持の指輪 -- outside-scope
+- slot 15, tval/sval 45/14: 器用さ維持の指輪 -- outside-scope
+- slot 16, tval/sval 45/15: 魅力維持の指輪 -- outside-scope
+- slot 17, tval/sval 45/16: 大防御の守りの指輪 [+19] {.} -- outside-scope
+- slot 18, tval/sval 45/17: 酸の指輪 [+7] -- outside-scope
+- slot 19, tval/sval 45/19: 氷の指輪 [+12] -- outside-scope
+- slot 20, tval/sval 45/20: 耐毒の指輪 -- outside-scope
+- slot 21, tval/sval 45/24: 腕力の指輪 (+4) -- outside-scope
+- slot 22, tval/sval 45/24: 腕力の指輪 (+3) -- outside-scope
+- slot 23, tval/sval 45/25: 電撃の指輪 [+10] -- outside-scope
+- slot 24, tval/sval 45/26: 器用さの指輪 (+2) -- outside-scope
+- slot 25, tval/sval 45/27: 耐久力の指輪 (+2) -- outside-scope
+- slot 26, tval/sval 45/27: 耐久力の指輪 (+1) -- outside-scope
+- slot 27, tval/sval 45/28: 精度の指輪 (+9) -- outside-scope
+- slot 28, tval/sval 45/29: ダメージの指輪 (+12) -- outside-scope
+- slot 29, tval/sval 45/38: 恐れ知らずの指輪 -- outside-scope
+- slot 30, tval/sval 45/39: 耐光耐暗の指輪 -- outside-scope
+- slot 31, tval/sval 45/41: 耐因果混乱の指輪 -- outside-scope
+- slot 32, tval/sval 45/42: 耐轟音の指輪 -- outside-scope
+- slot 33, tval/sval 45/44: 耐破片の指輪 -- outside-scope
+- slot 34, tval/sval 45/46: 耐カオスの指輪 -- outside-scope
+- slot 35, tval/sval 45/47: 耐盲目の指輪 -- outside-scope
+- slot 36, tval/sval 40/5: 経験値保持の探索のアミュレット (+4) {+探赤;経~善オデ} -- outside-scope
+- slot 37, tval/sval 40/13: 反魔法のアミュレット -- outside-scope
+- slot 38, tval/sval 40/15: 耐性のアミュレット -- outside-scope
+- slot 39, tval/sval 40/15: 耐性のアミュレット -- outside-scope
+- slot 40, tval/sval 40/15: 耐性のアミュレット -- outside-scope
+- slot 41, tval/sval 40/16: テレパシーのアミュレット -- outside-scope
+- slot 42, tval/sval 39/0: 松明(2300ターンの寿命) {明, @v0=g} -- reservation-or-light
+- slot 43, tval/sval 39/0: 松明(2500ターンの寿命) {明} -- reservation-or-light
+- slot 46, tval/sval 38/1: ブラックドラゴン・スケイルメイル (-2) [40,+17] -- outside-scope
+- slot 47, tval/sval 38/2: ブルードラゴン・スケイルメイル (-2) [40,+17] -- outside-scope
+- slot 48, tval/sval 38/16: ゴールドドラゴン・スケイルメイル (-2) [40,+14] -- outside-scope
+- slot 49, tval/sval 37/1: エルフの錆びた鎖かたびら (-5) [14,+1] (+2隠密) {+隠r酸電火冷暗} -- slot-capacity-or-uncovered-trait
+- slot 53, tval/sval 37/6: ドワーフの重鎖かたびら (-2) [21,+12] (+1) {+耐r電} -- slot-capacity-or-uncovered-trait
+- slot 54, tval/sval 37/7: 全耐性の二重鎖かたびら (-2) [16,+12] {r酸電火冷毒乱} -- slot-capacity-or-uncovered-trait
+- slot 56, tval/sval 37/9: オログの金属製ブリガンダイン・アーマー (-2,+7) [19,+23] (+1) {+腕r冷} -- optimizer-or-band-winner
+- slot 58, tval/sval 37/11: ドワーフの当世具足 (-2) [25,+15] (+2) {+耐r火} -- slot-capacity-or-uncovered-trait
+- slot 60, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+7] (+3) {+腕r火} -- slot-capacity-or-uncovered-trait
+- slot 61, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+6] (+2) {+腕r酸} -- slot-capacity-or-uncovered-trait
+- slot 62, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+11] (+2) {+耐r冷} -- slot-capacity-or-uncovered-trait
+- slot 63, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+6] (+3) {+耐r酸} -- slot-capacity-or-uncovered-trait
+- slot 65, tval/sval 37/16: 全耐性の大鎧 (-2) [24,+12] {r酸電火冷沌} -- slot-capacity-or-uncovered-trait
+- slot 66, tval/sval 37/18: 全耐性の強化プレート・アーマー (-3) [28,+14] {r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 69, tval/sval 37/18: オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .} -- slot-capacity-or-uncovered-trait
+- slot 71, tval/sval 36/1: ウルクの汚れたボロ服 (+1,+2) [1,+5] {r酸電火冷破, .} -- slot-capacity-or-uncovered-trait
+- slot 72, tval/sval 36/1: ドルイドの汚れたボロ服 [1,+15] (+1) {+賢r電暗} -- slot-capacity-or-uncovered-trait
+- slot 73, tval/sval 36/2: 永続のローブ [2,+10] {r酸電火冷乱時;経(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 75, tval/sval 36/3: ウルクの紙甲 (+5,+1) [4,+10] {r酸電火冷毒} -- slot-capacity-or-uncovered-trait
+- slot 78, tval/sval 36/6: ドルイドの硬革よろい (-1) [6,+11] (+2) {+賢r酸暗} -- slot-capacity-or-uncovered-trait
+- slot 80, tval/sval 36/8: 全耐性のサイ皮よろい (-1) [8,+3] {r酸電火冷劣} -- slot-capacity-or-uncovered-trait
+- slot 81, tval/sval 36/8: ドルイドのサイ皮よろい (-1) [8,+9] (+1) {+賢r火盲} -- slot-capacity-or-uncovered-trait
+- slot 83, tval/sval 36/10: エルフの厚布よろい [5,+11] (+2隠密) {+隠r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 84, tval/sval 36/11: ウルクの革製スケイル・メイル (+3,+2) [11,+10] {r酸電火冷閃} -- slot-capacity-or-uncovered-trait
+- slot 85, tval/sval 36/12: ドルイドの皮ジャケット (-1) [12,+4] (+1) {+賢r火時} -- slot-capacity-or-uncovered-trait
+- slot 86, tval/sval 36/60: 宵闇のローブ [0,+0] {r酸電火冷毒閃暗破盲乱轟獄因沌劣時水恐;反麻視経浮(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 87, tval/sval 35/1: 至福の地アマンのクローク [1,+4] (+3隠密) {+隠r劣, .} -- slot-capacity-or-uncovered-trait
+- slot 88, tval/sval 35/1: 蝙蝠のクローク (-12,-10) [1,+0] (+1) {+速隠赤r暗;視浮} -- slot-capacity-or-uncovered-trait
+- slot 89, tval/sval 35/1: 電撃のクローク [1,+6] {r電[電} -- slot-capacity-or-uncovered-trait
+- slot 91, tval/sval 35/2: エルフのクローク [4,+9] (+1隠密) -- outside-scope
+- slot 93, tval/sval 35/3: 至福の地アマンの毛皮のクローク [3,+14] (+2隠密) {+隠r毒} -- slot-capacity-or-uncovered-trait
+- slot 94, tval/sval 35/6: 灼熱の影のクローク [6,+14] {r火閃暗[炎, .} -- slot-capacity-or-uncovered-trait
+- slot 96, tval/sval 34/3: 反射の金属製スモール・シールド [5,+11] {反} -- slot-capacity-or-uncovered-trait
+- slot 97, tval/sval 34/5: 耐火の金属製ラージ・シールド [8,+7] {r火} -- slot-capacity-or-uncovered-trait
+- slot 98, tval/sval 34/5: 耐電の金属製ラージ・シールド [8,+8] {r電} -- slot-capacity-or-uncovered-trait
+- slot 99, tval/sval 34/6: ドラゴン・シールド [8,+10] {r酸盲乱呪} -- outside-scope
+- slot 100, tval/sval 34/6: ドラゴン・シールド [8,+10] {r水, .} -- outside-scope
+- slot 101, tval/sval 34/6: ドラゴン・シールド [8,+15] {r乱} -- outside-scope
+- slot 102, tval/sval 33/10: バジリスクの鉄冠 [0,+13] (+4赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 103, tval/sval 33/11: 力の金の冠 [0,+4] (+3) {+腕器耐r呪;麻(腕器耐} -- slot-capacity-or-uncovered-trait
+- slot 104, tval/sval 33/11: バジリスクの金の冠 [0,+8] (+1赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 105, tval/sval 33/11: 鋭敏の金の冠 [0,+8] (+6探索) {+探r盲;視} -- slot-capacity-or-uncovered-trait
+- slot 109, tval/sval 32/5: 知性の鉄ヘルメット [5,+7] (+2) {+知賢魅(知賢魅} -- slot-capacity-or-uncovered-trait
+- slot 110, tval/sval 32/5: 闇の鉄ヘルメット [5,+3] {r暗;闇} -- slot-capacity-or-uncovered-trait
+- slot 111, tval/sval 32/6: 光の鋼鉄ヘルメット [6,+5] {r閃;明} -- slot-capacity-or-uncovered-trait
+- slot 112, tval/sval 32/8: 赤外線視力の星兜 [7,+7] (+2) {+赤} -- slot-capacity-or-uncovered-trait
+- slot 113, tval/sval 31/1: 麻痺知らずの革グローブ [1,-1] {麻} -- slot-capacity-or-uncovered-trait
+- slot 114, tval/sval 31/2: 魔力支配のガントレット [2,+5] (+1) {+道} -- slot-capacity-or-uncovered-trait
+- slot 115, tval/sval 30/3: 浮遊の硬革ブーツ [3,+6] {r閃;浮} -- slot-capacity-or-uncovered-trait
+- slot 116, tval/sval 30/4: ドラゴン・ブーツ [5,+10] {r劣} -- outside-scope
+- slot 117, tval/sval 30/4: ドラゴン・ブーツ [5,+4] {r閃} -- outside-scope
+- slot 118, tval/sval 30/4: ドラゴン・ブーツ [5,+11] {r酸, .} -- outside-scope
+- slot 121, tval/sval 23/4: (パターン)ダガー (1d4) (+7,+15) (+1) {+腕耐r因;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 122, tval/sval 23/4: 凍結のダガー (1d4) (+8,+12) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 123, tval/sval 23/5: (混沌)マン・ゴーシュ (1d5) (+6,+4) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 124, tval/sval 23/6: (聖戦者)短刀 (1d5) (+12,+9) [+3] (+1) {+賢r恐;視祝/邪デ死(器} -- slot-capacity-or-uncovered-trait
+- slot 126, tval/sval 23/7: オークスレイヤーのレイピア (1d6) (+4,+7) (+3赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 127, tval/sval 23/7: 殺戮のレイピア (2d7) (+13,+1) {|切} -- slot-capacity-or-uncovered-trait
+- slot 129, tval/sval 23/8: 滅善のスモール・ソード (1d6) (+8,+6) (+3) {+腕r盲;視/善~善} -- slot-capacity-or-uncovered-trait
+- slot 132, tval/sval 23/11: 虹色のサーベル (1d7) (+9,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 134, tval/sval 23/12: 切れ味のカットラス (1d7) (+8,+5) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 135, tval/sval 23/14: (パターン)コペシュ (2d4) (+7,+12) (+2) {+腕耐r暗恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 136, tval/sval 23/15: (聖戦者)タルワール (2d4) (+11,+10) [+1] (+1攻撃) {+攻賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 137, tval/sval 23/15: (聖戦者)タルワール (2d4) (+5,+11) [+3] (+3) {+賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 138, tval/sval 23/15: (トランプ)タルワール (2d4) (+12,+11) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 139, tval/sval 23/16: 電撃のブロード・ソード (2d5) (+8,+7) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 140, tval/sval 23/16: 毒殺のブロード・ソード (2d5) (+2,+3) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 144, tval/sval 23/17: 溶解のロング・ソード (2d5) (+9,+9) {r酸|酸} -- slot-capacity-or-uncovered-trait
+- slot 145, tval/sval 23/17: 滅邪のロング・ソード (2d5) (+13,+3) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 146, tval/sval 23/17: 人喰いのロング・ソード (2d5) (+9,+2) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 147, tval/sval 23/17: ジャイアントスレイヤーのロング・ソード (2d5) (+5,+4) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 148, tval/sval 23/17: 電撃のロング・ソード (2d5) (+4,+3) {r電|電, .} -- slot-capacity-or-uncovered-trait
+- slot 150, tval/sval 23/18: 追加攻撃のシミター (2d5) (+5,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 151, tval/sval 23/18: (吸血)シミター (2d5) (+7,+5) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 152, tval/sval 23/18: (トランプ)シミター (2d5) (+8,+8) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 154, tval/sval 23/20: 人喰いのカタナ (3d4) (+4,+5) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 155, tval/sval 23/20: 切れ味のカタナ (3d4) (+6,+6) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 157, tval/sval 23/21: オークスレイヤーのバスタード・ソード (3d4) (+7,+7) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 158, tval/sval 23/25: 毒殺のグレート・ソード (3d6) (+6,+8) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 159, tval/sval 23/25: 電撃のグレート・ソード (3d6) (+5,+8) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 161, tval/sval 23/26: (パターン)フランベルジュ (3d7) (+13,+14) (+1) {+腕耐r恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 164, tval/sval 23/28: ジャイアントスレイヤーの首切りソード (4d5) (+8,+9) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 167, tval/sval 23/29: 滅邪のツヴァイハンダー (4d6) (+8,+6) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 168, tval/sval 23/29: デーモンスレイヤーのツヴァイハンダー (4d6) (+11,+4) (+2) {+知r火/Xデ~デ} -- slot-capacity-or-uncovered-trait
+- slot 170, tval/sval 22/2: (防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .} -- slot-capacity-or-uncovered-trait
+- slot 171, tval/sval 22/2: 追加攻撃のスピア (1d6) (+8,+9) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 172, tval/sval 22/4: 妖精のオウル・パイク (1d8) (+5,+1) (+2加速) {+速器魅道隠r酸;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 173, tval/sval 22/4: (防衛者)オウル・パイク (1d8) (+9,+9) [+3] (+4隠密) {+隠r酸電火冷呪;麻視活浮(賢} -- slot-capacity-or-uncovered-trait
+- slot 176, tval/sval 22/5: 人喰いのトライデント (1d8) (+4,+8) (+1隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 177, tval/sval 22/6: (トランプ)フォシャール (1d10) (+6,+4) (+2探索) {+探r因水;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 178, tval/sval 22/7: 西方国のブロード・スピア (1d9) (+4,+11) (+1) {+腕器耐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 179, tval/sval 22/7: (祝福)ブロード・スピア (1d9) (+20,+4) [+4] (+3) {+賢r破;遅明祝/デ死~善} -- slot-capacity-or-uncovered-trait
+- slot 181, tval/sval 22/8: 理力のパイク (2d5) (+5,+13) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 184, tval/sval 22/10: 追加攻撃のビークド・アックス (2d6) (+11,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 186, tval/sval 22/10: (混沌)ビークド・アックス (2d6) (+11,+2) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 187, tval/sval 22/10: 毒殺のビークド・アックス (2d6) (+5,+11) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 188, tval/sval 22/10: 凍結のビークド・アックス (2d6) (+14,+4) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 190, tval/sval 22/12: 虹色のルツェルン・ハンマー (2d5) (+7,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 191, tval/sval 22/13: (祝福)グレイブ (2d6) (+12,+11) [+3] (+3) {+賢r毒;明祝/デ死~善動} -- slot-capacity-or-uncovered-trait
+- slot 196, tval/sval 22/16: トロルスレイヤーのギザルム (2d5) (+4,+6) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 198, tval/sval 22/17: (トランプ)大鎌 (5d3) (+6,+8) (+2探索) {+探r因呪;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 201, tval/sval 22/22: 虹色のバトル・アックス (2d8) (+5,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 202, tval/sval 22/25: 西方国のグレート・アックス (4d4) (+10,+15) (+1) {+腕器耐r恐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 204, tval/sval 22/25: アニマルスレイヤーのグレート・アックス (4d4) (+6,+8) (+3) {+知;活/X動~動} -- slot-capacity-or-uncovered-trait
+- slot 205, tval/sval 22/25: トロルスレイヤーのグレート・アックス (4d4) (+4,+5) (+1) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 210, tval/sval 21/2: 妖精のムチ (1d6) (+11,+2) (+1加速) {+速器魅道隠r冷;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 211, tval/sval 21/2: アンデッドスレイヤーのムチ (1d6) (+11,+6) (+2) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 213, tval/sval 21/5: 西方国のメイス (2d4) (+10,+11) (+2) {+腕器耐r恐;麻視/オト巨~オト巨, .} -- slot-capacity-or-uncovered-trait
+- slot 215, tval/sval 21/6: (トランプ)鎖つき鉄球 (2d4) (+5,+11) (+1探索) {+探r因劣;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 216, tval/sval 21/6: 理力の鎖つき鉄球 (2d4) (+6,+4) (+1) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 217, tval/sval 21/6: ドラゴンスレイヤーの鎖つき鉄球 (2d4) (+4,+3) (+1) {+耐r電毒/X龍~竜} -- slot-capacity-or-uncovered-trait
+- slot 218, tval/sval 21/7: 地震の錫杖 (1d7) (+8,+6) (+2) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 219, tval/sval 21/8: (パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .} -- slot-capacity-or-uncovered-trait
+- slot 220, tval/sval 21/8: 虹色のウォー・ハンマー (3d3) (+5,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 221, tval/sval 21/8: (吸血)ウォー・ハンマー (3d3) (+3,+5) {経|吸} -- slot-capacity-or-uncovered-trait
+- slot 222, tval/sval 21/11: (トランプ)三節棍 (3d3) (+7,+12) (+2探索) {+探r獄因;麻遅活瞬/邪~巨, .} -- slot-capacity-or-uncovered-trait
+- slot 224, tval/sval 21/13: アンデッドスレイヤーのフレイル (2d6) (+7,+9) (+1) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 225, tval/sval 21/13: トロルスレイヤーのフレイル (2d6) (+5,+4) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 226, tval/sval 21/14: 理力の六尺棒 (1d11) (+13,+6) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 227, tval/sval 21/15: (吸血)鉛詰めメイス (3d4) (+7,+7) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 228, tval/sval 21/15: ジャイアントスレイヤーの鉛詰めメイス (3d4) (+2,+8) (+2) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 231, tval/sval 21/15: 焼棄の鉛詰めメイス (3d4) (+3,+7) {r火;明|焼} -- slot-capacity-or-uncovered-trait
+- slot 232, tval/sval 21/16: 地震の鉄棒 (2d7) (+3,+13) (+3) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 234, tval/sval 21/18: 滅邪のヘヴィ・フレイル (3d6) (+6,+10) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 235, tval/sval 21/18: 電撃のヘヴィ・フレイル (3d6) (+5,+3) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 236, tval/sval 19/12: 強力射のショート・ボウ (x3) (0.53turn) (+9,+11) {r冷;倍} -- slot-capacity-or-uncovered-trait
+- slot 238, tval/sval 19/24: 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+22,+6) -- slot-capacity-or-uncovered-trait
+
+ES hypothetical sale list (retained-witness proof):
+- slot 50, ドワーフのリング・メイル (-2) [17,+14] (+3) {+耐r電} -- witnesses: home:8d6fc9b50d3ccb29:0
+- slot 51, オログの重鎖かたびら (+1,+1) [16,+21] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 52, オログの重鎖かたびら (+0,+1) [16,+15] (+1) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 55, オログの二重鎖かたびら (-1,+6) [16,+11] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 57, オログの当世具足 (+1,+7) [20,+14] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 59, オログのパーシャル・プレート・メイル (-1,+1) [22,+9] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 64, 全耐性の胴丸 (-2) [17,+11] {r酸電火冷破, .} -- witnesses: home:c4407e0d48ed3429:0
+- slot 67, オログの強化プレート・アーマー (+0,+2) [28,+13] (+2) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 68, オログの強化プレート・アーマー (-1,+2) [28,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 74, 全耐性のローブ [2,+10] {r酸電火冷沌} -- witnesses: home:accd66ab658aa39f:0
+- slot 76, オログの鋲付軟革よろい (+2,+3) [5,+13] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 79, オログの硬革よろい (+0,+7) [6,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 95, 耐火の革製スモール・シールド [3,+9] {r火} -- witnesses: home:5ea543a9d71028c4:0
+- slot 106, 赤外線視力の硬革帽子 [2,+6] (+4) {+赤} -- witnesses: home:04823649e40a2eb4:0
+- slot 128, (吸血)スモール・ソード (1d6) (+8,+6) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 130, (吸血)バゼラード (1d8) (+7,+6) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 131, 切れ味のバゼラード (1d8) (+10,+3) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 156, 追加攻撃のバスタード・ソード (3d4) (+7,+7) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 162, 理力の首切りソード (4d5) (+6,+7) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 163, 虹色の首切りソード (4d5) (+5,+8) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 165, 切れ味の首切りソード (4d5) (+10,+2) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 166, 毒殺の首切りソード (4d5) (+7,+4) {r毒|毒} -- witnesses: home:e4f02edb170b5f21:0, home:6b18f6a3a4775f69:0
+- slot 174, (吸血)オウル・パイク (1d8) (+7,+12) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 175, 殺戮のオウル・パイク (3d9) (+3,+9) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 180, 西方国のパイク (2d5) (+3,+8) (+1) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 185, 追加攻撃のビークド・アックス (2d6) (+9,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 193, 西方国のハルベルト (3d5) (+4,+6) (+2) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 194, 理力のハルベルト (3d5) (+6,+9) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 197, 殺戮のギザルム (4d5) (+4,+8) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 199, (吸血)大鎌 (5d3) (+12,+9) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 203, 虹色のグレート・アックス (4d4) (+5,+7) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 206, 凍結のグレート・アックス (4d4) (+9,+2) {r冷|凍} -- witnesses: home:2e9ff649baff387f:0, home:47cfa8294ab14daf:0
+- slot 207, 理力のロッホアーバー・アックス (3d8) (+12,+3) (+1) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 208, トロルスレイヤーのロッホアーバー・アックス (3d8) (+2,+1) (+2) {+腕;活/Xト~ト} -- witnesses: home:2d500e4119b39caa:0, home:bc2bf00bc06bde22:0
+- slot 214, オークスレイヤーのメイス (2d4) (+4,+5) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- witnesses: home:38261c5349228a95:0, home:f851ca28566170d8:0
+- slot 223, 追加攻撃のモーニング・スター (2d6) (+7,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 229, 地震の鉛詰めメイス (3d4) (+7,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 230, 地震の鉛詰めメイス (3d4) (+5,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 233, 追加攻撃のヘヴィ・フレイル (3d6) (+5,+4) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 237, 高精度のライト・クロスボウ (x3) (0.63turn) (+21,+10) -- witnesses: home:06cb7b9efeeb9af9:0
+- slot 239, 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+20,+3) -- witnesses: home:06cb7b9efeeb9af9:0
+
+ED kept non-artifact equipment and reason:
+- slot 9, tval/sval 45/7: 浮遊の指輪 -- outside-scope
+- slot 10, tval/sval 45/9: 耐冷の指輪 -- outside-scope
+- slot 11, tval/sval 45/10: 腕力維持の指輪 -- outside-scope
+- slot 12, tval/sval 45/11: 知能維持の指輪 -- outside-scope
+- slot 13, tval/sval 45/12: 賢さ維持の指輪 -- outside-scope
+- slot 14, tval/sval 45/13: 耐久力維持の指輪 -- outside-scope
+- slot 15, tval/sval 45/14: 器用さ維持の指輪 -- outside-scope
+- slot 16, tval/sval 45/15: 魅力維持の指輪 -- outside-scope
+- slot 17, tval/sval 45/16: 大防御の守りの指輪 [+19] {.} -- outside-scope
+- slot 18, tval/sval 45/17: 酸の指輪 [+7] -- outside-scope
+- slot 19, tval/sval 45/19: 氷の指輪 [+12] -- outside-scope
+- slot 20, tval/sval 45/20: 耐毒の指輪 -- outside-scope
+- slot 21, tval/sval 45/24: 腕力の指輪 (+4) -- outside-scope
+- slot 22, tval/sval 45/24: 腕力の指輪 (+3) -- outside-scope
+- slot 23, tval/sval 45/25: 電撃の指輪 [+10] -- outside-scope
+- slot 24, tval/sval 45/26: 器用さの指輪 (+2) -- outside-scope
+- slot 25, tval/sval 45/27: 耐久力の指輪 (+2) -- outside-scope
+- slot 26, tval/sval 45/27: 耐久力の指輪 (+1) -- outside-scope
+- slot 27, tval/sval 45/28: 精度の指輪 (+9) -- outside-scope
+- slot 28, tval/sval 45/29: ダメージの指輪 (+12) -- outside-scope
+- slot 29, tval/sval 45/38: 恐れ知らずの指輪 -- outside-scope
+- slot 30, tval/sval 45/39: 耐光耐暗の指輪 -- outside-scope
+- slot 31, tval/sval 45/41: 耐因果混乱の指輪 -- outside-scope
+- slot 32, tval/sval 45/42: 耐轟音の指輪 -- outside-scope
+- slot 33, tval/sval 45/44: 耐破片の指輪 -- outside-scope
+- slot 34, tval/sval 45/46: 耐カオスの指輪 -- outside-scope
+- slot 35, tval/sval 45/47: 耐盲目の指輪 -- outside-scope
+- slot 36, tval/sval 40/5: 経験値保持の探索のアミュレット (+4) {+探赤;経~善オデ} -- outside-scope
+- slot 37, tval/sval 40/13: 反魔法のアミュレット -- outside-scope
+- slot 38, tval/sval 40/15: 耐性のアミュレット -- outside-scope
+- slot 39, tval/sval 40/15: 耐性のアミュレット -- outside-scope
+- slot 40, tval/sval 40/15: 耐性のアミュレット -- outside-scope
+- slot 41, tval/sval 40/16: テレパシーのアミュレット -- outside-scope
+- slot 42, tval/sval 39/0: 松明(2300ターンの寿命) {明, @v0=g} -- reservation-or-light
+- slot 43, tval/sval 39/0: 松明(2500ターンの寿命) {明} -- reservation-or-light
+- slot 46, tval/sval 38/1: ブラックドラゴン・スケイルメイル (-2) [40,+17] -- outside-scope
+- slot 47, tval/sval 38/2: ブルードラゴン・スケイルメイル (-2) [40,+17] -- outside-scope
+- slot 48, tval/sval 38/16: ゴールドドラゴン・スケイルメイル (-2) [40,+14] -- outside-scope
+- slot 49, tval/sval 37/1: エルフの錆びた鎖かたびら (-5) [14,+1] (+2隠密) {+隠r酸電火冷暗} -- slot-capacity-or-uncovered-trait
+- slot 53, tval/sval 37/6: ドワーフの重鎖かたびら (-2) [21,+12] (+1) {+耐r電} -- slot-capacity-or-uncovered-trait
+- slot 54, tval/sval 37/7: 全耐性の二重鎖かたびら (-2) [16,+12] {r酸電火冷毒乱} -- slot-capacity-or-uncovered-trait
+- slot 56, tval/sval 37/9: オログの金属製ブリガンダイン・アーマー (-2,+7) [19,+23] (+1) {+腕r冷} -- optimizer-or-band-winner
+- slot 58, tval/sval 37/11: ドワーフの当世具足 (-2) [25,+15] (+2) {+耐r火} -- slot-capacity-or-uncovered-trait
+- slot 60, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+7] (+3) {+腕r火} -- slot-capacity-or-uncovered-trait
+- slot 61, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+6] (+2) {+腕r酸} -- slot-capacity-or-uncovered-trait
+- slot 62, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+11] (+2) {+耐r冷} -- slot-capacity-or-uncovered-trait
+- slot 63, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+6] (+3) {+耐r酸} -- slot-capacity-or-uncovered-trait
+- slot 65, tval/sval 37/16: 全耐性の大鎧 (-2) [24,+12] {r酸電火冷沌} -- slot-capacity-or-uncovered-trait
+- slot 66, tval/sval 37/18: 全耐性の強化プレート・アーマー (-3) [28,+14] {r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 69, tval/sval 37/18: オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .} -- slot-capacity-or-uncovered-trait
+- slot 71, tval/sval 36/1: ウルクの汚れたボロ服 (+1,+2) [1,+5] {r酸電火冷破, .} -- slot-capacity-or-uncovered-trait
+- slot 72, tval/sval 36/1: ドルイドの汚れたボロ服 [1,+15] (+1) {+賢r電暗} -- slot-capacity-or-uncovered-trait
+- slot 73, tval/sval 36/2: 永続のローブ [2,+10] {r酸電火冷乱時;経(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 75, tval/sval 36/3: ウルクの紙甲 (+5,+1) [4,+10] {r酸電火冷毒} -- slot-capacity-or-uncovered-trait
+- slot 78, tval/sval 36/6: ドルイドの硬革よろい (-1) [6,+11] (+2) {+賢r酸暗} -- slot-capacity-or-uncovered-trait
+- slot 80, tval/sval 36/8: 全耐性のサイ皮よろい (-1) [8,+3] {r酸電火冷劣} -- slot-capacity-or-uncovered-trait
+- slot 81, tval/sval 36/8: ドルイドのサイ皮よろい (-1) [8,+9] (+1) {+賢r火盲} -- slot-capacity-or-uncovered-trait
+- slot 83, tval/sval 36/10: エルフの厚布よろい [5,+11] (+2隠密) {+隠r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 84, tval/sval 36/11: ウルクの革製スケイル・メイル (+3,+2) [11,+10] {r酸電火冷閃} -- slot-capacity-or-uncovered-trait
+- slot 85, tval/sval 36/12: ドルイドの皮ジャケット (-1) [12,+4] (+1) {+賢r火時} -- slot-capacity-or-uncovered-trait
+- slot 86, tval/sval 36/60: 宵闇のローブ [0,+0] {r酸電火冷毒閃暗破盲乱轟獄因沌劣時水恐;反麻視経浮(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 87, tval/sval 35/1: 至福の地アマンのクローク [1,+4] (+3隠密) {+隠r劣, .} -- slot-capacity-or-uncovered-trait
+- slot 88, tval/sval 35/1: 蝙蝠のクローク (-12,-10) [1,+0] (+1) {+速隠赤r暗;視浮} -- slot-capacity-or-uncovered-trait
+- slot 89, tval/sval 35/1: 電撃のクローク [1,+6] {r電[電} -- slot-capacity-or-uncovered-trait
+- slot 91, tval/sval 35/2: エルフのクローク [4,+9] (+1隠密) -- outside-scope
+- slot 93, tval/sval 35/3: 至福の地アマンの毛皮のクローク [3,+14] (+2隠密) {+隠r毒} -- slot-capacity-or-uncovered-trait
+- slot 94, tval/sval 35/6: 灼熱の影のクローク [6,+14] {r火閃暗[炎, .} -- slot-capacity-or-uncovered-trait
+- slot 96, tval/sval 34/3: 反射の金属製スモール・シールド [5,+11] {反} -- slot-capacity-or-uncovered-trait
+- slot 97, tval/sval 34/5: 耐火の金属製ラージ・シールド [8,+7] {r火} -- slot-capacity-or-uncovered-trait
+- slot 98, tval/sval 34/5: 耐電の金属製ラージ・シールド [8,+8] {r電} -- slot-capacity-or-uncovered-trait
+- slot 99, tval/sval 34/6: ドラゴン・シールド [8,+10] {r酸盲乱呪} -- outside-scope
+- slot 100, tval/sval 34/6: ドラゴン・シールド [8,+10] {r水, .} -- outside-scope
+- slot 101, tval/sval 34/6: ドラゴン・シールド [8,+15] {r乱} -- outside-scope
+- slot 102, tval/sval 33/10: バジリスクの鉄冠 [0,+13] (+4赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 103, tval/sval 33/11: 力の金の冠 [0,+4] (+3) {+腕器耐r呪;麻(腕器耐} -- slot-capacity-or-uncovered-trait
+- slot 104, tval/sval 33/11: バジリスクの金の冠 [0,+8] (+1赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 105, tval/sval 33/11: 鋭敏の金の冠 [0,+8] (+6探索) {+探r盲;視} -- slot-capacity-or-uncovered-trait
+- slot 109, tval/sval 32/5: 知性の鉄ヘルメット [5,+7] (+2) {+知賢魅(知賢魅} -- slot-capacity-or-uncovered-trait
+- slot 110, tval/sval 32/5: 闇の鉄ヘルメット [5,+3] {r暗;闇} -- slot-capacity-or-uncovered-trait
+- slot 111, tval/sval 32/6: 光の鋼鉄ヘルメット [6,+5] {r閃;明} -- slot-capacity-or-uncovered-trait
+- slot 112, tval/sval 32/8: 赤外線視力の星兜 [7,+7] (+2) {+赤} -- slot-capacity-or-uncovered-trait
+- slot 113, tval/sval 31/1: 麻痺知らずの革グローブ [1,-1] {麻} -- slot-capacity-or-uncovered-trait
+- slot 114, tval/sval 31/2: 魔力支配のガントレット [2,+5] (+1) {+道} -- slot-capacity-or-uncovered-trait
+- slot 115, tval/sval 30/3: 浮遊の硬革ブーツ [3,+6] {r閃;浮} -- slot-capacity-or-uncovered-trait
+- slot 116, tval/sval 30/4: ドラゴン・ブーツ [5,+10] {r劣} -- outside-scope
+- slot 117, tval/sval 30/4: ドラゴン・ブーツ [5,+4] {r閃} -- outside-scope
+- slot 118, tval/sval 30/4: ドラゴン・ブーツ [5,+11] {r酸, .} -- outside-scope
+- slot 121, tval/sval 23/4: (パターン)ダガー (1d4) (+7,+15) (+1) {+腕耐r因;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 122, tval/sval 23/4: 凍結のダガー (1d4) (+8,+12) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 123, tval/sval 23/5: (混沌)マン・ゴーシュ (1d5) (+6,+4) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 124, tval/sval 23/6: (聖戦者)短刀 (1d5) (+12,+9) [+3] (+1) {+賢r恐;視祝/邪デ死(器} -- slot-capacity-or-uncovered-trait
+- slot 126, tval/sval 23/7: オークスレイヤーのレイピア (1d6) (+4,+7) (+3赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 127, tval/sval 23/7: 殺戮のレイピア (2d7) (+13,+1) {|切} -- slot-capacity-or-uncovered-trait
+- slot 129, tval/sval 23/8: 滅善のスモール・ソード (1d6) (+8,+6) (+3) {+腕r盲;視/善~善} -- slot-capacity-or-uncovered-trait
+- slot 132, tval/sval 23/11: 虹色のサーベル (1d7) (+9,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 134, tval/sval 23/12: 切れ味のカットラス (1d7) (+8,+5) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 135, tval/sval 23/14: (パターン)コペシュ (2d4) (+7,+12) (+2) {+腕耐r暗恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 136, tval/sval 23/15: (聖戦者)タルワール (2d4) (+11,+10) [+1] (+1攻撃) {+攻賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 137, tval/sval 23/15: (聖戦者)タルワール (2d4) (+5,+11) [+3] (+3) {+賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 138, tval/sval 23/15: (トランプ)タルワール (2d4) (+12,+11) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 139, tval/sval 23/16: 電撃のブロード・ソード (2d5) (+8,+7) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 140, tval/sval 23/16: 毒殺のブロード・ソード (2d5) (+2,+3) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 144, tval/sval 23/17: 溶解のロング・ソード (2d5) (+9,+9) {r酸|酸} -- slot-capacity-or-uncovered-trait
+- slot 145, tval/sval 23/17: 滅邪のロング・ソード (2d5) (+13,+3) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 146, tval/sval 23/17: 人喰いのロング・ソード (2d5) (+9,+2) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 147, tval/sval 23/17: ジャイアントスレイヤーのロング・ソード (2d5) (+5,+4) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 148, tval/sval 23/17: 電撃のロング・ソード (2d5) (+4,+3) {r電|電, .} -- slot-capacity-or-uncovered-trait
+- slot 150, tval/sval 23/18: 追加攻撃のシミター (2d5) (+5,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 151, tval/sval 23/18: (吸血)シミター (2d5) (+7,+5) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 152, tval/sval 23/18: (トランプ)シミター (2d5) (+8,+8) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 154, tval/sval 23/20: 人喰いのカタナ (3d4) (+4,+5) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 155, tval/sval 23/20: 切れ味のカタナ (3d4) (+6,+6) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 157, tval/sval 23/21: オークスレイヤーのバスタード・ソード (3d4) (+7,+7) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 158, tval/sval 23/25: 毒殺のグレート・ソード (3d6) (+6,+8) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 159, tval/sval 23/25: 電撃のグレート・ソード (3d6) (+5,+8) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 161, tval/sval 23/26: (パターン)フランベルジュ (3d7) (+13,+14) (+1) {+腕耐r恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 164, tval/sval 23/28: ジャイアントスレイヤーの首切りソード (4d5) (+8,+9) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 167, tval/sval 23/29: 滅邪のツヴァイハンダー (4d6) (+8,+6) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 168, tval/sval 23/29: デーモンスレイヤーのツヴァイハンダー (4d6) (+11,+4) (+2) {+知r火/Xデ~デ} -- slot-capacity-or-uncovered-trait
+- slot 170, tval/sval 22/2: (防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .} -- slot-capacity-or-uncovered-trait
+- slot 171, tval/sval 22/2: 追加攻撃のスピア (1d6) (+8,+9) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 172, tval/sval 22/4: 妖精のオウル・パイク (1d8) (+5,+1) (+2加速) {+速器魅道隠r酸;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 173, tval/sval 22/4: (防衛者)オウル・パイク (1d8) (+9,+9) [+3] (+4隠密) {+隠r酸電火冷呪;麻視活浮(賢} -- slot-capacity-or-uncovered-trait
+- slot 176, tval/sval 22/5: 人喰いのトライデント (1d8) (+4,+8) (+1隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 177, tval/sval 22/6: (トランプ)フォシャール (1d10) (+6,+4) (+2探索) {+探r因水;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 178, tval/sval 22/7: 西方国のブロード・スピア (1d9) (+4,+11) (+1) {+腕器耐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 179, tval/sval 22/7: (祝福)ブロード・スピア (1d9) (+20,+4) [+4] (+3) {+賢r破;遅明祝/デ死~善} -- slot-capacity-or-uncovered-trait
+- slot 181, tval/sval 22/8: 理力のパイク (2d5) (+5,+13) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 184, tval/sval 22/10: 追加攻撃のビークド・アックス (2d6) (+11,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 186, tval/sval 22/10: (混沌)ビークド・アックス (2d6) (+11,+2) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 187, tval/sval 22/10: 毒殺のビークド・アックス (2d6) (+5,+11) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 188, tval/sval 22/10: 凍結のビークド・アックス (2d6) (+14,+4) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 190, tval/sval 22/12: 虹色のルツェルン・ハンマー (2d5) (+7,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 191, tval/sval 22/13: (祝福)グレイブ (2d6) (+12,+11) [+3] (+3) {+賢r毒;明祝/デ死~善動} -- slot-capacity-or-uncovered-trait
+- slot 196, tval/sval 22/16: トロルスレイヤーのギザルム (2d5) (+4,+6) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 198, tval/sval 22/17: (トランプ)大鎌 (5d3) (+6,+8) (+2探索) {+探r因呪;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 201, tval/sval 22/22: 虹色のバトル・アックス (2d8) (+5,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 202, tval/sval 22/25: 西方国のグレート・アックス (4d4) (+10,+15) (+1) {+腕器耐r恐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 204, tval/sval 22/25: アニマルスレイヤーのグレート・アックス (4d4) (+6,+8) (+3) {+知;活/X動~動} -- slot-capacity-or-uncovered-trait
+- slot 205, tval/sval 22/25: トロルスレイヤーのグレート・アックス (4d4) (+4,+5) (+1) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 210, tval/sval 21/2: 妖精のムチ (1d6) (+11,+2) (+1加速) {+速器魅道隠r冷;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 211, tval/sval 21/2: アンデッドスレイヤーのムチ (1d6) (+11,+6) (+2) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 213, tval/sval 21/5: 西方国のメイス (2d4) (+10,+11) (+2) {+腕器耐r恐;麻視/オト巨~オト巨, .} -- slot-capacity-or-uncovered-trait
+- slot 215, tval/sval 21/6: (トランプ)鎖つき鉄球 (2d4) (+5,+11) (+1探索) {+探r因劣;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 216, tval/sval 21/6: 理力の鎖つき鉄球 (2d4) (+6,+4) (+1) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 217, tval/sval 21/6: ドラゴンスレイヤーの鎖つき鉄球 (2d4) (+4,+3) (+1) {+耐r電毒/X龍~竜} -- slot-capacity-or-uncovered-trait
+- slot 218, tval/sval 21/7: 地震の錫杖 (1d7) (+8,+6) (+2) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 219, tval/sval 21/8: (パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .} -- slot-capacity-or-uncovered-trait
+- slot 220, tval/sval 21/8: 虹色のウォー・ハンマー (3d3) (+5,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 221, tval/sval 21/8: (吸血)ウォー・ハンマー (3d3) (+3,+5) {経|吸} -- slot-capacity-or-uncovered-trait
+- slot 222, tval/sval 21/11: (トランプ)三節棍 (3d3) (+7,+12) (+2探索) {+探r獄因;麻遅活瞬/邪~巨, .} -- slot-capacity-or-uncovered-trait
+- slot 224, tval/sval 21/13: アンデッドスレイヤーのフレイル (2d6) (+7,+9) (+1) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 225, tval/sval 21/13: トロルスレイヤーのフレイル (2d6) (+5,+4) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 226, tval/sval 21/14: 理力の六尺棒 (1d11) (+13,+6) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 227, tval/sval 21/15: (吸血)鉛詰めメイス (3d4) (+7,+7) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 228, tval/sval 21/15: ジャイアントスレイヤーの鉛詰めメイス (3d4) (+2,+8) (+2) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 231, tval/sval 21/15: 焼棄の鉛詰めメイス (3d4) (+3,+7) {r火;明|焼} -- slot-capacity-or-uncovered-trait
+- slot 232, tval/sval 21/16: 地震の鉄棒 (2d7) (+3,+13) (+3) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 234, tval/sval 21/18: 滅邪のヘヴィ・フレイル (3d6) (+6,+10) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 235, tval/sval 21/18: 電撃のヘヴィ・フレイル (3d6) (+5,+3) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 236, tval/sval 19/12: 強力射のショート・ボウ (x3) (0.53turn) (+9,+11) {r冷;倍} -- slot-capacity-or-uncovered-trait
+- slot 238, tval/sval 19/24: 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+22,+6) -- slot-capacity-or-uncovered-trait
+
+ED hypothetical sale list (retained-witness proof):
+- slot 50, ドワーフのリング・メイル (-2) [17,+14] (+3) {+耐r電} -- witnesses: home:8d6fc9b50d3ccb29:0
+- slot 51, オログの重鎖かたびら (+1,+1) [16,+21] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 52, オログの重鎖かたびら (+0,+1) [16,+15] (+1) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 55, オログの二重鎖かたびら (-1,+6) [16,+11] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 57, オログの当世具足 (+1,+7) [20,+14] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 59, オログのパーシャル・プレート・メイル (-1,+1) [22,+9] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 64, 全耐性の胴丸 (-2) [17,+11] {r酸電火冷破, .} -- witnesses: home:c4407e0d48ed3429:0
+- slot 67, オログの強化プレート・アーマー (+0,+2) [28,+13] (+2) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 68, オログの強化プレート・アーマー (-1,+2) [28,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 74, 全耐性のローブ [2,+10] {r酸電火冷沌} -- witnesses: home:accd66ab658aa39f:0
+- slot 76, オログの鋲付軟革よろい (+2,+3) [5,+13] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 79, オログの硬革よろい (+0,+7) [6,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 95, 耐火の革製スモール・シールド [3,+9] {r火} -- witnesses: home:5ea543a9d71028c4:0
+- slot 106, 赤外線視力の硬革帽子 [2,+6] (+4) {+赤} -- witnesses: home:04823649e40a2eb4:0
+- slot 128, (吸血)スモール・ソード (1d6) (+8,+6) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 130, (吸血)バゼラード (1d8) (+7,+6) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 131, 切れ味のバゼラード (1d8) (+10,+3) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 156, 追加攻撃のバスタード・ソード (3d4) (+7,+7) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 162, 理力の首切りソード (4d5) (+6,+7) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 163, 虹色の首切りソード (4d5) (+5,+8) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 165, 切れ味の首切りソード (4d5) (+10,+2) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 166, 毒殺の首切りソード (4d5) (+7,+4) {r毒|毒} -- witnesses: home:e4f02edb170b5f21:0, home:6b18f6a3a4775f69:0
+- slot 174, (吸血)オウル・パイク (1d8) (+7,+12) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 175, 殺戮のオウル・パイク (3d9) (+3,+9) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 180, 西方国のパイク (2d5) (+3,+8) (+1) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 185, 追加攻撃のビークド・アックス (2d6) (+9,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 193, 西方国のハルベルト (3d5) (+4,+6) (+2) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 194, 理力のハルベルト (3d5) (+6,+9) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 197, 殺戮のギザルム (4d5) (+4,+8) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 199, (吸血)大鎌 (5d3) (+12,+9) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 203, 虹色のグレート・アックス (4d4) (+5,+7) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 206, 凍結のグレート・アックス (4d4) (+9,+2) {r冷|凍} -- witnesses: home:2e9ff649baff387f:0, home:47cfa8294ab14daf:0
+- slot 207, 理力のロッホアーバー・アックス (3d8) (+12,+3) (+1) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 208, トロルスレイヤーのロッホアーバー・アックス (3d8) (+2,+1) (+2) {+腕;活/Xト~ト} -- witnesses: home:2d500e4119b39caa:0, home:bc2bf00bc06bde22:0
+- slot 214, オークスレイヤーのメイス (2d4) (+4,+5) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- witnesses: home:38261c5349228a95:0, home:f851ca28566170d8:0
+- slot 223, 追加攻撃のモーニング・スター (2d6) (+7,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 229, 地震の鉛詰めメイス (3d4) (+7,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 230, 地震の鉛詰めメイス (3d4) (+5,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 233, 追加攻撃のヘヴィ・フレイル (3d6) (+5,+4) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 237, 高精度のライト・クロスボウ (x3) (0.63turn) (+21,+10) -- witnesses: home:06cb7b9efeeb9af9:0
+- slot 239, 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+20,+3) -- witnesses: home:06cb7b9efeeb9af9:0
+
+JS kept non-artifact equipment and reason:
+- slot 9, tval/sval 45/7: 浮遊の指輪 -- slot-capacity-or-uncovered-trait
+- slot 10, tval/sval 45/9: 耐冷の指輪 -- slot-capacity-or-uncovered-trait
+- slot 11, tval/sval 45/10: 腕力維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 12, tval/sval 45/11: 知能維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 13, tval/sval 45/12: 賢さ維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 14, tval/sval 45/13: 耐久力維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 15, tval/sval 45/14: 器用さ維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 16, tval/sval 45/15: 魅力維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 18, tval/sval 45/17: 酸の指輪 [+7] -- slot-capacity-or-uncovered-trait
+- slot 19, tval/sval 45/19: 氷の指輪 [+12] -- slot-capacity-or-uncovered-trait
+- slot 20, tval/sval 45/20: 耐毒の指輪 -- slot-capacity-or-uncovered-trait
+- slot 21, tval/sval 45/24: 腕力の指輪 (+4) -- slot-capacity-or-uncovered-trait
+- slot 22, tval/sval 45/24: 腕力の指輪 (+3) -- slot-capacity-or-uncovered-trait
+- slot 23, tval/sval 45/25: 電撃の指輪 [+10] -- slot-capacity-or-uncovered-trait
+- slot 24, tval/sval 45/26: 器用さの指輪 (+2) -- slot-capacity-or-uncovered-trait
+- slot 25, tval/sval 45/27: 耐久力の指輪 (+2) -- slot-capacity-or-uncovered-trait
+- slot 26, tval/sval 45/27: 耐久力の指輪 (+1) -- slot-capacity-or-uncovered-trait
+- slot 28, tval/sval 45/29: ダメージの指輪 (+12) -- slot-capacity-or-uncovered-trait
+- slot 29, tval/sval 45/38: 恐れ知らずの指輪 -- slot-capacity-or-uncovered-trait
+- slot 30, tval/sval 45/39: 耐光耐暗の指輪 -- slot-capacity-or-uncovered-trait
+- slot 31, tval/sval 45/41: 耐因果混乱の指輪 -- slot-capacity-or-uncovered-trait
+- slot 32, tval/sval 45/42: 耐轟音の指輪 -- slot-capacity-or-uncovered-trait
+- slot 33, tval/sval 45/44: 耐破片の指輪 -- slot-capacity-or-uncovered-trait
+- slot 34, tval/sval 45/46: 耐カオスの指輪 -- slot-capacity-or-uncovered-trait
+- slot 35, tval/sval 45/47: 耐盲目の指輪 -- slot-capacity-or-uncovered-trait
+- slot 36, tval/sval 40/5: 経験値保持の探索のアミュレット (+4) {+探赤;経~善オデ} -- slot-capacity-or-uncovered-trait
+- slot 37, tval/sval 40/13: 反魔法のアミュレット -- slot-capacity-or-uncovered-trait
+- slot 38, tval/sval 40/15: 耐性のアミュレット -- slot-capacity-or-uncovered-trait
+- slot 39, tval/sval 40/15: 耐性のアミュレット -- slot-capacity-or-uncovered-trait
+- slot 40, tval/sval 40/15: 耐性のアミュレット -- slot-capacity-or-uncovered-trait
+- slot 41, tval/sval 40/16: テレパシーのアミュレット -- slot-capacity-or-uncovered-trait
+- slot 42, tval/sval 39/0: 松明(2300ターンの寿命) {明, @v0=g} -- reservation-or-light
+- slot 43, tval/sval 39/0: 松明(2500ターンの寿命) {明} -- reservation-or-light
+- slot 46, tval/sval 38/1: ブラックドラゴン・スケイルメイル (-2) [40,+17] -- slot-capacity-or-uncovered-trait
+- slot 47, tval/sval 38/2: ブルードラゴン・スケイルメイル (-2) [40,+17] -- slot-capacity-or-uncovered-trait
+- slot 48, tval/sval 38/16: ゴールドドラゴン・スケイルメイル (-2) [40,+14] -- slot-capacity-or-uncovered-trait
+- slot 49, tval/sval 37/1: エルフの錆びた鎖かたびら (-5) [14,+1] (+2隠密) {+隠r酸電火冷暗} -- slot-capacity-or-uncovered-trait
+- slot 53, tval/sval 37/6: ドワーフの重鎖かたびら (-2) [21,+12] (+1) {+耐r電} -- slot-capacity-or-uncovered-trait
+- slot 54, tval/sval 37/7: 全耐性の二重鎖かたびら (-2) [16,+12] {r酸電火冷毒乱} -- slot-capacity-or-uncovered-trait
+- slot 56, tval/sval 37/9: オログの金属製ブリガンダイン・アーマー (-2,+7) [19,+23] (+1) {+腕r冷} -- optimizer-or-band-winner
+- slot 58, tval/sval 37/11: ドワーフの当世具足 (-2) [25,+15] (+2) {+耐r火} -- slot-capacity-or-uncovered-trait
+- slot 60, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+7] (+3) {+腕r火} -- slot-capacity-or-uncovered-trait
+- slot 61, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+6] (+2) {+腕r酸} -- slot-capacity-or-uncovered-trait
+- slot 62, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+11] (+2) {+耐r冷} -- slot-capacity-or-uncovered-trait
+- slot 63, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+6] (+3) {+耐r酸} -- slot-capacity-or-uncovered-trait
+- slot 65, tval/sval 37/16: 全耐性の大鎧 (-2) [24,+12] {r酸電火冷沌} -- slot-capacity-or-uncovered-trait
+- slot 66, tval/sval 37/18: 全耐性の強化プレート・アーマー (-3) [28,+14] {r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 69, tval/sval 37/18: オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .} -- slot-capacity-or-uncovered-trait
+- slot 71, tval/sval 36/1: ウルクの汚れたボロ服 (+1,+2) [1,+5] {r酸電火冷破, .} -- slot-capacity-or-uncovered-trait
+- slot 72, tval/sval 36/1: ドルイドの汚れたボロ服 [1,+15] (+1) {+賢r電暗} -- slot-capacity-or-uncovered-trait
+- slot 73, tval/sval 36/2: 永続のローブ [2,+10] {r酸電火冷乱時;経(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 75, tval/sval 36/3: ウルクの紙甲 (+5,+1) [4,+10] {r酸電火冷毒} -- slot-capacity-or-uncovered-trait
+- slot 78, tval/sval 36/6: ドルイドの硬革よろい (-1) [6,+11] (+2) {+賢r酸暗} -- slot-capacity-or-uncovered-trait
+- slot 80, tval/sval 36/8: 全耐性のサイ皮よろい (-1) [8,+3] {r酸電火冷劣} -- slot-capacity-or-uncovered-trait
+- slot 81, tval/sval 36/8: ドルイドのサイ皮よろい (-1) [8,+9] (+1) {+賢r火盲} -- slot-capacity-or-uncovered-trait
+- slot 83, tval/sval 36/10: エルフの厚布よろい [5,+11] (+2隠密) {+隠r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 84, tval/sval 36/11: ウルクの革製スケイル・メイル (+3,+2) [11,+10] {r酸電火冷閃} -- slot-capacity-or-uncovered-trait
+- slot 85, tval/sval 36/12: ドルイドの皮ジャケット (-1) [12,+4] (+1) {+賢r火時} -- slot-capacity-or-uncovered-trait
+- slot 86, tval/sval 36/60: 宵闇のローブ [0,+0] {r酸電火冷毒閃暗破盲乱轟獄因沌劣時水恐;反麻視経浮(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 87, tval/sval 35/1: 至福の地アマンのクローク [1,+4] (+3隠密) {+隠r劣, .} -- slot-capacity-or-uncovered-trait
+- slot 88, tval/sval 35/1: 蝙蝠のクローク (-12,-10) [1,+0] (+1) {+速隠赤r暗;視浮} -- slot-capacity-or-uncovered-trait
+- slot 89, tval/sval 35/1: 電撃のクローク [1,+6] {r電[電} -- slot-capacity-or-uncovered-trait
+- slot 91, tval/sval 35/2: エルフのクローク [4,+9] (+1隠密) -- outside-scope
+- slot 93, tval/sval 35/3: 至福の地アマンの毛皮のクローク [3,+14] (+2隠密) {+隠r毒} -- slot-capacity-or-uncovered-trait
+- slot 94, tval/sval 35/6: 灼熱の影のクローク [6,+14] {r火閃暗[炎, .} -- slot-capacity-or-uncovered-trait
+- slot 96, tval/sval 34/3: 反射の金属製スモール・シールド [5,+11] {反} -- slot-capacity-or-uncovered-trait
+- slot 97, tval/sval 34/5: 耐火の金属製ラージ・シールド [8,+7] {r火} -- slot-capacity-or-uncovered-trait
+- slot 98, tval/sval 34/5: 耐電の金属製ラージ・シールド [8,+8] {r電} -- slot-capacity-or-uncovered-trait
+- slot 99, tval/sval 34/6: ドラゴン・シールド [8,+10] {r酸盲乱呪} -- slot-capacity-or-uncovered-trait
+- slot 100, tval/sval 34/6: ドラゴン・シールド [8,+10] {r水, .} -- slot-capacity-or-uncovered-trait
+- slot 101, tval/sval 34/6: ドラゴン・シールド [8,+15] {r乱} -- slot-capacity-or-uncovered-trait
+- slot 102, tval/sval 33/10: バジリスクの鉄冠 [0,+13] (+4赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 103, tval/sval 33/11: 力の金の冠 [0,+4] (+3) {+腕器耐r呪;麻(腕器耐} -- slot-capacity-or-uncovered-trait
+- slot 104, tval/sval 33/11: バジリスクの金の冠 [0,+8] (+1赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 105, tval/sval 33/11: 鋭敏の金の冠 [0,+8] (+6探索) {+探r盲;視} -- slot-capacity-or-uncovered-trait
+- slot 109, tval/sval 32/5: 知性の鉄ヘルメット [5,+7] (+2) {+知賢魅(知賢魅} -- slot-capacity-or-uncovered-trait
+- slot 110, tval/sval 32/5: 闇の鉄ヘルメット [5,+3] {r暗;闇} -- slot-capacity-or-uncovered-trait
+- slot 111, tval/sval 32/6: 光の鋼鉄ヘルメット [6,+5] {r閃;明} -- slot-capacity-or-uncovered-trait
+- slot 112, tval/sval 32/8: 赤外線視力の星兜 [7,+7] (+2) {+赤} -- slot-capacity-or-uncovered-trait
+- slot 113, tval/sval 31/1: 麻痺知らずの革グローブ [1,-1] {麻} -- slot-capacity-or-uncovered-trait
+- slot 114, tval/sval 31/2: 魔力支配のガントレット [2,+5] (+1) {+道} -- slot-capacity-or-uncovered-trait
+- slot 115, tval/sval 30/3: 浮遊の硬革ブーツ [3,+6] {r閃;浮} -- slot-capacity-or-uncovered-trait
+- slot 116, tval/sval 30/4: ドラゴン・ブーツ [5,+10] {r劣} -- slot-capacity-or-uncovered-trait
+- slot 117, tval/sval 30/4: ドラゴン・ブーツ [5,+4] {r閃} -- slot-capacity-or-uncovered-trait
+- slot 118, tval/sval 30/4: ドラゴン・ブーツ [5,+11] {r酸, .} -- slot-capacity-or-uncovered-trait
+- slot 121, tval/sval 23/4: (パターン)ダガー (1d4) (+7,+15) (+1) {+腕耐r因;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 122, tval/sval 23/4: 凍結のダガー (1d4) (+8,+12) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 123, tval/sval 23/5: (混沌)マン・ゴーシュ (1d5) (+6,+4) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 124, tval/sval 23/6: (聖戦者)短刀 (1d5) (+12,+9) [+3] (+1) {+賢r恐;視祝/邪デ死(器} -- slot-capacity-or-uncovered-trait
+- slot 126, tval/sval 23/7: オークスレイヤーのレイピア (1d6) (+4,+7) (+3赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 127, tval/sval 23/7: 殺戮のレイピア (2d7) (+13,+1) {|切} -- slot-capacity-or-uncovered-trait
+- slot 129, tval/sval 23/8: 滅善のスモール・ソード (1d6) (+8,+6) (+3) {+腕r盲;視/善~善} -- slot-capacity-or-uncovered-trait
+- slot 132, tval/sval 23/11: 虹色のサーベル (1d7) (+9,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 134, tval/sval 23/12: 切れ味のカットラス (1d7) (+8,+5) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 135, tval/sval 23/14: (パターン)コペシュ (2d4) (+7,+12) (+2) {+腕耐r暗恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 136, tval/sval 23/15: (聖戦者)タルワール (2d4) (+11,+10) [+1] (+1攻撃) {+攻賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 137, tval/sval 23/15: (聖戦者)タルワール (2d4) (+5,+11) [+3] (+3) {+賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 138, tval/sval 23/15: (トランプ)タルワール (2d4) (+12,+11) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 139, tval/sval 23/16: 電撃のブロード・ソード (2d5) (+8,+7) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 140, tval/sval 23/16: 毒殺のブロード・ソード (2d5) (+2,+3) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 144, tval/sval 23/17: 溶解のロング・ソード (2d5) (+9,+9) {r酸|酸} -- slot-capacity-or-uncovered-trait
+- slot 145, tval/sval 23/17: 滅邪のロング・ソード (2d5) (+13,+3) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 146, tval/sval 23/17: 人喰いのロング・ソード (2d5) (+9,+2) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 147, tval/sval 23/17: ジャイアントスレイヤーのロング・ソード (2d5) (+5,+4) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 148, tval/sval 23/17: 電撃のロング・ソード (2d5) (+4,+3) {r電|電, .} -- slot-capacity-or-uncovered-trait
+- slot 150, tval/sval 23/18: 追加攻撃のシミター (2d5) (+5,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 151, tval/sval 23/18: (吸血)シミター (2d5) (+7,+5) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 152, tval/sval 23/18: (トランプ)シミター (2d5) (+8,+8) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 154, tval/sval 23/20: 人喰いのカタナ (3d4) (+4,+5) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 155, tval/sval 23/20: 切れ味のカタナ (3d4) (+6,+6) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 157, tval/sval 23/21: オークスレイヤーのバスタード・ソード (3d4) (+7,+7) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 158, tval/sval 23/25: 毒殺のグレート・ソード (3d6) (+6,+8) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 159, tval/sval 23/25: 電撃のグレート・ソード (3d6) (+5,+8) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 161, tval/sval 23/26: (パターン)フランベルジュ (3d7) (+13,+14) (+1) {+腕耐r恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 164, tval/sval 23/28: ジャイアントスレイヤーの首切りソード (4d5) (+8,+9) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 167, tval/sval 23/29: 滅邪のツヴァイハンダー (4d6) (+8,+6) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 168, tval/sval 23/29: デーモンスレイヤーのツヴァイハンダー (4d6) (+11,+4) (+2) {+知r火/Xデ~デ} -- slot-capacity-or-uncovered-trait
+- slot 170, tval/sval 22/2: (防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .} -- slot-capacity-or-uncovered-trait
+- slot 171, tval/sval 22/2: 追加攻撃のスピア (1d6) (+8,+9) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 172, tval/sval 22/4: 妖精のオウル・パイク (1d8) (+5,+1) (+2加速) {+速器魅道隠r酸;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 173, tval/sval 22/4: (防衛者)オウル・パイク (1d8) (+9,+9) [+3] (+4隠密) {+隠r酸電火冷呪;麻視活浮(賢} -- slot-capacity-or-uncovered-trait
+- slot 176, tval/sval 22/5: 人喰いのトライデント (1d8) (+4,+8) (+1隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 177, tval/sval 22/6: (トランプ)フォシャール (1d10) (+6,+4) (+2探索) {+探r因水;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 178, tval/sval 22/7: 西方国のブロード・スピア (1d9) (+4,+11) (+1) {+腕器耐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 179, tval/sval 22/7: (祝福)ブロード・スピア (1d9) (+20,+4) [+4] (+3) {+賢r破;遅明祝/デ死~善} -- slot-capacity-or-uncovered-trait
+- slot 181, tval/sval 22/8: 理力のパイク (2d5) (+5,+13) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 184, tval/sval 22/10: 追加攻撃のビークド・アックス (2d6) (+11,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 186, tval/sval 22/10: (混沌)ビークド・アックス (2d6) (+11,+2) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 187, tval/sval 22/10: 毒殺のビークド・アックス (2d6) (+5,+11) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 188, tval/sval 22/10: 凍結のビークド・アックス (2d6) (+14,+4) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 190, tval/sval 22/12: 虹色のルツェルン・ハンマー (2d5) (+7,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 191, tval/sval 22/13: (祝福)グレイブ (2d6) (+12,+11) [+3] (+3) {+賢r毒;明祝/デ死~善動} -- slot-capacity-or-uncovered-trait
+- slot 196, tval/sval 22/16: トロルスレイヤーのギザルム (2d5) (+4,+6) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 198, tval/sval 22/17: (トランプ)大鎌 (5d3) (+6,+8) (+2探索) {+探r因呪;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 201, tval/sval 22/22: 虹色のバトル・アックス (2d8) (+5,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 202, tval/sval 22/25: 西方国のグレート・アックス (4d4) (+10,+15) (+1) {+腕器耐r恐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 204, tval/sval 22/25: アニマルスレイヤーのグレート・アックス (4d4) (+6,+8) (+3) {+知;活/X動~動} -- slot-capacity-or-uncovered-trait
+- slot 205, tval/sval 22/25: トロルスレイヤーのグレート・アックス (4d4) (+4,+5) (+1) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 210, tval/sval 21/2: 妖精のムチ (1d6) (+11,+2) (+1加速) {+速器魅道隠r冷;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 211, tval/sval 21/2: アンデッドスレイヤーのムチ (1d6) (+11,+6) (+2) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 213, tval/sval 21/5: 西方国のメイス (2d4) (+10,+11) (+2) {+腕器耐r恐;麻視/オト巨~オト巨, .} -- slot-capacity-or-uncovered-trait
+- slot 215, tval/sval 21/6: (トランプ)鎖つき鉄球 (2d4) (+5,+11) (+1探索) {+探r因劣;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 216, tval/sval 21/6: 理力の鎖つき鉄球 (2d4) (+6,+4) (+1) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 217, tval/sval 21/6: ドラゴンスレイヤーの鎖つき鉄球 (2d4) (+4,+3) (+1) {+耐r電毒/X龍~竜} -- slot-capacity-or-uncovered-trait
+- slot 218, tval/sval 21/7: 地震の錫杖 (1d7) (+8,+6) (+2) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 219, tval/sval 21/8: (パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .} -- slot-capacity-or-uncovered-trait
+- slot 220, tval/sval 21/8: 虹色のウォー・ハンマー (3d3) (+5,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 221, tval/sval 21/8: (吸血)ウォー・ハンマー (3d3) (+3,+5) {経|吸} -- slot-capacity-or-uncovered-trait
+- slot 222, tval/sval 21/11: (トランプ)三節棍 (3d3) (+7,+12) (+2探索) {+探r獄因;麻遅活瞬/邪~巨, .} -- slot-capacity-or-uncovered-trait
+- slot 224, tval/sval 21/13: アンデッドスレイヤーのフレイル (2d6) (+7,+9) (+1) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 225, tval/sval 21/13: トロルスレイヤーのフレイル (2d6) (+5,+4) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 226, tval/sval 21/14: 理力の六尺棒 (1d11) (+13,+6) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 227, tval/sval 21/15: (吸血)鉛詰めメイス (3d4) (+7,+7) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 228, tval/sval 21/15: ジャイアントスレイヤーの鉛詰めメイス (3d4) (+2,+8) (+2) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 231, tval/sval 21/15: 焼棄の鉛詰めメイス (3d4) (+3,+7) {r火;明|焼} -- slot-capacity-or-uncovered-trait
+- slot 232, tval/sval 21/16: 地震の鉄棒 (2d7) (+3,+13) (+3) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 234, tval/sval 21/18: 滅邪のヘヴィ・フレイル (3d6) (+6,+10) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 235, tval/sval 21/18: 電撃のヘヴィ・フレイル (3d6) (+5,+3) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 236, tval/sval 19/12: 強力射のショート・ボウ (x3) (0.53turn) (+9,+11) {r冷;倍} -- slot-capacity-or-uncovered-trait
+- slot 238, tval/sval 19/24: 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+22,+6) -- slot-capacity-or-uncovered-trait
+
+JS hypothetical sale list (retained-witness proof):
+- slot 17, 大防御の守りの指輪 [+19] {.} -- witnesses: equipped:de083443e0bebd45:0, home:f2366fafcb5c0686:0
+- slot 27, 精度の指輪 (+9) -- witnesses: equipped:de083443e0bebd45:0, home:f2366fafcb5c0686:0
+- slot 50, ドワーフのリング・メイル (-2) [17,+14] (+3) {+耐r電} -- witnesses: home:8d6fc9b50d3ccb29:0
+- slot 51, オログの重鎖かたびら (+1,+1) [16,+21] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 52, オログの重鎖かたびら (+0,+1) [16,+15] (+1) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 55, オログの二重鎖かたびら (-1,+6) [16,+11] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 57, オログの当世具足 (+1,+7) [20,+14] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 59, オログのパーシャル・プレート・メイル (-1,+1) [22,+9] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 64, 全耐性の胴丸 (-2) [17,+11] {r酸電火冷破, .} -- witnesses: home:c4407e0d48ed3429:0
+- slot 67, オログの強化プレート・アーマー (+0,+2) [28,+13] (+2) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 68, オログの強化プレート・アーマー (-1,+2) [28,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 74, 全耐性のローブ [2,+10] {r酸電火冷沌} -- witnesses: home:accd66ab658aa39f:0
+- slot 76, オログの鋲付軟革よろい (+2,+3) [5,+13] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 79, オログの硬革よろい (+0,+7) [6,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 95, 耐火の革製スモール・シールド [3,+9] {r火} -- witnesses: home:5ea543a9d71028c4:0
+- slot 106, 赤外線視力の硬革帽子 [2,+6] (+4) {+赤} -- witnesses: home:04823649e40a2eb4:0
+- slot 128, (吸血)スモール・ソード (1d6) (+8,+6) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 130, (吸血)バゼラード (1d8) (+7,+6) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 131, 切れ味のバゼラード (1d8) (+10,+3) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 156, 追加攻撃のバスタード・ソード (3d4) (+7,+7) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 162, 理力の首切りソード (4d5) (+6,+7) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 163, 虹色の首切りソード (4d5) (+5,+8) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 165, 切れ味の首切りソード (4d5) (+10,+2) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 166, 毒殺の首切りソード (4d5) (+7,+4) {r毒|毒} -- witnesses: home:e4f02edb170b5f21:0, home:6b18f6a3a4775f69:0
+- slot 174, (吸血)オウル・パイク (1d8) (+7,+12) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 175, 殺戮のオウル・パイク (3d9) (+3,+9) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 180, 西方国のパイク (2d5) (+3,+8) (+1) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 185, 追加攻撃のビークド・アックス (2d6) (+9,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 193, 西方国のハルベルト (3d5) (+4,+6) (+2) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 194, 理力のハルベルト (3d5) (+6,+9) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 197, 殺戮のギザルム (4d5) (+4,+8) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 199, (吸血)大鎌 (5d3) (+12,+9) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 203, 虹色のグレート・アックス (4d4) (+5,+7) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 206, 凍結のグレート・アックス (4d4) (+9,+2) {r冷|凍} -- witnesses: home:2e9ff649baff387f:0, home:47cfa8294ab14daf:0
+- slot 207, 理力のロッホアーバー・アックス (3d8) (+12,+3) (+1) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 208, トロルスレイヤーのロッホアーバー・アックス (3d8) (+2,+1) (+2) {+腕;活/Xト~ト} -- witnesses: home:2d500e4119b39caa:0, home:bc2bf00bc06bde22:0
+- slot 214, オークスレイヤーのメイス (2d4) (+4,+5) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- witnesses: home:38261c5349228a95:0, home:f851ca28566170d8:0
+- slot 223, 追加攻撃のモーニング・スター (2d6) (+7,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 229, 地震の鉛詰めメイス (3d4) (+7,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 230, 地震の鉛詰めメイス (3d4) (+5,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 233, 追加攻撃のヘヴィ・フレイル (3d6) (+5,+4) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 237, 高精度のライト・クロスボウ (x3) (0.63turn) (+21,+10) -- witnesses: home:06cb7b9efeeb9af9:0
+- slot 239, 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+20,+3) -- witnesses: home:06cb7b9efeeb9af9:0
+
+JD kept non-artifact equipment and reason:
+- slot 9, tval/sval 45/7: 浮遊の指輪 -- slot-capacity-or-uncovered-trait
+- slot 10, tval/sval 45/9: 耐冷の指輪 -- slot-capacity-or-uncovered-trait
+- slot 11, tval/sval 45/10: 腕力維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 12, tval/sval 45/11: 知能維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 13, tval/sval 45/12: 賢さ維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 14, tval/sval 45/13: 耐久力維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 15, tval/sval 45/14: 器用さ維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 16, tval/sval 45/15: 魅力維持の指輪 -- slot-capacity-or-uncovered-trait
+- slot 18, tval/sval 45/17: 酸の指輪 [+7] -- slot-capacity-or-uncovered-trait
+- slot 19, tval/sval 45/19: 氷の指輪 [+12] -- slot-capacity-or-uncovered-trait
+- slot 20, tval/sval 45/20: 耐毒の指輪 -- slot-capacity-or-uncovered-trait
+- slot 21, tval/sval 45/24: 腕力の指輪 (+4) -- slot-capacity-or-uncovered-trait
+- slot 22, tval/sval 45/24: 腕力の指輪 (+3) -- slot-capacity-or-uncovered-trait
+- slot 23, tval/sval 45/25: 電撃の指輪 [+10] -- slot-capacity-or-uncovered-trait
+- slot 24, tval/sval 45/26: 器用さの指輪 (+2) -- slot-capacity-or-uncovered-trait
+- slot 25, tval/sval 45/27: 耐久力の指輪 (+2) -- slot-capacity-or-uncovered-trait
+- slot 26, tval/sval 45/27: 耐久力の指輪 (+1) -- slot-capacity-or-uncovered-trait
+- slot 28, tval/sval 45/29: ダメージの指輪 (+12) -- slot-capacity-or-uncovered-trait
+- slot 29, tval/sval 45/38: 恐れ知らずの指輪 -- slot-capacity-or-uncovered-trait
+- slot 30, tval/sval 45/39: 耐光耐暗の指輪 -- slot-capacity-or-uncovered-trait
+- slot 31, tval/sval 45/41: 耐因果混乱の指輪 -- slot-capacity-or-uncovered-trait
+- slot 32, tval/sval 45/42: 耐轟音の指輪 -- slot-capacity-or-uncovered-trait
+- slot 33, tval/sval 45/44: 耐破片の指輪 -- slot-capacity-or-uncovered-trait
+- slot 34, tval/sval 45/46: 耐カオスの指輪 -- slot-capacity-or-uncovered-trait
+- slot 35, tval/sval 45/47: 耐盲目の指輪 -- slot-capacity-or-uncovered-trait
+- slot 36, tval/sval 40/5: 経験値保持の探索のアミュレット (+4) {+探赤;経~善オデ} -- slot-capacity-or-uncovered-trait
+- slot 37, tval/sval 40/13: 反魔法のアミュレット -- slot-capacity-or-uncovered-trait
+- slot 38, tval/sval 40/15: 耐性のアミュレット -- slot-capacity-or-uncovered-trait
+- slot 41, tval/sval 40/16: テレパシーのアミュレット -- slot-capacity-or-uncovered-trait
+- slot 42, tval/sval 39/0: 松明(2300ターンの寿命) {明, @v0=g} -- reservation-or-light
+- slot 43, tval/sval 39/0: 松明(2500ターンの寿命) {明} -- reservation-or-light
+- slot 46, tval/sval 38/1: ブラックドラゴン・スケイルメイル (-2) [40,+17] -- slot-capacity-or-uncovered-trait
+- slot 47, tval/sval 38/2: ブルードラゴン・スケイルメイル (-2) [40,+17] -- slot-capacity-or-uncovered-trait
+- slot 48, tval/sval 38/16: ゴールドドラゴン・スケイルメイル (-2) [40,+14] -- slot-capacity-or-uncovered-trait
+- slot 49, tval/sval 37/1: エルフの錆びた鎖かたびら (-5) [14,+1] (+2隠密) {+隠r酸電火冷暗} -- slot-capacity-or-uncovered-trait
+- slot 53, tval/sval 37/6: ドワーフの重鎖かたびら (-2) [21,+12] (+1) {+耐r電} -- slot-capacity-or-uncovered-trait
+- slot 54, tval/sval 37/7: 全耐性の二重鎖かたびら (-2) [16,+12] {r酸電火冷毒乱} -- slot-capacity-or-uncovered-trait
+- slot 56, tval/sval 37/9: オログの金属製ブリガンダイン・アーマー (-2,+7) [19,+23] (+1) {+腕r冷} -- optimizer-or-band-winner
+- slot 58, tval/sval 37/11: ドワーフの当世具足 (-2) [25,+15] (+2) {+耐r火} -- slot-capacity-or-uncovered-trait
+- slot 60, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+7] (+3) {+腕r火} -- slot-capacity-or-uncovered-trait
+- slot 61, tval/sval 37/13: オログの金属製ラメラー・アーマー (+0,+7) [23,+6] (+2) {+腕r酸} -- slot-capacity-or-uncovered-trait
+- slot 62, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+11] (+2) {+耐r冷} -- slot-capacity-or-uncovered-trait
+- slot 63, tval/sval 37/13: ドワーフの金属製ラメラー・アーマー (-3) [28,+6] (+3) {+耐r酸} -- slot-capacity-or-uncovered-trait
+- slot 65, tval/sval 37/16: 全耐性の大鎧 (-2) [24,+12] {r酸電火冷沌} -- slot-capacity-or-uncovered-trait
+- slot 66, tval/sval 37/18: 全耐性の強化プレート・アーマー (-3) [28,+14] {r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 69, tval/sval 37/18: オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .} -- slot-capacity-or-uncovered-trait
+- slot 71, tval/sval 36/1: ウルクの汚れたボロ服 (+1,+2) [1,+5] {r酸電火冷破, .} -- slot-capacity-or-uncovered-trait
+- slot 72, tval/sval 36/1: ドルイドの汚れたボロ服 [1,+15] (+1) {+賢r電暗} -- slot-capacity-or-uncovered-trait
+- slot 73, tval/sval 36/2: 永続のローブ [2,+10] {r酸電火冷乱時;経(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 75, tval/sval 36/3: ウルクの紙甲 (+5,+1) [4,+10] {r酸電火冷毒} -- slot-capacity-or-uncovered-trait
+- slot 78, tval/sval 36/6: ドルイドの硬革よろい (-1) [6,+11] (+2) {+賢r酸暗} -- slot-capacity-or-uncovered-trait
+- slot 80, tval/sval 36/8: 全耐性のサイ皮よろい (-1) [8,+3] {r酸電火冷劣} -- slot-capacity-or-uncovered-trait
+- slot 81, tval/sval 36/8: ドルイドのサイ皮よろい (-1) [8,+9] (+1) {+賢r火盲} -- slot-capacity-or-uncovered-trait
+- slot 83, tval/sval 36/10: エルフの厚布よろい [5,+11] (+2隠密) {+隠r酸電火冷破} -- slot-capacity-or-uncovered-trait
+- slot 84, tval/sval 36/11: ウルクの革製スケイル・メイル (+3,+2) [11,+10] {r酸電火冷閃} -- slot-capacity-or-uncovered-trait
+- slot 85, tval/sval 36/12: ドルイドの皮ジャケット (-1) [12,+4] (+1) {+賢r火時} -- slot-capacity-or-uncovered-trait
+- slot 86, tval/sval 36/60: 宵闇のローブ [0,+0] {r酸電火冷毒閃暗破盲乱轟獄因沌劣時水恐;反麻視経浮(腕知賢器耐魅} -- slot-capacity-or-uncovered-trait
+- slot 87, tval/sval 35/1: 至福の地アマンのクローク [1,+4] (+3隠密) {+隠r劣, .} -- slot-capacity-or-uncovered-trait
+- slot 88, tval/sval 35/1: 蝙蝠のクローク (-12,-10) [1,+0] (+1) {+速隠赤r暗;視浮} -- slot-capacity-or-uncovered-trait
+- slot 89, tval/sval 35/1: 電撃のクローク [1,+6] {r電[電} -- slot-capacity-or-uncovered-trait
+- slot 91, tval/sval 35/2: エルフのクローク [4,+9] (+1隠密) -- outside-scope
+- slot 93, tval/sval 35/3: 至福の地アマンの毛皮のクローク [3,+14] (+2隠密) {+隠r毒} -- slot-capacity-or-uncovered-trait
+- slot 94, tval/sval 35/6: 灼熱の影のクローク [6,+14] {r火閃暗[炎, .} -- slot-capacity-or-uncovered-trait
+- slot 96, tval/sval 34/3: 反射の金属製スモール・シールド [5,+11] {反} -- slot-capacity-or-uncovered-trait
+- slot 97, tval/sval 34/5: 耐火の金属製ラージ・シールド [8,+7] {r火} -- slot-capacity-or-uncovered-trait
+- slot 98, tval/sval 34/5: 耐電の金属製ラージ・シールド [8,+8] {r電} -- slot-capacity-or-uncovered-trait
+- slot 99, tval/sval 34/6: ドラゴン・シールド [8,+10] {r酸盲乱呪} -- slot-capacity-or-uncovered-trait
+- slot 100, tval/sval 34/6: ドラゴン・シールド [8,+10] {r水, .} -- slot-capacity-or-uncovered-trait
+- slot 101, tval/sval 34/6: ドラゴン・シールド [8,+15] {r乱} -- slot-capacity-or-uncovered-trait
+- slot 102, tval/sval 33/10: バジリスクの鉄冠 [0,+13] (+4赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 103, tval/sval 33/11: 力の金の冠 [0,+4] (+3) {+腕器耐r呪;麻(腕器耐} -- slot-capacity-or-uncovered-trait
+- slot 104, tval/sval 33/11: バジリスクの金の冠 [0,+8] (+1赤外線視力) {+赤r毒;麻} -- slot-capacity-or-uncovered-trait
+- slot 105, tval/sval 33/11: 鋭敏の金の冠 [0,+8] (+6探索) {+探r盲;視} -- slot-capacity-or-uncovered-trait
+- slot 109, tval/sval 32/5: 知性の鉄ヘルメット [5,+7] (+2) {+知賢魅(知賢魅} -- slot-capacity-or-uncovered-trait
+- slot 110, tval/sval 32/5: 闇の鉄ヘルメット [5,+3] {r暗;闇} -- slot-capacity-or-uncovered-trait
+- slot 111, tval/sval 32/6: 光の鋼鉄ヘルメット [6,+5] {r閃;明} -- slot-capacity-or-uncovered-trait
+- slot 112, tval/sval 32/8: 赤外線視力の星兜 [7,+7] (+2) {+赤} -- slot-capacity-or-uncovered-trait
+- slot 113, tval/sval 31/1: 麻痺知らずの革グローブ [1,-1] {麻} -- slot-capacity-or-uncovered-trait
+- slot 114, tval/sval 31/2: 魔力支配のガントレット [2,+5] (+1) {+道} -- slot-capacity-or-uncovered-trait
+- slot 115, tval/sval 30/3: 浮遊の硬革ブーツ [3,+6] {r閃;浮} -- slot-capacity-or-uncovered-trait
+- slot 116, tval/sval 30/4: ドラゴン・ブーツ [5,+10] {r劣} -- slot-capacity-or-uncovered-trait
+- slot 117, tval/sval 30/4: ドラゴン・ブーツ [5,+4] {r閃} -- slot-capacity-or-uncovered-trait
+- slot 118, tval/sval 30/4: ドラゴン・ブーツ [5,+11] {r酸, .} -- slot-capacity-or-uncovered-trait
+- slot 121, tval/sval 23/4: (パターン)ダガー (1d4) (+7,+15) (+1) {+腕耐r因;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 122, tval/sval 23/4: 凍結のダガー (1d4) (+8,+12) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 123, tval/sval 23/5: (混沌)マン・ゴーシュ (1d5) (+6,+4) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 124, tval/sval 23/6: (聖戦者)短刀 (1d5) (+12,+9) [+3] (+1) {+賢r恐;視祝/邪デ死(器} -- slot-capacity-or-uncovered-trait
+- slot 126, tval/sval 23/7: オークスレイヤーのレイピア (1d6) (+4,+7) (+3赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 127, tval/sval 23/7: 殺戮のレイピア (2d7) (+13,+1) {|切} -- slot-capacity-or-uncovered-trait
+- slot 129, tval/sval 23/8: 滅善のスモール・ソード (1d6) (+8,+6) (+3) {+腕r盲;視/善~善} -- slot-capacity-or-uncovered-trait
+- slot 132, tval/sval 23/11: 虹色のサーベル (1d7) (+9,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 134, tval/sval 23/12: 切れ味のカットラス (1d7) (+8,+5) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 135, tval/sval 23/14: (パターン)コペシュ (2d4) (+7,+12) (+2) {+腕耐r暗恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 136, tval/sval 23/15: (聖戦者)タルワール (2d4) (+11,+10) [+1] (+1攻撃) {+攻賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 137, tval/sval 23/15: (聖戦者)タルワール (2d4) (+5,+11) [+3] (+3) {+賢r恐;視祝/邪デ死(耐} -- slot-capacity-or-uncovered-trait
+- slot 138, tval/sval 23/15: (トランプ)タルワール (2d4) (+12,+11) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 139, tval/sval 23/16: 電撃のブロード・ソード (2d5) (+8,+7) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 140, tval/sval 23/16: 毒殺のブロード・ソード (2d5) (+2,+3) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 144, tval/sval 23/17: 溶解のロング・ソード (2d5) (+9,+9) {r酸|酸} -- slot-capacity-or-uncovered-trait
+- slot 145, tval/sval 23/17: 滅邪のロング・ソード (2d5) (+13,+3) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 146, tval/sval 23/17: 人喰いのロング・ソード (2d5) (+9,+2) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 147, tval/sval 23/17: ジャイアントスレイヤーのロング・ソード (2d5) (+5,+4) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 148, tval/sval 23/17: 電撃のロング・ソード (2d5) (+4,+3) {r電|電, .} -- slot-capacity-or-uncovered-trait
+- slot 150, tval/sval 23/18: 追加攻撃のシミター (2d5) (+5,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 151, tval/sval 23/18: (吸血)シミター (2d5) (+7,+5) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 152, tval/sval 23/18: (トランプ)シミター (2d5) (+8,+8) (+2探索) {+探r轟因;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 154, tval/sval 23/20: 人喰いのカタナ (3d4) (+4,+5) (+3隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 155, tval/sval 23/20: 切れ味のカタナ (3d4) (+6,+6) (+1) {+掘|切} -- slot-capacity-or-uncovered-trait
+- slot 157, tval/sval 23/21: オークスレイヤーのバスタード・ソード (3d4) (+7,+7) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- slot-capacity-or-uncovered-trait
+- slot 158, tval/sval 23/25: 毒殺のグレート・ソード (3d6) (+6,+8) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 159, tval/sval 23/25: 電撃のグレート・ソード (3d6) (+5,+8) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 161, tval/sval 23/26: (パターン)フランベルジュ (3d7) (+13,+14) (+1) {+腕耐r恐;麻視/邪デ死} -- slot-capacity-or-uncovered-trait
+- slot 164, tval/sval 23/28: ジャイアントスレイヤーの首切りソード (4d5) (+8,+9) (+1) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 167, tval/sval 23/29: 滅邪のツヴァイハンダー (4d6) (+8,+6) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 168, tval/sval 23/29: デーモンスレイヤーのツヴァイハンダー (4d6) (+11,+4) (+2) {+知r火/Xデ~デ} -- slot-capacity-or-uncovered-trait
+- slot 170, tval/sval 22/2: (防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .} -- slot-capacity-or-uncovered-trait
+- slot 171, tval/sval 22/2: 追加攻撃のスピア (1d6) (+8,+9) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 172, tval/sval 22/4: 妖精のオウル・パイク (1d8) (+5,+1) (+2加速) {+速器魅道隠r酸;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 173, tval/sval 22/4: (防衛者)オウル・パイク (1d8) (+9,+9) [+3] (+4隠密) {+隠r酸電火冷呪;麻視活浮(賢} -- slot-capacity-or-uncovered-trait
+- slot 176, tval/sval 22/5: 人喰いのトライデント (1d8) (+4,+8) (+1隠密) {+器隠r恐/X人~人} -- slot-capacity-or-uncovered-trait
+- slot 177, tval/sval 22/6: (トランプ)フォシャール (1d10) (+6,+4) (+2探索) {+探r因水;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 178, tval/sval 22/7: 西方国のブロード・スピア (1d9) (+4,+11) (+1) {+腕器耐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 179, tval/sval 22/7: (祝福)ブロード・スピア (1d9) (+20,+4) [+4] (+3) {+賢r破;遅明祝/デ死~善} -- slot-capacity-or-uncovered-trait
+- slot 181, tval/sval 22/8: 理力のパイク (2d5) (+5,+13) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 184, tval/sval 22/10: 追加攻撃のビークド・アックス (2d6) (+11,+8) (+1攻撃) {+攻} -- slot-capacity-or-uncovered-trait
+- slot 186, tval/sval 22/10: (混沌)ビークド・アックス (2d6) (+11,+2) {r沌時|沌} -- slot-capacity-or-uncovered-trait
+- slot 187, tval/sval 22/10: 毒殺のビークド・アックス (2d6) (+5,+11) {r毒|毒} -- slot-capacity-or-uncovered-trait
+- slot 188, tval/sval 22/10: 凍結のビークド・アックス (2d6) (+14,+4) {r冷|凍} -- slot-capacity-or-uncovered-trait
+- slot 190, tval/sval 22/12: 虹色のルツェルン・ハンマー (2d5) (+7,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 191, tval/sval 22/13: (祝福)グレイブ (2d6) (+12,+11) [+3] (+3) {+賢r毒;明祝/デ死~善動} -- slot-capacity-or-uncovered-trait
+- slot 196, tval/sval 22/16: トロルスレイヤーのギザルム (2d5) (+4,+6) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 198, tval/sval 22/17: (トランプ)大鎌 (5d3) (+6,+8) (+2探索) {+探r因呪;麻遅活瞬/邪, .} -- slot-capacity-or-uncovered-trait
+- slot 201, tval/sval 22/22: 虹色のバトル・アックス (2d8) (+5,+10) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 202, tval/sval 22/25: 西方国のグレート・アックス (4d4) (+10,+15) (+1) {+腕器耐r恐;麻視/オト巨~オト巨} -- slot-capacity-or-uncovered-trait
+- slot 204, tval/sval 22/25: アニマルスレイヤーのグレート・アックス (4d4) (+6,+8) (+3) {+知;活/X動~動} -- slot-capacity-or-uncovered-trait
+- slot 205, tval/sval 22/25: トロルスレイヤーのグレート・アックス (4d4) (+4,+5) (+1) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 210, tval/sval 21/2: 妖精のムチ (1d6) (+11,+2) (+1加速) {+速器魅道隠r冷;遅浮明} -- slot-capacity-or-uncovered-trait
+- slot 211, tval/sval 21/2: アンデッドスレイヤーのムチ (1d6) (+11,+6) (+2) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 213, tval/sval 21/5: 西方国のメイス (2d4) (+10,+11) (+2) {+腕器耐r恐;麻視/オト巨~オト巨, .} -- slot-capacity-or-uncovered-trait
+- slot 215, tval/sval 21/6: (トランプ)鎖つき鉄球 (2d4) (+5,+11) (+1探索) {+探r因劣;麻遅活瞬/邪デ, .} -- slot-capacity-or-uncovered-trait
+- slot 216, tval/sval 21/6: 理力の鎖つき鉄球 (2d4) (+6,+4) (+1) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 217, tval/sval 21/6: ドラゴンスレイヤーの鎖つき鉄球 (2d4) (+4,+3) (+1) {+耐r電毒/X龍~竜} -- slot-capacity-or-uncovered-trait
+- slot 218, tval/sval 21/7: 地震の錫杖 (1d7) (+8,+6) (+2) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 219, tval/sval 21/8: (パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .} -- slot-capacity-or-uncovered-trait
+- slot 220, tval/sval 21/8: 虹色のウォー・ハンマー (3d3) (+5,+6) {明|電焼凍} -- slot-capacity-or-uncovered-trait
+- slot 221, tval/sval 21/8: (吸血)ウォー・ハンマー (3d3) (+3,+5) {経|吸} -- slot-capacity-or-uncovered-trait
+- slot 222, tval/sval 21/11: (トランプ)三節棍 (3d3) (+7,+12) (+2探索) {+探r獄因;麻遅活瞬/邪~巨, .} -- slot-capacity-or-uncovered-trait
+- slot 224, tval/sval 21/13: アンデッドスレイヤーのフレイル (2d6) (+7,+9) (+1) {+賢r獄;視祝/X死~死} -- slot-capacity-or-uncovered-trait
+- slot 225, tval/sval 21/13: トロルスレイヤーのフレイル (2d6) (+5,+4) (+3) {+腕;活/Xト~ト} -- slot-capacity-or-uncovered-trait
+- slot 226, tval/sval 21/14: 理力の六尺棒 (1d11) (+13,+6) (+2) {+知賢;視|理} -- slot-capacity-or-uncovered-trait
+- slot 227, tval/sval 21/15: (吸血)鉛詰めメイス (3d4) (+7,+7) {経|吸/人} -- slot-capacity-or-uncovered-trait
+- slot 228, tval/sval 21/15: ジャイアントスレイヤーの鉛詰めメイス (3d4) (+2,+8) (+2) {+腕;麻/X巨~巨} -- slot-capacity-or-uncovered-trait
+- slot 231, tval/sval 21/15: 焼棄の鉛詰めメイス (3d4) (+3,+7) {r火;明|焼} -- slot-capacity-or-uncovered-trait
+- slot 232, tval/sval 21/16: 地震の鉄棒 (2d7) (+3,+13) (+3) {+掘|震強} -- slot-capacity-or-uncovered-trait
+- slot 234, tval/sval 21/18: 滅邪のヘヴィ・フレイル (3d6) (+6,+10) (+1) {+賢r恐;祝/邪~邪} -- slot-capacity-or-uncovered-trait
+- slot 235, tval/sval 21/18: 電撃のヘヴィ・フレイル (3d6) (+5,+3) {r電|電} -- slot-capacity-or-uncovered-trait
+- slot 236, tval/sval 19/12: 強力射のショート・ボウ (x3) (0.53turn) (+9,+11) {r冷;倍} -- slot-capacity-or-uncovered-trait
+- slot 238, tval/sval 19/24: 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+22,+6) -- slot-capacity-or-uncovered-trait
+
+JD hypothetical sale list (retained-witness proof):
+- slot 17, 大防御の守りの指輪 [+19] {.} -- witnesses: equipped:de083443e0bebd45:0, home:f2366fafcb5c0686:0
+- slot 27, 精度の指輪 (+9) -- witnesses: equipped:de083443e0bebd45:0, home:f2366fafcb5c0686:0
+- slot 39, 耐性のアミュレット -- witnesses: home:2fbc211d4a3cdf8a:0
+- slot 40, 耐性のアミュレット -- witnesses: home:2fbc211d4a3cdf8a:0
+- slot 50, ドワーフのリング・メイル (-2) [17,+14] (+3) {+耐r電} -- witnesses: home:8d6fc9b50d3ccb29:0
+- slot 51, オログの重鎖かたびら (+1,+1) [16,+21] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 52, オログの重鎖かたびら (+0,+1) [16,+15] (+1) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 55, オログの二重鎖かたびら (-1,+6) [16,+11] (+3) {+腕r酸} -- witnesses: home:77d59db82cc31e62:0
+- slot 57, オログの当世具足 (+1,+7) [20,+14] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 59, オログのパーシャル・プレート・メイル (-1,+1) [22,+9] (+3) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 64, 全耐性の胴丸 (-2) [17,+11] {r酸電火冷破, .} -- witnesses: home:c4407e0d48ed3429:0
+- slot 67, オログの強化プレート・アーマー (+0,+2) [28,+13] (+2) {+腕r冷} -- witnesses: home:53ede81c51671bf6:0
+- slot 68, オログの強化プレート・アーマー (-1,+2) [28,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 74, 全耐性のローブ [2,+10] {r酸電火冷沌} -- witnesses: home:accd66ab658aa39f:0
+- slot 76, オログの鋲付軟革よろい (+2,+3) [5,+13] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 79, オログの硬革よろい (+0,+7) [6,+8] (+3) {+腕r火} -- witnesses: home:2d9c3fc1365d46ec:0
+- slot 95, 耐火の革製スモール・シールド [3,+9] {r火} -- witnesses: home:5ea543a9d71028c4:0
+- slot 106, 赤外線視力の硬革帽子 [2,+6] (+4) {+赤} -- witnesses: home:04823649e40a2eb4:0
+- slot 128, (吸血)スモール・ソード (1d6) (+8,+6) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 130, (吸血)バゼラード (1d8) (+7,+6) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 131, 切れ味のバゼラード (1d8) (+10,+3) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 156, 追加攻撃のバスタード・ソード (3d4) (+7,+7) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 162, 理力の首切りソード (4d5) (+6,+7) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 163, 虹色の首切りソード (4d5) (+5,+8) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 165, 切れ味の首切りソード (4d5) (+10,+2) (+2) {+掘|切} -- witnesses: home:f8f73f6793d55fa1:0, home:d682ec2631a96e04:0
+- slot 166, 毒殺の首切りソード (4d5) (+7,+4) {r毒|毒} -- witnesses: home:e4f02edb170b5f21:0, home:6b18f6a3a4775f69:0
+- slot 174, (吸血)オウル・パイク (1d8) (+7,+12) {経|吸/人} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 175, 殺戮のオウル・パイク (3d9) (+3,+9) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 180, 西方国のパイク (2d5) (+3,+8) (+1) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 185, 追加攻撃のビークド・アックス (2d6) (+9,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 193, 西方国のハルベルト (3d5) (+4,+6) (+2) {+腕器耐;麻視/オト巨~オト巨} -- witnesses: home:8d32a7263f972a11:0, home:b1687a68e37a801d:0
+- slot 194, 理力のハルベルト (3d5) (+6,+9) (+2) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 197, 殺戮のギザルム (4d5) (+4,+8) -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 199, (吸血)大鎌 (5d3) (+12,+9) {経|吸} -- witnesses: home:7860408ad39ac787:0, home:b404f7548046bd58:0
+- slot 203, 虹色のグレート・アックス (4d4) (+5,+7) {明|電焼凍} -- witnesses: home:db8e6bd4d7254d42:0, home:75e3e2a57d2cc32b:0
+- slot 206, 凍結のグレート・アックス (4d4) (+9,+2) {r冷|凍} -- witnesses: home:2e9ff649baff387f:0, home:47cfa8294ab14daf:0
+- slot 207, 理力のロッホアーバー・アックス (3d8) (+12,+3) (+1) {+知賢;視|理} -- witnesses: home:9f50af5c3ec2e9be:0, home:d75aec7c597fb57f:0
+- slot 208, トロルスレイヤーのロッホアーバー・アックス (3d8) (+2,+1) (+2) {+腕;活/Xト~ト} -- witnesses: home:2d500e4119b39caa:0, home:bc2bf00bc06bde22:0
+- slot 214, オークスレイヤーのメイス (2d4) (+4,+5) (+2赤外線視力) {+器赤r暗/Xオ~オ} -- witnesses: home:38261c5349228a95:0, home:f851ca28566170d8:0
+- slot 223, 追加攻撃のモーニング・スター (2d6) (+7,+3) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 229, 地震の鉛詰めメイス (3d4) (+7,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 230, 地震の鉛詰めメイス (3d4) (+5,+5) (+2) {+掘|震強} -- witnesses: home:1827c8883b1b3224:0, home:6c8802098d1585e0:0
+- slot 233, 追加攻撃のヘヴィ・フレイル (3d6) (+5,+4) (+1攻撃) {+攻} -- witnesses: home:57781c886895e9b6:0, home:618ee90198e7456a:0
+- slot 237, 高精度のライト・クロスボウ (x3) (0.63turn) (+21,+10) -- witnesses: home:06cb7b9efeeb9af9:0
+- slot 239, 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+20,+3) -- witnesses: home:06cb7b9efeeb9af9:0
+{"topic": "sell-equipment-A", "variants": {"ES": {"sold": 41, "kept_equipment": 190, "kept_home_entries": 199, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 0, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}, "ED": {"sold": 41, "kept_equipment": 190, "kept_home_entries": 199, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 0, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}, "JS": {"sold": 43, "kept_equipment": 188, "kept_home_entries": 197, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 2, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}, "JD": {"sold": 45, "kept_equipment": 186, "kept_home_entries": 195, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 4, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}}, "source_sha256": "11033b356456dd81f89962d8e1630f8de325370209b3367570edd53acea1a40b", "part": "A", "sale_path_built": false, "status": "INCOMPLETE", "provisional": true, "blocker": "authoritative depth gates conflict with existing asserted expectations", "tests": {"total": 126, "failures": ["tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_depth_none_exposes_lower_band_winner_after_selection"], "errors": [], "workers": 1}, "tokens_used": null, "token_cap": 60000}
+
+PART B
+STATUS: INCOMPLETE -- stopped at the explicit existing-expectation conflict rule in SOL-TASK-B.txt.
+Base: e4efd24b. Work remained in this worktree; no push or game/bot launch.
+
+Conflict: the requested J scope excludes ego jewelry. The recorded Home line 724 includes
+slot 17, 大防御の守りの指輪 [+19] {.}, with is_ego=True. Part A's J-S and J-D lists both
+included it. Tightening jewelry to non-ego correctly retains it, so J-S is 42 and J-D is 44,
+not the existing asserted 43 and 45. E-S and E-D remain 41. J-D's retained Home count is
+196 (240 - 44). The existing assertion in tests/test_equipment_optimizer_sales.py:
+TestRecordedEquipmentSaleClassifier.test_recorded_catalogue_numbers was NOT edited.
+The Part B requirement to select J-D 45 conflicts with its non-ego-only jewelry instruction.
+
+Design completed (file:function):
+- src/hengbot/equipment_sale_classifier.py:equipment_sale_scope -- require not is_ego for J jewelry.
+- tests/test_equipment_optimizer_sales.py:test_depth_none_exposes_lower_band_winner_after_selection --
+  only the explicitly authorized Part A pin changed: cumulative gates choose shallow-body at 25F;
+  chaos-body is not a band winner. Current optimizer gates and their existing tests remain unchanged.
+- tests/test_equipment_sale_scope_b.py:test_j_excludes_ego_magical_jewelry -- declared constructed
+  ring/amulet pin with positive non-ego controls.
+
+Pins and validation:
+- Final --workers 1 run: 14 tests, 2 failing subtests in one existing test, 0 errors.
+  Both failures are the recorded J-S/J-D count conflict; the new scope pin and authorized depth pin pass.
+  Results: validation/sell-equipment-B/results.json and summary.json.
+- Conflict confirmation run: 13 tests, same 2 failing subtests, 0 errors.
+- Initial exploratory run: 6 prospective Part B pins, 2 failures and 3 errors (sale-path helpers
+  not implemented). Exploratory fallback code and prospective execution pins were removed after
+  the conflict was confirmed; they are not part of this commit.
+- Total test executions across these three runs: 33. Final committed test set: 14 run, 13 passing
+  test methods, one method failing in its two recorded-count subtests.
+- Fail-before/pass-after: Part A report records the depth pin failing before (39F expected, 25F actual);
+  it passes after the explicitly authorized adjustment. A scope-pin fail-before run was not captured.
+- scripts/town_work_manifest.py --write: 805 candidates, 19764 sites, zero unmapped.
+
+INCOMPLETE: sale-path integration, per-visit list/batching/three-withdrawal bound, refusal re-deposit
+and destruction exclusion, fallback to HOME_SALE_FREE_SLOT_TARGET=20, recorded fallback-order pins,
+checkpoint controls, new reason registration, and the remaining requested module validation.
+No new policy attributes, game commands, or sale reasons were installed.
+The existing count assertion or the non-ego-only scope must be explicitly reconciled before continuation.
+
+Tokens used: exact counter unavailable (tokens_used=null); Part B cap 120000. Stopped for the
+explicit expectation conflict, not the token limit.
+{"topic":"sell-equipment-B","status":"INCOMPLETE","base":"e4efd24b","blocker":"non-ego J jewelry yields JD 44 but existing recorded expectation and Part B require 45","variants":{"ES":41,"ED":41,"JS":42,"JD":44},"sale_path_built":false,"new_policy_attributes":0,"tests":{"final_total":14,"failing_methods":1,"failing_subtests":2,"errors":0,"all_run_executions":33,"workers":1},"tokens_used":null,"token_cap":120000}
+
+PART B (luna)
+STATUS: IMPLEMENTED; validation INCOMPLETE because six existing Black Market checks remain failing. Continued from 6a285da9; no push or game/bot launch.
+
+Design:
+- `equipment_sale_classifier.py:classify_equipment_sales`, `_sale_slot`, `equipment_sale_fallback_order`, `equipment_sale_plan`: use the optimizer's slot comparator to rank each scoped physical item. Protected items still reserve ranks. Unknown items receive an observed-stat score on a temporary ranking-only copy; they are excluded from optimization candidates, sale proof, and sales.
+- `policy_equipment.py:EquipmentMixin._build_equipment_sale_session`, `_equipment_sale_next_store`, `equipment_sale_reserved_ids`; `policy.py:_note_return_start` and withdrawal observer; `policy_town.py:_town_need_candidates`, `_town_destroy_key`; `policy_home.py:_home_dominated_disposal_key`, `_home_full_equipment_surplus`, `_home_full_discard_candidate`, `_home_deposit_candidate`: build one list per return after mandatory needs, route Home withdrawals through the existing handler, and sell pack items through the existing store sale path. Home batches use one outlet, preserve two pack slots, obey weight, and stop at three planned Home withdrawals. Refusals are recorded for the visit, offered to Home deposit at full quantity when available, otherwise carried, and excluded from destruction.
+- `HOME_SALE_FREE_SLOT_TARGET=20`, `HOME_SALE_KEEP_TOP_ALWAYS=10`, `HOME_SALE_KEEP_TOP_WHEN_SPACE=20`, and `HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN=3` document the 2026-10-08 decision. Ranks 1-10 are never sold; ranks 11-20 sell only through J-D or capacity fallback; ranks 21+ sell each return. Fallback follows reverse classifier rank until 20 free Home slots are projected. Existing depth gates are unchanged.
+- New reason `equipment:sale-refused-carry` is covered by the existing `equipment:sale` claim-typing prefix; Home withdrawal reasons use the existing `home:queue-` prefix. Added the pure-helper review entries in `scripts/town_producer_baseline.json` and `scripts/town_work_review.json`; regenerated the town-work manifest (812 candidates, 19,977 sites, zero unmapped).
+
+Recorded line-724 JD projection (240 Home entries, 231 equipment entries, initially 0 free slots). Columns: J-D ranks 11-20 / rank 21+ / capacity fallback / kept.
+
+| Slot | J-D | Rank 21+ | Fallback | Kept |
+| --- | ---: | ---: | ---: | ---: |
+| arms | 0 | 0 | 0 | 2 |
+| body | 2 | 18 | 0 | 21 |
+| bow | 0 | 0 | 0 | 4 |
+| feet | 0 | 0 | 0 | 5 |
+| head | 0 | 0 | 0 | 11 |
+| light | 0 | 0 | 0 | 4 |
+| main_hand | 0 | 78 | 0 | 38 |
+| main_ring | 0 | 8 | 0 | 19 |
+| neck | 0 | 0 | 0 | 6 |
+| outer | 0 | 0 | 0 | 8 |
+| sub_hand | 0 | 0 | 0 | 7 |
+| **Total** | **2** | **104** | **0** | **125** |
+
+Pins and fail-before/pass-after:
+- Preliminary sale-visit pins failed before live integration: 2 failures and 3 errors (the draft expected JD 45 and referenced an absent visit API). After the clarified non-ego jewelry scope and live session integration, the recorded line-724 counts are ES 41, ED 41, JS 42, JD 44; the current branch-local classifier/scope pins pass.
+- Added/updated pins cover stable weakest-first rank fallback, rank-21 sales/top-10 retention, artifact/reservation/identification/trait protection, three-withdrawal batching, refused-item no-retry/no-destroy and redeposit, planned Home routing, and restored-checkpoint state. One checkpoint control covers the single new policy attribute, `_equipment_sale_session`.
+
+Validation:
+- Requested one-worker module run: 921 tests, 7 failures, 4 errors, 5 skipped. It exposed a stale generated manifest and two Home destruction regressions; both were corrected. The refreshed town-work contract then passed with `--workers 1` (9 tests, 738.958s, exit 0).
+- Post-fix focused run: 60 tests passed, including `test_equipment_sale_scope_b`, `test_equipment_optimizer_sales`, `test_town_structure_lint`, and `test_item_sink_lint`. The Home destruction confirmation and sale-scope set also passed separately (35 tests).
+- The only remaining failures from the requested module run are the same unrelated `tests.test_policy_shop` Black Market checks observed before this integration: 2 failures (stockpile purchase and probe-purity incident pin) and 4 purchase errors (`_next_purchase()` returned `None`). No policy-shop source or expectations were changed.
+- Fail-before records are from the initial prototype pin run; the final focused pins and relevant Home/contract/lint checks pass. Tokens-used counter unavailable (`tokens_used=null`; cap 120,000 not reached).
+
+INCOMPLETE: six existing Black Market policy-shop checks remain red in the requested aggregate validation. Equipment sale behavior, pins, manifest, and relevant Home/contract/lint checks are implemented and pass.
+
+{"topic":"sell-equipment-B","part":"luna","status":"INCOMPLETE","base":"6a285da9","j_counts":{"ES":41,"ED":41,"JS":42,"JD":44},"line724_projected":{"home_entries":231,"home_total_entries":240,"initial_free_slots":0,"jd_11_20":2,"rank_21_plus":104,"fallback":0,"kept":125,"by_slot":{"arms":[0,0,0,2],"body":[2,18,0,21],"bow":[0,0,0,4],"feet":[0,0,0,5],"head":[0,0,0,11],"light":[0,0,0,4],"main_hand":[0,78,0,38],"main_ring":[0,8,0,19],"neck":[0,0,0,6],"outer":[0,0,0,8],"sub_hand":[0,0,0,7]}},"sale_path_integrated":true,"batch_home_withdrawal_cap":3,"policy_attributes_added":1,"manifest":{"candidates":812,"sites":19977,"unmapped":0},"validation":{"requested_modules_run_tests":921,"initial_failures":7,"initial_errors":4,"initial_skipped":5,"post_fix_focused_tests_passed":60,"post_fix_contract_tests_passed":9,"remaining_existing_shop_failures":2,"remaining_existing_shop_errors":4},"tokens_used":null,"token_cap":120000}

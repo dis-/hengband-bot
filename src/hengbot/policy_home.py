@@ -4,7 +4,7 @@ from hengbot.item_reservation import item_available, reserved_item_command
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -179,6 +179,8 @@ class HomeMixin:
             return True
         if self._sale_retains_digging_tool(snapshot, item):
             return False
+        if self._equipment_sale_selected_signature(self._item_signature(item)):
+            return True
         return ((item.is_torch and item.known and item.fuel <= 0)
                 or self._is_spare_lantern(snapshot, item)
                 or self._is_disposable_dominated_armour(snapshot, item))
@@ -195,6 +197,11 @@ class HomeMixin:
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
         if (not item_available(self, snapshot, item, "home-visit", "destroy")
                 or item.is_artifact or item.is_bounty
+                or self._equipment_sale_selected_signature(signature)
+                or (
+                    isinstance(getattr(self, "_equipment_sale_session", None), dict)
+                    and signature in self._equipment_sale_session.get("refused", set())
+                )
                 or signature in self._undestroyable_sigs
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
@@ -1981,6 +1988,12 @@ class HomeMixin:
         )
 
     def _home_deposit_quantity(self, snapshot: Snapshot, item: InventoryItem) -> int:
+        sale_session = getattr(self, "_equipment_sale_session", None)
+        if (
+            isinstance(sale_session, dict)
+            and self._item_signature(item) in sale_session.get("refused", set())
+        ):
+            return item.count
         # This purchase belongs in Home's one-scroll reserve. Ordinary pack
         # retention protects recent purchases from sale/disposal, but must not
         # block the explicitly owned reserve transfer that selected this item.
@@ -2004,6 +2017,13 @@ class HomeMixin:
             and self._find_identification_source(snapshot, full=full) is not None
         ):
             return False
+        sale_session = getattr(self, "_equipment_sale_session", None)
+        refused_equipment_sale = bool(
+            isinstance(sale_session, dict)
+            and self._item_signature(item) in sale_session.get("refused", set())
+        )
+        if refused_equipment_sale:
+            return True
         if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:
             return False
         # A GOOD melee weapon — identified ego/artifact or one with real +to-hit/+to-dam/
@@ -3554,7 +3574,19 @@ class HomeMixin:
             if self._home_disposal_pending[1] == "destroy":
                 return None
             self._home_disposal_pending = None
-        if not self._home_disposal_pass:
+        sale_session = getattr(self, "_equipment_sale_session", None)
+        sale_candidate = None
+        if isinstance(sale_session, dict) and not sale_session.get("blocker"):
+            sale_candidate = next((
+                item for item in store.items
+                if self._item_signature(item) == self._pending_disposal_item
+                and any(
+                    entry["signature"] == self._item_signature(item)
+                    and entry["origin"] == "home"
+                    for entry in sale_session.get("items", ())
+                )
+            ), None)
+        if not self._home_disposal_pass and sale_candidate is None:
             return None
 
         page = tuple((item.letter, item.name, item.tval, item.sval) for item in store.items)
@@ -3902,6 +3934,20 @@ class HomeMixin:
         if store is None or store.store_type != STORE_HOME:
             return None
 
+        sale_session = getattr(self, "_equipment_sale_session", None)
+        sale_candidate = None
+        if isinstance(sale_session, dict):
+            sale_entry = next((
+                entry for entry in sale_session.get("items", ())
+                if entry.get("origin") == "home"
+                and entry.get("signature") == self._pending_disposal_item
+            ), None)
+            if sale_entry is not None:
+                sale_candidate = next((
+                    item for item in store.items
+                    if self._item_signature(item) == sale_entry["signature"]
+                ), None)
+
         if self._pending_disposal_item is not None:
             target = self._pending_disposal(snapshot)
             if target is not None:
@@ -3918,15 +3964,20 @@ class HomeMixin:
                 self._clear_pending_disposal()
                 return None
 
-        if not self._home_disposal_pass:
+        if not self._home_disposal_pass and sale_candidate is None:
             return None
 
         # Do not start a withdrawal that the full pack cannot accept.  Returning
         # None lets the ordinary Home deposit policy run in this same decision.
-        if len(snapshot.inventory) >= PACK_CAPACITY:
+        if (
+            len(snapshot.inventory) >= PACK_CAPACITY - 2
+            or (sale_candidate is not None
+                and int(sale_session.get("withdrawals", 0))
+                >= HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN)
+        ):
             return None
 
-        candidate = next(
+        candidate = sale_candidate or next(
             (
                 item
                 for item in store.items
@@ -3937,6 +3988,14 @@ class HomeMixin:
         )
         if candidate is None:
             return None
+
+        if sale_candidate is not None:
+            weight_limit = self._inventory_weight_limit(snapshot)
+            if (
+                weight_limit is None
+                or self._inventory_weight(snapshot) + sale_candidate.weight > weight_limit
+            ):
+                return None
 
         signature = self._item_signature(candidate)
         self._pending_disposal_slot = None

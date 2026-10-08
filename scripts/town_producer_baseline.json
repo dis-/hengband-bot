@@ -652,5 +652,12 @@
   "warrior_optimization.py:warrior_optimizer_knowledge_key": "pure helper: Digest immutable monster knowledge once for reuse by per-state keys.",
   "wilderness_map.py:WildernessMap.next_key_to_town": "town producer to migrate: Return the first step on the least-danger route to any town.",
   "town_work.py:code_site": "pure helper: source identity for coverage receipts, not a command; consumed only by work observer.",
-  "policy_combat.py:CombatMixin._breeder_breakthrough_frontier_step.route_to": "pure helper: breadth-first first step toward the committed breeder frontier; returns a Position, never a key"
+  "policy_combat.py:CombatMixin._breeder_breakthrough_frontier_step.route_to": "pure helper: breadth-first first step toward the committed breeder frontier; returns a Position, never a key",
+  "equipment_sale_classifier.py:_sale_slot": "pure helper: maps an owned item to the optimizer slot used for ranking, not a keyboard command",
+  "equipment_sale_classifier.py:equipment_sale_fallback_order": "pure helper: orders already classified sale candidates by the classifier slot rank",
+  "equipment_sale_classifier.py:equipment_sale_plan": "pure helper: selects sale identities from classification and Home capacity inputs",
+  "policy_equipment.py:EquipmentMixin._equipment_sale_next_store": "pure helper: selects and records the next sale destination; town need owns the resulting stop",
+  "policy_equipment.py:EquipmentMixin.equipment_sale_reserved_ids": "pure helper: observes existing item reservations for the equipment sale classifier",
+  "policy_shop.py:ShopMixin._dominated_disposal_store": "pure helper: returns the store that accepts an item; emits no command",
+  "town_arbiter.py:TownTurnArbiter.__init__.classification": "pure helper: stores registry classification data; emits no command"
 }

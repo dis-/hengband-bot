@@ -228,6 +228,13 @@ FUNDRAISING_GOLD_TARGET = 15000
 FUNDRAISING_KIT_RESERVE = 100
 CROSS_TOWN_SHOPPING_RESERVE = 1000
 HOME_BATCH_RESERVED_SLOTS = 3
+# User decision 2026-10-08: preserve enough Home capacity for uncertain stock.
+HOME_SALE_FREE_SLOT_TARGET = 20
+# User decision 2026-10-08: always keep the ten best pieces per slot; pieces
+# ranked 11-20 are sale candidates only under J-D or Home capacity pressure.
+HOME_SALE_KEEP_TOP_ALWAYS = 10
+HOME_SALE_KEEP_TOP_WHEN_SPACE = 20
+HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN = 3
 
 STORE_RESTOCK_REASON_NAMES = {
     STORE_HOME: "home",
