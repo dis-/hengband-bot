@@ -1,0 +1,117 @@
+{
+  "generated_at": "2026-10-08T14:51:27.707633+09:00",
+  "head_sha": "d1a1535a71264a1e94feddd6679e7f0188b0439d",
+  "total_seconds": 85.01966200000606,
+  "test_count": 126,
+  "top_tests": [
+    {
+      "id": "tests.test_test_fakery_lint.TestHistoricalFakerySites.test_real_historical_sites_fire_undeclared",
+      "seconds": 22.175710200041067
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted",
+      "seconds": 13.57479660003446
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes",
+      "seconds": 13.561753099958878
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_two_invalid_declarations_were_fixed_not_moved",
+      "seconds": 13.447294999961741
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_lost_substrate_skip_count_is_pinned",
+      "seconds": 3.0050810999819078
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_unidentified_never_selected_and_counted_separately",
+      "seconds": 2.8078117999830283
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_no_recorder_owned_capture_reads",
+      "seconds": 2.4374120999709703
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_artifact_guard_on_otherwise_sale_candidate",
+      "seconds": 1.4467883000033908
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_reservation_never_selected",
+      "seconds": 1.4054595000343397
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_unique_quest_ability_and_resistance_swap_kept",
+      "seconds": 0.06515979999676347
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_melee_needs_two_retained_dominators",
+      "seconds": 0.05165360000682995
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_strict_identical_copies_never_mutually_dominate",
+      "seconds": 0.034140000003390014
+    },
+    {
+      "id": "tests.test_equipment_optimizer.EquipmentOptimizerTest.test_live_launcher_candidates_rank_by_best_obtainable_ammo_damage",
+      "seconds": 0.026047400024253875
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_depth_none_exposes_lower_band_winner_after_selection",
+      "seconds": 0.01299670001026243
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_fixed_slot_duplicates_keep_one_and_reserved_copy",
+      "seconds": 0.011219300038646907
+    }
+  ],
+  "top_classes": [
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint",
+      "seconds": 46.02745299990056
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestHistoricalFakerySites",
+      "seconds": 22.175710200041067
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier",
+      "seconds": 5.837422600132413
+    },
+    {
+      "id": "tests.test_equipment_optimizer.EquipmentOptimizerTest",
+      "seconds": 0.04594779992476106
+    },
+    {
+      "id": "tests.test_home_equipment_disposal.HomeEquipmentDisposalTest",
+      "seconds": 0.015073399932589382
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites",
+      "seconds": 0.011869799986016005
+    },
+    {
+      "id": "tests.test_equipment_optimizer.OwnedEquipmentCatalogTest",
+      "seconds": 0.004137500131037086
+    }
+  ],
+  "top_modules": [
+    {
+      "id": "tests.test_test_fakery_lint",
+      "seconds": 68.21503299992764
+    },
+    {
+      "id": "tests.test_equipment_optimizer_sales",
+      "seconds": 5.837422600132413
+    },
+    {
+      "id": "tests.test_equipment_optimizer",
+      "seconds": 0.05008530005579814
+    },
+    {
+      "id": "tests.test_home_equipment_disposal",
+      "seconds": 0.015073399932589382
+    }
+  ],
+  "top_10_classes_share_percent": 87.17702770924113
+}

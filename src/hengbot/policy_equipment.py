@@ -3108,30 +3108,14 @@ class EquipmentMixin:
             or self._equipment_disposal_reserved(snapshot, candidate)
         ):
             return False
-        # The user launcher rule ranks a Light Crossbow above an ordinary
-        # Sling/Short Bow regardless of damage, so it is never their spare.
-        if ordinary_launcher_yields_to_light_crossbow(equipped, candidate):
-            return False
+        from hengbot.launcher_damage import launcher_dominates
 
-        equipped_damage = self._launcher_average_damage(equipped)
-        candidate_damage = self._launcher_average_damage(candidate)
-        equipped_grade = (int(equipped.is_artifact), int(equipped.is_ego))
-        candidate_grade = (int(candidate.is_artifact), int(candidate.is_ego))
-        no_worse = (
-            equipped_damage >= candidate_damage
-            and equipped.to_h >= candidate.to_h
-            and equipped.pval >= candidate.pval
-            and equipped.known_flags.issuperset(candidate.known_flags)
-            and equipped_grade >= candidate_grade
+        # Preserve the legacy equipped-launcher route. The observation-only
+        # classifier uses this proof with all owned, same-ammo launchers.
+        return launcher_dominates(
+            equipped, candidate, self._launcher_average_damage(equipped),
+            self._launcher_average_damage(candidate), same_ammo=False,
         )
-        strictly_better = (
-            equipped_damage > candidate_damage
-            or equipped.to_h > candidate.to_h
-            or equipped.pval > candidate.pval
-            or equipped.known_flags > candidate.known_flags
-            or equipped_grade > candidate_grade
-        )
-        return no_worse and strictly_better
 
     def _equipment_disposal_reserved(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem
@@ -3149,6 +3133,30 @@ class EquipmentMixin:
             item.is_digging_tool
             and self._fundraising_mode in {"prepare", "mine", "scavenge"}
         )
+
+    def equipment_sale_reserved_ids(self, snapshot: Snapshot) -> frozenset[str]:
+        """Observe existing retention authorities for the Part A classifier."""
+        from hengbot.equipment_optimizer import usable_light_candidate
+
+        protected = set()
+        for owned in self._equipment_catalog.items:
+            item = owned.item
+            # The same Home probe as _home_full_sale_candidate: a distinct
+            # pack slot prevents a matching carried stack hiding retention.
+            probe_item = self._inventory_item_from_store_item(item) if isinstance(item, StoreItem) else item
+            probe_item = replace(probe_item, slot="home-surplus") if owned.origin == "home" else probe_item
+            probe = replace(snapshot, inventory=(*snapshot.inventory, probe_item)) if owned.origin == "home" else snapshot
+            signature = self._item_signature(item)
+            if (self._equipment_disposal_reserved(snapshot, item)
+                    or self._retention_reservation(probe, probe_item) > 0
+                    or self._sale_retains_digging_tool(probe, probe_item)
+                    or item.is_torch or usable_light_candidate(owned)
+                    or self._home_disposal.decision(signature) == "keep"
+                    or signature in self._town_visit_purchases
+                    or self._equipment_transaction_owns_item(item)
+                    or not item_available(self, snapshot, item, "equipment-sale", "sell")):
+                protected.add(owned.id)
+        return frozenset(protected)
 
     def _equipment_failure_unexecutable_this_visit(
         self,
