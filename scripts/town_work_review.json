@@ -10417,6 +10417,15 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "town need/store child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._equipment_sale_prerequisite_key": {
+    "classification": "producer",
+    "rows": ["equipment-optimization", "bookkeeping", "home-catalogue"],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Builds the return-scoped sale session and requests missing calibration or Home knowledge through the existing bookkeeping and Home scan producers before Home relief acts.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "sale prerequisite; child producer owns each request and observed effect"
+  },
   "policy_equipment.py:EquipmentMixin.equipment_sale_reserved_ids": {
     "classification": "data",
     "rows": ["data/no-independent-credit"],

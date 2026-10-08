@@ -8966,7 +8966,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_errand_hold("__none__")
                 if getattr(self, "_town_claim_bar_enforced", False) else None
             )
-            if (snapshot.player.food_type == FOOD_TYPE_MANA
+            if (sale_prerequisite_key := self._town_producer_entry(
+                    "_equipment_sale_prerequisite_key",
+                    lambda: self._equipment_sale_prerequisite_key(snapshot),
+                    family="equipment-opt")) is not None:
+                key = sale_prerequisite_key
+            elif (snapshot.player.food_type == FOOD_TYPE_MANA
                     and snapshot.player.hungry and self._find_edible(snapshot) is None
                     and self._home_atomic_deposit_pending is None
                     and self._home_atomic_withdraw_pending is None):
@@ -10139,6 +10144,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
+        sale_prerequisite_key = self._town_producer_entry(
+            "_equipment_sale_prerequisite_key",
+            lambda: self._equipment_sale_prerequisite_key(snapshot),
+            family="equipment-opt",
+        )
+        if sale_prerequisite_key is not None:
+            return sale_prerequisite_key
         if (snapshot.in_town and self._home_errand.needs_knowledge
                 and self._home_atomic_deposit_pending is None
                 and self._home_atomic_withdraw_pending is None
