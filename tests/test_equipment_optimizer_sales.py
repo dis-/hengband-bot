@@ -66,7 +66,7 @@ class TestRecordedEquipmentSaleClassifier(unittest.TestCase):
         home = {owned.id: owned for owned in self.catalog.items
                 if owned.origin == "home"}
         selected = set(equipment_sale_plan(
-            result, home_ids=frozenset(home), free_home_slots=9,
+            result, home_ids=frozenset(home), free_home_slots=0,
         )) & home.keys()
         counts = {}
         for item_id, owned in home.items():
@@ -112,6 +112,7 @@ class TestRecordedEquipmentSaleClassifier(unittest.TestCase):
             result = self.classify(catalog)
             self.assertNotIn(target.id, result.sold_ids)
             self.assertIn(target.id, result.needs_identification_ids)
+            self.assertIn(target.id, result.ranks)
 
     def test_reservation_never_selected(self):
         target = next(owned for owned in self.catalog.items if owned.id in self.results["ES"].sold_ids)

@@ -1357,6 +1357,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._q2_reconnect_recovery_floor: tuple[int, int, int] | None = None
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo()
         self._home_disposal_pass = False
+        # Return-scoped equipment sale selection is checkpointed as one object:
+        # build its optimizer-backed list once, and bound Home takes to three.
+        self._equipment_sale_session: dict[str, object] | None = None
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}
         self._home_disposal_pending: tuple[tuple[str, int, int], str] | None = None
@@ -7144,6 +7147,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if not getattr(self, "_returning_to_town", False):
             self._survival_return_trigger = trigger
+            self._equipment_sale_session = {
+                "built": False, "items": [], "attempted": set(),
+                "withdrawals": 0, "refused": set(),
+                "active_store": None,
+            }
 
     def _note_return_end(self) -> None:
         """Record-only: the return ended (``_returning_to_town = False``)."""
@@ -7476,6 +7484,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     withdrawn,
                     intent=(snapshot.turn, signature, before_count, quantity),
                 )
+                sale_session = getattr(self, "_equipment_sale_session", None)
+                if (
+                    isinstance(sale_session, dict)
+                    and signature in sale_session.get("batch", ())
+                ):
+                    for sale_entry in sale_session.get("items", ()):
+                        if sale_entry.get("signature") == signature:
+                            sale_entry["origin"] = "pack"
+                    self._pending_disposal_item = signature
+                    self._pending_disposal_slot = None
+                    sale_session["active_store"] = next((
+                        entry["store_type"]
+                        for entry in sale_session.get("items", ())
+                        if entry["signature"] == signature
+                    ), sale_session.get("active_store"))
                 self._refresh_carried_equipment_catalog(snapshot)
                 if suppression_withdrawal and self._home_pending_item == signature:
                     self._home_pending_item = None
@@ -14760,6 +14783,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             (
                 item
                 for item in snapshot.inventory
+                if self._item_signature(item) not in self._unsellable_items
+                and not self._equipment_sale_selected_signature(
+                    self._item_signature(item)
+                )
                 if self._is_disposable_dominated_launcher(snapshot, item)
             ),
             None,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import cmp_to_key
 from typing import Iterable, Mapping
 
@@ -53,10 +53,10 @@ def equipment_sale_fallback_order(
     candidates = classification.eligible_ids - classification.sold_ids - excluded_ids
     return tuple(sorted(
         candidates,
-        key=lambda item_id: (
-            classification.performance.get(item_id, (float("inf"), float("inf"))),
-            item_id,
-        ),
+        # ``ranks`` were assigned by the classifier's exact _prefer comparator.
+        # Descending best-first rank is therefore the same slot score in reverse;
+        # a fresh metric tuple sort could disagree on offense/survival tradeoffs.
+        key=lambda item_id: (-classification.ranks.get(item_id, 0), item_id),
     ))
 
 
@@ -190,23 +190,47 @@ def classify_equipment_sales(
     scores: dict[str, EvaluatedLoadout] = {}
     trials = {current}
     for owned in catalog:
-        if not owned.exploration_legal or owned.id in unknown:
+        rank_owned = owned
+        if owned.id in unknown:
+            # Hidden identity data cannot be scored. For ranking only, use the
+            # observed stats/flags as though identified; this score can never
+            # enter sale proof or the optimizer's candidate set.
+            rank_item = replace(
+                owned.item, known=True, fully_known=True,
+                is_cursed=False, is_broken=False,
+            )
+            rank_owned = replace(
+                owned, item=rank_item, random_teleport_suppressed=True,
+            )
+        if not rank_owned.exploration_legal:
             continue
-        seed = tuple(item for item in catalog if item.id in current.item_ids or item.id == owned.id)
-        slots = (_sale_slot(owned),)
-        if owned.item.tval == 45:
+        seed = tuple(
+            rank_owned if item.id == owned.id else item
+            for item in catalog
+            if item.id in current.item_ids or item.id == owned.id
+        )
+        slots = (_sale_slot(rank_owned),)
+        if rank_owned.item.tval == 45:
             slots = (SLOT_MAIN_RING, SLOT_SUB_RING)
-        elif owned.item.tval in {21, 22, 23}:
+        elif rank_owned.item.tval in {21, 22, 23}:
             slots = (SLOT_MAIN_HAND, SLOT_SUB_HAND)
         searches = (
-            WarriorSingleSlotSearch(seed, current.item_ids | {owned.id}, {**pinned, slot: owned})
-            for slot in slots if slot not in pinned or pinned[slot].id == owned.id
+            WarriorSingleSlotSearch(
+                seed, current.item_ids | {owned.id},
+                {**pinned, slot: rank_owned},
+            )
+            for slot in slots
+            if slot not in pinned or pinned[slot].id == owned.id
         )
         loadouts = (current,) if owned.id in current.item_ids else (
             loadout for search in searches for loadout in search
         )
         for loadout in loadouts:
-            trials.add(loadout)
+            # Incomplete identities receive a known-stat score only for slot
+            # ranking. They stay out of the optimization candidates and sale
+            # proof, but still occupy their rank as required by the sale rule.
+            if owned.id not in unknown:
+                trials.add(loadout)
             if owned.id not in loadout.item_ids:
                 continue
             entry = EvaluatedLoadout(loadout, evaluator(loadout))
@@ -218,7 +242,12 @@ def classify_equipment_sales(
 
     # Include normal optimized neighbours as well as individually protected
     # trials. The latter keep resistance-swap candidates visible to every band.
-    trials.update(WarriorSingleSlotSearch(catalog, current.item_ids, pinned))
+    trials.update(
+        loadout for loadout in WarriorSingleSlotSearch(
+            catalog, current.item_ids, pinned,
+        )
+        if not ((loadout.item_ids - current.item_ids) & unknown)
+    )
     result = optimize_loadout(
         catalog, evaluator, depth=None, current_item_ids=current.item_ids,
         candidate_loadouts=sorted(trials, key=lambda loadout: (sorted(loadout.item_ids), loadout.hand_mode)),
@@ -237,10 +266,13 @@ def classify_equipment_sales(
 
     # Scope limits which identities may be sold and ranked, while protected
     # identities inside that scope still consume a rank.
-    eligible = tuple(
+    ranked = tuple(
         owned for owned in catalog
         if owned.id in scores and equipment_sale_scope(owned, scope)
     )
+    # Unknown identities can reserve a rank but cannot act as sale candidates
+    # or as dominators, because their hidden traits are not in the score.
+    eligible = tuple(owned for owned in ranked if owned.id not in unknown)
     damage = {owned.id: best_obtainable_launcher_damage(owned.item, ammunition)
               for owned in eligible if owned.item.tval == 19}
     # IDs are stable physical-copy identifiers. Protection precedes IDs so a
@@ -290,7 +322,7 @@ def classify_equipment_sales(
     # Rank every scoreable physical item by its best single-slot evaluation.
     # Stable IDs break exact ties; protected equipment remains in the ranking.
     grouped: dict[str, list[str]] = {}
-    for owned in eligible:
+    for owned in ranked:
         if owned.id in scores:
             grouped.setdefault(_sale_slot(owned) or "", []).append(owned.id)
     ranks: dict[str, int] = {}

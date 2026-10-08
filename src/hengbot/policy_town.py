@@ -2428,6 +2428,24 @@ class TownMixin:
                 evidence="dominated-item-absent",
             )
             return None
+        sale_session = getattr(self, "_equipment_sale_session", None)
+        target_signature = self._item_signature(target)
+        if (
+            isinstance(sale_session, dict)
+            and (
+                target_signature in sale_session.get("refused", set())
+                or self._equipment_sale_selected_signature(target_signature)
+            )
+        ):
+            # Sale candidates remain carried or are deposited after a refusal;
+            # this rule never converts a failed sale into destruction.
+            self._clear_pending_disposal()
+            self.last_reason = "equipment:sale-refused-carry"
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="equipment:destroy",
+                cause="equipment-sale-candidate-preserved",
+            )
+            return None
         if self._destroy_attempts >= STORE_STUCK_LIMIT:
             self._town_blocked_reason = "dominated-item-destroy-failed"
             self.last_reason = "town:blocked:dominated-item-destroy-failed"
@@ -2616,6 +2634,26 @@ class TownMixin:
             return needs
 
         self._begin_pack_dominated_launcher_disposal(snapshot)
+        sale_session = getattr(self, "_equipment_sale_session", None)
+        if isinstance(sale_session, dict) and self._pending_disposal_item is not None:
+            pending_target = self._pending_disposal(snapshot)
+            pending_sale_entry = next((
+                entry for entry in sale_session.get("items", ())
+                if entry.get("signature") == self._pending_disposal_item
+            ), None)
+            if (
+                pending_target is None
+                and pending_sale_entry is not None
+                and (
+                    pending_sale_entry.get("origin") == "pack"
+                    or self._pending_disposal_item in self._unsellable_items
+                )
+            ):
+                if self._pending_disposal_item in self._unsellable_items:
+                    sale_session.setdefault("refused", set()).add(
+                        self._pending_disposal_item
+                    )
+                self._clear_pending_disposal()
         if (
             self._pending_disposal_item is not None
             and (target := self._pending_disposal(snapshot)) is not None
@@ -2623,6 +2661,17 @@ class TownMixin:
             disposal_store = self._dominated_disposal_store(target)
             if disposal_store is not None and disposal_store not in self._disposal_store_attempts:
                 add(disposal_store, "disposal")
+        elif self._pending_disposal_item is not None:
+            sale_session = getattr(self, "_equipment_sale_session", None)
+            if (
+                isinstance(sale_session, dict)
+                and any(
+                    entry.get("signature") == self._pending_disposal_item
+                    and entry.get("origin") == "home"
+                    for entry in sale_session.get("items", ())
+                )
+            ):
+                add(STORE_HOME, "equipment-sale", "home-first")
         if self._pending_disposal_item is not None:
             return needs
 
@@ -3186,6 +3235,17 @@ class TownMixin:
             )
         ):
             add(STORE_HOME, "equipment-catalog", "home-first")
+        # J-D sales are phase 1: after mandatory stock and before optional
+        # purchases. Build/select only here so an active sale cannot suppress
+        # still-pending mandatory supply needs above.
+        if not any(self._town_need_phase(need) == 0 for need in needs):
+            equipment_sale_store = self._equipment_sale_next_store(snapshot)
+            if equipment_sale_store is not None:
+                add(
+                    equipment_sale_store,
+                    "equipment-sale",
+                    "home-first" if equipment_sale_store == STORE_HOME else "normal",
+                )
         if STORE_BLACK not in self._town_store_attempted:
             add(STORE_BLACK, "black-market")
         return needs
@@ -3715,6 +3775,8 @@ class TownMixin:
     @staticmethod
     def _town_need_phase(need: TownNeed) -> int:
         """Order mandatory town work before convenience and speculative buys."""
+        if need.category == "equipment-sale":
+            return 1
         if need.category in {
             "black-market",
             "ammo-home-first",
