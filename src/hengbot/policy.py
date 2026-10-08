@@ -13683,6 +13683,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     budget_ref=declaration.budget_ref,
                 )
         self._confirm_staged_shopping_approach(key)
+        relief = getattr(self, "_home_full_relief", None)
+        if relief is not None and relief.get("destroy_pending_key") is not None:
+            if relief.pop("destroy_pending_key") == key:
+                relief["destroy_posted"] = True
         if (
             self._store_visit is not None
             and self._store_visit.operation_posted

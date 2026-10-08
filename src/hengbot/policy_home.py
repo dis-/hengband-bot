@@ -67,6 +67,7 @@ class HomeMixin:
                 relief["withdrawn"] = True
         relief.pop("destroy_posted", None)
         relief.pop("destroy_before_count", None)
+        relief.pop("destroy_pending_key", None)
 
     @claims(ClaimOwner.HOME_VISIT)
     def _defer_home_full_deposit(self, snapshot: Snapshot) -> None:
@@ -320,7 +321,7 @@ class HomeMixin:
         relief["sale"] = None
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
-        for field in ("identifying", "identification_counts", "mode", "destroy_posted",
+        for field in ("identifying", "identification_counts", "mode", "destroy_posted", "destroy_pending_key",
                       "destroy_before_count", "pack_only", "stock_count"):
             relief.pop(field, None)
         self._release_claim_goal(
@@ -537,8 +538,13 @@ class HomeMixin:
                         arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
                         continuation="home.full-destroy.observe",
                         budget_ref="home-visit-existing-budget")
-                    relief["destroy_posted"] = True
-                    if not posted:
+                    if posted:
+                        relief.pop("destroy_pending_key", None)
+                    else:
+                        # Only an actually posted destroy may be awaited: a
+                        # later rewrite (entrance step-off, exits) can replace
+                        # this key, and confirm_key_posted commits it.
+                        relief["destroy_pending_key"] = key
                         relief["destroy_before_count"] = count
                     return key
                 if (signature in self._unsellable_items
@@ -587,6 +593,7 @@ class HomeMixin:
                 relief["sale"] = None
                 relief["withdrawn"] = False
                 relief.pop("destroy_posted", None)
+                relief.pop("destroy_pending_key", None)
                 relief.pop("destroy_before_count", None)
                 relief.pop("mode", None)
                 self._home_errand.finish()
