@@ -8,12 +8,19 @@ import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from hengbot.cli import _parse_items
-from hengbot.model import parse_snapshot
+from hengbot.model import (
+    STORE_GENERAL,
+    STORE_HOME,
+    STORE_MAGIC,
+    parse_snapshot,
+)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
+from hengbot.policy_types import TownErrandPlan
 
 
 FIXTURE = (
@@ -40,6 +47,53 @@ MONRACE_DEFINITIONS = Path(
 
 
 class TownUnaffordableSuppliesReplay(unittest.TestCase):
+    def test_exhausted_unaffordable_plan_walks_toward_fundraising_entrance(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "unaffordable-fundraise-home-exhausted-20261008.json.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            raw = json.load(stream)
+        snapshot = parse_snapshot(
+            raw, load_monrace_knowledge(MONRACE_DEFINITIONS)
+        )
+
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._fundraising_runs_started = 1
+        policy._town_errand_plan = TownErrandPlan([STORE_HOME], index=1)
+        policy._town_store_attempted.update(
+            {STORE_HOME: snapshot.turn,
+             STORE_GENERAL: snapshot.turn,
+             STORE_MAGIC: snapshot.turn}
+        )
+        food = policy._supply_ledger(
+            snapshot, policy._planned_depth()
+        )["food"]
+        self.assertEqual(snapshot.player.gold, 305)
+        self.assertEqual(policy._count_recall_scrolls(snapshot), 0)
+        self.assertEqual((food.count, food.required_departure), (14, 15))
+        self.assertIsNotNone(policy._find_edible(snapshot))
+        self.assertTrue(policy._fundraising_light_ready(snapshot))
+        self.assertTrue(policy._fundraising_departure_ready(snapshot))
+
+        decisions = []
+        for _ in range(6):
+            # Keep the production decision path intact. These two maintenance
+            # hooks are disabled as in the recorded probe to isolate this board.
+            with patch.object(
+                policy, "_skill_exp_request_key", return_value=None
+            ), patch.object(policy, "_refresh_carried_equipment_catalog"):
+                key = policy.choose_key(snapshot)
+            decisions.append((key, policy.last_reason))
+
+        self.assertEqual(decisions[0][1], "town:travel-entrance")
+        self.assertTrue(any(reason == "approach-descent"
+                            for _key, reason in decisions))
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertIsNone(policy._descent_refusal_reason)
+
     def _replay_restart(self, *, funded: bool = False):
         with gzip.open(RESTART_FIXTURE, "rt", encoding="utf-8") as stream:
             rows = [json.loads(line) for line in stream]

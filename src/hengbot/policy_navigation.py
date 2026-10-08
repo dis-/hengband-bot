@@ -958,11 +958,25 @@ class NavigationMixin:
                 "returning-to-town" if self._returning_to_town else "pack-full"
             )
             return True
+        mining_walk_in = lambda: (
+            snapshot.in_town
+            and self._fundraising_mode in {"mine", "scavenge"}
+            and self._active_dungeon_target() == DUNGEON_YEEK_CAVE
+            and self._dungeon_entry_depth(
+                snapshot, DUNGEON_YEEK_CAVE, via_recall=False
+            ) == 1
+            and getattr(snapshot, "grids", None) is not None
+            and self._town_walk_in_entrance(snapshot) is not None
+        )
         if (
             snapshot.in_town
             and self._count_recall_scrolls(snapshot) == 0
+            and not mining_walk_in()
         ):
-            # The first-run exception waives food only, never the return ticket.
+            # The first-run food waiver never waives the return ticket.
+            # The existing Yeek Cave L1 mining walk-in is the sole exception:
+            # it enters by the approved walk-in route and still passes the
+            # fundraising food, light, and health gates below.
             self._descent_refusal_reason = "recall-departure-shortage"
             return True
         if (

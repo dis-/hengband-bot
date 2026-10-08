@@ -6522,8 +6522,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1174,
-    "end_line": 1374,
+    "line": 1188,
+    "end_line": 1388,
     "ast_sha256": "5367ca38d8713206c578e4fdd7a9b022aeea2ef40fca1fc2418343d7fd3d2230"
   },
   "policy_navigation.py:NavigationMixin._disengage_move_or_escalate": {
@@ -6552,8 +6552,8 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1377,
-    "end_line": 1486,
+    "line": 1391,
+    "end_line": 1500,
     "ast_sha256": "e0997a4312191e841a4b22d4a0ebd0caba48db4c86bc80752a0d2a0b881dc109"
   },
   "policy_navigation.py:NavigationMixin._global_frontier_path": {
@@ -6562,8 +6562,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1556,
-    "end_line": 1635,
+    "line": 1570,
+    "end_line": 1649,
     "ast_sha256": "90e77bd14bd9a9176bcf8c52627e67213e30e6c6471b5fb6d905221498b738c3"
   },
   "policy_navigation.py:NavigationMixin._navigation_livelock_key": {
@@ -6582,8 +6582,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1531,
-    "end_line": 1554,
+    "line": 1545,
+    "end_line": 1568,
     "ast_sha256": "7aad0749f11e259f68a041463dc7d4396e7265a966aac8254294b8654924cd44"
   },
   "policy_navigation.py:NavigationMixin._plan_explore_path_pass": {
@@ -6592,8 +6592,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1637,
-    "end_line": 1702,
+    "line": 1651,
+    "end_line": 1716,
     "ast_sha256": "2e37bc2a2b924ce2cb5fc24826d95606596fdb1cacd4b891b1a11969216688ce"
   },
   "policy_navigation.py:NavigationMixin._remember_stair_command": {
@@ -6612,8 +6612,8 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1730,
-    "end_line": 1893,
+    "line": 1744,
+    "end_line": 1907,
     "ast_sha256": "999d9c58d6e86274fc8a1996ff7c290571bbdc8d17cdee49521429e19be0903a"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
