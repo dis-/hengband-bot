@@ -119,9 +119,20 @@ CHOKE_ALTERNATION_FIXED = {
     1999: (("2", "explore"), ("5", "summoner:hold-choke")),
     2001: (("2", "explore"), ("5", "summoner:hold-choke")),
     2003: (("s", "search"), ("5", "summoner:hold-choke")),
-    2011: (("2", "breakout:seek-frontier"), ("s", "search")),
+    # e32d0f44 (2026-10-08, USER DECISION 2026-09-20 "構えて待つと決めて50ターン
+    # 敵の目視がなければ解除する"): the hold timer now starts at the unseen
+    # summoner choke itself and owns the choke cell until it expires, so the
+    # recorded in-place searches and the breakout become the bounded hold.
+    2004: (("s", "search"), ("5", "summoner:hold-choke")),
+    2005: (("s", "search"), ("5", "summoner:hold-choke")),
+    2006: (("s", "search"), ("5", "summoner:hold-choke")),
+    2007: (("s", "search"), ("5", "summoner:hold-choke")),
+    2008: (("s", "search"), ("5", "summoner:hold-choke")),
+    2009: (("s", "search"), ("5", "summoner:hold-choke")),
+    2010: (("s", "search"), ("5", "summoner:hold-choke")),
+    2011: (("2", "breakout:seek-frontier"), ("5", "summoner:hold-choke")),
     2013: (("8", "explore"), ("5", "summoner:hold-choke")),
-    2014: (("8", "explore"), ("s", "search")),
+    2014: (("8", "explore"), ("5", "summoner:hold-choke")),
 }
 
 # USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start, 3-turn

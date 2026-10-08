@@ -75,8 +75,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 725,
-    "end_line": 739,
+    "line": 726,
+    "end_line": 740,
     "ast_sha256": "bacba6edee44eec50f43881667530fbc9078e97d19d90b31b09932a3a8a14742"
   },
   "claim_ladder.py:owner_change": {
@@ -5676,8 +5676,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1774,
-    "end_line": 1822,
+    "line": 1775,
+    "end_line": 1823,
     "ast_sha256": "edf59c0fa420841231f252d66cca9f23fd5d273eb67a4dc4e8abf8e78434f38b"
   },
   "policy_home.py:HomeMixin._atomic_home_deposit_dispatch_key": {
@@ -5686,8 +5686,8 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2972,
-    "end_line": 3175,
+    "line": 2973,
+    "end_line": 3176,
     "ast_sha256": "3237fa88084eb5ca27c178f08061dd88b031fc6db10d534cabc2edb46653db00"
   },
   "policy_home.py:HomeMixin._atomic_home_deposit_key": {
@@ -5696,8 +5696,8 @@
       "home-deposit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2961,
-    "end_line": 2970,
+    "line": 2962,
+    "end_line": 2971,
     "ast_sha256": "2d3a741d48d3cfde8638d62a3f726e6541d83c32ffd38b94d41398b7e18993c6"
   },
   "policy_home.py:HomeMixin._atomic_home_withdraw_dispatch_key": {
@@ -5706,8 +5706,8 @@
       "home-withdraw"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2271,
-    "end_line": 2733,
+    "line": 2272,
+    "end_line": 2734,
     "ast_sha256": "e54a0bc46c464a0f4a7e61a2aa9b51b6b56efc21a844705ca46284fa07deee82"
   },
   "policy_home.py:HomeMixin._atomic_home_withdraw_key": {
@@ -5716,8 +5716,8 @@
       "home-withdraw"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2258,
-    "end_line": 2269,
+    "line": 2259,
+    "end_line": 2270,
     "ast_sha256": "ad881082c772d17fb35907cbd1d87e17feb1a77c9a7d5e8777bcffe4d41ad7f1"
   },
   "policy_home.py:HomeMixin._compose_home_operation": {
@@ -5726,8 +5726,8 @@
       "home-executor"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3329,
-    "end_line": 3364,
+    "line": 3330,
+    "end_line": 3365,
     "ast_sha256": "7cd13c6cfd6ae5ca6f51d3e191c28638ce9e6df4d0ca1b44b4fd498dab14edca"
   },
   "policy_home.py:HomeMixin._confirm_home_withdrawal_address": {
@@ -5736,9 +5736,19 @@
       "home-withdraw"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2737,
-    "end_line": 2781,
+    "line": 2738,
+    "end_line": 2782,
     "ast_sha256": "62bd6171ce98d58fcaf50594c598468801a2b7661ad71c128f053395635bb7ef"
+  },
+  "policy_home.py:HomeMixin._defer_home_full_deposit": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "line": 72,
+    "end_line": 93,
+    "ast_sha256": "2954d68ecfda8e6b301405dcd61b76548fe68ea273b14baf13096f8c9f848efb"
   },
   "policy_home.py:HomeMixin._defer_unobserved_home_withdrawal": {
     "classification": "data",
@@ -5746,8 +5756,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2904,
-    "end_line": 2930,
+    "line": 2905,
+    "end_line": 2931,
     "ast_sha256": "2b28514a3183544785a9b743ad1fa83e11f79a3d753285fdb99fc0bd148d0139"
   },
   "policy_home.py:HomeMixin._destroy_item_key": {
@@ -5756,8 +5766,8 @@
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3936,
-    "end_line": 3953,
+    "line": 3937,
+    "end_line": 3954,
     "ast_sha256": "41d7f1447b80f427aa2b2764e775de25fba58eefa38670a776bb2a8b437036ad"
   },
   "policy_home.py:HomeMixin._entire_stack_is_surplus": {
@@ -5766,8 +5776,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1754,
-    "end_line": 1756,
+    "line": 1755,
+    "end_line": 1757,
     "ast_sha256": "22368a509756a4873fbd01ca5e0ab99337d8e79fe4c23cb04d73b3a926675aba"
   },
   "policy_home.py:HomeMixin._file_home_errand": {
@@ -5776,8 +5786,8 @@
       "home-executor"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 849,
-    "end_line": 922,
+    "line": 850,
+    "end_line": 923,
     "ast_sha256": "4aa31bb71c2741130a32c1ed4aa42c4373d80dbde321d6593a2fcdbc8ff46863"
   },
   "policy_home.py:HomeMixin._find_home_deposit": {
@@ -5786,8 +5796,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3405,
-    "end_line": 3468,
+    "line": 3406,
+    "end_line": 3469,
     "ast_sha256": "95a1318767a4514809797df879353a295730f036e5f9605da16143c68d763a86"
   },
   "policy_home.py:HomeMixin._home_available": {
@@ -5796,8 +5806,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1365,
-    "end_line": 1369,
+    "line": 1366,
+    "end_line": 1370,
     "ast_sha256": "947a62c4055b8c723e1909e0f720aa38c945c11f9820c18b06d48aad50f2ff32"
   },
   "policy_home.py:HomeMixin._home_deposit_candidate": {
@@ -5806,8 +5816,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1977,
-    "end_line": 2121,
+    "line": 1978,
+    "end_line": 2122,
     "ast_sha256": "2784107050ab3bd2b9b814f815fa435d071d7b51ee2bb4e847d47fe2acbe2365"
   },
   "policy_home.py:HomeMixin._home_deposit_key": {
@@ -5816,8 +5826,8 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 2154,
-    "end_line": 2222,
+    "line": 2155,
+    "end_line": 2223,
     "ast_sha256": "6158faf821374c79f8212614e5f1e626beb60fbf4475f7951072ba00ed785531"
   },
   "policy_home.py:HomeMixin._home_deposit_quantity": {
@@ -5826,8 +5836,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1969,
-    "end_line": 1975,
+    "line": 1970,
+    "end_line": 1976,
     "ast_sha256": "19a0791a9c9956fdeac3e78dffa6ddb4b798e617141ccb9b4d8198ffd8ec15f3"
   },
   "policy_home.py:HomeMixin._home_disposal_home_key": {
@@ -5836,8 +5846,8 @@
       "home-disposal"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3532,
-    "end_line": 3584,
+    "line": 3533,
+    "end_line": 3585,
     "ast_sha256": "540001a606d42b472c6466bd98a90aef4271e51f14e4b5ae2007ccce9bbc74c0"
   },
   "policy_home.py:HomeMixin._home_disposal_inventory_item": {
@@ -5846,8 +5856,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3514,
-    "end_line": 3529,
+    "line": 3515,
+    "end_line": 3530,
     "ast_sha256": "1c8ab23e0e6525aea6dba62c89e35efd2e62f63294f4deee764e39c8b4af5d10"
   },
   "policy_home.py:HomeMixin._home_disposal_processing_key": {
@@ -5856,8 +5866,8 @@
       "home-disposal"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3587,
-    "end_line": 3623,
+    "line": 3588,
+    "end_line": 3624,
     "ast_sha256": "d353275d0c06a114ad60f2a69eaae30e040e86864af1a1e5bbdb0ba72838cf22"
   },
   "policy_home.py:HomeMixin._home_disposal_store": {
@@ -5866,8 +5876,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3507,
-    "end_line": 3512,
+    "line": 3508,
+    "end_line": 3513,
     "ast_sha256": "fdf8283a495ab0f902c9e6ed02d89887be629784bf2fedf8618dd4d40e327d32"
   },
   "policy_home.py:HomeMixin._home_dominated_disposal_key": {
@@ -5876,8 +5886,8 @@
       "home-disposal"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3886,
-    "end_line": 3933,
+    "line": 3887,
+    "end_line": 3934,
     "ast_sha256": "30ec8c09780bf696717d09ffcba8158ed67d84531cf8fefb8509047f4191b91c"
   },
   "policy_home.py:HomeMixin._home_errand_knowledge_key": {
@@ -5887,8 +5897,8 @@
       "home-executor"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 809,
-    "end_line": 834,
+    "line": 810,
+    "end_line": 835,
     "ast_sha256": "a535222fc9ae3dbf17c4b2a778d6af05c92eabbd368235e689a706db058890cb"
   },
   "policy_home.py:HomeMixin._home_full_discard_candidate": {
@@ -5897,8 +5907,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 184,
-    "end_line": 218,
+    "line": 185,
+    "end_line": 219,
     "ast_sha256": "c47a9b5c50dc0d22256f0f3d114565f16c7e3ddd9f25002d71917c852c6dfcaa"
   },
   "policy_home.py:HomeMixin._home_full_identify_carried_key": {
@@ -5908,8 +5918,8 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 243,
-    "end_line": 252,
+    "line": 244,
+    "end_line": 253,
     "ast_sha256": "e715913fc2791f816618122cb0091d90b67b0c494e0455952952d2bb6669dc33"
   },
   "policy_home.py:HomeMixin._home_full_identify_targets": {
@@ -5918,8 +5928,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4043,
-    "end_line": 4052,
+    "line": 4044,
+    "end_line": 4053,
     "ast_sha256": "5121b0e375cc6e423bc1a21420286bd1199f389b9c0bb069b48743ddbf0e38f7"
   },
   "policy_home.py:HomeMixin._home_full_knowledge_key": {
@@ -5929,8 +5939,8 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 781,
-    "end_line": 806,
+    "line": 782,
+    "end_line": 807,
     "ast_sha256": "46ec69fe9a11a07c60ffeaad331c7d1e9d3b513c3bb4d9e41268a16544db9161"
   },
   "policy_home.py:HomeMixin._home_full_leave_key": {
@@ -5939,8 +5949,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 346,
-    "end_line": 352,
+    "line": 347,
+    "end_line": 353,
     "ast_sha256": "289e85727134d212682155e892399e84995cf15385cefae0f26d80443202bcf5"
   },
   "policy_home.py:HomeMixin._home_full_relief_key": {
@@ -5949,8 +5959,8 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 355,
-    "end_line": 768,
+    "line": 356,
+    "end_line": 769,
     "ast_sha256": "be8d0c85659bd6636d363723357a68778606a7c559a78ba239323a18f5174c55"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
@@ -5959,8 +5969,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 94,
-    "end_line": 136,
+    "line": 95,
+    "end_line": 137,
     "ast_sha256": "4a8b426156d4aafc900960c6b8beb03bd3701739b62b78d579079e287da93eec"
   },
   "policy_home.py:HomeMixin._home_full_skip_key": {
@@ -5969,8 +5979,8 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 312,
-    "end_line": 344,
+    "line": 313,
+    "end_line": 345,
     "ast_sha256": "1971978fe2b8f48f7d6e9044261172bf3adeb69e53a891e8816db6e5c27623a3"
   },
   "policy_home.py:HomeMixin._home_mana_food_candidate": {
@@ -5979,8 +5989,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4501,
-    "end_line": 4519,
+    "line": 4502,
+    "end_line": 4520,
     "ast_sha256": "1819e9d27142051b6c1968f8cca66bf478a7e09aca4371210289402a18f57afe"
   },
   "policy_home.py:HomeMixin._home_page_letter": {
@@ -5990,8 +6000,8 @@
       "home-withdraw"
     ],
     "delegation": "selected child; no independent success",
-    "line": 841,
-    "end_line": 847,
+    "line": 842,
+    "end_line": 848,
     "ast_sha256": "ee3b90e811d4bf8c39b8a7bdb444d7e8753b116f71def9b67fb38e85603e579b"
   },
   "policy_home.py:HomeMixin._home_quest_launcher_key": {
@@ -6001,8 +6011,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4465,
-    "end_line": 4499,
+    "line": 4466,
+    "end_line": 4500,
     "ast_sha256": "92f45926ec311e65e8105d88dc091139cf0c46025ea79da222ca102de3e40d27"
   },
   "policy_home.py:HomeMixin._home_visit_retention": {
@@ -6011,8 +6021,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 928,
-    "end_line": 942,
+    "line": 929,
+    "end_line": 943,
     "ast_sha256": "a5b3505b58bef52537bbcea3e53376f8ec6f9b57a1485f25c1c331adcd8b9591"
   },
   "policy_home.py:HomeMixin._inventory_weight_limit": {
@@ -6021,8 +6031,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1759,
-    "end_line": 1768,
+    "line": 1760,
+    "end_line": 1769,
     "ast_sha256": "140ae3732eca93a8d5e99919fdeb9d31258978394856f67ac7cec41bac302919"
   },
   "policy_home.py:HomeMixin._offer_home_atomic_no_step": {
@@ -6031,8 +6041,8 @@
       "home-executor"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2243,
-    "end_line": 2256,
+    "line": 2244,
+    "end_line": 2257,
     "ast_sha256": "71e6d000cd8804d40e0bd6e921d0ccb376b705b476156475041c750399434a8a"
   },
   "policy_home.py:HomeMixin._offer_unaddressed_home_withdraw": {
@@ -6041,8 +6051,8 @@
       "home-withdraw"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2224,
-    "end_line": 2241,
+    "line": 2225,
+    "end_line": 2242,
     "ast_sha256": "8e8d191de8fb4315aa1cb1ff38affb250538487f45fe60a1ab201516668455d5"
   },
   "policy_home.py:HomeMixin._open_home_deposit_key": {
@@ -6051,8 +6061,8 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3215,
-    "end_line": 3302,
+    "line": 3216,
+    "end_line": 3303,
     "ast_sha256": "ae57ae79e078ff425b79342dbac7fc21a6872004879a11ad716347a6a48417b5"
   },
   "policy_home.py:HomeMixin._overweight_home_deposit": {
@@ -6061,8 +6071,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1948,
-    "end_line": 1958,
+    "line": 1949,
+    "end_line": 1959,
     "ast_sha256": "c1ed8543e80ad938b6357855d75f3b89db9294119555a29b038f5d6f152391b9"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
@@ -6074,8 +6084,8 @@
       "home-catalogue"
     ],
     "delegation": "supports selected child; no independent success",
-    "line": 1048,
-    "end_line": 1134,
+    "line": 1049,
+    "end_line": 1135,
     "ast_sha256": "1cd82d14e77b1cbef36a4ba35231e089e80d34d490275106a37887db7357ada1"
   },
   "policy_home.py:HomeMixin._probe_unobserved_home_withdrawal": {
@@ -6084,8 +6094,8 @@
       "home-withdraw"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1248,
-    "end_line": 1291,
+    "line": 1249,
+    "end_line": 1292,
     "ast_sha256": "e5c9064dfc29b92e07e364ad08c6a8eac8622271119023f7347de9318961332f"
   },
   "policy_home.py:HomeMixin._record_home_route_refusal": {
@@ -6094,8 +6104,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1019,
-    "end_line": 1037,
+    "line": 1020,
+    "end_line": 1038,
     "ast_sha256": "e8d9b9534c1fcdc1f4b241c2cb8ae173184294a109d95e2b7fb80673bfcc5ea5"
   },
   "policy_home.py:HomeMixin._retention_reservation": {
@@ -6104,8 +6114,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1405,
-    "end_line": 1413,
+    "line": 1406,
+    "end_line": 1414,
     "ast_sha256": "f734eae6df861655b750772d63495a5b367c8277c096b043e87fda1bc8ba8452"
   },
   "policy_home.py:HomeMixin._retention_reservation_baseline_detail": {
@@ -6114,8 +6124,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1458,
-    "end_line": 1708,
+    "line": 1459,
+    "end_line": 1709,
     "ast_sha256": "aace0582a747ed2b53c2c0f3baaa0b67f38d5596b243618beb75cbbcf06bea81"
   },
   "policy_home.py:HomeMixin._retention_reservation_detail": {
@@ -6124,8 +6134,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1415,
-    "end_line": 1456,
+    "line": 1416,
+    "end_line": 1457,
     "ast_sha256": "1156eab9d9aa6b23d103d761e1069dd30798bc345285c5269884d08d7bc2c9ae"
   },
   "policy_home.py:HomeMixin._retention_surplus": {
@@ -6134,8 +6144,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1749,
-    "end_line": 1752,
+    "line": 1750,
+    "end_line": 1753,
     "ast_sha256": "46ca6534064ef685fe85766583b5e4f6ba8b92f4b1c13eb75676f55c04fc6921"
   },
   "policy_home.py:HomeMixin._spare_equipment_deposit_shape": {
@@ -6144,8 +6154,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2123,
-    "end_line": 2125,
+    "line": 2124,
+    "end_line": 2126,
     "ast_sha256": "ad4df7b68376254a9d4230ec66869976f34f16e9fe5f849dac4d73be6da46302"
   },
   "policy_home.py:HomeMixin._stage_home_operation": {
@@ -6154,8 +6164,8 @@
       "home-executor"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3366,
-    "end_line": 3403,
+    "line": 3367,
+    "end_line": 3404,
     "ast_sha256": "a329c6b05203462855d089f28d59d2163072b2c7e90c253603cfdb63ee43495d"
   },
   "policy_home.py:HomeMixin._weight_deposit_candidates": {
@@ -6164,8 +6174,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1841,
-    "end_line": 1946,
+    "line": 1842,
+    "end_line": 1947,
     "ast_sha256": "67b78b9f8e824a09d34f9f1de261a271c28d8d6512c95f3ec8873ff4a9074fd4"
   },
   "policy_home.py:HomeMixin._weight_deposit_candidates.priority": {
@@ -6174,8 +6184,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1936,
-    "end_line": 1942,
+    "line": 1937,
+    "end_line": 1943,
     "ast_sha256": "edf18af42eb8ad03ce386d67623c416a01f263b76f5e8809b4bfc0f205ccf9ca"
   },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {

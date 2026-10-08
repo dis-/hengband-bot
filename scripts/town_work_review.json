@@ -5735,6 +5735,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_home.py:HomeMixin._defer_home_full_deposit": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Sets the deferred-deposit reason and plan state only; returns None so the next producer acts. No key, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_home.py:HomeMixin._defer_unobserved_home_withdrawal": {
     "classification": "data",
     "rows": [
