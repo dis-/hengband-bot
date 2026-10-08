@@ -2863,7 +2863,6 @@ class TownMixin:
                     and STORE_GENERAL not in self._town_store_attempted
                 ):
                     add(STORE_GENERAL, "throwing-torches")
-            add_identify_staff_suppliers()
             return needs
 
         bindable_home_identification = any(
