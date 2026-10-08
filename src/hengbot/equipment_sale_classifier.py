@@ -37,7 +37,7 @@ def equipment_sale_scope(owned: OwnedEquipment, scope: str) -> bool:
     if armour_or_weapon and (item.is_ego or item.pseudo_feeling == "excellent"):
         return True
     return scope == "J" and (
-        (item.tval in {40, 45} and bool(item.known_flags or item.pval
+        (item.tval in {40, 45} and not item.is_ego and bool(item.known_flags or item.pval
                                      or item.to_h or item.to_d or item.to_a))
         or item.tval == 38
         or (item.tval, item.sval) in {(34, SV_DRAGON_SHIELD), (30, SV_PAIR_OF_DRAGON_GREAVE)}

@@ -892,3 +892,47 @@ JD hypothetical sale list (retained-witness proof):
 - slot 237, 高精度のライト・クロスボウ (x3) (0.63turn) (+21,+10) -- witnesses: home:06cb7b9efeeb9af9:0
 - slot 239, 高精度のヘヴィ・クロスボウ (x4) (0.70turn) (+20,+3) -- witnesses: home:06cb7b9efeeb9af9:0
 {"topic": "sell-equipment-A", "variants": {"ES": {"sold": 41, "kept_equipment": 190, "kept_home_entries": 199, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 0, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}, "ED": {"sold": 41, "kept_equipment": 190, "kept_home_entries": 199, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 0, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}, "JS": {"sold": 43, "kept_equipment": 188, "kept_home_entries": 197, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 2, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}, "JD": {"sold": 45, "kept_equipment": 186, "kept_home_entries": 195, "pareto": 1, "needs_identification": 0, "categories": {"weapons": 27, "body": 12, "jewelry": 4, "head/hands/feet": 1, "shields": 1, "cloaks": 0, "lights": 0}}}, "source_sha256": "11033b356456dd81f89962d8e1630f8de325370209b3367570edd53acea1a40b", "part": "A", "sale_path_built": false, "status": "INCOMPLETE", "provisional": true, "blocker": "authoritative depth gates conflict with existing asserted expectations", "tests": {"total": 126, "failures": ["tests.test_equipment_optimizer_sales.TestRecordedEquipmentSaleClassifier.test_depth_none_exposes_lower_band_winner_after_selection"], "errors": [], "workers": 1}, "tokens_used": null, "token_cap": 60000}
+
+PART B
+STATUS: INCOMPLETE -- stopped at the explicit existing-expectation conflict rule in SOL-TASK-B.txt.
+Base: e4efd24b. Work remained in this worktree; no push or game/bot launch.
+
+Conflict: the requested J scope excludes ego jewelry. The recorded Home line 724 includes
+slot 17, 大防御の守りの指輪 [+19] {.}, with is_ego=True. Part A's J-S and J-D lists both
+included it. Tightening jewelry to non-ego correctly retains it, so J-S is 42 and J-D is 44,
+not the existing asserted 43 and 45. E-S and E-D remain 41. J-D's retained Home count is
+196 (240 - 44). The existing assertion in tests/test_equipment_optimizer_sales.py:
+TestRecordedEquipmentSaleClassifier.test_recorded_catalogue_numbers was NOT edited.
+The Part B requirement to select J-D 45 conflicts with its non-ego-only jewelry instruction.
+
+Design completed (file:function):
+- src/hengbot/equipment_sale_classifier.py:equipment_sale_scope -- require not is_ego for J jewelry.
+- tests/test_equipment_optimizer_sales.py:test_depth_none_exposes_lower_band_winner_after_selection --
+  only the explicitly authorized Part A pin changed: cumulative gates choose shallow-body at 25F;
+  chaos-body is not a band winner. Current optimizer gates and their existing tests remain unchanged.
+- tests/test_equipment_sale_scope_b.py:test_j_excludes_ego_magical_jewelry -- declared constructed
+  ring/amulet pin with positive non-ego controls.
+
+Pins and validation:
+- Final --workers 1 run: 14 tests, 2 failing subtests in one existing test, 0 errors.
+  Both failures are the recorded J-S/J-D count conflict; the new scope pin and authorized depth pin pass.
+  Results: validation/sell-equipment-B/results.json and summary.json.
+- Conflict confirmation run: 13 tests, same 2 failing subtests, 0 errors.
+- Initial exploratory run: 6 prospective Part B pins, 2 failures and 3 errors (sale-path helpers
+  not implemented). Exploratory fallback code and prospective execution pins were removed after
+  the conflict was confirmed; they are not part of this commit.
+- Total test executions across these three runs: 33. Final committed test set: 14 run, 13 passing
+  test methods, one method failing in its two recorded-count subtests.
+- Fail-before/pass-after: Part A report records the depth pin failing before (39F expected, 25F actual);
+  it passes after the explicitly authorized adjustment. A scope-pin fail-before run was not captured.
+- scripts/town_work_manifest.py --write: 805 candidates, 19764 sites, zero unmapped.
+
+INCOMPLETE: sale-path integration, per-visit list/batching/three-withdrawal bound, refusal re-deposit
+and destruction exclusion, fallback to HOME_SALE_FREE_SLOT_TARGET=20, recorded fallback-order pins,
+checkpoint controls, new reason registration, and the remaining requested module validation.
+No new policy attributes, game commands, or sale reasons were installed.
+The existing count assertion or the non-ego-only scope must be explicitly reconciled before continuation.
+
+Tokens used: exact counter unavailable (tokens_used=null); Part B cap 120000. Stopped for the
+explicit expectation conflict, not the token limit.
+{"topic":"sell-equipment-B","status":"INCOMPLETE","base":"e4efd24b","blocker":"non-ego J jewelry yields JD 44 but existing recorded expectation and Part B require 45","variants":{"ES":41,"ED":41,"JS":42,"JD":44},"sale_path_built":false,"new_policy_attributes":0,"tests":{"final_total":14,"failing_methods":1,"failing_subtests":2,"errors":0,"all_run_executions":33,"workers":1},"tokens_used":null,"token_cap":120000}

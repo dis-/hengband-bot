@@ -156,10 +156,10 @@ class TestRecordedEquipmentSaleClassifier(unittest.TestCase):
             depth=None, require_light=False, timeout_seconds=120,
         )
         self.assertFalse(result.timed_out)
-        self.assertEqual(result.chosen_depth, 39)
-        self.assertIn(chaos.id, result.best.loadout.item_ids)
+        self.assertEqual(result.chosen_depth, 25)
+        self.assertIn(fire_action.id, result.best.loadout.item_ids)
         winner_ids = set().union(*(entry.loadout.item_ids for entry in result.band_best_loadouts))
-        self.assertIn(chaos.id, winner_ids)
+        self.assertNotIn(chaos.id, winner_ids)
         self.assertIn(fire_action.id, winner_ids)
 
     def test_owned_launcher_proof_ammo_flags_grade_and_crossbow_rule(self):
