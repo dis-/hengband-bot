@@ -44,9 +44,9 @@ def worker(mode):
     policy = restore_recorded_checkpoint(HengbotPolicy, expected['policy'])
     snapshot = pickle.loads(base64.b64decode(expected['snapshot']))
     assert len(policy._home_knowledge_items) == 240
-    started = time.perf_counter()
+    started = time.thread_time()
     key = policy.choose_key(snapshot)
-    elapsed = time.perf_counter() - started
+    elapsed = time.thread_time() - started
     assert (key, policy.last_reason) == (
         expected['decisions'][-1]['key'], expected['decisions'][-1]['reason'])
     print(json.dumps({'key': key, 'reason': policy.last_reason, 'elapsed': elapsed}))

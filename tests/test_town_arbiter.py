@@ -20,9 +20,7 @@ from store_visit_alternation_gate import measure as measure_visit_alternation
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RECALL_WAIT_REPLAY = (
-    Path(__file__).parents[1]
-    / "jsonlog"
-    / "replay-20260917-1119-recall-wait-state.jsonl"
+    FIXTURES / "replay-20260917-1119-recall-wait-state.jsonl.gz"
 )
 DECISION_CAPTURES = (
     "incident-equipment-abandon-loop-20260822.jsonl",
@@ -946,7 +944,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
 
     @staticmethod
     def _recall_wait_replay_snapshots():
-        with RECALL_WAIT_REPLAY.open("rb") as stream:
+        with gzip.open(RECALL_WAIT_REPLAY, "rb") as stream:
             return [parse_snapshot(json.loads(line), {}) for line in stream]
 
     @staticmethod

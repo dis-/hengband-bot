@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client-env-tests-1008\jsonlog\replay-20260917-2243-dig-state.jsonl
+# sha256 (uncompressed original bytes): 7320a1a272542db12d9c0200bb20cbe8b8afd4a4922cb408e1f5afac1e7459fd
+# Fixture gzip decompresses byte-for-byte to the source.

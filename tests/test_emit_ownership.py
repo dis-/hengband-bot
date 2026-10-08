@@ -1,5 +1,6 @@
 from dataclasses import replace
 import json
+import gzip
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import threading
@@ -18,13 +19,13 @@ from tests.test_cli import _snap_line
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CAPTURE = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl"
+CAPTURE = ROOT / "tests" / "fixtures" / "equip-swap-20260826.snapshots.jsonl.gz"
 
 
 class EmitOwnershipTest(unittest.TestCase):
     @staticmethod
     def _capture_snapshot():
-        with CAPTURE.open(encoding="utf-8") as stream:
+        with gzip.open(CAPTURE, "rt", encoding="utf-8") as stream:
             return parse_snapshot(json.loads(next(stream)), {})
 
     def _visit(self, **changes):
@@ -164,8 +165,10 @@ class EmitOwnershipTest(unittest.TestCase):
         def observe(*args, **kwargs):
             written.append((args, kwargs))
 
-        with TemporaryDirectory() as directory:
+        with TemporaryDirectory(dir=ROOT) as directory:
             decision_path = Path(directory) / "decisions.jsonl"
+            state_path = Path(directory) / "state.json"
+            state_path.write_bytes(gzip.decompress(CAPTURE.read_bytes()))
             with (
                 patch("hengbot.cli.ConservativePolicy", return_value=policy),
                 patch("hengbot.cli._capture_decision_facts", return_value={}),
@@ -173,7 +176,7 @@ class EmitOwnershipTest(unittest.TestCase):
                 patch("hengbot.cli._bot_play_macros_ready", return_value=True),
             ):
                 result = main([
-                    "--once", "--state-file", str(CAPTURE),
+                    "--once", "--state-file", str(state_path),
                     "--decision-log", str(decision_path),
                 ])
 

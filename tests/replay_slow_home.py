@@ -61,10 +61,10 @@ def replay(source, output=None, start_row=37, *, profile_final=True):
                     policy=checkpoint(policy),
                     snapshot=base64.b64encode(pickle.dumps(snapshot, protocol=5)).decode('ascii'))
             profile = cProfile.Profile()
-            started = time.perf_counter()
+            started = time.thread_time()
             key = (profile.runcall(policy.choose_key, snapshot)
                    if frozen and profile_final else policy.choose_key(snapshot))
-            elapsed = time.perf_counter() - started
+            elapsed = time.thread_time() - started
             row = dict(row=index, turn=snapshot.turn, key=key, reason=policy.last_reason, elapsed=elapsed)
             decisions.append(row)
             print(json.dumps(row), flush=True)

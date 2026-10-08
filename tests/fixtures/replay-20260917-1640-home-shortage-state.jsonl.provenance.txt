@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client-env-tests-1008\jsonlog\replay-20260917-1640-home-shortage-state.jsonl
+# sha256 (uncompressed original bytes): 5d4317c3414911c3574aaa2cafd2b039f92f3509961e3b0fb1a35bcfe2232210
+# Fixture gzip decompresses byte-for-byte to the source.

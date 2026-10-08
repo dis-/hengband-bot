@@ -134,6 +134,13 @@ from hengbot.model import (
     _parse_store,
     parse_snapshot,
 )
+
+
+def _recorded_jsonlog_bytes(name):
+    """Read a frozen recorder capture from the committed fixture set."""
+    return gzip.decompress(
+        (Path(__file__).parent / "fixtures" / f"{name}.gz").read_bytes()
+    )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
     EvaluatedLoadout, Loadout, LoadoutMetrics, OptimizationResult,
@@ -5029,11 +5036,9 @@ class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
     def test_light_ready_recorded_batch_excludes_added_home_torches(self):
         rows = [
             json.loads(line)
-            for line in (
-                Path(__file__).parents[1]
-                / "jsonlog"
-                / "replay-20260917-0854-state.jsonl"
-            ).read_text(encoding="utf-8").splitlines()
+            for line in _recorded_jsonlog_bytes(
+                "replay-20260917-0854-state.jsonl"
+            ).decode("utf-8").splitlines()
         ]
         shop = parse_snapshot(rows[0])
         scan_request = parse_snapshot(rows[1])
@@ -5091,11 +5096,9 @@ class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
     def test_treasure_detection_home_first_queues_only_recorded_supply_need(self):
         rows = [
             json.loads(line)
-            for line in (
-                Path(__file__).parents[1]
-                / "jsonlog"
-                / "replay-20260917-0854-state.jsonl"
-            ).read_text(encoding="utf-8").splitlines()
+            for line in _recorded_jsonlog_bytes(
+                "replay-20260917-0854-state.jsonl"
+            ).decode("utf-8").splitlines()
         ]
         shop = parse_snapshot(rows[0])
         scan_request = parse_snapshot(rows[1])
@@ -5141,11 +5144,9 @@ class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
 class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
     @staticmethod
     def _recorded_rows():
-        raw_lines = (
-            Path(__file__).parents[1]
-            / "jsonlog"
-            / "replay-20260917-1640-home-shortage-state.jsonl"
-        ).read_bytes().splitlines(keepends=True)
+        raw_lines = _recorded_jsonlog_bytes(
+            "replay-20260917-1640-home-shortage-state.jsonl"
+        ).splitlines(keepends=True)
         return raw_lines, [json.loads(line) for line in raw_lines]
 
     @staticmethod
@@ -5244,11 +5245,9 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         return policy, rows
 
     def test_current_catalogue_queues_and_composes_live_cure_shortage(self):
-        raw_lines = (
-            Path(__file__).parents[1]
-            / "jsonlog"
-            / "replay-20260917-1640-home-shortage-state.jsonl"
-        ).read_bytes().splitlines(keepends=True)
+        raw_lines = _recorded_jsonlog_bytes(
+            "replay-20260917-1640-home-shortage-state.jsonl"
+        ).splitlines(keepends=True)
         self.assertEqual(
             [hashlib.sha256(line).hexdigest() for line in raw_lines],
             [
@@ -5471,11 +5470,9 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
     def test_recorded_cloak_take_is_observed_before_catalogue_acquisition(self):
         rows = [
             json.loads(line)
-            for line in (
-                Path(__file__).parents[1]
-                / "jsonlog"
-                / "replay-20260917-0854-observer-state.jsonl"
-            ).read_text(encoding="utf-8").splitlines()
+            for line in _recorded_jsonlog_bytes(
+                "replay-20260917-0854-observer-state.jsonl"
+            ).decode("utf-8").splitlines()
         ]
         policy = HengbotPolicy()
         knowledge_line = json.dumps(rows[1], ensure_ascii=False)
@@ -5553,11 +5550,9 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
 
 class RecordedStaleHomeScanInsideTest(unittest.TestCase):
     def test_invalidated_multi_page_home_leaves_before_scanning(self):
-        raw_lines = (
-            Path(__file__).parents[1]
-            / "jsonlog"
-            / "replay-20260917-1450-stale-scan-state.jsonl"
-        ).read_bytes().splitlines(keepends=True)
+        raw_lines = _recorded_jsonlog_bytes(
+            "replay-20260917-1450-stale-scan-state.jsonl"
+        ).splitlines(keepends=True)
         self.assertEqual(
             [hashlib.sha256(line).hexdigest() for line in raw_lines],
             [
@@ -5615,11 +5610,9 @@ class RecordedStaleHomeScanInsideTest(unittest.TestCase):
 
 class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
     def test_live_errand_shopping_home_visit_exits_before_scan(self):
-        raw_lines = (
-            Path(__file__).parents[1]
-            / "jsonlog"
-            / "replay-20260917-2019-stale-scan-state.jsonl"
-        ).read_bytes().splitlines(keepends=True)
+        raw_lines = _recorded_jsonlog_bytes(
+            "replay-20260917-2019-stale-scan-state.jsonl"
+        ).splitlines(keepends=True)
         self.assertEqual(
             [hashlib.sha256(line).hexdigest() for line in raw_lines],
             [
@@ -5683,11 +5676,9 @@ class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
 class RecordedHomeCarryPotionProcurementTest(unittest.TestCase):
     @staticmethod
     def _recorded_rows():
-        raw_lines = (
-            Path(__file__).parents[1]
-            / "jsonlog"
-            / "replay-20260918-0136-potion-state.jsonl"
-        ).read_bytes().splitlines(keepends=True)
+        raw_lines = _recorded_jsonlog_bytes(
+            "replay-20260918-0136-potion-state.jsonl"
+        ).splitlines(keepends=True)
         return raw_lines, [json.loads(line) for line in raw_lines]
 
     @staticmethod

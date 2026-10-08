@@ -14,15 +14,14 @@ from hengbot.policy_types import StoreVisit, TownErrandPlan
 from hengbot.claim_register import observe
 
 
-LOG = Path(r"C:\hengband\bot-client\jsonlog") / (
-    "incident-20260930-2231-s33-live-one-shot-buy-stale")
+LOG = Path(__file__).parent / "fixtures" / "live11-one-shot-buy"
 
 
 def capture():
     with gzip.open(str(LOG) + ".decisions.jsonl.gz", "rt", encoding="utf-8") as f:
         rows = {r["decision_sequence"]: r for r in map(json.loads, f)
                 if r.get("decision_sequence") in (919, 920, 921)}
-    with gzip.open(str(LOG) + ".state.jsonl.gz", "rt", encoding="utf-8") as f:
+    with gzip.open(str(LOG) + ".states.jsonl.gz", "rt", encoding="utf-8") as f:
         states = [r for r in map(json.loads, f)
                   if r.get("turn") in {rows[919]["turn"], rows[920]["turn"]}]
     outside = parse_snapshot(next(r for r in states

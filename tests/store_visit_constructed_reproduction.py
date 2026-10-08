@@ -1,6 +1,7 @@
 """Construct the two frozen incidents' proximate foreign-visit refusal state."""
 
 import json
+import gzip
 import pickle
 from pathlib import Path
 
@@ -21,12 +22,18 @@ INCIDENTS = (
 
 
 def _snapshot(capture, turn):
-    path = ROOT / "jsonlog" / f"incident-{capture}.snapshots.jsonl"
+    fixture = {
+        "equip-swap-loop-20260826": ROOT / "tests" / "fixtures" / "equip-swap-20260826.snapshots.jsonl.gz",
+        "no-actionable-claim-20260827": ROOT / "tests" / "fixtures" / "no-actionable-claim-20260827.snapshots.jsonl.gz",
+    }[capture]
+    path = fixture
     definitions = find_monrace_definitions(path, None)
     if definitions is None:
         raise RuntimeError("MonraceDefinitions.jsonc was not found")
     monraces = load_monrace_knowledge(definitions)
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
+    with gzip.open(path, "rt", encoding="utf-8-sig") as stream:
+        lines = stream.readlines()
+    for line in lines:
         raw = json.loads(line)
         snapshot = parse_snapshot(raw, monraces)
         if snapshot.turn == turn:

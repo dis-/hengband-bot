@@ -11,11 +11,11 @@ from hengbot.policy import HengbotPolicy
 from hengbot.claim_register import observe
 from hengbot.equipment_optimizer import equipment_identity
 
-LOG = Path(r"C:\hengband\bot-client\jsonlog") / "incident-20260930-2149-s33-live-restore-weapon-stale-equipment"
+LOG = Path(__file__).parent / "fixtures" / "live10-restore-weapon.states.jsonl.gz"
 
 def boards():
     result = {}
-    with gzip.open(str(LOG) + ".state.jsonl.gz", "rt", encoding="utf8") as source:
+    with gzip.open(LOG, "rt", encoding="utf8") as source:
         for raw in map(json.loads, source):
             if raw.get("type") != "knowledge" and raw.get("turn") in (458183, 458195, 458200):
                 result[raw["turn"]] = parse_snapshot(raw, {})
@@ -68,4 +68,3 @@ class Live10Test(unittest.TestCase):
         policy = pickle.loads(pickle.dumps(policy))
         self.assertIsNone(policy._town_holder_declared_key(policy._claim_register.current, second))
         self.assertEqual(policy.last_reason, "ownership:declaration-stale:equipment-txn")
-

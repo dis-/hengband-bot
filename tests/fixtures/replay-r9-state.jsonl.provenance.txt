@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client-env-tests-1008\jsonlog\replay-r9-state.jsonl
+# sha256 (uncompressed original bytes): 40f89a2713e03753eb5b47122c8601b25ba8d211b8925996f964ec8cc7b2aa95
+# Fixture gzip decompresses byte-for-byte to the source.

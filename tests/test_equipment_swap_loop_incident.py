@@ -1,6 +1,7 @@
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 
 import json
+import gzip
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -27,13 +28,9 @@ from hengbot.policy import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CAPTURE_DIR = ROOT / "jsonlog"
-if not (CAPTURE_DIR / "incident-equip-swap-loop-20260826.jsonl").exists():
-    # Linked worktrees may omit this historical capture. Read the same
-    # fixture from the main checkout; the replay never writes there.
-    CAPTURE_DIR = ROOT.parent / "bot-client" / "jsonlog"
-DECISIONS = CAPTURE_DIR / "incident-equip-swap-loop-20260826.jsonl"
-SNAPSHOTS = CAPTURE_DIR / "incident-equip-swap-loop-20260826.snapshots.jsonl"
+FIXTURES = ROOT / "tests" / "fixtures"
+DECISIONS = FIXTURES / "equip-swap-20260826.decisions.jsonl.gz"
+SNAPSHOTS = FIXTURES / "equip-swap-20260826.snapshots.jsonl.gz"
 RAG = "8cc0213094bf60d5"
 HARD_ARMOUR = "ba9b081829fa4479"
 DIRECTIONS = {
@@ -43,12 +40,12 @@ DIRECTIONS = {
 
 
 def captured_decisions():
-    with DECISIONS.open(encoding="utf-8") as stream:
+    with gzip.open(DECISIONS, "rt", encoding="utf-8") as stream:
         return [json.loads(line) for line in stream]
 
 
 def captured_snapshots():
-    with SNAPSHOTS.open(encoding="utf-8") as stream:
+    with gzip.open(SNAPSHOTS, "rt", encoding="utf-8") as stream:
         rows = (json.loads(line) for line in stream)
         return [
             parse_snapshot(row, {}) for row in rows

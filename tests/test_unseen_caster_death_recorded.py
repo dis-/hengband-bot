@@ -13,13 +13,11 @@ from hengbot.model import parse_snapshot
 from hengbot.policy import HEAL_HP_RATIO, HengbotPolicy
 
 
-CAPTURE = Path(
-    "C:/hengband/bot-client/jsonlog/"
-    "incident-20260928-0458-death-unseen-magic-missile.state.jsonl.gz"
-)
-SHA256 = "ce1667110e02d5f979979d6c78e9d3beae32ba30ca6db7ba1fe901fdc32b1ae5"
-DECISIONS = CAPTURE.with_name(CAPTURE.name.replace(".state.", ".decisions."))
-DECISIONS_SHA256 = "033e88e2fc4224183d13ff4c7dfce1f443b08a1ebd1ad1fa11a9c21dccc8368e"
+FIXTURES = Path(__file__).parent / "fixtures"
+CAPTURE = FIXTURES / "unseen-caster-death.states.jsonl.gz"
+SHA256 = "4719e2059dcfbf100c7c229bddf75a0274964e8839b3e995cbf5e3d6e2886348"
+DECISIONS = FIXTURES / "unseen-caster-death.decisions.jsonl.gz"
+DECISIONS_SHA256 = "f26ef99c8e2c28677c50540f2936d7e8105a9da9955cd151ff1425fe71b0ad43"
 FIRST_TURN = 7393814
 # The next recorded missile boards (841 -> 824 -> 779 -> 767 -> 756).
 STREAK_TURNS = (7393832, 7393839, 7393843)
@@ -28,8 +26,8 @@ STREAK_TURNS = (7393832, 7393839, 7393843)
 class UnseenCasterDeathRecorded(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        assert hashlib.sha256(CAPTURE.read_bytes()).hexdigest() == SHA256
-        assert hashlib.sha256(DECISIONS.read_bytes()).hexdigest() == DECISIONS_SHA256
+        assert hashlib.sha256(gzip.decompress(CAPTURE.read_bytes())).hexdigest() == SHA256
+        assert hashlib.sha256(gzip.decompress(DECISIONS.read_bytes())).hexdigest() == DECISIONS_SHA256
         with gzip.open(CAPTURE, "rt", encoding="utf-8") as stream:
             rows = {
                 row["turn"]: row

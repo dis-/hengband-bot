@@ -13,7 +13,7 @@ from hengbot.policy import HengbotPolicy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
-REPLAY = Path(__file__).parent.parent / "jsonlog" / "replay-20260917-2243-dig-state.jsonl"
+REPLAY = FIXTURES / "replay-20260917-2243-dig-state.jsonl.gz"
 FLAG_NAMES = ("mark", "cave_known", "lite", "view", "room", "unsafe")
 TERRAIN_NAMES = (
     "building", "can_dig", "door", "down_stairs", "entrance", "floor",
@@ -79,7 +79,7 @@ def _encode_grid_map(snapshot_data: dict) -> dict:
 
 class GridMapWireTest(unittest.TestCase):
     def test_recorded_mining_walls_are_marked_and_choose_key_tunnels(self):
-        data = json.loads(REPLAY.read_bytes())
+        data = json.loads(gzip.decompress(REPLAY.read_bytes()))
         snapshot = parse_snapshot(data, {})
 
         granite = snapshot.grids[Position(15, 39)]
@@ -100,7 +100,7 @@ class GridMapWireTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
 
     def test_recorded_floor_and_unemitted_cell_are_not_marked(self):
-        snapshot = parse_snapshot(json.loads(REPLAY.read_bytes()), {})
+        snapshot = parse_snapshot(json.loads(gzip.decompress(REPLAY.read_bytes())), {})
 
         self.assertFalse(snapshot.grids[Position(16, 40)].marked)
         self.assertNotIn(Position(0, 0), snapshot.grids)

@@ -1,6 +1,7 @@
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 
 import json
+import gzip
 import os
 from pathlib import Path
 import shutil
@@ -19,18 +20,17 @@ from hengbot.sol_events import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EVENT_LOG = ROOT / "jsonlog" / "sol-events.jsonl"
+EVENT_LOG = ROOT / "tests" / "fixtures" / "sol-events.jsonl.gz"
 APPEND_SCRIPT = ROOT / "scripts" / "append_sol_event.py"
 POWERSHELL_APPENDER = ROOT / "scripts" / "SolEventLog.ps1"
 
 
 class SolEventLogFileTest(unittest.TestCase):
-    """The tracked event log holds one JSON object per line, nothing else."""
+    """The frozen event log holds one JSON object per line, nothing else."""
 
     def test_every_line_of_the_event_log_is_a_json_object(self):
-        # Read-only: the file is tracked, so every checkout (and worktree) has it.
         self.assertTrue(EVENT_LOG.exists(), EVENT_LOG)
-        problems = invalid_lines(EVENT_LOG.read_bytes())
+        problems = invalid_lines(gzip.decompress(EVENT_LOG.read_bytes()))
         self.assertEqual(problems, [], "\n" + format_problems(problems))
 
     def test_checker_rejects_the_shapes_that_broke_the_log(self):

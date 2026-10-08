@@ -265,14 +265,14 @@ class RuntimeWriteGuardTest(unittest.TestCase):
         self.assertTrue(all(test == self.id() for test, _, _ in violations))
 
     def test_reads_are_allowed(self):
-        if not LIVE_RUNTIME.is_dir():
-            self.skipTest("no jsonlog/ in this checkout")
-        with session.expected_runtime_write_violations() as violations:
-            live = next(LIVE_RUNTIME.glob("*.json"), None)
-            if live is not None:
-                with open(live, "rb") as stream:
+        with tempfile.TemporaryDirectory(prefix="runtime-read-allowed-") as directory:
+            runtime = Path(directory) / "jsonlog"
+            runtime.mkdir()
+            sample = runtime / "sample.json"
+            sample.write_bytes(b"{}")
+            with session.expected_runtime_write_violations() as violations:
+                with open(sample, "rb") as stream:
                     stream.read(1)
-            LIVE_RUNTIME.mkdir(exist_ok=True)
         self.assertEqual(violations, [])
 
     def test_writing_test_fails_the_outermost_run(self):

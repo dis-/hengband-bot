@@ -32,9 +32,8 @@ from hengbot.home_entry_capture import HomeEntryCapture
 from test_esp_threat_rest_recorded import EDIT
 
 
-CAPTURE = Path(r"C:\hengband\bot-client\jsonlog") / (
-    "incident-20260929-1154-s33-live-holder-silent-travel-short"
-)
+FIXTURES = Path(__file__).parent / "fixtures"
+CAPTURE = FIXTURES / "crossarea-holder-silent"
 
 
 class CrossAreaFundraisingTest(unittest.TestCase):
@@ -55,10 +54,10 @@ class CrossAreaFundraisingTest(unittest.TestCase):
                 if row.get("decision_sequence") in {29, 30}]
         self.assertEqual([(row["key"], row["reason"]) for row in pair[:2]],
                          [(">\ry", "descend"), ("<", "fundraise:ascend")])
-        with gzip.open(str(CAPTURE) + ".state.jsonl.gz", "rt",
+        with gzip.open(str(CAPTURE) + ".states.jsonl.gz", "rt",
                        encoding="utf-8") as source:
             states = [json.loads(row) for row in source]
-        town, floor = states[1818:1820]
+        town, floor = states
         for state in (town, floor):
             self.assertEqual(state["player"]["food_state"], "normal")
             self.assertEqual(state["player"]["gold"], 136)
@@ -70,16 +69,15 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         self.assertFalse(admitted.must_return)
 
     def test_live_1710_to_1712_posts_departure_only_after_final_arbitration(self):
-        capture = Path(r"C:\hengband\bot-client\jsonlog") / (
-            "incident-20260929-2134-crossarea-live-stair-await-after-town-actions"
-        )
-        with gzip.open(str(capture) + ".state.jsonl.gz", "rt",
+        capture = FIXTURES / "crossarea-stair-await"
+        with gzip.open(str(capture) + ".states.jsonl.gz", "rt",
                        encoding="utf-8") as source:
             states = [json.loads(row) for row in source]
         with gzip.open(str(capture) + ".decisions.jsonl.gz", "rt",
                        encoding="utf-8") as source:
             decisions = [json.loads(row) for row in source]
-        before, stopped = states[1498:1500]
+        before = next(row for row in states if row["turn"] == 231461)
+        stopped = next(row for row in states if row["turn"] == 231466)
         self.assertEqual([before["turn"], stopped["turn"]],
                          [231461, 231466])
         self.assertEqual([(row["decision_sequence"], row["key"])
@@ -99,7 +97,10 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         policy._fundraising_run_purpose = self.purpose
         policy._fundraising_purpose_record = FundraisingPurposeRecord(self.purpose)
         policy._decision_sequence = 1710
-        policy.consume_skill_knowledge(states[1496])
+        policy.consume_skill_knowledge(next(
+            row for row in states
+            if row.get("knowledge", {}).get("category") == "skill_exp"
+        ))
         equipment_claim = policy._claim_register.declare(
             ClaimOwner.EQUIPMENT_TXN,
             observe(("transaction",), 10, "transaction"),
@@ -150,11 +151,11 @@ class CrossAreaFundraisingTest(unittest.TestCase):
                          ("depart", "posted", 1712))
 
     def test_captured_floor_does_not_immediately_ascend_with_active_purpose(self):
-        with gzip.open(str(CAPTURE) + ".state.jsonl.gz", "rt",
+        with gzip.open(str(CAPTURE) + ".states.jsonl.gz", "rt",
                        encoding="utf-8") as source:
             states = [json.loads(row) for row in source]
         floor = parse_snapshot(
-            states[1819], load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+            states[1], load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
         )
         policy = HengbotPolicy()
         policy._crossarea_fundraising_enforced = True

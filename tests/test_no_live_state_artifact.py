@@ -11,11 +11,18 @@ class NoLiveStateArtifactTest(unittest.TestCase):
             "bot-state-" + "fixed.jsonl",
             "Path(" + '"' + "jsonlog/",
             "Path(" + "'" + "jsonlog/",
+            "ROOT / " + '"jsonlog"',
+            "ROOT / " + "'jsonlog'",
+            "parents[1] / " + '"jsonlog"',
+            "parents[1] / " + "'jsonlog'",
+            "Path(" + '"C:/hengband/bot-client/' + "jsonlog",
+            "Path(" + "'C:/hengband/bot-client/" + "jsonlog",
         )
         readers = []
         for module in sorted(tests.glob("test_*.py")):
             text = module.read_text(encoding="utf-8")
-            if any(marker in text for marker in forbidden):
+            code = "\n".join(line.split("#", 1)[0] for line in text.splitlines())
+            if any(marker in code for marker in forbidden):
                 readers.append(module.name)
         self.assertEqual(
             readers,
