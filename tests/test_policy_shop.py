@@ -6997,6 +6997,15 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
                 (TVAL_FLASK, SV_FLASK_OIL): 3,
                 (TVAL_LITE, SV_LITE_LANTERN): 120,
             })
+            # Constructed quotes preserve the probe mechanics while the
+            # decision reserves full rebuy cost for optional buys: "always
+            # keep in hand the total price of re-buying every departure
+            # necessity ... regardless of whether it is currently satisfied."
+            for category in (
+                "recall", "teleport", "cure-critical", "food", "oil", "light",
+                "identify-staff", "quest:speed", "quest:healing",
+            ):
+                policy._remember_departure_price(category, 1, 1)
             policy._character_calibration_path = directory / "character-calibration.json"
             policy._confirmed_loadout_path = directory / "confirmed-loadout.json"
             policy._character_calibration_path.write_bytes(
@@ -7359,6 +7368,17 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
         )
 
 class OptionalBlackMarketPotionTest(unittest.TestCase):
+    def _declare_constructed_departure_prices(self, policy):
+        # These constructed quotes preserve purchase ordering and quantity
+        # pins under the decision to keep the full departure resupply cost:
+        # "always keep in hand the total price of re-buying every departure
+        # necessity ... regardless of whether it is currently satisfied."
+        for category in (
+            "recall", "teleport", "cure-critical", "food", "oil", "light",
+            "quest:speed", "quest:healing",
+        ):
+            policy._remember_departure_price(category, 1, 1)
+
     def _supplies(self):
         return [
             item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3),
@@ -7407,6 +7427,7 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
             store_item("b", TVAL_POTION, SV_POTION_HEALING, price=1000, count=5),
         ]
         policy = HengbotPolicy()
+        self._declare_constructed_departure_prices(policy)
         town = self._town(
             inventory=inventory,
             store=StoreState(STORE_BLACK, wares),
@@ -7444,6 +7465,7 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
             store_item("b", TVAL_POTION, SV_POTION_HEALING, price=1000, count=5),
         ]
         policy = HengbotPolicy()
+        self._declare_constructed_departure_prices(policy)
         town = self._town(
             inventory=inventory,
             store=StoreState(STORE_BLACK, wares),
@@ -7496,10 +7518,12 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
             )
 
         tight_policy = HengbotPolicy()
+        self._declare_constructed_departure_prices(tight_policy)
         tight = drive_price_observation(tight_policy)
         self.assertIsNone(tight_policy._next_purchase(tight))
 
         ample_policy = HengbotPolicy()
+        self._declare_constructed_departure_prices(ample_policy)
         ample = replace(
             drive_price_observation(ample_policy),
             player=replace(tight.player, gold=10000),
@@ -7612,6 +7636,7 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
             store_item("b", TVAL_POTION, SV_POTION_HEALING, price=6000),
         ]
         policy = HengbotPolicy()
+        self._declare_constructed_departure_prices(policy)
         first = self._town(store=StoreState(STORE_BLACK, wares), gold=10000)
         self.assertEqual(policy._next_purchase(first).sval, SV_POTION_SPEED)
 
@@ -7623,12 +7648,14 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
                 item("s", TVAL_POTION, SV_POTION_SPEED),
             ],
             store=StoreState(STORE_BLACK, wares),
-            gold=6000,
+            # Constructed full-resupply reserve plus the healing quote.
+            gold=100000,
         )
         self.assertEqual(policy._next_purchase(second).sval, SV_POTION_HEALING)
 
     def test_keeps_buying_the_remaining_type_until_funds_or_stock_run_out(self):
         policy = HengbotPolicy()
+        self._declare_constructed_departure_prices(policy)
         stocked = self._town(
             inventory=[
                 *self._supplies(),
@@ -7641,11 +7668,16 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
                 STORE_BLACK,
                 [store_item("b", TVAL_POTION, SV_POTION_HEALING, price=500, count=4)],
             ),
-            gold=500,
+            gold=10000,
         )
         self.assertEqual(policy._next_purchase(stocked).sval, SV_POTION_HEALING)
 
-        out_of_funds = replace(stocked, player=replace(stocked.player, gold=499))
+        reserve = policy._full_departure_resupply_reserve(stocked)
+        self.assertIsNotNone(reserve)
+        out_of_funds = replace(
+            stocked,
+            player=replace(stocked.player, gold=reserve + 499),
+        )
         self.assertIsNone(policy._next_purchase(out_of_funds))
 
     def test_unaffordable_stock_does_not_block_departure(self):

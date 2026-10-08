@@ -16,6 +16,7 @@ import tests  # noqa: F401  -- live runtime-file isolation, also for bare module
 
 import unittest
 from dataclasses import replace
+from types import SimpleNamespace
 
 from policy_fixtures import _public_shop_inner, grid, item, player, store_item
 from hengbot.policy import HengbotPolicy
@@ -26,18 +27,24 @@ from hengbot.model import (
     STORE_MAGIC,
     SV_FLASK_OIL,
     SV_LITE_LANTERN,
+    SV_LITE_TORCH,
     SV_POTION_CURE_CRITICAL,
     SV_POTION_HEALING,
     SV_POTION_SPEED,
     SV_SCROLL_TELEPORT,
     SV_SCROLL_WORD_OF_RECALL,
     SV_STAFF_IDENTIFY,
+    SV_WAND_STONE_TO_MUD,
+    TVAL_ARROW,
+    TVAL_BOW,
+    TVAL_DIGGING,
     TVAL_FLASK,
     TVAL_FOOD,
     TVAL_LITE,
     TVAL_POTION,
     TVAL_SCROLL,
     TVAL_STAFF,
+    TVAL_WAND,
     Position,
     Snapshot,
     StoreState,
@@ -126,6 +133,58 @@ class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
 
         self.assertIsNone(policy._next_purchase(board))
         self.assertFalse(_public_shop_inner(self, policy, board).startswith("p"))
+
+    def test_baseitem_costs_price_every_known_departure_and_quest_category(self):
+        # The decision says optional buys retain full rebuy cost: "always keep
+        # in hand the total price of re-buying every departure necessity ...
+        # regardless of whether it is currently satisfied." No shelf has
+        # been observed; known base item kinds supply the prices.
+        costs = {
+            (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL): 10,
+            (TVAL_SCROLL, SV_SCROLL_TELEPORT): 10,
+            (TVAL_SCROLL, 24): 10,
+            (TVAL_POTION, SV_POTION_CURE_CRITICAL): 10,
+            (TVAL_POTION, SV_POTION_SPEED): 15,
+            (TVAL_POTION, SV_POTION_HEALING): 20,
+            (TVAL_FOOD, 35): 10,
+            (TVAL_FLASK, SV_FLASK_OIL): 3,
+            (TVAL_LITE, SV_LITE_TORCH): 4,
+            (TVAL_LITE, SV_LITE_LANTERN): 120,
+            (TVAL_STAFF, SV_STAFF_IDENTIFY): 917,
+            (TVAL_WAND, 1): 7,
+            (TVAL_WAND, SV_WAND_STONE_TO_MUD): 30,
+            (TVAL_DIGGING, 3): 50,
+            (TVAL_BOW, 0): 200,
+            (TVAL_ARROW, 0): 1,
+        }
+        policy = HengbotPolicy(baseitem_costs=costs)
+        board = self._town(staff_charges=0, store=None, gold=10000)
+        board = replace(
+            board,
+            player=replace(board.player, food_type=FOOD_TYPE_MANA),
+        )
+        policy._planned_depth = lambda: 50
+        policy._owns_usable_permanent_light = lambda _snapshot: False
+        policy._equipped_launcher = lambda _snapshot: SimpleNamespace(
+            ammo_tval=TVAL_ARROW
+        )
+        policy._carry_procurement_strategy = lambda _snapshot: SimpleNamespace(
+            required_force={"speed_potions": 1, "heal_potions": 1},
+            engagement_plan={"carry_identify_staff": True},
+        )
+        policy._quest_carry_status = lambda _snapshot, _force: {
+            "launcher": {"required": 1, "measured": 0},
+            "launcher.average_damage": {"required": 1, "measured": 0},
+            "throwing_items.lit_torch": {"required": 1, "measured": 0},
+            "throwing_items.launcher_ammo": {"required": 1, "measured": 0},
+            "required_scrolls.light": {"required": 1, "measured": 0},
+            "utility_tools.wall_breach": {"required": 1, "measured": 0},
+        }
+
+        reserve = policy._full_departure_resupply_reserve(board)
+
+        self.assertIsNotNone(reserve)
+        self.assertGreater(reserve, 0)
 
     def test_reserve_not_kept_by_one_unit_buys_nothing(self):
         # 1300 - 400 = 900 < 917.

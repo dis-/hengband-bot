@@ -5045,6 +5045,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._quest_carry_purchase(snapshot, profile), wand)
 
     def test_black_market_stone_to_mud_is_not_q2_only(self):
+        # Constructed purchase-mechanics pin: declared low shelf quotes keep
+        # the eligibility check observable under the decision to reserve the
+        # full rebuy cost: "always keep in hand the total price of re-buying
+        # every departure necessity ... regardless of whether it is currently
+        # satisfied." The refusal itself is pinned separately in
+        # test_black_market_optional_quantity.
         policy = self._policy()
         wand = StoreItem(
             "w", "Stone to Mud (4 charges)", 1,
@@ -5076,6 +5082,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         with patch.object(policy, "_carry_procurement_strategy", return_value=None):
             self.assertIsNone(policy._next_purchase_unreserved(snapshot))
+            for category in (
+                "recall", "teleport", "cure-critical", "food", "oil", "light",
+                "identify-staff", "quest:speed", "quest:healing",
+            ):
+                policy._remember_departure_price(category, 1, 1)
             self.assertEqual(policy._next_purchase_unreserved(supplied), wand)
             carried = replace(
                 supplied,

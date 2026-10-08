@@ -1,0 +1,53 @@
+LUNA report: reserve-price-fallback-1008
+========================================
+
+Baseline
+--------
+Started from main 35341016c01c2c77782671f83c7b5a94d6d778c4, including the
+equipment sale rule. No game, bot, push, or other worktree was used.
+
+Change
+------
+The optional Black Market reserve now prices necessities from loaded
+base-item costs when no observed shelf price exists. Observed shelf prices
+still take priority. Fallbacks cover fixed departure supplies, ordinary and
+mana food, light, Identify staffs, quest potions, launcher and ammunition
+carries, quest scrolls, torches, and wall-breach tools. Required-purchase
+reserving remains separate.
+
+The reserve can still be unknown when the loaded base-item data has no
+positive-cost entry for any recognized kind in a category. Launcher
+ammunition is also unknown if there is no equipped launcher to identify its
+ammo type; an unrecognized future quest-carry category has no kind mapping.
+In these cases the optional purchase remains refused because its rebuy cost
+cannot be priced from the bot's known item kinds.
+
+Test fallout classification
+---------------------------
+- Optional potion mechanics tests and the stone-to-mud quest pin now use
+  declared constructed prices/gold. Their mechanics remain covered, while the
+  separate reserve pins cover refusal under the decision: "always keep in
+  hand the total price of re-buying every departure necessity ... regardless
+  of whether it is currently satisfied."
+- The probe-purity incident pin had only partial base costs; its constructed
+  quotes keep the probe behavior exercised under the same decision.
+- The protocol-3 lifetime rows 18, 19, 20, 21, 26, 28, and 29 intentionally
+  differ from the old recording because full rebuy cost now blocks optional
+  purchases. The test declares these outcomes with the decision quote.
+- The recall-stockout replay exposed a recursive Home ownership projection
+  during town-need evaluation. Equipment failure classification now preserves
+  the enclosing Home-query guard, and a nested projection conservatively
+  treats the Home goal as pending. The recorded replay passes.
+- Town-work manifest/index were regenerated after the source edits.
+
+Verification
+------------
+Serial command (`unittest`, one worker):
+
+    $env:PYTHONPATH='src;tests'; python -m unittest tests.test_policy_shop tests.test_policy_quest tests.test_recall_stockout_set_end_recorded tests.test_protocol3_client tests.test_destruction_gate_procurement tests.test_experience_potion tests.test_test_fakery_lint tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract tests.test_black_market_optional_quantity
+
+Result: 742 tests passed, 8 skipped (2410.088 seconds). The 2026-10-08
+09:10 recorded speed-board refusal remains covered and passes.
+
+Also ran `git diff --check`; no whitespace errors or UTF-8 BOMs were found in
+the changed text files.
