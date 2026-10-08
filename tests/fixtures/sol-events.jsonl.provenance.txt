@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client-env-tests-1008\jsonlog\sol-events.jsonl
+# sha256 (uncompressed original bytes): edf3ccdb38f27fc9bfa18f7ccc9449805ffc2fbdb0e370ad4b498669e58afec4
+# Fixture gzip decompresses byte-for-byte to the source.

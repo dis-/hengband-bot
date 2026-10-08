@@ -1,0 +1,4 @@
+# Source: C:\hengband\bot-client\jsonlog\incident-20260914-town0-resume-2305\decisions.jsonl
+# sha256 (source decompressed bytes): aae8ed476ad4787d7a0158307c8c94174bd6f116037553142506e19f4cdc98e4
+# Extracted rows sha256: ba89bc681f7ea29c4a234917c00c4bc37349f8080e6169e4f024dee397f03fab
+# Extracted source rows verbatim; no JSON normalization.

@@ -18,11 +18,8 @@ from hengbot.policy import HengbotPolicy
 from tests.support.faithful_home import FaithfulHomeGame
 
 ROOT = Path(__file__).resolve().parents[1]
-JSONLOG = ROOT / "jsonlog"
-if not (JSONLOG / "incident-20260914-town0-resume-2305" / "decisions.jsonl").exists():
-    JSONLOG = Path("C:/hengband/bot-client/jsonlog")
-INCIDENT = JSONLOG / "incident-20260914-town0-resume-2305" / "decisions.jsonl"
-CAPTURE = JSONLOG / "live-screens" / "25-town0-home-equip-leave-loop.json"
+INCIDENT = ROOT / "tests" / "fixtures" / "equipment-home-stage1.decisions.jsonl.gz"
+CAPTURE = ROOT / "tests" / "fixtures" / "equipment-home-stage1.screen.json.gz"
 RECORDED = ROOT / "tests" / "fixtures" / "equipment-in-home-town0-2305.jsonl.gz"
 ENTER_LEAVE_RECORDED = (
     ROOT / "tests" / "fixtures" /
@@ -49,7 +46,8 @@ class EquipmentInHomeArtifactFacts(unittest.TestCase):
         self.assertEqual(len(rows[15]["inventory"]), 19)
 
     def test_rows_7_through_14_freeze_recorded_incident(self):
-        rows = [json.loads(x) for x in INCIDENT.read_text(encoding="utf-8").splitlines()][6:14]
+        with gzip.open(INCIDENT, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(x) for x in stream]
         self.assertEqual([r["decision_sequence"] for r in rows], list(range(6, 14)))
         self.assertEqual(sum(r["key"] == "\x1b" for r in rows), 2)
         self.assertEqual(sum(r["reason"] == "equipment-transaction:leave-home-to-equip" for r in rows), 2)
@@ -63,7 +61,7 @@ class EquipmentInHomeArtifactFacts(unittest.TestCase):
         self.assertEqual(rows[0]["inventory"], {"used": 19, "free": 4})
 
     def test_post_stop_capture_is_explicitly_not_a_store_barrier(self):
-        capture = json.loads(CAPTURE.read_text(encoding="utf-8"))
+        capture = json.loads(gzip.decompress(CAPTURE.read_bytes()))
         state = capture["state"]["result"]
         self.assertNotIn("store", state)
         self.assertEqual(state["type"], "player_turn")

@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client\jsonlog\live-screens\25-town0-home-equip-leave-loop.json
+# sha256 (original bytes): 40050b8b47b795c30ea37c3040795904ccd559d4c4c6cdcecd1df564227eb6fc
+# Fixture gzip decompresses byte-for-byte to source.

@@ -2,6 +2,7 @@
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import base64
+import gzip
 import importlib
 import json
 import pickle
@@ -31,9 +32,7 @@ from hengbot.town_arbiter import TownArbiterMixin
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EQUIP_SWAP = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl"
-if not EQUIP_SWAP.exists():
-    EQUIP_SWAP = ROOT.parent / "bot-client" / "jsonlog" / EQUIP_SWAP.name
+EQUIP_SWAP = ROOT / "tests" / "fixtures" / "equip-swap-20260826.snapshots.jsonl.gz"
 
 
 def _member_names(owner):
@@ -155,7 +154,7 @@ class PolicyStructureTest(unittest.TestCase):
             )
         knowledge = load_monrace_knowledge(definitions)
         policy = HengbotPolicy(monrace_knowledge=knowledge)
-        with EQUIP_SWAP.open(encoding="utf-8") as stream:
+        with gzip.open(EQUIP_SWAP, "rt", encoding="utf-8") as stream:
             for line in stream:
                 policy.choose_key(parse_snapshot(json.loads(line), knowledge))
 

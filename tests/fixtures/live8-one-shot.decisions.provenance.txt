@@ -1,0 +1,4 @@
+# Source: incident-20260930-1932-s33-live-one-shot-in-flight-after-calibration-strip.decisions.jsonl.gz
+# sha256 (source decompressed bytes): c33bcd9ef86fff3db42f5d710b36d0da511b460d66751dc78b774f2cf612c286
+# Extracted rows sha256: 162825945fef4ce6fbfc6a4a00d0ec5fc6665d72363a5ba30e9bd2b11f692601
+# Extracted source rows verbatim; no JSON normalization.

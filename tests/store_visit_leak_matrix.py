@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import copy
+import gzip
 import json
 from pathlib import Path
 
@@ -11,13 +12,13 @@ from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SNAPSHOTS = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl"
+SNAPSHOTS = ROOT / "tests" / "fixtures" / "equip-swap-20260826.snapshots.jsonl.gz"
 STORE_TYPES = tuple(range(8))
 PHASES = tuple(StoreVisitPhase)[0:4]
 
 
 def _surface_snapshot():
-    with SNAPSHOTS.open(encoding="utf-8") as stream:
+    with gzip.open(SNAPSHOTS, "rt", encoding="utf-8") as stream:
         for line in stream:
             row = json.loads(line)
             if row.get("turn") != 1172205 or row.get("store") is not None:

@@ -1,0 +1,4 @@
+# Source: incident-20260930-2149-s33-live-restore-weapon-stale-equipment.state.jsonl.gz
+# sha256 (source decompressed bytes): 97e3077bd49aada666b0ded6b2fdf563fad5d2582f03fbe8988d286a2316b684
+# Extracted rows sha256: c20b4b4497f777093959206e7b924b984bae6b0ef464a1d918fd5e2510d3de1e
+# Extracted source rows verbatim; no JSON normalization.

@@ -1,0 +1,4 @@
+# Source: C:\hengband\bot-client\jsonlog\incident-town-wander-20260819.jsonl
+# sha256 (source bytes): 60a6ceeb84d36fa1d06e0da72335b725c79fc42a83f69b03d423b6b851da69e1
+# Extracted final-row sha256: ddec29251eb4a923f06615453ddcb2379847f9bc685e6f5fcf04c720d845bed6
+# Extracted source row verbatim; no JSON normalization.

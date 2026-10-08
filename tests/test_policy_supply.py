@@ -4,6 +4,7 @@ import ast
 import gzip
 import inspect
 import json
+import gzip
 import os
 import subprocess
 import sys
@@ -5028,8 +5029,9 @@ class IdentifyStaffLiveCatalogueTest(unittest.TestCase):
         # the 2026-09-17 crash.  Drive the CLI consumer so the catalogue is
         # parsed as InventoryItems, exactly as it is live.
         state_lines = (
-            Path(__file__).parents[1] / "jsonlog" / "replay-r9-state.jsonl"
-        ).read_text(encoding="utf-8").splitlines()
+            Path(__file__).parent / "fixtures" / "replay-r9-state.jsonl.gz"
+        )
+        state_lines = gzip.decompress(state_lines.read_bytes()).decode("utf-8").splitlines()
         knowledge_line = next(
             line for line in reversed(state_lines)
             if json.loads(line).get("knowledge", {}).get("category") == "home"

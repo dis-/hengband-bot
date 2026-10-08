@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client\jsonlog\incident-equip-swap-loop-20260826.jsonl
+# sha256 (uncompressed original bytes): b878ad8e049d943d1330d92baa3677914b6bc9ddb099813775e70105ed5545d2
+# Fixture gzip decompresses byte-for-byte to the source.

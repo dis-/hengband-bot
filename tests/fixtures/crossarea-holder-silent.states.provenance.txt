@@ -1,0 +1,4 @@
+# Source: C:\hengband\bot-client\jsonlog\incident-20260929-1154-s33-live-holder-silent-travel-short.state.jsonl.gz
+# sha256 (source decompressed bytes): 5bdb7f02fe1db8e2ff1149011985c452eb1782bc5101e0530249f0328a847654
+# Extracted rows sha256: 20662d3b301667b000b9ba7173309a4b8bac8591a9db1d67cf8d5a3d328c0a27
+# Extracted source rows verbatim; no JSON normalization.

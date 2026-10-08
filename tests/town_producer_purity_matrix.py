@@ -1,6 +1,7 @@
 """Count town producers that leak state while being evaluated as candidates."""
 
 import hashlib
+import gzip
 import importlib.util
 import json
 from pathlib import Path
@@ -19,12 +20,10 @@ from hengbot.policy_types import StoreVisit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CAPTURE_DIR = ROOT / "jsonlog"
-if not (CAPTURE_DIR / "incident-equip-swap-loop-20260826.snapshots.jsonl").exists():
-    CAPTURE_DIR = ROOT.parent / "bot-client" / "jsonlog"
+CAPTURE_DIR = ROOT / "tests" / "fixtures"
 CAPTURES = {
-    "equip-swap": CAPTURE_DIR / "incident-equip-swap-loop-20260826.snapshots.jsonl",
-    "no-actionable": CAPTURE_DIR / "incident-no-actionable-claim-20260827.snapshots.jsonl",
+    "equip-swap": CAPTURE_DIR / "equip-swap-20260826.snapshots.jsonl.gz",
+    "no-actionable": CAPTURE_DIR / "no-actionable-claim-20260827.snapshots.jsonl.gz",
 }
 PROPERTY_BACKED_STATE = ("_store_visit",)
 
@@ -74,10 +73,15 @@ def _monraces(name):
     return load_monrace_knowledge(definitions) if definitions else {}
 
 
+def _open_capture(name, mode="rt"):
+    path = CAPTURES[name]
+    return gzip.open(path, mode, encoding="utf-8-sig") if "b" not in mode else gzip.open(path, mode)
+
+
 @cache
 def _surface_snapshot_offsets(name):
     offsets = []
-    with CAPTURES[name].open("rb") as stream:
+    with _open_capture(name, "rb") as stream:
         while True:
             offset = stream.tell()
             line = stream.readline()
@@ -91,7 +95,7 @@ def _surface_snapshot_offsets(name):
 
 def _snapshot_at_surface_row(name, row):
     offset = _surface_snapshot_offsets(name)[row]
-    with CAPTURES[name].open("rb") as stream:
+    with _open_capture(name, "rb") as stream:
         stream.seek(offset)
         raw = json.loads(stream.readline().decode("utf-8-sig"))
         return parse_snapshot(raw, _monraces(name))
@@ -101,7 +105,7 @@ def _snapshot_at_surface_row(name, row):
 def _snapshots(name):
     monraces = _monraces(name)
     snapshots = []
-    with CAPTURES[name].open(encoding="utf-8-sig") as stream:
+    with _open_capture(name) as stream:
         for line in stream:
             snapshot = parse_snapshot(json.loads(line), monraces)
             if snapshot.in_town and snapshot.store is None:
@@ -117,7 +121,7 @@ def _surface_snapshot_count(name):
 def _parsed_surface_snapshot_count(name):
     monraces = _monraces(name)
     count = 0
-    with CAPTURES[name].open(encoding="utf-8-sig") as stream:
+    with _open_capture(name) as stream:
         for line in stream:
             snapshot = parse_snapshot(json.loads(line), monraces)
             if snapshot.in_town and snapshot.store is None:
@@ -127,7 +131,7 @@ def _parsed_surface_snapshot_count(name):
 
 def _surface_snapshot():
     name = "equip-swap"
-    with CAPTURES[name].open(encoding="utf-8-sig") as stream:
+    with _open_capture(name) as stream:
         for line in stream:
             row = json.loads(line)
             if (

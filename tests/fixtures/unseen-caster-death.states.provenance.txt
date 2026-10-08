@@ -1,0 +1,5 @@
+# Source: C:\hengband\bot-client\jsonlog\incident-20260928-0458-death-unseen-magic-missile.state.jsonl.gz
+# sha256 (source gzip bytes): ce1667110e02d5f979979d6c78e9d3beae32ba30ca6db7ba1fe901fdc32b1ae5
+# sha256 (source decompressed bytes): b72b250769954e914b92f961802cf268f4e0204949149314354f8e993e649aa8
+# Extracted rows sha256: 4719e2059dcfbf100c7c229bddf75a0274964e8839b3e995cbf5e3d6e2886348
+# Extracted source rows verbatim; no JSON normalization.

@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client\jsonlog\live-screen-35-town-no-progress-stuck-20260915.json
+# sha256 (uncompressed original bytes): d60a02d559909ca4bf03db036f2a21540a7c5ed9caa2029f3208a4895ad95e45
+# Fixture gzip decompresses byte-for-byte to the source.

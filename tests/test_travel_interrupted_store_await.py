@@ -22,8 +22,8 @@ RECORDED = (
     "travel-interrupted-store-await-20260915.jsonl.gz"
 )
 SCREEN = (
-    ROOT / "jsonlog" /
-    "live-screen-35-town-no-progress-stuck-20260915.json"
+    ROOT / "tests" / "fixtures" /
+    "travel-interrupted-screen-20260915.json.gz"
 )
 GENUINE_ENTRY = (
     ROOT / "tests" / "fixtures" /
@@ -38,8 +38,8 @@ SHORT_TRAVEL_INCIDENT = (
     "incident-20260920-2302-entry-await-after-short-travel.jsonl.gz"
 )
 SECOND_PROMPT_REPLAY = (
-    ROOT / "jsonlog" /
-    "replay-20260917-2355-travel-interrupt-state.jsonl"
+    ROOT / "tests" / "fixtures" /
+    "replay-20260917-2355-travel-interrupt-state.jsonl.gz"
 )
 OWNER_SET_RECORDED = (
     ROOT / "tests" / "fixtures" /
@@ -71,7 +71,7 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         game.state = rows[0]
         game.screen = command_screen(rows[0]["turn"])
         game.states = [rows[-1]]
-        game.screens = [json.loads(SCREEN.read_text(encoding="utf-8"))["result"]]
+        game.screens = [json.loads(gzip.decompress(SCREEN.read_bytes()))["result"]]
         client = ControlClient(
             1, request_budget=2, retries=1, backoff=0,
             socket_factory=game.socket_factory,
@@ -164,7 +164,7 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
     def test_second_recorded_travel_prompt_reissues_non_empty_macro(self):
         rows = [
             json.loads(line)
-            for line in SECOND_PROMPT_REPLAY.read_bytes().splitlines()
+            for line in gzip.decompress(SECOND_PROMPT_REPLAY.read_bytes()).splitlines()
         ]
         policy = HengbotPolicy(monrace_knowledge=self.monrace)
         # pin_vacuity: the second-prompt capture begins after the Home visit

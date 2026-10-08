@@ -6,6 +6,7 @@ from random import Random
 from types import SimpleNamespace
 from unittest.mock import patch
 import json
+import gzip
 import unittest
 
 from hengbot.model import (
@@ -667,13 +668,12 @@ class TownProgressInvariantTest(unittest.TestCase):
 
     def test_captured_town_wander_retires_phantom_equipment_failure(self):
         incident = (
-            Path(__file__).resolve().parent.parent
-            / "jsonlog"
-            / "incident-town-wander-20260819.jsonl"
+            Path(__file__).parent
+            / "fixtures"
+            / "town-wander-equipment-failure.jsonl.gz"
         )
-        if not incident.exists():
-            incident = incident.parent.parent.parent / "bot-client" / "jsonlog" / incident.name
-        captured = json.loads(incident.read_text(encoding="utf-8").splitlines()[-1])
+        with gzip.open(incident, "rt", encoding="utf-8") as source:
+            captured = json.loads(next(source))
         equipment = captured["equipment_optimization"]
         route = equipment["home_route_projection"]
         self.assertEqual(

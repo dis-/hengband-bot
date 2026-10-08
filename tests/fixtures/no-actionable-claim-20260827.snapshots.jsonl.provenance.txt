@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client\jsonlog\incident-no-actionable-claim-20260827.snapshots.jsonl
+# sha256 (uncompressed original bytes): 3bf27b330c475b9a75e1da789ed035db4cc4ed1620bb17ae0e5a92e57020f016
+# Fixture gzip decompresses byte-for-byte to source.

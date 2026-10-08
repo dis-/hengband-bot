@@ -17,13 +17,11 @@ from hengbot.policy_types import StoreVisit, TownErrandPlan
 from test_execution_declaration import short_route_board
 
 
-LOG = Path(r"C:\hengband\bot-client\jsonlog") / (
-    "incident-20260930-1932-s33-live-one-shot-in-flight-after-calibration-strip"
-)
+LOG = Path(__file__).parent / "fixtures" / "live8-one-shot.decisions.jsonl.gz"
 
 
 def recorded_rows():
-    with gzip.open(str(LOG) + ".decisions.jsonl.gz", "rt", encoding="utf-8") as source:
+    with gzip.open(LOG, "rt", encoding="utf-8") as source:
         return {row["decision_sequence"]: row for row in map(json.loads, source)
                 if 207 <= row.get("decision_sequence", 0) <= 220}
 

@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client-env-tests-1008\jsonlog\replay-20260917-1450-stale-scan-state.jsonl
+# sha256 (uncompressed original bytes): 7651af9ffcf1e481c1787110846124b9cd264bc446bdf9a5a360053e8350215e
+# Fixture gzip decompresses byte-for-byte to the source.

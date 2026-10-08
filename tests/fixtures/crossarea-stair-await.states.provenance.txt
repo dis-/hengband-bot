@@ -1,0 +1,4 @@
+# Source: incident-20260929-2134-crossarea-live-stair-await-after-town-actions.state.jsonl.gz
+# sha256 (source decompressed bytes): 224e1002421a075331827fd813c847617741dbc516debdf32f3878531f149319
+# Extracted rows sha256: 9a47d1869a1b9ff593655b5bea18265183fe7953ebcb4041b3d505a8c0cce06b
+# Extracted source rows verbatim; no JSON normalization.

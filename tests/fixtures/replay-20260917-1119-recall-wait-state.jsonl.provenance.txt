@@ -1,0 +1,3 @@
+# Source: C:\hengband\bot-client-env-tests-1008\jsonlog\replay-20260917-1119-recall-wait-state.jsonl
+# sha256 (uncompressed original bytes): c37a9076ee70d34735dc09bb29d7dd334e2df600cbfba4834604e5c3f27a3214
+# Fixture gzip decompresses byte-for-byte to the source.
