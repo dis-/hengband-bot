@@ -1,25 +1,15 @@
 LUNA-TASK report - 2026-10-08
 
-Decision applied
-
-"Always keep in hand the total price of re-buying every departure necessity ... regardless of whether it is currently satisfied." The Black Market optional-buy reserve now prices full departure targets rather than only shortages.
-
 Implementation
 
-- `src/hengbot/policy_shop.py:56` calculates the reserve from each required departure target and its observed unit price, including light, Identify charges, and quest carry targets. Mana-food reserves cover the full charge target and at least `MANA_FOOD_DEVICE_TARGET` devices.
-- `src/hengbot/policy.py:15216` records observed Magic-shop wand/staff prices as mana-food prices per item and per-device charge yield. Existing base-item costs remain the fallback for other categories. A required price that remains unknown makes the reserve unknown (`None`), which refuses optional spending; mana food does not fall back to ration prices.
-- The reserve applies to all optional Black Market categories: Speed, Healing, and Stone-to-Mud wands. Other consumers of the same reserve are Restore Life Levels (`_restore_life_levels_purchase`) and the required *Destruction* purchase/gate.
-- The 2026-10-08 09:10:38 reproduction uses the recorded 3,956g, 1,299g unit price, and 3-potion stack. It refuses the purchase. A control with gold greater than reserve plus 1,299g allows the purchase.
-
-Prior-rule regression and changed expectation
-
-With the prior implementation restored once, the regression failed: it computed the old 917g shortage reserve, so 3,956g covered that reserve plus the 1,299g potion and allowed the purchase. The updated implementation passes the recorded-board and affordability-control checks.
-
-The following old-rule expectations in `tests/test_black_market_optional_quantity.py` were updated: `test_multi_unit_optional_buy_preserves_full_resupply_reserve` changes the old 917g reserve and one-potion purchase to a 6,484g reserve and no purchase; `test_satisfied_stock_still_reserves_its_full_rebuy_cost` replaces the old zero-reserve/three-potion expectation with a positive reserve and no purchase; and `test_reserve_not_kept_by_one_unit_buys_nothing` changes the old 917g reserve to 6,484g. These expectations conflict with the decision quote above because they release reserve when stock is already carried.
+- On a full Home page, an active equipment transaction now yields to full-Home relief when that relief has an active filed Home errand. The equipment transaction session remains available to resume after space is freed.
+- A live relief take leaves the Home page so the existing entrance-bound atomic withdrawal can bind its address. An idle recovered errand still refiles on the observed page.
+- If relief has no action, the equipment Home handler retains the existing refusal and visit-local deferral behavior. The recorded Home-entry cycle still retires the transaction instead of reapproaching Home.
+- Regenerated `scripts/town_work_manifest.json.gz` and `src/hengbot/town_work_sites.json` after the source changes. The manifest generator reported 805 candidates, 19,697 sites, and zero unmapped.
+- No asserted expectations were edited.
 
 Validation
 
-- Focused Black Market regression: 4 tests passed.
-- Hygiene retry after town-work-manifest regeneration: 50 tests passed.
-- Initial hygiene run: 225 tests ran; 222 passed and three lint/contract tests reported the stale generated manifest. `python scripts/town_work_manifest.py --write` regenerated it (804 candidates, 19,688 sites, zero unmapped); the 50-test rerun passed all three affected tests and the focused regression. Across the two runs, all 225 hygiene tests passed after regeneration.
-- No full suite or game/bot was run. No UTF-8 BOM was written.
+- Recorded relief and Home-entry cycle pins, `tests.test_policy_home`, both `tests.test_equipment_transaction*` modules, and `tests.test_item_sink_lint`: 226 tests passed.
+- Required hygiene set: 342 tests passed.
+- No full suite or game/bot was run. No test process was killed. No UTF-8 BOM was written.

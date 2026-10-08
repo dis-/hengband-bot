@@ -634,6 +634,7 @@ class HomeMixin:
                 if observed is None:
                     return self._town_producer_entry("_home_full_skip_key",
                         lambda: self._home_full_skip_key("surplus-target-unobserved"))
+                errand_was_active = self._home_errand.active
                 if (self._home_errand.active
                         and self._home_errand.request is not None
                         and self._home_errand.request.signature != self._item_signature(observed)):
@@ -652,7 +653,9 @@ class HomeMixin:
                         return None
                 self._home_pending_item = relief["sale"][0]
                 self._home_pending_quantity = observed.count
-                return None
+                return (self._home_full_leave_key(
+                    "home:full-queue-surplus-withdraw")
+                    if errand_was_active else None)
             elif self._home_errand.state.value in {"failed", "stopped"}:
                 # A failed/stopped take is an observed address miss, not a
                 # reason to hold the whole full-Home relief loop.  Retain this
@@ -726,7 +729,10 @@ class HomeMixin:
                         return None
                     relief["mode"] = "identify"
                 else:
-                    self._defer_home_full_deposit(snapshot)
+                    self._town_producer_entry(
+                        "_defer_home_full_deposit",
+                        lambda: self._defer_home_full_deposit(snapshot),
+                        family="home-visit")
                     return None
                 store_type = STORE_HOME
             else:

@@ -5825,6 +5825,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
                     "_equipment_transaction_town_owner_key", "_equipment_transaction_home_key",
                     "home-atomic-withdraw", "home-atomic-deposit", "_shopping_approach_key#1",
+                    "_home_full_relief_key",
                 }):
             # The family also contains suppression, inscriptions and rearming.
             # OFF records the same pre-call verdict that ON enforces.
@@ -8706,10 +8707,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._home_atomic_deposit_pending is None
             and self._home_atomic_withdraw_pending is None
         ):
-            # Full-Home relief belongs to the Home-visit owner. Let an active
-            # equipment transaction handle its Home page first so a refused
-            # operation can abandon and block this route under its own claim.
-            equipment_home = self._equipment_transaction_session is not None
+            # A full Home must run its sale/destroy relief before a refused
+            # equipment deposit is retired. The transaction holder admits this
+            # one relief producer; if it has no legal action, the transaction
+            # handler records the existing visit-local deferral and leaves.
+            equipment_home = (
+                self._equipment_transaction_session is not None
+                and not (self._home_full_relief is not None
+                         and self._home_errand.active)
+            )
+            if equipment_home:
+                # The pending equipment plan has not changed inventory yet.
+                # Yield its transaction claim while the separately filed
+                # relief errand frees Home space; the session object remains
+                # intact and can resume after relief completes.
+                self._release_claim_goal(
+                    "equipment-transaction-yields-to-home-relief",
+                    owners=("equipment-txn",), kinds=(CLAIM_GOAL_OBSERVE,),
+                    sources=("transaction",),
+                )
             key = self._town_producer_entry(
                 "_equipment_transaction_home_key" if equipment_home
                 else "_home_full_relief_key",
