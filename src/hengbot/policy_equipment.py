@@ -153,7 +153,6 @@ from hengbot.policy_constants import (
     TORCH_REFILL_FUEL,
     BUY_KEY,
     CARDINAL_OFFSETS,
-    CHARACTER_DUMP_MACRO,
     CHEST_COLLECT_BUDGET,
     CHEST_DISARM_BUDGET,
     CHEST_DISARM_KEY,
@@ -168,6 +167,8 @@ from hengbot.policy_constants import (
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     EAT_KEY,
+    HOME_CHARACTER_DUMP_MACRO,
+    HOME_KNOWLEDGE_MACRO,
     ExplorationPathOutcome,
     FOOD_MIN_SVAL,
     FOOD_TYPE_MANA,
@@ -3256,7 +3257,99 @@ class EquipmentMixin:
         self._equipment_sale_session = {
             "built": False, "items": [], "attempted": set(),
             "withdrawals": 0, "refused": set(), "active_store": None,
+            "sale_needed": False,
         }
+
+    @claims(ClaimOwner.EQUIPMENT_OPT)
+    def _equipment_sale_prerequisite_key(
+        self, snapshot: Snapshot,
+    ) -> str | None:
+        """Request sale inputs before Home relief can consume the visit.
+
+        The existing sale session owns the once-per-visit bounds. Its fields
+        are read with defaults because older checkpoints predate them.
+        Calibration uses the same prepared character-dump protocol as the
+        periodic bookkeeping producer; a stale Home catalogue continues
+        through the registered Home scan producer.
+        """
+        session = getattr(self, "_equipment_sale_session", None)
+        if (not snapshot.in_town or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+                or not isinstance(session, dict)
+                or self._home_atomic_deposit_pending is not None
+                or self._home_atomic_withdraw_pending is not None
+                or self._equipment_transaction_session is not None
+                or self._home_entry_operation_posted):
+            return None
+        session.setdefault("sale_needed", True)
+        if (not session.get("sale_needed")
+                and not self._equipment_sale_relief_active(snapshot)):
+            return None
+        self._build_equipment_sale_session(snapshot)
+        blocker = session.get("blocker")
+        if not blocker:
+            return None
+        attempted = session.setdefault("prerequisite_attempted", set())
+        # Checkpointed values may have been serialized as another collection
+        # type by an older runtime; normalize without losing recorded facts.
+        if not isinstance(attempted, set):
+            attempted = set(attempted or ())
+            session["prerequisite_attempted"] = attempted
+
+        needs_calibration = (
+            blocker in {"calibration-required", "optimizer-unavailable"}
+            and self._validated_character_calibration(snapshot) is None
+        )
+        if (needs_calibration and "calibration" not in attempted
+                and not self._warning_prompt_stops_decision):
+            if (snapshot.store is not None
+                    and snapshot.store.store_type == STORE_HOME):
+                # Home has a shorter C-screen macro because its first Escape
+                # returns to the open store. It uses the same prepared dump
+                # and response correlation as the ordinary bookkeeping path.
+                attempted.add("calibration")
+                self._prepare_character_sheet_dump()
+                self.last_reason = "periodic:character-dump"
+                self._offer_execution(
+                    HOME_CHARACTER_DUMP_MACRO, producer="bookkeeping",
+                    work_id="periodic-character-dump",
+                    next_step="character.dump.send",
+                    expected_effect="character-dump-confirmed",
+                )
+                return HOME_CHARACTER_DUMP_MACRO
+            if self._periodic_filler_is_safe(snapshot):
+                attempted.add("calibration")
+                self._periodic_dump_requested = True
+                # Let the normal decision finish; the existing bookkeeping
+                # rung posts the prepared C dump after safe town work.
+                return None
+
+        needs_home_scan = (
+            blocker in {"home-catalogue-not-current", "optimizer-unavailable"}
+            and (
+                not self._equipment_catalog.home_scan_complete
+                or not self._home_knowledge_current
+                or self._home_knowledge_invalidated
+            )
+        )
+        if (needs_home_scan and "home-scan" not in attempted
+                and snapshot.store is not None
+                and snapshot.store.store_type == STORE_HOME
+                and not self._home_knowledge_scan_inflight
+                and not self._home_knowledge_scan_requested
+                and self._home_knowledge_scan_epoch is None
+                and self._store_leave_inflight is None
+                and self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and self._equipment_transaction_session is None):
+            key = self._town_producer_entry(
+                "home-full-knowledge",
+                lambda: self._home_full_knowledge_key(snapshot),
+                family="home-scan",
+            )
+            if key == HOME_KNOWLEDGE_MACRO:
+                attempted.add("home-scan")
+                return key
+        return None
 
     def _equipment_sale_selected_signature(
         self, signature: tuple[str, int, int],
@@ -3271,9 +3364,13 @@ class EquipmentMixin:
     def _equipment_sale_next_store(self, snapshot: Snapshot) -> int | None:
         """Select the next never-retried item on this return's saved list."""
         self._ensure_equipment_sale_session(snapshot)
-        self._build_equipment_sale_session(snapshot)
         session = getattr(self, "_equipment_sale_session", None)
         if not isinstance(session, dict) or not session.get("built"):
+            if isinstance(session, dict):
+                session["sale_needed"] = True
+            self._build_equipment_sale_session(snapshot)
+            session = getattr(self, "_equipment_sale_session", None)
+        if not isinstance(session, dict):
             return None
         if session.get("blocker"):
             return None
