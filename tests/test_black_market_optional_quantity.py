@@ -1,17 +1,15 @@
-"""Optional Black Market buys never spend the required-supply reserve.
+"""Optional Black Market buys preserve full departure resupply costs.
 
-User decision 2026-09-15 (black-market-optional-reserve-decision): optional
-Black Market purchases happen only when the gold left AFTER the purchase still
-covers the outstanding required departure supplies at known prices; required
-first.  User 2026-10-02: 「これは改善する必要がある」 -- the reserve was checked
-against ONE unit while ``_purchase_quantity`` bought the whole shelf stack.
+User decision 2026-10-08: "always keep in hand the total price of re-buying
+every departure necessity ... regardless of whether it is currently
+satisfied." This replaces the 2026-09-15 unmet-shortage reserve.
 
 CONSTRUCTED boards (declared): a town board at a depth that needs a 20-charge
 Identify staff, a Magic-shop page that teaches the staff price (917g for 19
 charges, the recorded 09-15 price), then a Black Market page with a 3-potion
-Speed stack at 400g.  With the 1-charge staff carried the reserve is 917g; with
-a 20-charge staff it is 0.  The emitted key is read at the public
-door-composed boundary.
+Speed stack at 400g. Under the old shortage-only rule the reserve was 917g
+with 1 Identify charge and 0g with 20; the new rule prices the full targets.
+The emitted key is read at the public door-composed boundary.
 """
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
@@ -21,6 +19,7 @@ from dataclasses import replace
 
 from policy_fixtures import _public_shop_inner, grid, item, player, store_item
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import FOOD_TYPE_MANA
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
     STORE_BLACK,
@@ -48,10 +47,14 @@ from hengbot.model import (
 class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
     STAFF_PRICE = 917
     SPEED_PRICE = 400
+    LIVE_SPEED_PRICE = 1299
 
-    def _town(self, *, staff_charges, store, gold):
+    def _town(self, *, staff_charges, store, gold, food_type=None):
+        board_player = player(10, 10, gold=gold, class_id=PLAYER_CLASS_WARRIOR)
+        if food_type is not None:
+            board_player = replace(board_player, food_type=food_type)
         return Snapshot(
-            player(10, 10, gold=gold, class_id=PLAYER_CLASS_WARRIOR),
+            board_player,
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
@@ -88,6 +91,15 @@ class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
             )]),
             gold=500,
         ))
+        for category, price, units in (
+            ("recall", 100, 1),
+            ("teleport", 50, 1),
+            ("cure-critical", 200, 1),
+            ("food", 80, 1),
+            ("oil", 20, 1),
+            ("light", 400, 1),
+        ):
+            policy._remember_departure_price(category, price, units)
         black_market = self._town(
             staff_charges=staff_charges,
             store=StoreState(STORE_BLACK, [store_item(
@@ -98,29 +110,61 @@ class BlackMarketOptionalQuantityReserveTest(unittest.TestCase):
         )
         return policy, black_market
 
-    def test_multi_unit_optional_buy_stops_at_the_reserve(self):
-        # 1400g affords all 3 (3 * 400), but only 1 leaves the 917g reserve.
+    def test_multi_unit_optional_buy_preserves_full_resupply_reserve(self):
+        # The prior shortage-only reserve was 917g. Full departure targets cost
+        # 6,484g, so this board cannot make even a one-potion optional purchase.
         policy, board = self._black_market(staff_charges=1, gold=1400)
-        self.assertEqual(policy._required_departure_supply_reserve(board), 917)
+        self.assertEqual(policy._required_departure_supply_reserve(board), 6484)
         self.assertEqual(1400 // self.SPEED_PRICE, 3)
 
-        self.assertEqual(_public_shop_inner(self, policy, board), "pn1\r\r")
+        self.assertFalse(_public_shop_inner(self, policy, board).startswith("p"))
 
-    def test_zero_reserve_still_empties_the_bounded_stack(self):
+    def test_satisfied_stock_still_reserves_its_full_rebuy_cost(self):
         policy, board = self._black_market(staff_charges=20, gold=1400)
-        self.assertEqual(policy._required_departure_supply_reserve(board), 0)
+        reserve = policy._required_departure_supply_reserve(board)
+        self.assertGreater(reserve, 0)
 
-        self.assertEqual(_public_shop_inner(self, policy, board), "pn3\r\r")
+        self.assertIsNone(policy._next_purchase(board))
+        self.assertFalse(_public_shop_inner(self, policy, board).startswith("p"))
 
     def test_reserve_not_kept_by_one_unit_buys_nothing(self):
         # 1300 - 400 = 900 < 917.
         policy, board = self._black_market(staff_charges=1, gold=1300)
-        self.assertEqual(policy._required_departure_supply_reserve(board), 917)
+        self.assertEqual(policy._required_departure_supply_reserve(board), 6484)
 
         self.assertIsNone(policy._next_purchase(board))
         self.assertFalse(
             _public_shop_inner(self, policy, board).startswith("p")
         )
+
+    def test_recorded_20261008_speed_board_is_blocked_and_affordable_control_passes(self):
+        # Decision sequence 33 at 09:10:38: 3,956g, Black Market slot w,
+        # Speed potions at 1,299g each (the emitted pw3\r\r spent 3,897g).
+        policy, board = self._black_market(staff_charges=36, gold=3956)
+        board = replace(
+            board,
+            player=replace(board.player, food_type=FOOD_TYPE_MANA),
+            store=StoreState(STORE_BLACK, [store_item(
+                "w", TVAL_POTION, SV_POTION_SPEED,
+                price=self.LIVE_SPEED_PRICE, count=3,
+            )]),
+        )
+        # The Magic-shop observation supplies the known mana-device price.
+        policy._remember_departure_price("food", self.STAFF_PRICE, 19)
+        reserve = policy._required_departure_supply_reserve(board)
+        self.assertIsNotNone(reserve)
+        self.assertGreaterEqual(board.player.gold, 3 * self.LIVE_SPEED_PRICE)
+        self.assertLess(board.player.gold, reserve + self.LIVE_SPEED_PRICE)
+        self.assertIsNone(policy._next_purchase(board))
+
+        control = replace(
+            board,
+            player=replace(
+                board.player,
+                gold=reserve + self.LIVE_SPEED_PRICE + 1,
+            ),
+        )
+        self.assertIsNotNone(policy._next_purchase(control))
 
 
 if __name__ == "__main__":
