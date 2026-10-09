@@ -1,23 +1,31 @@
 PLAN-STEP: 1.5
-Task: implement SOL-DESIGN-step1.5a-equipment-homefull.md (revision 2) in this worktree
-(branch step1.5a-equipment-homefull at main 426eb6ea).
+Task: implement SOL-DESIGN-step1.5b-overweight.md (revision 2) in this worktree
+(branch step1.5b-overweight on top of step1.5a-equipment-homefull ff524851, which itself is main 426eb6ea +
+step 1.5a; 1.5a is in the merge gate now).
 
-Read first: SOL-DESIGN-step1.5a-equipment-homefull.md (the design, reviewed twice by an adversarial
-reviewer; follow it exactly, including the owner decisions quoted verbatim there) and
-STEP1.5-ANALYSIS.md (evidence). "Existing tests" = tests at 426eb6ea. Tests you add on this branch
-may be edited freely; do not stop because one of your own new tests disagrees with you.
+Read first: SOL-DESIGN-step1.5b-overweight.md (reviewed by an adversarial reviewer; follow it exactly, including
+the owner decisions quoted verbatim there — in particular the 2026-10-10 decision 「1 ただし好ましくない状況では
+あるので記録はして」) and STEP1.5b-OVERWEIGHT-ANALYSIS.md (evidence). Also read SOL-REPORT-step1.5a.txt in this
+worktree: step 1.5a added `_equipment_home_deposit_tombstone`; F1c must keep weight-overload deposits outside it.
+"Existing tests" = tests at ff524851. Tests you add on this branch may be edited freely; do not stop because one
+of your own new tests disagrees with you. Step 1.5a's pin 1 (134416/191943) expects the overweight stop; this
+step rewrites that expectation to the F3 outcome — state it in the report.
 
 Rules:
-- Every pin in the design: show the run line failing on 426eb6ea (scratch worktree) and passing after.
-  Constructed parts carry a DECLARED CONSTRUCTED comment. No widened assertions, skips or xfail.
-- Do not narrow or relax departure conditions; do not add a new town owner; do not change the
-  equipment-sale code paths (they are reverted on main).
-- New policy attributes: defaults in the restore chain; list them in the report.
-- Regenerate the manifest (python scripts/town_work_manifest.py --write). Run, with
-  scripts/test_parallel_runner.py --workers 2 and PYTHONPATH=src, every module you touched plus the
-  Hygiene list in the design. Paste the Failures/Errors/Total lines. Do not run the full suite (the
-  merge gate does). Max 2 workers.
+- Every pin in the design: show the run line failing on ff524851 (scratch worktree under
+  C:\hengband\bot-client\.worktrees\) and passing after. Constructed parts carry DECLARED CONSTRUCTED comments.
+  No widened assertions, skips or xfail.
+- Do not relax required counts or departure conditions; do not guard purchases (09-03 #1, #4).
+- New producer/sink/attributes: register claim owner, family, need, item sink, ladder rung if called from
+  _decide, manifest; restore-chain defaults; list them in the report.
+- Regenerate the manifest. Run scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src) on every module you
+  touched plus: tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint
+  tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_test_fakery_lint tests.test_town_arbiter
+  tests.test_equipment_homefull_step15a tests.test_overweight_home_hold_recorded tests.test_home_full_relief_recorded
+  tests.test_home_full_destroy_posted_confirm. One final clean run of that whole list after the last change; paste
+  its Failures/Errors/Total lines. No full suite (the merge gate runs it). Max 2 workers.
+- Do NOT commit validation logs or runner output into the repository (keep them outside the repo).
 - No game/bot control, no push, no merge into main, no git reset --hard.
-- Commit on this branch. Write SOL-REPORT-step1.5a.txt: what changed (file:function), how the single
-  flag drives the existing retire path, pins with before/after run lines, hygiene lines, anything not
-  done. Budget: about 150k tokens; if you approach it, stop, commit what is green, and report.
+- Commit on this branch; write SOL-REPORT-step1.5b.txt.
+- Budget: about 200k tokens. Step 1.5a used 746k; keep scope to the design. If you approach the budget, stop,
+  commit what is green, and report what remains.
