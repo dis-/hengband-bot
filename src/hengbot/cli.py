@@ -599,6 +599,8 @@ def _policy_final_stop_banner(reason: str) -> str:
         "dark:locomotion-exhausted": "dark movement probes and remembered routes are exhausted",
         "town:blocked:departure-unsatisfiable": "no state-changing owner can satisfy the remaining departure conjunct",
         "town:blocked:overweight-home-unreachable": "the overweight character cannot reach Home to deposit surplus",
+        "town:blocked:overweight-home-full-no-legal-relief": "Home is full, relief has no legal candidate, and selling the carried surplus cannot bring the weight within the limit",
+        "town:blocked:overweight-surplus-rebuy-loop": "the same overweight surplus item had to be sold twice in this town visit (sell/rebuy loop)",
         "town:blocked:home-withdraw-failed-stock-present": "Home still records the requested item after its bounded withdrawal failed",
         "town:blocked:owner-retired": "the town arbiter exhausted the selected owner's visit budget",
         "town:blocked:owner-retired-burst": "three retirements in this town visit had no observed work or distance progress",
