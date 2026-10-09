@@ -1995,11 +1995,6 @@ class EquipmentMixin:
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
-        if self._equipment_sale_should_yield_transaction(snapshot):
-            self.last_reason = "equipment-transaction:yield-for-equipment-sale"
-            return self._equipment_home_outcome(
-                LEAVE_STORE_KEY, label="yield-for-equipment-sale",
-            )
         if self._release_stalled_equipment_transaction(snapshot):
             self._offer_execution(
                 LEAVE_STORE_KEY, producer="equipment-txn",
@@ -3253,75 +3248,6 @@ class EquipmentMixin:
             or getattr(self, "_home_full_retry_deposits", None) is not None
             or self._equipment_home_full_refused_this_visit()
         )
-
-    def _equipment_sale_should_yield_transaction(
-        self, snapshot: Snapshot,
-    ) -> bool:
-        """Whether a prepared sale must temporarily precede equipment work.
-
-        The transaction keeps its stripped-item ownership while the sale plan
-        frees Home capacity.  A pending transaction command remains the causal
-        barrier and cannot be interrupted.
-        """
-        sale = getattr(self, "_equipment_sale_session", None)
-        transaction = self._equipment_transaction_session
-        if (
-            not isinstance(sale, dict)
-            or not sale.get("built")
-            or sale.get("blocker")
-            or not sale.get("items")
-            or not getattr(snapshot, "in_town", False)
-            or transaction is None
-            or transaction.pending_action is not None
-            or self._home_atomic_deposit_pending is not None
-            or self._home_atomic_withdraw_pending is not None
-        ):
-            return False
-        attempted = sale.get("attempted", ())
-        refused = sale.get("refused", ())
-        sale_signatures = {
-            entry.get("signature") for entry in sale.get("items", ())
-        }
-        pending_sale = (
-            self._pending_disposal_item in sale_signatures
-            or bool(sale_signatures.intersection(self._home_pending_batch))
-            or self._batch_sell_pending is not None
-        )
-        has_unstarted_sale = any(
-            entry.get("signature") not in attempted
-            and entry.get("signature") not in refused
-            for entry in sale.get("items", ())
-        )
-        current = transaction.current_action
-        deposit_refused = bool(
-            current is not None
-            and current.kind == "deposit"
-            and any(blocker in transaction.blockers for blocker in (
-                "deposit-refused", "home-route-unavailable",
-            ))
-        )
-        home_full = self._home_is_full(snapshot)
-        yielding = bool(sale.get("transaction_yield", False))
-        if not yielding:
-            if not has_unstarted_sale or not (home_full or deposit_refused):
-                return False
-            sale["transaction_yield"] = True
-            yielding = True
-        if home_full or pending_sale:
-            return yielding
-
-        # A sale batch has made usable Home space. Resume the same deposit
-        # action instead of abandoning it and restoring the stripped loadout.
-        sale["transaction_yield"] = False
-        if deposit_refused:
-            transaction.blockers = [
-                blocker for blocker in transaction.blockers
-                if blocker not in {"deposit-refused", "home-route-unavailable"}
-            ]
-            if transaction.executable:
-                self._equipment_transaction_route_abandonment = None
-                self._equipment_transaction_route_terminal_pending = False
-        return False
 
     def _ensure_equipment_sale_session(self, snapshot: Snapshot) -> None:
         """Start this visit's sale plan after an in-town process restart."""
