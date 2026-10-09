@@ -431,12 +431,37 @@ class EquipmentMixin:
     ) -> bool:
         """Whether this decision began with equipment locomotion ownership.
 
-        An equipment transaction retains relocation ownership until it ends.
+        A sale item already withdrawn for the saved sale list travels to its
+        store under the sale; the transaction keeps its stripped items.
         """
         return bool(
             snapshot.in_town
             and getattr(self, "_decision_context", None) is not None
             and self._decision_context.equipment_transaction_owned
+            and not self._equipment_sale_carries_pending_item()
+        )
+
+    def _equipment_sale_carries_pending_item(self) -> bool:
+        """Whether a saved-list sale item is on its way to a non-Home store.
+
+        Live 2026-10-08 23:37: the withdrawn sale item could not travel to the
+        General Store because the equipment transaction owned relocation, and
+        the route WAIT repeated until the owner-retired burst stop.
+        """
+        sale = getattr(self, "_equipment_sale_session", None)
+        pending = getattr(self, "_pending_disposal_item", None)
+        if (
+            not isinstance(sale, dict)
+            or not sale.get("built")
+            or sale.get("blocker")
+            or pending is None
+            or sale.get("active_store") in (None, STORE_HOME)
+        ):
+            return False
+        return any(
+            entry.get("signature") == pending
+            and entry.get("store_type") == sale.get("active_store")
+            for entry in sale.get("items", ())
         )
 
     def _equipment_transaction_home_work(self) -> bool:
@@ -1999,6 +2024,11 @@ class EquipmentMixin:
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
+        if self._equipment_sale_should_yield_transaction(snapshot):
+            self.last_reason = "equipment-transaction:yield-for-equipment-sale"
+            return self._equipment_home_outcome(
+                LEAVE_STORE_KEY, label="yield-for-equipment-sale",
+            )
         if self._release_stalled_equipment_transaction(snapshot):
             self._offer_execution(
                 LEAVE_STORE_KEY, producer="equipment-txn",
@@ -3253,6 +3283,13 @@ class EquipmentMixin:
             or self._equipment_home_full_refused_this_visit()
         )
 
+    def _equipment_sale_has_unstarted_items(self) -> bool:
+        """Whether the built per-visit sale list still has untried items."""
+        sale = getattr(self, "_equipment_sale_session", None)
+        if not isinstance(sale, dict) or not sale.get("built") or sale.get("blocker"):
+            return False
+        return self._equipment_sale_has_reachable_items(sale)
+
     def _equipment_sale_has_reachable_items(
         self, sale: dict, snapshot: Snapshot | None = None,
     ) -> bool:
@@ -3287,6 +3324,80 @@ class EquipmentMixin:
                               and self._home_available(snapshot)))))
             for entry in sale.get("items", ())
         )
+
+    def _equipment_sale_should_yield_transaction(
+        self, snapshot: Snapshot,
+    ) -> bool:
+        """Whether a prepared sale must temporarily precede equipment work.
+
+        The transaction keeps its stripped-item ownership while the sale plan
+        frees Home capacity.  A pending transaction command remains the causal
+        barrier and cannot be interrupted.
+        """
+        sale = getattr(self, "_equipment_sale_session", None)
+        transaction = self._equipment_transaction_session
+        if (
+            not isinstance(sale, dict)
+            or not sale.get("built")
+            or sale.get("blocker")
+            or not sale.get("items")
+            or not getattr(snapshot, "in_town", False)
+            or transaction is None
+            or transaction.pending_action is not None
+            or self._home_atomic_deposit_pending is not None
+            or self._home_atomic_withdraw_pending is not None
+        ):
+            return False
+        attempted = sale.get("attempted", ())
+        refused = sale.get("refused", ())
+        sale_signatures = {
+            entry.get("signature") for entry in sale.get("items", ())
+        }
+        pending_sale = (
+            self._pending_disposal_item in sale_signatures
+            or bool(sale_signatures.intersection(self._home_pending_batch))
+            or self._batch_sell_pending is not None
+        )
+        has_unstarted_sale = self._equipment_sale_has_reachable_items(
+            sale, snapshot,
+        )
+        current = transaction.current_action
+        deposit_refused = bool(
+            current is not None
+            and current.kind == "deposit"
+            and any(blocker in transaction.blockers for blocker in (
+                "deposit-refused", "home-route-unavailable",
+            ))
+        )
+        home_full = self._home_is_full(snapshot)
+        yielding = bool(sale.get("transaction_yield", False))
+        if not yielding:
+            if not has_unstarted_sale or not (home_full or deposit_refused):
+                return False
+            sale["transaction_yield"] = True
+            yielding = True
+        if home_full and not pending_sale and not has_unstarted_sale:
+            # Nothing on this return's sale list can still be sold (the Home
+            # withdrawal cap is spent and no carried item remains): hand the
+            # turn back to the equipment transaction so it can finish or give
+            # up on its own path instead of yielding forever.
+            sale["transaction_yield"] = False
+            return False
+        if home_full or pending_sale:
+            return yielding
+
+        # A sale batch has made usable Home space. Resume the same deposit
+        # action instead of abandoning it and restoring the stripped loadout.
+        sale["transaction_yield"] = False
+        if deposit_refused:
+            transaction.blockers = [
+                blocker for blocker in transaction.blockers
+                if blocker not in {"deposit-refused", "home-route-unavailable"}
+            ]
+            if transaction.executable:
+                self._equipment_transaction_route_abandonment = None
+                self._equipment_transaction_route_terminal_pending = False
+        return False
 
     def _ensure_equipment_sale_session(self, snapshot: Snapshot) -> None:
         """Start this visit's sale plan after an in-town process restart."""
@@ -3413,10 +3524,9 @@ class EquipmentMixin:
         sale = getattr(self, "_equipment_sale_session", None)
         store = snapshot.store
         if (
-            self._equipment_transaction_session is not None
-            or self._equipment_transaction_owned_items
-            or not isinstance(sale, dict)
+            not isinstance(sale, dict)
             or not sale.get("built")
+            or not sale.get("transaction_yield")
             or store is None
             or sale.get("active_store") != store.store_type
         ):
@@ -3445,9 +3555,6 @@ class EquipmentMixin:
 
     def _equipment_sale_next_store(self, snapshot: Snapshot) -> int | None:
         """Select the next never-retried item on this return's saved list."""
-        if (self._equipment_transaction_session is not None
-                or self._equipment_transaction_owned_items):
-            return None
         self._ensure_equipment_sale_session(snapshot)
         session = getattr(self, "_equipment_sale_session", None)
         if not isinstance(session, dict) or not session.get("built"):
@@ -3495,7 +3602,6 @@ class EquipmentMixin:
                 # A sale that disappeared from the pack is complete.
                 self._clear_pending_disposal()
         attempted = session.setdefault("attempted", set())
-        planned = session.setdefault("planned", set())
         refused = session.setdefault("refused", set())
         withdrawals = int(session.get("withdrawals", 0))
         entries = session["items"]
@@ -3515,7 +3621,7 @@ class EquipmentMixin:
                 )
         for entry in entries:
             signature = entry["signature"]
-            if (signature in attempted or signature in planned or signature in refused
+            if (signature in attempted or signature in refused
                     or entry["store_type"] in self._store_sale_refused):
                 continue
             if signature in self._unsellable_items:
@@ -3546,7 +3652,6 @@ class EquipmentMixin:
                         candidate["origin"] != "home"
                         or candidate["store_type"] != entry["store_type"]
                         or candidate["signature"] in attempted
-                        or candidate["signature"] in planned
                         or candidate["signature"] in refused
                         or candidate["store_type"] in self._store_sale_refused
                     ):
@@ -3564,9 +3669,10 @@ class EquipmentMixin:
                     batch = batch[:1]
                 session["active_store"] = entry["store_type"]
                 session["batch"] = [candidate["signature"] for candidate in batch]
-                planned.update(candidate["signature"] for candidate in batch)
+                session["withdrawals"] = withdrawals + len(batch)
                 self._pending_disposal_item = batch[0]["signature"]
                 self._pending_disposal_slot = None
+                attempted.update(candidate["signature"] for candidate in batch)
                 if not self._home_pending_batch and len(batch) > 1:
                     self._home_pending_batch.extend(
                         candidate["signature"] for candidate in batch[1:]

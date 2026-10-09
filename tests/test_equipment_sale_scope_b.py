@@ -99,7 +99,10 @@ class EquipmentSaleScopeB(unittest.TestCase):
         self.assertIn(("saved gear", 37, 4),
                       restored._equipment_sale_session["attempted"])
 
-    def test_sale_item_does_not_release_transaction_relocation_ownership(self):
+    def test_withdrawn_sale_item_travels_under_the_sale_not_the_transaction(self):
+        """Live 2026-10-08 23:37: the route to the General Store was refused
+        because the equipment transaction owned relocation; the WAIT repeated
+        until the owner-retired burst stop."""
         from hengbot.policy_types import DecisionContext
         policy = HengbotPolicy()
         town = SimpleNamespace(in_town=True)
@@ -114,38 +117,10 @@ class EquipmentSaleScopeB(unittest.TestCase):
             "active_store": 1,
         }
         policy._pending_disposal_item = signature
-        self.assertTrue(policy._equipment_transaction_owns_town_relocation(town))
-        # Sale inventory never releases relocation while transaction owns it.
+        self.assertFalse(policy._equipment_transaction_owns_town_relocation(town))
+        # Without a carried sale item the transaction keeps relocation.
         policy._pending_disposal_item = None
         self.assertTrue(policy._equipment_transaction_owns_town_relocation(town))
-
-    def test_sale_selection_waits_until_transaction_and_owned_items_are_gone(self):
-        policy = HengbotPolicy()
-        item = InventoryItem(
-            "a", "pack sale candidate", 1, 37, 1, True, True,
-            fully_known=True, is_equipment=True,
-        )
-        signature = policy._item_signature(item)
-        policy._equipment_sale_session = {
-            "built": True, "items": [{
-                "signature": signature, "origin": "pack", "store_type": 2,
-                "weight": 1,
-            }],
-            "attempted": set(), "planned": set(), "refused": set(),
-            "withdrawals": 0, "active_store": None,
-        }
-        policy._equipment_transaction_session = object()
-        policy._equipment_transaction_owned_items = [("stripped", "body")]
-        board = SimpleNamespace(inventory=[item])
-
-        self.assertIsNone(policy._equipment_sale_next_store(board))
-        self.assertEqual(policy._equipment_sale_session["attempted"], set())
-        self.assertEqual(policy._equipment_sale_session["withdrawals"], 0)
-        policy._equipment_transaction_session = None
-        self.assertIsNone(policy._equipment_sale_next_store(board))
-        self.assertEqual(policy._equipment_sale_session["attempted"], set())
-        policy._equipment_transaction_owned_items.clear()
-        self.assertEqual(policy._equipment_sale_next_store(board), 2)
 
     def test_home_sale_batch_is_bounded_to_three_withdrawals(self):
         policy = HengbotPolicy()
@@ -166,12 +141,7 @@ class EquipmentSaleScopeB(unittest.TestCase):
         selected = policy._equipment_sale_next_store(SimpleNamespace(inventory=[]))
 
         self.assertEqual(selected, STORE_HOME)
-        self.assertEqual(policy._equipment_sale_session["withdrawals"], 0)
-        self.assertEqual(policy._equipment_sale_session["attempted"], set())
-        self.assertEqual(
-            policy._equipment_sale_session["planned"],
-            set(signatures[:3]),
-        )
+        self.assertEqual(policy._equipment_sale_session["withdrawals"], 3)
         self.assertEqual(len(policy._equipment_sale_session["batch"]), 3)
         self.assertEqual(len(policy._home_pending_batch), 2)
 

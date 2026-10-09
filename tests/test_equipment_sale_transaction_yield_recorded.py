@@ -1,4 +1,4 @@
-"""Recorded sale observations remain useful after sale/transaction yielding was removed."""
+"""The 2026-10-08 Home-route stop must yield to its prepared sale plan."""
 
 from __future__ import annotations
 
@@ -6,17 +6,25 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+import tempfile
 import unittest
 from dataclasses import replace
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import tests  # noqa: F401
-from hengbot.model import parse_snapshot
-from hengbot.model import STORE_HOME, StoreState
+from hengbot.equipment_transaction_planner import (
+    EquipmentTransaction,
+    EquipmentTransactionPlan,
+    PHASE_HOME_FINALIZE,
+)
+from hengbot.equipment_transaction_session import EquipmentTransactionSession
+from hengbot.model import _parse_items, parse_snapshot
+from hengbot.model import StoreState
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
 from hengbot.policy_types import StoreVisit, TownErrandPlan
+from hengbot.warrior_optimization import load_character_calibration
 from test_equipment_optimizer_sales import measurement
 
 
@@ -88,6 +96,7 @@ class EquipmentSaleTransactionYieldRecordedTest(unittest.TestCase):
             "attempted": {signature}, "refused": set(),
             "withdrawals": observe["equipment_sale"]["withdrawals"],
             "active_store": board.store.store_type,
+            "transaction_yield": True,
         }
         policy._store_visit = StoreVisit(
             owner=observe["store_visit"]["owner"],
@@ -148,49 +157,7 @@ class EquipmentSaleTransactionYieldRecordedTest(unittest.TestCase):
         policy._store_sale_refused.add(2)
         self.assertFalse(policy._equipment_sale_has_reachable_items(sale))
 
-    def test_0143_capture_repeated_selection_does_not_count_planned_withdrawals(self):
-        pin = json.loads(gzip.decompress(BURST_FIXTURE.read_bytes()))
-        observed = next(
-            row for row in pin["decisions"]
-            if row.get("equipment_sale", {}).get("withdrawals") == 20
-        )
-        self.assertEqual(observed["equipment_sale"]["withdrawals"], 20)
-        policy = HengbotPolicy()
-        signatures = [(f"captured planned sale {i}", 1, 1) for i in range(3)]
-        policy._equipment_sale_session = {
-            "built": True, "items": [
-                {"signature": sig, "origin": "home", "store_type": 2,
-                 "weight": 1} for sig in signatures
-            ],
-            "attempted": set(), "planned": set(), "refused": set(),
-            "withdrawals": 9,
-            "active_store": None,
-        }
-        policy._home_available = lambda _snapshot: True
-        policy._inventory_weight_limit = lambda _snapshot: 100
-        policy._inventory_weight = lambda _snapshot: 0
-        board = SimpleNamespace(inventory=[])
-
-        before = (
-            policy._equipment_sale_session["withdrawals"],
-            set(policy._equipment_sale_session["attempted"]),
-        )
-        self.assertEqual(policy._equipment_sale_next_store(board), STORE_HOME)
-        self.assertEqual(
-            (policy._equipment_sale_session["withdrawals"],
-             policy._equipment_sale_session["attempted"]), before,
-        )
-        self.assertEqual(policy._equipment_sale_next_store(board), STORE_HOME)
-        self.assertEqual(policy._equipment_sale_next_store(board), STORE_HOME)
-        self.assertEqual(
-            (policy._equipment_sale_session["withdrawals"],
-             policy._equipment_sale_session["attempted"]), before,
-        )
-        self.assertEqual(
-            policy._equipment_sale_session["planned"], set(signatures)
-        )
-
-    def test_B_recorded_pending_home_knowledge_still_blocks_stale_sale(self):
+    def test_B_recorded_pending_home_knowledge_cannot_own_transaction_yield(self):
         rows = self.loop_pins["captures"]["B"]["decisions"]
         self.assertEqual(
             [(row["reason"], row["key"]) for row in rows[-3:]],
@@ -248,6 +215,120 @@ class EquipmentSaleTransactionYieldRecordedTest(unittest.TestCase):
         self.assertEqual(key, "5", (key, policy.last_reason))
         self.assertEqual(policy.last_reason, "shop:observed-operation-uncomposable")
         self.assertIn(1, policy._town_visit_ledger.nonhome_attempted_without_effect)
+
+    def test_built_sale_runs_before_home_route_terminal_without_losing_stripped_items(self):
+        self._run_scene(home_refilled=False)
+
+    def test_spent_withdrawal_cap_returns_turn_to_transaction(self):
+        """Live 2026-10-08 22:28: after the three Home withdrawals the Home was
+        full again, nothing on the sale list was reachable, and the yield kept
+        sending ESC until the owner-retired burst stop."""
+        self._run_scene(home_refilled=True)
+
+    def _run_scene(self, *, home_refilled):
+        pin = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+        self.assertEqual(
+            pin["terminal_stop"]["reason"],
+            "equipment-transaction:home-route-repeat-terminal",
+        )
+        self.assertEqual(pin["sale_built_stop"]["equipment_sale"]["items"], 106)
+        self.assertEqual(pin["sale_built_stop"]["equipment_sale"]["withdrawals"], 3)
+
+        data, catalog, _recorded_snapshot, _evaluator, _options = (
+            measurement.recorded_inputs()
+        )
+        lore = _lore(data)
+        board = parse_snapshot(pin["board"], lore)
+        policy = HengbotPolicy(monrace_knowledge=lore)
+        policy.consume_skill_knowledge(data["skill"])
+        board = policy._with_cached_skill_exp(board)
+        policy.prime(board)
+        home = tuple(_parse_items(
+            data["home"]["knowledge"]["items"],
+            protocol=data["home"]["protocol_version"],
+        ))
+        policy.consume_home_knowledge(home)
+        policy._equipment_catalog = catalog  # TEST_FAKERY_LINT_ALLOW: private-state-injected: replay reconstructs the captured optimizer catalogue
+        policy._equipment_catalog.refresh_carried(board.inventory, board.equipment)
+        policy._home_knowledge_items = home
+        policy._home_knowledge_current = True
+        policy._home_knowledge_invalidated = False
+        policy._home_scan_item_count = len(home)
+        policy._home_capacity_observation = (
+            240, 240, policy._effective_town_id(board),
+        )
+
+        with tempfile.TemporaryDirectory(prefix="sale-transaction-yield-") as directory:
+            calibration_path = Path(directory) / "character-calibration.json"
+            calibration_path.write_text(
+                json.dumps(data["calibration"]), encoding="utf-8",
+            )
+            policy._character_calibration = load_character_calibration(
+                calibration_path
+            )
+            policy._character_calibration_loaded = True
+            policy._ensure_equipment_sale_session(board)
+            policy._equipment_sale_session["sale_needed"] = True
+            policy._build_equipment_sale_session(board)
+
+        self.assertTrue(policy._equipment_sale_session["built"])
+        self.assertEqual(len(policy._equipment_sale_session["items"]), 106)
+
+        # DECLARED CONSTRUCTED transaction checkpoint: the captured stop did
+        # not retain a policy checkpoint, so reconstruct the blocked Home
+        # deposit and its stripped-item ownership from the recorded failure.
+        transaction = EquipmentTransactionSession(EquipmentTransactionPlan((
+            EquipmentTransaction(
+                PHASE_HOME_FINALIZE, "deposit", "live-item", "body", "live-identity",
+            ),
+        ), (), 0))
+        transaction.block("home-route-unavailable")
+        held_items = [("live-identity", "body")]
+        policy._equipment_transaction_session = transaction
+        policy._equipment_transaction_owned_items = list(held_items)
+
+        key = policy.choose_key(board)
+
+        self.assertEqual(policy.last_reason, "shop:travel")
+        self.assertTrue(key.startswith("\x1b`n"))
+        self.assertIs(policy._equipment_transaction_session, transaction)
+        self.assertEqual(policy._equipment_transaction_owned_items, held_items)
+        self.assertEqual(transaction.blockers, ["home-route-unavailable"])
+        self.assertIsNone(policy._equipment_transaction_route_terminal)
+        sale = policy._equipment_sale_session
+        self.assertEqual(sale["withdrawals"], 3)  # Three planned batch slots.
+        self.assertEqual(len(sale["batch"]), 3)
+        self.assertEqual(sale["attempted"], set(sale["batch"]))
+
+        # DECLARED CONSTRUCTED batch completion: three withdrawals/sales have
+        # freed Home slots. The same blocked deposit is executable again.
+        policy._pending_disposal_item = None
+        policy._home_pending_batch.clear()
+        if home_refilled:
+            # DECLARED CONSTRUCTED refill: the freed slots were used again, so
+            # the Home is full while this return's withdrawal cap is spent.
+            sale["withdrawals"] = HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
+            policy._home_capacity_observation = (
+                240, 240, policy._effective_town_id(board),
+            )
+            self.assertTrue(policy._home_is_full(board))
+            self.assertFalse(policy._equipment_sale_has_unstarted_items())
+            self.assertFalse(
+                policy._equipment_sale_should_yield_transaction(board)
+            )
+            self.assertFalse(sale["transaction_yield"])
+            self.assertIs(policy._equipment_transaction_session, transaction)
+            self.assertEqual(policy._equipment_transaction_owned_items, held_items)
+            return
+        policy._home_capacity_observation = (
+            239, 240, policy._effective_town_id(board),
+        )
+        self.assertFalse(policy._equipment_sale_should_yield_transaction(board))
+        self.assertIs(policy._equipment_transaction_session, transaction)
+        self.assertTrue(transaction.executable)
+        self.assertEqual(transaction.current_action.kind, "deposit")
+        self.assertEqual(transaction.blockers, [])
+
 
 if __name__ == "__main__":
     unittest.main()

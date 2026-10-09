@@ -2708,25 +2708,14 @@ class TownMixin:
                         self._pending_disposal_item
                     )
                 self._clear_pending_disposal()
-        pending_sale_owned_by_transaction = bool(
-            self._equipment_transaction_session is not None
-            or self._equipment_transaction_owned_items
-        ) and any(
-            entry.get("signature") == self._pending_disposal_item
-            for entry in (
-                getattr(self, "_equipment_sale_session", None) or {}
-            ).get("items", ())
-        )
         if (
             self._pending_disposal_item is not None
-            and not pending_sale_owned_by_transaction
             and (target := self._pending_disposal(snapshot)) is not None
         ):
             disposal_store = self._dominated_disposal_store(target)
             if disposal_store is not None and disposal_store not in self._disposal_store_attempts:
                 add(disposal_store, "disposal")
-        elif (self._pending_disposal_item is not None
-              and not pending_sale_owned_by_transaction):
+        elif self._pending_disposal_item is not None:
             sale_session = getattr(self, "_equipment_sale_session", None)
             if (
                 isinstance(sale_session, dict)
@@ -3319,10 +3308,8 @@ class TownMixin:
             } for need in phase_zero)
         )
         self._equipment_sale_relief_preempts_deposits = sale_may_preempt_deposits
-        if (self._equipment_transaction_session is None
-                and not self._equipment_transaction_owned_items
-                and (not phase_zero or sale_may_preempt_deposits
-                     or self._equipment_sale_relief_active(snapshot))):
+        if (not phase_zero or sale_may_preempt_deposits
+                or self._equipment_sale_relief_active(snapshot)):
             equipment_sale_store = self._equipment_sale_next_store(snapshot)
             if equipment_sale_store is not None:
                 add(

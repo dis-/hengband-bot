@@ -366,8 +366,7 @@ class HomeMixin:
             return None
         # Physical restoration remains the admitted owner's work. Resume this
         # errand only after it releases the character; do not freeze restoration.
-        if (self._equipment_transaction_session is not None
-                or self._equipment_transaction_owned_items):
+        if self._equipment_transaction_owned_items:
             return None
         retry = getattr(self, "_home_full_retry_deposits", None)
         if retry is not None:
@@ -2957,14 +2956,6 @@ class HomeMixin:
             self._defer_home_item(signature, "unobserved-home-withdrawal")
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
-            sale_session = getattr(self, "_equipment_sale_session", None)
-            if (isinstance(sale_session, dict)
-                    and signature in sale_session.get("batch", ())):
-                sale_session.setdefault("planned", set()).discard(signature)
-                sale_session["batch"] = [
-                    planned for planned in sale_session.get("batch", ())
-                    if planned != signature
-                ]
             self._home_pending_quantities.pop(signature, None)
         if self._home_pending_item == signature:
             self._home_pending_item = None
