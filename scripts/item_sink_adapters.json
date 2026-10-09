@@ -233,8 +233,8 @@
     "self._store_sell_key(snapshot, target, 'shop:sell-home-full-surplus', rejected_reason='shop:unsellable-home-full-surplus-sale-refused') @ If:body:sale is not None / If:body:count > before_count / If:body:snapshot.store is not None": 1
   },
   "policy_home.py:_open_home_deposit_key": {
-    "self._home_deposit_key(snapshot, item, forced_count=deposit_count) @ For:sorted(self._home_deposit_batch(snapshot, first), key=lambda entry: entry[0].slot, reverse=True)": 1,
-    "self._home_full_relief_key(snapshot) @ If:body:self._home_is_full(snapshot) or self._home_full_relief is not None": 1
+    "self._home_full_relief_key(snapshot) @ If:body:open_page_full or self._home_is_full(snapshot) or self._home_full_relief is not None": 1,
+    "self._home_deposit_key(snapshot, item, forced_count=deposit_count) @ For:sorted(self._home_deposit_batch(snapshot, first), key=lambda entry: entry[0].slot, reverse=True)": 1
   },
   "policy_home.py:_probe_unobserved_home_withdrawal": {
     "self._defer_unobserved_home_withdrawal(signature) @ ": 1

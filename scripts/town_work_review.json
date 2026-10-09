@@ -10391,5 +10391,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._carried_disposal_preserves_departure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Boolean probe over carried counts and Identify charges; no command or effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._overweight_surplus_sale_key": {
+    "classification": "producer",
+    "rows": [
+      "overweight-surplus"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "F3: shop-sell owner, overweight-surplus need; last-resort surplus after full Home relief proves impossible. Partial stacks pass the retention sink; observed effects log and persist the visit ledger.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

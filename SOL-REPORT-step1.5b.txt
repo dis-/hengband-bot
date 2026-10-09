@@ -1,0 +1,163 @@
+Step 1.5b: overweight with a full Home (design revision 2)
+
+Branch: step1.5b-overweight.
+Implementation base: ff524851 (step1.5a-equipment-homefull).
+Task/design documents were already committed at 7e78d701.
+
+Implementation
+
+F1: policy_home.py, policy_shop.py, policy_town.py, policy_equipment.py,
+policy.py. Read the open Home page before releasing a staged deposit tail as
+well as before composing an open-page deposit. A 240/240 page starts relief;
+no overweight deposit is posted into it. Mandatory overweight batches are
+never put into the optional deferred retry. Equipment-origin Home blocks
+carry visit-local provenance; every direct Home blocked-store eligibility
+read goes through _town_store_blocked_under_applicable_bound(need=...).
+Weight work ignores only the equipment-origin block, preserving independent
+Home pass/approach bounds and step1.5a's equipment tombstone. Observed Home
+success still releases a numeric pass block regardless of its old limit.
+
+F2: carried Home-relief disposal is considered only when the pack is full.
+Its selection and emission probe the existing departure ledger. Removing a
+stack cannot worsen a required departure shortage or reduce Identify charges
+below min(20, the previously carried charges). Home shelf relief remains
+available for a non-full pack; a non-full pack gets no carried fallback destroy.
+
+F3: separate _overweight_surplus_sale_key, admitted only after full Home relief
+has no legal candidate while overweight. _retention_surplus defines every
+quantity; required counts and departure gates are unchanged. Candidates are
+sorted by lost sale value, and each selected stack's entire surplus is sold
+through _store_sell_key/_batch_sale_entry and the existing in-store commit.
+Regular shops, Bookstore and Black Market are tested for acceptance; only
+items with no remaining buyer use the checked partial-destroy sink. Protected
+equipment, artifacts, bounty items, reserved items, and pending/planned mining
+supplies remain protected. Insufficient legal shedding stops immediately with
+town:blocked:overweight-home-full-no-legal-relief.
+
+An observed disposal appends time, item, count, actual gold delta, Home stock,
+weight before/after and visit epoch to overweight-surplus-disposal.jsonl.
+Decision reasons are town:overweight-surplus-sold:home-full and
+town:overweight-surplus-destroyed:home-full. The durable ledger records the
+posted operation before its effect and records completed signatures. A second
+disposal of the same normalized identity in that visit stops visibly with
+town:blocked:overweight-surplus-rebuy-loop. Identity strips regenerated display
+inscriptions and excludes count, position and turn. A fresh process reloads
+the active epoch and ledger; leaving town ends that epoch.
+
+Registration and restore chain
+
+Producer: policy_home.py:HomeMixin._overweight_surplus_sale_key.
+Claim owner/family: ClaimOwner.SHOP_SELL / shop-sell.
+Need: overweight-surplus, normal, occurrence 0, departure-blocking.
+Item source: _overweight_surplus_disposal, selection component.
+Quantity sink: overweight-surplus; checked serializer emits only the retained
+surplus quantity and fails closed on an invalid verdict.
+Claim goals: sale/store-operation observation, destroy/effect observation,
+effect wait; outside completion is Terminal after actual removal evidence.
+Ladder: _decide F3 rung, immediately before Home-full relief; total 79.
+Reason census, arbiter and in-store input ownership recognize F3 sale reasons.
+The duplicate-snapshot guard treats F3 disposal as inventory-changing work.
+Producer baseline, reviewed work/need maps, item-intent census and the one
+changed exact Home adapter expression were updated; no adapter wildcard added.
+Manifest and town_work_sites.json regenerated with zero unmapped sites.
+
+Five new policy attributes, initialized and explicitly defaulted on restore
+(policy state version 5):
+  _home_store_block_owner = None
+  _overweight_surplus_disposal = None
+  _overweight_surplus_ledger = {epoch: None, sold: []}
+  _overweight_surplus_ledger_path = runtime_path(overweight-surplus-ledger.json)
+  _overweight_surplus_record_path = runtime_path(overweight-surplus-disposal.jsonl)
+Both paths participate in runtime-file isolation and the observer rollback
+sidecar list. The pin executes the actual observer scope and verifies both
+files roll back byte-for-byte after an observed destroy.
+
+Evidence and constructed boundaries
+
+scripts/extract_step15b_overweight_fixture.py freezes the five 10-08 captures:
+175411, 134816, 090841, 134200 and 134643. State rows are preserved; decisions
+are retained from the last recorded session start (or all available rows for
+a truncated stream). Source filenames and compressed SHA256 values are stored
+in the fixture. Fixture SHA256:
+a9b78bf70843cb35ab40f5f26539dc14549dd9bd8162c522708f48d631cb87f4
+
+tests/test_overweight_homefull_step15b.py has one named test per P1-P8.
+DECLARED CONSTRUCTED comments delimit missing policy bindings, reused recorded
+shop pages, inscription/removal/gold responses after the first divergent
+command, rebuy/restart boards, and deliberately changed physical weight.
+No selector, retention predicate, departure gate or optimizer is mocked.
+P1 consumes the actual s1 skill/census responses and proves the s2 staged
+deposit is cancelled; actual F3 sells 16 speed potions and logs Home stock 240.
+P2 preserves the equipment tombstone while allowing the overweight retry.
+P3 proves the captured mandatory batch is not deferred. The existing mining
+retention requires BOTH captured 090841 Dwarf pickaxes: neither was sold or
+reclassified as surplus. A declared weaker third tool, with isolated physical
+weight, is actually sold while the two required tools (pval 6 and 7) remain.
+This exercises the design's spare-tool permission without lowering a count.
+P4 covers all three named non-full-pack Identify incidents.
+P5 protects the captured mining kit and stops a constructed same-visit rebuy.
+P6 repeats that bound in a fresh Python process using the persisted ledger.
+P7 stops immediately when no legal surplus can shed sufficient weight.
+P8 verifies partial quantity, real sale and destroy records, restore defaults,
+runtime isolation and telemetry rollback; item_sink_lint checks registration.
+
+Step1.5a pin 1 (134416 and 191943) is intentionally rewritten from the old
+overweight-home-unreachable expectation to the F3 sold outcome with weight
+within the existing limit. Its immutable capture remains unchanged. Both
+replays match the one initial recorded command. At the first divergence,
+reused Alchemist dimensions, declared empty other buyer shelves and accepted
+surplus-sale responses are explicitly constructed; equipment retirement/tombstone and
+no route-repeat assertions remain. The replay continues public choose_key
+until the actual equipment retirement after the observed sale, with an exact
+F3 completion reason assertion. Each replay isolates its runtime files.
+The ladder's exact expected count changes from 78 to 79 for the new registered
+rung, while all source-order checks remain. No widened assertions, new skips,
+xfails, purchase guards or relaxed required counts/departure gates were added.
+
+Validation
+
+Base scratch worktree: C:/hengband/bot-client/.worktrees/step15b-base-check,
+detached ff524851. Only the new test module and its immutable fixture
+were copied there; no implementation was copied. Identical pin module
+SHA256 in base/current:
+db1efe6f001cbdbcd6b96e7bb26d99a128a6d9a40aee211485d596546e26df97
+
+Base failing run line (PYTHONPATH=src):
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_overweight_homefull_step15b --purity always --output C:/hengband-backups/step15b-validation/base-final.json --summary C:/hengband-backups/step15b-validation/base-final-summary.json --streams C:/hengband-backups/step15b-validation/base-final-streams
+All eight named pins failed; P4 has three failing subtests, hence 10 failures.
+P1 fails at the actual full-page staged deposit; P2 at blocked retry;
+P3 at mandatory deferral; P4 at carried Identify destroy; P5-P8 at
+absence of the separate F3 state/effect path. No import/setup error.
+Failures: ['tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin1_175411_open_full_page_relief_then_surplus_sale', 'tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin2_134816_equipment_block_does_not_block_overload_retry', 'tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin3_090841_mandatory_overload_not_deferred', 'tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin4_recorded_nonfull_pack_does_not_destroy_identify_staff', 'tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin5_mining_kit_and_rebought_signature_loop', 'tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin6_fresh_process_preserves_epoch_and_loop_ledger', 'tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin7_insufficient_surplus_stops_immediately', 'tests.test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin8_partial_destroy_sink_retains_counts_and_files_are_isolated']
+Errors: none
+Total: 8 tests, 66.445s; output: C:\hengband-backups\step15b-validation\base-final.json
+
+Focused current pins run line (PYTHONPATH=src):
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_overweight_homefull_step15b --purity always --output C:/hengband-backups/step15b-validation/pins-final.json --summary C:/hengband-backups/step15b-validation/pins-final-summary.json --streams C:/hengband-backups/step15b-validation/pins-final-streams
+Failures: none
+Errors: none
+Total: 8 tests, 81.747s; output: C:\hengband-backups\step15b-validation\pins-final.json
+
+Final whole-list run (PYTHONPATH=src), after final extraction-script EOF cleanup:
+python scripts/test_parallel_runner.py --workers 2 --timings C:/hengband-backups/step15b-validation/final.json --modules tests.test_overweight_homefull_step15b tests.test_equipment_homefull_step15a tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_test_fakery_lint tests.test_town_arbiter tests.test_overweight_home_hold_recorded tests.test_home_full_relief_recorded tests.test_home_full_destroy_posted_confirm tests.test_policy_home tests.test_policy_shop tests.test_policy_town tests.test_policy_equipment tests.test_policy_observation tests.test_policy tests.test_home_visit tests.test_item_reservation tests.test_runtime_file_isolation tests.test_input_executor tests.test_classA_observed_input --purity always --output C:/hengband-backups/step15b-validation/final-clean.json --summary-output C:/hengband-backups/step15b-validation/final-clean-summary.json --streams-dir C:/hengband-backups/step15b-validation/final-clean-streams
+Failures: none
+Errors: none
+Total: 1752 tests, 1756.886s; output: C:\hengband-backups\step15b-validation\final-clean.json
+
+Both actual workers exited 0 (538 and 1214 tests). The eight skips are
+pre-existing cases (3 + 5), not added or widened
+here; all eight new pins executed and passed. No serial shard or third
+worker was selected. No code/test edits occurred during this final run.
+Purity ran, SHA256 c68e2e595685359b66a9689126de0f516d236bc65505282e823b0a7246a7ddd7.
+Native receipt SHA256:
+fa60f1f03c3b490d224a62ed0a652557f273f0854eac4565059d322031fce255
+Manifest regeneration: 807 candidates, 19971 sites, zero unmapped.
+Standalone item-sink-lint and town-structure-lint: 0 violations.
+Normal and staged Git diff --check passed. Real Python executable:
+C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe.
+Exploratory validation outputs are retained externally; final-clean.json is the
+authoritative clean whole-list result. The preliminary census-prefix and
+replay-continuation failures were fixed before this run.
+Validation outputs are outside the repository at
+C:/hengband-backups/step15b-validation/.
+No full suite, game/bot control, push, merge, or git reset --hard was performed.

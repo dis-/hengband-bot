@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import item_available, reserved_item_command
 
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.claim_register import ClaimOwner, claims, terminal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
@@ -18,10 +18,228 @@ from dataclasses import fields, replace
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.store_sale import known_sale_value
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
-from hengbot.model import STORE_ARMOURY, STORE_TEMPLE
+from hengbot.model import STORE_ARMOURY, STORE_TEMPLE, STORE_BLACK
 import re
+import json
+from datetime import datetime, timezone
 
 class HomeMixin:
+
+    def _carried_disposal_preserves_departure(self, snapshot, item, count) -> bool:
+        """Probe actual carried counts, including the Identify charge gate."""
+        probe = replace(snapshot, inventory=tuple(
+            replace(i, count=i.count-count) if i is item else i
+            for i in snapshot.inventory if i is not item or i.count > count))
+        before = self._supply_ledger(snapshot, self._planned_depth())
+        after = self._supply_ledger(probe, self._planned_depth())
+        if any(max(0, s.required_departure-s.count) >
+               max(0, before[k].required_departure-before[k].count)
+               for k, s in after.items()):
+            return False
+        if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
+            # The release plan may call weak staves surplus while replacing
+            # them. Disposal must not manufacture a shortage/rebuy instead.
+            return self._total_identify_staff_charges(probe) >= min(20, self._total_identify_staff_charges(snapshot))
+        return True
+
+    def _overweight_mining_kit_reserved(self, snapshot, item) -> bool:
+        planned = (self._identify_staff_mining_plan or self._recall_stockout_mining_plan
+                   or self._supply_stockout_gold_target is not None
+                   or self._fundraising_mode in {"prepare", "mine"}
+                   or (not self._identify_staff_ready(snapshot)
+                       and self._count_treasure_detection_scrolls(snapshot) > 0))
+        if item.is_digging_tool and self._identify_staff_ready(snapshot) and not (
+                self._identify_staff_mining_plan or self._recall_stockout_mining_plan
+                or self._supply_stockout_gold_target is not None):
+            return False
+        return bool(planned and (item.is_treasure_detection_scroll or item.is_digging_tool
+                                or item.is_light or item.is_oil or item.tval == TVAL_FOOD))
+
+    def _overweight_surplus_candidates(self, snapshot):
+        """Separate partial-stack disposal from whole-stack Home relief."""
+        candidates = []
+        diggers = [i for i in (*snapshot.inventory, *snapshot.equipment)
+                   if i.is_digging_tool and not self._equip_blocked_by_identification(i)]
+        standard = max(diggers, key=lambda i: (self._digging_tool_sale_quality(i), i.slot)) if diggers else None
+        for item in snapshot.inventory:
+            count = self._retention_surplus(snapshot, item)
+            if (count <= 0 or item.weight <= 0 or not item.known or item.is_artifact
+                    or item.is_bounty or item is standard or self._overweight_mining_kit_reserved(snapshot, item)
+                    or self._disposal_protected_by_identification(item)
+                    or self._home_disposal.decision(self._item_signature(item)) == "keep"
+                    or not item_available(self, snapshot, item, "shop-sell", "overweight-surplus")
+                    or not self._carried_disposal_preserves_departure(snapshot, item, count)):
+                continue
+            if item.is_equipment and not item.is_ammo and not item.is_digging_tool:
+                if not self._home_full_equipment_surplus(snapshot, item):
+                    continue
+            stores = tuple(s for s in (STORE_ALCHEMIST, STORE_MAGIC, STORE_WEAPON,
+                STORE_ARMOURY, STORE_GENERAL, STORE_TEMPLE, 8, STORE_BLACK)
+                if self._store_accepts_sale(s, item) and s not in self._store_sale_refused)
+            # A store's refusal is a store fact; try the remaining buyers.
+            value = known_sale_value(item, item_base_cost(item, self._baseitem_costs)) or 0
+            candidates.append((max(0, value)*count, self._item_signature(item), item, count, stores))
+        return sorted(candidates, key=lambda entry: (entry[0], entry[1], entry[2].slot))
+
+    def _observe_overweight_surplus_effect(self, snapshot) -> bool:
+        state = self._overweight_surplus_disposal
+        pending = state.get("pending") if state else None
+        if pending is None or not pending.get("posted"):
+            return False
+        count = sum(i.count for i in snapshot.inventory
+                    if self._sale_item_identity(i) == pending["identity"])
+        removed = pending["before_count"] - count
+        if removed <= 0:
+            return False
+        reason = ("town:overweight-surplus-sold:home-full" if pending["mode"] == "sale"
+                  else "town:overweight-surplus-destroyed:home-full")
+        record = dict(time=datetime.now(timezone.utc).isoformat(), reason=reason,
+            item=pending["signature"], count=removed,
+            price=max(0, snapshot.player.gold-pending["gold"]),
+            home_stock=pending["home_stock"], weight_before=pending["weight"],
+            weight_after=self._inventory_weight(snapshot), visit_epoch=self._town_visit_epoch)
+        self._overweight_surplus_record_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._overweight_surplus_record_path.open("a", encoding="utf8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False)+"\n")
+        self._overweight_surplus_ledger.setdefault("sold", []).append(pending["identity"])
+        self._overweight_surplus_ledger.pop("pending", None)
+        self._save_overweight_surplus_ledger()
+        state.pop("pending", None)
+        self._batch_sell_pending = None
+        self._last_sell_sig = None
+        self._store_sell_attempt = None
+        self._complete_claim_goal("overweight-surplus-observed", owners=("shop-sell",),
+                                  kinds=("Observe",), sources=("effect", "store-operation"))
+        self.last_reason = reason
+        return True
+
+    def _save_overweight_surplus_ledger(self) -> None:
+        path = self._overweight_surplus_ledger_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(self._overweight_surplus_ledger), encoding="utf8")
+        temporary.replace(path)
+
+    @claims(ClaimOwner.SHOP_SELL)
+    def _overweight_surplus_sale_key(self, snapshot: Snapshot) -> str | None:
+        """Last-resort, recorded disposal after Home relief proves impossible."""
+        state = self._overweight_surplus_disposal
+        if state is None or not snapshot.in_town or self._equipment_transaction_owned_items:
+            return None
+        observed = self._observe_overweight_surplus_effect(snapshot)
+        if observed:
+            if not self._inventory_overweight(snapshot):
+                self._overweight_surplus_disposal = None
+            key = LEAVE_STORE_KEY if snapshot.store else WAIT_KEY
+            if snapshot.store is None:
+                self._declare_goal(claim_terminal(self.last_reason), family="shop-sell")
+            self._offer_execution(key, producer="shop-sell", work_id="overweight-surplus-complete",
+                next_step="store.leave.send" if snapshot.store else None,
+                expected_effect="outside-store" if snapshot.store else "surplus-removed",
+                state="acting" if snapshot.store else "done",
+                evidence=None if snapshot.store else "surplus-inventory-removal-observed",
+                post_on_emit=snapshot.store is not None, budget_ref="SELL_ATTEMPT_LIMIT")
+            return key
+        if (snapshot.player.hp < snapshot.player.max_hp
+                or snapshot.player.poisoned or snapshot.player.cut
+                or snapshot.player.confused or snapshot.player.blind
+                or snapshot.player.food_state not in {"normal", "full", "gorged"}
+                or self._physical_hostiles(snapshot)):
+            return None
+        capacity = self._home_capacity_observation
+        if (capacity and capacity[1] > 0 and capacity[0] < capacity[1]
+                and capacity[2] == self._effective_town_id(snapshot)
+                and not state.get("pending", {}).get("posted")):
+            self._overweight_surplus_disposal = None
+            return None
+        if not self._inventory_overweight(snapshot):
+            self._overweight_surplus_disposal = None
+            return None
+        if state["town"] != self._effective_town_id(snapshot):
+            self._town_blocked_reason = "overweight-home-full-no-legal-relief"
+            return self._town_blocked_key(snapshot)
+        candidates = self._overweight_surplus_candidates(snapshot)
+        limit = self._inventory_weight_limit(snapshot)
+        if (sum(i.weight*n for _, _, i, n, _ in candidates)
+                < self._inventory_weight(snapshot)-limit):
+            self._town_blocked_reason = "overweight-home-full-no-legal-relief"
+            return self._town_blocked_key(snapshot)
+        pending = state.get("pending")
+        if pending and pending.get("posted") and pending["mode"] == "destroy":
+            pending["waits"] = pending.get("waits", 0) + 1
+            if pending["waits"] >= STORE_STUCK_LIMIT:
+                self._town_blocked_reason = "overweight-home-full-no-legal-relief"
+                return self._town_blocked_key(snapshot)
+            self.last_reason = "town:overweight-surplus-await-effect"
+            self._offer_execution(WAIT_KEY, producer="shop-sell", work_id="overweight-surplus-destroy",
+                next_step="inventory.disposal.observe", expected_effect="surplus-removed",
+                budget_ref="SELL_ATTEMPT_LIMIT")
+            return WAIT_KEY
+        if pending:
+            chosen = next((c for c in candidates if self._sale_item_identity(c[2]) == pending["identity"]), None)
+        else:
+            chosen = candidates[0] if candidates else None
+        if chosen is None:
+            self._town_blocked_reason = "overweight-home-full-no-legal-relief"
+            return self._town_blocked_key(snapshot)
+        _, signature, item, count, stores = chosen
+        if pending is None:
+            if self._sale_item_identity(item) in self._overweight_surplus_ledger.get("sold", []):
+                self._town_blocked_reason = "overweight-surplus-rebuy-loop"
+                return self._town_blocked_key(snapshot)
+            pending = dict(signature=signature, identity=self._sale_item_identity(item),
+                before_count=sum(i.count for i in snapshot.inventory
+                                 if self._sale_item_identity(i) == self._sale_item_identity(item)),
+                count=count, mode="sale" if stores else "destroy", posted=False, town=state["town"],
+                gold=snapshot.player.gold, weight=self._inventory_weight(snapshot),
+                home_stock=(snapshot.store.stock_num if snapshot.store and snapshot.store.store_type == STORE_HOME
+                            else self._home_capacity_observation[0] if self._home_capacity_observation
+                            else len(self._home_knowledge_items) if self._home_knowledge_current else None))
+            state["pending"] = pending
+        if stores:
+            target = snapshot.store.store_type if snapshot.store and snapshot.store.store_type in stores else stores[0]
+            if snapshot.store is None:
+                self._rearm_town_store_for_new_work(target)
+                step = self._shopping_approach_step(snapshot, target, requester="shop-sell")
+                if step is None:
+                    self._town_blocked_reason = "overweight-home-full-no-legal-relief"
+                    return self._town_blocked_key(snapshot)
+                return self._town_producer_entry("_shopping_approach_key",
+                    lambda: self._shopping_approach_key(snapshot, step, "shop:travel"), family="shop-sell")
+            if snapshot.store.store_type == target:
+                key = self._town_producer_entry("_store_sell_key", lambda: self._store_sell_key(
+                    snapshot, item, "town:overweight-surplus-sold:home-full"), family="shop-sell")
+                if (key and key.startswith((SELL_KEY, "{")) and self._in_store_ops_active()
+                        and self._store_visit is not None):
+                    key = self._in_store_commit_operation(snapshot, key)
+                if key and key.startswith(SELL_KEY):
+                    pending["mode"] = "sale"
+                    pending["key"] = key
+                    pending["gold"] = snapshot.player.gold
+                    pending["weight"] = self._inventory_weight(snapshot)
+                    self.last_reason = "town:overweight-surplus-sold:home-full"
+                if key == LEAVE_STORE_KEY and target in self._store_sale_refused:
+                    # A refusal at one buyer cannot condemn the item at every
+                    # other buyer. Keep trying eligible stores before destroy.
+                    self._unsellable_items.discard(self._item_signature(item))
+                return key
+        elif snapshot.store is None:
+            pending["mode"] = "destroy"
+            key = reserved_item_command(self, snapshot, "overweight-surplus", item, "shop-sell")
+            if key is not None:
+                pending["key"] = key
+                pending["gold"] = snapshot.player.gold
+                pending["weight"] = self._inventory_weight(snapshot)
+                self.last_reason = "town:overweight-surplus-destroyed:home-full"
+                self._offer_execution(key, producer="shop-sell", work_id=f"overweight-surplus:{signature}",
+                    next_step="inventory.destroy.send", arguments=(signature, count),
+                    expected_effect="surplus-removed", continuation="inventory.disposal.observe",
+                    budget_ref="SELL_ATTEMPT_LIMIT")
+            return key
+        self.last_reason = "shop:leave-overweight-surplus"
+        self._offer_execution(LEAVE_STORE_KEY, producer="shop-sell", work_id="overweight-surplus-leave",
+            next_step="store.leave.send", expected_effect="outside-store", budget_ref="SELL_ATTEMPT_LIMIT")
+        return LEAVE_STORE_KEY
 
     def _home_full_has_normal_identification_source(self, snapshot: Snapshot) -> bool:
         reliable_only = (
@@ -32,6 +250,11 @@ class HomeMixin:
         ) is not None
 
     def _home_is_full(self, snapshot: Snapshot) -> bool:
+        store = getattr(snapshot, "store", None)
+        if (store is not None and store.store_type == STORE_HOME
+                and isinstance(store.stock_num, int) and isinstance(store.capacity, int)
+                and store.capacity > 0 and store.stock_num >= store.capacity):
+            return True
         fact = getattr(self, "_home_capacity_observation", None)
         return bool(fact and fact[1] > 0 and fact[0] >= fact[1]
                     and fact[2] == self._effective_town_id(snapshot))
@@ -40,11 +263,11 @@ class HomeMixin:
         self, snapshot: Snapshot, entries: tuple, *, refused: bool = False,
     ) -> None:
         """Bind the blocked deposit batch; reclaim no more than its stack slots."""
-        if self._home_full_relief is not None or not entries:
+        if self._home_full_relief is not None or (not entries and not self._inventory_overweight(snapshot)):
             return
         if refused or self._home_is_full(snapshot):
             self._home_full_relief = {
-                "deposits": tuple(entries), "remaining": len(entries),
+                "deposits": tuple(entries), "remaining": max(1, len(entries)),
                 "sale": None, "withdrawn": False,
                 "town": self._effective_town_id(snapshot),
             }
@@ -75,11 +298,20 @@ class HomeMixin:
         relief = self._home_full_relief
         if relief is None:
             return
+        if self._inventory_overweight(snapshot):
+            # Required weight work cannot be parked behind its own retry
+            # reservation. The separately admitted surplus producer owns it.
+            self._overweight_surplus_disposal = {"town": relief["town"]}
+            self._home_full_relief = None
+            self._home_full_retry_deposits = None
+            self._home_errand.finish()
+            return
         self._home_full_retry_deposits = tuple(relief.get("deposits", ())) or None
         self._home_full_relief = None
         self._home_errand.finish()
         self._town_blocked_reason = None
 
+        self._home_store_block_owner = (self._town_visit_epoch, "home-full-deferred")
         self._town_visit_ledger.blocked_stores.add(STORE_HOME)
         self._town_visit_ledger.blocked_store_limits[STORE_HOME] = 1
         plan = getattr(self, "_town_errand_plan", None)
@@ -363,7 +595,8 @@ class HomeMixin:
             return None
         retry = getattr(self, "_home_full_retry_deposits", None)
         if retry is not None:
-            if STORE_HOME in self._town_visit_ledger.blocked_stores:
+            if self._town_store_blocked_under_applicable_bound(
+                    STORE_HOME, need="weight-overload" if self._inventory_overweight(snapshot) else "deposit"):
                 # A no-legal-relief result defers this batch until a later
                 # town visit. Keep it carried while the current plan continues.
                 return None
@@ -404,7 +637,8 @@ class HomeMixin:
                 if snapshot.store.store_type == STORE_HOME:
                     return self._open_home_deposit_key(snapshot)
                 return self._home_full_leave_key("home:full-space-ready")
-            if STORE_HOME in self._town_visit_ledger.blocked_stores:
+            if self._town_store_blocked_under_applicable_bound(
+                    STORE_HOME, need="weight-overload" if self._inventory_overweight(snapshot) else "deposit"):
                 # This visit already recorded Home as unavailable (e.g. a
                 # refused deposit into a full Home). The retry cannot reach
                 # it either: drop it and keep the items for the next visit
@@ -425,9 +659,19 @@ class HomeMixin:
         if self._home_full_relief is None and self._home_is_full(snapshot):
             first = self._find_home_deposit(snapshot)
             if first is not None:
-                self._begin_home_full_relief(snapshot, tuple(
-                    (self._item_signature(item), item.count, count)
-                    for item, count in self._home_deposit_batch(snapshot, first)))
+                entries = tuple((self._item_signature(item), item.count, count)
+                                for item, count in self._home_deposit_batch(snapshot, first))
+            elif self._inventory_overweight(snapshot):
+                # Refused deposits can disappear from the ordinary finder.
+                # Their names are failed-transfer evidence, not a prohibition
+                # on relief for the still-mandatory weight need.
+                entries = tuple((self._item_signature(item), item.count, count)
+                    for item in snapshot.inventory
+                    if item.weight > 0 and (count := self._retention_surplus(snapshot, item)) > 0)
+            else:
+                entries = ()
+            if entries or self._inventory_overweight(snapshot):
+                self._begin_home_full_relief(snapshot, entries)
         relief = self._home_full_relief
         if relief is None:
             return None
@@ -511,7 +755,8 @@ class HomeMixin:
                     probe = replace(snapshot, inventory=tuple(
                         carried for carried in snapshot.inventory
                         if self._sale_item_identity(carried) != sale_identity))
-                    if self._home_full_discard_candidate(probe, target) is None:
+                    if (self._home_full_discard_candidate(probe, target) is None
+                            or not self._carried_disposal_preserves_departure(snapshot, target, target.count)):
                         # Identification can reveal an artifact or departure
                         # candidate. Retain it and choose other shelf stock;
                         # neither its take nor its identification is disposal.
@@ -690,9 +935,11 @@ class HomeMixin:
                                  and self._item_signature(item) not in {
                                      entry[0] for entry in relief["deposits"]}
                                  and self._retention_reservation(snapshot, item) == 0
-                                 and not self._home_full_equipment_reserved(snapshot, item))
+                                 and not self._home_full_equipment_reserved(snapshot, item)
+                                 and self._carried_disposal_preserves_departure(snapshot, item, item.count)
+                                 ) if len(snapshot.inventory) >= PACK_CAPACITY else ()
             pack_ids = {id(item) for item in carried_stock}
-            stock = ((*stock, *carried_stock) if len(snapshot.inventory) < PACK_CAPACITY
+            stock = (stock if len(snapshot.inventory) < PACK_CAPACITY
                      else carried_stock)
             sale_stock = (carried_stock if len(snapshot.inventory) >= PACK_CAPACITY
                           else tuple(item for item in stock if id(item) not in pack_ids))
@@ -740,6 +987,10 @@ class HomeMixin:
                         "_defer_home_full_deposit",
                         lambda: self._defer_home_full_deposit(snapshot),
                         family="home-visit")
+                    if self._overweight_surplus_disposal is not None:
+                        return self._town_producer_entry(
+                            "_overweight_surplus_sale_key",
+                            lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
                     return None
                 store_type = STORE_HOME
             else:
@@ -1415,7 +1666,7 @@ class HomeMixin:
         return (
             self._home_available(snapshot)
             and STORE_HOME not in self._town_store_attempted
-            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+            and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-catalog")
         )
 
     def _retention_reservation(
@@ -3230,10 +3481,18 @@ class HomeMixin:
     @claims(ClaimOwner.HOME_VISIT)
     def _open_home_deposit_key(self, snapshot: Snapshot) -> str | None:
         """Compose one deposit operation from a barrier-bound open Home page."""
-        if self._home_is_full(snapshot) or self._home_full_relief is not None:
+        store = snapshot.store
+        open_page_full = bool(store is not None and store.store_type == STORE_HOME
+            and isinstance(store.stock_num, int) and isinstance(store.capacity, int)
+            and store.capacity > 0 and store.stock_num >= store.capacity)
+        if open_page_full or self._home_is_full(snapshot) or self._home_full_relief is not None:
             relief_key = self._home_full_relief_key(snapshot)
             if relief_key is not None:
                 return relief_key
+            # A full rendered page is proof even before the capacity observer
+            # runs. Never fall through and compose a known-impossible deposit.
+            if self._inventory_overweight(snapshot):
+                return None
         visit = self._store_visit
         if (
             snapshot.store is None
@@ -4463,7 +4722,7 @@ class HomeMixin:
                 "knowledge_current": self._home_knowledge_current,
                 "knowledge_invalidated": self._home_knowledge_invalidated,
                 "attempted": attempted,
-                "blocked_store": STORE_HOME in self._town_visit_ledger.blocked_stores,
+                "blocked_store": self._town_store_blocked_under_applicable_bound(STORE_HOME),
                 "fails_at_limit": fails >= limit,
                 "approach_fails": fails,
                 "unsatisfied_passes": self._town_visit_ledger.unsatisfied_passes[STORE_HOME],

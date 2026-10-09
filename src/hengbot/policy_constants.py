@@ -313,6 +313,8 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:home-withdraw-failed-stock-present',
         'town:blocked:overflow-no-legal-disposal',
         'town:blocked:overweight-home-unreachable',
+        'town:blocked:overweight-home-full-no-legal-relief',
+        'town:blocked:overweight-surplus-rebuy-loop',
         'town:blocked:owner-retired',
         'town:blocked:owner-retired-burst',
         'town:blocked:procurement-home-unavailable',

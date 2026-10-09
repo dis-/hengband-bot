@@ -84,6 +84,10 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         self.temp = TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
+        # F3's persisted visit ledger is private to each recorded replay.
+        runtime = patch.dict('os.environ', {'HENGBOT_RUNTIME_DIR': str(self.directory)})
+        runtime.start()
+        self.addCleanup(runtime.stop)
 
     def policy(self):
         policy = _policy(self.directory, self.monrace)
@@ -172,7 +176,20 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         raw = copy.deepcopy(rows[index])
         pages = {r['store']['store_type']:r['store'] for r in reversed(rows[start:]) if r['type']=='store'}
         home = next(r for r in reversed(rows) if r.get('knowledge',{}).get('category')=='home')
+        # DECLARED CONSTRUCTED reuse of 134643's observed Alchemist page for
+        # Step 1.5b's new F3 response after the first divergent command.
+        from test_overweight_homefull_step15b import CAPTURES as OVERWEIGHT_CAPTURES
+        alchemist = next(r['store'] for r in reversed(OVERWEIGHT_CAPTURES['20261008-134643']['bot-state-fixed']['rows'])
+                         if r['type'] == 'store' and r['store']['store_type'] == 4)
+        pages[4] = alchemist
+        # DECLARED CONSTRUCTED other buyer pages after the changed command.
+        # Keep the recorded page dimensions; these empty shop shelves only
+        # receive F3 sales selected by the real store acceptance predicate.
+        for buyer in (0, 2, 3, 5, 6, 8):
+            if buyer not in pages:
+                pages[buyer] = dict(alchemist, store_type=buyer, items=[], stock_num=0)
         equipment_home_entries = 0
+        completion_reason = None
         for sequence in range(80):
             board = parse_snapshot(raw, self.monrace)
             policy.observe_store_screen(board.store is not None)
@@ -182,6 +199,13 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
             if reason=='equipment-transaction:approach-home':
                 equipment_home_entries += 1
             if reason in POLICY_FINAL_STOP_REASONS:
+                break
+            if reason == 'town:overweight-surplus-sold:home-full' and not policy._inventory_overweight(board):
+                completion_reason = reason
+            # F3 can settle before equipment's next registry arbitration.
+            # Continue public choose_key through the real retirement, rather
+            # than seeding its flags or discarding the retirement assertion.
+            if completion_reason is not None and policy._equipment_retired_worn_item_ids:
                 break
             self.assertIsNotNone(key, (stamp, reasons))
             post(policy, key)
@@ -196,6 +220,22 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
                     policy.with_known_skill_exp(parse_snapshot(raw, self.monrace)), character,
                     sequence=sequence+100, session_id=policy._calibration_session_id)
                 policy._character_calibration_loaded = True
+            elif key.startswith('{'):
+                # DECLARED CONSTRUCTED actual inscription response.
+                tag = policy._batch_sell_pending['entries'][0]['tag']
+                target = next(i for i in board.inventory if i.slot == key[1])
+                for item in raw['inventory']:
+                    if item['slot'] == target.slot:
+                        item['name'] = policy._sale_item_identity(target)[0]+' {@'+str(tag)+'}'
+                        item['inscription'] = '@'+str(tag)
+            elif key.startswith('d') and raw.get('store') and raw['store']['store_type'] != STORE_HOME:
+                # DECLARED CONSTRUCTED accepted F3 surplus-sale effect.
+                pending = policy._overweight_surplus_disposal['pending']
+                target = next(i for i in board.inventory if policy._sale_item_identity(i) == pending['identity'])
+                count = pending['count']
+                raw['inventory'] = [dict(i, count=i['count']-count) if i['slot'] == target.slot else i
+                                    for i in raw['inventory'] if i['slot'] != target.slot or i['count'] > count]
+                raw['player']['gold'] += count*75
             elif key.startswith('01k'):
                 raw['inventory'] = [i for i in raw['inventory'] if i['slot']!=key[3]]
                 for slot, item in enumerate(raw['inventory']):
@@ -233,21 +273,21 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
                 store = next((s for s,door in policy._town_map.stores.items() if door==pos),None)
                 if store is not None:
                     raw['store']=copy.deepcopy(pages[store]);raw['type']='store'
-        self.assertEqual(reasons[-1], 'town:blocked:overweight-home-unreachable', (stamp,reasons))
+        self.assertEqual(completion_reason, 'town:overweight-surplus-sold:home-full', (stamp,reasons))
         self.assertLessEqual(equipment_home_entries, 1)
         self.assertNotIn('equipment-transaction:home-route-repeat-terminal', reasons)
         self.assertTrue(policy._equipment_retired_worn_item_ids)
         self.assertEqual(policy._equipment_home_deposit_tombstone['reason'],
                          'town:work-closed:impossible:equipment-transaction:home-full')
-        self.assertTrue(policy._inventory_overweight(board))
+        self.assertFalse(policy._inventory_overweight(board))
 
     def test_pin1_recorded_134416_from_process_start(self):
         self.replay_incident('20261008-134416',
-            [41,43,46,47,49,50,51,52,53,54,56,57,59,61,62,65,66,67,70,71,73,74,75,76,77,78,79],39,11)
+            [41,43,46,47,49,50,51,52,53,54,56,57,59,61,62,65,66,67,70,71,73,74,75,76,77,78,79],39,1)
 
     def test_pin1_recorded_191943_from_process_start(self):
         self.replay_incident('20261008-191943',
-            [49,51,53,57,59,61,62,65,66,68,69,70,71,73,74],47,9)
+            [49,51,53,57,59,61,62,65,66,68,69,70,71,73,74],47,1)
 
     def test_pin2_nonoverweight_confirmed_loadout_departure(self):
         policy, board = self.closed_policy()

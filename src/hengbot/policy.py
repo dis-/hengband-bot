@@ -2430,6 +2430,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # the optimizer target as well as clearing the blocker: otherwise the
         # next rebuild can select the same failed item and recreate work.
         self._equipment_retired_worn_item_ids: frozenset[str] = frozenset()
+        from hengbot.runtime_paths import runtime_path
+        self._home_store_block_owner = None
+        self._overweight_surplus_disposal = None
+        self._overweight_surplus_ledger = {"epoch": None, "sold": []}
+        self._overweight_surplus_ledger_path = runtime_path("overweight-surplus-ledger.json")
+        self._overweight_surplus_record_path = runtime_path("overweight-surplus-disposal.jsonl")
         self._equipment_home_deposit_tombstone: dict[str, object] | None = None
         self._equipment_transaction_last_failure: dict[str, object] | None = None
         self._equipment_transaction_prepared_key: str | None = None
@@ -2474,7 +2480,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._destroy_fail_streak = 0
         self.last_reason = ""
         self.prompt_owner_handoff: str | None = None
-        self._policy_state_version = 4
+        self._policy_state_version = 5
         self._execution_pending_post = None
         self._decision_goal = None
         self._decision_expectation = None
@@ -3098,7 +3104,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.decision_attribution = self._visit_exit_family()
             if (
                 self._equipment_transaction_session is None
-                and STORE_HOME in self._town_visit_ledger.blocked_stores
+                and self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
                 and self._store_visit is not None
                 and self._store_visit.store_type == STORE_HOME
             ):
@@ -10156,6 +10162,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 budget_ref="home-operation-existing-budget",
             )
             return WAIT_KEY
+        if snapshot.in_town and self._overweight_surplus_disposal is not None:
+            surplus_key = self._town_producer_entry("_overweight_surplus_sale_key",
+                lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
+            if surplus_key is not None:
+                return surplus_key
         if (snapshot.in_town and snapshot.player.hp >= snapshot.player.max_hp
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
@@ -13511,7 +13522,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._town_visit_ledger.unsatisfied_passes[STORE_HOME]
                 ),
                 "home_blocked": (
-                    STORE_HOME in self._town_visit_ledger.blocked_stores
+                    self._town_store_blocked_under_applicable_bound(STORE_HOME)
                 ),
                 "projection": dict(getattr(
                     self,
@@ -13709,6 +13720,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     budget_ref=declaration.budget_ref,
                 )
         self._confirm_staged_shopping_approach(key)
+        disposal = self._overweight_surplus_disposal
+        pending_disposal = disposal.get("pending") if disposal else None
+        if pending_disposal and pending_disposal.get("key") == key:
+            pending_disposal["posted"] = True
+            self._overweight_surplus_ledger["pending"] = dict(pending_disposal)
+            self._save_overweight_surplus_ledger()
         relief = getattr(self, "_home_full_relief", None)
         if relief is not None and relief.get("destroy_pending_key") is not None:
             if relief.pop("destroy_pending_key") == key:
@@ -14130,7 +14147,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if (
             not calibration_unavailable
-            and STORE_HOME in self._town_visit_ledger.blocked_stores
+            and self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
             and (preparation is None or preparation.result is None)
         ):
             return "equipment-home-unavailable"
@@ -15030,7 +15047,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         if (
             not self._home_knowledge_current
-            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+            and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="identify-staff")
         ):
             return False
         # User 2026-10-03: at most STAFF_IDENTIFY_MAX_COUNT carried staves, so

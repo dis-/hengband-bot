@@ -627,6 +627,7 @@ _PURCHASE_REFUSAL_MESSAGES = {
 _IN_STORE_BUY_OWNER = "shop:in-store-buy"
 _IN_STORE_OPERATION_OWNERS = frozenset({
     _IN_STORE_BUY_OWNER, "shop:in-store-sell", "shop:in-store-inscribe",
+    "town:overweight-surplus-sold:home-full",
 })
 # purchase-order.cpp prompt_to_buy through input_check_strict(DEFAULT_Y):
 # any total.  An in-store buy gates on its exact total; this generic form

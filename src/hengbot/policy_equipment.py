@@ -2006,6 +2006,8 @@ class EquipmentMixin:
         if block_home_route:
             # Preserve the legacy refused-operation accounting. A fresh search
             # over a remembered full page closes only equipment's deposit work.
+            if not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work"):
+                self._home_store_block_owner = (self._town_visit_epoch, "equipment-work")
             self._town_visit_ledger.blocked_stores.add(STORE_HOME)
             self._set_town_store_attempted(
                 STORE_HOME, snapshot.turn, "equipment-transaction-home-full"
@@ -3261,7 +3263,7 @@ class EquipmentMixin:
         )
         try:
             if (
-                STORE_HOME not in self._town_visit_ledger.blocked_stores
+                not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
                 and self._home_owner_goal_pending(snapshot)
             ):
                 return False
@@ -3271,7 +3273,7 @@ class EquipmentMixin:
             )
         if (
             STORE_HOME not in self._town_store_attempted
-            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+            and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
             and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] == 0
             and self._town_visit_ledger.approach_fails[STORE_HOME] == 0
             and self._town_need_supplier_reachable(
