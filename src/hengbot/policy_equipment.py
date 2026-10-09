@@ -153,6 +153,7 @@ from hengbot.policy_constants import (
     TORCH_REFILL_FUEL,
     BUY_KEY,
     CARDINAL_OFFSETS,
+    CHARACTER_DUMP_MACRO,
     CHEST_COLLECT_BUDGET,
     CHEST_DISARM_BUDGET,
     CHEST_DISARM_KEY,
@@ -167,8 +168,6 @@ from hengbot.policy_constants import (
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     EAT_KEY,
-    HOME_CHARACTER_DUMP_MACRO,
-    HOME_KNOWLEDGE_MACRO,
     ExplorationPathOutcome,
     FOOD_MIN_SVAL,
     FOOD_TYPE_MANA,
@@ -248,9 +247,6 @@ from hengbot.policy_constants import (
     FIXED_QUEST_TOWNS,
     HEALING_POTION_HP,
     MIN_FREE_PACK_SLOTS,
-    HOME_SALE_FREE_SLOT_TARGET,
-    HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN,
-    HOME_SALE_WITHDRAWALS_PER_TRIP,
     MORIVANT_FULL_IDENTIFY_COST,
     MORIVANT_FULL_IDENTIFY_THRESHOLD,
     MORIVANT_LIBRARY_BUILDING_TYPE,
@@ -322,9 +318,6 @@ from hengbot.warrior_optimization import (
     _effective_intrinsic_abilities,
 )
 from hengbot.launcher_damage import launcher_average_damage
-from hengbot.equipment_sale_classifier import (
-    classify_equipment_sales, equipment_sale_plan,
-)
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.warrior_equipment_evaluator import melee_hit_chance
 from hengbot.model import (
@@ -429,10 +422,7 @@ class EquipmentMixin:
     def _equipment_transaction_owns_town_relocation(
         self, snapshot: Snapshot
     ) -> bool:
-        """Whether this decision began with equipment locomotion ownership.
-
-        An equipment transaction retains relocation ownership until it ends.
-        """
+        """Whether this decision began with equipment locomotion ownership."""
         return bool(
             snapshot.in_town
             and getattr(self, "_decision_context", None) is not None
@@ -3118,14 +3108,30 @@ class EquipmentMixin:
             or self._equipment_disposal_reserved(snapshot, candidate)
         ):
             return False
-        from hengbot.launcher_damage import launcher_dominates
+        # The user launcher rule ranks a Light Crossbow above an ordinary
+        # Sling/Short Bow regardless of damage, so it is never their spare.
+        if ordinary_launcher_yields_to_light_crossbow(equipped, candidate):
+            return False
 
-        # Preserve the legacy equipped-launcher route. The observation-only
-        # classifier uses this proof with all owned, same-ammo launchers.
-        return launcher_dominates(
-            equipped, candidate, self._launcher_average_damage(equipped),
-            self._launcher_average_damage(candidate), same_ammo=False,
+        equipped_damage = self._launcher_average_damage(equipped)
+        candidate_damage = self._launcher_average_damage(candidate)
+        equipped_grade = (int(equipped.is_artifact), int(equipped.is_ego))
+        candidate_grade = (int(candidate.is_artifact), int(candidate.is_ego))
+        no_worse = (
+            equipped_damage >= candidate_damage
+            and equipped.to_h >= candidate.to_h
+            and equipped.pval >= candidate.pval
+            and equipped.known_flags.issuperset(candidate.known_flags)
+            and equipped_grade >= candidate_grade
         )
+        strictly_better = (
+            equipped_damage > candidate_damage
+            or equipped.to_h > candidate.to_h
+            or equipped.pval > candidate.pval
+            or equipped.known_flags > candidate.known_flags
+            or equipped_grade > candidate_grade
+        )
+        return no_worse and strictly_better
 
     def _equipment_disposal_reserved(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem
@@ -3143,449 +3149,6 @@ class EquipmentMixin:
             item.is_digging_tool
             and self._fundraising_mode in {"prepare", "mine", "scavenge"}
         )
-
-    def equipment_sale_reserved_ids(self, snapshot: Snapshot) -> frozenset[str]:
-        """Observe existing retention authorities for the Part A classifier."""
-        from hengbot.equipment_optimizer import usable_light_candidate
-
-        protected = set()
-        for owned in self._equipment_catalog.items:
-            item = owned.item
-            # The same Home probe as _home_full_sale_candidate: a distinct
-            # pack slot prevents a matching carried stack hiding retention.
-            probe_item = self._inventory_item_from_store_item(item) if isinstance(item, StoreItem) else item
-            probe_item = replace(probe_item, slot="home-surplus") if owned.origin == "home" else probe_item
-            probe = replace(snapshot, inventory=(*snapshot.inventory, probe_item)) if owned.origin == "home" else snapshot
-            signature = self._item_signature(item)
-            if (self._equipment_disposal_reserved(snapshot, item)
-                    or self._retention_reservation(probe, probe_item) > 0
-                    or self._sale_retains_digging_tool(probe, probe_item)
-                    or item.is_torch or usable_light_candidate(owned)
-                    or self._home_disposal.decision(signature) == "keep"
-                    or signature in self._town_visit_purchases
-                    or self._equipment_transaction_owns_item(item)
-                    or not item_available(self, snapshot, item, "equipment-sale", "sell")):
-                protected.add(owned.id)
-        return frozenset(protected)
-
-    def _build_equipment_sale_session(self, snapshot: Snapshot) -> None:
-        """Build the optimizer-backed J-D list once for the current return."""
-        session = getattr(self, "_equipment_sale_session", None)
-        if not isinstance(session, dict) or session.get("built"):
-            return
-        session["blocker"] = None
-        session["items"] = []
-        if (
-            not snapshot.in_town
-            or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
-            or not self._equipment_catalog.home_scan_complete
-            or not self._home_knowledge_current
-            or self._home_knowledge_invalidated
-        ):
-            session["blocker"] = "home-catalogue-not-current"
-            return
-        calibration = self._validated_character_calibration(snapshot)
-        if calibration is None:
-            session["blocker"] = "calibration-required"
-            return
-        session["built"] = True
-        preparation = self._prepare_equipment_optimization(snapshot)
-        evaluator = getattr(self._warrior_evaluator_cache, "evaluator", None)
-        if preparation is None or evaluator is None:
-            session["blocker"] = "optimizer-unavailable"
-            return
-        catalog = tuple(self._equipment_catalog.items)
-        ammunition = tuple(self._obtainable_launcher_ammunition(snapshot))
-        classification = classify_equipment_sales(
-            catalog,
-            lambda loadout: evaluator(loadout).metrics,
-            class_id=snapshot.player.class_id,
-            home_scan_complete=self._equipment_catalog.home_scan_complete,
-            catalogue_current=self._home_knowledge_current,
-            scope="J",
-            duplicates="D",
-            reserved_ids=self.equipment_sale_reserved_ids(snapshot),
-            intrinsic_abilities=_effective_intrinsic_abilities(
-                snapshot.player, calibration.intrinsic_abilities,
-            ),
-            has_destruction=self._has_destruction_method(snapshot),
-            obtainable_ammunition=ammunition,
-        )
-        if classification.blockers:
-            session["blocker"] = ",".join(classification.blockers)
-            return
-        by_id = {owned.id: owned for owned in catalog}
-        home_ids = frozenset(
-            owned.id for owned in catalog if owned.origin == "home"
-        )
-        selected = equipment_sale_plan(
-            classification,
-            home_ids=home_ids,
-            free_home_slots=max(0, 240 - len(self._home_knowledge_items)),
-            target_free_slots=HOME_SALE_FREE_SLOT_TARGET,
-        )
-        items = []
-        for item_id in selected:
-            owned = by_id.get(item_id)
-            if owned is None:
-                continue
-            store_type = self._dominated_disposal_store(owned.item)
-            if store_type is None:
-                continue
-            items.append({
-                "id": item_id,
-                "signature": self._item_signature(owned.item),
-                "origin": owned.origin,
-                "store_type": store_type,
-                "weight": owned.item.weight,
-            })
-        session["items"] = items
-        session["blocker"] = None
-
-    def _equipment_sale_relief_active(self, snapshot: Snapshot) -> bool:
-        """Whether equipment sales must precede deposits during this visit."""
-        return bool(
-            (getattr(snapshot, "player", None) is not None
-             and self._inventory_overweight(snapshot))
-            or self._home_is_full(snapshot)
-            or getattr(self, "_home_full_relief", None) is not None
-            or getattr(self, "_home_full_retry_deposits", None) is not None
-            or self._equipment_home_full_refused_this_visit()
-        )
-
-    def _equipment_sale_has_reachable_items(
-        self, sale: dict, snapshot: Snapshot | None = None,
-    ) -> bool:
-        """Whether an untried sale item can still be sold this return.
-
-        Home-origin items stop being reachable once this return's Home
-        withdrawal cap is spent; only carried items can still be sold then.
-        """
-        attempted = sale.get("attempted", ())
-        refused = sale.get("refused", ())
-        cap_spent = (
-            int(sale.get("withdrawals", 0))
-            >= HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
-        )
-        carried = None
-        if snapshot is not None:
-            carried = {
-                self._item_signature(item) for item in snapshot.inventory
-            }
-        return any(
-            entry.get("signature") not in attempted
-            and entry.get("signature") not in refused
-            and entry.get("store_type") not in self._store_sale_refused
-            and not (cap_spent and entry.get("origin") == "home")
-            and (carried is None or entry.get("origin") != "pack"
-                 or entry.get("signature") in carried)
-            and (entry.get("origin") != "home"
-                 or (self._home_knowledge_current
-                     and not self._home_knowledge_invalidated
-                     and (snapshot is None
-                          or (PACK_CAPACITY - len(snapshot.inventory) > 2
-                              and self._home_available(snapshot)))))
-            for entry in sale.get("items", ())
-        )
-
-    def _ensure_equipment_sale_session(self, snapshot: Snapshot) -> None:
-        """Start this visit's sale plan after an in-town process restart."""
-        if (getattr(self, "_equipment_sale_session", None) is not None
-                or not getattr(snapshot, "in_town", False)):
-            return
-        self._equipment_sale_session = {
-            "built": False, "items": [], "attempted": set(),
-            "withdrawals": 0, "refused": set(), "active_store": None,
-            "sale_needed": False,
-        }
-
-    @claims(ClaimOwner.EQUIPMENT_OPT)
-    def _equipment_sale_prerequisite_key(
-        self, snapshot: Snapshot,
-    ) -> str | None:
-        """Request sale inputs before Home relief can consume the visit.
-
-        The existing sale session owns the once-per-visit bounds. Its fields
-        are read with defaults because older checkpoints predate them.
-        Calibration uses the same prepared character-dump protocol as the
-        periodic bookkeeping producer; a stale Home catalogue continues
-        through the registered Home scan producer.
-        """
-        session = getattr(self, "_equipment_sale_session", None)
-        if (not snapshot.in_town or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
-                or not isinstance(session, dict)
-                or self._home_atomic_deposit_pending is not None
-                or self._home_atomic_withdraw_pending is not None
-                or self._equipment_transaction_session is not None
-                or self._home_entry_operation_posted):
-            return None
-        session.setdefault("sale_needed", True)
-        if (not session.get("sale_needed")
-                and not self._equipment_sale_relief_active(snapshot)):
-            return None
-        self._build_equipment_sale_session(snapshot)
-        blocker = session.get("blocker")
-        if not blocker:
-            return None
-        attempted = session.setdefault("prerequisite_attempted", set())
-        # Checkpointed values may have been serialized as another collection
-        # type by an older runtime; normalize without losing recorded facts.
-        if not isinstance(attempted, set):
-            attempted = set(attempted or ())
-            session["prerequisite_attempted"] = attempted
-
-        needs_calibration = (
-            blocker in {"calibration-required", "optimizer-unavailable"}
-            and self._validated_character_calibration(snapshot) is None
-        )
-        if (needs_calibration and "calibration" not in attempted
-                and not self._warning_prompt_stops_decision):
-            if (snapshot.store is not None
-                    and snapshot.store.store_type == STORE_HOME):
-                # Home has a shorter C-screen macro because its first Escape
-                # returns to the open store. It uses the same prepared dump
-                # and response correlation as the ordinary bookkeeping path.
-                attempted.add("calibration")
-                self._prepare_character_sheet_dump()
-                self.last_reason = "periodic:character-dump"
-                self._offer_execution(
-                    HOME_CHARACTER_DUMP_MACRO, producer="bookkeeping",
-                    work_id="periodic-character-dump",
-                    next_step="character.dump.send",
-                    expected_effect="character-dump-confirmed",
-                )
-                return HOME_CHARACTER_DUMP_MACRO
-            if self._periodic_filler_is_safe(snapshot):
-                attempted.add("calibration")
-                self._periodic_dump_requested = True
-                # Let the normal decision finish; the existing bookkeeping
-                # rung posts the prepared C dump after safe town work.
-                return None
-
-        needs_home_scan = (
-            blocker in {"home-catalogue-not-current", "optimizer-unavailable"}
-            and (
-                not self._equipment_catalog.home_scan_complete
-                or not self._home_knowledge_current
-                or self._home_knowledge_invalidated
-            )
-        )
-        if (needs_home_scan and "home-scan" not in attempted
-                and snapshot.store is not None
-                and snapshot.store.store_type == STORE_HOME
-                and not self._home_knowledge_scan_inflight
-                and not self._home_knowledge_scan_requested
-                and self._home_knowledge_scan_epoch is None
-                and self._store_leave_inflight is None
-                and self._home_atomic_deposit_pending is None
-                and self._home_atomic_withdraw_pending is None
-                and self._equipment_transaction_session is None):
-            key = self._town_producer_entry(
-                "home-full-knowledge",
-                lambda: self._home_full_knowledge_key(snapshot),
-                family="home-scan",
-            )
-            if key == HOME_KNOWLEDGE_MACRO:
-                attempted.add("home-scan")
-                return key
-        return None
-
-    def _equipment_sale_selected_signature(
-        self, signature: tuple[str, int, int],
-    ) -> bool:
-        session = getattr(self, "_equipment_sale_session", None)
-        return bool(
-            isinstance(session, dict)
-            and any(entry.get("signature") == signature
-                    for entry in session.get("items", ()))
-        )
-
-    def _equipment_sale_resume_carried_item(
-        self, snapshot: Snapshot,
-    ) -> InventoryItem | None:
-        """Recover a selected pack sale when its transient pointer was lost.
-
-        A visit can survive with the sale session's selected store and attempt
-        record while the private pending-item pointer is absent. Rebind only
-        an already-attempted saved pack candidate that is still carried and
-        matches the active store; this does not select any new sale candidate.
-        """
-        sale = getattr(self, "_equipment_sale_session", None)
-        store = snapshot.store
-        if (
-            self._equipment_transaction_session is not None
-            or self._equipment_transaction_owned_items
-            or not isinstance(sale, dict)
-            or not sale.get("built")
-            or store is None
-            or sale.get("active_store") != store.store_type
-        ):
-            return None
-        attempted = sale.get("attempted", ())
-        refused = sale.get("refused", ())
-        for entry in sale.get("items", ()):
-            signature = entry.get("signature")
-            if (
-                entry.get("origin") != "pack"
-                or entry.get("store_type") != store.store_type
-                or signature not in attempted
-                or signature in refused
-                or signature in self._unsellable_items
-                or store.store_type in self._store_sale_refused
-            ):
-                continue
-            candidate = next(
-                (item for item in snapshot.inventory
-                 if self._item_signature(item) == signature),
-                None,
-            )
-            if candidate is not None:
-                return candidate
-        return None
-
-    def _equipment_sale_next_store(self, snapshot: Snapshot) -> int | None:
-        """Select the next never-retried item on this return's saved list."""
-        if (self._equipment_transaction_session is not None
-                or self._equipment_transaction_owned_items):
-            return None
-        self._ensure_equipment_sale_session(snapshot)
-        session = getattr(self, "_equipment_sale_session", None)
-        if not isinstance(session, dict) or not session.get("built"):
-            if isinstance(session, dict):
-                session["sale_needed"] = True
-            self._build_equipment_sale_session(snapshot)
-            session = getattr(self, "_equipment_sale_session", None)
-        if not isinstance(session, dict):
-            return None
-        if session.get("blocker"):
-            return None
-        if self._pending_disposal_item is not None:
-            pending_signature = self._pending_disposal_item
-            active_store = session.get("active_store")
-            if (
-                pending_signature in self._unsellable_items
-                or active_store in self._store_sale_refused
-            ):
-                refused = session.setdefault("refused", set())
-                refused.add(pending_signature)
-                if active_store in self._store_sale_refused:
-                    refused.update(
-                        entry["signature"] for entry in session.get("items", ())
-                        if entry["store_type"] == active_store
-                    )
-                    self._home_pending_batch = [
-                        signature for signature in self._home_pending_batch
-                        if signature not in refused
-                    ]
-                    self._home_procurement_batch_active = bool(
-                        self._home_pending_batch
-                    )
-                self._clear_pending_disposal()
-            else:
-                target = self._pending_disposal(snapshot)
-                if target is not None:
-                    return self._dominated_disposal_store(target)
-                home_candidate = next((
-                    entry for entry in session["items"]
-                    if entry["signature"] == pending_signature
-                    and entry["origin"] == "home"
-                ), None)
-                if home_candidate is not None:
-                    return STORE_HOME
-                # A sale that disappeared from the pack is complete.
-                self._clear_pending_disposal()
-        attempted = session.setdefault("attempted", set())
-        planned = session.setdefault("planned", set())
-        refused = session.setdefault("refused", set())
-        withdrawals = int(session.get("withdrawals", 0))
-        entries = session["items"]
-        if self._equipment_sale_relief_active(snapshot):
-            # Prefer carried goods so they can reduce weight without a Home
-            # trip; if none are saleable, the bounded Home batch can free
-            # capacity even while the character remains overweight.
-            entries = [
-                *[entry for entry in entries if entry.get("origin") == "pack"],
-                *[entry for entry in entries if entry.get("origin") == "home"],
-            ]
-            if self._equipment_home_full_refused_this_visit():
-                # A refused equipment deposit blocks ordinary Home work for
-                # this visit. Reopen that route only for the saved sale plan.
-                self._rearm_town_store_for_new_work(
-                    STORE_HOME, release_visit_bound=True,
-                )
-        for entry in entries:
-            signature = entry["signature"]
-            if (signature in attempted or signature in planned or signature in refused
-                    or entry["store_type"] in self._store_sale_refused):
-                continue
-            if signature in self._unsellable_items:
-                refused.add(signature)
-                continue
-            if entry["origin"] == "home":
-                if not self._home_available(snapshot):
-                    attempted.add(signature)
-                    continue
-                if withdrawals >= HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN:
-                    return None
-                free_pack_slots = PACK_CAPACITY - len(snapshot.inventory)
-                if free_pack_slots <= 2:
-                    return None
-                weight_limit = self._inventory_weight_limit(snapshot)
-                relief = self._equipment_sale_relief_active(snapshot)
-                if weight_limit is None and not relief:
-                    return None
-                reserved_weight = self._inventory_weight(snapshot)
-                room = min(
-                    free_pack_slots - 2,
-                    HOME_SALE_WITHDRAWALS_PER_TRIP,
-                    HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN - withdrawals,
-                )
-                batch = []
-                for candidate in session["items"]:
-                    if (
-                        candidate["origin"] != "home"
-                        or candidate["store_type"] != entry["store_type"]
-                        or candidate["signature"] in attempted
-                        or candidate["signature"] in planned
-                        or candidate["signature"] in refused
-                        or candidate["store_type"] in self._store_sale_refused
-                    ):
-                        continue
-                    if (not relief
-                            and reserved_weight + candidate["weight"] > weight_limit):
-                        continue
-                    batch.append(candidate)
-                    reserved_weight += candidate["weight"]
-                    if len(batch) >= room:
-                        break
-                if not batch:
-                    return None
-                if self._home_pending_batch:
-                    batch = batch[:1]
-                session["active_store"] = entry["store_type"]
-                session["batch"] = [candidate["signature"] for candidate in batch]
-                planned.update(candidate["signature"] for candidate in batch)
-                self._pending_disposal_item = batch[0]["signature"]
-                self._pending_disposal_slot = None
-                if not self._home_pending_batch and len(batch) > 1:
-                    self._home_pending_batch.extend(
-                        candidate["signature"] for candidate in batch[1:]
-                    )
-                    self._home_procurement_batch_active = True
-                return STORE_HOME
-            target = next((
-                item for item in snapshot.inventory
-                if self._item_signature(item) == signature
-            ), None)
-            if target is None:
-                attempted.add(signature)
-                continue
-            self._pending_disposal_slot = target.slot
-            self._pending_disposal_item = signature
-            session["active_store"] = entry["store_type"]
-            attempted.add(signature)
-            return entry["store_type"]
-        return None
 
     def _equipment_failure_unexecutable_this_visit(
         self,

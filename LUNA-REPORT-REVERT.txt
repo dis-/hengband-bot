@@ -1,0 +1,64 @@
+﻿# LUNA report — revert 10-08/10-09 equipment-sale changes
+
+Branch: `step0-2-revert-sale`, based on `e207b3af`.
+
+## Reverts
+
+The 14 requested sale-related first-parent commits were reverted newest first: `e207b3af`, `bb63593e`, `9cdd8aeb`, `5f53208a`, `17669ed8`, `b109b94f`, `a282f23c`, `033177a5`, `448f5cb0`, `4f9a4e01`, `7d096355`, `4e0bdf9f`, `4f34cdf3`, and `35341016`. The reverts are the 14 commits already at HEAD from `b3066750` through `9ddff056`.
+
+No unresolved conflicts remain. In retained files, the sale-only hunks were removed while retained behavior was preserved. The sale rung was removed from the claim ladder and its count pin remains checked against the calls in `_decide` by `tests.test_ownership_s2b1_ladder`. Generated town-work files were regenerated with `python scripts/town_work_manifest.py --write`, not hand-resolved.
+
+## Removed sale-only artifacts
+
+Removed reports: `LUNA-REPORT-eq-yields-to-sale-1008.txt`, `LUNA-REPORT-sale-before-deposit-1008.txt`, `LUNA-REPORT-sale-prereqs-1008.txt`, and `SOL-REPORT-A.txt`.
+
+Removed implementation and test assets: `scripts/measure_equipment_sales.py`, `src/hengbot/equipment_sale_classifier.py`, `tests/test_equipment_optimizer_sales.py`, `tests/test_equipment_sale_overweight_restart_recorded.py`, `tests/test_equipment_sale_prerequisite_recovery.py`, `tests/test_equipment_sale_scope_b.py`, `tests/test_equipment_sale_transaction_yield_recorded.py`, eight `tests/fixtures/equipment-sale-*` files covering five sale captures, and `validation/sell-equipment-A/{results.json,summary.json}`.
+
+## Ported test change and triage
+
+Kept the interrupted edit to `tests/test_store_reentry_recorded.py` because it ports the `76401c65` full-departure-reserve decision, a non-sale change documented as INTENDED in `step0-2c-prereq/LUNA-REPORT-B.txt`. The recorded cases assert known reserves of 5,168 (row 42) and 4,583 (rows 834/844), permit the row 42/834 buys when the remaining gold covers the reserve, and refuse row 844 when it does not. The test name now describes the reserve behavior. Sale-caused calibration and sale-session declarations from the prerequisite triage were not ported.
+
+All importable tests in the required module set passed in both runs; there were no test failures to classify as REGRESSION or UNEXPLAINED. The only error is the attempted import of `tests.test_equipment_sale_overweight_restart_recorded`, which was intentionally removed as a sale-only test module.
+
+## Manifest and verification
+
+`python scripts/town_work_manifest.py --write`: 805 candidates, 19,748 sites, zero unmapped.
+
+Both runs used these 33 modules:
+
+```text
+tests.test_control_client tests.test_declarations_r14 tests.test_departure_unsatisfiable_weight_recorded
+tests.test_equipment_deposit_owner_recorded tests.test_equipment_sale_overweight_restart_recorded
+tests.test_experience_potion tests.test_guardian_recall_pingpong_recorded
+tests.test_home_discard_followup_recorded tests.test_home_discard_incidents_recorded
+tests.test_home_full_await_knowledge_recorded tests.test_home_full_destroy_posted_confirm
+tests.test_homefull3_recorded tests.test_item_reservation tests.test_item_sink_lint
+tests.test_morivant_travel_retired_recorded tests.test_no_safe_destination_recorded
+tests.test_overweight_home_hold_recorded tests.test_overweight_home_unreachable_recorded
+tests.test_ownership_s2a1_closure tests.test_ownership_s2b1_ladder tests.test_policy_home
+tests.test_policy_shop tests.test_q2travel_progress_recorded tests.test_quest_travel_progress
+tests.test_store_reentry_recorded tests.test_supply_ledger_observer_memo tests.test_test_fakery_lint
+tests.test_town_approach_retired_recorded tests.test_town_arbiter
+tests.test_town_cure_supplier_recorded tests.test_town_structure_lint tests.test_town_work_contract
+tests.test_unaffordable_claim_tour_recorded
+```
+
+Step 2 command: `python scripts/test_parallel_runner.py --workers 2 --modules <the modules above>`.
+
+```text
+Failures: none
+Errors: ['unittest.loader._FailedTest.test_equipment_sale_overweight_restart_recorded']
+Total: 888 tests, 3129.094s; output: C:\hengband\bot-client-revert-sale\jsonlog\test-parallel-timings.json
+```
+
+Step 3 used `PYTHONPATH=src` with `python scripts/test_parallel_runner.py --workers 2 --modules <the modules above>`.
+
+```text
+Failures: none
+Errors: ['unittest.loader._FailedTest.test_equipment_sale_overweight_restart_recorded']
+Total: 888 tests, 2942.330s; output: C:\hengband\bot-client-revert-sale\jsonlog\test-parallel-timings.json
+```
+
+`git diff --check`: passed. No full suite, game or bot control, push, or merge was run.
+
+

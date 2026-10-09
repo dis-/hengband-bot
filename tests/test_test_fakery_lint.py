@@ -252,15 +252,12 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("collaborator-wall", "_run_once_with_routes"),
         ("private-state-injected", "test_failed_uncomposable_transaction_opens_equipment_departure_conjunct"),
         ("private-state-injected", "test_retired_failure_freezes_worn_target_across_optimizer_rebuild"),
-        ("private-state-injected", "test_restarted_overweight_town_starts_sale_ahead_of_deposit_stop"),
     }
-    EXPECTED_UNDECLARED_INSTANCES = 14
+    EXPECTED_UNDECLARED_INSTANCES = 13
     # Retired calibration phases removed seven additional declared sites.
     # S3.3 phase-2 adds two explicitly declared final-fallback seams for the
     # missing B checkpoint; only the ladder's None sentinel is substituted.
     # The October 4 Home-hang replay helper declares its captured scan re-arm.
-    # Removing the sale-before-transaction replay removes its reconstructed
-    # optimizer checkpoint seam.
     DECLARED_FINDING_RATCHET = 125
 
     def test_capture_dependency_lint_rejects_real_directory_not_fixture(self):

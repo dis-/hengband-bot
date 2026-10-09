@@ -2482,24 +2482,6 @@ class TownMixin:
                 evidence="dominated-item-absent",
             )
             return None
-        sale_session = getattr(self, "_equipment_sale_session", None)
-        target_signature = self._item_signature(target)
-        if (
-            isinstance(sale_session, dict)
-            and (
-                target_signature in sale_session.get("refused", set())
-                or self._equipment_sale_selected_signature(target_signature)
-            )
-        ):
-            # Sale candidates remain carried or are deposited after a refusal;
-            # this rule never converts a failed sale into destruction.
-            self._clear_pending_disposal()
-            self.last_reason = "equipment:sale-refused-carry"
-            self._offer_execution_no_step(
-                producer="equipment-txn", work_id="equipment:destroy",
-                cause="equipment-sale-candidate-preserved",
-            )
-            return None
         if self._destroy_attempts >= STORE_STUCK_LIMIT:
             self._town_blocked_reason = "dominated-item-destroy-failed"
             self.last_reason = "town:blocked:dominated-item-destroy-failed"
@@ -2688,55 +2670,13 @@ class TownMixin:
             return needs
 
         self._begin_pack_dominated_launcher_disposal(snapshot)
-        sale_session = getattr(self, "_equipment_sale_session", None)
-        if isinstance(sale_session, dict) and self._pending_disposal_item is not None:
-            pending_target = self._pending_disposal(snapshot)
-            pending_sale_entry = next((
-                entry for entry in sale_session.get("items", ())
-                if entry.get("signature") == self._pending_disposal_item
-            ), None)
-            if (
-                pending_target is None
-                and pending_sale_entry is not None
-                and (
-                    pending_sale_entry.get("origin") == "pack"
-                    or self._pending_disposal_item in self._unsellable_items
-                )
-            ):
-                if self._pending_disposal_item in self._unsellable_items:
-                    sale_session.setdefault("refused", set()).add(
-                        self._pending_disposal_item
-                    )
-                self._clear_pending_disposal()
-        pending_sale_owned_by_transaction = bool(
-            self._equipment_transaction_session is not None
-            or self._equipment_transaction_owned_items
-        ) and any(
-            entry.get("signature") == self._pending_disposal_item
-            for entry in (
-                getattr(self, "_equipment_sale_session", None) or {}
-            ).get("items", ())
-        )
         if (
             self._pending_disposal_item is not None
-            and not pending_sale_owned_by_transaction
             and (target := self._pending_disposal(snapshot)) is not None
         ):
             disposal_store = self._dominated_disposal_store(target)
             if disposal_store is not None and disposal_store not in self._disposal_store_attempts:
                 add(disposal_store, "disposal")
-        elif (self._pending_disposal_item is not None
-              and not pending_sale_owned_by_transaction):
-            sale_session = getattr(self, "_equipment_sale_session", None)
-            if (
-                isinstance(sale_session, dict)
-                and any(
-                    entry.get("signature") == self._pending_disposal_item
-                    and entry.get("origin") == "home"
-                    for entry in sale_session.get("items", ())
-                )
-            ):
-                add(STORE_HOME, "equipment-sale", "home-first")
         if self._pending_disposal_item is not None:
             return needs
 
@@ -3303,33 +3243,6 @@ class TownMixin:
             )
         ):
             add(STORE_HOME, "equipment-catalog", "home-first")
-        # Ordinary J-D sales are phase 1, after mandatory stock and before
-        # optional purchases. During an overweight/full-Home relief, queue
-        # the sale with required stops; only deposit-only phase-zero work can
-        # be displaced, while mandatory supplies keep their place.
-        phase_zero = [
-            need for need in needs if self._town_need_phase(need) == 0
-        ]
-        sale_may_preempt_deposits = bool(
-            self._equipment_sale_relief_active(snapshot)
-            and phase_zero
-            and all(need.category in {
-                "weight-overload", "space-deposit", "deposit",
-                "equipment-work",
-            } for need in phase_zero)
-        )
-        self._equipment_sale_relief_preempts_deposits = sale_may_preempt_deposits
-        if (self._equipment_transaction_session is None
-                and not self._equipment_transaction_owned_items
-                and (not phase_zero or sale_may_preempt_deposits
-                     or self._equipment_sale_relief_active(snapshot))):
-            equipment_sale_store = self._equipment_sale_next_store(snapshot)
-            if equipment_sale_store is not None:
-                add(
-                    equipment_sale_store,
-                    "equipment-sale",
-                    "home-first" if equipment_sale_store == STORE_HOME else "normal",
-                )
         if STORE_BLACK not in self._town_store_attempted:
             add(STORE_BLACK, "black-market")
         return needs
@@ -3859,8 +3772,6 @@ class TownMixin:
     @staticmethod
     def _town_need_phase(need: TownNeed) -> int:
         """Order mandatory town work before convenience and speculative buys."""
-        if need.category == "equipment-sale":
-            return 1
         if need.category in {
             "black-market",
             "ammo-home-first",
@@ -3875,12 +3786,6 @@ class TownMixin:
         self, snapshot: Snapshot, need: TownNeed
     ) -> int:
         """Put concretely affordable curse service ahead of ordinary errands."""
-        if need.category == "equipment-sale" and self._equipment_sale_relief_active(snapshot):
-            return (
-                -4 if getattr(
-                    self, "_equipment_sale_relief_preempts_deposits", False
-                ) else 0
-            )
         if need.category == "space-deposit":
             return -3
         if (

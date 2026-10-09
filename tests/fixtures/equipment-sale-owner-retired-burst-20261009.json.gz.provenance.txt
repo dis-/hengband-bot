@@ -1,7 +1,0 @@
-Recorded source: C:\hengband\bot-client\jsonlog\autorecover-20261009-005917-town-blocked-owner-retired-burst.*
-State log SHA256: 5b10471cd4f549550db510397e3d15c95cd32c1b0057d063b6564ea395dd6407
-Decision log SHA256: 27499dcf4357724af59344cc41902e08518cc110eca15d9212b3f0f6b5df28c9
-Fixture SHA256: f8feff76b2627ca743c3d710c4087483ec02acece499c9e0fbac1d37721f181f
-The fixture freezes the outside and store-2 observations at turn 15841567 and the repeated decisions 113-124. The records show a built sale session with active_store 2, 20 withdrawals, a town-errand/shopping visit, no posted store operation, and repeated observed-page-nothing-wanted leaves. The captured pack still contains items accepted by store 2.
-
-DECLARED CONSTRUCTED: the capture does not export the private pending-disposal signature. The replay rebuilds one already-attempted pack candidate from the saved active store and the still-carried captured inventory, with transaction_yield true and no pending pointer. This represents the missing continuation state implicated by the observed no-operation shelf. It does not alter the J-D candidate set or ranking.

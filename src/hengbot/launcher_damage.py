@@ -38,26 +38,3 @@ def best_obtainable_launcher_damage(launcher, ammunition) -> float:
         ),
         default=0.0,
     )
-
-
-def launcher_dominates(
-    left, right, left_damage: float, right_damage: float, *, same_ammo: bool = True,
-) -> bool:
-    """The spare-launcher proof, usable with equipped or owned launchers."""
-    from hengbot.equipment_optimizer import launcher_is_high_grade, ordinary_launcher_yields_to_light_crossbow
-
-    if ((same_ammo and (left.ammo_tval is None or left.ammo_tval != right.ammo_tval))
-            or ordinary_launcher_yields_to_light_crossbow(left, right)):
-        return False
-    left_grade = (int(left.is_artifact), int(launcher_is_high_grade(left) if same_ammo else left.is_ego))
-    right_grade = (int(right.is_artifact), int(launcher_is_high_grade(right) if same_ammo else right.is_ego))
-    return (
-        left_damage >= right_damage
-        and left.to_h >= right.to_h
-        and left.pval >= right.pval
-        and left.known_flags.issuperset(right.known_flags)
-        and left_grade >= right_grade
-        and (left_damage > right_damage or left.to_h > right.to_h
-             or left.pval > right.pval or left.known_flags > right.known_flags
-             or left_grade > right_grade)
-    )

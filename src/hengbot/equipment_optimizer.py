@@ -355,7 +355,6 @@ class OptimizationResult:
     chosen_depth: int | None = None
     band_decisions: tuple[BandDecision, ...] = ()
     chosen_decision: BandDecision | None = None
-    band_best_loadouts: tuple[EvaluatedLoadout, ...] = ()
 
 
 LoadoutEvaluator = Callable[[Loadout], LoadoutMetrics]
@@ -1440,7 +1439,6 @@ def optimize_loadout(
     chosen_depth = None
     band_decisions: list[BandDecision] = []
     chosen_decision = None
-    band_best_loadouts: list[EvaluatedLoadout] = []
     if depth is None and evaluated and not timed_out:
         free_best = _stable_operational_best(
             evaluated, current_item_ids, launcher_damage, usable_launcher_ids
@@ -1448,19 +1446,6 @@ def optimize_loadout(
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
         melee_free = max(entry.metrics.expected_dps for entry in evaluated)
-        # Disposal must retain winners of every band, including bands below
-        # the selected one. Keep selection and its early-stop telemetry intact.
-        for band in (81, 80, 49, 39, 30, 25, 20, 19):
-            winner = _stable_operational_best(
-                [entry for entry in evaluated if _meets_requirements(
-                    entry.loadout, entry.metrics, depth=band,
-                    intrinsic_abilities=intrinsic_abilities,
-                    has_destruction=has_destruction, require_light=require_light,
-                )],
-                current_item_ids, launcher_damage, usable_launcher_ids,
-            )
-            if winner is not None:
-                band_best_loadouts.append(winner)
         for band in (81, 80, 49, 39, 30, 25, 20, 19):
             satisfying = [
                 entry
@@ -1577,5 +1562,4 @@ def optimize_loadout(
         chosen_depth=chosen_depth,
         band_decisions=tuple(band_decisions),
         chosen_decision=chosen_decision,
-        band_best_loadouts=tuple(band_best_loadouts),
     )

@@ -21,7 +21,7 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
 )
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
-from hengbot.model import DUNGEON_YEEK_CAVE, parse_snapshot, STORE_HOME
+from hengbot.model import parse_snapshot, STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import DOWN_STAIRS_KEY
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
@@ -92,15 +92,6 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
         policy._equipment_transaction_session = session
         policy._home_knowledge_current = True
         policy._equipment_catalog.home_scan_complete = True
-        sale_item = next(item for item in board.inventory if item.slot != target.slot)
-        sale_signature = policy._item_signature(sale_item)
-        policy._equipment_sale_session = {
-            "built": True, "blocker": None, "sale_needed": True,
-            "items": [{"signature": sale_signature, "origin": "pack",
-                       "store_type": 2, "weight": sale_item.weight}],
-            "attempted": set(), "planned": set(), "refused": set(),
-            "withdrawals": 0, "active_store": None,
-        }
         policy._store_visit = StoreVisit(
             "equipment-transaction", "equipment-work", STORE_HOME,
             StoreVisitPhase.OPERATING, opened_sequence=16,
@@ -110,8 +101,6 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
 
         self.assertNotEqual(key, "dp")
         self.assertEqual(policy.last_reason, "equipment-transaction:deposit-home-full")
-        self.assertNotIn(sale_signature, policy._equipment_sale_session["attempted"])
-        self.assertEqual(policy._equipment_sale_session["withdrawals"], 0)
         self.assertIn(action.item_id, policy._equipment_transaction_failed_items)
         self.assertIsNone(session.pending_action)
         self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
@@ -130,7 +119,6 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
         self.assertIsInstance(worn_loadout, Loadout)
         # TEST_FAKERY_LINT_ALLOW: private-state-injected: reconstructs the recorded optimizer input key absent from the capture; the departure gate is the subject
         policy._equipment_optimizer_input_key = "recorded-home-full-input"
-        policy._target_dungeon_id = DUNGEON_YEEK_CAVE
         preparation = SimpleNamespace(
             blockers=("equipment-transaction-failed",),
             # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: the recorded board has no optimizer checkpoint; the worn loadout stands in for the confirmed-loadout gate under test
@@ -139,24 +127,23 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
         )
         with TemporaryDirectory() as directory:
             policy._confirmed_loadout_path = Path(directory) / "confirmed.json"
-            destination_depth = policy._equipment_departure_destination_depth(
-                outside
-            )
-            self.assertFalse(
-                policy._missing_required_abilities(outside, destination_depth)
-            )
             with patch.object(
                 policy, "_prepare_equipment_optimization",
                 return_value=preparation,
+            ), patch.object(
+                policy, "_missing_required_abilities", return_value=frozenset(),
             ):
                 self.assertTrue(policy._equipment_departure_ready(outside))
                 self.assertEqual(
                     policy._equipment_optional_failure_pending["reason"],
                     "optional-optimization-failure-confirmed-loadout",
                 )
-                policy._confirm_optional_equipment_failure_departure(
-                    outside, DOWN_STAIRS_KEY
-                )
+                with patch.object(
+                    policy, "_missing_required_abilities", return_value=frozenset(),
+                ):
+                    policy._confirm_optional_equipment_failure_departure(
+                        outside, DOWN_STAIRS_KEY
+                    )
                 self.assertEqual(
                     policy._equipment_optional_failure_departure["reason"],
                     "optional-optimization-failure-confirmed-loadout",
@@ -175,11 +162,6 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
                     (None, "unregistered", "equipment-txn"),
                 )
         self.assertTrue(policy._equipment_optional_failure_departure["posted"])
-        self.assertIsNone(policy._equipment_transaction_session)
-        self.assertEqual(
-            policy._equipment_sale_next_store(outside), 2,
-            "sale becomes eligible after the equipment transaction ends",
-        )
 
 
 if __name__ == "__main__":

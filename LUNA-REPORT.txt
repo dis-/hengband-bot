@@ -1,29 +1,30 @@
-﻿Equipment sale / equipment transaction — implementation report
+# LUNA report - recorded replay reserve decision
 
-Changes
-- Removed `_equipment_sale_should_yield_transaction`, all sale-to-transaction yield checks, the `equipment-transaction:yield-for-equipment-sale` ESC outcome, and the route-terminal clearing that let a built sale interrupt an equipment transaction.
-- Removed the sale store-router claim-ladder rung; the decide ladder pin is now 79 rungs.
-- Equipment sale selection, carried-sale resumption, shop sale commands, Home-full relief, and town sale routing now defer while an equipment transaction exists or stripped items remain owned. The sale becomes eligible when transaction ownership ends.
-- Home withdrawal batches now reserve items in `planned`. Selection does not increment `withdrawals` or add planned items to `attempted`. The observed inventory gain increments the counter and marks the item attempted; a withdrawal that fails or is unobserved releases its plan so it stays eligible.
-- A refused full-Home deposit follows the existing transaction failure and departure path. The recorded test checks the actual destination depth and required abilities, records `optional-optimization-failure-confirmed-loadout`, and checks that sale resumes only after transaction ownership ends. No new stop reason was added.
-- Regenerated `src/hengbot/town_work_sites.json` and `scripts/town_work_manifest.json.gz`.
+Worktree: `bm-reserve-replays-1008` at `39604cbe`.
+Decision applied: USER DECISION 2026-10-08 - optional Black Market purchases must preserve the full cost of departure resupply. Required purchases retain their separate reserve rule.
 
-Tests rewritten or removed
-- Replaced `test_home_full_relief_recorded.HomeFullReliefTest.test_refusal_withdraws_sells_two_slots_then_retries_original_deposit` with a pin that full-Home sale relief does not preempt an equipment transaction. The former test asserted the behavior the user asked to remove.
-- Removed `test_built_sale_runs_before_home_route_terminal_without_losing_stripped_items`, `test_spent_withdrawal_cap_returns_turn_to_transaction`, and their `_run_scene` replay helper from `test_equipment_sale_transaction_yield_recorded.py`; they specifically pinned the removed yield behavior and its reconstructed checkpoint. Added the 01:43 capture consultation/counter pin.
-- Updated the sale scope relocation pin and batch selection pin, and lowered the declared fake-test ratchet from 126 to 125 because the deleted replay helper no longer injects its reconstructed optimizer checkpoint.
-- Added/updated pins for full-Home transaction failure and post-transaction sale resumption, transaction/owned-item sale gating, counter stability, and the 79-rung ladder.
+## Recorded boards
 
-Verification results
-- `scripts/town_work_manifest.py --write`: `town-work-manifest: 813 candidates, 20137 sites, zero unmapped`
-- Scoped `scripts/test_parallel_runner.py --workers 2 --modules ... --purity never`: `Total: 247 tests, 944.871s`; `Failures: none`; `Errors: none`.
-- Follow-up after strengthening the actual-depth departure assertion: `tests.test_equipment_home_full_incident_recorded.EquipmentHomeFullIncidentRecordedTest.test_full_home_ends_transaction_deposit_with_visible_reason`: `Ran 1 test ... OK`.
-- `tests.test_test_fakery_lint`: `Ran 13 tests in 70.254s`; `OK`.
-- `git diff --check`: clean.
+The three store re-entry checkpoints are Black Market shelves (`store_type=6`). Their recorded full departure reserve evaluates to `None`: these restored checkpoints do not retain a complete observed price set for every required departure supply, so the optional purchase guard fails closed. This explains the new refusal under the full-resupply decision; it is not a numeric `gold - price < reserve` comparison because no numeric reserve can be calculated.
 
-Revert-proof checks on detached `bb63593e` (each failed as intended)
-- Home-full transaction pin: got `equipment-transaction:yield-for-equipment-sale`, expected `equipment-transaction:deposit-home-full`.
-- Transaction sale-selection pin: got store `2`, expected `None`.
-- 01:43 counter pin: got `(12, {three planned items})`, expected `(9, empty attempted set)`.
+| Decision index | Recorded gold | Optional ware | Price | Gold after recorded purchase | Recorded purchase key |
+| ---: | ---: | --- | ---: | ---: | --- |
+| 42 | 13,998 | Healing potion, `j` | 6,179 | 7,819 | `pj\r` |
+| 834 | 10,728 | Healing potion, `i` | 6,143 | 4,585 | `pi\r` |
+| 844 | 4,585 | Speed potion, `h`, quantity 5 | 511 each (2,555 total) | 2,030 | `ph5\r\r` |
 
-No full suite, game/bot control, or push was run.
+The speed-shuttle fixture shelf is also a Black Market (`store_type=6`): recorded gold 4,187, Speed potion `h` at 392 each, quantity 3. Its full departure reserve is likewise `None`; the recorded three-potion purchase would leave 3,011 gold.
+
+The P0 replay now asserts each recorded leave key and separately asserts the new optional-purchase refusal. The recorded-gold refusal pin checks the same three boards and retains each recorded release key. The one-shot Speed pin and store mechanics pins use explicitly constructed complete price data and independent gold so they still exercise quantity execution, exact confirmation totals, and refusal closure. The Speed mechanics pin also supplies constructed held Healing stock to keep the selector focused on Speed when the constructed gold makes both optional wares affordable.
+
+## Unexplained failure
+
+`tests.test_s33_shadow_recorded.RecordedShadowTest.test_live8_one_shot_identity` remains a regression and was not changed. It errors before comparing a board because `tests/fixtures/live8-one-shot.decisions.jsonl.gz.state.jsonl.gz` is absent. The available decisions log is not enough for this pin to load its state board, so there are no recorded board gold, ware, price, store, or reserve values to compare against the new purchase rule.
+
+## Verification
+
+Ran serially with the Codex Python 3.13 runtime:
+
+`python -m unittest tests.test_shop_one_shot tests.test_store_reentry_recorded tests.test_s33_shadow_recorded tests.test_black_market_optional_quantity tests.test_test_fakery_lint`
+
+Result: 112 tests ran, 110 passed, 1 skipped, 1 error (the missing S33 state fixture above). The fakery-lint acceptance matrices completed successfully. No full suite was run.

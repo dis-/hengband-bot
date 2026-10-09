@@ -3486,10 +3486,6 @@ class ShopMixin(InStoreMixin):
         *,
         rejected_reason: str = "shop:unsellable-leave",
     ) -> str:
-        if (reason == "equipment:sell-dominated"
-                and (self._equipment_transaction_session is not None
-                     or self._equipment_transaction_owned_items)):
-            return None
         store = snapshot.store
         current = next(
             (
@@ -3674,9 +3670,6 @@ class ShopMixin(InStoreMixin):
         candidates: list[InventoryItem] | None = None,
     ) -> str | None:
         """Advance the mandatory inscription-bound sale transaction."""
-        if (self._equipment_transaction_session is not None
-                or self._equipment_transaction_owned_items):
-            return None
         store = snapshot.store
         if store is None:
             return None
@@ -4178,32 +4171,6 @@ class ShopMixin(InStoreMixin):
                 self._home_pending_item = self._item_signature(reserve)
                 self.last_reason = "home:queue-star-remove-curse-withdraw"
                 return LEAVE_STORE_KEY
-            if self._equipment_sale_relief_active(snapshot):
-                sale_store = self._equipment_sale_next_store(snapshot)
-                if sale_store is not None:
-                    if sale_store == STORE_HOME:
-                        # The normal dominated-disposal selector owns the
-                        # observed Home shelf and batches planned withdrawals.
-                        planned_withdrawal = self._town_producer_entry(
-                            "_home_dominated_disposal_key",
-                            lambda: self._home_dominated_disposal_key(snapshot),
-                            family="equipment-txn",
-                        )
-                        if planned_withdrawal is not None:
-                            return planned_withdrawal
-                    else:
-                        # A carried sale can reduce weight without another
-                        # Home operation. Leave this page and let the ordinary
-                        # town router reach its selected buyer.
-                        self.last_reason = "equipment:sale-leave-home-for-pack-sale"
-                        self._offer_execution(
-                            LEAVE_STORE_KEY, producer="equipment-txn",
-                            work_id="equipment:sale-leave-home-for-pack-sale",
-                            next_step="store.leave.send",
-                            arguments=(STORE_HOME,),
-                            expected_effect="outside-store",
-                        )
-                        return LEAVE_STORE_KEY
             # An active transaction session OWNS the Home visit: its town-side
             # dispatcher keeps walking back in while it has Home work, so a
             # disposal leave that preempts it just bounces the bot in and out of
@@ -4223,15 +4190,9 @@ class ShopMixin(InStoreMixin):
             if disposal_key is not None:
                 return disposal_key
 
-        if self._pending_disposal_item is None:
-            resumed_sale_item = self._equipment_sale_resume_carried_item(snapshot)
-            if resumed_sale_item is not None:
-                self._pending_disposal_item = self._item_signature(
-                    resumed_sale_item
-                )
-                self._pending_disposal_slot = resumed_sale_item.slot
-
-        if self._pending_disposal_item is not None:
+        if (
+            self._pending_disposal_item is not None
+        ):
             target = self._pending_disposal(snapshot)
             if target is None:
                 self._clear_pending_disposal()
@@ -5775,17 +5736,22 @@ class ShopMixin(InStoreMixin):
         )
         observed_no_operation = (
             inner == LEAVE_STORE_KEY
-            and (not composition_refusal or terminal_refusal
-                 or composition_refusal == "shop:observe-and-leave")
+            and (not composition_refusal or terminal_refusal)
         )
-        if terminal_refusal or observed_no_operation:
-            # The ordinary shelf observer can advance the mutable town-plan
-            # cursor before its outside one-shot is composed. Settle that
-            # exact stop even when the cursor has moved, or full-Home relief
-            # can route straight back to the same empty shelf indefinitely.
+        plan = self._town_errand_plan
+        current_stop = bool(
+            plan is not None
+            and plan.index < len(plan.stops)
+            and plan.stops[plan.index] == store_type
+        )
+        if terminal_refusal:
             stop_resolved = self._resolve_observed_uncomposable_stop(
                 snapshot, observed_no_operation=True,
                 settle_moved_cursor=True,
+            )
+        elif observed_no_operation and current_stop:
+            stop_resolved = self._resolve_observed_uncomposable_stop(
+                snapshot, observed_no_operation=True
             )
         else:
             stop_resolved = self._resolve_observed_uncomposable_stop(snapshot)

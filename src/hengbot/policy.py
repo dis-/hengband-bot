@@ -1357,9 +1357,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._q2_reconnect_recovery_floor: tuple[int, int, int] | None = None
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo()
         self._home_disposal_pass = False
-        # Return-scoped equipment sale selection is checkpointed as one object:
-        # build its optimizer-backed list once, and bound Home takes to three.
-        self._equipment_sale_session: dict[str, object] | None = None
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}
         self._home_disposal_pending: tuple[tuple[str, int, int], str] | None = None
@@ -7147,11 +7144,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if not getattr(self, "_returning_to_town", False):
             self._survival_return_trigger = trigger
-            self._equipment_sale_session = {
-                "built": False, "items": [], "attempted": set(),
-                "withdrawals": 0, "refused": set(),
-                "active_store": None,
-            }
 
     def _note_return_end(self) -> None:
         """Record-only: the return ended (``_returning_to_town = False``)."""
@@ -7484,26 +7476,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     withdrawn,
                     intent=(snapshot.turn, signature, before_count, quantity),
                 )
-                sale_session = getattr(self, "_equipment_sale_session", None)
-                if (
-                    isinstance(sale_session, dict)
-                    and signature in sale_session.get("batch", ())
-                ):
-                    sale_session.setdefault("attempted", set()).add(signature)
-                    sale_session.setdefault("planned", set()).discard(signature)
-                    sale_session["withdrawals"] = int(
-                        sale_session.get("withdrawals", 0)
-                    ) + 1
-                    for sale_entry in sale_session.get("items", ()):
-                        if sale_entry.get("signature") == signature:
-                            sale_entry["origin"] = "pack"
-                    self._pending_disposal_item = signature
-                    self._pending_disposal_slot = None
-                    sale_session["active_store"] = next((
-                        entry["store_type"]
-                        for entry in sale_session.get("items", ())
-                        if entry["signature"] == signature
-                    ), sale_session.get("active_store"))
                 self._refresh_carried_equipment_catalog(snapshot)
                 if suppression_withdrawal and self._home_pending_item == signature:
                     self._home_pending_item = None
@@ -7556,13 +7528,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         operation_completed=True,
                     )
             else:
-                sale_session = getattr(self, "_equipment_sale_session", None)
-                if isinstance(sale_session, dict):
-                    sale_session.setdefault("planned", set()).discard(signature)
-                    sale_session["batch"] = [
-                        planned for planned in sale_session.get("batch", ())
-                        if planned != signature
-                    ]
                 if self._home_random_teleport_withdrawal == signature:
                     self._home_random_teleport_withdrawal = None
                 retry_digger = (
@@ -7737,11 +7702,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
-        if snapshot.in_town:
-            # A process restored directly in town has no return-start callback;
-            # create its one-per-visit optimizer sale session at the first
-            # town decision, before Home deposits or equipment staging run.
-            self._ensure_equipment_sale_session(snapshot)
         # The executor's POSTED state is the in-flight gate every reader of
         # ``state`` (weight shedding, the space deposit, Home knowledge scans,
         # destroys) consults.  Observe the posted wield/takeoff on each board,
@@ -8978,12 +8938,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_errand_hold("__none__")
                 if getattr(self, "_town_claim_bar_enforced", False) else None
             )
-            if (sale_prerequisite_key := self._town_producer_entry(
-                    "_equipment_sale_prerequisite_key",
-                    lambda: self._equipment_sale_prerequisite_key(snapshot),
-                    family="equipment-opt")) is not None:
-                key = sale_prerequisite_key
-            elif (snapshot.player.food_type == FOOD_TYPE_MANA
+            if (snapshot.player.food_type == FOOD_TYPE_MANA
                     and snapshot.player.hungry and self._find_edible(snapshot) is None
                     and self._home_atomic_deposit_pending is None
                     and self._home_atomic_withdraw_pending is None):
@@ -10156,13 +10111,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
-        sale_prerequisite_key = self._town_producer_entry(
-            "_equipment_sale_prerequisite_key",
-            lambda: self._equipment_sale_prerequisite_key(snapshot),
-            family="equipment-opt",
-        )
-        if sale_prerequisite_key is not None:
-            return sale_prerequisite_key
         if (snapshot.in_town and self._home_errand.needs_knowledge
                 and self._home_atomic_deposit_pending is None
                 and self._home_atomic_withdraw_pending is None
@@ -10216,6 +10164,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 lambda: self._home_full_relief_key(snapshot))
             if relief_key is not None:
                 return relief_key
+        # Admission of an already-built Home transaction precedes evaluators
+        # that may ask whether town departure is ready.  Those evaluators are
+        # allowed to build a plan only when no transaction owns the character;
+        # rebuilding here would discard its recorded pack-letter continuation.
         admitted_session = self._equipment_transaction_session
         if (
             snapshot.in_town and admitted_session is not None and admitted_session.executable and (admitted_session.required_context == 'home') and (admitted_session.physical_context == 'home') and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and any((grid.store_number == STORE_HOME for grid in (snapshot.grid_at(snapshot.player.position),) if grid is not None)) and (snapshot.player.hp >= snapshot.player.max_hp) and (not any((monster.hostile for monster in snapshot.visible_monsters)))
@@ -10257,15 +10209,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._town_producer_entry("_equipment_transaction_town_owner_key", lambda: self._equipment_transaction_town_owner_key(snapshot)) or WAIT_KEY
 
         if snapshot.in_town and self._equipment_transaction_route_terminal is not None:
-            # A repeated Home route failure used to become a terminal WAIT,
-            # even when the confirmed current loadout was safe for the actual
-            # departure depth. Let the established departure path record and
-            # post that outcome; retain the old terminal while it is unsafe.
-            if self._equipment_departure_ready(snapshot):
-                self._equipment_transaction_route_terminal = None
-            else:
-                self.last_reason = self._equipment_transaction_route_terminal
-                return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
+            self.last_reason = self._equipment_transaction_route_terminal
+            return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
 
         if (
             snapshot.store is None
@@ -11449,7 +11394,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # complete-page scan, execute the globally optimized loadout transaction.
         # Legacy per-item weapon trials and jewellery upgrades must not race this
         # plan or repeatedly withdraw and re-deposit candidates.
-        equipment_transaction = None
         equipment_transaction = self._town_producer_entry("_equipment_transaction_town_key#2", lambda: self._equipment_transaction_town_key(snapshot))
         if equipment_transaction is not None:
             return equipment_transaction
@@ -14816,10 +14760,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             (
                 item
                 for item in snapshot.inventory
-                if self._item_signature(item) not in self._unsellable_items
-                and not self._equipment_sale_selected_signature(
-                    self._item_signature(item)
-                )
                 if self._is_disposable_dominated_launcher(snapshot, item)
             ),
             None,
