@@ -1198,6 +1198,8 @@ class HomeMixin:
             if store.stock_num is not None and capacity is not None:
                 self._home_capacity_observation = (
                     store.stock_num, capacity, self._effective_town_id(snapshot))
+                if capacity > 0 and store.stock_num < capacity:
+                    self._clear_equipment_home_deposit_tombstone()
         if (
             store is None
             or store.store_type != STORE_HOME

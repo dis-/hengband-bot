@@ -1,0 +1,11 @@
+Home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-ll8yv_34\worker-2\home-history
+Runtime files: C:\Users\user\AppData\Local\Temp\hengbot-parallel-ll8yv_34\worker-2\runtime
+restore-weapon replay divergence: (2942150, '\x1b`n&.', 'shop:travel') live: (2942150, 'tb', 'town:restore-combat-weapon')
+
+Slowest tests
+
+Slowest classes
+
+Slowest modules
+
+Total: 483.235s; recorded 306 tests; output: C:\Users\user\AppData\Local\Temp\hengbot-parallel-ll8yv_34\worker-2.json; summary: C:\Users\user\AppData\Local\Temp\hengbot-parallel-ll8yv_34\worker-2-summary.json

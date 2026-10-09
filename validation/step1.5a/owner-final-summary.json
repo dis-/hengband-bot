@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-10-10T03:33:41.805905+09:00",
+  "head_sha": "aa41d867bd7c7fd9ff0802154840f0e9a98c1d43",
+  "total_seconds": 8.049667300074361,
+  "test_count": 7,
+  "top_tests": [
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_stall_termination_releases_old_goal_before_final_validation",
+      "seconds": 2.054628900019452
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_confirmed_action_refreshes_its_own_declaration",
+      "seconds": 1.3515071999281645
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_successful_deposit_exit_keeps_the_next_item_goal_registered",
+      "seconds": 1.2560658999718726
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_retry_selection_never_takes_the_equipment_owners_item",
+      "seconds": 1.005581000004895
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_refused_deposit_exit_preserves_the_owner_continuation",
+      "seconds": 0.4423554000677541
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_open_page_retry_is_posted_and_observed_by_equipment_owner",
+      "seconds": 0.23992730001918972
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_initial_deposits_are_different_from_later_stolen_goals",
+      "seconds": 0.00532190001104027
+    }
+  ],
+  "top_classes": [
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest",
+      "seconds": 6.355387600022368
+    }
+  ],
+  "top_modules": [
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded",
+      "seconds": 6.355387600022368
+    }
+  ],
+  "top_10_classes_share_percent": 78.95217731500107
+}

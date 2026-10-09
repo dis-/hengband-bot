@@ -1466,10 +1466,11 @@ class EquipmentMixin:
                 blockers=("equipment-transaction-failed",),
             )
         elif (
-            self._equipment_home_full_refused_this_visit()
+            self._equipment_home_deposit_unavailable(
+                snapshot, getattr(preparation, "transaction", None))
             and not self._equipment_transaction_restoring
             and any(
-                action.phase != PHASE_EQUIP
+                action.kind == "deposit"
                 for action in getattr(
                     getattr(preparation, "transaction", None), "actions", ()
                 )
@@ -1640,7 +1641,9 @@ class EquipmentMixin:
             # A non-route abandonment disproves the pending assertion that an
             # identical Home route failed twice without an observed change.
             self._equipment_transaction_route_terminal_pending = False
-        if route_blocked and session is not None and snapshot is not None:
+        if self._equipment_home_full_refused_this_visit():
+            self._equipment_transaction_route_terminal_pending = False
+        elif route_blocked and session is not None and snapshot is not None:
             route_abandonment = (
                 session.target_loadout_id,
                 "home-route-unavailable",
@@ -1970,22 +1973,90 @@ class EquipmentMixin:
         return key
 
     def _equipment_home_full_refused_this_visit(self) -> bool:
-        """Whether this visit blocked Home after a refused full-Home deposit.
+        """Equipment deposit tombstone, independent of the shared Home latch."""
+        return getattr(self, "_equipment_home_deposit_tombstone", None) is not None
 
-        Other Home blocks (e.g. the 3-pass town-stop limit) keep their own
-        owners' authority; only an observed full-Home refusal retires Home
-        for equipment work this visit.
-        """
-        latch = getattr(self, "_home_latch_active", None) or {}
-        return (STORE_HOME in self._town_visit_ledger.blocked_stores
-                and latch.get("site") == "equipment-transaction-home-full")
+    def _equipment_home_deposit_unavailable(
+        self, snapshot, plan, *, block_home_route: bool = False,
+    ) -> bool:
+        """Re-fire from an observed full page when the next Home move is put."""
+        if self._home_is_full(snapshot):
+            actions = getattr(plan, "actions", ())
+            next_home = next((a for a in actions if a.phase != PHASE_EQUIP), None)
+            if next_home is not None and next_home.kind == "deposit":
+                self._mark_equipment_home_full_unavailable(
+                    snapshot, block_home_route=block_home_route)
+        return self._equipment_home_full_refused_this_visit()
 
-    def _mark_equipment_home_full_unavailable(self, snapshot: Snapshot) -> None:
+    def _clear_equipment_home_deposit_tombstone(self) -> None:
+        """An external capacity change or new visit reopens equipment search."""
+        if self._equipment_home_full_refused_this_visit():
+            self._equipment_home_deposit_tombstone = None
+            self._equipment_retired_worn_item_ids = frozenset()
+            self._equipment_optional_failure_pending = None
+            self._equipment_optimization_signature = None
+            self._equipment_optimization_preparation = None
+
+    def _mark_equipment_home_full_unavailable(
+        self, snapshot: Snapshot, *, block_home_route: bool = True,
+    ) -> None:
         """Retire this visit's Home route after an observed full-store refusal."""
-        self._town_visit_ledger.blocked_stores.add(STORE_HOME)
-        self._set_town_store_attempted(
-            STORE_HOME, snapshot.turn, "equipment-transaction-home-full"
-        )
+        if self._equipment_home_full_refused_this_visit():
+            return
+        if block_home_route:
+            # Preserve the legacy refused-operation accounting. A fresh search
+            # over a remembered full page closes only equipment's deposit work.
+            self._town_visit_ledger.blocked_stores.add(STORE_HOME)
+            self._set_town_store_attempted(
+                STORE_HOME, snapshot.turn, "equipment-transaction-home-full"
+            )
+        session = self._equipment_transaction_session
+        withdrawn = {
+            action.item_identity
+            for action in (() if session is None else session.plan.actions[:session.index])
+            if action.kind == "withdraw"
+        }
+        # One record for the visit's work, irrespective of target loadout.
+        self._equipment_home_deposit_tombstone = {
+            "reason": "town:work-closed:impossible:equipment-transaction:home-full",
+            "visit_epoch": self._town_visit_epoch,
+            "turn": snapshot.turn,
+            "pack_item_ids": [equipment_identity(i) for i in snapshot.inventory],
+            "withdrawn_item_ids": [equipment_identity(i) for i in snapshot.inventory
+                                   if equipment_identity(i) in withdrawn],
+        }
+        self._equipment_optimization_signature = None
+
+    def _close_full_home_equipment_deposit(self, snapshot, session) -> bool:
+        """Close only unposted deposits; preserve observation and restoration."""
+        if session is None or session.pending_action is not None:
+            return False
+        action = session.current_action
+        if action is None or action.kind != "deposit":
+            return False
+        already_closed = self._equipment_home_full_refused_this_visit()
+        held = self._claim_register.current
+        continuation = getattr(held, "execution", None)
+        admitted_continuation = bool(
+                snapshot.store is not None
+                and session.index > 0 and session.executable
+                and held is not None and held.owner.value == "equipment-txn"
+                and continuation is not None
+                and continuation.next_step == "equipment.next-action"
+                and continuation.work_id == f"equipment:{session.target_loadout_id}:{session.index}")
+        if not self._equipment_home_deposit_unavailable(
+                snapshot, EquipmentTransactionPlan((action,), (), 0),
+                block_home_route=snapshot.store is not None and not admitted_continuation):
+            return False
+        if not already_closed and admitted_continuation:
+            # Preserve the already admitted in-store effect continuation.
+            # Record the full page now, but do not replace that claim's next
+            # command. The tombstone closes every subsequent route/rebuild;
+            # an actual refusal still blocks this posted operation directly.
+            return False
+        self._abandon_blocked_equipment_transaction(snapshot)
+        self.last_reason = "equipment-transaction:deposit-home-full"
+        return True
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
@@ -2013,6 +2084,10 @@ class EquipmentMixin:
         session = self._equipment_transaction_session
         if session is None:
             return self._equipment_home_outcome(None, label="session-absent")
+        if self._close_full_home_equipment_deposit(snapshot, session):
+            return self._equipment_home_outcome(
+                LEAVE_STORE_KEY, label="deposit-home-full",
+            )
         if session.pending_action is None and session.required_context == "outside_home":
             self.last_reason = "equipment-transaction:leave-home-for-equip"
             return self._equipment_home_outcome(
@@ -2460,6 +2535,9 @@ class EquipmentMixin:
             return self._equipment_town_outcome(
                 None, label="session-absent",
             )
+        if self._close_full_home_equipment_deposit(snapshot, session):
+            self.last_reason = "equipment-transaction:home-route-unavailable"
+            return self._equipment_town_outcome(WAIT_KEY, label="home-route-unavailable")
         if not session.executable:
             self._abandon_blocked_equipment_transaction(snapshot)
             self.last_reason = "equipment-transaction:abandon-blocked"
@@ -2502,6 +2580,7 @@ class EquipmentMixin:
             home_route_blocked = (
                 self._equipment_home_full_refused_this_visit()
                 and not self._equipment_transaction_restoring
+                and any(a.kind == "deposit" for a in session.plan.actions[session.index:])
             )
             step = (
                 self._shopping_approach_step(
@@ -3170,6 +3249,10 @@ class EquipmentMixin:
             and not self._current_worn_loadout_confirmed(snapshot, preparation)
         ):
             return False
+        if self._equipment_home_full_refused_this_visit():
+            # The tombstone proves this equipment work impossible. Other Home
+            # owners retain their goals and their independent departure gates.
+            return True
         previous_include_launcher_enchant = getattr(
             self, "_town_need_evaluation_include_launcher_enchant", True
         )

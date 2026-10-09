@@ -21,6 +21,8 @@ class ObservationMixin:
             self.settle_home_knowledge_request()
         elif self._town_visit_epoch is None:
             self._town_visit_epoch = turn
+            self._clear_equipment_home_deposit_tombstone()
+            self._home_capacity_observation = None
             self._home_knowledge_scan_requested = False
             self._home_knowledge_scan_retries_remaining = 1
             self._home_knowledge_scan_leave_turn = None

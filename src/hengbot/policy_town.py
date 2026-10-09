@@ -1300,6 +1300,22 @@ class TownMixin:
             # before progress composition can mutate the visit or its offer.
             self._town_refuse_rewrite("procurement", holder)
             return key
+        if (
+            snapshot.store is None
+            and self._equipment_home_full_refused_this_visit()
+            and self._equipment_retired_worn_item_ids
+            and self._inventory_overweight(snapshot)
+            and (
+                self._overweight_home_bound_exhausted()
+                or self._home_rejected_deposits
+            )
+            and self._home_atomic_deposit_pending is None
+            and self._home_atomic_withdraw_pending is None
+        ):
+            # Closing equipment must expose the existing, independently failed
+            # weight gate even if refused deposits no longer produce a need.
+            self._town_blocked_reason = "overweight-home-unreachable"
+            return self._town_blocked_key(snapshot)
         if getattr(self, "_town_claim_bar_enforced", False):
             holder = self._claim_errand_hold("store-router")
             if (holder is not None
@@ -3712,6 +3728,7 @@ class TownMixin:
                 continue
             if need.category in {"equipment-work", "equipment-transaction"} and (
                 equipment_exhausted
+                or self._equipment_home_full_refused_this_visit()
                 or "equipment-opt" in retired
                 or "equipment-txn" in retired
             ):

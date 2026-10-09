@@ -1,0 +1,27 @@
+......F......................................................................................................................................................................F............................
+======================================================================
+FAIL: test_successful_deposit_exit_keeps_the_next_item_goal_registered (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_successful_deposit_exit_keeps_the_next_item_goal_registered) (enforced=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-step1.5a\tests\test_equipment_deposit_owner_recorded.py", line 214, in test_successful_deposit_exit_keeps_the_next_item_goal_registered
+    self.assertEqual(key, 'dm' if enforced else '\x1b')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '\x1b' != 'dm'
+- 
++ dm
+
+
+======================================================================
+FAIL: test_tree_has_only_catalogued_undeclared_shapes (tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-step1.5a\tests\test_test_fakery_lint.py", line 312, in test_tree_has_only_catalogued_undeclared_shapes
+    self.assertEqual(undeclared, self.EXPECTED_UNDECLARED)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Items in the first set but not the second:
+('literal-success-predicate', 'replay_incident')
+
+----------------------------------------------------------------------
+Ran 202 tests in 1813.893s
+
+FAILED (failures=2)

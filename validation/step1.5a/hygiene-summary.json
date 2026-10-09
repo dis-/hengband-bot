@@ -1,0 +1,153 @@
+{
+  "generated_at": "2026-10-10T03:43:05.977949+09:00",
+  "head_sha": "aa41d867bd7c7fd9ff0802154840f0e9a98c1d43",
+  "total_seconds": 2580.179123900016,
+  "test_count": 1186,
+  "top_tests": [
+    {
+      "id": "tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_declared_full_resupply_reserve_changes_the_first_black_market_board",
+      "seconds": 786.4714311000425
+    },
+    {
+      "id": "tests.test_experience_potion.ExperiencePotionRecordedTest.test_t1_drained_in_town_routes_to_the_unobserved_temple",
+      "seconds": 618.1344665000215
+    },
+    {
+      "id": "tests.test_town_work_contract.TownWorkContractTest.test_both_captures_all_complete_boards_and_recorded_producers",
+      "seconds": 561.0030167000368
+    },
+    {
+      "id": "tests.test_town_arbiter.TownTurnArbiterAcceptanceTest.test_pin_vacuity_postlevel_public_choose_key_consumes_retirement_budget",
+      "seconds": 486.1244260999374
+    },
+    {
+      "id": "tests.test_policy_town.TownWeightDepartureRecordedTest.test_r1_recorded_public_replay_posts_named_weight_owner",
+      "seconds": 249.55569880001713
+    },
+    {
+      "id": "tests.test_town_work_contract.TownWorkContractTest.test_recorded_versioned_corpus_has_zero_unmapped_receipts",
+      "seconds": 192.43965610000305
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.NeutralityTest.test_the_slots_and_the_closings_are_record_only",
+      "seconds": 128.17221509991214
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingPathsTest.test_revert_proof_without_the_effect_confirmation_no_sale_completes",
+      "seconds": 67.17774469999131
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin1_recorded_191943_from_process_start",
+      "seconds": 60.654445499996655
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin1_recorded_134416_from_process_start",
+      "seconds": 49.268902999931015
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks",
+      "seconds": 46.64636400004383
+    },
+    {
+      "id": "tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p4_attempted_surplus_deposit_does_not_block_departure",
+      "seconds": 38.24408949993085
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_mutations_in_actual_repository_town_paths",
+      "seconds": 35.82138720003422
+    },
+    {
+      "id": "tests.test_experience_potion.ExperiencePotionProtocol2Test.test_x7_protocol2_boards_carrying_the_potion_never_quaff_it",
+      "seconds": 35.72300500003621
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_repository_exact_reviewed_baselines",
+      "seconds": 34.06396059994586
+    }
+  ],
+  "top_classes": [
+    {
+      "id": "tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest",
+      "seconds": 794.8852494000457
+    },
+    {
+      "id": "tests.test_town_work_contract.TownWorkContractTest",
+      "seconds": 773.0080168999266
+    },
+    {
+      "id": "tests.test_experience_potion.ExperiencePotionRecordedTest",
+      "seconds": 677.2410545001039
+    },
+    {
+      "id": "tests.test_town_arbiter.TownTurnArbiterAcceptanceTest",
+      "seconds": 535.1102821996901
+    },
+    {
+      "id": "tests.test_policy_town.TownWeightDepartureRecordedTest",
+      "seconds": 249.55609279999044
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest",
+      "seconds": 162.49032399966381
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.NeutralityTest",
+      "seconds": 131.16943329991773
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingPathsTest",
+      "seconds": 77.77054870000575
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest",
+      "seconds": 69.97611199994572
+    },
+    {
+      "id": "tests.test_experience_potion.ExperiencePotionProtocol2Test",
+      "seconds": 64.76779860001989
+    }
+  ],
+  "top_modules": [
+    {
+      "id": "tests.test_unaffordable_claim_tour_recorded",
+      "seconds": 794.8852494000457
+    },
+    {
+      "id": "tests.test_town_work_contract",
+      "seconds": 773.0080168999266
+    },
+    {
+      "id": "tests.test_experience_potion",
+      "seconds": 742.6218135001836
+    },
+    {
+      "id": "tests.test_policy_town",
+      "seconds": 580.6199798992602
+    },
+    {
+      "id": "tests.test_town_arbiter",
+      "seconds": 535.1102821996901
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure",
+      "seconds": 257.13659019896295
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a",
+      "seconds": 162.49032399966381
+    },
+    {
+      "id": "tests.test_homefull3_recorded",
+      "seconds": 74.51556520012673
+    },
+    {
+      "id": "tests.test_test_fakery_lint",
+      "seconds": 71.73937079985626
+    },
+    {
+      "id": "tests.test_town_structure_lint",
+      "seconds": 69.97611199994572
+    }
+  ],
+  "top_10_classes_share_percent": 137.0437765210107
+}

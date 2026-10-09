@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-10-10T03:59:51.079722+09:00",
+  "head_sha": "aa41d867bd7c7fd9ff0802154840f0e9a98c1d43",
+  "total_seconds": 68.58905609999783,
+  "test_count": 13,
+  "top_tests": [
+    {
+      "id": "tests.test_test_fakery_lint.TestHistoricalFakerySites.test_real_historical_sites_fire_undeclared",
+      "seconds": 22.353427999885753
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted",
+      "seconds": 13.486064300057478
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes",
+      "seconds": 13.46359569998458
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_two_invalid_declarations_were_fixed_not_moved",
+      "seconds": 13.412221800070256
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_lost_substrate_skip_count_is_pinned",
+      "seconds": 2.996817500097677
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_no_recorder_owned_capture_reads",
+      "seconds": 2.547404000069946
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_seven_rewrites_remain_caught",
+      "seconds": 0.004012500052340329
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_repository_idiom_evasions_are_caught",
+      "seconds": 0.003988299984484911
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_assert_equal_scope_is_withdrawn_honestly",
+      "seconds": 0.002290799980983138
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_capture_dependency_lint_rejects_real_directory_not_fixture",
+      "seconds": 0.0011928000021725893
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_source_text_check_does_not_taint_behavioural_assertions",
+      "seconds": 0.000848500058054924
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_source_text_only_assertions_are_caught",
+      "seconds": 0.0007250999333336949
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_policy_subclass_path_override_is_caught",
+      "seconds": 0.0004592000041157007
+    }
+  ],
+  "top_classes": [
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint",
+      "seconds": 45.90729610028211
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestHistoricalFakerySites",
+      "seconds": 22.353427999885753
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites",
+      "seconds": 0.012324400013312697
+    }
+  ],
+  "top_modules": [
+    {
+      "id": "tests.test_test_fakery_lint",
+      "seconds": 68.27304850018118
+    }
+  ],
+  "top_10_classes_share_percent": 99.53927402156411
+}

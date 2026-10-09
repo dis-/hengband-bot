@@ -17,6 +17,7 @@
   "_emergency_escape_pending": "Boolean floor escape/return latch; selected consumables are not stored here.",
   "_equipment_catalog": "Observed owned-item catalogue; no future operation is selected.",
   "_equipment_departure_cache_value": "Cached departure assessment; no selected operation.",
+  "_equipment_home_deposit_tombstone": "Visit-local negative equipment deposit eligibility and completed impossible-work evidence; pack IDs are observations, never reserved future transfers.",
   "_equipment_fresh_search_target_ids": "Optimizer search candidates; not selected operations.",
   "_equipment_mutation_post_commit": "Commit callback metadata; selected item is in _equipment_mutation.",
   "_equipment_mutation_result": "Completed mutation report; no outstanding operation.",

@@ -1,0 +1,87 @@
+.................................................sss...............................................................................................................................................EEEE...........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................F.....
+======================================================================
+ERROR: test_carried_destruction_scroll_reaches_the_optimizer (tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_carried_destruction_scroll_reaches_the_optimizer)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-step1.5a\tests\test_policy_equipment.py", line 1597, in test_carried_destruction_scroll_reaches_the_optimizer
+    self.assertTrue(self._captured_has_destruction(snap))
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\hengband\bot-client-step1.5a\tests\test_policy_equipment.py", line 1590, in _captured_has_destruction
+    pol._prepare_equipment_optimization(snap)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1469, in _prepare_equipment_optimization
+    self._equipment_home_deposit_unavailable(snapshot, preparation.transaction)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1983, in _equipment_home_deposit_unavailable
+    next_home = next((a for a in actions if a.phase != PHASE_EQUIP), None)
+                                 ^^^^^^^
+TypeError: 'Mock' object is not iterable
+
+======================================================================
+ERROR: test_owned_quest_launcher_excludes_incompatible_equipped_launcher (tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_owned_quest_launcher_excludes_incompatible_equipped_launcher)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-step1.5a\tests\test_policy_equipment.py", line 1666, in test_owned_quest_launcher_excludes_incompatible_equipped_launcher
+    pol._prepare_equipment_optimization(snap)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1469, in _prepare_equipment_optimization
+    self._equipment_home_deposit_unavailable(snapshot, preparation.transaction)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1983, in _equipment_home_deposit_unavailable
+    next_home = next((a for a in actions if a.phase != PHASE_EQUIP), None)
+                                 ^^^^^^^
+TypeError: 'Mock' object is not iterable
+
+======================================================================
+ERROR: test_reserved_throwing_torch_is_not_a_loadout_candidate (tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_reserved_throwing_torch_is_not_a_loadout_candidate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-step1.5a\tests\test_policy_equipment.py", line 1618, in test_reserved_throwing_torch_is_not_a_loadout_candidate
+    pol._prepare_equipment_optimization(snap)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1469, in _prepare_equipment_optimization
+    self._equipment_home_deposit_unavailable(snapshot, preparation.transaction)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1983, in _equipment_home_deposit_unavailable
+    next_home = next((a for a in actions if a.phase != PHASE_EQUIP), None)
+                                 ^^^^^^^
+TypeError: 'Mock' object is not iterable
+
+======================================================================
+ERROR: test_without_a_destruction_source_the_optimizer_stays_fail_closed (tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_without_a_destruction_source_the_optimizer_stays_fail_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-step1.5a\tests\test_policy_equipment.py", line 1601, in test_without_a_destruction_source_the_optimizer_stays_fail_closed
+    self.assertFalse(self._captured_has_destruction(snap))
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\hengband\bot-client-step1.5a\tests\test_policy_equipment.py", line 1590, in _captured_has_destruction
+    pol._prepare_equipment_optimization(snap)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1469, in _prepare_equipment_optimization
+    self._equipment_home_deposit_unavailable(snapshot, preparation.transaction)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-step1.5a\src\hengbot\policy_equipment.py", line 1983, in _equipment_home_deposit_unavailable
+    next_home = next((a for a in actions if a.phase != PHASE_EQUIP), None)
+                                 ^^^^^^^
+TypeError: 'Mock' object is not iterable
+
+======================================================================
+FAIL: test_manifest_has_zero_unmapped_and_unknown_additions_fail (tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-step1.5a\tests\test_town_work_contract.py", line 146, in test_manifest_has_zero_unmapped_and_unknown_additions_fail
+    self.assertEqual(generator.check_repository(), [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['generated town work manifest is stale; review then regenerate'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'generated town work manifest is stale; review then regenerate'
+
+- ['generated town work manifest is stale; review then regenerate']
++ []
+
+----------------------------------------------------------------------
+Ran 984 tests in 2560.058s
+
+FAILED (failures=1, errors=4, skipped=3)

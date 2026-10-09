@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-10-10T04:14:52.503939+09:00",
+  "head_sha": "aa41d867bd7c7fd9ff0802154840f0e9a98c1d43",
+  "total_seconds": 746.8196124000242,
+  "tests": [
+    {
+      "id": "tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_enabled_capture_is_decision_pure_for_150_paired_decisions",
+      "seconds": 705.2222154000774
+    },
+    {
+      "id": "tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_non_none_transition_and_steady_state_do_not_fire",
+      "seconds": 9.203904499998316
+    },
+    {
+      "id": "tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_none_to_value_captures_bounded_replayable_four_decision_window",
+      "seconds": 20.12144919997081
+    },
+    {
+      "id": "tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_restore_seeds_marked_memory_for_checkpoint_before_axis_split",
+      "seconds": 0.8754319999134168
+    },
+    {
+      "id": "tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_slim_checkpoint_replays_old_calibration_decision",
+      "seconds": 3.4902794000227004
+    },
+    {
+      "id": "tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_slim_checkpoint_replays_old_home_deferral_producer_decision",
+      "seconds": 5.47749949991703
+    },
+    {
+      "id": "tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_writer_crossing_threshold_rotates_and_keeps_writing",
+      "seconds": 0.007767500006593764
+    }
+  ],
+  "failures": [],
+  "errors": [],
+  "shards": [
+    {
+      "name": "worker-1",
+      "modules": [
+        "tests.test_latch_onset_capture"
+      ],
+      "returncode": 0,
+      "wall_seconds": 746.791100799921,
+      "home_history_dir": "C:\\Users\\user\\AppData\\Local\\Temp\\hengbot-parallel-_ytqroq9\\worker-1\\home-history",
+      "failures": [],
+      "errors": [],
+      "stdout": "C:\\hengband\\bot-client-step1.5a\\validation\\step1.5a\\restore-final-streams\\worker-1.stdout.log",
+      "stderr": "C:\\hengband\\bot-client-step1.5a\\validation\\step1.5a\\restore-final-streams\\worker-1.stderr.log"
+    }
+  ],
+  "serial_modules": [
+    "tests.test_latch_onset_capture"
+  ],
+  "purity": "purity: ran (inputs sha256=5b1b10170a92032baa75e27967500ceaf8011d09742e609344966bb63b6669aa)",
+  "weights": "weights: unavailable; fallback=0/0; stale=yes"
+}

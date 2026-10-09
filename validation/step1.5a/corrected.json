@@ -1,0 +1,1639 @@
+{
+  "generated_at": "2026-10-10T03:54:13.583180+09:00",
+  "head_sha": "aa41d867bd7c7fd9ff0802154840f0e9a98c1d43",
+  "total_seconds": 491.51124769996386,
+  "tests": [
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_confirmed_action_refreshes_its_own_declaration",
+      "seconds": 1.3280023999977857
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_initial_deposits_are_different_from_later_stolen_goals",
+      "seconds": 0.005375399952754378
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_open_page_retry_is_posted_and_observed_by_equipment_owner",
+      "seconds": 0.2488577999174595
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_refused_deposit_exit_preserves_the_owner_continuation",
+      "seconds": 0.44738659996073693
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_retry_selection_never_takes_the_equipment_owners_item",
+      "seconds": 1.0075556999072433
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_stall_termination_releases_old_goal_before_final_validation",
+      "seconds": 1.9492488000541925
+    },
+    {
+      "id": "tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_successful_deposit_exit_keeps_the_next_item_goal_registered",
+      "seconds": 1.2865945999510586
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_building_menu_pin_does_not_exempt_item_command_in_same_function",
+      "seconds": 0.0010795999551191926
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_enforcement_result_cannot_be_discarded_at_exit",
+      "seconds": 0.0010719000129029155
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_every_pinned_adapter_call_still_exists",
+      "seconds": 3.6428304000291973
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_low_level_adapter_cannot_bypass_verdict_in_a_new_module",
+      "seconds": 0.002844999893568456
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_new_call_in_existing_adapter_is_rejected",
+      "seconds": 0.002691500005312264
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_new_direct_producer_mutant_fails",
+      "seconds": 0.0016948000993579626
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_new_selector_cannot_serialize_reserved_item_without_verdict",
+      "seconds": 0.002495699911378324
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_none_exit_cannot_bypass_final_record",
+      "seconds": 0.0009500000160187483
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_public_exit_mutant_is_rejected",
+      "seconds": 0.0009886000771075487
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_raw_command_forms_and_aliases_fail",
+      "seconds": 0.008293699938803911
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_raw_consumption_command_mutations_fail",
+      "seconds": 0.01311499997973442
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_raw_deposit_mutant_fails",
+      "seconds": 0.0006247999845072627
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks",
+      "seconds": 45.34117090003565
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_returned_key_must_be_the_recorded_final_key",
+      "seconds": 0.0011413999600335956
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_rumor_menu_macro_pin_is_exact",
+      "seconds": 0.002821899950504303
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_serializer_alias_and_overwritten_verdict_are_rejected",
+      "seconds": 0.0023172999499365687
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_serializer_has_required_verdict_signature",
+      "seconds": 0.0021945000626146793
+    },
+    {
+      "id": "tests.test_item_sink_lint.ItemSinkLintTest.test_verdict_construction_outside_core_fails",
+      "seconds": 0.0005707999225705862
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.BoundedStackTest.test_a_buried_claim_of_the_same_owner_and_goal_resumes",
+      "seconds": 1.266504600062035
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.BoundedStackTest.test_revert_proof_round_one_survival_rule_grows_the_stack",
+      "seconds": 0.46581600001081824
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.BoundedStackTest.test_revert_proof_top_only_resume_leaves_it_buried",
+      "seconds": 0.4869832000695169
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.BoundedStackTest.test_the_reviewers_alternation_stays_bounded_and_resumes",
+      "seconds": 0.4679493000730872
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.BoundedStackTest.test_the_stack_stays_bounded_on_any_sequence",
+      "seconds": 0.7433427000651136
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.FinalEndingTest.test_a_claim_closed_while_suspended_ends_with_that_closing",
+      "seconds": 0.5422575999982655
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.FinalEndingTest.test_a_resumed_claim_ends_once",
+      "seconds": 0.5125506999902427
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_every_census_family_is_placed_with_one_ordinary_rung",
+      "seconds": 0.000403700047172606
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_every_marked_call_site_family_is_read_from_the_source",
+      "seconds": 0.28557170007843524
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_every_rung_reason_belongs_to_its_family",
+      "seconds": 0.00058230001013726
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_revert_proof_swapping_families_between_call_sites",
+      "seconds": 1.2210987000726163
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_revert_proof_swapping_two_rungs",
+      "seconds": 0.30322040000464767
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_rungs_from_reasons",
+      "seconds": 0.00011749996338039637
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order",
+      "seconds": 0.2809634000295773
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_the_rank_rules",
+      "seconds": 0.0005562000442296267
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_the_rewrite_producers_exist_outside_decide",
+      "seconds": 0.2837300000246614
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.LadderOrderTest.test_the_six_rungs_carry_their_marker_and_it_is_annotation_only",
+      "seconds": 9.14999982342124e-05
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.NeutralityTest.test_the_dungeon_replay_decides_the_same_and_records_the_ladder",
+      "seconds": 2.552191499969922
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.PickupCensusTest.test_pickup_and_auto_destroy_are_floor_loot",
+      "seconds": 0.00034849997609853745
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RankOnlyReclassificationTest.test_acceptance_ii_the_combat_takeovers_are_preemptions",
+      "seconds": 0.02750460000243038
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RankOnlyReclassificationTest.test_the_design_measurement_is_the_rank_only_verdict",
+      "seconds": 0.009287100052461028
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RankOnlyReclassificationTest.test_the_excerpt_is_the_frozen_one",
+      "seconds": 0.05948920000810176
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RankOnlyReclassificationTest.test_the_ladder_reader_splits_preemptions_and_violations",
+      "seconds": 0.08560760004911572
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RankOnlyReclassificationTest.test_the_report_prints_the_new_metric",
+      "seconds": 0.02759009995497763
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RestoredCheckpointTest.test_a_pre_s2b1_register_and_claim_unpickle",
+      "seconds": 0.00024090008810162544
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RestoredCheckpointTest.test_a_pre_s2b1_register_in_a_policy_declares_and_preempts",
+      "seconds": 0.5125820999965072
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RestoredCheckpointTest.test_the_legacy_checkpoint_restores_an_empty_stack_and_decides",
+      "seconds": 2.24566550005693
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RoundThreeTest.test_a_floorless_claim_restored_on_the_stack_expires",
+      "seconds": 0.576132700080052
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RoundThreeTest.test_a_floorless_claim_suspended_now_expires_on_the_next_floor",
+      "seconds": 0.4810592000139877
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RoundThreeTest.test_a_suspended_walk_completes_on_entering_its_store",
+      "seconds": 0.4895831999601796
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RoundThreeTest.test_revert_proof_cell_equality_alone_leaves_it_suspended",
+      "seconds": 0.4506427999585867
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.RoundThreeTest.test_the_overflow_block_ranks_at_its_own_rung",
+      "seconds": 6.019999273121357e-05
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.SameOwnerGoalChangeTest.test_a_continuing_claim_takes_the_survival_flag_of_its_decision",
+      "seconds": 0.4820927999680862
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.SameOwnerGoalChangeTest.test_a_return_walk_turning_to_an_esp_threat_leave",
+      "seconds": 0.45739039999898523
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.SameOwnerGoalChangeTest.test_an_escape_walk_turning_to_an_emergency_goal",
+      "seconds": 0.9529903000220656
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.SameOwnerGoalChangeTest.test_without_survival_it_is_a_retarget_violation",
+      "seconds": 0.5069336000597104
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_a_floor_change_completes_the_recall_and_expires_the_rest",
+      "seconds": 0.4999347999691963
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_a_higher_owner_nests_without_touching_the_stack",
+      "seconds": 0.5299893000628799
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_a_lower_owner_displaces_the_suspended_claim",
+      "seconds": 0.4958838999737054
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_a_retarget_is_a_violation",
+      "seconds": 0.5280352999689057
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_a_suspended_reach_completes_when_its_cell_is_reached",
+      "seconds": 0.4829818999860436
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_nesting_a_b_c_unwinds_in_order",
+      "seconds": 0.4877420000266284
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_preempt_and_resume_under_the_same_id",
+      "seconds": 0.4476835000095889
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_store_operation_and_transaction_observe_only_yield_to_survival",
+      "seconds": 1.9328150000656024
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_the_rank_and_rung_are_on_every_row",
+      "seconds": 0.4756420999765396
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_the_same_owner_with_another_goal_releases_it",
+      "seconds": 0.444945800001733
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.StackSemanticsTest.test_within_does_not_count_the_time_spent_suspended",
+      "seconds": 0.5242180000059307
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.TriggerMonsterRegisterTest.test_the_last_perceived_turn_moves_only_when_perceived",
+      "seconds": 0.00011449994053691626
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.TriggerSetTest.test_a_continuing_claim_keeps_its_set_and_tracks_perception",
+      "seconds": 0.00019239995162934065
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.TriggerSetTest.test_a_hunt_records_its_own_target_only",
+      "seconds": 0.47766089998185635
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.TriggerSetTest.test_an_undeclared_producer_records_none",
+      "seconds": 0.537158599938266
+    },
+    {
+      "id": "tests.test_ownership_s2b1_ladder.TriggerSetTest.test_the_look_ahead_set_and_nothing_else",
+      "seconds": 0.00011069991160184145
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_assert_equal_scope_is_withdrawn_honestly",
+      "seconds": 0.0016872999258339405
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_policy_subclass_path_override_is_caught",
+      "seconds": 0.0004954000469297171
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_repository_idiom_evasions_are_caught",
+      "seconds": 0.0040080000180751085
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_seven_rewrites_remain_caught",
+      "seconds": 0.0048050000332295895
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_source_text_check_does_not_taint_behavioural_assertions",
+      "seconds": 0.0008040000684559345
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestEvasionRewrites.test_source_text_only_assertions_are_caught",
+      "seconds": 0.0006525999633595347
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestHistoricalFakerySites.test_real_historical_sites_fire_undeclared",
+      "seconds": 22.51273489999585
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_capture_dependency_lint_rejects_real_directory_not_fixture",
+      "seconds": 0.0018331999890506268
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted",
+      "seconds": 15.339133599889465
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_lost_substrate_skip_count_is_pinned",
+      "seconds": 3.361758799990639
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_no_recorder_owned_capture_reads",
+      "seconds": 2.5608454000903293
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes",
+      "seconds": 14.149306599982083
+    },
+    {
+      "id": "tests.test_test_fakery_lint.TestTreeFakeryLint.test_two_invalid_declarations_were_fixed_not_moved",
+      "seconds": 14.065413699951023
+    },
+    {
+      "id": "tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail",
+      "seconds": 59.8475569000002
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_fresh_optimizer_and_rearm_reject_only_home_deposit_plan",
+      "seconds": 7.0357652000384405
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin1_recorded_134416_from_process_start",
+      "seconds": 48.84283300000243
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin1_recorded_191943_from_process_start",
+      "seconds": 63.53381460008677
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin2_nonoverweight_confirmed_loadout_departure",
+      "seconds": 3.4854226999450475
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin3_recorded_s9_s10_does_not_repost_or_approach",
+      "seconds": 3.096875699935481
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin4_rearm_forgiveness_and_relief_preserve_tombstone",
+      "seconds": 3.5902430000714958
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin4_suppliers_and_other_home_owners_keep_the_route",
+      "seconds": 3.4286713000619784
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin5_new_visit_clears_tombstone",
+      "seconds": 3.525494100060314
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin5_observed_space_clears_tombstone",
+      "seconds": 3.313109099981375
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin6_restart_full_page_refires_without_refusal",
+      "seconds": 3.171535399975255
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin7_equip_only_still_executes_and_withdrawn_item_stays",
+      "seconds": 3.4326250000158325
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin8_deeper_missing_abilities_blocks_departure",
+      "seconds": 3.3569799000397325
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_posted_equipment_deposit_full_message_sets_tombstone",
+      "seconds": 3.0421314000850543
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_restoration_and_withdrawn_pack_record_survive_closure",
+      "seconds": 3.789756100042723
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_restore_defaults_and_preserves_tombstone",
+      "seconds": 5.205861900001764
+    },
+    {
+      "id": "tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_tombstone_retires_equipment_while_independent_deposit_settles",
+      "seconds": 3.352845699992031
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.CachedUpstairsTargetTest.test_revert_proof_without_the_cached_target_the_second_call_declares_none",
+      "seconds": 0.014627599972300231
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.CachedUpstairsTargetTest.test_the_second_call_in_a_decision_declares_the_target",
+      "seconds": 0.013524199952371418
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.CaptureRobustnessTest.test_a_leftover_capture_is_cleared_at_the_decision_boundary",
+      "seconds": 1.2977024000138044
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.CaptureRobustnessTest.test_a_raising_helper_leaves_no_capture",
+      "seconds": 0.46314330003224313
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.CaptureRobustnessTest.test_a_restored_checkpoint_carries_no_capture",
+      "seconds": 0.9523474000161514
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingOwnershipTest.test_a_confirmation_cannot_complete_another_owners_claim",
+      "seconds": 0.8461788001004606
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingOwnershipTest.test_a_release_names_its_owners",
+      "seconds": 0.7209832000080496
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingOwnershipTest.test_a_source_mismatch_closes_nothing",
+      "seconds": 0.5358117999276146
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingOwnershipTest.test_every_closing_call_names_its_owners",
+      "seconds": 0.9384644000092521
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingPathsTest.test_loot_choke_replay_closes_explore_and_positioning",
+      "seconds": 0.8529455999378115
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingPathsTest.test_posted_effect_captures_close_what_they_can",
+      "seconds": 8.189998400048353
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingPathsTest.test_revert_proof_without_the_closing_calls_the_dungeon_pin_fails",
+      "seconds": 0.9638026000466198
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingPathsTest.test_revert_proof_without_the_effect_confirmation_no_sale_completes",
+      "seconds": 57.871317100012675
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ClosingPathsTest.test_the_named_restock_window_holds_no_board_to_replay",
+      "seconds": 0.0007792999967932701
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_a_reach_row_without_its_own_slot_is_terminal_and_missing",
+      "seconds": 0.44386040000244975
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_a_same_owner_rewrite_keeps_the_producers_slot",
+      "seconds": 0.6386989000020549
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_a_shared_helper_stamps_the_errand_it_runs",
+      "seconds": 0.8490632000612095
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_a_slot_of_another_owner_is_not_used",
+      "seconds": 0.4642848999937996
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_a_stale_store_goal_cannot_type_a_recall_wait",
+      "seconds": 0.5491381998872384
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_an_expectation_of_another_owner_is_not_used",
+      "seconds": 0.7239970999071375
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_no_row_carries_a_cell_its_producer_did_not_write",
+      "seconds": 0.782892799936235
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_revert_proof_the_scan_inside_the_real_claim_goal_is_caught",
+      "seconds": 1.507485199952498
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_the_producers_own_slot_is_the_goal",
+      "seconds": 0.49752379988785833
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.DeclaredGoalSlotTest.test_the_shared_state_scan_is_gone",
+      "seconds": 5.289993714541197e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.FarTargetCaptureTest.test_a_replaced_helper_declares_no_goal",
+      "seconds": 0.06827079993672669
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.FarTargetCaptureTest.test_an_armed_capture_receives_the_target_and_is_removed",
+      "seconds": 0.5758524999255314
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.FarTargetCaptureTest.test_an_unarmed_helper_writes_nothing",
+      "seconds": 0.07462009997107089
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GateNumbersTest.test_a_counts_an_owner_change_that_left_a_goal_unclosed",
+      "seconds": 0.00016350008081644773
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GateNumbersTest.test_a_terminal_claim_is_closed_when_it_is_posted",
+      "seconds": 8.299993351101875e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GateNumbersTest.test_b_counts_the_same_owner_forgetting_its_cell",
+      "seconds": 8.9899986051023e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GateNumbersTest.test_c_names_how_every_reach_and_observe_claim_ended",
+      "seconds": 0.000152900000102818
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GateNumbersTest.test_d_catches_a_multi_row_terminal_claim_that_moves",
+      "seconds": 9.040010627359152e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GateNumbersTest.test_the_ledger_records_position_goal_missing_and_survival",
+      "seconds": 0.008367800037376583
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GateNumbersTest.test_the_report_prints_the_four_numbers",
+      "seconds": 0.007605300052091479
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalMissingMetricTest.test_d_excludes_goal_missing_rows_and_counts_them_apart",
+      "seconds": 8.459994569420815e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalMissingMetricTest.test_revert_proof_without_the_exclusion_d_counts_it",
+      "seconds": 6.320001557469368e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalMissingMetricTest.test_the_report_prints_goal_missing_and_owner_mismatch_lines",
+      "seconds": 8.240004535764456e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_a_refinement_never_leaks_into_another_family",
+      "seconds": 0.009404400014318526
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_every_prefix_of_every_family_resolves_to_its_own_row",
+      "seconds": 0.004816400003619492
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_every_reach_reason_site_writes_its_slot",
+      "seconds": 0.0574284999165684
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_every_reason_the_package_can_emit_is_typed",
+      "seconds": 1.4611408000346273
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_the_design_rows_have_the_design_kind",
+      "seconds": 0.0011617999989539385
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_the_families_the_review_found_missing_are_covered",
+      "seconds": 0.0002394999610260129
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_the_rev92_rows_have_the_design_kind",
+      "seconds": 0.000327100045979023
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.HomeEffectSourceTest.test_a_home_leave_is_not_completed_by_a_withdraw_confirmation",
+      "seconds": 1.3364423000020906
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.LastKnownCellTest.test_the_last_known_walk_is_its_own_claim",
+      "seconds": 0.5547146999742836
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.MovingTargetTest.test_a_monster_that_left_perception_releases",
+      "seconds": 0.06630529998801649
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.MovingTargetTest.test_arrival_completes_for_whichever_chaser_holds_it",
+      "seconds": 0.22686769999563694
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.MovingTargetTest.test_the_goal_is_the_identity_and_continues_while_it_is_unchanged",
+      "seconds": 0.21827469998970628
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.MovingTargetTest.test_the_melee_switch_closes_the_chase_in_its_own_branch",
+      "seconds": 0.275614200043492
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.NeutralityTest.test_the_dungeon_replay_decides_identically_with_and_without_claims",
+      "seconds": 2.5159688000567257
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.NeutralityTest.test_the_slots_and_the_closings_are_record_only",
+      "seconds": 106.92269070004113
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ObserveClosingTest.test_a_floor_change_completes_and_a_long_wait_expires",
+      "seconds": 0.12205959996208549
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ObserveClosingTest.test_a_satisfied_expectation_completes_without_a_pop",
+      "seconds": 0.11485290003474802
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ObserveClosingTest.test_an_observe_older_than_within_expires",
+      "seconds": 0.0895667999284342
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ObserveClosingTest.test_expired_is_its_own_ending",
+      "seconds": 0.00010189996100962162
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ObserveClosingTest.test_revert_proof_without_the_read_only_test_nothing_completes",
+      "seconds": 0.1880901000695303
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ObserveClosingTest.test_the_satisfied_pop_completes_and_the_other_pops_do_not",
+      "seconds": 0.15369060006923974
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.OneStepNoteTest.test_c_breaks_reach_endings_down_by_the_note",
+      "seconds": 0.00012809992767870426
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.OneStepNoteTest.test_the_note_reaches_the_row",
+      "seconds": 0.0675066999392584
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.OneStepNoteTest.test_the_one_step_sites_carry_the_note",
+      "seconds": 11.062832799972966
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ReadOnlySatisfactionTest.test_revert_proof_the_noting_core_would_rewrite_the_arbiter",
+      "seconds": 0.11471269989851862
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ReadOnlySatisfactionTest.test_the_arbiter_is_byte_identical_around_the_exit_test",
+      "seconds": 0.11574519996065646
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.ReservedChestCellTest.test_the_reserved_cell_is_declared_not_the_first_step",
+      "seconds": 0.9105657000327483
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.RestoredCheckpointTest.test_a_pre_s2a1_claim_goal_register_and_registry_unpickle",
+      "seconds": 0.0002367999404668808
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.RestoredCheckpointTest.test_an_s1_register_inside_a_checkpoint_declares_and_closes",
+      "seconds": 2.2740924999816343
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.RestoredCheckpointTest.test_the_legacy_checkpoint_restores_the_new_slots_and_decides",
+      "seconds": 1.9898717999458313
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalConstantTest.test_no_ordinary_owner_is_survival",
+      "seconds": 0.0001680999994277954
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalConstantTest.test_survival_suspends_the_standing_goal_and_ordinary_does_not",
+      "seconds": 1.7668578999582678
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalConstantTest.test_suspend_has_one_caller_behind_the_survival_constant",
+      "seconds": 1.7276005999883637
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalConstantTest.test_the_constant_is_the_design_list",
+      "seconds": 6.230000872164965e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalTriggerStartOnlyTest.test_an_emergency_during_an_ordinary_return_does_not_make_it_survival",
+      "seconds": 0.0656719000544399
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalTriggerStartOnlyTest.test_guardian_reposition_is_not_a_survival_trigger",
+      "seconds": 4.610000178217888e-05
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalTriggerStartOnlyTest.test_revert_proof_a_running_return_rewritten_by_a_named_trigger",
+      "seconds": 0.06546800001524389
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalTriggerTest.test_a_stale_last_trigger_does_not_make_a_return_survival",
+      "seconds": 0.11548000003676862
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalTriggerTest.test_every_return_start_and_end_is_recorded",
+      "seconds": 1.1323631999548525
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SurvivalTriggerTest.test_the_trigger_of_this_return_is_kept_and_cleared_at_its_end",
+      "seconds": 0.06825889996252954
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.SuspendedClaimTest.test_a_suspended_claim_does_not_continue",
+      "seconds": 0.00010029994882643223
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.TeleportAdoptionTest.test_the_step_off_path_adopts_no_earlier_slot",
+      "seconds": 0.44074130000080913
+    },
+    {
+      "id": "tests.test_ownership_s2a1_closure.TeleportAdoptionTest.test_the_teleport_walk_itself_is_adopted",
+      "seconds": 0.4983257999410853
+    },
+    {
+      "id": "tests.test_policy_equipment.ArmorDominanceTest.test_higher_ac_dominates_despite_a_worse_to_hit",
+      "seconds": 0.0010279000271111727
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_changed_inputs_do_not_republish_stale_confirmation",
+      "seconds": 0.45225870003923774
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_dual_shovel_incident_refuses_through_choose_key",
+      "seconds": 0.11435580009128898
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
+      "seconds": 0.27714470005594194
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key",
+      "seconds": 0.4429972000652924
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_known_best_not_worn_refuses_through_choose_key",
+      "seconds": 0.05870150006376207
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_light_only_home_upgrade_refuses_through_choose_key",
+      "seconds": 0.10060470004100353
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_light_only_pack_incident_refuses_through_choose_key",
+      "seconds": 0.1134582000086084
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_owned_loadout_target_ignores_transport_inputs_and_ends_wearing",
+      "seconds": 1.605755600030534
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_policy_signature_orders_duplicate_ids_by_identity_only",
+      "seconds": 0.0032266000052914023
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_public_naked_snapshot_replaces_stale_worn_catalog_and_dresses",
+      "seconds": 0.01539680000860244
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key",
+      "seconds": 0.5254887000191957
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_selected_loadout_derives_the_deepest_satisfied_band",
+      "seconds": 0.6355753000825644
+    },
+    {
+      "id": "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_write_oserror_allows_completion_but_not_fresh_process",
+      "seconds": 0.3200494999764487
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_adjacent_goal_walks",
+      "seconds": 0.001051100087352097
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_dungeon_floors_never_travel",
+      "seconds": 0.0005084999138489366
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_far_surface_goal_travels",
+      "seconds": 0.0006660999497398734
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_floor_change_clears_the_fallback_latch",
+      "seconds": 0.003042299998924136
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_incomplete_optimizer_blocks_native_entrance_travel",
+      "seconds": 0.0009677000343799591
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown",
+      "seconds": 0.020101399975828826
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_native_entrance_travel_binds_on_entry_depth",
+      "seconds": 0.0007870999397709966
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_no_progress_latches_a_walking_fallback",
+      "seconds": 0.0008034000638872385
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_non_mining_walk_in_respects_prior_floor_descent_cooldown",
+      "seconds": 0.009745999937877059
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_non_target_surface_goal_does_not_travel",
+      "seconds": 0.0008232999825850129
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_progress_reissues_travel_after_an_interruption",
+      "seconds": 0.000797600019723177
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_surface_goal_without_equipped_light_walks_instead",
+      "seconds": 0.0006270000012591481
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_unremembered_entrance_goal_does_not_issue_or_record_travel",
+      "seconds": 0.0005806999979540706
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_yeek_entrance_is_not_a_descent_target_outside_outpost",
+      "seconds": 0.0005940000992268324
+    },
+    {
+      "id": "tests.test_policy_equipment.EntranceTravelTest.test_zero_recall_ordinary_surface_goal_does_not_enter",
+      "seconds": 0.000586999929510057
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipLoopAfterE85AA8ERegressionTest.test_identification_incomplete_hammer_is_not_a_search_target",
+      "seconds": 0.2262462000362575
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_carried_destruction_scroll_reaches_the_optimizer",
+      "seconds": 0.0015464999014511704
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_owned_quest_launcher_excludes_incompatible_equipped_launcher",
+      "seconds": 0.0018899999558925629
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_reserved_throwing_torch_is_not_a_loadout_candidate",
+      "seconds": 0.001442900043912232
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_without_a_destruction_source_the_optimizer_stays_fail_closed",
+      "seconds": 0.0012419999111443758
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_burned_sources_rotate_and_exhaust_monotonically",
+      "seconds": 0.03320569999050349
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_deferred_and_stall_quarantine_overlap_keeps_last_gate_source",
+      "seconds": 0.0027620999608188868
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_deferred_quarantine_never_removes_last_required_gate_source",
+      "seconds": 0.002172200009226799
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_equipment_telemetry_characterization_does_not_change_decision",
+      "seconds": 0.12344670004677027
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_failed_equipped_takeoff_quarantines_same_item_after_pack_move",
+      "seconds": 0.03303789999336004
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_fresh_search_transition_diffs_successive_target_item_ids",
+      "seconds": 0.004211499937810004
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_no_valid_loadout_telemetry_names_missing_gate_sources",
+      "seconds": 0.0014210999943315983
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_optimizer_candidate_telemetry_names_search_return_paths",
+      "seconds": 0.0038762999465689063
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_optimizer_strategy_telemetry_is_absent_when_search_is_blocked",
+      "seconds": 0.0010809999657794833
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_optimizer_strategy_telemetry_names_full_search_empty_seed",
+      "seconds": 0.0021379999816417694
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_optimizer_strategy_telemetry_names_full_search_nonempty_seed",
+      "seconds": 0.002605500048957765
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_optimizer_strategy_telemetry_names_incremental_empty_seed",
+      "seconds": 0.017716200090944767
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_optimizer_strategy_telemetry_names_incremental_nonempty_seed",
+      "seconds": 0.018025999888777733
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_policy_state_capture_serializes_quarantine_sets",
+      "seconds": 0.001574800000526011
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_readmission_grants_one_source_per_missing_gate",
+      "seconds": 0.0021265000104904175
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_search_surviving_gate_source_reports_post_exclusion_zero",
+      "seconds": 0.0015841000713407993
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_stall_abandon_cannot_absorb_last_gate_source",
+      "seconds": 0.06410339998546988
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_valve_release_is_a_single_second_chance",
+      "seconds": 0.14954199991188943
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_abandon_blocked_marker_activates_no_progress_refusal",
+      "seconds": 0.0008920000400394201
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
+      "seconds": 0.0011449999874457717
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_blocked_abandon_marks_owned_visit_but_closes_foreign_visit",
+      "seconds": 0.002559000044129789
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_blocked_restore_reaches_visible_named_terminal",
+      "seconds": 0.02614009997341782
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_completing_optimization_performs_zero_restores",
+      "seconds": 0.08522020000964403
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_equipment_withdrawal_finishes_before_queued_torch_withdrawal",
+      "seconds": 0.05101280007511377
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_exhausted_home_route_abandonment_does_not_replan_failed_deposit",
+      "seconds": 0.5674196999752894
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_foreign_visit_is_closed_and_home_route_attempt_is_bounded",
+      "seconds": 0.22957620001398027
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_live_inside_home_with_ten_removed_items_preserves_transaction_progress",
+      "seconds": 0.08209710009396076
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_open_home_equipment_withdraw_records_resolved_address",
+      "seconds": 0.004552199970930815
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_outstanding_equipment_work_always_projects_a_home_need",
+      "seconds": 0.003113800077699125
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_public_blocked_mid_strip_owns_town_and_installs_full_restore",
+      "seconds": 0.048983899992890656
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_public_no_session_latched_restore_dresses_pack_again",
+      "seconds": 0.13510650000534952
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_restarted_exhausted_route_quarantines_captured_failed_deposit",
+      "seconds": 0.18410339998081326
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_restarted_inside_home_retained_digger_yields_then_exits",
+      "seconds": 0.04618740000296384
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_route_blocked_abandonment_consumes_home_route_pass",
+      "seconds": 0.07179830002132803
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_satisfied_zero_action_optimization_does_not_own_home",
+      "seconds": 0.7434296000283211
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_transaction_owned_item_refused_by_classifier_guards",
+      "seconds": 0.0013809999218210578
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_zero_action_shape_with_different_target_remains_blocked_work",
+      "seconds": 0.0004939999198541045
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionQuarantineInvariantTest.test_both_recorded_free_action_sources_cannot_create_terminal_block",
+      "seconds": 0.004139799973927438
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionQuarantineInvariantTest.test_quarantining_each_mandatory_source_never_removes_the_last_one",
+      "seconds": 0.010077300015836954
+    },
+    {
+      "id": "tests.test_policy_equipment.EquipmentTransactionQuarantineInvariantTest.test_zero_candidate_twenty_floor_search_relaxes_with_alternate_latched",
+      "seconds": 0.0012534999987110496
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_already_suppressed_home_item_is_not_withdrawn_again",
+      "seconds": 0.0006009000353515148
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_blocked_home_does_not_steal_outside_home_transaction",
+      "seconds": 0.0006809999467805028
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_blocked_home_refuses_departure_and_names_visible_exit",
+      "seconds": 0.0008959999540820718
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_cancels_deep_recall_when_loadout_is_not_confirmed",
+      "seconds": 0.0014553000219166279
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_carried_identification_writeoff_flows_into_optimizer_preparation",
+      "seconds": 0.0023898000363260508
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_choose_key_defensively_exits_store_on_none_decision",
+      "seconds": 0.013547400012612343
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_consumable_purchase_does_not_invalidate_equipment_search_cache",
+      "seconds": 0.0016577000496909022
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_cursed_random_teleport_item_is_not_inscribed",
+      "seconds": 0.0006534999702125788
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_deferred_home_suppression_is_not_actionable_for_departure",
+      "seconds": 0.0006697000935673714
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_equipment_block_in_open_store_returns_visible_exit",
+      "seconds": 0.0006453999085351825
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_fresh_selected_partial_artifact_suppression_matches_blocker",
+      "seconds": 0.002046500099822879
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_processing_withdraws_only_incomplete_equipment",
+      "seconds": 0.0009256000630557537
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_random_teleport_uses_derived_page_address_then_pack_inscription",
+      "seconds": 0.053881999920122325
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_suppression_arming_is_outside_and_uses_town_pack_predicate",
+      "seconds": 0.0012350999750196934
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_unreachable_then_open_shop_leaves_without_crashing",
+      "seconds": 0.032780000008642673
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_identification_owner_predicate_does_not_create_home_claims",
+      "seconds": 0.0018792999908328056
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_incident_home_replay_withdraws_before_identify_staff_work",
+      "seconds": 0.0026141999987885356
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_inscribed_selected_partial_artifact_clears_departure_blocker",
+      "seconds": 0.0014848000137135386
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_inscribes_equipped_random_teleport_item",
+      "seconds": 0.0008683999767526984
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_inscribes_pack_random_teleport_item_in_town",
+      "seconds": 0.0008324999362230301
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_inscribes_partial_known_uncursed_item_before_equipping",
+      "seconds": 0.0007876000599935651
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_leaves_store_before_inscribing_carried_item",
+      "seconds": 0.0008558999979868531
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_live_cache_hit_replan_retains_displaced_worn_digger",
+      "seconds": 0.0036065999884158373
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_live_fresh_replan_retains_displaced_worn_digger_to_completion",
+      "seconds": 0.02451620006468147
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_no_valid_20f_loadout_equips_owned_19f_kit_and_keeps_angband",
+      "seconds": 0.0014370999997481704
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_no_valid_21f_loadout_equips_owned_20f_kit_and_keeps_angband",
+      "seconds": 0.001213700044900179
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_no_valid_loadout_is_terminal_after_store_routes_are_spent",
+      "seconds": 0.0011842999374493957
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_non_pack_blocker_cannot_start_partial_equipment_transaction",
+      "seconds": 5.6999968364834785e-05
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_optimizer_preserves_identification_owned_pack_item",
+      "seconds": 0.0015044999308884144
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_optimizer_preserves_inferior_pack_weapon_for_smith_sale",
+      "seconds": 0.0016886000521481037
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_pack_slot_change_replans_without_repeating_equipment_search",
+      "seconds": 0.0016534000169485807
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_pack_space_block_still_executes_leading_home_deposits",
+      "seconds": 7.860001642256975e-05
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_pending_fixed_quest_does_not_replace_dungeon_objective_depth",
+      "seconds": 0.0011947999009862542
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_pending_home_equipment_work_blocks_when_home_is_available",
+      "seconds": 0.0008542999858036637
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_pending_quest_procurement_does_not_create_dungeon_fallback",
+      "seconds": 0.0014831000007689
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_prime_does_not_claim_pack_identification_candidate_is_in_home",
+      "seconds": 0.0011753999860957265
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_prime_does_not_claim_pack_light_is_in_home",
+      "seconds": 0.0009058000287041068
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_recorded_free_action_withdrawals_survive_live_leave_latch",
+      "seconds": 0.008570100064389408
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_repeated_home_suppression_actions_do_not_grow_catalog",
+      "seconds": 0.0012351000914350152
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_retained_incident_diggers_are_preserved_and_never_deposited",
+      "seconds": 0.0015725999837741256
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_selected_home_suppression_creates_home_errand",
+      "seconds": 0.001270200009457767
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_shallow_fallback_depth_overrides_pending_quest_depth",
+      "seconds": 0.0008732000133022666
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_taken_fixed_quest_also_keeps_dungeon_objective_depth",
+      "seconds": 0.0008285000221803784
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_timed_out_21f_loadout_switches_to_shallower_dungeon",
+      "seconds": 0.0010036000749096274
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_timeout_latches_across_equipment_mutations_for_town_visit",
+      "seconds": 0.0013743999879807234
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_transaction_deposit_stack_answers_quantity_prompt",
+      "seconds": 0.0009570000693202019
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_transaction_deposits_fully_known_item_unchanged",
+      "seconds": 0.0009060000302270055
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_unactionable_suppression_keeps_confirmed_loadout",
+      "seconds": 0.006171399960294366
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_unconfirmed_store_context_never_plans_item_command",
+      "seconds": 0.02521979995071888
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_unidentified_scroll_belongs_to_use_flow_not_identification_flow",
+      "seconds": 0.001000500051304698
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_withdraw_transaction_cycle_falls_through_without_redeposit",
+      "seconds": 0.0008680999744683504
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_withdraws_home_random_teleport_item_before_inscribing",
+      "seconds": 0.0008585000177845359
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_worn_reserved_digger_projects_through_takeoff_and_never_deposits",
+      "seconds": 0.0009418000699952245
+    },
+    {
+      "id": "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_zero_pack_space_defers_home_suppression_to_existing_disposal",
+      "seconds": 0.013307799934409559
+    },
+    {
+      "id": "tests.test_policy_equipment.JewelryKeepingTest.test_keeps_a_beneficial_amulet_for_the_empty_neck",
+      "seconds": 0.0008728000102564692
+    },
+    {
+      "id": "tests.test_policy_equipment.JewelryKeepingTest.test_keeps_an_unidentified_amulet_out_of_the_home_deposit",
+      "seconds": 0.0010211000917479396
+    },
+    {
+      "id": "tests.test_policy_equipment.JewelryKeepingTest.test_stashes_a_spare_amulet_when_the_neck_is_occupied",
+      "seconds": 0.0008302000351250172
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_artifact_unknown_or_missing_launcher_is_skipped",
+      "seconds": 0.0012308000586926937
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_launcher_enchant_reroutes_after_real_alchemist_exhaustion",
+      "seconds": 3.814850499969907
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_launcher_enchant_routes_before_town_departure_ready",
+      "seconds": 3.665030499920249
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_poor_or_not_ready_town_does_not_buy_enchant_scrolls",
+      "seconds": 0.001413599937222898
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_read_targets_equipped_launcher_and_bounds_failed_deltas",
+      "seconds": 0.0013592999894171953
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_shop_reasons_name_curse_and_launcher_scrolls",
+      "seconds": 0.007746100076474249
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_stats_above_nine_are_independently_skipped",
+      "seconds": 0.0009705000557005405
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_successful_launcher_enchant_rearms_same_visit",
+      "seconds": 1.846025099977851
+    },
+    {
+      "id": "tests.test_policy_equipment.LauncherEnchantTest.test_surplus_store_buys_one_scroll_for_each_needed_launcher_stat",
+      "seconds": 0.18591540004126728
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_buyable_identify_keeps_incomplete_catalog_blocking",
+      "seconds": 0.0013745001051574945
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_destroys_a_device_but_never_the_recall_scroll",
+      "seconds": 0.06408539996482432
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_destroys_junk_until_departure_free_slot_requirement_is_met",
+      "seconds": 0.05236110009718686
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_does_not_destroy_unidentified_zero_fuel_torch",
+      "seconds": 0.062238299986347556
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_four_slots_are_not_ready_before_terminal_pipeline_confirmation",
+      "seconds": 0.0012265999102964997
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_four_slots_are_terminally_ready_when_no_safe_route_can_free_fifth",
+      "seconds": 0.0010051000863313675
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_full_pack_destroys_boldness_before_returning",
+      "seconds": 0.0045041999546810985
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_full_pack_destroys_cure_light_wounds",
+      "seconds": 0.003127200063318014
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_full_pack_destroys_new_disposable_items",
+      "seconds": 0.0446212999522686
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_full_pack_discards_average_or_cursed_pseudo_identified_items",
+      "seconds": 0.016732399933971465
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_full_pack_force_destroys_an_entire_disposable_stack",
+      "seconds": 0.010995700024068356
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_full_pack_never_discards_a_bounty_from_pseudo_feeling",
+      "seconds": 0.01610190002247691
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_optimizer_pack_space_block_keeps_current_loadout_at_terminal_four",
+      "seconds": 0.007339300005696714
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_preserves_charged_identify_staff_during_overflow_disposal",
+      "seconds": 0.0670848999870941
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_preserves_entire_detection_stack_when_only_part_is_surplus",
+      "seconds": 0.0011254999553784728
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_preserves_equipment_and_unidentified_consumables",
+      "seconds": 0.030903900042176247
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_town_compacts_ammo_when_no_launcher_is_owned",
+      "seconds": 0.010341199929825962
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_town_compacts_surplus_diggers_before_departure",
+      "seconds": 0.011591500020585954
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_town_preserves_ammo_when_a_launcher_is_owned",
+      "seconds": 0.0016305000754073262
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_unbuyable_identify_opens_confirmed_legal_escape_valve",
+      "seconds": 0.004732699948363006
+    },
+    {
+      "id": "tests.test_policy_equipment.OverflowDisposalTest.test_verified_destroy_rejects_partially_reserved_stack",
+      "seconds": 0.0010942999506369233
+    },
+    {
+      "id": "tests.test_policy_equipment.RestoreCountIdentityIncidentTest.test_interrupted_recorded_swap_with_physically_absent_shovel_reaches_terminal",
+      "seconds": 4.825484500033781
+    },
+    {
+      "id": "tests.test_policy_equipment.RestoreCountIdentityIncidentTest.test_recorded_shovel_identity_changes_only_under_counting_identity",
+      "seconds": 3.603236500057392
+    },
+    {
+      "id": "tests.test_policy_equipment.RestoreCountIdentityIncidentTest.test_recorded_stacked_shovel_does_not_reach_restore_terminal",
+      "seconds": 5.425529300002381
+    },
+    {
+      "id": "tests.test_policy_equipment.RestoreWeaponStaleTakeoffReplayTest.test_recorded_window_never_returns_an_empty_key",
+      "seconds": 2.811807499965653
+    },
+    {
+      "id": "tests.test_policy_equipment.RestoreWeaponStaleTakeoffReplayTest.test_recorded_window_replans_after_each_observed_restore_operation",
+      "seconds": 2.688205700018443
+    },
+    {
+      "id": "tests.test_policy_equipment.UnpostedEquipmentMutationTest.test_a_confirmed_post_is_not_discarded",
+      "seconds": 0.02885150001384318
+    },
+    {
+      "id": "tests.test_policy_equipment.UnpostedEquipmentMutationTest.test_blocked_transaction_dispatch_does_not_stay_prepared",
+      "seconds": 0.061942200060002506
+    },
+    {
+      "id": "tests.test_policy_equipment.UnpostedEquipmentMutationTest.test_redeciding_the_same_board_counts_it_once",
+      "seconds": 0.050105700036510825
+    },
+    {
+      "id": "tests.test_policy_equipment.UnpostedEquipmentMutationTest.test_rewritten_key_does_not_leave_the_wield_prepared",
+      "seconds": 0.030277000041678548
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_only_because_scroll_was_consumed",
+      "seconds": 0.0013998999493196607
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_to_strand_uncompared_weapon",
+      "seconds": 0.0016572000458836555
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_good_non_ego_spare_is_not_deposited_before_loadout_search",
+      "seconds": 0.0009794000070542097
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_good_non_ego_spare_is_protected_while_digger_is_equipped",
+      "seconds": 0.0009534000419080257
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_good_non_ego_spare_is_protected_with_nothing_wielded",
+      "seconds": 0.0011581999715417624
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_high_grade_and_inferior_classification",
+      "seconds": 0.0009985999204218388
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_high_grade_spare_is_not_deposited_before_optimizer_compares_it",
+      "seconds": 0.0011533000506460667
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_high_grade_weapon_is_protected_when_only_digger_is_equipped",
+      "seconds": 0.0010470999404788017
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_higher_dps_plain_spare_is_not_sold_beside_ego_weapon",
+      "seconds": 0.0008144999155774713
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_identified_mundane_spare_routes_and_sells",
+      "seconds": 0.1021235000807792
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_inferior_spare_not_deposited_when_high_grade",
+      "seconds": 0.0016403000336140394
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_routes_to_and_sells_at_weapon_smith",
+      "seconds": 0.006208900013007224
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_sale_target_only_with_high_grade_wielded",
+      "seconds": 0.0015894999960437417
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_sells_no_teleport_artifact_after_replacement",
+      "seconds": 0.00552050000987947
+    },
+    {
+      "id": "tests.test_policy_equipment.WeaponSaleTest.test_withdraws_stored_inferior_weapon_to_sell",
+      "seconds": 0.0012072999961674213
+    },
+    {
+      "id": "tests.test_policy_equipment.WieldHandSuffixTest.test_both_hands_full_answers_the_which_hand_prompt",
+      "seconds": 0.00021430000197142363
+    },
+    {
+      "id": "tests.test_policy_equipment.WieldHandSuffixTest.test_free_hands_or_a_lone_shield_raise_no_prompt",
+      "seconds": 0.00015790003817528486
+    },
+    {
+      "id": "tests.test_policy_equipment.WieldHandSuffixTest.test_occupied_main_with_free_sub_answers_the_dual_wield_prompt",
+      "seconds": 0.00013649999164044857
+    },
+    {
+      "id": "tests.test_policy_equipment.WieldHandSuffixTest.test_ring_restore_answers_replace_which_ring",
+      "seconds": 0.00012419989798218012
+    },
+    {
+      "id": "tests.test_policy_equipment.WieldHandSuffixTest.test_shield_restore_replaces_the_sub_hand_melee_weapon",
+      "seconds": 0.00016339996363967657
+    },
+    {
+      "id": "tests.test_policy_equipment.WieldHandSuffixTest.test_sub_hand_weapon_with_free_main_answers_the_dual_wield_prompt",
+      "seconds": 0.000134600093588233
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_alias_callback_and_opaque_return_paths_are_default_deny",
+      "seconds": 0.009856899967417121
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_ancestor_with_non_mixin_name_is_scanned",
+      "seconds": 0.002874900004826486
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_empty_or_unreviewed_baseline_reasons_fail",
+      "seconds": 0.0013254000805318356
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_explicit_non_item_intent_reason_and_staleness",
+      "seconds": 0.004591899923980236
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_method_alias_of_new_producer_is_default_deny",
+      "seconds": 0.0017321000341325998
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_module_alias_of_new_producer_is_default_deny",
+      "seconds": 0.00387450004927814
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_mutations_in_actual_repository_town_paths",
+      "seconds": 32.429102599970065
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_new_pending_signature_attribute_mutation",
+      "seconds": 0.009854700067080557
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_registered_source_requires_composed_component",
+      "seconds": 0.0055044000037014484
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_registration_requires_both_marker_and_ladder",
+      "seconds": 0.006832799990661442
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_relative_import_mixin_is_included",
+      "seconds": 0.0030645999358966947
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_relative_package_import_and_callback_alias_are_resolved",
+      "seconds": 0.011725199990905821
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_repository_exact_reviewed_baselines",
+      "seconds": 29.60686189995613
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_reverse_import_driver_is_not_a_policy_descendant",
+      "seconds": 0.002310000010766089
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_signature_identity_and_typed_item_without_pending_name",
+      "seconds": 0.008896299987100065
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_signature_parameter_slot_and_dictionary_key_intents",
+      "seconds": 0.006997199961915612
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_stale_producer_baseline_entry_fails",
+      "seconds": 0.0016389000229537487
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_subpackage_and_import_alias_producer_is_included",
+      "seconds": 0.0035736000863835216
+    },
+    {
+      "id": "tests.test_town_structure_lint.TownStructureLintTest.test_undecorated_town_wait_producer_mutation",
+      "seconds": 0.0032854999881237745
+    }
+  ],
+  "failures": [
+    "tests.test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted"
+  ],
+  "errors": [],
+  "shards": [
+    {
+      "name": "worker-1",
+      "modules": [
+        "tests.test_equipment_deposit_owner_recorded",
+        "tests.test_item_sink_lint",
+        "tests.test_ownership_s2b1_ladder",
+        "tests.test_test_fakery_lint",
+        "tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail"
+      ],
+      "returncode": 1,
+      "wall_seconds": 214.82380769995507,
+      "home_history_dir": "C:\\Users\\user\\AppData\\Local\\Temp\\hengbot-parallel-ll8yv_34\\worker-1\\home-history",
+      "failures": [
+        "tests.test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted"
+      ],
+      "errors": [],
+      "stdout": "C:\\hengband\\bot-client-step1.5a\\validation\\step1.5a\\corrected-streams\\worker-1.stdout.log",
+      "stderr": "C:\\hengband\\bot-client-step1.5a\\validation\\step1.5a\\corrected-streams\\worker-1.stderr.log"
+    },
+    {
+      "name": "worker-2",
+      "modules": [
+        "tests.test_equipment_homefull_step15a",
+        "tests.test_ownership_s2a1_closure",
+        "tests.test_policy_equipment",
+        "tests.test_town_structure_lint"
+      ],
+      "returncode": 0,
+      "wall_seconds": 491.4628864999395,
+      "home_history_dir": "C:\\Users\\user\\AppData\\Local\\Temp\\hengbot-parallel-ll8yv_34\\worker-2\\home-history",
+      "failures": [],
+      "errors": [],
+      "stdout": "C:\\hengband\\bot-client-step1.5a\\validation\\step1.5a\\corrected-streams\\worker-2.stdout.log",
+      "stderr": "C:\\hengband\\bot-client-step1.5a\\validation\\step1.5a\\corrected-streams\\worker-2.stderr.log"
+    }
+  ],
+  "serial_modules": [],
+  "purity": "purity: ran (inputs sha256=5b1b10170a92032baa75e27967500ceaf8011d09742e609344966bb63b6669aa)",
+  "weights": "weights: unavailable; fallback=9/9; stale=yes"
+}
