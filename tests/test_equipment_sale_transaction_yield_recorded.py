@@ -8,8 +8,6 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from dataclasses import replace
-from unittest.mock import patch
 
 import tests  # noqa: F401
 from hengbot.equipment_transaction_planner import (
@@ -19,11 +17,9 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import _parse_items, parse_snapshot
-from hengbot.model import StoreState
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
-from hengbot.policy_types import TownErrandPlan
 from hengbot.warrior_optimization import load_character_calibration
 from test_equipment_optimizer_sales import measurement
 
@@ -31,10 +27,6 @@ from test_equipment_optimizer_sales import measurement
 FIXTURE = Path(__file__).parent / "fixtures/equipment-sale-transaction-yield-20261008.json.gz"
 assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == (
     "501095788ada36de15ca46ef5015f03f4a335bbc4e7a36ae58c90d195fa780d5"
-)
-LOOP_FIXTURE = Path(__file__).parent / "fixtures/equipment-sale-yield-loops-20261008-09.json.gz"
-assert hashlib.sha256(LOOP_FIXTURE.read_bytes()).hexdigest() == (
-    "c0e5686be8e4c552dac875fa65eaccb9ff6a30904683d29b75fcb575aa4189fa"
 )
 
 
@@ -52,90 +44,6 @@ def _lore(data):
 
 
 class EquipmentSaleTransactionYieldRecordedTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.loop_pins = json.loads(gzip.decompress(LOOP_FIXTURE.read_bytes()))
-
-    def test_A_recorded_refused_store_cannot_keep_sale_yield_alive(self):
-        rows = self.loop_pins["captures"]["A"]["decisions"]
-        self.assertEqual(
-            [(row["reason"], row["key"]) for row in rows[-3:]],
-            [("equipment-transaction:yield-for-equipment-sale", "\x1b"),
-             ("town:entrance-step-off:policy:none-wait", "3"),
-             ("town:blocked:owner-retired-burst", "5")],
-        )
-        policy = HengbotPolicy()
-        # DECLARED CONSTRUCTED: preserve the capture's saved-list semantics;
-        # only the observed sale-store refusal is injected as a terminal fact.
-        sale = {
-            "built": True, "blocker": None, "items": [{
-                "signature": ("captured refused stock", 1, 1),
-                "origin": "pack", "store_type": 2,
-            }],
-            "attempted": set(), "refused": set(), "withdrawals": 3,
-        }
-        policy._store_sale_refused.add(2)
-        self.assertFalse(policy._equipment_sale_has_reachable_items(sale))
-
-    def test_B_recorded_pending_home_knowledge_cannot_own_transaction_yield(self):
-        rows = self.loop_pins["captures"]["B"]["decisions"]
-        self.assertEqual(
-            [(row["reason"], row["key"]) for row in rows[-3:]],
-            [("home:await-fresh-knowledge", "9"),
-             ("shop:approach", "1"),
-             ("town:blocked:owner-retired-burst", "5")],
-        )
-        policy = HengbotPolicy()
-        policy._home_knowledge_current = False
-        policy._home_knowledge_invalidated = True
-        # DECLARED CONSTRUCTED: the row records a stale Home census and a
-        # pending refresh; its saved Home-origin item is retained unchanged.
-        sale = {
-            "built": True, "blocker": None, "items": [{
-                "signature": ("captured Home stock", 1, 1),
-                "origin": "home", "store_type": 2,
-            }],
-            "attempted": set(), "refused": set(), "withdrawals": 2,
-        }
-        self.assertFalse(policy._equipment_sale_has_reachable_items(sale))
-
-    def test_C_recorded_observed_empty_shelf_retires_moved_store_stop(self):
-        rows = self.loop_pins["captures"]["C"]["decisions"]
-        reasons = [row["reason"] for row in rows]
-        self.assertGreaterEqual(reasons.count("shop:observe-and-leave"), 4)
-        self.assertGreaterEqual(reasons.count("shop:approach"), 4)
-        self.assertEqual(rows[1]["town_work"][0]["work"]["producer"],
-                         "policy.py:HengbotPolicy._decide")
-        self.assertEqual(rows[5]["town_work"][0]["work"]["producer"],
-                         "policy_home.py:HomeMixin._home_full_leave_key")
-
-        data, _catalog, _snapshot, _evaluator, _options = measurement.recorded_inputs()
-        board = parse_snapshot(
-            json.loads(gzip.decompress(FIXTURE.read_bytes()))["board"], _lore(data),
-        )
-        policy = HengbotPolicy()
-        position = board.player.position
-        grids = dict(board.grids)
-        grids[position] = replace(grids[position], store_number=1)
-        board = replace(board, grids=grids, store=None)
-        policy._town_errand_plan = TownErrandPlan(stops=[1], index=1)
-        policy._shop_observation = (StoreState(1, [], 0, 0, 12), 1)
-        policy.prime(board)
-        # DECLARED CONSTRUCTED outside board: replay the captured no-operation
-        # shelf at its captured buyer after the mutable plan cursor advanced.
-        def observed_empty_shelf(_snapshot):
-            policy.last_reason = "shop:observe-and-leave"
-            return "\x1b"
-
-        with patch.object(policy, "_shop", side_effect=observed_empty_shelf), \
-                patch.object(policy, "_in_store_cached_shop",
-                             return_value=(False, None)), \
-                patch.object(policy, "_record_shop_selector_diagnostics"):
-            key = policy._atomic_shop_transaction_key(board)
-        self.assertEqual(key, "5", (key, policy.last_reason))
-        self.assertEqual(policy.last_reason, "shop:observed-operation-uncomposable")
-        self.assertIn(1, policy._town_visit_ledger.nonhome_attempted_without_effect)
-
     def test_built_sale_runs_before_home_route_terminal_without_losing_stripped_items(self):
         self._run_scene(home_refilled=False)
 

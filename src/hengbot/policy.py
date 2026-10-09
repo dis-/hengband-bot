@@ -10230,17 +10230,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     if sale_key is not None:
                         return sale_key
-                # A sale may own the transaction only while town routing can
-                # actually advance it. Keep the transaction available when
-                # the selected stop has no route or no route command.
-                if sale_step is None or sale_key is None:
-                    sale = self._equipment_sale_session
-                    if isinstance(sale, dict):
-                        sale["transaction_yield"] = False
-            else:
-                sale = self._equipment_sale_session
-                if isinstance(sale, dict):
-                    sale["transaction_yield"] = False
         admitted_session = self._equipment_transaction_session
         if (
             snapshot.in_town and admitted_session is not None and admitted_session.executable and (admitted_session.required_context == 'home') and (admitted_session.physical_context == 'home') and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and any((grid.store_number == STORE_HOME for grid in (snapshot.grid_at(snapshot.player.position),) if grid is not None)) and (snapshot.player.hp >= snapshot.player.max_hp) and (not any((monster.hostile for monster in snapshot.visible_monsters)))
@@ -10296,15 +10285,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._equipment_transaction_route_terminal = None
             self._town_visit_ledger.blocked_stores.discard(STORE_HOME)
         if snapshot.in_town and self._equipment_transaction_route_terminal is not None:
-            # A repeated Home route failure used to become a terminal WAIT,
-            # even when the confirmed current loadout was safe for the actual
-            # departure depth. Let the established departure path record and
-            # post that outcome; retain the old terminal while it is unsafe.
-            if self._equipment_departure_ready(snapshot):
-                self._equipment_transaction_route_terminal = None
-            else:
-                self.last_reason = self._equipment_transaction_route_terminal
-                return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
+            self.last_reason = self._equipment_transaction_route_terminal
+            return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
 
         if (
             snapshot.store is None

@@ -3290,9 +3290,8 @@ class EquipmentMixin:
             return False
         return self._equipment_sale_has_reachable_items(sale)
 
-    def _equipment_sale_has_reachable_items(
-        self, sale: dict, snapshot: Snapshot | None = None,
-    ) -> bool:
+    @staticmethod
+    def _equipment_sale_has_reachable_items(sale: dict) -> bool:
         """Whether an untried sale item can still be sold this return.
 
         Home-origin items stop being reachable once this return's Home
@@ -3304,24 +3303,10 @@ class EquipmentMixin:
             int(sale.get("withdrawals", 0))
             >= HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
         )
-        carried = None
-        if snapshot is not None:
-            carried = {
-                self._item_signature(item) for item in snapshot.inventory
-            }
         return any(
             entry.get("signature") not in attempted
             and entry.get("signature") not in refused
-            and entry.get("store_type") not in self._store_sale_refused
             and not (cap_spent and entry.get("origin") == "home")
-            and (carried is None or entry.get("origin") != "pack"
-                 or entry.get("signature") in carried)
-            and (entry.get("origin") != "home"
-                 or (self._home_knowledge_current
-                     and not self._home_knowledge_invalidated
-                     and (snapshot is None
-                          or (PACK_CAPACITY - len(snapshot.inventory) > 2
-                              and self._home_available(snapshot)))))
             for entry in sale.get("items", ())
         )
 
@@ -3358,9 +3343,7 @@ class EquipmentMixin:
             or bool(sale_signatures.intersection(self._home_pending_batch))
             or self._batch_sell_pending is not None
         )
-        has_unstarted_sale = self._equipment_sale_has_reachable_items(
-            sale, snapshot,
-        )
+        has_unstarted_sale = self._equipment_sale_has_reachable_items(sale)
         current = transaction.current_action
         deposit_refused = bool(
             current is not None

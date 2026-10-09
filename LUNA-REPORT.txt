@@ -1,30 +1,16 @@
-# LUNA report: equipment sale and transaction loops
+LUNA task report - 2026-10-08
 
-Base: `5f53208a394ac10194deb98c70555fc999e1f45c` (`sale-yield-release-1009`).
+Implemented
+- Yield the equipment transaction to a built, unsold equipment sale plan while Home is full or the transaction's Home deposit was refused.
+- Route sale work before the equipment transaction can abandon on repeated Home-route failure. Keep the transaction session and stripped-item ownership intact during the sale batch.
+- After the batch frees Home slots, clear only the deposit refusal/route blockers and resume the same transaction deposit.
+- Added a recorded 20:58 capture pin. It verifies the original terminal stop, sale-first routing, the planned three-withdrawal batch, preservation of transaction ownership, and resumption of the deposit after Home capacity returns.
+- Regenerated the town work manifest: 813 candidates, 20,112 sites, zero unmapped.
 
-## Captured loops and key producers
-
-- **A - 2026-10-09 00:13:05:** sequence 42 approaches Home (`shop:approach`, key `1`), emitted by `policy_shop.py:ShopMixin._stage_shopping_approach_key`; sequence 43 yields with ESC (`equipment-transaction:yield-for-equipment-sale`). Its `town_work[0].work` is absent, so the key has no town-work producer declaration; the policy path is `EquipmentMixin._equipment_transaction_home_key` / `_equipment_home_outcome`. Sequence 44 emits entrance step-off key `3` from `policy_town.py:TownMixin._town_entrance_step_off_key`. The sale had 20 refused items and the three-withdrawal cap was spent.
-- **B - 2026-10-08 23:51:28:** sequence 38 yields with ESC through the same equipment transaction path; sequence 39 emits `home:await-fresh-knowledge` with key `9`, but its `town_work[0]` is `route:store:45,123` from `policy_shop.py:ShopMixin._stage_shopping_approach_key`; sequence 40 approaches with key `1` from the same producer. The fresh Home census never became usable.
-- **C - 2026-10-08 23:49:22:** sequence 16 emits `shop:observe-and-leave` with ESC from `policy.py:HengbotPolicy._decide` (`shop:observe-shelf`); sequence 17 routes with key `1` from `policy_home.py:HomeMixin._file_home_errand`; sequence 18 approaches with key `9` from `policy_shop.py:ShopMixin._stage_shopping_approach_key`. Later repeats use `policy_home.py:HomeMixin._home_full_leave_key` for key `1` and the same shop approach producer for key `9`.
-
-## Changes
-
-- Sale reachability now excludes items whose buyer refused this visit, pack items no longer carried, and Home items that cannot be reached while Home knowledge is stale, the pack has no withdrawal room, or Home is unavailable. The transaction yield is released when the selected sale has no store or route command.
-- An observed `shop:observe-and-leave` page is treated as a no-operation result during outside composition. The existing observed-stop resolver retires the stop even if the mutable town-plan cursor already advanced, ending C's repeated empty-shelf route.
-- `equipment-transaction:home-route-repeat-terminal` now checks the existing `_equipment_departure_ready` path. When the confirmed loadout satisfies abilities at the actual destination depth, the terminal yields to that path so it can record `optional-optimization-failure-confirmed-loadout`; the terminal remains when the loadout is unsafe.
-- J-D sale selection and its rank, artifact, reservation, identification, and departure-supply protections were not changed.
-- Added capture-backed pins for A, B, and C in `tests/test_equipment_sale_transaction_yield_recorded.py`, with fixture provenance and `DECLARED CONSTRUCTED` notes for reconstructed state.
-- Regenerated the town-work manifest after code changes.
-
-## Verification
-
-- New pins on the fixed worktree: `Ran 3 tests in 4.223s` / `OK`.
-- Same three pins with the tests and fixture copied into an untouched `5f53208a` worktree: `Ran 3 tests in 5.545s` / `FAILED (failures=3)`. A, B, and C each failed its expected bounded-release assertion on the base.
-- Requested parallel run, `--workers 2`:
-  - `worker-1: 115 tests, 1598.546s, exit 0`
-  - `worker-2: 129 tests, 482.322s, exit 0`
-  - `Failures: none`; `Errors: none`; `Total: 244 tests, 1598.578s`
-- `git diff --check`: clean.
-
-No live game or bot was started or stopped. The full suite was not run, as instructed.
+Verification
+- The requested one-worker shard ran 386 tests. It initially reported 8 failures: five expectations in the two extra overweight Home replay modules, two stale-manifest checks (regenerated after the final source edit), and one stale fakery-lint marker (removed and rerun successfully).
+- The five extra overweight replay failures remain: `test_overweight_home_hold_recorded` expects historic travel/deposit/terminal decisions, while the replay now requests sale calibration first; `test_overweight_home_unreachable_recorded` expects its former divergence boundary before the new prerequisite decisions. These modules were additional checks, not the requested sale pins. No post-divergence recorded boards were changed or treated as valid outcomes.
+- The focused one-worker rerun passed the new recorded pin, town structure lint, item-sink lint, and town work contract checks; the only failure was the stale fakery-lint marker. After removing it, `tests.test_test_fakery_lint` passed all 13 tests.
+- The `b467b1ad` sale restart pin and `7b9bc8f5` prerequisite pin passed. The latter passed 2 tests. Requested equipment sale, transaction, Home cycle/relief, arbiter, ownership S2a/S3a, and town modules passed in the initial shard or focused rerun.
+- `git diff --check` passed. The report and test source are UTF-8 without BOM.
+- No game or bot was started, no other worktree was used, no full suite was run, and nothing was pushed.

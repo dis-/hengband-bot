@@ -5762,17 +5762,22 @@ class ShopMixin(InStoreMixin):
         )
         observed_no_operation = (
             inner == LEAVE_STORE_KEY
-            and (not composition_refusal or terminal_refusal
-                 or composition_refusal == "shop:observe-and-leave")
+            and (not composition_refusal or terminal_refusal)
         )
-        if terminal_refusal or observed_no_operation:
-            # The ordinary shelf observer can advance the mutable town-plan
-            # cursor before its outside one-shot is composed. Settle that
-            # exact stop even when the cursor has moved, or full-Home relief
-            # can route straight back to the same empty shelf indefinitely.
+        plan = self._town_errand_plan
+        current_stop = bool(
+            plan is not None
+            and plan.index < len(plan.stops)
+            and plan.stops[plan.index] == store_type
+        )
+        if terminal_refusal:
             stop_resolved = self._resolve_observed_uncomposable_stop(
                 snapshot, observed_no_operation=True,
                 settle_moved_cursor=True,
+            )
+        elif observed_no_operation and current_stop:
+            stop_resolved = self._resolve_observed_uncomposable_stop(
+                snapshot, observed_no_operation=True
             )
         else:
             stop_resolved = self._resolve_observed_uncomposable_stop(snapshot)
