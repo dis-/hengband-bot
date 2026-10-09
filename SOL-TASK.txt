@@ -1,0 +1,23 @@
+PLAN-STEP: 1.5
+Task: implement SOL-DESIGN-step1.5a-equipment-homefull.md (revision 2) in this worktree
+(branch step1.5a-equipment-homefull at main 426eb6ea).
+
+Read first: SOL-DESIGN-step1.5a-equipment-homefull.md (the design, reviewed twice by an adversarial
+reviewer; follow it exactly, including the owner decisions quoted verbatim there) and
+STEP1.5-ANALYSIS.md (evidence). "Existing tests" = tests at 426eb6ea. Tests you add on this branch
+may be edited freely; do not stop because one of your own new tests disagrees with you.
+
+Rules:
+- Every pin in the design: show the run line failing on 426eb6ea (scratch worktree) and passing after.
+  Constructed parts carry a DECLARED CONSTRUCTED comment. No widened assertions, skips or xfail.
+- Do not narrow or relax departure conditions; do not add a new town owner; do not change the
+  equipment-sale code paths (they are reverted on main).
+- New policy attributes: defaults in the restore chain; list them in the report.
+- Regenerate the manifest (python scripts/town_work_manifest.py --write). Run, with
+  scripts/test_parallel_runner.py --workers 2 and PYTHONPATH=src, every module you touched plus the
+  Hygiene list in the design. Paste the Failures/Errors/Total lines. Do not run the full suite (the
+  merge gate does). Max 2 workers.
+- No game/bot control, no push, no merge into main, no git reset --hard.
+- Commit on this branch. Write SOL-REPORT-step1.5a.txt: what changed (file:function), how the single
+  flag drives the existing retire path, pins with before/after run lines, hygiene lines, anything not
+  done. Budget: about 150k tokens; if you approach it, stop, commit what is green, and report.
