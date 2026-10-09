@@ -85,8 +85,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 525,
-    "end_line": 559,
+    "line": 522,
+    "end_line": 556,
     "ast_sha256": "d63d52e66acbfc07bc6106f506498f0adaf744fc3f240c5d88f24aa59fecde82"
   },
   "claim_ladder.py:pair_scope": {
@@ -95,8 +95,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 513,
-    "end_line": 515,
+    "line": 510,
+    "end_line": 512,
     "ast_sha256": "4bf01446792ef71a6eb838d987469a26ce89f8d24165a35ab18389300f35bdb0"
   },
   "claim_register.py:ClaimRegister._closed": {
