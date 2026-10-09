@@ -19,7 +19,6 @@ from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
 from hengbot.warrior_optimization import load_character_calibration
 from test_equipment_optimizer_sales import measurement
 
@@ -45,15 +44,6 @@ def _lore(data):
 
 class EquipmentSaleTransactionYieldRecordedTest(unittest.TestCase):
     def test_built_sale_runs_before_home_route_terminal_without_losing_stripped_items(self):
-        self._run_scene(home_refilled=False)
-
-    def test_spent_withdrawal_cap_returns_turn_to_transaction(self):
-        """Live 2026-10-08 22:28: after the three Home withdrawals the Home was
-        full again, nothing on the sale list was reachable, and the yield kept
-        sending ESC until the owner-retired burst stop."""
-        self._run_scene(home_refilled=True)
-
-    def _run_scene(self, *, home_refilled):
         pin = json.loads(gzip.decompress(FIXTURE.read_bytes()))
         self.assertEqual(
             pin["terminal_stop"]["reason"],
@@ -132,22 +122,6 @@ class EquipmentSaleTransactionYieldRecordedTest(unittest.TestCase):
         # freed Home slots. The same blocked deposit is executable again.
         policy._pending_disposal_item = None
         policy._home_pending_batch.clear()
-        if home_refilled:
-            # DECLARED CONSTRUCTED refill: the freed slots were used again, so
-            # the Home is full while this return's withdrawal cap is spent.
-            sale["withdrawals"] = HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
-            policy._home_capacity_observation = (
-                240, 240, policy._effective_town_id(board),
-            )
-            self.assertTrue(policy._home_is_full(board))
-            self.assertFalse(policy._equipment_sale_has_unstarted_items())
-            self.assertFalse(
-                policy._equipment_sale_should_yield_transaction(board)
-            )
-            self.assertFalse(sale["transaction_yield"])
-            self.assertIs(policy._equipment_transaction_session, transaction)
-            self.assertEqual(policy._equipment_transaction_owned_items, held_items)
-            return
         policy._home_capacity_observation = (
             239, 240, policy._effective_town_id(board),
         )

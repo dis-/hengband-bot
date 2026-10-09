@@ -234,10 +234,7 @@ HOME_SALE_FREE_SLOT_TARGET = 20
 # ranked 11-20 are sale candidates only under J-D or Home capacity pressure.
 HOME_SALE_KEEP_TOP_ALWAYS = 10
 HOME_SALE_KEEP_TOP_WHEN_SPACE = 20
-# One Home trip withdraws at most three sale items; one return may withdraw
-# up to the free-slot target so a full Home can actually reach it.
-HOME_SALE_WITHDRAWALS_PER_TRIP = 3
-HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN = HOME_SALE_FREE_SLOT_TARGET
+HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN = 3
 
 STORE_RESTOCK_REASON_NAMES = {
     STORE_HOME: "home",

@@ -10272,18 +10272,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return self._town_producer_entry("_equipment_transaction_town_owner_key", lambda: self._equipment_transaction_town_owner_key(snapshot)) or WAIT_KEY
 
-        if (
-            snapshot.in_town
-            and self._equipment_transaction_route_terminal is not None
-            and self._equipment_sale_has_unstarted_items()
-        ):
-            # The repeat terminal means "the same Home route failure recurred
-            # without an observed state change".  A built, unstarted equipment
-            # sale (2026-10-08 sale rules) is new state-changing work that frees
-            # Home, so the premise no longer holds: drop the terminal and the
-            # visit-local Home block and let the sale run (live 22:20 stop).
-            self._equipment_transaction_route_terminal = None
-            self._town_visit_ledger.blocked_stores.discard(STORE_HOME)
         if snapshot.in_town and self._equipment_transaction_route_terminal is not None:
             self.last_reason = self._equipment_transaction_route_terminal
             return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY

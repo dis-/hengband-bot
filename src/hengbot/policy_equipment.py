@@ -250,7 +250,6 @@ from hengbot.policy_constants import (
     MIN_FREE_PACK_SLOTS,
     HOME_SALE_FREE_SLOT_TARGET,
     HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN,
-    HOME_SALE_WITHDRAWALS_PER_TRIP,
     MORIVANT_FULL_IDENTIFY_COST,
     MORIVANT_FULL_IDENTIFY_THRESHOLD,
     MORIVANT_LIBRARY_BUILDING_TYPE,
@@ -3255,33 +3254,6 @@ class EquipmentMixin:
             or self._equipment_home_full_refused_this_visit()
         )
 
-    def _equipment_sale_has_unstarted_items(self) -> bool:
-        """Whether the built per-visit sale list still has untried items."""
-        sale = getattr(self, "_equipment_sale_session", None)
-        if not isinstance(sale, dict) or not sale.get("built") or sale.get("blocker"):
-            return False
-        return self._equipment_sale_has_reachable_items(sale)
-
-    @staticmethod
-    def _equipment_sale_has_reachable_items(sale: dict) -> bool:
-        """Whether an untried sale item can still be sold this return.
-
-        Home-origin items stop being reachable once this return's Home
-        withdrawal cap is spent; only carried items can still be sold then.
-        """
-        attempted = sale.get("attempted", ())
-        refused = sale.get("refused", ())
-        cap_spent = (
-            int(sale.get("withdrawals", 0))
-            >= HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
-        )
-        return any(
-            entry.get("signature") not in attempted
-            and entry.get("signature") not in refused
-            and not (cap_spent and entry.get("origin") == "home")
-            for entry in sale.get("items", ())
-        )
-
     def _equipment_sale_should_yield_transaction(
         self, snapshot: Snapshot,
     ) -> bool:
@@ -3315,7 +3287,11 @@ class EquipmentMixin:
             or bool(sale_signatures.intersection(self._home_pending_batch))
             or self._batch_sell_pending is not None
         )
-        has_unstarted_sale = self._equipment_sale_has_reachable_items(sale)
+        has_unstarted_sale = any(
+            entry.get("signature") not in attempted
+            and entry.get("signature") not in refused
+            for entry in sale.get("items", ())
+        )
         current = transaction.current_action
         deposit_refused = bool(
             current is not None
@@ -3331,13 +3307,6 @@ class EquipmentMixin:
                 return False
             sale["transaction_yield"] = True
             yielding = True
-        if home_full and not pending_sale and not has_unstarted_sale:
-            # Nothing on this return's sale list can still be sold (the Home
-            # withdrawal cap is spent and no carried item remains): hand the
-            # turn back to the equipment transaction so it can finish or give
-            # up on its own path instead of yielding forever.
-            sale["transaction_yield"] = False
-            return False
         if home_full or pending_sale:
             return yielding
 
@@ -3556,7 +3525,6 @@ class EquipmentMixin:
                 reserved_weight = self._inventory_weight(snapshot)
                 room = min(
                     free_pack_slots - 2,
-                    HOME_SALE_WITHDRAWALS_PER_TRIP,
                     HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN - withdrawals,
                 )
                 batch = []
