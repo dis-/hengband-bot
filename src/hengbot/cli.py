@@ -423,6 +423,19 @@ def _owner_retired_log_only_allows(policy, retirements=1) -> bool:
     return count < OWNER_RETIRED_LOG_ONLY_LIMIT
 
 
+# Bookkeeping (periodic save/dump, character dump) runs between errand steps
+# and is not errand work: its retirement is logged and forgiven but never
+# counts toward the burst. Live 2026-10-09 01:02: two periodic character-dump
+# retirements during a productive walk ended the visit as a burst.
+BOOKKEEPING_RETIREMENT_PREFIXES = ("periodic:", "town:character-dump")
+
+
+def _bookkeeping_retirement(policy, owners) -> bool:
+    reason = policy.last_reason or ""
+    return (bool(owners) and all(owner == "misc" for owner in owners)
+            and reason.startswith(BOOKKEEPING_RETIREMENT_PREFIXES))
+
+
 def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) -> None:
     """Settle bounded existing effect receipts and observed route minima.
 
@@ -521,7 +534,8 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
             return key
         policy._owner_retired_handled_sequence = sequence
         owners = arbiter.pending_retirement_owners if arbiter is not None else ()
-        allowed = _owner_retired_log_only_allows(policy, max(1, len(owners)))
+        counted = 0 if _bookkeeping_retirement(policy, owners) else max(1, len(owners))
+        allowed = _owner_retired_log_only_allows(policy, counted)
         _record_owner_retired_log_only(args, snapshot, key, policy, forgive=allowed)
         if allowed:
             policy._owner_retired_forgiven_sequence = sequence

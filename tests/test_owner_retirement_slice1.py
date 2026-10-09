@@ -159,6 +159,28 @@ class BurstTest(unittest.TestCase):
         self.assertTrue(policy._town_turn_arbiter.retirement_pending)
         self.assertIn('three retirements', cli._policy_final_stop_banner(policy.last_reason))
 
+    def test_bookkeeping_retirements_never_count_toward_the_burst(self):
+        """Live 2026-10-09 01:01-01:02 (owner-retired-log-only.jsonl, capture
+        autorecover-20261009-010300): store-router retired once, then two
+        periodic:character-dump retirements of owner misc ended the visit as
+        owner-retired-burst during a productive walk."""
+        policy = Policy()
+        retire(policy, 'store-router')
+        self.handle(policy)
+        self.assertEqual(policy._owner_retired_no_progress_count, 1)
+        policy.last_reason = 'periodic:character-dump'
+        for _ in range(3):
+            retire(policy, 'misc')
+            self.handle(policy)
+            self.assertNotEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
+            policy.last_reason = 'periodic:character-dump'
+        self.assertEqual(policy._owner_retired_no_progress_count, 1)
+        # Errand owners still count: two more retirements reach the burst.
+        policy.last_reason = 'shop:approach'
+        retire(policy, 'store-router'); self.handle(policy)
+        retire(policy, 'shop-buy'); self.handle(policy)
+        self.assertEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
+
     def test_labelled_and_empty_hidden_retirements_share_the_same_counter(self):
         policy = Policy()
         policy.last_reason = 'town:blocked:owner-retired'
