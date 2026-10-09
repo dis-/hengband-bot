@@ -10381,69 +10381,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "equipment_sale_classifier.py:_sale_slot": {
-    "classification": "data",
-    "rows": ["data/no-independent-credit"],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure slot projection used by equipment sale ranking; it emits no keyboard command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected sale policy; no independent success"
-  },
-  "equipment_sale_classifier.py:equipment_sale_fallback_order": {
-    "classification": "data",
-    "rows": ["data/no-independent-credit"],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure deterministic ordering of already-classified eligible identities; it emits no command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected sale policy; no independent success"
-  },
-  "equipment_sale_classifier.py:equipment_sale_plan": {
-    "classification": "data",
-    "rows": ["data/no-independent-credit"],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure selection of sale identities from optimizer classification, rank, and Home capacity inputs; it emits no command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected sale policy; no independent success"
-  },
-  "policy_equipment.py:EquipmentMixin._equipment_sale_next_store": {
-    "classification": "data",
-    "rows": ["data/no-independent-credit"],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Selects and records the next sale destination; the town need owner admits the resulting store stop and owns progress.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "town need/store child; no independent success"
-  },
-  "policy_equipment.py:EquipmentMixin.equipment_sale_reserved_ids": {
-    "classification": "data",
-    "rows": ["data/no-independent-credit"],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Observation of existing equipment, retention, and transaction reservations for the sale classifier; emits no command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected sale policy; no independent success"
-  },
-  "policy_shop.py:ShopMixin._dominated_disposal_store": {
-    "classification": "data",
-    "rows": ["data/no-independent-credit"],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure lookup of a store that accepts a selected equipment item; emits no command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected sale policy; no independent success"
-  },
-  "town_arbiter.py:TownTurnArbiter.__init__.classification": {
-    "classification": "data",
-    "rows": ["data/no-independent-credit"],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Registry classification data retained by the arbiter; it emits no keyboard command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "policy_combat.py:CombatMixin._breeder_breakthrough_frontier_step.route_to": {
     "classification": "data",
     "rows": [
