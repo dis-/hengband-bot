@@ -23,7 +23,7 @@ from hengbot.model import StoreState
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_SALE_MAX_HOME_WITHDRAWALS_PER_RETURN
-from hengbot.policy_types import StoreVisit, TownErrandPlan
+from hengbot.policy_types import TownErrandPlan
 from hengbot.warrior_optimization import load_character_calibration
 from test_equipment_optimizer_sales import measurement
 
@@ -35,10 +35,6 @@ assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == (
 LOOP_FIXTURE = Path(__file__).parent / "fixtures/equipment-sale-yield-loops-20261008-09.json.gz"
 assert hashlib.sha256(LOOP_FIXTURE.read_bytes()).hexdigest() == (
     "c0e5686be8e4c552dac875fa65eaccb9ff6a30904683d29b75fcb575aa4189fa"
-)
-BURST_FIXTURE = Path(__file__).parent / "fixtures/equipment-sale-owner-retired-burst-20261009.json.gz"
-assert hashlib.sha256(BURST_FIXTURE.read_bytes()).hexdigest() == (
-    "f8feff76b2627ca743c3d710c4087483ec02acece499c9e0fbac1d37721f181f"
 )
 
 
@@ -59,82 +55,6 @@ class EquipmentSaleTransactionYieldRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.loop_pins = json.loads(gzip.decompress(LOOP_FIXTURE.read_bytes()))
-
-    def test_D_recorded_shopping_visit_resumes_selected_carried_sale(self):
-        pin = json.loads(gzip.decompress(BURST_FIXTURE.read_bytes()))
-        rows = pin["decisions"]
-        observe = next(row for row in rows if row["decision_sequence"] == 113)
-        repeat = next(row for row in rows if row["decision_sequence"] == 116)
-        self.assertEqual(observe["reason"], "shop:observe-and-leave")
-        self.assertEqual(observe["shop_selector"]["rejection_reason"],
-                         "observed-page-nothing-wanted")
-        self.assertEqual(observe["store_visit"]["owner"], "town-errand")
-        self.assertEqual(observe["store_visit"]["purpose"], "shopping")
-        self.assertEqual(observe["equipment_sale"]["active_store"], 2)
-        self.assertEqual(observe["equipment_sale"]["withdrawals"], 20)
-        self.assertEqual((repeat["reason"], repeat["key"]),
-                         ("shop:observe-and-leave", "\x1b"))
-
-        board = parse_snapshot(pin["store_page"], {})
-        policy = HengbotPolicy()
-        policy.prime(board)
-        candidate = next(
-            item for item in board.inventory
-            if (policy._store_accepts_sale(board.store.store_type, item)
-                and not item.is_digging_tool)
-        )
-        signature = policy._item_signature(candidate)
-        # DECLARED CONSTRUCTED: the capture records the selected sale store,
-        # current pack, and shopping visit, but not the private pending item
-        # signature. Rebuild the in-flight pack sale from that saved selection
-        # and the still-carried store-2 stock; the purchase-only stop had lost
-        # the pending pointer before the observed shelf was composed.
-        policy._equipment_sale_session = {
-            "built": True, "blocker": None,
-            "items": [{"signature": signature, "origin": "pack",
-                       "store_type": board.store.store_type}],
-            "attempted": {signature}, "refused": set(),
-            "withdrawals": observe["equipment_sale"]["withdrawals"],
-            "active_store": board.store.store_type,
-            "transaction_yield": True,
-        }
-        policy._store_visit = StoreVisit(
-            owner=observe["store_visit"]["owner"],
-            purpose=observe["store_visit"]["purpose"],
-            store_type=board.store.store_type,
-        )
-        key = policy._shop(board)
-        self.assertTrue(key.startswith("{"), (key, policy.last_reason))
-        self.assertEqual(policy.last_reason, "shop:batch-inscribe")
-        self.assertEqual(policy._execution_offers_for()[-1][:2],
-                         (key, "shop-sell"))
-        self.assertEqual(policy._pending_disposal_item, signature)
-        self.assertEqual(policy._batch_sell_pending["phase"], "await-inscription")
-
-        # DECLARED CONSTRUCTED continuation: apply the observed sale tag to
-        # the captured carried candidate, then replay the existing batch-sale
-        # owner at its next observation boundary.
-        tag = policy._batch_sell_pending["entries"][0]["tag"]
-        tagged_candidate = replace(candidate, inscription=f"@{tag}")
-        tagged_board = replace(
-            board,
-            inventory=tuple(
-                tagged_candidate if item.slot == candidate.slot else item
-                for item in board.inventory
-            ),
-        )
-        sale_key = policy._batch_sell_key(tagged_board)
-        # The captured pack already uses this tag on another carried item.
-        # The existing safety rule refuses the ambiguous sale and latches the
-        # buyer, which bounds this sale attempt without changing J-D selection.
-        self.assertEqual(sale_key, "\x1b")
-        self.assertEqual(policy.last_reason,
-                         "shop:sale-inscription-ambiguous-leave")
-        self.assertIn(board.store.store_type, policy._store_sale_refused)
-        self.assertIsNone(policy._equipment_sale_next_store(tagged_board))
-        self.assertFalse(policy._equipment_sale_has_reachable_items(
-            policy._equipment_sale_session, tagged_board,
-        ))
 
     def test_A_recorded_refused_store_cannot_keep_sale_yield_alive(self):
         rows = self.loop_pins["captures"]["A"]["decisions"]

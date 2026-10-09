@@ -1,25 +1,30 @@
-# LUNA report: sale-store recovery after owner-retired burst
+# LUNA report: equipment sale and transaction loops
 
-Base: `9cdd8aeb` (`sale-yield-release-1009b`).
+Base: `5f53208a394ac10194deb98c70555fc999e1f45c` (`sale-yield-release-1009`).
 
-## Capture and replay findings
+## Captured loops and key producers
 
-- In `autorecover-20261009-005917-town-blocked-owner-retired-burst`, decision 113 observes store 2 with a built 104-item sale plan, 20 withdrawals, and `active_store: 2`. The visit is `town-errand` / `shopping`; its shelf result is `shop:observe-and-leave` with `observed-page-nothing-wanted`. No sell operation was posted.
-- The corresponding fixed state has 16 carried items, including items accepted by store 2. The store visit purpose does not exclude sale handling: `_shop_core` runs the sale path for any visit purpose. The decision rows do not export the private pending-disposal signature. In the state replay, omitting that pointer reproduces the no-op shelf; restoring the saved active-store candidate emits the sale preparation operation.
-- The carried pack also has an existing `@0` inscription on an item that store 2 does not accept. The sale preparation picks `@0`, then the existing ambiguity guard refuses the sale and latches store 2 as refused. This safely ends the selected sale route without changing J-D candidate selection. The observed-stop resolver had already settled each empty-shelf visit, but Home-full relief continued requesting store 2 because no attempted/refused sale result existed before this recovery.
+- **A - 2026-10-09 00:13:05:** sequence 42 approaches Home (`shop:approach`, key `1`), emitted by `policy_shop.py:ShopMixin._stage_shopping_approach_key`; sequence 43 yields with ESC (`equipment-transaction:yield-for-equipment-sale`). Its `town_work[0].work` is absent, so the key has no town-work producer declaration; the policy path is `EquipmentMixin._equipment_transaction_home_key` / `_equipment_home_outcome`. Sequence 44 emits entrance step-off key `3` from `policy_town.py:TownMixin._town_entrance_step_off_key`. The sale had 20 refused items and the three-withdrawal cap was spent.
+- **B - 2026-10-08 23:51:28:** sequence 38 yields with ESC through the same equipment transaction path; sequence 39 emits `home:await-fresh-knowledge` with key `9`, but its `town_work[0]` is `route:store:45,123` from `policy_shop.py:ShopMixin._stage_shopping_approach_key`; sequence 40 approaches with key `1` from the same producer. The fresh Home census never became usable.
+- **C - 2026-10-08 23:49:22:** sequence 16 emits `shop:observe-and-leave` with ESC from `policy.py:HengbotPolicy._decide` (`shop:observe-shelf`); sequence 17 routes with key `1` from `policy_home.py:HomeMixin._file_home_errand`; sequence 18 approaches with key `9` from `policy_shop.py:ShopMixin._stage_shopping_approach_key`. Later repeats use `policy_home.py:HomeMixin._home_full_leave_key` for key `1` and the same shop approach producer for key `9`.
 
-## Change
+## Changes
 
-- When the built sale session still identifies an active store and an already-attempted pack candidate, `_equipment_sale_resume_carried_item` restores the pending pointer only if that exact candidate remains in the current inventory and is not refused or marked unsellable. The ordinary sale selector then emits the sale preparation operation for the shopping visit. This does not change J-D eligibility, ranking, or protections.
-- Added recorded pin D using the store-2 state and decision rows 113-124. The test verifies the carried candidate is rebound, the `shop-sell` inscription step is offered, and the existing ambiguity guard bounds the attempt with no next store selected. The private pointer and post-inscription observation are marked `DECLARED CONSTRUCTED` in the test and fixture provenance.
-- The D pin failed on unmodified `9cdd8aeb` (`shop:leave`) and passed with the fix.
-- Regenerated the town-work manifest: 813 candidates, 20,174 sites, zero unmapped.
+- Sale reachability now excludes items whose buyer refused this visit, pack items no longer carried, and Home items that cannot be reached while Home knowledge is stale, the pack has no withdrawal room, or Home is unavailable. The transaction yield is released when the selected sale has no store or route command.
+- An observed `shop:observe-and-leave` page is treated as a no-operation result during outside composition. The existing observed-stop resolver retires the stop even if the mutable town-plan cursor already advanced, ending C's repeated empty-shelf route.
+- `equipment-transaction:home-route-repeat-terminal` now checks the existing `_equipment_departure_ready` path. When the confirmed loadout satisfies abilities at the actual destination depth, the terminal yields to that path so it can record `optional-optimization-failure-confirmed-loadout`; the terminal remains when the loadout is unsafe.
+- J-D sale selection and its rank, artifact, reservation, identification, and departure-supply protections were not changed.
+- Added capture-backed pins for A, B, and C in `tests/test_equipment_sale_transaction_yield_recorded.py`, with fixture provenance and `DECLARED CONSTRUCTED` notes for reconstructed state.
+- Regenerated the town-work manifest after code changes.
 
 ## Verification
 
-- `tests.test_equipment_sale_transaction_yield_recorded`: 6 tests passed.
-- Requested two-worker focused run across 21 sale, equipment, Home-relief, town ownership, and hygiene modules: 694 tests; 1 failure and 4 skips. The failure was `tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_pack_full_deposit_precedes_shortage_queue`. It reproduced with the source patch temporarily reversed on base `9cdd8aeb`, so it is pre-existing. The other 693 cases passed.
-- The run included capture-ledger hygiene, fakery lint, item-sink lint, sale-key lint, town structure lint, and town-work contract checks; these passed.
-- `python scripts/town_work_manifest.py`: zero violations. `git diff --check`: clean.
+- New pins on the fixed worktree: `Ran 3 tests in 4.223s` / `OK`.
+- Same three pins with the tests and fixture copied into an untouched `5f53208a` worktree: `Ran 3 tests in 5.545s` / `FAILED (failures=3)`. A, B, and C each failed its expected bounded-release assertion on the base.
+- Requested parallel run, `--workers 2`:
+  - `worker-1: 115 tests, 1598.546s, exit 0`
+  - `worker-2: 129 tests, 482.322s, exit 0`
+  - `Failures: none`; `Errors: none`; `Total: 244 tests, 1598.578s`
+- `git diff --check`: clean.
 
-No full suite was run. No game or bot was started or controlled, and nothing was pushed.
+No live game or bot was started or stopped. The full suite was not run, as instructed.
