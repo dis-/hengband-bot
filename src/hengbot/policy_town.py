@@ -3292,24 +3292,10 @@ class TownMixin:
             )
         ):
             add(STORE_HOME, "equipment-catalog", "home-first")
-        # Ordinary J-D sales are phase 1, after mandatory stock and before
-        # optional purchases. During an overweight/full-Home relief, queue
-        # the sale with required stops; only deposit-only phase-zero work can
-        # be displaced, while mandatory supplies keep their place.
-        phase_zero = [
-            need for need in needs if self._town_need_phase(need) == 0
-        ]
-        sale_may_preempt_deposits = bool(
-            self._equipment_sale_relief_active(snapshot)
-            and phase_zero
-            and all(need.category in {
-                "weight-overload", "space-deposit", "deposit",
-                "equipment-work",
-            } for need in phase_zero)
-        )
-        self._equipment_sale_relief_preempts_deposits = sale_may_preempt_deposits
-        if (not phase_zero or sale_may_preempt_deposits
-                or self._equipment_sale_relief_active(snapshot)):
+        # J-D sales are phase 1: after mandatory stock and before optional
+        # purchases. Build/select only here so an active sale cannot suppress
+        # still-pending mandatory supply needs above.
+        if not any(self._town_need_phase(need) == 0 for need in needs):
             equipment_sale_store = self._equipment_sale_next_store(snapshot)
             if equipment_sale_store is not None:
                 add(
@@ -3862,12 +3848,6 @@ class TownMixin:
         self, snapshot: Snapshot, need: TownNeed
     ) -> int:
         """Put concretely affordable curse service ahead of ordinary errands."""
-        if need.category == "equipment-sale" and self._equipment_sale_relief_active(snapshot):
-            return (
-                -4 if getattr(
-                    self, "_equipment_sale_relief_preempts_deposits", False
-                ) else 0
-            )
         if need.category == "space-deposit":
             return -3
         if (

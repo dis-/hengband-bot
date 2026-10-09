@@ -3992,11 +3992,8 @@ class HomeMixin:
         if sale_candidate is not None:
             weight_limit = self._inventory_weight_limit(snapshot)
             if (
-                not self._equipment_sale_relief_active(snapshot)
-                and (
-                    weight_limit is None
-                    or self._inventory_weight(snapshot) + sale_candidate.weight > weight_limit
-                )
+                weight_limit is None
+                or self._inventory_weight(snapshot) + sale_candidate.weight > weight_limit
             ):
                 return None
 

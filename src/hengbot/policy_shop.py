@@ -4171,32 +4171,6 @@ class ShopMixin(InStoreMixin):
                 self._home_pending_item = self._item_signature(reserve)
                 self.last_reason = "home:queue-star-remove-curse-withdraw"
                 return LEAVE_STORE_KEY
-            if self._equipment_sale_relief_active(snapshot):
-                sale_store = self._equipment_sale_next_store(snapshot)
-                if sale_store is not None:
-                    if sale_store == STORE_HOME:
-                        # The normal dominated-disposal selector owns the
-                        # observed Home shelf and batches planned withdrawals.
-                        planned_withdrawal = self._town_producer_entry(
-                            "_home_dominated_disposal_key",
-                            lambda: self._home_dominated_disposal_key(snapshot),
-                            family="equipment-txn",
-                        )
-                        if planned_withdrawal is not None:
-                            return planned_withdrawal
-                    else:
-                        # A carried sale can reduce weight without another
-                        # Home operation. Leave this page and let the ordinary
-                        # town router reach its selected buyer.
-                        self.last_reason = "equipment:sale-leave-home-for-pack-sale"
-                        self._offer_execution(
-                            LEAVE_STORE_KEY, producer="equipment-txn",
-                            work_id="equipment:sale-leave-home-for-pack-sale",
-                            next_step="store.leave.send",
-                            arguments=(STORE_HOME,),
-                            expected_effect="outside-store",
-                        )
-                        return LEAVE_STORE_KEY
             # An active transaction session OWNS the Home visit: its town-side
             # dispatcher keeps walking back in while it has Home work, so a
             # disposal leave that preempts it just bounces the bot in and out of

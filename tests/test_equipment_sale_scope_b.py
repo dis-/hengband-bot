@@ -122,37 +122,6 @@ class EquipmentSaleScopeB(unittest.TestCase):
         self.assertEqual(len(policy._equipment_sale_session["batch"]), 3)
         self.assertEqual(len(policy._home_pending_batch), 2)
 
-    def test_relief_sells_carried_candidates_before_home_withdrawals(self):
-        policy = HengbotPolicy()
-        carried = InventoryItem(
-            "a", "carried sale gear", 1, 37, 1, True, True,
-            fully_known=True, is_equipment=True,
-        )
-        pack_signature = policy._item_signature(carried)
-        home_signature = ("home sale gear", 37, 2)
-        policy._equipment_sale_session = {
-            "built": True,
-            "items": [
-                {"signature": home_signature, "origin": "home",
-                 "store_type": STORE_HOME, "weight": 500},
-                {"signature": pack_signature, "origin": "pack",
-                 "store_type": 2, "weight": 1},
-            ],
-            "attempted": set(), "withdrawals": 0, "refused": set(),
-            "active_store": None,
-        }
-        policy._build_equipment_sale_session = lambda _snapshot: None
-        policy._equipment_sale_relief_active = lambda _snapshot: True
-        policy._inventory_weight_limit = lambda _snapshot: 1
-        policy._inventory_weight = lambda _snapshot: 100
-
-        selected = policy._equipment_sale_next_store(
-            SimpleNamespace(inventory=[carried])
-        )
-
-        self.assertEqual(selected, 2)
-        self.assertEqual(policy._pending_disposal_item, pack_signature)
-
     def test_refused_sale_is_not_retried_on_the_same_return(self):
         policy = HengbotPolicy()
         signature = ("refused gear", 37, 1)
