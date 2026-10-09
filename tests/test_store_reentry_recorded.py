@@ -197,9 +197,10 @@ DECLARED_POLICY_DIVERGENCES = {
     19: "Identify-staff procurement now routes to the Black Market after Magic (628bd90b; user decision 2026-09-17).",
 }
 
-# USER DECISION 2026-10-08: an optional Black Market buy is refused when the
-# full departure resupply reserve is unknown or cannot be left intact.
-DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS = {42, 834, 844}
+# USER DECISION 2026-10-08: optional Black Market spending must leave the full
+# departure resupply reserve intact; base-item prices establish it where known.
+DECLARED_OPTIONAL_BLACK_MARKET_BUYS = {42, 834}
+DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS = {844}
 
 
 def _sha(path: Path) -> str:
@@ -491,22 +492,46 @@ class StoreReentryRecordedTest(unittest.TestCase):
             # this keeps the flag-off pin sensitive to a reverted guard.
             policy = self._resume(observe)
             board = self._board(observe)
-            if observe in DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS:
-                self.assertEqual(self._live(observe)[0], "\x1b")
+            if (observe in DECLARED_OPTIONAL_BLACK_MARKET_BUYS
+                    or observe in DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS):
+                wanted = self.boundaries["facts"][str(observe)][
+                    "shop_selector"]["wanted_purchase"]
                 self.assertEqual(board.store.store_type, STORE_BLACK)
-                self.assertIsNone(policy._full_departure_resupply_reserve(board))
-                self.assertIsNone(policy._black_market_optional_purchase(board))
+                reserve = policy._full_departure_resupply_reserve(board)
+                self.assertEqual(
+                    reserve, {42: 5168, 834: 4583, 844: 4583}[observe]
+                )
+                units = {42: 1, 834: 1, 844: 5}[observe]
+                remainder = board.player.gold - wanted["price"] * units
+                selected = policy._black_market_optional_purchase(board)
                 key, reason = self._decide(policy, board)
-                self.assertEqual(key, "\x1b")
-                self.assertIn(reason, {
-                    "shop:observe-and-leave",
-                    "town-progress-invariant:continue-observed-shop",
-                })
+                if observe in DECLARED_OPTIONAL_BLACK_MARKET_BUYS:
+                    self.assertEqual(self._live(observe)[0], "\x1b")
+                    self.assertGreaterEqual(remainder, reserve)
+                    self.assertIsNotNone(selected)
+                    self.assertEqual(selected.letter, wanted["letter"])
+                    self.assertEqual(key, "\x1b")
+                    self.assertIn(reason, {
+                        "shop:observe-and-leave",
+                        "town-progress-invariant:continue-observed-shop",
+                    })
+                else:
+                    self.assertEqual(self._live(observe)[0], "\x1b")
+                    self.assertLess(remainder, reserve)
+                    self.assertIsNone(selected)
+                    self.assertEqual(key, "\x1b")
+                    self.assertIn(reason, {
+                        "shop:observe-and-leave",
+                        "town-progress-invariant:continue-observed-shop",
+                    })
             else:
                 self.assertEqual(self._decide(policy, board), self._live(observe))
 
-    def test_recorded_black_market_optional_gold_is_refused_by_2026_10_08_decision(self):
-        for index in sorted(DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS):
+    def test_recorded_black_market_optional_gold_respects_full_departure_reserve(self):
+        for index in sorted(
+            DECLARED_OPTIONAL_BLACK_MARKET_BUYS
+            | DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS
+        ):
             with self.subTest(index=index):
                 board = self._board(index)
                 policy = self._switch_on(self._resume(index))
@@ -527,18 +552,35 @@ class StoreReentryRecordedTest(unittest.TestCase):
                 )
                 self.assertEqual((ware.name, ware.price),
                                  (wanted["name"], wanted["price"]))
-                self.assertIsNone(policy._full_departure_resupply_reserve(board))
-                self.assertIsNone(policy._black_market_optional_purchase(board))
+                reserve = policy._full_departure_resupply_reserve(board)
+                self.assertEqual(
+                    reserve, {42: 5168, 834: 4583, 844: 4583}[index]
+                )
+                remainder = board.player.gold - wanted["price"] * {
+                    42: 1, 834: 1, 844: 5
+                }[index]
+                selected = policy._black_market_optional_purchase(board)
+                if index in DECLARED_OPTIONAL_BLACK_MARKET_BUYS:
+                    self.assertGreaterEqual(remainder, reserve)
+                    self.assertIsNotNone(selected)
+                    self.assertEqual(selected.letter, wanted["letter"])
+                else:
+                    self.assertLess(remainder, reserve)
+                    self.assertIsNone(selected)
                 self.assertEqual(
                     self._live(P1_RELEASES[index])[0][:-1],
                     {42: "pj\r", 834: "pi\r", 844: "ph5\r\r"}[index],
                 )
                 key, reason = self._decide(policy, board)
-                self.assertEqual(key, "\x1b")
-                self.assertIn(reason, {
-                    "shop:observe-and-leave",
-                    "town-progress-invariant:continue-observed-shop",
-                })
+                if index in DECLARED_OPTIONAL_BLACK_MARKET_BUYS:
+                    self.assertEqual((key, reason),
+                                     ("\x1b", "shop:observe-and-leave"))
+                else:
+                    self.assertEqual(key, "\x1b")
+                    self.assertIn(reason, {
+                        "shop:observe-and-leave",
+                        "town-progress-invariant:continue-observed-shop",
+                    })
 
     def test_p0_switch_off_shadow_records_the_would_be_operation(self):
         """Phase 0: the observe-and-leave page logs IST's would-be key only."""
@@ -577,7 +619,8 @@ class StoreReentryRecordedTest(unittest.TestCase):
                     self.assertIsNone(policy._identification_need)
                     self.assertTrue(policy._unbuyable_full_identify_sigs)
                     policy._unbuyable_full_identify_sigs.clear()
-                if observe in DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS:
+                if (observe in DECLARED_OPTIONAL_BLACK_MARKET_BUYS
+                        or observe in DECLARED_OPTIONAL_BLACK_MARKET_REFUSALS):
                     # DECLARED CONSTRUCTED: a complete known price catalog and
                     # enough independent gold to exercise the recorded buy.
                     board, _reserve = self._construct_optional_purchase_board(
