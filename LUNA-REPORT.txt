@@ -1,29 +1,18 @@
 LUNA task report - 2026-10-08
 
-Implemented the equipment sale prerequisite recovery in the requested worktree.
+Implemented
+- Create the optimizer-backed equipment sale session at the first town decision when a restarted/restored policy has none.
+- During overweight or full-Home relief, prioritize carried sale candidates, then permit the bounded Home sale batch to proceed even if it temporarily raises carried weight.
+- Run relief sale needs alongside mandatory town stops and ahead of deposit-only work. Reopen Home after an equipment-transaction full-Home refusal for the saved sale plan.
+- Added a recorded restart pin from the 2026-10-08 capture and a carried-before-Home selector test.
+- Regenerated scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json: 812 candidates, 20,026 sites, zero unmapped.
 
-The return-scoped sale session now asks the existing Home scan producer for a
-fresh catalogue when its catalogue is stale, and asks the existing character
-dump bookkeeping path for calibration when calibration is missing. At Home it
-uses the supported short C-screen macro, so neither a deposit nor an equipment
-transaction can consume the visit first. Each request is bounded once per
-sale session; if an input remains blocked after that request, normal town work
-continues. Old restored sale sessions without the new state use safe defaults.
+Verification
+- Requested one-worker run: 324 tests; 319 passed and 5 failed initially. The failures were the item-sink producer adapter, the fake-state baseline for the new test, and two stale-manifest assertions (the manifest was regenerated before the final town policy edit).
+- After those corrections, the affected one-worker subset passed: 79 tests, no failures or errors. It covered Home relief/refusal, equipment sale selection, the recorded pin, item-sink and fakery lint, town structure, and town work contract.
+- After extending the relief predicate to include the existing Home-full relief/retry states, the final Home/sale/town subset passed: 48 tests, no failures or errors. It included the recorded pin and regenerated-manifest checks.
+- The recorded pin passed after restoring the implementation. The single revert check produced its expected failure without the implementation: no equipment-sale need was found.
+- git diff --check passed. New text files are UTF-8 without BOM.
+- No game or bot was started; no push or other worktree was used.
 
-The 19:36 sequence pin is DECLARED CONSTRUCTED from the decision rows in
-LUNA-TASK.txt. No corresponding onset checkpoint was available for replay.
-Before the fix those rows record no calibration or scan request before deposit
-work. The pin now observes `~9`, then the Home C-screen calibration request,
-then a successfully built sale list after the inputs are current.
-
-Regenerated the town work manifest and updated the producer, claim ladder, and
-item sink review records.
-
-Verification: the requested module set passed serially with 365 tests in
-1811.871 seconds. This included the equipment sale scope and optimizer pins,
-the `b467b1ad` overweight restart pin, Home relief and entry-cycle pins,
-calibration modules, ownership closure/classification/S3a, town arbiter,
-town structure/item sink/fakery lints, and the town work contract.
-
-No game or bot was started, no other worktree was used, no full suite was run,
-and nothing was pushed.
+The remaining modules in the requested set passed in the initial 324-test run; the five listed failures were rerun in the affected 79-test subset after correction.

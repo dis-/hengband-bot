@@ -224,7 +224,6 @@ _RUNGS: tuple[Rung, ...] = (
         "periodic:character-dump", "town:character-dump",
     ),
     # -- decide: the order _decide consults them ------------------------------
-    _decide("_equipment_sale_prerequisite_key", "equipment-opt"),
     _decide("_home_errand_knowledge_key", "home-errand",
             "home-errand:request-knowledge:", "home-errand:await-fresh-knowledge:",
             "home-errand:leave-for-knowledge:"),
