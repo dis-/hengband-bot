@@ -1,0 +1,22 @@
+PLAN-STEP: 1.5
+Task: continue step 1.5d2 F2 (LUNA-TASK-step1.5d2-f2.txt, same rules) on branch step1.5d2-f2. Your previous run was
+stopped by the operator. HEAD 8f15cdf2 = your commit 5af2b7fb + your uncommitted changes at the stop (WIP commit).
+
+Blocking defect found in your final run: a severe performance regression with RecursionError.
+- tests.test_absorbing_states on base 96e06010 (main + step 1.5d part 1): test_six_seeded_states_reach_progress_or_visible_terminal
+  81 s, test_seed_verdicts_depend_on_visible_bot_terminals 277 s, test_captured_fully_deferred_class_retries_once_per_town_stay 69 s.
+- On 5af2b7fb: 2807 s, 2407 s, 2227 s (10-35x). The worker stderr is full of
+  "RecursionError: maximum recursion depth exceeded" ("Exception ignored in audit hook").
+Find the cause (profile one of those tests with cProfile, a few minutes at most; look for recursion between the new
+shop selector continuation / exclusion re-run of the ladder and _shop / _next_purchase / the atomic key) and fix the
+code, not the tests. Decision latency is a product requirement: a town decision must not get slower by more than
+20 % on these tests. Then finish the original task (pins, revert checks, report).
+
+Additional rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself in this task. A merge gate and other test runs
+  share this machine (yours killed the merge gate at 17:04). If a foreign process blocks you, stop and report it.
+- Timing check before the final run: run tests.test_absorbing_states alone and paste the three test times; each
+  must be within 1.2x of the base numbers above. Also report any test in your final run slower than 60 s.
+- Your final run must finish within 60 minutes wall time; if it does not, stop it, find the slow test, and fix the
+  cause instead of waiting.
+- Write LUNA-REPORT-step1.5d2-f2.txt as specified, plus the root cause of the regression and the timing table.
