@@ -319,6 +319,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:owner-retired-burst',
         'town:blocked:procurement-home-unavailable',
         'town:blocked:procurement-home-unroutable',
+        'town:blocked:shop-required-operation-uncomposable',
         'town:blocked:recall-readiness-contradiction',
         'town:blocked:survival-mana-no-charges',
         'town:blocked:walk-in-entrance-unavailable',

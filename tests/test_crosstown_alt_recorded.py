@@ -84,9 +84,9 @@ class CrosstownAltRecordedTest(unittest.TestCase):
     def _observe_refusal(self, policy):
         page = self.boards[1497]
         selected = policy._in_store_selection(page)
-        self.assertEqual(selected["op"], "buy")
-        self.assertEqual(selected["letter"], "f")
-        self.assertIsNone(policy._in_store_emit(page, selected, first=True))
+        # Decided F2 behavior: pure preflight filters the confirmed-sale class, leaving no safe page successor.
+        self.assertIsNone(selected)
+        self.assertEqual(policy._shop(page), "\x1b")
         self.assertEqual(policy.last_reason, "shop:sell-rebuy-churn-defect")
         self.assertFalse(policy._store_visit.operation_posted)
         policy._shop_observation = (page.store, 1497)

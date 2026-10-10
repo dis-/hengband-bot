@@ -1,0 +1,32 @@
+PLAN-STEP: 1.5
+Task: implement "Implementation task 1: F2" of SOL-DESIGN-step1.5d2-selector-skip.md (revision 2) in this worktree
+(branch step1.5d2-f2, base a8833b0b = main 777f9f55 + step 1.5d part 1 F1/F4; the design commits are docs only).
+Do NOT implement F3 (task 2) or anything outside F2.
+
+Read first: SOL-DESIGN-step1.5d2-selector-skip.md (revision 2; follow it exactly, including the owner decisions it
+quotes) and SOL-DESIGN-step1.5d2-selector-skip.review.md (the adversarial review it answers).
+"Existing tests" = tests at a8833b0b. Tests you add on this branch may be edited freely.
+
+Rules:
+- Every F2 pin in the design: show it failing on a8833b0b (scratch worktree under C:\hengband\bot-client\.worktrees\)
+  and passing after; revert each new predicate alone -> its pin fails again. Constructed parts carry DECLARED
+  CONSTRUCTED comments. No widened assertions, skips or xfail.
+- Existing tests whose expectation flips: only those the design lists as decided behaviour; for each, write the
+  reason in the test (one line) and in your report. Any other existing test that fails is a regression: fix the code.
+- New attributes (exclusion state on the visit ledger etc.) need normalize_policy_state / restore-chain defaults
+  and the private-seam shims the design names.
+- New final stop reason: under the existing town:blocked prefix via _town_blocked_key, add to
+  POLICY_FINAL_STOP_REASONS and the cli banner table; ownership classification digest must stay unchanged; new
+  reason-setting sites need a claim or scripts/ownership_claim_exceptions.txt entry.
+- Before your final run, list the affected test modules with
+  `python C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\step1.5d2 a8833b0b HEAD`
+  and include ALL of them in the final run, plus the design's task-1 test list, plus:
+  tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint
+  tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification
+  tests.test_test_fakery_lint tests.test_town_arbiter tests.test_cli tests.test_identify_staff_procurement_step15d.
+  Use scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src). Paste the Failures/Errors/Total lines of the
+  final clean run. No full suite (the merge gate runs it).
+- Regenerate the manifest (scripts/town_work_manifest.py --write). Do not commit validation logs.
+  No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Write LUNA-REPORT-step1.5d2-f2.txt: changes, pins before/after, revert checks, flipped existing tests with
+  reasons, the affected-module list, final run lines.

@@ -250,6 +250,9 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         )
         # The incident checkpoint predates this unrelated per-visit diagnostic.
         policy._town_visit_sale_signatures = set()
+        policy._town_visit_sale_identify_charges = None
+        vars(policy._town_visit_ledger).setdefault("purchase_churn_exclusions", set())
+        vars(policy._town_visit_ledger).setdefault("purchase_churn_class_exclusions", set())
         policy._home_knowledge_current = True
         policy._home_knowledge_items = ()
         self.assertTrue(policy._shop(in_store).startswith("p"))

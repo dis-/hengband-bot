@@ -1,0 +1,22 @@
+PLAN-STEP: 1.5
+Task: finish step 1.5d2 F2 on branch step1.5d2-f2 (HEAD b952a89c, your recursion fix). Same rules as
+LUNA-TASK-step1.5d2-f2.txt and LUNA-TASK-step1.5d2-f2-perf.txt, with these clarifications:
+
+- A merge gate running on this machine is NOT a blocker. The memory budget allows one merge gate plus your test
+  runs at the same time (--workers 2). Run your tests concurrently; just never stop/alter its processes. "Stop and
+  report" applies only if a foreign process makes your run impossible (e.g. holds a lock you need), not if it is
+  merely running.
+- Explain or remove this new code in _departure_blocking_page_purchase_pure (policy_shop.py around 3080):
+      reserve = self._fundraising_kit_reserve(snapshot)
+      if reserve and snapshot.player.gold - item.price * quantity < reserve: continue
+  It applies the fundraising kit reserve outside the mine/scavenge modes and outside crossarea enforcement, which
+  can refuse a departure-blocking buy (e.g. the Identify staff) that the base allowed. That narrows owner decisions
+  (identify staff 20 charges mandatory; black-market reserve is for OPTIONAL buys only). Remove it unless the design
+  requires it; if you keep it, quote the design line and add a pin showing which base behaviour it preserves.
+- Remaining work: base/pass/revert pin checks, isolated tests.test_absorbing_states timing (three tests within 1.2x
+  of 81 s / 277 s / 69 s), the final run (affected modules from affected_tests.py - it now always includes the five
+  core modules - plus the hygiene list), then compare timings:
+  `python C:\hengband-backups\guard-tools\compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\96e06010`
+  and paste its output (must report 0 slower tests). Final run must finish within 60 minutes.
+- Write LUNA-REPORT-step1.5d2-f2.txt (changes, regression root cause, timing table, pins before/after, revert
+  checks, flipped existing tests with reasons, affected-module list, final run lines, compare_timings output).

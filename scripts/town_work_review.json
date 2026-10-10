@@ -10424,5 +10424,60 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_shop.py:ShopMixin._departure_blocking_page_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure page selector returning a typed candidate for an existing required purchase. It claims no action and has no independent progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._identify_staff_swap_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure comparison of the candidate Identify staff with confirmed sold charges. It only controls eligibility and has no independent progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._matching_live_purchase_rungs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure live provenance matching for a shelf row; it has no independent action or progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._shop_purchase_key": {
+    "classification": "operation",
+    "rows": [
+      "shop-buy"
+    ],
+    "context": "Ordinary store purchase selected from the current observed page.",
+    "evidence": "Emits one bounded purchase command using the existing SHOP_BUY claim, purchase watch, provenance and execution offer.",
+    "admission": "@claims(ClaimOwner.SHOP_BUY)",
+    "observer": "store purchase effect observer",
+    "delegation": "none"
+  },
+  "policy_shop.py:ShopMixin._departure_blocking_page_purchase_pure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure page selector implementation. It returns a typed candidate for an existing required purchase and has no independent action or progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
