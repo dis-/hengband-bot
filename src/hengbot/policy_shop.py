@@ -3093,10 +3093,12 @@ class ShopMixin(InStoreMixin):
         )
         if deferral is not None and enforced and not deferral["token_would_admit"]:
             return None
+        # The shared helper evaluates the town-need candidates once per call;
+        # asking each registry spec separately recomputed them per lookup
+        # (3.4 s for one Home-full relief decision, 2026-10-11).
         needs = tuple(
-            need for need in self._town_need_registry()
-            if need.departure_blocking and need.produces(snapshot)
-            and need.resolve_store_type(snapshot) == store.store_type
+            need for need in self._departure_blocking_town_needs(snapshot)
+            if need.store_type == store.store_type
         )
         if not needs:
             return None
