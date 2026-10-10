@@ -1,0 +1,42 @@
+﻿Step 1.5d Identify staff implementation report
+
+Branch: step1.5d-identify-staff
+Base: 777f9f55
+Commits: 904fac19, cf238764, 042a423e, cb84d0a8
+
+Changes
+- Home wand/staff procurement matching now requires charges > 0. Identify staff Home stock that cannot improve the carried reserve allows the observed shelf purchase inside the Home gate.
+- Fundraising selection can return a worthwhile Identify staff when the Identify-only block or Identify mining plan is active. Both the regular selector and typed Identify-staff rung reject empty and non-worthwhile staffs.
+- A confirmed Identify-staff purchase that makes Identify ready clears the Identify mining plan.
+- Added a pure-helper census entry and regenerated scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json.
+
+Pins, base and branch
+- On 777f9f55, tests.test_identify_staff_procurement_step15d ran 12 tests: 12 failed. The failures cover zero-charge Home staff/wand matching and Home gate behavior, the worthwhile Home override, fundraising-only and mining-plan selection, charge/worthwhile selector and typed-rung filtering, and clearing the mining plan after a confirmed purchase below the 15,000 gold target.
+- After implementation, the 12 pins passed.
+- One-at-a-time reversions were also checked: reverting the shared charge matcher, the Home worthwhile override, the fundraising identify-only route, fundraising charge and worthwhile predicates, the regular selector charge and worthwhile predicates, typed-rung charge and worthwhile predicates, or the purchase-confirmation plan clear caused its pin to fail again.
+
+Affected test modules from affected_tests.py (777f9f55..HEAD)
+- tests.test_buy_deposit_loop_recorded
+- tests.test_crossarea_fundraising
+- tests.test_crossarea_live2
+- tests.test_declarations_r5
+- tests.test_declarations_r7
+- tests.test_equipment_alternation_recorded
+- tests.test_fundraise_light_block
+- tests.test_identify_staff_procurement_step15d
+- tests.test_item_sink_lint
+- tests.test_newchar_light_churn_recorded
+- tests.test_policy_home
+- tests.test_policy_shop
+- tests.test_purchase_rung_registry
+- tests.test_town_latency_caches
+- tests.test_town_structure_lint
+- tests.test_town_work_contract
+
+Additional required modules: tests.test_ownership_s2b1_ladder, tests.test_ownership_s2a1_closure, tests.test_ownership_s2a_classification, tests.test_test_fakery_lint, tests.test_town_arbiter, tests.test_cli, tests.test_magic_required_staff_homefull_recorded, tests.test_supply_ledger_observer_memo.
+
+Final run (scripts/test_parallel_runner.py --workers 2)
+Failures: none
+Errors: none
+Total: 998 tests, 1094.978s; output: C:\hengband\bot-client\.worktrees\step1.5d\jsonlog\test-parallel-timings.json
+
