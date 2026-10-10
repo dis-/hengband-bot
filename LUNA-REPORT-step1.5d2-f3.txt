@@ -1,0 +1,139 @@
+# PLAN-STEP 1.5d2 - F3 implementation report
+
+Branch: `step1.5d2-f3`  
+Base: `1bb86903` (main `c9addbca` plus F2)  
+Implementation commits: `853334b1`, `8455ef64`, `6783eb38`
+
+## Changes
+
+- F3(a): after an observed Identify-staff inscription and confirmed release
+  sale, the in-store selector now chooses the required strictly fuller staff
+  from the fresh page before unrelated work. The pure
+  `_departure_blocking_page_operation` selector models a legal release sale
+  followed by its fuller buy. A no-effect release sale or exhausted entry
+  budget publishes the existing typed
+  `town:blocked:shop-required-operation-uncomposable` terminal. An unconfirmed
+  buy keeps the existing no-retry `shop:in-store-done` exit.
+- F3(b): after sale-effect accounting, a whole Home-relief dispatch yields to
+  the live, verified, same-entry page operation. Pending buy ownership stays
+  with the in-store confirmation path. An exhausted operation budget retains
+  the existing budget and publishes the typed terminal when the required
+  operation remains.
+- F3(c): charged Identify-staff Home relief takes are rejected only when
+  readiness is false and carried count plus the entire requested quantity is
+  at least four. Atomic dispatch revalidates this before posting. Empty
+  Identify staves remain unrestricted surplus for sale or destruction; the
+  no-fuller-stock destroy control is preserved. The skip fingerprint uses
+  carried count/readiness and Home quantity changes, not price, gold, or turns.
+- Added nine declared F3 boundary tests, including the constructed 014739
+  reconciled board with `operation_posted=False`, the primary three-plus-one
+  empty-staff case, and a separately constructed 184438 four-plus-two case.
+  Added the required `import tests` session-package marker to the F2 and F3
+  test modules; no F2 policy implementation was changed.
+- Regenerated the town-work manifest: 815 candidates, 20,278 sites, zero
+  unmapped. The reviewed pure selector and existing-terminal adapter are
+  recorded in the town-work review/baseline. Ownership classification digest
+  and final-stop registry were unchanged; F3 reuses the F2 terminal and CLI
+  banner.
+
+## Pins and predicate reversions
+
+The nine F3 tests were copied into a scratch worktree at `1bb86903` and failed
+there: 4 failures and 5 errors. The failures covered missing same-entry
+buy-priority, missing pending-operation relief yield, the old budget terminal,
+the empty-staff destroy candidate, and the three-plus-one empty take. The
+errors covered the absent required-page-operation and Identify-cap helpers,
+the absent yield/skip helpers, and missing required-operation diagnostics for
+the constructed 014739 no-effect boundary. On the implementation, all nine
+F3 pins pass.
+
+Each new predicate was reverted independently and its pin failed again:
+
+- Removing same-entry required-buy priority made the sale-continuation pin
+  select row `k` instead of required row `o`.
+- Disabling the relief-yield guard made the pending-buy whole-dispatch pin
+  fail its yield assertion.
+- Making the charged-cap predicate always false made the charged-cap rejection
+  pin fail.
+- Replacing the required-operation stop with the old leave path made the
+  budget pin return `shop:in-store-done` instead of the typed terminal.
+- Making `_departure_blocking_page_operation` return `None` made the
+  release-sale-then-fuller-buy pin fail.
+
+No existing test expectation was intentionally flipped. The initial broad
+run exposed an invalid `.reason` access on `HomeErrandRequest`, a recursive
+claims-producer call, and an overly broad no-effect stop. These were corrected
+to use `.purpose`, yield until the next relief decision, and apply the F3
+no-effect terminal only to a pending release sale. The recorded unconfirmed
+buy no-retry control passes unchanged. The final broad run also caught the
+session-package import requirement; the two test-only imports were added and
+`test_runtime_file_isolation` passes.
+
+## Decision latency
+
+Final isolated command: `python scripts/test_timing_runner.py --modules
+tests.test_absorbing_states`. It passed all 22 tests in 434.793s. The three
+slow tests and design-note baseline estimates are:
+
+| Test | Final time | Baseline estimate | Within 1.2x |
+| --- | ---: | ---: | :---: |
+| `test_seed_verdicts_depend_on_visible_bot_terminals` | 243.404s | ~277s | Yes |
+| `test_six_seeded_states_reach_progress_or_visible_terminal` | 77.083s | ~69s | Yes |
+| `test_captured_fully_deferred_class_retries_once_per_town_stay` | 61.130s | ~81s | Yes |
+
+## Final affected-module run
+
+`affected_tests.py` reported 25 affected modules. The two-worker run included
+those modules, the design's task-2 list, the F1/F4/supply/Identify controls,
+F2 pins, and the required ownership, lint, town-arbiter, and CLI modules (46
+unique modules total):
+
+`tests.test_absorbing_states`, `tests.test_crosstown_alt_recorded`,
+`tests.test_equipment_deposit_owner_recorded`,
+`tests.test_equipment_home_entry_cycle_recorded`,
+`tests.test_equipment_homefull_step15a`,
+`tests.test_home_discard_followup_recorded`,
+`tests.test_home_full_identification_procurement_recorded`,
+`tests.test_home_full_relief_recorded`,
+`tests.test_home_full_withdraw_failure_incident_recorded`,
+`tests.test_home_relief_progress_recorded`,
+`tests.test_home_surplus_sale_screen_recorded`, `tests.test_homeexit_recorded`,
+`tests.test_homefull3_recorded`, `tests.test_item_reservation`,
+`tests.test_item_sink_lint`, `tests.test_overweight_homefull_step15b`,
+`tests.test_owner_map`, `tests.test_policy_fundraising`,
+`tests.test_policy_home`, `tests.test_policy_shop`, `tests.test_policy_supply`,
+`tests.test_policy_town`, `tests.test_runtime_file_isolation`,
+`tests.test_step15d2_f3`, `tests.test_store_reentry_recorded`,
+`tests.test_home_full_await_knowledge_recorded`,
+`tests.test_home_equipment_disposal`, `tests.test_destroy_procurement_guard`,
+`tests.test_alchemist_observed_shop_alternation`,
+`tests.test_oneshot_preempt_recorded`,
+`tests.test_identify_staff_stockout_recorded`,
+`tests.test_identify_staff_procurement_step15d`,
+`tests.test_classC2_departure_recorded`, `tests.test_live36_weight`,
+`tests.test_town_progress_invariant`, `tests.test_town_restock_trajectory`,
+`tests.test_step15d2_f2`, `tests.test_ownership_s2b1_ladder`,
+`tests.test_town_structure_lint`, `tests.test_town_work_contract`,
+`tests.test_ownership_s2a1_closure`,
+`tests.test_ownership_s2a_classification`, `tests.test_test_fakery_lint`,
+`tests.test_town_arbiter`, `tests.test_cli`,
+`tests.test_identify_staff_swap_churn_recorded`.
+
+Final output:
+
+```text
+Failures: none
+Errors: none
+Total: 2063 tests, 2206.001s
+```
+
+Timing comparison output:
+
+```text
+[timings] base C:\hengband-backups\suite-batches\c9addbca new jsonlog\test-parallel-timings.json: 0 tests slower than 1.5x and +10s
+```
+
+Earlier full-run attempts were not clean: one found the request-field,
+claims/lint, and unconfirmed-buy issues described above; the next found the
+test-session import requirement. Both were fixed before the final run shown
+here. Validation logs remain uncommitted.
