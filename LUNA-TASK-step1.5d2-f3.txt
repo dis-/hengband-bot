@@ -1,0 +1,41 @@
+PLAN-STEP: 1.5
+Task: implement "Implementation task 2: F3" of SOL-DESIGN-step1.5d2-selector-skip.md (revision 2) in this worktree
+(branch step1.5d2-f3, base 1bb86903 = main c9addbca + F2). F2 is done (see LUNA-REPORT-step1.5d2-f2.txt); reuse its
+required-page selector, churn eligibility, in-shop buy producer and settlement-veto contract. Do NOT re-open F2 and
+do not implement anything outside F3.
+
+Read first: SOL-DESIGN-step1.5d2-selector-skip.md (revision 2; follow it exactly, including the owner decisions it
+quotes, especially 2026-10-10 「空の杖は自由に売って良い」: 0-charge Identify staves are surplus and may be taken
+from Home to be sold or destroyed; the 4-staff cap never refuses that take) and the review file.
+"Existing tests" = tests at 1bb86903. Tests you add on this branch may be edited freely.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself in this task. A merge gate is running on this
+  machine; it is NOT a blocker - run your tests concurrently (memory budget allows it). Stop and report only if a
+  foreign process makes your run impossible (e.g. holds a lock you need).
+- Every F3 pin in the design: show it failing on 1bb86903 (scratch worktree under C:\hengband\bot-client\.worktrees\)
+  and passing after; revert each new predicate alone -> its pin fails again. Constructed parts carry DECLARED
+  CONSTRUCTED comments. No widened assertions, skips or xfail.
+- Existing tests whose expectation flips: only those the design lists as decided behaviour; give the reason in the
+  test (one line) and in the report. Any other failing existing test is a regression: fix the code.
+- Do not add any new purchase/sale filter or reserve that the design does not specify (F2 added an unconditional
+  reserve filter that narrowed owner decisions and had to be removed).
+- New attributes need normalize_policy_state / restore-chain defaults and private-seam shims; new final stop
+  reasons need POLICY_FINAL_STOP_REASONS + cli banner; reason-setting sites need claims or
+  scripts/ownership_claim_exceptions.txt entries; ownership classification digest must not change unless the design
+  says so.
+- Decision latency: after your change run tests.test_absorbing_states alone and paste the three slow tests' times
+  (base ~81 s / ~277 s / ~69 s; each within 1.2x).
+- Final run: `python C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\step1.5d2-f3 1bb86903 HEAD`
+  (it always includes five core modules) plus the design's task-2 test list plus tests.test_ownership_s2b1_ladder
+  tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract
+  tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_test_fakery_lint
+  tests.test_town_arbiter tests.test_cli tests.test_step15d2_f2 tests.test_identify_staff_procurement_step15d,
+  with scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src). It must finish within 60 minutes; if not, stop
+  it, find the slow test and fix the cause. Then run
+  `python C:\hengband-backups\guard-tools\compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\c9addbca`
+  and paste its output (must report 0 slower tests).
+- Token budget: 300k. Regenerate the manifest. Do not commit validation logs. No game/bot control, no push, no
+  merge, no git reset --hard. Commit on this branch.
+- Write LUNA-REPORT-step1.5d2-f3.txt: changes, pins before/after, revert checks, flipped existing tests with
+  reasons, timing table, affected-module list, final run Failures/Errors/Total lines, compare_timings output.
