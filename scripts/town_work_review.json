@@ -10479,5 +10479,28 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._departure_blocking_page_operation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure required page-operation selector; returns a live required buy or the own Identify release sale that precedes a fuller buy. No command, claim, or progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_instore.py:InStoreMixin._in_store_required_operation_stop": {
+    "classification": "adapter",
+    "rows": [
+      "store-exit",
+      "plan-routing"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Adapter to the existing typed town blocked stop for a required operation that cannot complete within this store entry budget; no new operation owner or independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

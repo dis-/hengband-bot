@@ -789,6 +789,17 @@ class SupplyMixin:
             return {}
         return {emptiest.slot: 1}
 
+    def _home_full_relief_take_blocks_identify(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem, quantity: int,
+    ) -> bool:
+        """Reserve Identify capacity against charged Home relief takes only."""
+        if (item.tval != TVAL_STAFF or item.sval != SV_STAFF_IDENTIFY
+                or max(item.charges, item.pval) <= 0
+                or self._identify_staff_ready(snapshot)):
+            return False
+        carried = sum(staff.count for staff in self._carried_identify_staves(snapshot))
+        return carried + quantity >= STAFF_IDENTIFY_MAX_COUNT
+
     def _find_surplus_identify_staff(
         self, snapshot: Snapshot, *, pending_home_sale: bool = False,
         for_weight_overload: bool = False,

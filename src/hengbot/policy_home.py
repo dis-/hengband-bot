@@ -10,7 +10,7 @@ from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
-from hengbot.policy_types import StoreVisit, ProcurementHomeGate
+from hengbot.policy_types import StoreVisit, StoreVisitPhase, ProcurementHomeGate
 from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.equipment_optimizer import AMMUNITION_TVALS, equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_session import observe_equipment_transactions
@@ -340,6 +340,9 @@ class HomeMixin:
             item = replace(item, slot="home-surplus")
         signature = self._item_signature(item)
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
+        empty_identify_surplus = (item.tval == TVAL_STAFF
+                                  and item.sval == SV_STAFF_IDENTIFY
+                                  and max(item.charges, item.pval) == 0)
         preferred_store = self._home_disposal_store(signature)
         store_type = next((store for store in (preferred_store, STORE_WEAPON, STORE_ARMOURY,
                            STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST)
@@ -352,7 +355,8 @@ class HomeMixin:
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
                 or self._home_full_equipment_reserved(snapshot, item)
-                or self._item_matches_purchase_rung(probe, item)
+                or (self._item_matches_purchase_rung(probe, item)
+                    and not empty_identify_surplus)
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=False)
@@ -387,6 +391,9 @@ class HomeMixin:
                 continue
             sig = self._item_signature(carried)
             relief = self._home_full_relief or {}
+            empty_identify_surplus = (carried.tval == TVAL_STAFF
+                                      and carried.sval == SV_STAFF_IDENTIFY
+                                      and max(carried.charges, carried.pval) == 0)
             if (not item_available(self, snapshot, carried, "home-visit",
                                    "destroy" if destroy else "home-full-sale")
                     or sig in relief.get("skipped", {})
@@ -396,7 +403,8 @@ class HomeMixin:
                     or carried.is_bounty or self._home_disposal.decision(sig) == "keep"
                     or self._retention_reservation(snapshot, carried) > 0
                     or self._home_full_equipment_reserved(snapshot, carried)
-                    or self._item_matches_purchase_rung(snapshot, carried)
+                    or (self._item_matches_purchase_rung(snapshot, carried)
+                        and not empty_identify_surplus)
                     or not self._home_full_equipment_surplus(snapshot, carried)):
                 return True
         return False
@@ -425,13 +433,17 @@ class HomeMixin:
         item = replace(item, slot="home-surplus")
         signature = self._item_signature(item)
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
+        empty_identify_surplus = (item.tval == TVAL_STAFF
+                                  and item.sval == SV_STAFF_IDENTIFY
+                                  and max(item.charges, item.pval) == 0)
         if (not item_available(self, snapshot, item, "home-visit", "destroy")
                 or item.is_artifact or item.is_bounty
                 or signature in self._undestroyable_sigs
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
                 or self._home_full_equipment_reserved(snapshot, item)
-                or self._item_matches_purchase_rung(probe, item)
+                or (self._item_matches_purchase_rung(probe, item)
+                    and not empty_identify_surplus)
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=True)):
@@ -447,6 +459,7 @@ class HomeMixin:
         # unused ammunition). A pack-only comparison would discard that proof
         # when its better counterpart remains on a Home shelf after the take.
         if (not item.is_equipment
+                and not empty_identify_surplus
                 and self._destroy_would_discard_superior_item(probe, item)):
             return None
         return item
@@ -576,6 +589,47 @@ class HomeMixin:
             expected_effect="other-surplus-selected", continuation="home.full-relief.resume",
             budget_ref="home-visit-existing-budget")
         return WAIT_KEY
+
+    def _home_full_record_identify_cap_skip(self, snapshot: Snapshot, item, count: int) -> None:
+        """Remember a charged Identify relief rejection without emitting WAIT."""
+        relief = self._home_full_relief
+        if relief is None:
+            return
+        signature = self._item_signature(item)
+        relief.setdefault("skipped", {})[signature] = "identify-cap-reserved"
+        relief.setdefault("skipped_home_counts", {})[signature] = relief.get(
+            "stock_count", item.count)
+        relief.setdefault("identify_cap_skip_fingerprint", {})[signature] = (
+            sum(staff.count for staff in self._carried_identify_staves(snapshot)),
+            bool(self._identify_staff_ready(snapshot)),
+            count,
+        )
+
+    def _home_full_relief_yields_to_store_operation(self, snapshot: Snapshot) -> bool:
+        """Yield relief dispatch to a live entry's lawful page operation."""
+        store = snapshot.store
+        ledger = getattr(self, "_in_store_entry_ledger", None)
+        visit = getattr(self, "_store_visit", None)
+        if (store is None or store.store_type == STORE_HOME
+                or not self._store_page_can_request_knowledge(snapshot)
+                or ledger is None or visit is None
+                or ledger.get("store") != store.store_type
+                or ledger.get("opened_sequence") != visit.opened_sequence
+                or visit.store_type != store.store_type
+                or visit.phase == StoreVisitPhase.CLOSED
+                or ledger.get("ended")
+                or store.page_top != 0
+                or getattr(self, "_in_store_screen_verified", None) is not True
+                or getattr(self, "_in_store_breaker", None) is not None
+                or getattr(self, "_store_leave_inflight", None) is not None):
+            return False
+        pending = ledger.get("pending")
+        if pending is not None:
+            # Retain ownership through the ordinary effect confirmation path.
+            return pending.get("kind") in {"buy", "sell", "inscribe"}
+        if visit.operation_posted or self._store_buy_inflight is not None:
+            return False
+        return bool(self._departure_blocking_page_operation(snapshot))
 
     def _home_full_leave_key(self, reason: str) -> str:
         self.last_reason = reason
@@ -893,6 +947,29 @@ class HomeMixin:
                     # Let a different admitted Home errand finish first. The
                     # pending relief remains intact and is retried in place.
                     return None
+                if (self._home_full_relief_take_blocks_identify(
+                        snapshot, observed, observed.count)):
+                    relief["stock_count"] = observed.count
+                    self._home_full_record_identify_cap_skip(
+                        snapshot, observed, observed.count)
+                    relief["identify_cap_skip_fingerprint"][
+                        self._item_signature(observed)] = (
+                            sum(staff.count for staff in
+                                self._carried_identify_staves(snapshot)),
+                            bool(self._identify_staff_ready(snapshot)),
+                            observed.count,
+                        )
+                    relief["sale"] = None
+                    relief["withdrawn"] = False
+                    self._home_errand.finish()
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                    self._home_pending_quantity = None
+                    self._home_pending_take_confirmed = None
+                    getattr(self, "_home_pending_quantities", {}).pop(
+                        self._item_signature(observed), None)
+                    self._home_withdrawal_queued = False
+                    return self._home_full_relief_key(snapshot)
                 if not self._home_errand.active:
                     relief["sale"] = (self._item_signature(observed), store_type,
                                       before_count)
@@ -915,6 +992,15 @@ class HomeMixin:
                 # before choosing another shelf item.
                 return self._town_producer_entry("_home_full_skip_key",
                     lambda: self._home_full_skip_key("surplus-withdraw-failed"))
+        if self._home_full_relief_yields_to_store_operation(snapshot):
+            ledger = getattr(self, "_in_store_entry_ledger", None) or {}
+            if ledger.get("ops", 0) >= STORE_STUCK_LIMIT:
+                operation = self._departure_blocking_page_operation(snapshot)
+                if operation is not None:
+                    return self._in_store_required_operation_stop(
+                        snapshot, "entry-budget", operation
+                    )
+            return None
         if sale is None:
             if not self._home_knowledge_current:
                 return self._town_producer_entry(
@@ -924,6 +1010,16 @@ class HomeMixin:
             for item in self._home_knowledge_items:
                 sig = self._item_signature(item)
                 counts[sig] = counts.get(sig, 0) + item.count
+            carry_count = sum(staff.count for staff in
+                              self._carried_identify_staves(snapshot))
+            ready = bool(self._identify_staff_ready(snapshot))
+            cap_skips = relief.get("identify_cap_skip_fingerprint", {})
+            for signature, fingerprint in tuple(cap_skips.items()):
+                if fingerprint[:2] != (carry_count, ready):
+                    cap_skips.pop(signature, None)
+                    if relief.get("skipped", {}).get(signature) == "identify-cap-reserved":
+                        relief["skipped"].pop(signature, None)
+                        relief.get("skipped_home_counts", {}).pop(signature, None)
             stock = tuple(item for item in self._home_knowledge_items
                           if self._item_signature(item) not in relief.get("skipped", {})
                           or counts[self._item_signature(item)] < relief.get(
@@ -941,6 +1037,35 @@ class HomeMixin:
             pack_ids = {id(item) for item in carried_stock}
             stock = (stock if len(snapshot.inventory) < PACK_CAPACITY
                      else carried_stock)
+            # Charged Identify transport may not fill the final required
+            # capacity while readiness is false. Empty staves remain ordinary
+            # surplus and pass through this list unchanged.
+            carry_count = sum(staff.count for staff in
+                              self._carried_identify_staves(snapshot))
+            ready = self._identify_staff_ready(snapshot)
+            skipped = relief.setdefault("identify_cap_skip_fingerprint", {})
+            kept_stock = []
+            for candidate in stock:
+                if id(candidate) in pack_ids:
+                    kept_stock.append(candidate)
+                    continue
+                count = candidate.count
+                fingerprint = (carry_count, bool(ready), count)
+                sig = self._item_signature(candidate)
+                if (self._home_full_relief_take_blocks_identify(
+                        snapshot, candidate, count)
+                        and skipped.get(sig) == fingerprint):
+                    continue
+                if self._home_full_relief_take_blocks_identify(
+                        snapshot, candidate, count):
+                    relief["stock_count"] = counts.get(sig, candidate.count)
+                    self._home_full_record_identify_cap_skip(snapshot, candidate, count)
+                    skipped[sig] = fingerprint
+                    continue
+                if sig in skipped:
+                    skipped.pop(sig, None)
+                kept_stock.append(candidate)
+            stock = tuple(kept_stock)
             sale_stock = (carried_stock if len(snapshot.inventory) >= PACK_CAPACITY
                           else tuple(item for item in stock if id(item) not in pack_ids))
             probes = {id(item): (replace(snapshot, inventory=tuple(
@@ -2825,6 +2950,25 @@ class HomeMixin:
             self._offer_unaddressed_home_withdraw(LEAVE_STORE_KEY, signature)
             return LEAVE_STORE_KEY
         catalogue_index, item = selected
+        relief_request = (selecting_branch == "home-errand"
+                          and self._home_errand.request is not None
+                          and self._home_errand.request.reason in {
+                              "full-home-sale", "full-home-discard"})
+        take_quantity = (self._home_errand.request.quantity
+                         if relief_request else (self._home_pending_quantity or item.count))
+        if (relief_request and self._home_full_relief_take_blocks_identify(
+                snapshot, item, take_quantity)):
+            relief = self._home_full_relief
+            if relief is not None:
+                relief["stock_count"] = relief.get("stock_count", item.count)
+                self._home_full_record_identify_cap_skip(snapshot, item, take_quantity)
+            self._home_errand.finish()
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_pending_take_confirmed = None
+            self._home_withdrawal_queued = False
+            return None
         if (
             selecting_branch == "home-pending-item"
             and item.is_torch

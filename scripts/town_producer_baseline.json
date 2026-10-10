@@ -660,5 +660,7 @@
   "warrior_optimization.py:prepare_warrior_optimization": "pure helper: Evaluate and plan without emitting any game command.",
   "warrior_optimization.py:warrior_optimizer_input_key": "pure helper: Digest every semantic input consumed by preparation and planning.",
   "warrior_optimization.py:warrior_optimizer_knowledge_key": "pure helper: Digest immutable monster knowledge once for reuse by per-state keys.",
-  "wilderness_map.py:WildernessMap.next_key_to_town": "town producer to migrate: Return the first step on the least-danger route to any town."
+  "wilderness_map.py:WildernessMap.next_key_to_town": "town producer to migrate: Return the first step on the least-danger route to any town.",
+  "policy_instore.py:InStoreMixin._in_store_required_operation_stop": "delegated adapter: publishes the existing town blocked terminal after a required store operation cannot fit its current entry budget.",
+  "policy_shop.py:ShopMixin._departure_blocking_page_operation": "pure helper: returns required page-operation facts for Home relief and IST selection; emits no command."
 }
