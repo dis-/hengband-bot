@@ -1004,7 +1004,7 @@ class SupplyMixin:
         if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL:
             return item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
         if tval in {TVAL_WAND, TVAL_STAFF}:
-            return item.is_wand_staff
+            return item.is_wand_staff and item.charges > 0
         if tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}:
             return item.tval == tval
         if tval == TVAL_DIGGING:

@@ -8272,6 +8272,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if in_store_board:
                     self._in_store_effect_confirmed(snapshot)
+                bought_item = next(
+                    (
+                        item for item in snapshot.inventory
+                        if self._item_signature(item) == watched_signature
+                        and item.tval == TVAL_STAFF
+                        and item.sval == SV_STAFF_IDENTIFY
+                    ),
+                    None,
+                )
+                if (
+                    bought_item is not None
+                    and self._identify_staff_ready(snapshot)
+                ):
+                    self._identify_staff_mining_plan = False
             elif in_store_board:
                 # No effect on the state-bound page: no in-store retry and no
                 # outside wait is charged here; the entry ends.

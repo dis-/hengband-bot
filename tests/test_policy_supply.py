@@ -3235,7 +3235,12 @@ class IdentifyStaffTest(unittest.TestCase):
             equipment=[item("g", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True)],
             store=StoreState(
                 STORE_MAGIC,
-                [store_item("z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500)],
+                # Step 1.5d F4: an Identify staff is bought only with charges > 0 (an
+                # empty staff on the shelf is not a supply); the shelf staff carries 20.
+                [store_item(
+                    "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500,
+                    charges=20, name="鑑定の杖 (20回分)",
+                )],
             ),
         )
         pol = HengbotPolicy()

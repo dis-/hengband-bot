@@ -1,0 +1,30 @@
+PLAN-STEP: 1.5
+Task: implement SOL-DESIGN-step1.5d-identify-staff.md (revision 2) in this worktree
+(branch step1.5d-identify-staff at main 777f9f55).
+
+Read first: SOL-DESIGN-step1.5d-identify-staff.md (reviewed by an adversarial reviewer; follow it exactly,
+including the owner decisions quoted there) and STEP1.5d-IDENTIFY-STAFF-ANALYSIS.md (evidence).
+"Existing tests" = tests at 777f9f55. Tests you add on this branch may be edited freely.
+
+Scope: F1 (charges > 0 in the static `_procurement_class_matches` wand/staff branch, so candidate, viable
+counters, telemetry and batch agree; worthwhile only as an in-gate ALLOW override) and F4 (fundraising block
+returns the identify-staff rung; rungs require charges > 0 and worthwhile; drop the identify mining plan on a
+successful purchase that makes identify ready). Do NOT implement F2/F3 or the MANA-food purchase issue (#43).
+
+Rules:
+- Every pin in the design: show it failing on 777f9f55 (scratch worktree under
+  C:\hengband\bot-client\.worktrees\) and passing after; revert each predicate alone → its pin fails again.
+  Constructed parts carry DECLARED CONSTRUCTED comments. No widened assertions, skips or xfail.
+- Before your final run, list the affected test modules with
+  `python C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\step1.5d 777f9f55 HEAD`
+  and include ALL of them in the final run, plus: tests.test_ownership_s2b1_ladder tests.test_town_structure_lint
+  tests.test_item_sink_lint tests.test_town_work_contract tests.test_ownership_s2a1_closure
+  tests.test_ownership_s2a_classification tests.test_test_fakery_lint tests.test_town_arbiter tests.test_cli
+  tests.test_magic_required_staff_homefull_recorded tests.test_supply_ledger_observer_memo.
+  Use scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src). Paste the Failures/Errors/Total lines of
+  the final clean run. No full suite (the merge gate runs it).
+- New reasons that are final stops need banners (tests.test_cli); new reason-setting sites need an entry in
+  scripts/ownership_claim_exceptions.txt or a claim; new attributes need restore-chain defaults.
+- Regenerate the manifest. Do not commit validation logs. No game/bot control, no push, no merge, no
+  git reset --hard. Commit on this branch; write LUNA-REPORT-step1.5d.txt (changes, pins before/after, the
+  affected-module list, final run lines).

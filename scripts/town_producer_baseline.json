@@ -525,6 +525,7 @@
   "policy_supply.py:SupplyMixin._find_surplus_identify_staff.preserves_identify": "pure helper: preserves_identify returns bool used as input/observation, not an independently selected game action",
   "policy_supply.py:SupplyMixin._find_surplus_identify_staff.remains_restocked": "pure helper: remains_restocked returns bool used as input/observation, not an independently selected game action",
   "policy_supply.py:SupplyMixin._identify_staff_ready": "pure helper: _identify_staff_ready returns bool used as input/observation, not an independently selected game action",
+  "policy_supply.py:SupplyMixin._identify_staff_acquisition_worthwhile": "pure helper: reports whether an Identify-staff acquisition improves the carried reserve, not an independently selected game action",
   "policy_supply.py:SupplyMixin._identify_staff_release_plan": "pure helper: Per-slot quantity of carried Identify staves to release (sell/Home).",
   "policy_supply.py:SupplyMixin._intended_dive_depth": "pure helper: The floor this departure intends to land on: the objective's recall",
   "policy_supply.py:SupplyMixin._light_ready": "pure helper: _light_ready returns bool used as input/observation, not an independently selected game action",
