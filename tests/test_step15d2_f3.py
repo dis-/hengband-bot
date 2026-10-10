@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import unittest
+import tests
 from dataclasses import replace
 from pathlib import Path
 
