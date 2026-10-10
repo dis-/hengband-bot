@@ -336,6 +336,7 @@ class IdentifyStaffProcurementStep15dTest(unittest.TestCase):
             turn=before.turn + 1,
         )
         signature = policy._item_signature(bought)
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: this pin starts at the observed pending-buy protocol boundary
         policy._store_buy_inflight = (
             STORE_MAGIC, signature,
             policy._inventory_signature_count(before, signature),
