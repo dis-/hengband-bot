@@ -2270,9 +2270,79 @@ class ShopMixin(InStoreMixin):
             )
         return None
 
-    def _next_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+    def _purchase_churn_rejected(self, store_type: int, item: StoreItem) -> bool:
+        sold_class = (item.tval, item.sval) in self._town_visit_sale_signatures
+        latched = (store_type, item.tval, item.sval) in getattr(
+            self._town_visit_ledger, "purchase_churn_class_exclusions", set()
+        )
+        return (sold_class or latched) and not self._identify_staff_swap_purchase(item)
+
+    def _purchase_churn_rows(self, snapshot: Snapshot) -> tuple[StoreItem, ...]:
+        store = snapshot.store
+        if store is None:
+            return ()
+        return tuple(
+            item for item in store.items
+            if self._purchase_churn_rejected(store.store_type, item)
+        )
+
+    def _pending_disposal_completed(self, snapshot: Snapshot) -> bool:
+        target_signature = getattr(self, "_pending_disposal_item", None)
+        return (
+            target_signature is not None
+            and self._pending_disposal(snapshot) is None
+            and getattr(self, "_home_pending_item", None) != target_signature
+            and getattr(self, "_home_atomic_withdraw_pending", None) is None
+        )
+
+    def _next_purchase(self, snapshot: Snapshot, *, commit_churn: bool = False) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
-        item = self._next_purchase_unreserved(snapshot)
+        store = snapshot.store
+        rejected_rows = self._purchase_churn_rows(snapshot)
+        exclusions = {
+            (tval, sval) for store_id, tval, sval in getattr(
+                self._town_visit_ledger, "purchase_churn_class_exclusions", set()
+            ) if store is not None and store_id == store.store_type
+        }
+        exclusions.update((item.tval, item.sval) for item in rejected_rows)
+        if exclusions:
+            attempted = set()
+            while True:
+                item = self._legacy_next_purchase_unreserved(
+                    snapshot, excluded_classes=exclusions,
+                    commit_state=commit_churn,
+                )
+                if item is None or not self._purchase_churn_rejected(
+                    store.store_type, item
+                ):
+                    break
+                cls = (item.tval, item.sval)
+                if cls in attempted:
+                    item = None
+                    break
+                attempted.add(cls)
+                exclusions.add(cls)
+            if commit_churn:
+                ledger = self._town_visit_ledger
+                for rejected in rejected_rows:
+                    signature = self._item_signature(rejected)
+                    row = (store.store_type, signature)
+                    cls = (store.store_type, rejected.tval, rejected.sval)
+                    if row not in ledger.purchase_churn_exclusions:
+                        ledger.purchase_churn_exclusions.add(row)
+                        ledger.drift_warnings.append(
+                            f"sell-rebuy-churn-skipped:{store.store_type}:{signature}"
+                        )
+                    ledger.purchase_churn_class_exclusions.add(cls)
+                if rejected_rows:
+                    self.town_visit_report = (
+                        f"town-visit:sell-rebuy-churn:"
+                        f"{rejected_rows[0].tval}:{rejected_rows[0].sval}"
+                    )
+        else:
+            item = self._next_purchase_unreserved(
+                snapshot, commit_state=commit_churn
+            )
         if item is not None and not self._store_purchase_fits_pack(snapshot, item):
             self._shop_selector_diagnostics["pack_refusal"] = "full-pack-nonstacking"
             return None
@@ -2855,7 +2925,9 @@ class ShopMixin(InStoreMixin):
             return False
         return bool(self._matching_live_purchase_rungs(snapshot, item))
 
-    def _mandatory_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+    def _mandatory_purchase(
+        self, snapshot: Snapshot, *, excluded_classes=frozenset()
+    ) -> StoreItem | None:
         """Select an affordable ware that closes a departure requirement."""
         store = snapshot.store
         if store is None:
@@ -2863,14 +2935,18 @@ class ShopMixin(InStoreMixin):
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             carry = self._quest_carry_purchase(snapshot, strategy)
-            if carry is not None:
+            if (carry is not None
+                    and ((carry.tval, carry.sval) not in excluded_classes
+                         or self._identify_staff_swap_purchase(carry))):
                 return carry
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         if (
             snapshot.player.food_type == FOOD_TYPE_MANA
             and ledger["food"].count < ledger["food"].required_departure
         ):
-            mana_food = self._mana_food_purchase(snapshot)
+            mana_food = self._mana_food_purchase(
+                snapshot, excluded_classes=excluded_classes
+            )
             if mana_food is not None:
                 return mana_food
         predicates = (
@@ -2904,6 +2980,8 @@ class ShopMixin(InStoreMixin):
                     for item in store.items
                     if item.count > 0
                     and item.price <= snapshot.player.gold
+                    and ((item.tval, item.sval) not in excluded_classes
+                         or self._identify_staff_swap_purchase(item))
                     and matches(item)
                 ),
                 None,
@@ -2912,9 +2990,13 @@ class ShopMixin(InStoreMixin):
                 return candidate
         return None
 
-    def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
+    def _next_purchase_unreserved(
+        self, snapshot: Snapshot, *, commit_state: bool = False
+    ) -> StoreItem | None:
         """Compatibility adapter retaining typed provenance to emission."""
-        item = self._legacy_next_purchase_unreserved(snapshot)
+        item = self._legacy_next_purchase_unreserved(
+            snapshot, commit_state=commit_state
+        )
         if item is None or snapshot.store is None:
             return item
         matches = self._matching_live_purchase_rungs(snapshot, item)
@@ -2945,11 +3027,100 @@ class ShopMixin(InStoreMixin):
             self._purchase_quantity(snapshot, item),
         )
 
-    def _legacy_next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
+    def _departure_blocking_page_purchase(
+        self, snapshot: Snapshot,
+    ) -> PurchaseSelection | None:
+        """Purely select the first legal required buy on this observed page."""
+        with self._in_store_pure_scope():
+            return self._departure_blocking_page_purchase_pure(snapshot)
+
+    def _departure_blocking_page_purchase_pure(
+        self, snapshot: Snapshot,
+    ) -> PurchaseSelection | None:
+        store = snapshot.store
+        if store is None or store.store_type == STORE_HOME:
+            return None
+        enforced = (
+            getattr(self, "_town_claim_bar_enforced", False)
+            or self._home_sequence_has_holder()
+        )
+        deferral = self._town_errand_deferral(
+            "shop-buy", "purchase", snapshot, enforced=True,
+            arrival_board=self._home_hold_board() if enforced else None,
+        )
+        if deferral is not None and enforced and not deferral["token_would_admit"]:
+            return None
+        needs = tuple(
+            need for need in self._town_need_registry()
+            if need.departure_blocking and need.produces(snapshot)
+            and need.resolve_store_type(snapshot) == store.store_type
+        )
+        if not needs:
+            return None
+        for rung in self._purchase_rungs(PurchaseContext(snapshot)):
+            rung_needs = [need for need in needs if need.category == rung.category]
+            if not rung_needs:
+                continue
+            candidates = []
+            for item in store.items:
+                matches = rung.match(PurchaseContext(snapshot), item)
+                if matches is None or self._purchase_churn_rejected(
+                    store.store_type, item
+                ):
+                    continue
+                quantity = self._purchase_quantity(snapshot, item)
+                if quantity < 1 or quantity > item.count:
+                    continue
+                if item.price * quantity > snapshot.player.gold:
+                    continue
+                if not self._store_purchase_fits_pack(snapshot, item):
+                    continue
+                if (getattr(self, "_crossarea_fundraising_enforced", False)
+                        and self._fundraising_mode in {"mine", "scavenge"}
+                        and snapshot.player.gold - item.price * quantity
+                        < self._fundraising_kit_reserve(snapshot)):
+                    continue
+                gate = self._evaluate_purchase_home_gate(snapshot, item)
+                if gate is ProcurementHomeGate.BLOCKED:
+                    continue
+                if (gate is ProcurementHomeGate.HOME_FIRST
+                        and ("home-first-purchase", store.store_type,
+                             *self._item_signature(item))
+                        not in self._town_visit_ledger.rearmed_work_signatures):
+                    continue
+                candidates.append((item, matches, quantity))
+            if rung.rung_id.endswith("identify-staff") and candidates:
+                candidates.sort(
+                    key=lambda entry: -max(entry[0].charges, entry[0].pval)
+                )
+            if candidates:
+                item, match, quantity = candidates[0]
+                return PurchaseSelection(
+                    match, item, store.store_type, PurchaseContext(snapshot), quantity
+                )
+        return None
+
+    def _legacy_next_purchase_unreserved(
+        self, snapshot: Snapshot, *, excluded_classes=frozenset(),
+        commit_state: bool = False,
+    ) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
         store = snapshot.store
         if store is None:
             return None
+        # Keep the observed Store intact for charge comparisons, Home/pack
+        # gates, and shelf evidence.  Only candidate enumeration uses this view.
+        excluded_classes = set(excluded_classes)
+        excluded_classes.update(
+            (item.tval, item.sval)
+            for item in store.items
+            if self._purchase_churn_rejected(store.store_type, item)
+        )
+        items = tuple(
+            item for item in store.items
+            if (item.tval, item.sval) not in excluded_classes
+            or self._identify_staff_swap_purchase(item)
+        )
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}
                 and snapshot.player.food_type == FOOD_TYPE_MANA
@@ -2964,26 +3135,29 @@ class ShopMixin(InStoreMixin):
                     return None
                 home_food = self._home_mana_food_candidate()
                 if home_food is not None:
-                    self._home_pending_item = self._item_signature(home_food)
-                    self._home_pending_quantity = 1
+                    if commit_state:
+                        self._home_pending_item = self._item_signature(home_food)
+                        self._home_pending_quantity = 1
                     return None
-            return self._mana_food_purchase(snapshot)
+            return self._mana_food_purchase(snapshot, excluded_classes=excluded_classes)
         gold = snapshot.player.gold
         if self._identification_need is None:
             curse_scroll = self._required_remove_curse_purchase(snapshot)
-            if curse_scroll is not None:
+            if (curse_scroll is not None
+                    and ((curse_scroll.tval, curse_scroll.sval) not in excluded_classes
+                         or self._identify_staff_swap_purchase(curse_scroll))):
                 return curse_scroll
         if snapshot.player.class_id < 0:
             if not self._owns_lantern(snapshot):
                 lantern = next(
-                    (it for it in store.items if it.is_lantern and it.price <= gold),
+                    (it for it in items if it.is_lantern and it.price <= gold),
                     None,
                 )
                 if lantern is not None:
                     return lantern
             if self._oil_below_departure_target(snapshot):
                 oil = next(
-                    (it for it in store.items if it.is_oil and it.price <= gold),
+                    (it for it in items if it.is_oil and it.price <= gold),
                     None,
                 )
                 if oil is not None:
@@ -2995,7 +3169,7 @@ class ShopMixin(InStoreMixin):
                 food = next(
                     (
                         it
-                        for it in store.items
+                        for it in items
                         if it.tval == TVAL_FOOD
                         and it.sval >= FOOD_MIN_SVAL
                         and it.price <= gold
@@ -3011,7 +3185,7 @@ class ShopMixin(InStoreMixin):
                 or self._digger_buy_fallback_available(snapshot)
             ):
                 digger = next(
-                    (it for it in store.items if it.is_digging_tool and it.price <= gold),
+                    (it for it in items if it.is_digging_tool and it.price <= gold),
                     None,
                 )
                 if digger is not None:
@@ -3020,7 +3194,7 @@ class ShopMixin(InStoreMixin):
                 detection = next(
                     (
                         it
-                        for it in store.items
+                        for it in items
                         if it.is_treasure_detection_scroll and it.price <= gold
                     ),
                     None,
@@ -3030,12 +3204,12 @@ class ShopMixin(InStoreMixin):
             if not self._food_ready(snapshot):
                 food = None
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
-                    food = self._mana_food_purchase(snapshot)
+                    food = self._mana_food_purchase(snapshot, excluded_classes=excluded_classes)
                 elif snapshot.player.food_type == FOOD_TYPE_RATION:
                     food = next(
                         (
                             it
-                            for it in store.items
+                            for it in items
                             if it.tval == TVAL_FOOD
                             and it.sval >= FOOD_MIN_SVAL
                             and it.price <= gold
@@ -3049,7 +3223,7 @@ class ShopMixin(InStoreMixin):
                 detection_scroll = next(
                     (
                         it
-                        for it in store.items
+                        for it in items
                         if it.is_treasure_detection_scroll and it.price <= gold
                     ),
                     None,
@@ -3061,21 +3235,21 @@ class ShopMixin(InStoreMixin):
                 or self._digger_buy_fallback_available(snapshot)
             ):
                 digger = next(
-                    (it for it in store.items if it.is_digging_tool and it.price <= gold),
+                    (it for it in items if it.is_digging_tool and it.price <= gold),
                     None,
                 )
                 if digger is not None:
                     return digger
             if not self._fundraising_light_ready(snapshot):
                 lantern = next(
-                    (it for it in store.items if it.is_lantern and it.price <= gold),
+                    (it for it in items if it.is_lantern and it.price <= gold),
                     None,
                 )
                 if lantern is not None:
                     return lantern
             if self._oil_below_departure_target(snapshot):
                 oil = next(
-                    (it for it in store.items if it.is_oil and it.price <= gold),
+                    (it for it in items if it.is_oil and it.price <= gold),
                     None,
                 )
                 if oil is not None:
@@ -3090,7 +3264,7 @@ class ShopMixin(InStoreMixin):
                 torch = next(
                     (
                         it
-                        for it in store.items
+                        for it in items
                         if it.tval == TVAL_LITE
                         and it.sval == SV_LITE_TORCH
                         and it.price <= gold
@@ -3106,7 +3280,7 @@ class ShopMixin(InStoreMixin):
                 digger = next(
                     (
                         item
-                        for item in store.items
+                        for item in items
                         if item.is_digging_tool and item.price <= gold
                     ),
                     None,
@@ -3126,7 +3300,7 @@ class ShopMixin(InStoreMixin):
             ):
                 scroll = next(
                     (
-                        it for it in store.items
+                        it for it in items
                         if it.tval == TVAL_SCROLL
                         and it.sval == SV_SCROLL_IDENTIFY
                         and it.price <= gold
@@ -3145,7 +3319,7 @@ class ShopMixin(InStoreMixin):
                 ):
                     identify = max(
                         (
-                            item for item in store.items
+                            item for item in items
                             if item.tval == TVAL_STAFF
                             and item.sval == SV_STAFF_IDENTIFY
                             and item.price <= gold
@@ -3161,8 +3335,12 @@ class ShopMixin(InStoreMixin):
                         return identify
             return None
 
-        mandatory = self._mandatory_purchase(snapshot)
-        if mandatory is not None:
+        mandatory = self._mandatory_purchase(
+            snapshot, excluded_classes=excluded_classes
+        )
+        if (mandatory is not None
+                and ((mandatory.tval, mandatory.sval) not in excluded_classes
+                     or self._identify_staff_swap_purchase(mandatory))):
             return mandatory
 
         if self._identification_need is not None or self._full_identification_purchase_wanted():
@@ -3181,7 +3359,7 @@ class ShopMixin(InStoreMixin):
                 scroll = next(
                     (
                         it
-                        for it in store.items
+                        for it in items
                         if it.tval == TVAL_SCROLL
                         and it.sval == wanted_sval
                         and it.price <= gold
@@ -3198,35 +3376,43 @@ class ShopMixin(InStoreMixin):
             # teleport scrolls it also sells and stranded itself wandering town.
 
         curse_scroll = self._required_remove_curse_purchase(snapshot)
-        if curse_scroll is not None:
+        if (curse_scroll is not None
+                and ((curse_scroll.tval, curse_scroll.sval) not in excluded_classes
+                     or self._identify_staff_swap_purchase(curse_scroll))):
             return curse_scroll
         restore = self._restore_potion_purchase(snapshot)
-        if restore is not None:
+        if (restore is not None
+                and ((restore.tval, restore.sval) not in excluded_classes
+                     or self._identify_staff_swap_purchase(restore))):
             return restore
         restore_life = self._restore_life_levels_purchase(snapshot)
-        if restore_life is not None:
+        if (restore_life is not None
+                and ((restore_life.tval, restore_life.sval) not in excluded_classes
+                     or self._identify_staff_swap_purchase(restore_life))):
             return restore_life
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             force = strategy.required_force
             carry = self._quest_carry_purchase(snapshot, strategy)
-            if carry is not None:
+            if (carry is not None
+                    and ((carry.tval, carry.sval) not in excluded_classes
+                         or self._identify_staff_swap_purchase(carry))):
                 return carry
             if self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)):
-                speed = next((it for it in store.items if it.tval == TVAL_POTION
+                speed = next((it for it in items if it.tval == TVAL_POTION
                               and it.sval == SV_POTION_SPEED and it.price <= gold), None)
                 if speed is not None:
                     return speed
             healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
             if healing < int(force.get("heal_potions", 0)):
-                heal = next((it for it in store.items if it.tval == TVAL_POTION
+                heal = next((it for it in items if it.tval == TVAL_POTION
                              and it.sval == SV_POTION_HEALING
                              and it.price <= gold), None)
                 if heal is not None:
                     return heal
         if not self._recall_ready(snapshot):
             item = next(
-                (it for it in store.items if it.is_recall_scroll and it.price <= gold),
+                (it for it in items if it.is_recall_scroll and it.price <= gold),
                 None,
             )
             if item is not None:
@@ -3235,7 +3421,7 @@ class ShopMixin(InStoreMixin):
             snapshot.player.food_type == FOOD_TYPE_MANA
             and not self._food_ready(snapshot)
         ):
-            device = self._mana_food_purchase(snapshot)
+            device = self._mana_food_purchase(snapshot, excluded_classes=excluded_classes)
             if device is not None:
                 return device
         if (
@@ -3245,7 +3431,7 @@ class ShopMixin(InStoreMixin):
             food = next(
                 (
                     it
-                    for it in store.items
+                    for it in items
                     if it.tval == TVAL_FOOD
                     and it.sval >= FOOD_MIN_SVAL
                     and it.price <= gold
@@ -3256,14 +3442,14 @@ class ShopMixin(InStoreMixin):
                 return food
         if not self._owns_lantern(snapshot):
             lantern = next(
-                (it for it in store.items if it.is_lantern and it.price <= gold),
+                (it for it in items if it.is_lantern and it.price <= gold),
                 None,
             )
             if lantern is not None:
                 return lantern
         if self._oil_below_departure_target(snapshot):
             oil = next(
-                (it for it in store.items if it.is_oil and it.price <= gold),
+                (it for it in items if it.is_oil and it.price <= gold),
                 None,
             )
             if oil is not None:
@@ -3276,7 +3462,7 @@ class ShopMixin(InStoreMixin):
             torch = next(
                 (
                     it
-                    for it in store.items
+                    for it in items
                     if it.tval == TVAL_LITE
                     and it.sval == SV_LITE_TORCH
                     and it.price <= gold
@@ -3287,7 +3473,7 @@ class ShopMixin(InStoreMixin):
                 return torch
         if not self._teleport_ready(snapshot):
             teleport = next(
-                (it for it in store.items if it.is_teleport_scroll and it.price <= gold),
+                (it for it in items if it.is_teleport_scroll and it.price <= gold),
                 None,
             )
             if teleport is not None:
@@ -3296,7 +3482,7 @@ class ShopMixin(InStoreMixin):
             cure = next(
                 (
                     it
-                    for it in store.items
+                    for it in items
                     if it.tval == TVAL_POTION
                     and it.sval == SV_POTION_CURE_CRITICAL
                     and it.price <= gold
@@ -3313,7 +3499,7 @@ class ShopMixin(InStoreMixin):
             ammo = next(
                 (
                     it
-                    for it in store.items
+                    for it in items
                     if it.tval == launcher.ammo_tval
                     and is_plain_store_ammo(it)
                     and self._ammo_purchase_preserves_plan(snapshot, it)
@@ -3332,7 +3518,7 @@ class ShopMixin(InStoreMixin):
             identify = max(
                 (
                     it
-                    for it in store.items
+                    for it in items
                     if it.tval == TVAL_STAFF
                     and it.sval == SV_STAFF_IDENTIFY
                     and it.price <= gold
@@ -3347,10 +3533,15 @@ class ShopMixin(InStoreMixin):
             if identify is not None:
                 return identify
         destruction = self._destruction_purchase(snapshot)
-        if destruction is not None:
+        if (destruction is not None
+                and ((destruction.tval, destruction.sval) not in excluded_classes
+                     or self._identify_staff_swap_purchase(destruction))):
             return destruction
         black_market_optional = self._black_market_optional_purchase(snapshot)
-        if black_market_optional is not None:
+        if (black_market_optional is not None
+                and ((black_market_optional.tval, black_market_optional.sval)
+                     not in excluded_classes
+                     or self._identify_staff_swap_purchase(black_market_optional))):
             return black_market_optional
         if (
             self._required_remove_curse_kind(snapshot) == "remove-curse"
@@ -3360,7 +3551,7 @@ class ShopMixin(InStoreMixin):
             remove_curse = next(
                 (
                     it
-                    for it in store.items
+                    for it in items
                     if it.tval == TVAL_SCROLL
                     and it.sval in {SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE}
                     and it.price <= gold
@@ -3370,10 +3561,16 @@ class ShopMixin(InStoreMixin):
             if remove_curse is not None:
                 return remove_curse
         star_remove_curse = self._affordable_star_remove_curse(snapshot)
-        if star_remove_curse is not None:
+        if (star_remove_curse is not None
+                and ((star_remove_curse.tval, star_remove_curse.sval)
+                     not in excluded_classes
+                     or self._identify_staff_swap_purchase(star_remove_curse))):
             return star_remove_curse
         launcher_enchant = self._launcher_enchant_purchase(snapshot)
-        if launcher_enchant is not None:
+        if (launcher_enchant is not None
+                and ((launcher_enchant.tval, launcher_enchant.sval)
+                     not in excluded_classes
+                     or self._identify_staff_swap_purchase(launcher_enchant))):
             return launcher_enchant
         return None
 
@@ -4274,39 +4471,52 @@ class ShopMixin(InStoreMixin):
             self._pending_disposal_item is not None
         ):
             target = self._pending_disposal(snapshot)
-            if target is None:
+            if target is None and self._pending_disposal_completed(snapshot):
                 self._clear_pending_disposal()
-                self.last_reason = "equipment:sale-complete"
-                self._offer_execution(
-                    LEAVE_STORE_KEY, producer="equipment-txn",
-                    work_id="equipment:dominated-sale",
-                    next_step="equipment.leave-after-sale",
-                    expected_effect="store-exited",
+                completed_disposal_successor = self._departure_blocking_page_purchase(
+                    snapshot
                 )
-                return LEAVE_STORE_KEY
-            if store.store_type != self._dominated_disposal_store(target):
+                if completed_disposal_successor is not None:
+                    return self._shop_purchase_key(
+                        snapshot, completed_disposal_successor
+                    )
+                else:
+                    self.last_reason = "equipment:sale-complete"
+                    self._offer_execution(
+                        LEAVE_STORE_KEY, producer="equipment-txn",
+                        work_id="equipment:dominated-sale",
+                        next_step="equipment.leave-after-sale",
+                        expected_effect="store-exited",
+                    )
+                    return LEAVE_STORE_KEY
+            elif target is None:
+                # A Home sourced target can be absent from pack while its
+                # approved withdrawal is still pending. Keep that owner live.
                 return None
-            key = self._store_sell_key(
-                snapshot, target, "equipment:sell-dominated",
-                rejected_reason="equipment:sale-refused",
-            )
-            if key == LEAVE_STORE_KEY:
-                self._disposal_store_attempts.add(store.store_type)
-            if key is not None:
-                self._offer_execution(
-                    key, producer="equipment-txn",
-                    work_id="equipment:dominated-sale",
-                    next_step="equipment.sell-dominated-item",
-                    arguments=(self._item_signature(target),),
-                    expected_effect="dominated-item-sold",
-                )
             else:
-                self._offer_execution_no_step(
-                    producer="equipment-txn",
-                    work_id="equipment:dominated-sale",
-                    cause="sale-command-unavailable",
+                if store.store_type != self._dominated_disposal_store(target):
+                    return None
+                key = self._store_sell_key(
+                    snapshot, target, "equipment:sell-dominated",
+                    rejected_reason="equipment:sale-refused",
                 )
-            return key
+                if key == LEAVE_STORE_KEY:
+                    self._disposal_store_attempts.add(store.store_type)
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="equipment-txn",
+                        work_id="equipment:dominated-sale",
+                        next_step="equipment.sell-dominated-item",
+                        arguments=(self._item_signature(target),),
+                        expected_effect="dominated-item-sold",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="equipment-txn",
+                        work_id="equipment:dominated-sale",
+                        cause="sale-command-unavailable",
+                    )
+                return key
 
         if self._home_disposal_pending is not None:
             signature, decision = self._home_disposal_pending
@@ -4810,168 +5020,17 @@ class ShopMixin(InStoreMixin):
                     rejected_reason="shop:unsellable-light-leave",
                 )
 
-        item = self._next_purchase(snapshot)
+        item = self._next_purchase(snapshot, commit_churn=True)
         if item is not None:
-            if self._defer_town_errand("shop-buy", "purchase"):
-                self.last_reason = "shop:purchase-deferred"
-                return None
-            live_matches = self._matching_live_purchase_rungs(snapshot, item)
-            if not live_matches:
-                self._shop_selector_diagnostics["purchase_provenance"] = (
-                    "unmatched-fail-open"
-                )
-            if (
-                (item.tval, item.sval) in self._town_visit_sale_signatures
-                and not self._identify_staff_swap_purchase(item)
-            ):
-                self.town_visit_report = (
-                    f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
-                )
-                self.last_reason = "shop:sell-rebuy-churn-defect"
-                return LEAVE_STORE_KEY
-            home_gate = self._purchase_has_fresh_home_absence(snapshot, item)
-            if home_gate is not ProcurementHomeGate.ALLOW_PURCHASE:
-                if home_gate is ProcurementHomeGate.BLOCKED:
-                    self._publish_purchase_home_block()
-                    return WAIT_KEY
-                home_first_signature = (
-                    "home-first-purchase",
-                    store.store_type,
-                    *self._item_signature(item),
-                )
-                if (
-                    home_first_signature
-                    not in self._town_visit_ledger.rearmed_work_signatures
-                ):
-                    self._town_visit_ledger.rearmed_work_signatures.add(
-                        home_first_signature
-                    )
-                    self._rearm_town_store_for_new_work(
-                        STORE_HOME, release_visit_bound=True
-                    )
-                    self.last_reason = "shop:home-first-before-purchase"
-                    return LEAVE_STORE_KEY
-            signature = self._item_signature(item)
-            # Bail out of a purchase that never takes effect. A registered buy
-            # drops our gold (so the signature changes and the counter resets);
-            # if we keep asking to buy the same item at the same gold, the macro
-            # is not landing (e.g. an out-of-page letter, or a flushed prompt key)
-            # and there is no loop-detector inside a store to save us.
-            sig = (item.letter, snapshot.player.gold)
-            if sig == self._last_buy_sig:
-                self._store_stuck_count += 1
-            else:
-                self._last_buy_sig = sig
-                self._store_stuck_count = 0
-            if self._store_stuck_count >= STORE_STUCK_LIMIT:
-                self._shopping_abandoned = True
-                self._set_town_store_attempted(store.store_type, snapshot.turn, "buy-stuck-leave")
-                self._store_stuck_count = 0
-                self._last_buy_sig = None
-                self.last_reason = "shop:stuck-leave"
-                return LEAVE_STORE_KEY
-            remaining = self._purchase_quantity(snapshot, item)
-            progress_sig = (item.letter, remaining, snapshot.player.gold)
-            if self._last_buy_progress_sig is not None:
-                old_letter, old_remaining, old_gold = self._last_buy_progress_sig
-                if (
-                    item.letter == old_letter
-                    and remaining == old_remaining
-                    and snapshot.player.gold < old_gold
-                ):
-                    self._store_buy_no_progress_count += 1
-                elif item.letter != old_letter or remaining != old_remaining:
-                    self._store_buy_no_progress_count = 0
-            self._last_buy_progress_sig = progress_sig
-            if self._store_buy_no_progress_count >= STORE_STUCK_LIMIT:
-                self._shopping_abandoned = True
-                self._set_town_store_attempted(store.store_type, snapshot.turn, "buy-no-progress")
-                self._store_buy_no_progress_count = 0
-                self._last_buy_progress_sig = None
-                self.last_reason = "shop:defective-target-leave"
-                return LEAVE_STORE_KEY
-            if item.is_lantern:
-                self.last_reason = "shop:buy-lantern"
-            elif item.is_oil:
-                self.last_reason = "shop:buy-oil"
-            elif item.is_recall_scroll:
-                self.last_reason = "shop:buy-recall"
-            elif item.is_teleport_scroll:
-                self.last_reason = "shop:buy-teleport"
-            elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
-                self.last_reason = "shop:buy-cure-critical"
-            elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
-                self.last_reason = "shop:buy-speed"
-            elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
-                self.last_reason = "shop:buy-healing"
-            elif item.is_treasure_detection_scroll:
-                self.last_reason = "shop:buy-treasure-detection"
-            elif item.is_digging_tool:
-                fallback_purchase = self._digger_buy_fallback_available(snapshot)
-                self.last_reason = (
-                    "shop:buy-digging-tool:home-withdraw-failed-fallback"
-                    if fallback_purchase
-                    else "shop:buy-digging-tool"
-                )
-            elif item.is_ammo:
-                self.last_reason = "shop:buy-ammo"
-            elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
-                self.last_reason = "shop:buy-torch"
-            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
-                self.last_reason = "shop:buy-identify"
-            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
-                self.last_reason = "shop:buy-star-identify"
-            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
-                self.last_reason = "shop:buy-remove-curse"
-            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
-                if (
-                    self._required_remove_curse_kind(snapshot) is None
-                    and self._star_remove_curse_reserve_purchase_needed(snapshot)
-                ):
-                    self._star_remove_curse_reserve_deposit_pending = True
-                    signature = self._item_signature(item)
-                    self._star_remove_curse_reserve_buy_inflight = (
-                        signature,
-                        self._inventory_signature_count(snapshot, signature),
-                    )
-                self.last_reason = "shop:buy-star-remove-curse"
-            elif (
-                item.tval == TVAL_SCROLL
-                and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
-            ):
-                self.last_reason = "shop:buy-enchant-tohit"
-            elif (
-                item.tval == TVAL_SCROLL
-                and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_DAM
-            ):
-                self.last_reason = "shop:buy-enchant-todam"
-            elif (
-                snapshot.player.food_type == FOOD_TYPE_MANA
-                and item.tval in {TVAL_WAND, TVAL_STAFF}
-            ):
-                self.last_reason = "shop:buy-device-food"
-            else:
-                self.last_reason = "shop:buy-food"
-            quantity = remaining
-            # Unlike a speculative sell, this purchase names a ware from the
-            # current emitted store page and _next_purchase has rechecked its
-            # price/quantity.  Thus 'p' has a live selectable precondition; the
-            # remaining Returns are prompt defaults and a final confirmation,
-            # not an unchecked tail after a possibly unsupported command.
-            suffix = f"{quantity}\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
-            self._store_buy_inflight = (
-                store.store_type,
-                signature,
-                self._inventory_signature_count(snapshot, signature),
-                snapshot.player.gold,
-                0,
-                self._decision_sequence,
+            matches = self._matching_live_purchase_rungs(snapshot, item)
+            selection = PurchaseSelection(
+                matches[0] if matches else None, item, store.store_type,
+                PurchaseContext(snapshot), self._purchase_quantity(snapshot, item),
             )
-            if item.is_digging_tool and fallback_purchase:
-                self._digger_fallback_bought_this_visit = True
-            prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
-            return prefix + suffix if prefix is not None else None
-
+            return self._shop_purchase_key(snapshot, selection)
+        if self._purchase_churn_rows(snapshot):
+            self.last_reason = "shop:sell-rebuy-churn-defect"
+            return LEAVE_STORE_KEY
         self._store_buy_inflight = None
         self._last_buy_sig = None
         self._last_buy_progress_sig = None
@@ -5001,6 +5060,164 @@ class ShopMixin(InStoreMixin):
             self._shopping_abandoned = True
         self.last_reason = "shop:leave"
         return LEAVE_STORE_KEY
+
+    @claims(ClaimOwner.SHOP_BUY)
+    def _shop_purchase_key(self, snapshot: Snapshot, selection: PurchaseSelection) -> str | None:
+        item = selection.item
+        store = snapshot.store
+        if store is None or selection.supplier != store.store_type:
+            return None
+        if self._defer_town_errand("shop-buy", "purchase"):
+            self.last_reason = "shop:purchase-deferred"
+            return None
+        live_matches = self._matching_live_purchase_rungs(snapshot, item)
+        if not live_matches:
+            self._shop_selector_diagnostics["purchase_provenance"] = (
+                "unmatched-fail-open"
+            )
+        home_gate = self._purchase_has_fresh_home_absence(snapshot, item)
+        if home_gate is not ProcurementHomeGate.ALLOW_PURCHASE:
+            if home_gate is ProcurementHomeGate.BLOCKED:
+                self._publish_purchase_home_block()
+                return WAIT_KEY
+            home_first_signature = (
+                "home-first-purchase",
+                store.store_type,
+                *self._item_signature(item),
+            )
+            if (
+                home_first_signature
+                not in self._town_visit_ledger.rearmed_work_signatures
+            ):
+                self._town_visit_ledger.rearmed_work_signatures.add(
+                    home_first_signature
+                )
+                self._rearm_town_store_for_new_work(
+                    STORE_HOME, release_visit_bound=True
+                )
+                self.last_reason = "shop:home-first-before-purchase"
+                return LEAVE_STORE_KEY
+        signature = self._item_signature(item)
+        # Bail out of a purchase that never takes effect. A registered buy
+        # drops our gold (so the signature changes and the counter resets);
+        # if we keep asking to buy the same item at the same gold, the macro
+        # is not landing (e.g. an out-of-page letter, or a flushed prompt key)
+        # and there is no loop-detector inside a store to save us.
+        sig = (item.letter, snapshot.player.gold)
+        if sig == self._last_buy_sig:
+            self._store_stuck_count += 1
+        else:
+            self._last_buy_sig = sig
+            self._store_stuck_count = 0
+        if self._store_stuck_count >= STORE_STUCK_LIMIT:
+            self._shopping_abandoned = True
+            self._set_town_store_attempted(store.store_type, snapshot.turn, "buy-stuck-leave")
+            self._store_stuck_count = 0
+            self._last_buy_sig = None
+            self.last_reason = "shop:stuck-leave"
+            return LEAVE_STORE_KEY
+        remaining = self._purchase_quantity(snapshot, item)
+        progress_sig = (item.letter, remaining, snapshot.player.gold)
+        if self._last_buy_progress_sig is not None:
+            old_letter, old_remaining, old_gold = self._last_buy_progress_sig
+            if (
+                item.letter == old_letter
+                and remaining == old_remaining
+                and snapshot.player.gold < old_gold
+            ):
+                self._store_buy_no_progress_count += 1
+            elif item.letter != old_letter or remaining != old_remaining:
+                self._store_buy_no_progress_count = 0
+        self._last_buy_progress_sig = progress_sig
+        if self._store_buy_no_progress_count >= STORE_STUCK_LIMIT:
+            self._shopping_abandoned = True
+            self._set_town_store_attempted(store.store_type, snapshot.turn, "buy-no-progress")
+            self._store_buy_no_progress_count = 0
+            self._last_buy_progress_sig = None
+            self.last_reason = "shop:defective-target-leave"
+            return LEAVE_STORE_KEY
+        if item.is_lantern:
+            self.last_reason = "shop:buy-lantern"
+        elif item.is_oil:
+            self.last_reason = "shop:buy-oil"
+        elif item.is_recall_scroll:
+            self.last_reason = "shop:buy-recall"
+        elif item.is_teleport_scroll:
+            self.last_reason = "shop:buy-teleport"
+        elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
+            self.last_reason = "shop:buy-cure-critical"
+        elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
+            self.last_reason = "shop:buy-speed"
+        elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
+            self.last_reason = "shop:buy-healing"
+        elif item.is_treasure_detection_scroll:
+            self.last_reason = "shop:buy-treasure-detection"
+        elif item.is_digging_tool:
+            fallback_purchase = self._digger_buy_fallback_available(snapshot)
+            self.last_reason = (
+                "shop:buy-digging-tool:home-withdraw-failed-fallback"
+                if fallback_purchase
+                else "shop:buy-digging-tool"
+            )
+        elif item.is_ammo:
+            self.last_reason = "shop:buy-ammo"
+        elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
+            self.last_reason = "shop:buy-torch"
+        elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
+            self.last_reason = "shop:buy-identify"
+        elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
+            self.last_reason = "shop:buy-star-identify"
+        elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
+            self.last_reason = "shop:buy-remove-curse"
+        elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
+            if (
+                self._required_remove_curse_kind(snapshot) is None
+                and self._star_remove_curse_reserve_purchase_needed(snapshot)
+            ):
+                self._star_remove_curse_reserve_deposit_pending = True
+                signature = self._item_signature(item)
+                self._star_remove_curse_reserve_buy_inflight = (
+                    signature,
+                    self._inventory_signature_count(snapshot, signature),
+                )
+            self.last_reason = "shop:buy-star-remove-curse"
+        elif (
+            item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
+        ):
+            self.last_reason = "shop:buy-enchant-tohit"
+        elif (
+            item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_DAM
+        ):
+            self.last_reason = "shop:buy-enchant-todam"
+        elif (
+            snapshot.player.food_type == FOOD_TYPE_MANA
+            and item.tval in {TVAL_WAND, TVAL_STAFF}
+        ):
+            self.last_reason = "shop:buy-device-food"
+        else:
+            self.last_reason = "shop:buy-food"
+        quantity = remaining
+        # Unlike a speculative sell, this purchase names a ware from the
+        # current emitted store page and _next_purchase has rechecked its
+        # price/quantity.  Thus 'p' has a live selectable precondition; the
+        # remaining Returns are prompt defaults and a final confirmation,
+        # not an unchecked tail after a possibly unsupported command.
+        suffix = f"{quantity}\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
+        self._store_buy_inflight = (
+            store.store_type,
+            signature,
+            self._inventory_signature_count(snapshot, signature),
+            snapshot.player.gold,
+            0,
+            self._decision_sequence,
+        )
+        if item.is_digging_tool and fallback_purchase:
+            self._digger_fallback_bought_this_visit = True
+        prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
+        return prefix + suffix if prefix is not None else None
+
 
     def _router_plan_stop_families(
         self, store_type: int | None, *, plan=None,
@@ -5776,6 +5993,30 @@ class ShopMixin(InStoreMixin):
         self._shop_selector_diagnostics["composition_refusal_sequence"] = (
             self._decision_sequence
         )
+        if (
+            inner == LEAVE_STORE_KEY
+            and composition_refusal in {
+                "shop:sell-rebuy-churn-defect",
+                "equipment:sale-complete",
+            }
+        ):
+            required = self._departure_blocking_page_purchase(
+                replace(snapshot, store=observed_store)
+            )
+            if required is not None:
+                self._shop_selector_diagnostics["required-page-continuation"] = {
+                    "cause": "composition-mismatch",
+                    "store": store_type,
+                    "operation": "buy",
+                    "signature": self._item_signature(required.item),
+                    "row": required.item.letter,
+                    "quantity": required.quantity,
+                    "generation": generation,
+                }
+                self._town_blocked_reason = (
+                    "shop-required-operation-uncomposable"
+                )
+                return self._town_blocked_key(snapshot)
         if composition_refusal == "shop:home-first-yields-to-current-visit":
             # This supplier was observed, but stale Home knowledge owns the
             # purchase.  Retire only this pass so the next router decision can

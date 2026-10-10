@@ -202,8 +202,16 @@ class InStoreMixin:
         with self._in_store_pure_scope():
             if snapshot.player.hungry and self._find_edible(snapshot) is None:
                 return {"op": "survival", "would_key": None}
-            if (getattr(self, "_pending_disposal_item", None) is not None
-                    or getattr(self, "_home_disposal_pending", None) is not None):
+            pending_disposal = getattr(self, "_pending_disposal_item", None)
+            completed_disposal_successor = None
+            if (pending_disposal is not None
+                    and not self._pending_disposal_completed(snapshot)):
+                return {"op": "disposal", "would_key": None}
+            if pending_disposal is not None:
+                completed_disposal_successor = (
+                    self._departure_blocking_page_purchase(snapshot)
+                )
+            if getattr(self, "_home_disposal_pending", None) is not None:
                 return {"op": "disposal", "would_key": None}
             pending = self._batch_sell_pending
             if (pending is not None and pending.get("store_type") == store.store_type
@@ -251,7 +259,11 @@ class InStoreMixin:
                     return None
                 return {"op": "inscribe", "would_key": prefix + "@" + digit + "\r",
                         "target": target}
-            item = self._next_purchase(snapshot)
+            item = (
+                completed_disposal_successor.item
+                if completed_disposal_successor is not None
+                else self._next_purchase(snapshot, commit_churn=False)
+            )
             if item is None:
                 return None
             # Use the existing pure Home gate, never its stateful wrapper.

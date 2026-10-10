@@ -49,6 +49,10 @@ class TownProgressInvariantTest(unittest.TestCase):
         # This private-seam fixture bypasses choose_key's restore shim; model
         # the compatibility boundary without running an unrelated decision.
         vars(policy).setdefault("_town_visit_sale_signatures", set())
+        ledger = vars(policy).get("_town_visit_ledger")
+        if ledger is not None:
+            vars(ledger).setdefault("purchase_churn_exclusions", set())
+            vars(ledger).setdefault("purchase_churn_class_exclusions", set())
         wand = StoreItem(
             "e", "Sleep Monster wand (31 charges)", 3, TVAL_WAND, 0,
             price, charges=31,

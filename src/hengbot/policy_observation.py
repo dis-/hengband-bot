@@ -98,7 +98,14 @@ class ObservationMixin:
             ):
                 self._emergency_recall_sanctioned = False
         if snapshot.in_town and not self._town_was_in_town:
+            previous_ledger = self._town_visit_ledger
             self._town_visit_ledger = TownVisitLedger()
+            self._town_visit_ledger.purchase_churn_exclusions.update(
+                getattr(previous_ledger, "purchase_churn_exclusions", ())
+            )
+            self._town_visit_ledger.purchase_churn_class_exclusions.update(
+                getattr(previous_ledger, "purchase_churn_class_exclusions", ())
+            )
             if (
                 getattr(self, "_home_visit", None) is not None
                 and not self._home_visit.active
@@ -120,7 +127,14 @@ class ObservationMixin:
         if town_changed:
             # Shelf facts and store bounds describe the town just left.
             # Arrival must observe the new suppliers before declaring stock-out.
+            previous_ledger = self._town_visit_ledger
             self._town_visit_ledger = TownVisitLedger()
+            self._town_visit_ledger.purchase_churn_exclusions.update(
+                getattr(previous_ledger, "purchase_churn_exclusions", ())
+            )
+            self._town_visit_ledger.purchase_churn_class_exclusions.update(
+                getattr(previous_ledger, "purchase_churn_class_exclusions", ())
+            )
             self._town_supplier_stock_observations.clear()
         self._observed_town_id = current_town_id
         self._observe_stair_command(snapshot, observation=observation)
@@ -769,6 +783,8 @@ class ObservationMixin:
             self._town_visit_purchase_quantities.clear()
             self._town_visit_sale_signatures.clear()
             self._town_visit_sale_identify_charges = None
+            self._town_visit_ledger.purchase_churn_exclusions.clear()
+            self._town_visit_ledger.purchase_churn_class_exclusions.clear()
             self.town_visit_report = None
             self._quest_light_attempted.clear()
             self._q2_phase_light_attempted.clear()

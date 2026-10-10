@@ -607,6 +607,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:home-known-empty-withdrawal": "current Home knowledge proves the requested withdrawal is absent",
         "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
         "town:blocked:procurement-home-unroutable": "required Home procurement has no route",
+        "town:blocked:shop-required-operation-uncomposable": "a required operation on the observed shop page could not be completed within its existing transaction budget",
         "town:blocked:survival-mana-no-charges": "MANA survival has no reachable Home device charge",
         "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",

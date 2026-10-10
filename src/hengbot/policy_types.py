@@ -430,6 +430,13 @@ class TownVisitLedger:
         default_factory=dict
     )
     pending_nonhome_effect_observation: set[int] = field(default_factory=set)
+    # Rejected purchase candidates share the confirmed-sale floor epoch.
+    purchase_churn_exclusions: set[tuple[int, tuple[str, int, int]]] = field(
+        default_factory=set
+    )
+    purchase_churn_class_exclusions: set[tuple[int, int, int]] = field(
+        default_factory=set
+    )
 
 
 @dataclass

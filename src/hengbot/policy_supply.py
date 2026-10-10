@@ -908,7 +908,9 @@ class SupplyMixin:
             return 0.0
         return (chance - 2) / chance
 
-    def _mana_food_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+    def _mana_food_purchase(
+        self, snapshot: Snapshot, *, excluded_classes=frozenset()
+    ) -> StoreItem | None:
         store = snapshot.store
         if store is None or store.store_type != STORE_MAGIC:
             return None
@@ -924,6 +926,8 @@ class SupplyMixin:
             it for it in store.items
             if it.tval in {TVAL_WAND, TVAL_STAFF}
             and it.price <= snapshot.player.gold
+            and ((it.tval, it.sval) not in excluded_classes
+                 or self._identify_staff_swap_purchase(it))
         ]
         if not candidates:
             return None

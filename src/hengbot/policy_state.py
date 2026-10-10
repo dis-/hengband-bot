@@ -172,6 +172,12 @@ def normalize_policy_state(restored, *, restart=False):
     calibration phase.  Physical strip debt is a startup question answered
     once from the persisted calibration file (``cli``), never here.
     """
+    current_ledger = restored.__dict__.get("_town_visit_ledger")
+    if current_ledger is not None:
+        current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
+        current_ledger.__dict__.setdefault(
+            "purchase_churn_class_exclusions", set()
+        )
     if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored
     retire_strip_calibration_state(restored)
@@ -368,6 +374,8 @@ def normalize_policy_state(restored, *, restart=False):
     if ledger is not None:
         ledger.__dict__.setdefault("blocked_store_work_signatures", {})
         ledger.__dict__.setdefault("rearmed_work_signatures", set())
+        ledger.__dict__.setdefault("purchase_churn_exclusions", set())
+        ledger.__dict__.setdefault("purchase_churn_class_exclusions", set())
     # Older checkpoints can retain the two pre-ARB restocked-*-unreachable
     # values.  Normalize them at the compatibility boundary so restored work
     # follows the surviving canonical release path without keeping either
