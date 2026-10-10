@@ -969,7 +969,10 @@ class HomeMixin:
                     getattr(self, "_home_pending_quantities", {}).pop(
                         self._item_signature(observed), None)
                     self._home_withdrawal_queued = False
-                    return self._home_full_relief_key(snapshot)
+                    # The capacity rejection is durable for this carry/readiness
+                    # fingerprint. Resume the relief scan on the next decision;
+                    # do not recursively reenter this claims producer.
+                    return None
                 if not self._home_errand.active:
                     relief["sale"] = (self._item_signature(observed), store_type,
                                       before_count)
@@ -2952,7 +2955,7 @@ class HomeMixin:
         catalogue_index, item = selected
         relief_request = (selecting_branch == "home-errand"
                           and self._home_errand.request is not None
-                          and self._home_errand.request.reason in {
+                          and self._home_errand.request.purpose in {
                               "full-home-sale", "full-home-discard"})
         take_quantity = (self._home_errand.request.quantity
                          if relief_request else (self._home_pending_quantity or item.count))

@@ -449,12 +449,23 @@ class InStoreMixin:
                 # state-bound post-operation board shows no effect: no
                 # in-store retry, the entry ends (design 3.1).
                 ledger["ended"] = True
-        if ledger["ended"] or ledger["ops"] >= STORE_STUCK_LIMIT:
+        if ledger["ended"]:
+            pending = ledger.get("pending")
+            # F3's visible defect stop covers an unconfirmed release sale
+            # blocking its same-entry required purchase. Preserve the ordinary
+            # no-retry exit for an unconfirmed buy.
+            if pending is not None and pending.get("kind") == "sell":
+                required = self._departure_blocking_page_operation(snapshot)
+                if required is not None:
+                    return self._in_store_required_operation_stop(
+                        snapshot, "sale-no-effect", required,
+                    )
+            return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+        if ledger["ops"] >= STORE_STUCK_LIMIT:
             required = self._departure_blocking_page_operation(snapshot)
             if required is not None:
                 return self._in_store_required_operation_stop(
-                    snapshot, "sale-no-effect" if ledger["ended"] else "entry-budget",
-                    required,
+                    snapshot, "entry-budget", required,
                 )
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         selection = self._in_store_selection(snapshot)
