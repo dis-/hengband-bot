@@ -213,6 +213,23 @@ class InStoreMixin:
                 )
             if getattr(self, "_home_disposal_pending", None) is not None:
                 return {"op": "disposal", "would_key": None}
+            ledger = getattr(self, "_in_store_entry_ledger", None)
+            if ledger is not None and ledger.get("ops", 0) > 0:
+                required = self._departure_blocking_page_purchase(snapshot)
+                if required is not None:
+                    item = required.item
+                    quantity = required.quantity
+                    prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
+                    if prefix is not None:
+                        suffix = f"{quantity}\r\r" if item.count > 1 else "\r"
+                        return {"op": "buy", "would_key": prefix + suffix,
+                                "letter": item.letter, "identity": _row_identity(item),
+                                "target": {"letter": item.letter, "name": item.name,
+                                           "price": item.price, "count": item.count},
+                                "quantity": quantity,
+                                "expected_confirm": expected_buy_confirmation(
+                                    item.price, quantity,
+                                    wand_stack=item.tval == TVAL_WAND and item.count > 1)}
             pending = self._batch_sell_pending
             if (pending is not None and pending.get("store_type") == store.store_type
                     and pending.get("phase") == "await-inscription"):
@@ -432,7 +449,24 @@ class InStoreMixin:
                 # state-bound post-operation board shows no effect: no
                 # in-store retry, the entry ends (design 3.1).
                 ledger["ended"] = True
-        if ledger["ended"] or ledger["ops"] >= STORE_STUCK_LIMIT:
+        if ledger["ended"]:
+            pending = ledger.get("pending")
+            # F3's visible defect stop covers an unconfirmed release sale
+            # blocking its same-entry required purchase. Preserve the ordinary
+            # no-retry exit for an unconfirmed buy.
+            if pending is not None and pending.get("kind") == "sell":
+                required = self._departure_blocking_page_operation(snapshot)
+                if required is not None:
+                    return self._in_store_required_operation_stop(
+                        snapshot, "sale-no-effect", required,
+                    )
+            return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+        if ledger["ops"] >= STORE_STUCK_LIMIT:
+            required = self._departure_blocking_page_operation(snapshot)
+            if required is not None:
+                return self._in_store_required_operation_stop(
+                    snapshot, "entry-budget", required,
+                )
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         selection = self._in_store_selection(snapshot)
         if selection is None or not selection.get("would_key"):
@@ -445,11 +479,45 @@ class InStoreMixin:
             "ops": ledger["ops"], "preconditions": conditions,
         })
         if not all(conditions.values()):
+            required = self._departure_blocking_page_operation(snapshot)
+            if required is not None:
+                return self._in_store_required_operation_stop(
+                    snapshot, "selection-emission-mismatch", required,
+                )
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         key = self._in_store_emit(snapshot, selection, first=False)
         if key is None:
+            required = self._departure_blocking_page_operation(snapshot)
+            if required is not None:
+                return self._in_store_required_operation_stop(
+                    snapshot, "selection-emission-mismatch", required,
+                )
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         return key
+
+    def _in_store_required_operation_stop(self, snapshot: Snapshot, cause: str,
+                                          operation: dict) -> str:
+        """Publish a typed stop when the existing entry cannot finish a required op."""
+        self._shop_selector_diagnostics["required-page-continuation"] = {
+            "cause": cause,
+            "store": snapshot.store.store_type if snapshot.store else None,
+            "operation": operation.get("op"),
+            "signature": (self._item_signature(operation["purchase"].item)
+                          if operation.get("purchase") is not None
+                          else self._item_signature(operation["item"])
+                          if operation.get("item") is not None else None),
+            "row": (operation["purchase"].item.letter
+                    if operation.get("purchase") is not None
+                    else getattr(operation.get("item"), "slot", None)),
+            "quantity": (operation["purchase"].quantity
+                         if operation.get("purchase") is not None
+                         else operation.get("quantity")),
+            "generation": self._decision_sequence,
+            "budget_identity": (getattr(self, "_store_visit", None).opened_sequence
+                                if getattr(self, "_store_visit", None) is not None else None),
+        }
+        self._town_blocked_reason = "shop-required-operation-uncomposable"
+        return self._town_blocked_key(snapshot)
 
     def _in_store_emit(self, snapshot: Snapshot, selection: dict | None, *,
                        first: bool) -> str | None:

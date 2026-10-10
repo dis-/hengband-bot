@@ -3037,6 +3037,44 @@ class ShopMixin(InStoreMixin):
         with self._in_store_pure_scope():
             return self._departure_blocking_page_purchase_pure(snapshot)
 
+    def _departure_blocking_page_operation(self, snapshot: Snapshot):
+        """Pure page operation, including an Identify release preceding its buy."""
+        with self._in_store_pure_scope():
+            purchase = self._departure_blocking_page_purchase_pure(snapshot)
+            if purchase is not None:
+                return {"op": "buy", "purchase": purchase}
+            store = snapshot.store
+            if (store is None or store.store_type == STORE_HOME
+                    or self._identify_staff_ready(snapshot)):
+                return None
+            release = self._identify_staff_release_plan(snapshot)
+            if not release:
+                return None
+            for slot, quantity in release.items():
+                released = next((item for item in snapshot.inventory
+                                 if item.slot == slot), None)
+                if (released is None or quantity <= 0
+                        or released.tval != TVAL_STAFF
+                        or released.sval != SV_STAFF_IDENTIFY
+                        or not self._store_accepts_sale(store.store_type, released)
+                        or store.store_type in self._store_sale_refused):
+                    continue
+                probe = replace(snapshot, inventory=tuple(
+                    replace(item, count=item.count - quantity)
+                    if item.slot == slot else item
+                    for item in snapshot.inventory
+                    if item.slot != slot or item.count > quantity
+                ))
+                replacement = self._departure_blocking_page_purchase_pure(probe)
+                if (replacement is None
+                        or max(replacement.item.charges, replacement.item.pval)
+                        <= max(released.charges, released.pval)
+                        or not self._store_purchase_fits_pack(probe, replacement.item)):
+                    continue
+                return {"op": "release-sale", "item": released,
+                        "quantity": quantity, "purchase": replacement}
+            return None
+
     def _departure_blocking_page_purchase_pure(
         self, snapshot: Snapshot,
     ) -> PurchaseSelection | None:
@@ -3055,10 +3093,12 @@ class ShopMixin(InStoreMixin):
         )
         if deferral is not None and enforced and not deferral["token_would_admit"]:
             return None
+        # The shared helper evaluates the town-need candidates once per call;
+        # asking each registry spec separately recomputed them per lookup
+        # (3.4 s for one Home-full relief decision, 2026-10-11).
         needs = tuple(
-            need for need in self._town_need_registry()
-            if need.departure_blocking and need.produces(snapshot)
-            and need.resolve_store_type(snapshot) == store.store_type
+            need for need in self._departure_blocking_town_needs(snapshot)
+            if need.store_type == store.store_type
         )
         if not needs:
             return None

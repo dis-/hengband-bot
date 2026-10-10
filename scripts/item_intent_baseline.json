@@ -130,5 +130,6 @@
   "read_telemetry": "Diagnostic resolution of an already-selected read; selected identity is in _read_binding.",
   "town_visit_report": "Completed visit report; no future operation.",
   "_overweight_surplus_ledger": "Persisted visit epoch, normalized disposal signatures and a durable mirror of the posted F3 operation; restored into the registered shop-sell selection state, never a second reservation owner.",
-  "_town_visit_epoch": "Observed town-visit identity, persisted for F3 restart loop accounting; no item reservation."
+  "_town_visit_epoch": "Observed town-visit identity, persisted for F3 restart loop accounting; no item reservation.",
+  "_item_signature": "Identity projection used in diagnostic stop details; no persistent item request or reservation."
 }
