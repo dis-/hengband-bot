@@ -327,21 +327,35 @@ class IdentifyStaffProcurementStep15dTest(unittest.TestCase):
         policy._deepest_level = 20
         policy._identify_staff_mining_plan = True
         policy._fundraising_mode = "prepare"
-        bought = item("z", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20)
-        before = replace(self.outside, store=None)
+        policy.consume_home_knowledge(())
+        policy._equipment_catalog._home = {}
+        offered = store_item(
+            "j", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            price=823, charges=20, name="Staff of Identify",
+        )
+        purchase_board = replace(
+            self.magic,
+            player=replace(self.outside.player, gold=16558),
+            inventory=self.outside.inventory,
+            store=StoreState(STORE_MAGIC, [offered]),
+        )
+        before = replace(self.outside, store=None, player=purchase_board.player)
+        # DECLARED CONSTRUCTED successful-purchase observation: this uses the
+        # real shop key/post confirmation before introducing its resulting board.
+        bought = item(
+            "z", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            charges=20, name="Staff of Identify",
+        )
         after = replace(
             before,
             player=replace(before.player, gold=before.player.gold - 823),
             inventory=(*before.inventory, bought),
             turn=before.turn + 1,
         )
-        signature = policy._item_signature(bought)
-        # TEST_FAKERY_LINT_ALLOW: private-state-injected: this pin starts at the observed pending-buy protocol boundary
-        policy._store_buy_inflight = (
-            STORE_MAGIC, signature,
-            policy._inventory_signature_count(before, signature),
-            before.player.gold, 0, None,
-        )
+        with patch.object(policy, "_fundraising_identify_staff_only_block", return_value=True):
+            purchase_key = policy._shop(purchase_board)
+        self.assertIsNotNone(purchase_key)
+        policy.confirm_key_posted(purchase_key)
 
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
             policy.choose_key(after)
