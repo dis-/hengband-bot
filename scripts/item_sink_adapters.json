@@ -367,7 +367,7 @@
     "self._store_sell_key(snapshot, sale, 'survival:mana-sell-to-afford') @ If:body:snapshot.player.hungry and self._find_edible(snapshot) is None / If:body:snapshot.player.food_type == FOOD_TYPE_MANA and self._mana_survival_device_price is not None and (snapshot.player.gold < self._mana_survival_device_price) and (store.store_type in {STORE_ALCHEMIST, STORE_WEAPON}) / If:body:sale is not None": 1,
     "self._store_sell_key(snapshot, sale, reason, rejected_reason='shop:unsellable-light-leave') @ If:body:store.store_type == STORE_GENERAL / If:body:sale is not None": 1,
     "self._store_sell_key(snapshot, sale, reason, rejected_reason='shop:unsellable-weapon-leave') @ If:body:store.store_type == STORE_WEAPON / If:body:sale is not None": 1,
-    "self._store_sell_key(snapshot, target, 'equipment:sell-dominated', rejected_reason='equipment:sale-refused') @ If:body:self._pending_disposal_item is not None": 1,
+    "self._store_sell_key(snapshot, target, 'equipment:sell-dominated', rejected_reason='equipment:sale-refused') @ If:body:self._pending_disposal_item is not None / If:orelse:target is None and self._pending_disposal_completed(snapshot) / If:orelse:target is None": 1,
     "self._store_sell_key(snapshot, target, 'home-disposal:sell-approved', rejected_reason='home-disposal:sale-refused') @ If:body:self._home_disposal_pending is not None / If:body:decision == 'sell' and target is not None and target.known and (store.store_type == self._home_disposal_store(signature))": 1,
     "self._town_random_teleport_suppression_key(snapshot) @ ": 1
   },

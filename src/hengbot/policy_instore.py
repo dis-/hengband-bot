@@ -262,7 +262,7 @@ class InStoreMixin:
             item = (
                 completed_disposal_successor.item
                 if completed_disposal_successor is not None
-                else self._next_purchase(snapshot, commit_churn=False)
+                else self._next_purchase(snapshot)
             )
             if item is None:
                 return None

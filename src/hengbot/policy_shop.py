@@ -2297,6 +2297,9 @@ class ShopMixin(InStoreMixin):
 
     def _next_purchase(self, snapshot: Snapshot, *, commit_churn: bool = False) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
+        commit_churn = commit_churn or bool(
+            getattr(self, "_shop_selection_commits", False)
+        )
         store = snapshot.store
         rejected_rows = self._purchase_churn_rows(snapshot)
         exclusions = {
@@ -2347,6 +2350,9 @@ class ShopMixin(InStoreMixin):
             self._shop_selector_diagnostics["pack_refusal"] = "full-pack-nonstacking"
             return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
+            return item
+        required_page = self._departure_blocking_page_purchase_pure(snapshot)
+        if required_page is not None and required_page.item == item:
             return item
         curse_kind = self._required_remove_curse_kind(snapshot)
         if curse_kind is not None and self._store_item_is_supply(item, curse_kind):
@@ -3102,7 +3108,7 @@ class ShopMixin(InStoreMixin):
 
     def _legacy_next_purchase_unreserved(
         self, snapshot: Snapshot, *, excluded_classes=frozenset(),
-        commit_state: bool = False,
+        commit_state: bool = True,
     ) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
         store = snapshot.store
@@ -3335,8 +3341,9 @@ class ShopMixin(InStoreMixin):
                         return identify
             return None
 
-        mandatory = self._mandatory_purchase(
-            snapshot, excluded_classes=excluded_classes
+        mandatory = (
+            self._mandatory_purchase(snapshot, excluded_classes=excluded_classes)
+            if excluded_classes else self._mandatory_purchase(snapshot)
         )
         if (mandatory is not None
                 and ((mandatory.tval, mandatory.sval) not in excluded_classes
@@ -4477,8 +4484,12 @@ class ShopMixin(InStoreMixin):
                     snapshot
                 )
                 if completed_disposal_successor is not None:
-                    return self._shop_purchase_key(
-                        snapshot, completed_disposal_successor
+                    return self._town_producer_entry(
+                        "_shop_purchase_key",
+                        lambda: self._shop_purchase_key(
+                            snapshot, completed_disposal_successor
+                        ),
+                        family="shop-buy",
                     )
                 else:
                     self.last_reason = "equipment:sale-complete"
@@ -5020,14 +5031,23 @@ class ShopMixin(InStoreMixin):
                     rejected_reason="shop:unsellable-light-leave",
                 )
 
-        item = self._next_purchase(snapshot, commit_churn=True)
+        previous_commit_mode = getattr(self, "_shop_selection_commits", False)
+        self._shop_selection_commits = True
+        try:
+            item = self._next_purchase(snapshot)
+        finally:
+            self._shop_selection_commits = previous_commit_mode
         if item is not None:
             matches = self._matching_live_purchase_rungs(snapshot, item)
             selection = PurchaseSelection(
                 matches[0] if matches else None, item, store.store_type,
                 PurchaseContext(snapshot), self._purchase_quantity(snapshot, item),
             )
-            return self._shop_purchase_key(snapshot, selection)
+            return self._town_producer_entry(
+                "_shop_purchase_key",
+                lambda: self._shop_purchase_key(snapshot, selection),
+                family="shop-buy",
+            )
         if self._purchase_churn_rows(snapshot):
             self.last_reason = "shop:sell-rebuy-churn-defect"
             return LEAVE_STORE_KEY

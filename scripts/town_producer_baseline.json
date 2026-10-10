@@ -654,5 +654,10 @@
   "wilderness_map.py:WildernessMap.next_key_to_town": "town producer to migrate: Return the first step on the least-danger route to any town.",
   "town_work.py:code_site": "pure helper: source identity for coverage receipts, not a command; consumed only by work observer.",
   "policy_combat.py:CombatMixin._breeder_breakthrough_frontier_step.route_to": "pure helper: breadth-first first step toward the committed breeder frontier; returns a Position, never a key",
-  "policy_home.py:HomeMixin._carried_disposal_preserves_departure": "pure helper: Boolean inventory probe; returns no game command or independent effect"
+  "policy_home.py:HomeMixin._carried_disposal_preserves_departure": "pure helper: Boolean inventory probe; returns no game command or independent effect",
+  "policy_shop.py:ShopMixin._departure_blocking_page_purchase": "pure helper: Pure required-page selector returning typed selection data, not a command.",
+  "policy_shop.py:ShopMixin._departure_blocking_page_purchase_pure": "pure helper: Select a required purchase from the observed shelf without emitting a command.",
+  "policy_shop.py:ShopMixin._identify_staff_swap_purchase": "pure helper: Identify the sole sold-class swap exception from current shelf evidence.",
+  "policy_shop.py:ShopMixin._matching_live_purchase_rungs": "pure helper: Match a shelf item to purchase-rung evidence; returns selector data.",
+  "policy_shop.py:ShopMixin._purchase_rungs": "pure helper: Build purchase rung selectors for this observed context."
 }
