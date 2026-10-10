@@ -49,9 +49,17 @@ class HomeFullIdentificationProcurementRecordedTest(unittest.TestCase):
         self.assertTrue(policy._home_full_relief["withdrawn"])
 
     def test_no_legal_relief_defers_home_and_advances_the_recorded_plan(self):
+        # DECLARED CONSTRUCTED boundary for 1.5b F1b / the 2026-10-10
+        # overload decision: this recorded board weighs 1932 against an
+        # 1800 limit. Its first required deposit is therefore departure
+        # blocking, so failure to shed it stops immediately instead of using
+        # the optional no-relief deferral.
         board = self.recorded_board()
         policy = HengbotPolicy(monrace_knowledge={})
         policy.prime(board)
+        self.assertEqual(policy._inventory_weight(board), 1932)
+        self.assertEqual(policy._inventory_weight_limit(board), 1800)
+        self.assertTrue(policy._inventory_overweight(board))
         policy.consume_home_knowledge(())
         deposits = ((policy._item_signature(board.inventory[0]),
                      board.inventory[0].count, board.inventory[0].count),)
@@ -66,15 +74,13 @@ class HomeFullIdentificationProcurementRecordedTest(unittest.TestCase):
 
         key = policy._home_full_relief_key(board)
 
-        self.assertIsNone(key)
+        self.assertEqual(key, "9")
         self.assertEqual(policy.last_reason,
-                         "home:full-deposit-deferred-no-legal-relief")
+                         "town:blocked:overweight-home-full-no-legal-relief")
         self.assertIsNone(policy._home_full_relief)
-        self.assertEqual(policy._home_full_retry_deposits, deposits)
-        self.assertEqual(policy._town_errand_plan.index, 1)
-        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
-        self.assertIsNone(policy._home_full_relief_key(board))
-        self.assertEqual(policy._home_full_retry_deposits, deposits)
+        self.assertIsNone(policy._home_full_retry_deposits)
+        self.assertEqual(policy._town_errand_plan.index, 0)
+        self.assertNotIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
 
     def test_unidentified_only_relief_yields_to_identify_source_procurement(self):
         board = self.recorded_board()

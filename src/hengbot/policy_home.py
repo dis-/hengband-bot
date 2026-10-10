@@ -966,11 +966,46 @@ class HomeMixin:
             if not candidates:
                 if len(snapshot.inventory) < PACK_CAPACITY:
                     # Free a shelf, not more pack space, whenever a Home
-                    # candidate exists. Carried sales still take precedence.
+                    # auto-destroy candidate exists. If every shelf target
+                    # is protected, a genuinely unneeded carried stack can
+                    # be destroyed before the overweight-surplus producer.
                     shelf_discard = [entry for entry in discard if id(entry[1]) not in pack_ids]
                     shelf_unidentified = [entry for entry in unidentified if id(entry[1]) not in pack_ids]
                     if shelf_discard or shelf_unidentified:
                         discard, unidentified = shelf_discard, shelf_unidentified
+                    else:
+                        # With a free slot, only unneeded carried junk may
+                        # fall back to Home relief. Equipment and Identify
+                        # staves stay under their optimizer and supply owners;
+                        # neither is the 10-04 "cheapest unneeded" target.
+                        carried_junk = tuple(item for item in snapshot.inventory
+                            if not item.is_equipment
+                            and not (item.tval == TVAL_STAFF
+                                     and item.sval == SV_STAFF_IDENTIFY)
+                            and self._item_signature(item) not in relief.get("skipped", {})
+                            and self._item_signature(item) not in {
+                                entry[0] for entry in relief["deposits"]}
+                            and self._retention_reservation(snapshot, item) == 0
+                            and not self._home_full_equipment_reserved(snapshot, item)
+                            and self._carried_disposal_preserves_departure(
+                                snapshot, item, item.count))
+                        carried_stock = carried_junk
+                        pack_ids.update(id(item) for item in carried_junk)
+                        carried_discard = [
+                            (candidate, item) for item in carried_junk
+                            if (candidate := self._home_full_discard_candidate(
+                                replace(snapshot, inventory=tuple(
+                                    carried for carried in snapshot.inventory
+                                    if carried is not item)), item))
+                        ]
+                        carried_unidentified = [
+                            (candidate, item) for item in carried_junk
+                            if (candidate := self._home_full_discard_candidate(
+                                replace(snapshot, inventory=tuple(
+                                    carried for carried in snapshot.inventory
+                                    if carried is not item)), item, identify=True))
+                        ]
+                        discard, unidentified = carried_discard, carried_unidentified
                 if discard:
                     item, source = min(discard, key=lambda entry:
                                        self._home_full_discard_rank(snapshot, entry[0]))

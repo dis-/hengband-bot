@@ -208,6 +208,7 @@ class SupplyMixin:
             self._fundraising_mode,
             self._equipment_optimization_last_depth,
             frozenset(self._deferred_home_items),
+            frozenset(self._town_store_attempted),
         )
 
     def _supply_page_offers(
