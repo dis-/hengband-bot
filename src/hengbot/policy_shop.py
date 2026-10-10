@@ -2351,9 +2351,6 @@ class ShopMixin(InStoreMixin):
             return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
-        required_page = self._departure_blocking_page_purchase_pure(snapshot)
-        if required_page is not None and required_page.item == item:
-            return item
         curse_kind = self._required_remove_curse_kind(snapshot)
         if curse_kind is not None and self._store_item_is_supply(item, curse_kind):
             if (self._usable_remove_curse_scroll(snapshot) is not None
@@ -3043,6 +3040,8 @@ class ShopMixin(InStoreMixin):
     def _departure_blocking_page_purchase_pure(
         self, snapshot: Snapshot,
     ) -> PurchaseSelection | None:
+        # Keep this out of _next_purchase: claim admission can census claims,
+        # and that census itself asks _next_purchase about an observed page.
         store = snapshot.store
         if store is None or store.store_type == STORE_HOME:
             return None
@@ -3085,6 +3084,9 @@ class ShopMixin(InStoreMixin):
                         and self._fundraising_mode in {"mine", "scavenge"}
                         and snapshot.player.gold - item.price * quantity
                         < self._fundraising_kit_reserve(snapshot)):
+                    continue
+                reserve = self._fundraising_kit_reserve(snapshot)
+                if reserve and snapshot.player.gold - item.price * quantity < reserve:
                     continue
                 gate = self._evaluate_purchase_home_gate(snapshot, item)
                 if gate is ProcurementHomeGate.BLOCKED:
