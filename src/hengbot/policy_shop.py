@@ -2219,6 +2219,17 @@ class ShopMixin(InStoreMixin):
                     snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                     "evaluate-no-procurement-need",
                 )
+            if (
+                item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+                and not self._identify_staff_acquisition_worthwhile(
+                    snapshot, max(candidate.charges, candidate.pval)
+                )
+            ):
+                return self._record_home_gate(
+                    snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                    "evaluate-home-stock-not-worthwhile",
+                )
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "evaluate-candidate-home-first")
         return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-no-candidate")
 
@@ -2714,7 +2725,17 @@ class ShopMixin(InStoreMixin):
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
         launcher = self._equipped_launcher(snapshot)
         add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot), lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: self._ammo_procurement_target(snapshot)))
-        add(rung("tail:identify-staff", "identify-staff", lambda: not self._identify_staff_ready(snapshot) and self._identify_staff_purchase_room(snapshot), lambda i: i.tval == TVAL_STAFF and i.sval == SV_STAFF_IDENTIFY))
+        add(rung(
+            "tail:identify-staff", "identify-staff",
+            lambda: not self._identify_staff_ready(snapshot)
+            and self._identify_staff_purchase_room(snapshot),
+            lambda i: i.tval == TVAL_STAFF
+            and i.sval == SV_STAFF_IDENTIFY
+            and max(i.charges, i.pval) > 0
+            and self._identify_staff_acquisition_worthwhile(
+                snapshot, max(i.charges, i.pval)
+            ),
+        ))
         black_market_pick = self._black_market_optional_purchase(snapshot)
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
@@ -3114,6 +3135,30 @@ class ShopMixin(InStoreMixin):
                 )
                 if scroll is not None:
                     return scroll
+            if (
+                self._fundraising_identify_staff_only_block(snapshot)
+                or getattr(self, "_identify_staff_mining_plan", False)
+            ):
+                if (
+                    not self._identify_staff_ready(snapshot)
+                    and self._identify_staff_purchase_room(snapshot)
+                ):
+                    identify = max(
+                        (
+                            item for item in store.items
+                            if item.tval == TVAL_STAFF
+                            and item.sval == SV_STAFF_IDENTIFY
+                            and item.price <= gold
+                            and max(item.charges, item.pval) > 0
+                            and self._identify_staff_acquisition_worthwhile(
+                                snapshot, max(item.charges, item.pval)
+                            )
+                        ),
+                        key=lambda item: max(item.charges, item.pval),
+                        default=None,
+                    )
+                    if identify is not None:
+                        return identify
             return None
 
         mandatory = self._mandatory_purchase(snapshot)
@@ -3291,6 +3336,10 @@ class ShopMixin(InStoreMixin):
                     if it.tval == TVAL_STAFF
                     and it.sval == SV_STAFF_IDENTIFY
                     and it.price <= gold
+                    and max(it.charges, it.pval) > 0
+                    and self._identify_staff_acquisition_worthwhile(
+                        snapshot, max(it.charges, it.pval)
+                    )
                 ),
                 key=lambda it: max(it.charges, it.pval),
                 default=None,
