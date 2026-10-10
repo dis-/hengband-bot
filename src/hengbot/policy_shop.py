@@ -3085,9 +3085,6 @@ class ShopMixin(InStoreMixin):
                         and snapshot.player.gold - item.price * quantity
                         < self._fundraising_kit_reserve(snapshot)):
                     continue
-                reserve = self._fundraising_kit_reserve(snapshot)
-                if reserve and snapshot.player.gold - item.price * quantity < reserve:
-                    continue
                 gate = self._evaluate_purchase_home_gate(snapshot, item)
                 if gate is ProcurementHomeGate.BLOCKED:
                     continue
@@ -4486,12 +4483,8 @@ class ShopMixin(InStoreMixin):
                     snapshot
                 )
                 if completed_disposal_successor is not None:
-                    return self._town_producer_entry(
-                        "_shop_purchase_key",
-                        lambda: self._shop_purchase_key(
-                            snapshot, completed_disposal_successor
-                        ),
-                        family="shop-buy",
+                    return self._shop_purchase_key(
+                        snapshot, completed_disposal_successor
                     )
                 else:
                     self.last_reason = "equipment:sale-complete"
@@ -5045,11 +5038,7 @@ class ShopMixin(InStoreMixin):
                 matches[0] if matches else None, item, store.store_type,
                 PurchaseContext(snapshot), self._purchase_quantity(snapshot, item),
             )
-            return self._town_producer_entry(
-                "_shop_purchase_key",
-                lambda: self._shop_purchase_key(snapshot, selection),
-                family="shop-buy",
-            )
+            return self._shop_purchase_key(snapshot, selection)
         if self._purchase_churn_rows(snapshot):
             self.last_reason = "shop:sell-rebuy-churn-defect"
             return LEAVE_STORE_KEY

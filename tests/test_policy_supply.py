@@ -3218,8 +3218,7 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertFalse(pol._identify_staff_ready(snap))
 
     def test_deep_departure_buys_staff_at_magic_shop(self):
-        # Fully supplied except the staff → _next_purchase at the Magic shop must
-        # pick the Staff of Identify.
+        # F4 excludes empty Identify staves; this control uses a usable 20-charge staff.
         inv = [
             item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9),
             item("t", TVAL_SCROLL, 9, count=15),  # teleport (deep target is 15)
@@ -3235,7 +3234,9 @@ class IdentifyStaffTest(unittest.TestCase):
             equipment=[item("g", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True)],
             store=StoreState(
                 STORE_MAGIC,
-                [store_item("z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500)],
+                [store_item(
+                    "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500, charges=20
+                )],
             ),
         )
         pol = HengbotPolicy()

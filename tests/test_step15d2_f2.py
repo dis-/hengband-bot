@@ -110,6 +110,25 @@ class Step15d2F2Test(unittest.TestCase):
             policy._town_visit_ledger.purchase_churn_class_exclusions, set()
         )
 
+    def test_required_purchase_is_not_blocked_by_optional_kit_reserve(self):
+        board = _board("step1.5d2-224534-shelf.json")
+        town_map = parse_town_map(find_town_map(1, Path("C:/hengband/lib/edit")))
+        policy = HengbotPolicy(town_map=town_map)
+        policy._observe(board)
+        policy._build_grid_index(board)
+        policy._home_knowledge_current = True
+        policy._equipment_catalog.home_scan_complete = True
+        staff = next(item for item in board.store.items if item.letter == "o")
+        low_gold = replace(
+            board, player=replace(board.player, gold=staff.price)
+        )
+        # DECLARED CONSTRUCTED: required Identify staff is affordable, while
+        # an optional fundraising kit reserve exceeds the remaining gold.
+        with patch.object(policy, "_fundraising_kit_reserve", return_value=1000):
+            selected = policy._departure_blocking_page_purchase(low_gold)
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected.item.letter, "o")
+
     def test_040900_completed_disposal_requires_all_three_completion_facts(self):
         board = _board("step1.5d2-040900-shelf.json")
         policy = HengbotPolicy()

@@ -1,0 +1,117 @@
+﻿PLAN-STEP 1.5d2 F2 completion report
+
+Changes
+- F2(a): exclude confirmed sold purchase classes during candidate enumeration; ledger signature/class exclusions are stateful only after admission and reset with the sale-signature floor epoch.
+- F2(b): clear only fully completed disposal markers and continue into the shared required-page selector/buy producer, preserving pending Home disposal and withdrawal state.
+- F2(c): keep required-page settlement veto visible under town:blocked and avoid a second mutating buy producer after a refusal.
+- Removed the unconditional fundraising-kit reserve filter from _departure_blocking_page_purchase_pure. It rejected a required Identify buy outside mine/scavenge cross-area enforcement. The existing reserve check remains under the cross-area fundraising gate. Added a constructed pin proving an affordable mandatory Identify staff survives an optional reserve.
+- Kept _shop_purchase_key under its existing @claims(ClaimOwner.SHOP_BUY) producer scope and removed the extra _town_producer_entry wrapper. The wrapper rejected a recorded one-shot buy after the town plan advanced, although the direct internal producer was valid.
+- Kept _shop_purchase_key out of the decide-rung sequence: it is an internal producer, not a direct _decide rung. Its @claims(ClaimOwner.SHOP_BUY) decorator remains, and town_producer_baseline.json records its delegated-adapter role. The town ownership classification digest is unchanged.
+- Updated item_sink_adapters.json with the exact two _shop_purchase_key call expressions in _shop_core; the adapter linter pins their expressions and multiplicities.
+- Corrected the existing deep Identify procurement control to use a 20-charge shelf staff, as required by F4. Its expected purchase remains unchanged; the old empty-staff fixture contradicted the positive-charge eligibility rule.
+- Regenerated the town-work manifest after the final source edits: 813 candidates, 20129 sites, zero unmapped.
+
+Performance regression root cause
+The original continuation change called _departure_blocking_page_purchase_pure from ordinary purchase eligibility. That selector enters town-claim admission, whose census calls _next_purchase, returning to the same eligibility callback recursively. Repeated town decisions hit RecursionError and inflated the three absorbing-state tests by 10-35x. Commit b952a89c removed the nested selector call from ordinary eligibility; required-page preflight remains at its dedicated continuation/settlement boundaries.
+
+Timing check: tests.test_absorbing_states in isolation
+| Test | Base | Current | 1.2x limit | Result |
+| --- | ---: | ---: | ---: | --- |
+| test_six_seeded_states_reach_progress_or_visible_terminal | 81 s | 79.428 s | 97.2 s | PASS |
+| test_seed_verdicts_depend_on_visible_bot_terminals | 277 s | 246.888 s | 332.4 s | PASS |
+| test_captured_fully_deferred_class_retries_once_per_town_stay | 69 s | 61.140 s | 82.8 s | PASS |
+
+Base/pass/revert pins
+- Base a8833b0b: copied F2 pin module ran 5 tests; 3 failed and 2 errored. The churn pin selected sold-class row k; completed disposal returned ESC rather than a buy; the constructed refusal retained equipment:sale-complete rather than the visible required-operation stop. The two errors were absent F2 ledger/disposal APIs.
+- Current HEAD targeted pins: 6 tests passed in 1.552 s, including the required Identify buy under the constructed optional reserve.
+- Regression controls after the final corrections: live11 recorded composition (1 pass), 20-charge Identify control (1 pass), F2 pins (6 pass), ownership ladder (52 pass), town-work manifest check (1 pass), and ownership classification (16 pass).
+- Reverted F2(a) churn predicate alone: 224534 pin failed by selecting k again.
+- Reverted F2(b) completed-disposal predicate alone: 040900 composition pin failed because the required buy did not emit.
+- Reverted F2(c) settlement-veto predicate alone: constructed refusal pin failed to publish town:blocked:shop-required-operation-uncomposable.
+
+Existing expectation change
+- tests.test_crosstown_alt_recorded: the confirmed sold class is filtered during preflight, so the page has no safe successor and retains the churn defect. The test contains the design-decision reason. No other existing expectation was intentionally flipped.
+
+Final affected-module list (48 affected plus required task-1 checks; 55 unique)
+tests.test_absorbing_states
+tests.test_ammo_surplus
+tests.test_black_market_optional_quantity
+tests.test_blocked_purchase_namespace
+tests.test_calibration_checkpoint
+tests.test_classC2_departure_recorded
+tests.test_cli
+tests.test_crossarea_fundraising
+tests.test_crosstown_alt_recorded
+tests.test_curse_priority_recorded
+tests.test_darkwalk
+tests.test_declarations_r4
+tests.test_destroy_procurement_guard
+tests.test_destruction_gate_procurement
+tests.test_execution_declaration
+tests.test_experience_potion
+tests.test_fundraise_light_block
+tests.test_goldburn_detection_constructed
+tests.test_home_light_alternation
+tests.test_home_surplus_sale_screen_recorded
+tests.test_identify_staff_live27_recorded
+tests.test_identify_staff_procurement_step15d
+tests.test_identify_staff_swap_churn_recorded
+tests.test_item_sink_lint
+tests.test_live11
+tests.test_live22_bounty
+tests.test_overweight_home_hold_recorded
+tests.test_overweight_homefull_step15b
+tests.test_owner_retirement_slice1
+tests.test_ownership_s2a_classification
+tests.test_ownership_s2a1_closure
+tests.test_ownership_s2b1_ladder
+tests.test_policy_equipment
+tests.test_policy_home
+tests.test_policy_identification
+tests.test_policy_quest
+tests.test_policy_shop
+tests.test_policy_supply
+tests.test_policy_town
+tests.test_purchase_rung_registry
+tests.test_recall_readiness_contradiction
+tests.test_s33_batch_reconciliation
+tests.test_s33_shadow_recorded
+tests.test_shop_one_shot
+tests.test_star_identify_departure_recorded
+tests.test_step15d2_f2
+tests.test_store_reentry_recorded
+tests.test_test_fakery_lint
+tests.test_town_approach_retired_recorded
+tests.test_town_arbiter
+tests.test_town_plan_exhausted_wander
+tests.test_town_progress_invariant
+tests.test_town_restock_trajectory
+tests.test_town_structure_lint
+tests.test_town_work_contract
+
+Final run
+Command: PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --modules <55 modules above> (timing and stream artifacts were written under %TEMP%, not committed).
+worker-1: 1382 tests, 2786.904s, exit 0
+worker-2: 1172 tests, 2404.739s, exit 0
+worker-3: 245 tests, 425.588s, exit 0
+Failures: none
+Errors: none
+purity: ran (inputs sha256=4051edbaeeeafdd85b69e5878cd08eddf8f1f8064c62b91e27451b32dafcba3f)
+weights: unavailable; fallback=53/53; stale=yes
+Total: 2799 tests, 2786.947s (46m 27s; within the 60-minute limit).
+Tests slower than 60 s:
+- 562.068 s — tests.test_experience_potion.ExperiencePotionRecordedTest.test_t1_drained_in_town_routes_to_the_unobserved_temple
+- 550.938 s — tests.test_town_work_contract.TownWorkContractTest.test_both_captures_all_complete_boards_and_recorded_producers
+- 478.731 s — tests.test_town_arbiter.TownTurnArbiterAcceptanceTest.test_pin_vacuity_postlevel_public_choose_key_consumes_retirement_budget
+- 234.424 s — tests.test_policy_town.TownWeightDepartureRecordedTest.test_r1_recorded_public_replay_posts_named_weight_owner
+- 228.211 s — tests.test_absorbing_states.SeededAbsorbingStateTest.test_seed_verdicts_depend_on_visible_bot_terminals
+- 187.973 s — tests.test_town_work_contract.TownWorkContractTest.test_recorded_versioned_corpus_has_zero_unmapped_receipts
+- 114.227 s — tests.test_ownership_s2a1_closure.NeutralityTest.test_the_slots_and_the_closings_are_record_only
+- 113.815 s — tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired
+- 75.469 s — tests.test_absorbing_states.SeededAbsorbingStateTest.test_six_seeded_states_reach_progress_or_visible_terminal
+- 72.916 s — tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail
+
+Timing comparison
+Command: python C:\hengband-backups\guard-tools\compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\96e06010
+Output: [timings] base C:\hengband-backups\suite-batches\96e06010 new jsonlog\test-parallel-timings.json: 0 tests slower than 1.5x and +10s
+
