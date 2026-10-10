@@ -326,7 +326,7 @@ class IdentifyStaffProcurementStep15dTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._deepest_level = 20
         policy._identify_staff_mining_plan = True
-        policy._fundraising_mode = "prepare"
+        policy._mandatory_purchase = lambda _snapshot: None
         policy.consume_home_knowledge(())
         policy._equipment_catalog._home = {}
         offered = store_item(
@@ -335,7 +335,7 @@ class IdentifyStaffProcurementStep15dTest(unittest.TestCase):
         )
         purchase_board = replace(
             self.magic,
-            player=replace(self.outside.player, gold=16558),
+            player=replace(self.outside.player, gold=10000),
             inventory=self.outside.inventory,
             store=StoreState(STORE_MAGIC, [offered]),
         )
@@ -352,8 +352,7 @@ class IdentifyStaffProcurementStep15dTest(unittest.TestCase):
             inventory=(*before.inventory, bought),
             turn=before.turn + 1,
         )
-        with patch.object(policy, "_fundraising_identify_staff_only_block", return_value=True):
-            purchase_key = policy._shop(purchase_board)
+        purchase_key = policy._shop(purchase_board)
         self.assertIsNotNone(purchase_key)
         policy.confirm_key_posted(purchase_key)
 
