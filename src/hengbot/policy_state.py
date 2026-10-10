@@ -172,7 +172,7 @@ def normalize_policy_state(restored, *, restart=False):
     calibration phase.  Physical strip debt is a startup question answered
     once from the persisted calibration file (``cli``), never here.
     """
-    if not restart and restored.__dict__.get("_policy_state_version") == 4:
+    if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored
     retire_strip_calibration_state(restored)
     if restart:
@@ -195,6 +195,13 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_equipment_transaction_home_pages", None)
     restored.__dict__.setdefault("_equipment_optional_failure_departure", None)
     restored.__dict__.setdefault("_equipment_optional_failure_pending", None)
+    from hengbot.runtime_paths import runtime_path
+    restored.__dict__.setdefault("_home_store_block_owner", None)
+    restored.__dict__.setdefault("_overweight_surplus_disposal", None)
+    restored.__dict__.setdefault("_overweight_surplus_ledger", {"epoch": None, "sold": []})
+    restored.__dict__.setdefault("_overweight_surplus_ledger_path", runtime_path("overweight-surplus-ledger.json"))
+    restored.__dict__.setdefault("_overweight_surplus_record_path", runtime_path("overweight-surplus-disposal.jsonl"))
+    restored.__dict__.setdefault("_equipment_home_deposit_tombstone", None)
     restored.__dict__.setdefault("_decision_input_snapshot", None)
     restored.__dict__.setdefault("_town_fact_snapshot", None)
     restored.__dict__.setdefault("_equipment_mutation_counted_board", None)
@@ -418,5 +425,5 @@ def normalize_policy_state(restored, *, restart=False):
     for name, value in defaults.__dict__.items():
         if name not in restored.__dict__:
             restored.__dict__[name] = deepcopy(value)
-    restored._policy_state_version = 4
+    restored._policy_state_version = 5
     return restored

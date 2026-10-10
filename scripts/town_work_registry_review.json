@@ -401,5 +401,8 @@
   "need:black-market:normal:0": [
     "optional-buy",
     "browse"
+  ],
+  "need:overweight-surplus:normal:0": [
+    "overweight-surplus"
   ]
 }

@@ -126,8 +126,11 @@ ARBITRATING_FAMILIES = (
 # operation labels join the families of the one-shot they replace --
 # ``shop:in-store-sell``/``-inscribe`` in shop-sell, ``shop:in-store-buy``/
 # ``-done`` in shop-buy (town_arbiter.py registrations).
+# Step 1.5b (owner decision 2026-10-10, overweight surplus sold when Home is
+# full): ``town:overweight-surplus-`` joins the shop-sell family, the owner of
+# the sale/destroy effect it records.
 ARBITRATION_TABLE_SHA256 = (
-    "9ef9e4b94bb107ff2083992d9834944a444d5c75acbc6ed4975a260f38e5f5cf"
+    "e2dd0182f7dbafd9a23eeb9714d05a739a6a0df346a2433cd74686c400a50ccd"
 )
 
 # The ten families S2a adds, each named after what it owns.  They are

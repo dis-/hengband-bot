@@ -516,6 +516,23 @@ class ShopMixin(InStoreMixin):
             or snapshot.turn < visit.posted_turn
         ):
             return None
+        if (visit.store_type == STORE_HOME
+                and self._inventory_overweight(snapshot)
+                and self._home_is_full(snapshot)
+                and visit.operation_key.startswith(SELL_KEY)
+                and self._home_atomic_deposit_pending is not None):
+            # The entry command was posted; its deposit tail was not. The
+            # freshly opened full page supersedes that staged weight batch.
+            entries = self._home_atomic_deposit_pending[0]
+            self._begin_home_full_relief(snapshot, entries)
+            self._home_atomic_deposit_pending = None
+            self._home_entry_operation_posted = False
+            visit.operation_posted = False
+            visit.operation_key = None
+            visit.operation_released = True
+            self._release_claim_goal("full-page-before-weight-deposit", owners=("home-visit",),
+                                     kinds=("Observe",), sources=("store-operation",))
+            return None
         visit.transition(StoreVisitPhase.OPERATING)
         visit.operation_released = True
         if visit.operation_producer_family in {"shop-buy", "shop-sell"}:
@@ -560,6 +577,13 @@ class ShopMixin(InStoreMixin):
             return False
         if self._disposal_protected_by_identification(item):
             return True
+        if self._overweight_surplus_disposal is not None:
+            # F3 retains the standing standard tool. Home shelf tools cannot
+            # prove a carried mining kit; the other tool must remain carried.
+            available = [i for i in (*snapshot.inventory, *snapshot.equipment)
+                         if i.is_digging_tool and not self._equip_blocked_by_identification(i)]
+            standard = max(available, key=lambda i: (self._digging_tool_sale_quality(i), i.slot)) if available else None
+            return item is standard or standard is None
         quality = self._digging_tool_sale_quality(item)
         available = [
             *[
@@ -1590,6 +1614,8 @@ class ShopMixin(InStoreMixin):
             self._home_claim_uncomposable_signature = None
         self._town_store_attempted.pop(store_type, None)
         if release_visit_bound:
+            if store_type == STORE_HOME:
+                self._home_store_block_owner = None
             self._town_visit_ledger.blocked_stores.discard(store_type)
             self._town_visit_ledger.blocked_store_limits.pop(store_type, None)
             self._town_visit_ledger.blocked_store_work_signatures.pop(
@@ -2115,7 +2141,7 @@ class ShopMixin(InStoreMixin):
                 return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "evaluate-stale-town-blocked")
             if (
                 STORE_HOME in self._town_store_attempted
-                or STORE_HOME in self._town_visit_ledger.blocked_stores
+                or self._town_store_blocked_under_applicable_bound(STORE_HOME, need="procurement")
                 or self._town_visit_ledger.approach_fails[STORE_HOME]
                 >= self._town_store_visit_limit(STORE_HOME)
             ):
@@ -4007,6 +4033,11 @@ class ShopMixin(InStoreMixin):
         return key
 
     def _shop_core(self, snapshot: Snapshot) -> str:
+        if self._overweight_surplus_disposal is not None:
+            surplus_key = self._town_producer_entry("_overweight_surplus_sale_key",
+                lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
+            if surplus_key is not None:
+                return surplus_key
         if (self._home_full_relief is not None and not snapshot.player.hungry
                 and self._home_atomic_withdraw_pending is None):
             relief_key = self._home_full_relief_key(snapshot)
@@ -4991,7 +5022,7 @@ class ShopMixin(InStoreMixin):
         equipment_home_route = (
             self._equipment_transaction_session is not None
             and self._equipment_transaction_session.required_context == "home"
-            and not self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
             and self._town_visit_ledger.unsatisfied_passes[STORE_HOME]
             < self._town_store_visit_limit(STORE_HOME)
         )

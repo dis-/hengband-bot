@@ -22,6 +22,8 @@ DEFAULT_RUNTIME_DIR = Path("jsonlog")
 # CLI points them beside the decision log (jsonlog/ in production), so a
 # checkpoint captured from the live bot carries those live locations.
 POLICY_RUNTIME_PATH_ATTRIBUTES = (
+    "_overweight_surplus_record_path",
+    "_overweight_surplus_ledger_path",
     "_confirmed_loadout_path",
     "_loadout_report_path",
     "_character_calibration_path",

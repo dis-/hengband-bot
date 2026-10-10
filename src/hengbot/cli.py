@@ -599,6 +599,8 @@ def _policy_final_stop_banner(reason: str) -> str:
         "dark:locomotion-exhausted": "dark movement probes and remembered routes are exhausted",
         "town:blocked:departure-unsatisfiable": "no state-changing owner can satisfy the remaining departure conjunct",
         "town:blocked:overweight-home-unreachable": "the overweight character cannot reach Home to deposit surplus",
+        "town:blocked:overweight-home-full-no-legal-relief": "Home is full, relief has no legal candidate, and selling the carried surplus cannot bring the weight within the limit",
+        "town:blocked:overweight-surplus-rebuy-loop": "the same overweight surplus item had to be sold twice in this town visit (sell/rebuy loop)",
         "town:blocked:home-withdraw-failed-stock-present": "Home still records the requested item after its bounded withdrawal failed",
         "town:blocked:owner-retired": "the town arbiter exhausted the selected owner's visit budget",
         "town:blocked:owner-retired-burst": "three retirements in this town visit had no observed work or distance progress",
@@ -1606,6 +1608,12 @@ _OBSERVER_COPIED_MEMO_OBJECTS = ("_warrior_evaluator_cache",)
 # the register, so copying it cannot change one.
 _OBSERVER_SHALLOW_COPIED_OBJECTS = ("_claim_register",)
 _OBSERVER_MEMO_OBJECT_DEPTH = 2
+# A producer reached by a telemetry evaluator must not leave a disposal audit
+# row or advance the persisted visit ledger. Keep these sidecars with the
+# policy bindings in the observer's rollback boundary.
+_OBSERVER_ROLLBACK_SIDECARS = (
+    "_overweight_surplus_record_path", "_overweight_surplus_ledger_path",
+)
 
 
 def _observer_container_copy(value):
@@ -1666,9 +1674,21 @@ class _PolicyObserverScope:
                 state[name] = _observer_memo_object_copy(value)
             elif name in _OBSERVER_SHALLOW_COPIED_OBJECTS and value is not None:
                 state[name] = copy.copy(value)
+        self._sidecars = {}
+        for attribute in _OBSERVER_ROLLBACK_SIDECARS:
+            path = getattr(self._policy, attribute, None)
+            if path is not None:
+                self._sidecars[path] = path.read_bytes() if path.exists() else None
         return self._policy
 
     def __exit__(self, *_exc):
+        for path, previous in self._sidecars.items():
+            current = path.read_bytes() if path.exists() else None
+            if current != previous:
+                if previous is None:
+                    path.unlink()
+                else:
+                    path.write_bytes(previous)
         state = self._policy.__dict__
         state.clear()
         state.update(self._bindings)
@@ -2044,6 +2064,7 @@ def _duplicate_snapshot_ready(
     if line == previous_line and previous_reason is not None and (
         previous_reason.startswith("shop:buy-")
         or previous_reason.startswith("shop:sell")
+        or previous_reason.startswith("town:overweight-surplus-")
         or previous_reason.startswith("home:deposit")
         or previous_reason.startswith("home:atomic-")
         or previous_reason.startswith("home-visit:")

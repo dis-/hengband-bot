@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -17,10 +18,32 @@ class ObservationMixin:
     def observe_town_visit_epoch(self, in_town: bool, turn: int) -> None:
         """Mint the town-visit identity on entry and end it on exit."""
         if not in_town:
+            if self._overweight_surplus_ledger.get("epoch") is not None:
+                self._overweight_surplus_ledger = {"epoch": None, "sold": []}
+                self._save_overweight_surplus_ledger()
+            self._overweight_surplus_disposal = None
+            self._home_store_block_owner = None
             self._town_visit_epoch = None
             self.settle_home_knowledge_request()
         elif self._town_visit_epoch is None:
-            self._town_visit_epoch = turn
+            self._home_store_block_owner = None
+            self._overweight_surplus_disposal = None
+            ledger = self._overweight_surplus_ledger
+            path = self._overweight_surplus_ledger_path
+            if path.exists():
+                ledger = json.loads(path.read_text(encoding="utf8"))
+                ledger["sold"] = [tuple(signature) for signature in ledger.get("sold", [])]
+            self._town_visit_epoch = ledger.get("epoch") or turn
+            self._overweight_surplus_ledger = {
+                "epoch": self._town_visit_epoch, "sold": ledger.get("sold", [])}
+            pending = ledger.get("pending")
+            if pending is not None:
+                pending["signature"] = tuple(pending["signature"])
+                pending["identity"] = tuple(pending["identity"])
+                self._overweight_surplus_ledger["pending"] = pending
+                self._overweight_surplus_disposal = {"town": pending["town"], "pending": dict(pending)}
+            self._clear_equipment_home_deposit_tombstone()
+            self._home_capacity_observation = None
             self._home_knowledge_scan_requested = False
             self._home_knowledge_scan_retries_remaining = 1
             self._home_knowledge_scan_leave_turn = None

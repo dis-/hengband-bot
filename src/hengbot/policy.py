@@ -2430,6 +2430,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # the optimizer target as well as clearing the blocker: otherwise the
         # next rebuild can select the same failed item and recreate work.
         self._equipment_retired_worn_item_ids: frozenset[str] = frozenset()
+        from hengbot.runtime_paths import runtime_path
+        self._home_store_block_owner = None
+        self._overweight_surplus_disposal = None
+        self._overweight_surplus_ledger = {"epoch": None, "sold": []}
+        self._overweight_surplus_ledger_path = runtime_path("overweight-surplus-ledger.json")
+        self._overweight_surplus_record_path = runtime_path("overweight-surplus-disposal.jsonl")
+        self._equipment_home_deposit_tombstone: dict[str, object] | None = None
         self._equipment_transaction_last_failure: dict[str, object] | None = None
         self._equipment_transaction_prepared_key: str | None = None
         self._equipment_transaction_prepared_catalog_update: tuple[
@@ -2473,7 +2480,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._destroy_fail_streak = 0
         self.last_reason = ""
         self.prompt_owner_handoff: str | None = None
-        self._policy_state_version = 4
+        self._policy_state_version = 5
         self._execution_pending_post = None
         self._decision_goal = None
         self._decision_expectation = None
@@ -3097,7 +3104,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.decision_attribution = self._visit_exit_family()
             if (
                 self._equipment_transaction_session is None
-                and STORE_HOME in self._town_visit_ledger.blocked_stores
+                and self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
                 and self._store_visit is not None
                 and self._store_visit.store_type == STORE_HOME
             ):
@@ -7599,10 +7606,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     @claims(ClaimOwner.HOME_VISIT)
     def _observe_home_atomic_deposit_outside(self, snapshot: Snapshot) -> None:
         """Consume the legacy deposit delta before any producer can take over."""
-        if self._home_atomic_deposit_pending is not None and any(
+        home_full_message = any(
                 "我が家にはもう置く場所がない" in message
-                or "Your home is full" in message for message in snapshot.messages):
+                or "Your home is full" in message for message in snapshot.messages)
+        if self._home_atomic_deposit_pending is not None and home_full_message:
             self._home_full_refused = True
+        session = self._equipment_transaction_session
+        if (home_full_message and session is not None
+                and session.pending_action is not None
+                and session.pending_action.kind == "deposit"):
+            self._mark_equipment_home_full_unavailable(snapshot)
+            session.block("deposit-refused")
         pending_deposit = self._home_atomic_deposit_pending
         if (
             snapshot.store is None
@@ -10148,6 +10162,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 budget_ref="home-operation-existing-budget",
             )
             return WAIT_KEY
+        if snapshot.in_town and self._overweight_surplus_disposal is not None:
+            surplus_key = self._town_producer_entry("_overweight_surplus_sale_key",
+                lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
+            if surplus_key is not None:
+                return surplus_key
         if (snapshot.in_town and snapshot.player.hp >= snapshot.player.max_hp
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
@@ -13503,7 +13522,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._town_visit_ledger.unsatisfied_passes[STORE_HOME]
                 ),
                 "home_blocked": (
-                    STORE_HOME in self._town_visit_ledger.blocked_stores
+                    self._town_store_blocked_under_applicable_bound(STORE_HOME)
                 ),
                 "projection": dict(getattr(
                     self,
@@ -13598,6 +13617,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             state["transaction_last_failure"] = dict(
                 self._equipment_transaction_last_failure
             )
+        if self._equipment_home_deposit_tombstone is not None:
+            state["home_full_work_closed"] = dict(self._equipment_home_deposit_tombstone)
         optional_failure = (self._equipment_optional_failure_departure
                             or self._equipment_optional_failure_pending)
         if optional_failure is not None:
@@ -13699,6 +13720,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     budget_ref=declaration.budget_ref,
                 )
         self._confirm_staged_shopping_approach(key)
+        disposal = self._overweight_surplus_disposal
+        pending_disposal = disposal.get("pending") if disposal else None
+        if pending_disposal and pending_disposal.get("key") == key:
+            pending_disposal["posted"] = True
+            self._overweight_surplus_ledger["pending"] = dict(pending_disposal)
+            self._save_overweight_surplus_ledger()
         relief = getattr(self, "_home_full_relief", None)
         if relief is not None and relief.get("destroy_pending_key") is not None:
             if relief.pop("destroy_pending_key") == key:
@@ -14120,7 +14147,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if (
             not calibration_unavailable
-            and STORE_HOME in self._town_visit_ledger.blocked_stores
+            and self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
             and (preparation is None or preparation.result is None)
         ):
             return "equipment-home-unavailable"
@@ -15020,7 +15047,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         if (
             not self._home_knowledge_current
-            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+            and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="identify-staff")
         ):
             return False
         # User 2026-10-03: at most STAFF_IDENTIFY_MAX_COUNT carried staves, so
@@ -15133,11 +15160,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _retire_actionless_equipment_failure(self, snapshot: Snapshot) -> bool:
         """Release a failed optimizer latch that has no in-town clearing owner."""
-        if (self.last_reason or "").startswith("equipment-transaction:"):
+        if ((self.last_reason or "").startswith("equipment-transaction:")
+                and not self._equipment_home_full_refused_this_visit()):
             return False
         preparation = self._equipment_optimization_preparation
-        if not self._safe_optional_equipment_failure_departure(snapshot, preparation):
+        home_full_equipment_closed = bool(
+            self._equipment_home_full_refused_this_visit()
+            and self._equipment_failure_unexecutable_this_visit(
+                snapshot, preparation, require_confirmed=False)
+            and not self._equipment_transaction_owned_items
+            and not self._equipment_transaction_restoring
+            and not self._equipment_transaction_restore_remainder
+            and not self._equipment_transaction_restore_terminal
+            and self._equipment_transaction_posted_catalog_update is None
+            and self._optional_failure_current_loadout(snapshot, preparation)
+        )
+        if (not home_full_equipment_closed
+                and not self._safe_optional_equipment_failure_departure(snapshot, preparation)):
             return False
+        # Close the impossible equipment owner even while another Home owner
+        # settles its operation. Staging is evidence only: the existing final
+        # posting check still requires settled Home operations, the same worn
+        # kit, and every ability at the actual entry/recall destination.
         self._stage_optional_equipment_failure_departure(
             snapshot, self._equipment_departure_destination_depth(snapshot))
         live_carried = OwnedEquipmentCatalog()
@@ -15152,7 +15196,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             preparation, blockers=()
         )
         self._equipment_optimization_signature = None
-        self._town_liveness_claim_retired = True
+        # Home-full equipment has its own impossible-work record. Let another
+        # live owner (notably overload) retain its ordinary progress/stop path.
+        self._town_liveness_claim_retired = not self._equipment_home_full_refused_this_visit()
         return True
 
 

@@ -92,3 +92,5 @@ policy_shop.py:_publish_purchase_home_block  # relays the home-first block reaso
 policy_instore.py:_in_store_cached_shop  # relays the reason _shop gave the same page in the store
 policy_instore.py:_in_store_best_effort  # restores the existing producer reason after advisory work raises; emits no command
 policy_town.py:_town_travel_key  # relays the travel reason its caller composed
+policy_equipment.py:_close_full_home_equipment_deposit  # records the equipment owner's full-Home closure reason for its caller; emits no command
+policy_home.py:_observe_overweight_surplus_effect  # records the observed overweight surplus sale/destroy reason; emits no command

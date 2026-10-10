@@ -17,6 +17,7 @@
   "_emergency_escape_pending": "Boolean floor escape/return latch; selected consumables are not stored here.",
   "_equipment_catalog": "Observed owned-item catalogue; no future operation is selected.",
   "_equipment_departure_cache_value": "Cached departure assessment; no selected operation.",
+  "_equipment_home_deposit_tombstone": "Visit-local negative equipment deposit eligibility and completed impossible-work evidence; pack IDs are observations, never reserved future transfers.",
   "_equipment_fresh_search_target_ids": "Optimizer search candidates; not selected operations.",
   "_equipment_mutation_post_commit": "Commit callback metadata; selected item is in _equipment_mutation.",
   "_equipment_mutation_result": "Completed mutation report; no outstanding operation.",
@@ -127,5 +128,7 @@
   "decision_claim": "Claim diagnostic declaration; operation sources retain item ownership.",
   "last_reason": "Decision diagnostic string, including item names; not an operation selector.",
   "read_telemetry": "Diagnostic resolution of an already-selected read; selected identity is in _read_binding.",
-  "town_visit_report": "Completed visit report; no future operation."
+  "town_visit_report": "Completed visit report; no future operation.",
+  "_overweight_surplus_ledger": "Persisted visit epoch, normalized disposal signatures and a durable mirror of the posted F3 operation; restored into the registered shop-sell selection state, never a second reservation owner.",
+  "_town_visit_epoch": "Observed town-visit identity, persisted for F3 restart loop accounting; no item reservation."
 }

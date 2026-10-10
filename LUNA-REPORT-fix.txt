@@ -1,0 +1,63 @@
+# Step 1.5a + 1.5b merge-gate regressions
+
+## 1. Free-pack carried junk
+
+- Cause: full-Home relief only considered carried disposal when the pack was
+  full. With a free pack, the selector skipped an unneeded carried bottle and
+  advanced to the overweight-surplus route. The attempted fallback also had
+  to preserve the existing full-pack behavior and keep required supplies and
+  equipment under their existing owners.
+- Class: policy ordering regression (F2 before F3).
+- Change: after eligible Home shelf discard/identification candidates are
+  exhausted, a non-full pack may use safe carried junk as a pack-only relief
+  target. Equipment and Identify staves remain excluded; retention,
+  equipment-reservation, and departure-preservation checks still gate the
+  candidate. Full-pack selection is unchanged.
+- Evidence: the existing
+  `test_free_pack_carried_junk_is_not_falsely_reported_protected` passes
+  unchanged. Step 1.5b P4 and P7 also pass in the final validation.
+
+## 2. Recorded no-legal-relief deposit
+
+- Cause: the recorded board is overweight: carried weight 1932, limit 1800.
+  The deposit is therefore departure blocking, so 1.5b F1b applies and the
+  optional no-relief deferral is not legal. This is the intended 2026-10-10
+  decision, not a policy regression.
+- Class: obsolete test expectation for intended F1b behavior.
+- Change: declared the constructed boundary as 1.5b F1b / the 2026-10-10
+  decision and changed the test to assert key `9` and reason
+  `town:blocked:overweight-home-full-no-legal-relief` exactly.
+- Evidence: the fixture weight and limit are asserted in the test. The updated
+  test passes in the final validation.
+
+## 3. Supply-ledger observer memo
+
+- Cause: `_compute_supply_ledger` reads `_town_store_attempted` through
+  `_supply_page_offers`, but the observer memo key omitted it. A capture that
+  changed attempted-store state could reuse stale ledger results.
+- Class: cache invalidation defect.
+- Change: added an immutable `frozenset(self._town_store_attempted)` to
+  `_supply_ledger_observer_inputs`.
+- Evidence: the static observer-input scan and the complete
+  `tests.test_supply_ledger_observer_memo` module pass in the final validation.
+
+## Final validation
+
+The runner treats `tests.test_cli` as a serial shard and launches it alongside
+the configured workers. To keep actual test concurrency at two or fewer, the
+requested modules ran as a two-worker non-CLI batch, followed by a separate
+one-worker CLI batch. Outputs and worker streams are outside the repository.
+
+Non-CLI batch (`--workers 2`):
+
+Failures: none
+Errors: none
+Total: 296 tests, 1616.983s; output: C:\hengband-backups\step15b-fix\final-clean-no-cli.json
+
+CLI batch (`--workers 1`):
+
+Failures: none
+Errors: none
+Total: 223 tests, 13.260s; output: C:\hengband-backups\step15b-fix\final-clean-cli.json
+
+Manifest regeneration: 807 candidates, 19985 sites, zero unmapped.

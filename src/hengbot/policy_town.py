@@ -128,7 +128,7 @@ class TownMixin:
             gold=0,
         )
         home_blocked = (
-            STORE_HOME in self._town_visit_ledger.blocked_stores
+            self._town_store_blocked_under_applicable_bound(STORE_HOME)
             or STORE_HOME in self._town_visit_ledger.nonhome_attempted_without_effect
             or self._store_entry_failed_owner == STORE_HOME
         )
@@ -1300,6 +1300,25 @@ class TownMixin:
             # before progress composition can mutate the visit or its offer.
             self._town_refuse_rewrite("procurement", holder)
             return key
+        if (
+            snapshot.store is None
+            and self._equipment_home_full_refused_this_visit()
+            and self._equipment_retired_worn_item_ids
+            and self._inventory_overweight(snapshot)
+            and (
+                self._overweight_home_bound_exhausted()
+                or self._home_rejected_deposits
+            )
+            and self._home_atomic_deposit_pending is None
+            and self._home_atomic_withdraw_pending is None
+        ):
+            # Closing equipment must expose the existing, independently failed
+            # weight gate even if refused deposits no longer produce a need.
+            if self._home_is_full(snapshot):
+                return self._town_producer_entry("_home_full_relief_key",
+                    lambda: self._home_full_relief_key(snapshot), family="home-visit")
+            self._town_blocked_reason = "overweight-home-unreachable"
+            return self._town_blocked_key(snapshot)
         if getattr(self, "_town_claim_bar_enforced", False):
             holder = self._claim_errand_hold("store-router")
             if (holder is not None
@@ -2710,6 +2729,10 @@ class TownMixin:
         book_sale = self._find_book_sale(snapshot)
         if book_sale is not None:
             add(self._book_sale_store_type(book_sale), "book-sale")
+        if self._overweight_surplus_disposal is not None and self._inventory_overweight(snapshot):
+            candidates = self._overweight_surplus_candidates(snapshot)
+            store = candidates[0][4][0] if candidates and candidates[0][4] else STORE_HOME
+            add(store, "overweight-surplus")
         organization = self._find_town_organization_surplus(snapshot)
         organization_store = (
             self._town_organization_sale_store(snapshot, organization)
@@ -3255,7 +3278,7 @@ class TownMixin:
             for spec in cached or ()
             if spec.category == "identify-staff"
         ]
-        if cached is not None and cached_identify_occurrences == [0, 1]:
+        if cached is not None and cached_identify_occurrences == [0, 1] and any(spec.category == "overweight-surplus" for spec in cached):
             return cached
         entries = (
             ("idle-consumable-scan", "home-first", 1, False),  # Idle Home scans are opportunistic.
@@ -3269,6 +3292,7 @@ class TownMixin:
             ("combat-weapon", "home-first", 1, True),  # Combat weapon readiness gates departure.
             ("book-sale", "normal", 1, False),  # Book sales are opportunistic.
             ("organization-sale", "normal", 1, True),  # Recognized surplus gates departure.
+            ("overweight-surplus", "normal", 1, True),
             ("weight-overload", "home-first", 1, True),  # Overweight inventory blocks departure.
             ("space-deposit", "home-first", 1, True),  # Pack reserve gates all later town transactions.
             ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
@@ -3379,7 +3403,7 @@ class TownMixin:
                 and spec is not None
                 and spec.departure_blocking
                 and need.category == "weight-overload"
-                and self._town_store_blocked_under_applicable_bound(STORE_HOME)
+                and self._town_store_blocked_under_applicable_bound(STORE_HOME, need=need.category)
             ):
                 deposit = self._overweight_home_deposit(snapshot)
                 signature = (
@@ -3417,7 +3441,7 @@ class TownMixin:
                     and (
                         home_visit_budget_exhausted
                         or self._town_store_blocked_under_applicable_bound(
-                            need.store_type
+                            need.store_type, need=need.category
                         )
                         or self._town_visit_ledger.approach_fails[need.store_type]
                         >= self._town_store_visit_limit(need.store_type)
@@ -3429,7 +3453,7 @@ class TownMixin:
                             # Successful earlier shedding is not a failure of
                             # a later overload after required purchases. Home's
                             # real approach/pass/operation bounds still apply.
-                            and need.category != "weight-overload"
+                            and need.category not in {"weight-overload", "overweight-surplus"}
                             and not equipment_owner
                             and not self._outstanding_equipment_work()
                         )
@@ -3712,6 +3736,7 @@ class TownMixin:
                 continue
             if need.category in {"equipment-work", "equipment-transaction"} and (
                 equipment_exhausted
+                or self._equipment_home_full_refused_this_visit()
                 or "equipment-opt" in retired
                 or "equipment-txn" in retired
             ):
@@ -3988,7 +4013,7 @@ class TownMixin:
         # block with another origin (the equipment route-repeat terminal)
         # keeps its own authority.
         if (
-            STORE_HOME in ledger.blocked_stores
+            self._town_store_blocked_under_applicable_bound(STORE_HOME, need="observed-effect")
             and STORE_HOME in ledger.blocked_store_limits
         ):
             self._rearm_town_store_for_new_work(
@@ -4113,6 +4138,8 @@ class TownMixin:
                 plan.current_stop_passes = 0
             return
         plan.blocked_this_visit.append(store_type)
+        if store_type == STORE_HOME:
+            self._home_store_block_owner = None
         self._town_visit_ledger.blocked_stores.add(store_type)
         # A ledger block's authority is the bound that installed it.  Passes
         # remain cumulative, but a later owner with a different applicable
@@ -4159,18 +4186,29 @@ class TownMixin:
         limit = self._town_store_visit_limit(STORE_HOME)
         home_visit = getattr(self, "_home_visit", None)
         return bool(
-            self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            self._town_store_blocked_under_applicable_bound(STORE_HOME, need="weight-overload")
             or ledger.approach_fails[STORE_HOME] >= limit
             or ledger.unsatisfied_passes[STORE_HOME] >= limit
             or (home_visit is not None
                 and home_visit.attempts_used >= home_visit.attempt_limit)
         )
 
-    def _town_store_blocked_under_applicable_bound(self, store_type: int) -> bool:
+    def _town_store_blocked_under_applicable_bound(self, store_type: int, *, need: str | None = None) -> bool:
         """Return whether the recorded block has authority over current work."""
         if store_type != STORE_HOME:
             return False
         if store_type not in self._town_visit_ledger.blocked_stores:
+            return False
+        if need == "observed-effect":
+            return True
+        if need is None:
+            board = getattr(self, "_decision_input_snapshot", None)
+            need = "weight-overload" if isinstance(board, Snapshot) and self._inventory_overweight(board) else "general"
+        if self._home_store_block_owner == (self._town_visit_epoch, "home-full-deferred"):
+            return need != "weight-overload"
+        if (need == "weight-overload"
+                and self._home_store_block_owner == (self._town_visit_epoch, "equipment-work")
+                and store_type not in self._town_visit_ledger.blocked_store_limits):
             return False
         authority = self._town_visit_ledger.blocked_store_limits.get(store_type)
         return authority is None or authority == self._town_store_visit_limit(store_type)
@@ -4610,7 +4648,7 @@ class TownMixin:
                 at_home
                 or (
                     STORE_HOME not in self._town_store_attempted
-                    and STORE_HOME not in self._town_visit_ledger.blocked_stores
+                    and not self._town_store_blocked_under_applicable_bound(STORE_HOME)
                 )
             )
         )
@@ -5685,7 +5723,7 @@ class TownMixin:
             and snapshot.angband_recall_unlocked
             and not self._identify_staff_ready(snapshot)
             and STORE_MAGIC in self._town_visit_ledger.blocked_stores
-            and STORE_HOME in self._town_visit_ledger.blocked_stores
+            and self._town_store_blocked_under_applicable_bound(STORE_HOME, need="identify-staff")
         ):
             # Once both Identify suppliers are exhausted, that shortage has no
             # live town owner left to protect.  Preserve the deeper destination

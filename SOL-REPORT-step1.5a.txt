@@ -1,0 +1,229 @@
+Step 1.5a: equipment Home-full closure
+
+Branch: step1.5a-equipment-homefull
+Implementation base: 426eb6ea6acbb1d11fb6aa14bae6325fd0981602.
+The branch already contained aa41d867 (task/design/analysis documents).
+Design: SOL-DESIGN-step1.5a-equipment-homefull.md, revision 2.
+
+Changes (file:function)
+
+src/hengbot/policy.py:__init__, _observe_home_atomic_deposit_outside,
+equipment_optimization_state, _retire_actionless_equipment_failure
+  Add one visit-local tombstone, observe an actually posted equipment deposit's
+  English/Japanese full-Home refusal, expose the impossible-work record, and
+  retire the impossible equipment owner through the existing retirement path.
+
+src/hengbot/policy_equipment.py:_equipment_home_full_refused_this_visit,
+_equipment_home_deposit_unavailable, _mark_equipment_home_full_unavailable,
+_clear_equipment_home_deposit_tombstone, _close_full_home_equipment_deposit,
+_prepare_equipment_optimization, _abandon_blocked_equipment_transaction,
+_equipment_transaction_home_key, _equipment_transaction_town_key,
+_equipment_failure_unexecutable_this_visit
+  The tombstone is independent of the shared Home block/latch and target kit.
+  Fresh plans containing deposits and deposit approaches are closed. An observed
+  full page re-fires it without a refusal in this process. EQUIP-only plans and
+  pack restoration remain executable. An already admitted in-store continuation
+  after a successful effect retains its existing command/claim; the full page
+  records the tombstone, closing subsequent routes/rebuilds, and an actual full
+  refusal blocks its posted deposit directly. This preserves the existing
+  test_successful_deposit_exit_keeps_the_next_item_goal_registered contract.
+  Arbitrary abandonment/stall does not set the tombstone. This cause suppresses
+  the equipment route-repeat terminal. One record is retained:
+    town:work-closed:impossible:equipment-transaction:home-full
+  It includes the epoch/turn, observed pack IDs and already withdrawn IDs still
+  present in the pack. Repeated marking retains the same record.
+  The existing first-refusal shared Home accounting is preserved; fresh-search
+  closure does not newly block other Home owners, and later Home re-arms or
+  changed latch sites cannot erase or re-block the independent tombstone.
+
+src/hengbot/policy_home.py:_record_observed_home_addresses
+src/hengbot/policy_observation.py:observe_town_visit_epoch
+  Clear only on an observed Home page below capacity or a new visit epoch.
+  Reopen the search/retired kit with that external change. Discard stale previous
+  visit capacity evidence at the new epoch. Relief completion does not clear it.
+
+src/hengbot/policy_town.py:_departure_supplier_core, _town_procurement_decision
+  Directly skip equipment-work/equipment-transaction suppliers under the
+  tombstone. Other Home needs retain their supplier. The narrow scene escalation
+  exposes the existing overweight-home-unreachable stop once equipment is
+  retired, the pack remains overweight, the independent Home bound is exhausted
+  or deposits have actually been rejected, and no Home transfer is in flight.
+  This handles rejected deposits disappearing from the enumerated needs without
+  granting an overweight departure. Existing held-command protection runs first.
+
+src/hengbot/policy_state.py:normalize_policy_state
+  Only new policy attribute: _equipment_home_deposit_tombstone.
+  Initial/default restored value is None; saved tombstones survive restoration.
+
+scripts/item_intent_baseline.json
+  Register the tombstone as negative eligibility/completed failure evidence.
+  Its pack IDs are observations, not reservations or future transfer intents.
+
+scripts/extract_step15a_homefull_fixture.py
+tests/fixtures/step1.5a-equipment-homefull.json.gz
+tests/test_equipment_homefull_step15a.py
+  Deterministic extraction, immutable substrate, and 16 focused tests covering
+  all eight design pins plus fresh-search enforcement, direct posted refusal,
+  restoration/withdrawn-pack recording, retirement while independent work
+  settles, and restore defaults. Existing tests were not edited.
+
+scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json
+  Regenerated using python scripts/town_work_manifest.py --write:
+    town-work-manifest: 805 candidates, 19770 sites, zero unmapped
+
+Single-flag retirement and departure
+
+_equipment_home_deposit_tombstone -> _equipment_home_full_refused_this_visit()
+-> _equipment_failure_unexecutable_this_visit()
+-> _retire_actionless_equipment_failure()
+-> existing _equipment_retired_worn_item_ids -> existing equipment_exhausted.
+There is no parallel policy retirement flag. Retirement can close equipment
+while an independent Home operation settles, so equipment does not continue
+owning the town budget. Restoration debt still prevents retirement. Staging the
+confirmed-loadout evidence does not post departure: existing final confirmation
+still requires settled transfers, the same worn kit, and required abilities at
+the actual destination. _safe_optional_equipment_failure_departure and the
+depth/recall entry checks retain those requirements. The constructed 81F pin
+stops at depth-gate:destination-81:missing-destruction,speed+25,telepathy.
+
+Substrate and construction boundaries
+
+Fixture SHA256:
+0983fc092cca64be34d7400d3ed9d9e6327d6662e4aeaa4be93feaf9a09502ae
+Re-extraction from C:/hengband/bot-client/jsonlog reproduced this exact hash.
+The fixture records each original source filename and SHA256, all state rows,
+and the last process session's decision rows (27/15/32 respectively).
+No captured row was changed. No policy checkpoint exists.
+
+Pin 1 starts fresh at process s1. 134416 reproduces s1-s11 keys/reasons exactly;
+191943 reproduces s1-s9 exactly. The unchanged response to the final matching
+command is consumed before constructing responses to the first different key.
+Subsequent stationary boards, store responses, purchase/removal effects and
+full-Home messages are DECLARED CONSTRUCTED. The absent C dump/envelope is
+DECLARED CONSTRUCTED from visible Base/Top stats, known equipment pvals, worn
+names and captured character identity; real parsing/calibration runs. Skill,
+Home and character observations use the normal consumers. No optimizer,
+choose_key, retirement, safe-departure or depth predicate is mocked in replay.
+
+Unit transaction, lighter-pack/49F destination, 81F destination, relief boundary,
+and supplier input vectors are separately DECLARED CONSTRUCTED in the tests.
+The supplier unit replaces only its need input vector to isolate category
+filtering; reachability and other Home producers are real. Runtime files and
+knowledge output are isolated in temporary directories. No live game is used.
+
+Before/after run lines, shared by EVERY design pin
+
+Before: working directory C:/hengband-backups/sol-step15a-base-final;
+git rev-parse HEAD = 426eb6ea6acbb1d11fb6aa14bae6325fd0981602.
+Only the new test module and immutable fixture were copied into this scratch
+worktree; no implementation changes were copied. The supported
+HENGBAND_MONRACE_DEFINITIONS setting points to the same installed lore that
+the branch discovers normally; the scratch is outside the game directory tree.
+
+$env:PYTHONPATH='src'
+$env:HENGBAND_MONRACE_DEFINITIONS='C:/hengband/lib/edit/MonraceDefinitions.jsonc'
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_equipment_homefull_step15a --output C:/hengband/bot-client-step1.5a/validation/step1.5a/pins-base-verified.json --summary-output C:/hengband/bot-client-step1.5a/validation/step1.5a/pins-base-verified-summary.json --streams-dir C:/hengband/bot-client-step1.5a/validation/step1.5a/pins-base-verified-streams
+
+After: working directory C:/hengband/bot-client-step1.5a.
+$env:PYTHONPATH='src'
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_equipment_homefull_step15a --output validation/step1.5a/pins-current-final.json --summary-output validation/step1.5a/pins-current-final-summary.json --streams-dir validation/step1.5a/pins-current-final-streams
+
+Identical test module SHA256 in both worktrees:
+a512487444511ccda212061cd1cb758903c773601e24eb99ec62c2f299ae5291
+
+Pin -> test suffix (class EquipmentHomeFullStep15aTest), baseline -> after
+1 -> test_pin1_recorded_134416_from_process_start, FAIL -> PASS
+     test_pin1_recorded_191943_from_process_start, FAIL -> PASS
+     Both baseline actual stops: equipment-transaction:home-route-repeat-terminal.
+     Both after actual stops: town:blocked:overweight-home-unreachable.
+2 -> test_pin2_nonoverweight_confirmed_loadout_departure, FAIL -> PASS
+3 -> test_pin3_recorded_s9_s10_does_not_repost_or_approach, FAIL -> PASS
+     Baseline actually re-approaches Home at the tested decision.
+4 -> test_pin4_rearm_forgiveness_and_relief_preserve_tombstone, FAIL -> PASS
+     test_pin4_suppliers_and_other_home_owners_keep_the_route, FAIL -> PASS
+5 -> test_pin5_new_visit_clears_tombstone, FAIL -> PASS
+     test_pin5_observed_space_clears_tombstone, FAIL -> PASS
+6 -> test_pin6_restart_full_page_refires_without_refusal, FAIL -> PASS
+7 -> test_pin7_equip_only_still_executes_and_withdrawn_item_stays, FAIL -> PASS
+8 -> test_pin8_deeper_missing_abilities_blocks_departure, FAIL -> PASS
+
+All extra tests also fail before and pass after. The extra restoration/pack
+record test has a baseline AttributeError because the new attribute is absent;
+the eight design pins themselves are assertion failures, not import errors.
+No assertion was widened; no skip or xfail was added.
+
+Validation run lines (branch, PYTHONPATH=src, no full suite)
+
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_test_fakery_lint tests.test_town_arbiter tests.test_experience_potion tests.test_unaffordable_claim_tour_recorded tests.test_homefull3_recorded tests.test_magic_required_staff_homefull_recorded tests.test_equipment_homefull_step15a tests.test_policy_equipment tests.test_equipment_transaction_session tests.test_equipment_transaction_planner tests.test_equipment_home_full_incident_recorded tests.test_equipment_home_entry_cycle_recorded tests.test_equipment_deposit_owner_recorded tests.test_home_equipment_disposal tests.test_home_full_relief_recorded tests.test_home_full_await_knowledge_recorded tests.test_home_full_destroy_posted_confirm tests.test_home_full_identification_procurement_recorded tests.test_home_full_withdraw_failure_incident_recorded tests.test_policy_observation tests.test_policy_town tests.test_home_visit --purity always --output validation/step1.5a/hygiene.json --summary-output validation/step1.5a/hygiene-summary.json --streams-dir validation/step1.5a/hygiene-streams
+
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_equipment_homefull_step15a tests.test_equipment_deposit_owner_recorded tests.test_policy_equipment tests.test_test_fakery_lint tests.test_town_structure_lint tests.test_item_sink_lint tests.test_ownership_s2b1_ladder tests.test_ownership_s2a1_closure tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail --purity always --output validation/step1.5a/corrected.json --summary-output validation/step1.5a/corrected-summary.json --streams-dir validation/step1.5a/corrected-streams
+
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_test_fakery_lint --purity always --output validation/step1.5a/fakery-final.json --summary-output validation/step1.5a/fakery-final-summary.json --streams-dir validation/step1.5a/fakery-final-streams
+
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_equipment_deposit_owner_recorded --purity always --output validation/step1.5a/owner-final.json --summary-output validation/step1.5a/owner-final-summary.json --streams-dir validation/step1.5a/owner-final-streams
+
+python scripts/test_parallel_runner.py --workers 2 --modules tests.test_latch_onset_capture --purity always --output validation/step1.5a/restore-final.json --summary-output validation/step1.5a/restore-final-summary.json --streams-dir validation/step1.5a/restore-final-streams
+
+Literal runner summaries (the initially red scoped batches are retained):
+
+pins-base-verified
+Failures: ['tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_fresh_optimizer_and_rearm_reject_only_home_deposit_plan', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin1_recorded_134416_from_process_start', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin1_recorded_191943_from_process_start', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin2_nonoverweight_confirmed_loadout_departure', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin3_recorded_s9_s10_does_not_repost_or_approach', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin4_rearm_forgiveness_and_relief_preserve_tombstone', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin4_suppliers_and_other_home_owners_keep_the_route', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin5_new_visit_clears_tombstone', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin5_observed_space_clears_tombstone', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin6_restart_full_page_refires_without_refusal', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin7_equip_only_still_executes_and_withdrawn_item_stays', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_pin8_deeper_missing_abilities_blocks_departure', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_posted_equipment_deposit_full_message_sets_tombstone', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_restore_defaults_and_preserves_tombstone', 'tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_tombstone_retires_equipment_while_independent_deposit_settles']
+Errors: ['tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_restoration_and_withdrawn_pack_record_survive_closure']
+Total: 16 tests, 208.840s; output: C:\hengband\bot-client-step1.5a\validation\step1.5a\pins-base-verified.json
+
+pins-current-final
+Failures: none
+Errors: none
+Total: 16 tests, 161.346s; output: C:\hengband\bot-client-step1.5a\validation\step1.5a\pins-current-final.json
+
+hygiene
+Failures: ['tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_successful_deposit_exit_keeps_the_next_item_goal_registered', 'tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes', 'tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail']
+Errors: ['tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_carried_destruction_scroll_reaches_the_optimizer', 'tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_owned_quest_launcher_excludes_incompatible_equipped_launcher', 'tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_reserved_throwing_torch_is_not_a_loadout_candidate', 'tests.test_policy_equipment.EquipmentOptimizationDestructionWiringTest.test_without_a_destruction_source_the_optimizer_stays_fail_closed']
+Total: 1186 tests, 2580.179s; output: C:\hengband\bot-client-step1.5a\validation\step1.5a\hygiene.json
+
+corrected
+Failures: ['tests.test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted']
+Errors: none
+Total: 397 tests, 491.511s; output: C:\hengband\bot-client-step1.5a\validation\step1.5a\corrected.json
+
+fakery-final
+Failures: none
+Errors: none
+Total: 13 tests, 68.589s; output: C:\hengband\bot-client-step1.5a\validation\step1.5a\fakery-final.json
+
+owner-final
+Failures: none
+Errors: none
+Total: 7 tests, 8.050s; output: C:\hengband\bot-client-step1.5a\validation\step1.5a\owner-final.json
+
+restore-final
+Failures: none
+Errors: none
+Total: 7 tests, 746.820s; output: C:\hengband\bot-client-step1.5a\validation\step1.5a\restore-final.json
+
+Resolution of initial scoped failures:
+Hygiene: existing successful-deposit owner continuation was preserved; Mock
+optimizer preparations are inspected only after a real full-Home observation;
+the manifest was regenerated after final source changes; the new test response
+decoder uses its exact command prefix rather than a flagged literal comparison.
+Corrected batch: all modules except fakery lint passed. Its temporary allowance
+raised the fixed count from 125 to 126; that allowance was removed, and the entire
+fakery lint module then passed with the existing allowance baseline unchanged.
+Owner continuation and final pin modules were rerun after the final decoder fix.
+The other eight town-work-contract tests passed in hygiene; its single failed
+manifest method passed in corrected. No required failing check remains.
+The three existing policy-town skips are unchanged; no new skip/xfail exists.
+The checkpoint module runs separately because the runner adds a serial shard;
+final batches use at most two actual test workers. No test runner was modified.
+Validation JSON and worker streams are retained under validation/step1.5a.
+
+
+Limitations / intentionally not done
+No game/bot control, push, merge, main edits, or git reset --hard.
+No full suite; the merge gate owns it. No new town owner and no equipment-sale
+changes. No live game verification; continuations after divergence are declared
+external-response constructions. Overweight-with-full-Home remains a visible
+stop rather than being solved by this equipment-only change.
+An initial hygiene run was stopped when the runner was found to append a third
+serial shard despite --workers 2. Final hygiene runs separate the serial module
+to maintain two-worker concurrency; the runner itself was not modified.

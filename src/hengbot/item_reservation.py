@@ -14,6 +14,7 @@ from hengbot.equipment_optimizer import equipment_identity
 # Queued candidates/selection observations retain their existing non-exclusive
 # semantics. Ownership is acquired at the existing atomic/transaction seam.
 ITEM_RESERVATION_SOURCES = {
+    '_overweight_surplus_disposal': ('selection', 'F3 shop-sell surplus transaction selection/observation; retained units acquire no new exclusive owner'),
     '_batch_sell_pending': ('selection', 'batch sell pending; selection/observation intent, no additional exclusive owner'),
     '_destroy_watch': ('selection', 'destroy watch; selection/observation intent, no additional exclusive owner'),
     '_device_identification_candidate': ('selection', 'device identification candidate; selection/observation intent, no additional exclusive owner'),
@@ -253,7 +254,7 @@ def item_reserved_by_other(policy, snapshot, item, work) -> ReservationVerdict |
     for reserved_owner in owners:
         if reserved_owner == owner:
             continue
-        if sink == "deposit" and reserved_owner in {"home-full-retry", "home-reserve"}:
+        if sink in {"deposit", "weight-deposit", "overweight-surplus"} and reserved_owner in {"home-full-retry", "home-reserve"}:
             continue
         matches = sum(policy._item_signature(candidate) == policy._item_signature(item)
                       for candidate in snapshot.inventory)
@@ -280,7 +281,7 @@ def reservation_verdict(policy, snapshot, item, owner, sink):
         if denied is not None:
             return ReservationVerdict(sink, quantity=denied.quantity, item_id=id(item))
         quantity = (policy._retention_surplus(snapshot, item)
-                    if sink in {"sell", "deposit", "destroy", "weight-deposit", "home-full-sale"}
+                    if sink in {"sell", "deposit", "destroy", "weight-deposit", "home-full-sale", "overweight-surplus"}
                     else None)
         return ReservationVerdict(sink, quantity=quantity, item_id=id(item))
     except Exception as error:
@@ -322,7 +323,7 @@ def item_command(kind, item, verdict: ReservationVerdict):
         raise ValueError('item command has a denied verdict')
     if verdict.item_id != id(actual):
         raise ValueError('item command has a denied or different-item verdict')
-    if verdict.sink != kind.split('-')[0]:
+    if verdict.sink != (kind if kind == "overweight-surplus" else kind.split('-')[0]):
         raise ValueError('item command has a different-sink verdict')
     letter = address if address is not None else (
         actual if isinstance(actual, str) else getattr(actual, 'slot', None)
@@ -335,6 +336,10 @@ def item_command(kind, item, verdict: ReservationVerdict):
                 'read': 'r', 'quaff': 'q', 'eat': 'E', 'staff': 'u',
                 'wand': 'a', 'rod': 'z', 'fire': 'f', 'throw': 'v',
                 'refill': '\\F'}
+    if kind == "overweight-surplus":
+        if verdict.quantity is None or not 0 < verdict.quantity <= actual.count:
+            raise ValueError("surplus destroy requires a positive retained quantity")
+        return f'0{verdict.quantity}k{letter}'
     if kind == 'destroy':
         return f'0{actual.count}k{letter}'
     return prefixes[kind] + letter
@@ -350,8 +355,8 @@ def checked_item_command(policy, kind, item, verdict: ReservationVerdict):
     try:
         return item_command(kind, item, verdict)
     except Exception as error:
-        sink = kind.split('-')[0]
-        if getattr(policy, '_town_claim_bar_enforced', False):
+        sink = kind if kind == "overweight-surplus" else kind.split('-')[0]
+        if sink == 'overweight-surplus' or getattr(policy, '_town_claim_bar_enforced', False):
             reason = f'ownership:item-reserved:{sink}:serializer-error'
             policy.last_reason = reason
             _shadow(policy, {'would_stop': reason, 'error': type(error).__name__})
@@ -371,7 +376,7 @@ def reserved_item_command(policy, snapshot, kind, item, owner=None, *, address=N
         # Consumption has no outstanding transfer claim of its own. A stale
         # last_reason must not borrow the owner of an item's pending deposit.
         owner = "consumption"
-    verdict = reservation_verdict(policy, snapshot, item, owner, kind.split('-')[0])
+    verdict = reservation_verdict(policy, snapshot, item, owner, kind if kind == "overweight-surplus" else kind.split('-')[0])
     selected = (item, address) if address is not None else item
     key = checked_item_command(policy, kind, selected, verdict)
     return key + suffix if key is not None else None
