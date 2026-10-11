@@ -1,0 +1,43 @@
+PLAN-STEP: 4
+Task: diagnose and fix the fresh-character Quest 34 (DumpWitness, the town's first fixed quest) stops seen live on
+2026-10-11 16:23-16:25 (main 27f32cbb, quick-start Level 1 Zombie Warrior, Outpost). Branch q34-opening-1011 at
+27f32cbb. Owner decision (2026-10-11): fix this before the low-level live measurement continues.
+
+Evidence (captures-q34/ in this worktree, not tracked; each autorecover capture has bot-decisions, bot-state-fixed,
+bot-posted-characters and stdout/stderr):
+1. 16:23:53 and 16:24:12 loop-detected: "floor=(0, 5, 34) ... confined to [(6, 1) .. (11, 1)] over 40 decisions";
+   the last 11 decisions are quest-strategy:open-opening-door (key o6 / 8 etc.).
+2. 16:24:31, 16:24:50, 16:25:09 quest:blocked:fixed-target-not-visible: survey-throw-point -> approach-throw-point
+   to (7,13) -> quest-strategy:throw-torch "vc6" twice -> "the fixed target cannot be confirmed from its approved
+   throwing point; stopping the bot for investigation". Three in 30 min escalated.
+Code: policy_quest.py _opening_q34_* (~511-640), quest-strategy open-opening-door (~2954), throw/visibility
+(~3607); existing tests tests/test_policy_quest.py, tests/test_quest34_target_dead_recorded.py, test_policy_combat.py,
+test_policy_town.py.
+
+Do:
+- First write LUNA-DIAG-q34.txt: for each of the two failures, the exact predicate and the observed board facts
+  (map cells, door state, target position and visibility, thrown torch messages) from the captures, with file:line.
+  Say whether the behaviour regressed (find the commit if the opening worked before) or never handled this board.
+- Then fix the code so the opening either completes the quest or ends in a visible, bounded outcome that lets the
+  bot continue playing (no silent waiting, no new loop). Do not change the approved quest strategy profile values
+  unless the diagnosis shows they are wrong for this board; if so, explain and keep the change minimal.
+- Pins from the captures (fail on 27f32cbb, pass after; revert each new predicate alone -> its pin fails). Constructed
+  parts carry DECLARED CONSTRUCTED comments. Copy only the needed rows into tests/fixtures (small, gzip).
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. No game/bot control (the live game is running
+  with a held bot), no push, no merge, no git reset --hard. Commit on this branch.
+- "Existing tests" = tests at 27f32cbb. Tests you add may be edited freely. A failing existing test is a regression
+  unless the fix is the decided behaviour; give the reason in the test and the report.
+- New final stop reasons need POLICY_FINAL_STOP_REASONS + cli banner; reason-setting sites need claims or
+  scripts/ownership_claim_exceptions.txt entries; new attributes need restore-chain defaults.
+- Final run: `python C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\q34-opening 27f32cbb HEAD`
+  plus tests.test_policy_quest tests.test_quest34_target_dead_recorded tests.test_policy_combat plus the hygiene set
+  (tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract
+  tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_test_fakery_lint
+  tests.test_town_arbiter tests.test_cli), scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src), within 60
+  minutes; then `python C:\hengband-backups\guard-tools\compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\27f32cbb`
+  (must report 0 slower tests). Regenerate the manifest.
+- Token budget 250k, wall time 90 minutes.
+- Write LUNA-REPORT-q34-opening.txt: diagnosis summary, changes, pins before/after, revert checks, affected modules,
+  final run Failures/Errors/Total lines, compare_timings output.
