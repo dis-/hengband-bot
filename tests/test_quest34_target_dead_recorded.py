@@ -194,7 +194,7 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         )
         self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
 
-    def test_live_q34_torch_kill_is_confirmed_from_lit_protocol3_ray(self):
+    def test_live_q34_torch_kill_is_confirmed_by_the_defeat_message(self):
         rows = self.opening_rows
         throw1 = rows["decisions"]["torch_throw_1"]
         throw2 = rows["decisions"]["torch_throw_2"]
@@ -229,16 +229,29 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         self.assertEqual(between.map_lighting, 1)
         self.assertTrue(between.allows_los)
 
+        # The new protocol-3 symbol cannot certify the empty cell
+        # (test_protocol3_display_align); the game's defeat message can, once
+        # the bot has seen the cloaker by name on the previous board.
         policy = self.policy()
+        hit = self.board_from_opening("first_torch_hit", policy=policy)
+        self.assertTrue(any(m.race_id == 243 for m in hit.visible_monsters))
+        policy._build_grid_index(hit)
+        policy._approved_quest_strategy_key(hit, hit.visible_monsters, [])
         policy._build_grid_index(killed)
-        self.assertEqual(
-            policy._approved_quest_strategy_key(killed, [], []), WAIT_KEY
-        )
-        self.assertEqual(policy.last_reason, "quest-strategy:survey-target-cleared")
+        policy._approved_quest_strategy_key(killed, [], [])
         self.assertIn((243, 7, 15), policy._quest_strategy_cleared_targets[34])
-        self.assertEqual(
-            policy._quest_strategy_pending_recovery[34]["target"], [7, 15]
-        )
+        self.assertNotEqual(policy.last_reason, "quest:blocked:fixed-target-not-visible")
+
+        # Control: the same boards without the defeat message stay uncleared.
+        silent = self.policy()
+        hit = self.board_from_opening("first_torch_hit", policy=silent)
+        silent._build_grid_index(hit)
+        silent._approved_quest_strategy_key(hit, hit.visible_monsters, [])
+        quiet = replace(killed, messages=tuple(
+            message for message in killed.messages if "を倒した" not in message))
+        silent._build_grid_index(quiet)
+        silent._approved_quest_strategy_key(quiet, [], [])
+        self.assertNotIn((243, 7, 15), silent._quest_strategy_cleared_targets.get(34, set()))
 
     def board_from_opening(self, name, policy=None):
         policy = policy or self.policy()

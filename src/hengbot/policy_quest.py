@@ -206,6 +206,7 @@ from hengbot.policy_constants import (
     BACKTRACK_PENALTY,
     DOOR_OPEN_LIMIT,
     Q34_OPENING_DOOR_ATTEMPT_LIMIT,
+    FIXED_TARGET_DEFEAT_VERBS,
     RUBBLE_DIG_LIMIT,
     RUBBLE_REJECT_LIMIT,
     NAV_ESCAPE_STEP_LIMIT,
@@ -3062,6 +3063,24 @@ class QuestMixin:
         previous_targets = self._quest_strategy_visible_targets.get(
             profile.quest_id, set()
         )
+        # The game's own defeat message is player-visible proof of death where
+        # the new protocol-3 map symbols cannot certify the empty target cell
+        # (2026-10-11 live Lv1 opening: "クローカーを倒した。" at the stand).
+        target_names = self._quest_strategy_visible_target_names.setdefault(
+            profile.quest_id, {}
+        )
+        defeat_messages = tuple(
+            message for message in snapshot.messages
+            if any(verb in message for verb in FIXED_TARGET_DEFEAT_VERBS)
+        )
+
+        def defeated_by_message(target) -> bool:
+            name = target_names.get(target)
+            return bool(name) and any(
+                f"{name}{verb}" in message
+                for message in defeat_messages
+                for verb in FIXED_TARGET_DEFEAT_VERBS
+            )
         throwing_points = profile.engagement_plan.get("throwing_points", ())
 
         def fixed_target_cell_visible(target: Position, cell: GridState | None) -> bool:
@@ -3069,12 +3088,14 @@ class QuestMixin:
                 return False
             if cell.in_view:
                 return True
-            # Protocol 3 has no CAVE_VIEW flag, but its current lighting symbol
-            # can certify the reviewed Q34 target when the player is at the
-            # approved stand, the target and each intervening cell are present
-            # in this snapshot, and the orthogonal line is open.  Checking the
-            # full radius-2 ray keeps merged symbols from certifying an
-            # unobserved or occluded target.
+            # New protocol-3 symbols can merge dark and lit variants. They
+            # cannot certify that this empty fixed cell is currently visible.
+            if snapshot.player.melee_displayed_totals:
+                return False
+            # Older protocol 3 sends the lighting variant, not CAVE_VIEW.
+            # At the reviewed Q34 stand a lit target down an open line is
+            # observable with the opening lantern.  Checking each intervening
+            # square prevents an occluded cell from certifying a kill.
             planned_stand = next(
                 (
                     Position(*plan["stand"])
@@ -3114,8 +3135,11 @@ class QuestMixin:
             if (
                 (target_grid := snapshot.grid_at(Position(target[1], target[2])))
                 is not None
-                and fixed_target_cell_visible(Position(target[1], target[2]), target_grid)
                 and not target_grid.has_monster
+                and (
+                    fixed_target_cell_visible(Position(target[1], target[2]), target_grid)
+                    or defeated_by_message(target)
+                )
                 and (
                     profile.quest_id != 34
                     or any(
@@ -3131,6 +3155,11 @@ class QuestMixin:
             )
         }
         self._quest_strategy_visible_targets[profile.quest_id] = current_targets
+        for monster in hostiles:
+            if monster.race_id in never_move_races and monster.name:
+                target_names[
+                    (monster.race_id, monster.position.y, monster.position.x)
+                ] = monster.name
         cleared_targets = self._quest_strategy_cleared_targets.setdefault(
             profile.quest_id, set()
         )

@@ -286,6 +286,8 @@ BACKTRACK_PENALTY = 30
 DOOR_OPEN_LIMIT = 3
 # 2026-10-11 live Lv1 opening: the Q34 lock was picked after about 20 tries.
 Q34_OPENING_DOOR_ATTEMPT_LIMIT = 200
+# Japanese monster-death messages (living, undead/nonliving, destroyed).
+FIXED_TARGET_DEFEAT_VERBS = ("を倒した", "を殺した", "を破壊した")
 RUBBLE_DIG_LIMIT = 30
 RUBBLE_REJECT_LIMIT = 3
 NAV_ESCAPE_STEP_LIMIT = 200
