@@ -85,7 +85,7 @@ from hengbot.ownership_metrics import (
     OWNERSHIP_METRICS_NAME,
     OwnershipMetricsLedger,
 )
-from hengbot.save_archive import SaveArchiveCoordinator
+from hengbot.save_archive import LIVE_SAVE_PATH, SaveArchiveCoordinator
 from hengbot.input_executor import (
     FLOOR_PICKUP_PROMPT_PATTERN,
     Continuation,
@@ -127,12 +127,17 @@ DECISION_WATCHDOG_SECONDS = 90
 DUMP_INTERVAL_SECONDS = 180
 
 
-def _request_due_dump(policy, now: float, next_dump_at: float) -> float:
+def _request_due_dump(
+    policy, now: float, next_dump_at: float,
+    dump_interval_seconds: float = DUMP_INTERVAL_SECONDS,
+) -> float:
     """Deliver one elapsed wall-clock request and return its next deadline."""
+    if dump_interval_seconds == 0:
+        return next_dump_at
     if now >= next_dump_at:
         policy.request_character_dump()
         policy.request_game_save()
-        return now + DUMP_INTERVAL_SECONDS
+        return now + dump_interval_seconds
     return next_dump_at
 
 
@@ -3315,6 +3320,18 @@ def _stall_recovery_action(
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-file", type=Path, required=True)
+    parser.add_argument(
+        "--dump-interval-seconds",
+        type=float,
+        default=DUMP_INTERVAL_SECONDS,
+        help="seconds between periodic character dumps and their paired game-save requests (0 disables)",
+    )
+    parser.add_argument(
+        "--game-save-path",
+        type=Path,
+        default=LIVE_SAVE_PATH,
+        help="path to the game's live save file for save archiving",
+    )
     parser.add_argument("--character-dump-file", type=Path,
                         default=Path(__file__).resolve().parents[3] / "lib/user/bot-test.txt",
                         help="existing game character dump written by the periodic C command")
@@ -4041,6 +4058,7 @@ def _run_follow(
     )
     args.flight_recorder = recorder
     save_archive = SaveArchiveCoordinator(
+        live_save=args.game_save_path,
         log=lambda message: print(message, file=sys.stderr, flush=True)
     )
     recent_reasons: deque[str] = deque(maxlen=20)
@@ -4422,7 +4440,9 @@ def _run_follow(
                         pending_action_wait = None
                     last_decision_line = snapshot_line
                     last_decision_at = now
-                    next_dump_at = _request_due_dump(policy, now, next_dump_at)
+                    next_dump_at = _request_due_dump(
+                        policy, now, next_dump_at, args.dump_interval_seconds
+                    )
                     recorder.before_floor_change(policy, snapshot.floor_key)
                     store_leave_was_inflight = (
                         policy._store_leave_inflight is not None

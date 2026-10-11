@@ -106,6 +106,7 @@ from hengbot.cli import (
     _valid_bot_play_macro_pref,
     main,
 )
+from hengbot.save_archive import LIVE_SAVE_PATH
 from hengbot.input_executor import Operation, OperationExecutor
 from hengbot.policy_constants import CHARACTER_DUMP_MACRO
 from hengbot.policy import (
@@ -191,7 +192,8 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
             state_path = root / "state.jsonl"
             state_path.write_text(_snap_line(3, 5, 5), encoding="utf-8")
             args = _build_argument_parser().parse_args([
-                "--state-file", str(state_path), "--poll-interval", "0.001"])
+                "--state-file", str(state_path), "--poll-interval", "0.001",
+                "--game-save-path", str(root / "BOT_PLAY")])
             args.wait_telemetry = unittest.mock.Mock()
             policy = HengbotPolicy()
             observed = []
@@ -210,10 +212,15 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
             port = _ExecutorInputPort(
                 executor, tunnel_macros_ready=True, request_budget=1)
             with patch("hengbot.cli._append_capture_ledger"), patch(
-                    "hengbot.cli._freeze_incident_safely"):
+                    "hengbot.cli._freeze_incident_safely"), patch(
+                    "hengbot.cli.SaveArchiveCoordinator") as archive_factory:
                 result = _run_follow(args, policy, port, {})
             self.assertEqual((result, observed),
                              (0, [(9, ("executor-bound-message",))]))
+            archive_factory.assert_called_once()
+            self.assertEqual(
+                archive_factory.call_args.kwargs["live_save"], args.game_save_path
+            )
 
     def test_executor_port_uses_existing_long_rest_deadline(self):
         class CapturingExecutor:
@@ -1864,6 +1871,20 @@ class DecisionTimingTest(unittest.TestCase):
 
 
 class PeriodicDumpTimerTest(unittest.TestCase):
+    def test_dump_and_save_path_options_keep_defaults_and_accept_overrides(self):
+        parser = _build_argument_parser()
+        defaults = parser.parse_args(["--state-file", "state.jsonl"])
+        overridden = parser.parse_args([
+            "--state-file", "state.jsonl",
+            "--dump-interval-seconds", "0",
+            "--game-save-path", "linux-save/BOT_PLAY",
+        ])
+
+        self.assertEqual(defaults.dump_interval_seconds, DUMP_INTERVAL_SECONDS)
+        self.assertEqual(defaults.game_save_path, LIVE_SAVE_PATH)
+        self.assertEqual(overridden.dump_interval_seconds, 0.0)
+        self.assertEqual(overridden.game_save_path, Path("linux-save/BOT_PLAY"))
+
     def test_elapsed_timer_latches_once_and_moves_deadline(self):
         policy = unittest.mock.Mock()
 
@@ -1875,6 +1896,15 @@ class PeriodicDumpTimerTest(unittest.TestCase):
         self.assertEqual(_request_due_dump(policy, 101.0, deadline), deadline)
         policy.request_character_dump.assert_called_once_with()
         policy.request_game_save.assert_called_once_with()
+
+    def test_zero_interval_disables_dump_and_its_paired_save_request(self):
+        policy = unittest.mock.Mock()
+
+        deadline = _request_due_dump(policy, 100.0, 99.0, 0.0)
+
+        self.assertEqual(deadline, 99.0)
+        policy.request_character_dump.assert_not_called()
+        policy.request_game_save.assert_not_called()
 
 
 class WaitClassificationTest(unittest.TestCase):

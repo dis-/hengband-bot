@@ -209,7 +209,7 @@ class RestoredCheckpointIsolationTest(unittest.TestCase):
 
     def test_live_captured_checkpoint_is_redirected_on_restore(self):
         _, policy_blob, _ = checkpoint_row(
-            FIXTURES / "golden-trajectory-decision-110.jsonl.gz", 110
+            FIXTURES / "calibration-restore-batch-live.jsonl.gz", 5432
         )
         # The capture really carries the live bot's locations ...
         raw = pickle.loads(base64.b64decode(policy_blob))

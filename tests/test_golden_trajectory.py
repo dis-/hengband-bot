@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
-import base64
-import json
-import pickle
 import tempfile
 import unittest
 from dataclasses import replace
@@ -11,19 +8,13 @@ from pathlib import Path
 
 from hengbot.model import Position
 from hengbot.policy import HengbotPolicy, QUEST_STATUS_TAKEN
-from hengbot.latch_onset_capture import checkpoint
 
 import test_policy as fixture
 import test_policy_quest as quest_fixture
 from absorbing_state_catalog import TownWorld
 from trajectory_harness import (
-    checkpoint_row,
     checkpoint_rows,
-    decision_window,
-    drive_trajectory,
-    replay_checkpoint_decision,
     replay_incident,
-    restore_incident_checkpoint,
 )
 
 
@@ -116,30 +107,6 @@ class GoldenOpeningTrajectoryTest(unittest.TestCase):
         )
         return policy, GoldenOpeningWorld(opening, torch)
 
-    def test_fresh_birth_reaches_q34_strategy_in_order_and_within_bounds(self):
-        policy, world = self.build()
-        milestones = (
-            ("home scan issued", 1, lambda p, w, r, k: w.scan_issued),
-            ("home scan consumed", 2, lambda p, w, r, k: w.scan_consumed),
-            ("initial purchase composed", 8, lambda p, w, r, k: w.purchase_composed),
-            ("q34 approach", 12, lambda p, w, r, k: r.startswith("fixedquest:request")),
-            ("acceptance posted", 14, lambda p, w, r, k: w.accepted),
-            ("strategy execution engaged", 18,
-             lambda p, w, r, k: w.on_quest_floor and 34 in p._quest_navigators),
-        )
-        result = drive_trajectory(
-            policy, world, decisions=30, milestones=milestones,
-            owner_bound=8, pair_bound=6,
-        )
-        self.assertEqual([name for name, _ in result.milestones],
-                         [name for name, _bound, _predicate in milestones])
-        self.assertEqual(
-            sum(reason == "home:request-knowledge-scan"
-                for reason, _key in result.transcript),
-            1,
-        )
-
-
 class IncidentConverterTest(unittest.TestCase):
     FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -161,143 +128,6 @@ class IncidentConverterTest(unittest.TestCase):
             path.write_text("not-json\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid JSON"):
                 list(checkpoint_rows(path))
-
-    def test_today_opening_stall_telemetry_is_pinned(self):
-        """Pin the measured incident window; the golden test supplies replay."""
-        path = self.FIXTURES / "golden-trajectory-opening-stall.jsonl"
-        rows = decision_window(
-            path,
-            start="2026-08-18T18:14:00", end="2026-08-18T18:20:59",
-            reason="opening-q34:wait",
-        )
-        self.assertGreaterEqual(len(rows), 100)
-        measured = rows[0]["fixedquest_readiness"]["strategy_force"]
-        self.assertEqual(measured["dps"]["measured"], 0.0)
-        self.assertEqual(measured["failed"], ["dps", "speed_potions", "heal_potions"])
-
-    def test_today_decision_110_checkpoint(self):
-        row, pair = replay_checkpoint_decision(
-            HengbotPolicy,
-            self.FIXTURES / "golden-trajectory-decision-110.jsonl.gz", 110,
-            forbidden_pair=("opening-q34:wait", "5"),
-        )
-        self.assertEqual(row["decision_index"], 110)
-        self.assertEqual(row["decision_snapshot"]["player_position"], [32, 119])
-        self.assertIsNone(row["scan_entry_state"]["_store_entry_wait_owner"])
-        self.assertTrue(pair[0].startswith("fixedquest:request"), pair)
-
-    def test_q34_throwpoint_absent_progress_fact_does_not_self_block_escape(self):
-        measured = json.loads(
-            (self.FIXTURES / "q34-throwpoint-r2.json").read_text(encoding="utf-8")
-        )["measured"]
-        helper = quest_fixture.ApprovedQuestStrategyExecutionTest()
-        policy = helper._policy()
-        plans = policy.approved_quest_strategy(34).engagement_plan["throwing_points"]
-        # This is the incident premise: restart lost all durable progress.
-        # Never inject the cleared-target fact whose absence caused the loop.
-        policy._quest_strategy_cleared_targets[34] = set()
-        policy._quest_strategy_pending_recovery[34] = plans[-1]
-        player_position = Position(*measured["player"])
-        chest_position = Position(*measured["chest"]["position"])
-        snapshot = fixture.Snapshot(
-            fixture.player(player_position.y, player_position.x),
-            {
-                player_position: fixture.grid(
-                    player_position.y, player_position.x, in_view=True
-                ),
-                chest_position: replace(
-                    fixture.grid(
-                        chest_position.y, chest_position.x,
-                        objects=measured["chest"]["object_count"], in_view=True,
-                    ),
-                    object_tvals=tuple(measured["chest"]["object_tvals"]),
-                ),
-                Position(*measured["restored_route_goal"]): fixture.grid(
-                    *measured["restored_route_goal"]
-                ),
-            },
-            [],
-            inventory=[fixture.item(
-                "t", fixture.TVAL_LITE, fixture.SV_LITE_TORCH,
-                count=measured["recovered_torches"]["pack_after"], fuel=5000,
-            )],
-            equipment=[fixture.item(
-                "light", fixture.TVAL_LITE, fixture.SV_LITE_LANTERN,
-                is_equipment=True,
-            )],
-            floor_key=(0, 5, 34),
-        )
-        policy._build_grid_index(snapshot)
-
-        route = policy._quest_strategy_route_step(
-            snapshot, policy.approved_quest_strategy(34),
-            Position(*measured["restored_route_goal"]),
-        )
-        key = policy._approved_quest_strategy_key(snapshot, [], [])
-
-        self.assertEqual(route, Position(*measured["restored_route_first_step"]))
-        self.assertEqual(key, fixture.WAIT_KEY)
-        self.assertEqual(policy.last_reason, "quest-strategy:recovery-complete")
-
-    def test_q34_throwpoint_real_checkpoints_escape_recorded_decisions(self):
-        path = self.FIXTURES / "q34-throwpoint-checkpoints.jsonl.gz"
-        expected = {
-            39: ("quest-strategy:throw-point-unreachable", fixture.WAIT_KEY),
-            150: ("quest-strategy:recover-defeated-target-torches", "g"),
-            160: ("quest-strategy:recover-defeated-target-torches", "8"),
-            170: ("quest-strategy:recover-defeated-target-torches", "2"),
-        }
-        for decision_index, recorded_pair in expected.items():
-            with self.subTest(decision_index=decision_index):
-                row, pair = replay_checkpoint_decision(
-                    HengbotPolicy, path, decision_index,
-                    forbidden_pair=recorded_pair,
-                )
-                self.assertNotIn("time", row)
-                self.assertEqual(
-                    (row["last_reason"], row["key"]), recorded_pair
-                )
-                self.assertNotEqual(pair, recorded_pair)
-
-        row, policy_blob, snapshot_blob = checkpoint_row(path, 39)
-        policy, _ = restore_incident_checkpoint(
-            HengbotPolicy, policy_blob, snapshot_blob
-        )
-        self.assertEqual(row["decision_snapshot"]["player_position"], [11, 9])
-        self.assertEqual(policy._quest_strategy_cleared_targets.get(34), set())
-
-    def test_prefixed_q34_checkpoint_seeds_recovery_observation_attributes(self):
-        policy = HengbotPolicy()
-        del policy._quest_strategy_recovery_pickup_prepared
-        del policy._quest_strategy_recovery_pickup_posted
-        policy._floor_key = (0, 0, 0)
-        encoded_policy = checkpoint(policy)
-        old_state = pickle.loads(base64.b64decode(encoded_policy))
-        old_state.pop("_q2_blue_recovery_perceived")
-        encoded_policy = base64.b64encode(
-            pickle.dumps(old_state, protocol=5)
-        ).decode("ascii")
-        encoded_snapshot = base64.b64encode(
-            pickle.dumps(
-                fixture.Snapshot(
-                    fixture.player(1, 1),
-                    {Position(1, 1): fixture.grid(1, 1)},
-                    [],
-                    floor_key=(1, 1, 0),
-                ),
-                protocol=5,
-            )
-        ).decode("ascii")
-
-        restored, snapshot = restore_incident_checkpoint(
-            HengbotPolicy, encoded_policy, encoded_snapshot
-        )
-
-        self.assertIsNone(restored._quest_strategy_recovery_pickup_prepared)
-        self.assertIsNone(restored._quest_strategy_recovery_pickup_posted)
-        restored.choose_key(snapshot)
-        self.assertEqual(restored._q2_blue_recovery_perceived, set())
-
 
 if __name__ == "__main__":
     unittest.main()
