@@ -3088,11 +3088,21 @@ class QuestMixin:
             # Linux smoke: only the level-up messages arrived). Experience
             # gained right after a throw at this target, which then vanished,
             # is the same visible evidence.
-            return (
-                throw_exp is not None
-                and throw_exp[0] == target
-                and snapshot.player.exp > throw_exp[1]
+            # Every damaging hit also awards experience in proportion to the
+            # damage (MonsterDamageProcessor::get_exp_from_mon), so require
+            # the kill share: level * exp / (max player level + 2). A
+            # non-lethal hit earns under half of it, a kill at least all of it.
+            if throw_exp is None or throw_exp[0] != target:
+                return False
+            race = self._monrace_knowledge.get(target[0])
+            experience = getattr(race, "experience", 0)  # old pickled checkpoints
+            if race is None or experience <= 0 or race.level <= 0:
+                return False
+            max_level = max(
+                snapshot.player.level, snapshot.player.max_level or 0
             )
+            kill_share = race.level * experience / (max_level + 2)
+            return snapshot.player.exp - throw_exp[1] >= 0.75 * kill_share
         throwing_points = profile.engagement_plan.get("throwing_points", ())
 
         def fixed_target_cell_visible(target: Position, cell: GridState | None) -> bool:

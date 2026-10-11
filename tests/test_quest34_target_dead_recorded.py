@@ -159,6 +159,11 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         # level-up lines arrived). Experience gained right after the throw at
         # this target, which then vanished, also proves the kill.
         gained = self.policy()
+        # DECLARED CONSTRUCTED: the stub monster table lacks the cloaker's
+        # MonraceDefinitions id 243 values (level 13, exp 30) the kill-share
+        # check needs: kill share at max level 2 is 13 * 30 / 4 = 97.5.
+        gained._monrace_knowledge[243] = replace(
+            gained._monrace_knowledge[243], level=13, experience=30)
         hit = self.board_from_opening("first_torch_hit", policy=gained)
         gained._build_grid_index(hit)
         self.assertEqual(
@@ -177,6 +182,22 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         self.assertIn((243, 7, 15), gained._quest_strategy_cleared_targets[34])
         # The confirmed kill releases the ring that blocked torch recovery.
         self.assertNotIn(Position(7, 15), gained._remembered_paralyzers)
+
+        # Control: a non-lethal hit also earns experience in proportion to its
+        # damage (well under half the kill share); a vanished target with only
+        # that gain is not a kill. DECLARED CONSTRUCTED: +4 experience.
+        grazed = self.policy()
+        grazed._monrace_knowledge[243] = replace(
+            grazed._monrace_knowledge[243], level=13, experience=30)
+        hit = self.board_from_opening("first_torch_hit", policy=grazed)
+        grazed._build_grid_index(hit)
+        grazed._approved_quest_strategy_key(hit, hit.visible_monsters, [])
+        graze = replace(no_message, player=replace(
+            no_message.player, exp=hit.player.exp + 4,
+            level=hit.player.level, max_level=hit.player.max_level))
+        grazed._build_grid_index(graze)
+        grazed._approved_quest_strategy_key(graze, [], [])
+        self.assertNotIn((243, 7, 15), grazed._quest_strategy_cleared_targets.get(34, set()))
 
         # Control: no defeat message and no experience gain stay uncleared.
         # DECLARED CONSTRUCTED: experience held at the pre-throw value.
