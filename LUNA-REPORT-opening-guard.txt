@@ -1,0 +1,36 @@
+﻿PLAN-STEP: 4 — opening guard clean-up
+Branch: opening-guard-1012
+Implementation commit: fcfce539 (Clean up opening guard fixtures and options)
+
+Removed tests
+- tests/test_golden_trajectory.py: GoldenOpeningTrajectoryTest.test_fresh_birth_reaches_q34_strategy_in_order_and_within_bounds
+- tests/test_golden_trajectory.py: IncidentConverterTest.test_today_opening_stall_telemetry_is_pinned
+- tests/test_golden_trajectory.py: IncidentConverterTest.test_today_decision_110_checkpoint
+- tests/test_golden_trajectory.py: IncidentConverterTest.test_q34_throwpoint_absent_progress_fact_does_not_self_block_escape
+- tests/test_golden_trajectory.py: IncidentConverterTest.test_q34_throwpoint_real_checkpoints_escape_recorded_decisions
+- tests/test_golden_trajectory.py: IncidentConverterTest.test_prefixed_q34_checkpoint_seeds_recovery_observation_attributes
+- tests/test_quest34_target_dead_recorded.py: test_capture_pins_the_kill_and_empty_lit_cell
+- tests/test_quest34_target_dead_recorded.py: test_kill_advances_to_recovery_and_survives_checkpoint
+- tests/test_quest34_target_dead_recorded.py: test_unobservable_target_stays_uncleared_and_stops
+
+Removed fixtures
+- tests/fixtures/golden-trajectory-opening-stall.jsonl
+- tests/fixtures/golden-trajectory-decision-110.jsonl.gz
+- tests/fixtures/q34-throwpoint-checkpoints.jsonl.gz
+- tests/fixtures/q34-throwpoint-r2.json
+- tests/fixtures/quest34-target-dead-20260928.json.gz
+- tests/fixtures/quest34-target-dead-20260928.provenance.txt
+
+Assertions ported to the 2026-10-11 protocol-3 Q34 fixture
+- Kill confirmation advances the target into recovery, and restored policy state preserves that recovery.
+- Without the defeat message, an unobservable/dark target remains uncleared and ends in quest:blocked:fixed-target-not-visible.
+
+Other changes
+- Kept GoldenOpeningWorld and GoldenOpeningTrajectoryTest.build() for shared constructed-world callers.
+- Repointed runtime file isolation to decision 5432 in tests/fixtures/calibration-restore-batch-live.jsonl.gz; the existing live-path and restore isolation assertions are unchanged.
+- Added --dump-interval-seconds (default 180; zero suppresses the periodic character dump and its paired save request) and --game-save-path (default remains LIVE_SAVE_PATH).
+- Added CLI/parser and timer tests for defaults, overrides, and zero interval.
+
+Verification
+- affected_tests.py against base 09e29595: 15 modules identified.
+- Explicit affected/opening/hygiene unittest run: in progress at report creation; final result to be recorded after completion.

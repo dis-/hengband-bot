@@ -141,13 +141,19 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         policy._approved_quest_strategy_key(killed, [], [])
         self.assertIn((243, 7, 15), policy._quest_strategy_cleared_targets[34])
         self.assertNotEqual(policy.last_reason, "quest:blocked:fixed-target-not-visible")
+        # A checkpoint taken before the kill keeps the seen name: the restored
+        # policy also confirms the kill and walks east to recover the torches.
         restored._build_grid_index(killed)
         self.assertEqual(
-            restored._approved_quest_strategy_key(killed, [], []), WAIT_KEY
+            restored._approved_quest_strategy_key(killed, [], []), "6"
         )
-        self.assertEqual(restored.last_reason, "quest-strategy:recovery-complete")
+        self.assertEqual(
+            restored.last_reason, "quest-strategy:recover-defeated-target-torches"
+        )
         self.assertIn((243, 7, 15), restored._quest_strategy_cleared_targets[34])
-        self.assertNotIn(34, restored._quest_strategy_pending_recovery)
+        self.assertEqual(
+            restored._quest_strategy_pending_recovery[34]["target"], [7, 15]
+        )
 
         # Control: the same boards without the defeat message stay uncleared.
         silent = self.policy()
