@@ -3105,47 +3105,15 @@ class QuestMixin:
             return snapshot.player.exp - throw_exp[1] >= 0.75 * kill_share
         throwing_points = profile.engagement_plan.get("throwing_points", ())
 
-        def fixed_target_cell_visible(target: Position, cell: GridState | None) -> bool:
+        def fixed_target_cell_visible(
+            target: Position,
+            cell: GridState | None,
+            race_id: int | None = None,
+        ) -> bool:
             if cell is None or not cell.known or not cell.currently_observed:
                 return False
-            if cell.in_view:
-                return True
-            # New protocol-3 symbols can merge dark and lit variants. They
-            # cannot certify that this empty fixed cell is currently visible.
-            if snapshot.player.melee_displayed_totals:
-                return False
-            # Older protocol 3 sends the lighting variant, not CAVE_VIEW.
-            # At the reviewed Q34 stand a lit target down an open line is
-            # observable with the opening lantern.  Checking each intervening
-            # square prevents an occluded cell from certifying a kill.
-            planned_stand = next(
-                (
-                    Position(*plan["stand"])
-                    for plan in throwing_points
-                    if Position(*plan["target"]) == target
-                ),
-                None,
-            )
-            if (
-                profile.quest_id != 34
-                or planned_stand != snapshot.player.position
-                or cell.map_lighting != 1
-                or snapshot.light_radius is None
-                or snapshot.player.position.distance_to(target) > snapshot.light_radius
-            ):
-                return False
-            dy = target.y - snapshot.player.position.y
-            dx = target.x - snapshot.player.position.x
-            if dy != 0 and dx != 0:
-                return False
-            distance = abs(dy) + abs(dx)
-            return all(
-                (between := snapshot.grid_at(Position(
-                    snapshot.player.position.y + offset * (1 if dy > 0 else -1 if dy < 0 else 0),
-                    snapshot.player.position.x + offset * (1 if dx > 0 else -1 if dx < 0 else 0),
-                ))) is not None
-                and between.allows_los
-                for offset in range(1, distance)
+            return self._player_can_see_empty_cell(
+                snapshot, target, race_id=race_id
             )
         # A stationary target disappearing from the visible-monster list is not
         # itself proof of death: changing light/FOV can hide a living target.
@@ -3159,7 +3127,9 @@ class QuestMixin:
                 is not None
                 and not target_grid.has_monster
                 and (
-                    fixed_target_cell_visible(Position(target[1], target[2]), target_grid)
+                    fixed_target_cell_visible(
+                        Position(target[1], target[2]), target_grid, target[0]
+                    )
                     or defeated_by_message(target)
                 )
                 and (
@@ -3262,8 +3232,12 @@ class QuestMixin:
                     or not all(
                         (cell_grid := snapshot.grid_at(cell)) is not None
                         and cell_grid.known
-                        and cell_grid.in_view
                         and not cell_grid.has_monster
+                        and self._player_can_see_empty_cell(
+                            snapshot,
+                            cell,
+                            race_id=int(plan.get("race_id", 0)),
+                        )
                         and not recovery_substrate(cell_grid)
                         for cell in recovery_cells
                     )
@@ -3628,7 +3602,18 @@ class QuestMixin:
                             )) is not None
                             and (
                                 target_grid.has_monster
-                                or (target_grid.known and target_grid.in_view)
+                                or fixed_target_cell_visible(
+                                    Position(*plan["target"]),
+                                    target_grid,
+                                    int(plan.get("race_id", 0)),
+                                )
+                                or defeated_by_message(
+                                    (
+                                        int(plan.get("race_id", 0)),
+                                        int(plan["target"][0]),
+                                        int(plan["target"][1]),
+                                    )
+                                )
                             )
                         )
                     )
@@ -3659,7 +3644,15 @@ class QuestMixin:
                     target_position = Position(*survey_plan["target"])
                     target_grid = snapshot.grid_at(target_position)
                     if (
-                        fixed_target_cell_visible(target_position, target_grid)
+                        (
+                            fixed_target_cell_visible(
+                                target_position,
+                                target_grid,
+                                int(survey_plan.get("race_id", 0)),
+                            )
+                            or defeated_by_message(target_key)
+                        )
+                        and target_grid is not None
                         and not target_grid.has_monster
                     ):
                         # The approved Q34 route recovers this volley before
@@ -3683,7 +3676,7 @@ class QuestMixin:
                     if (
                         target_grid is not None
                         and target_grid.known
-                        and target_grid.in_view
+                        and target_grid.currently_observed
                     ):
                         self.last_reason = "quest-strategy:survey-target-unconfirmed"
                         return SEARCH_KEY
