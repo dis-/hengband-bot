@@ -1303,6 +1303,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             int, set[tuple[int, int, int]]
         ] = {}
         self._quest_strategy_pending_recovery: dict[int, dict[str, object]] = {}
+        self._q34_opening_door_attempts = 0
         self._quest_strategy_recovery_claims: dict[
             int, set[tuple[object, ...]]
         ] = {}

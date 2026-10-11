@@ -284,6 +284,8 @@ ALTER_KEY = "+"
 VISIT_PENALTY = 4
 BACKTRACK_PENALTY = 30
 DOOR_OPEN_LIMIT = 3
+# 2026-10-11 live Lv1 opening: the Q34 lock was picked after about 20 tries.
+Q34_OPENING_DOOR_ATTEMPT_LIMIT = 200
 RUBBLE_DIG_LIMIT = 30
 RUBBLE_REJECT_LIMIT = 3
 NAV_ESCAPE_STEP_LIMIT = 200
@@ -305,6 +307,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
     {
         'dark:locomotion-exhausted',
         'quest:blocked:fixed-target-not-visible',
+        'quest:blocked:q34-opening-door-locked',
         'quest:blocked:q34-recovery-no-progress',
         'quest:blocked:q34-throw-point-unreachable',
         'town:blocked:departure-unsatisfiable',

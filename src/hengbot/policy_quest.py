@@ -205,6 +205,7 @@ from hengbot.policy_constants import (
     VISIT_PENALTY,
     BACKTRACK_PENALTY,
     DOOR_OPEN_LIMIT,
+    Q34_OPENING_DOOR_ATTEMPT_LIMIT,
     RUBBLE_DIG_LIMIT,
     RUBBLE_REJECT_LIMIT,
     NAV_ESCAPE_STEP_LIMIT,
@@ -2932,6 +2933,8 @@ class QuestMixin:
                     and not door_grid.is_closed_door
                 )
             )
+            if opening_complete:
+                self._q34_opening_door_attempts = 0
             if not opening_complete:
                 if snapshot.player.position != approach:
                     route_goal = approach
@@ -2951,6 +2954,13 @@ class QuestMixin:
                 if door_grid is None or not door_grid.known:
                     self.last_reason = "quest-strategy:search-opening-door"
                     return SEARCH_KEY
+                # Lock-pick attempts are exempt from the cell-loop guard (each
+                # one spends game time), so bound them here instead.
+                attempts = getattr(self, "_q34_opening_door_attempts", 0)
+                if attempts >= Q34_OPENING_DOOR_ATTEMPT_LIMIT:
+                    self.last_reason = "quest:blocked:q34-opening-door-locked"
+                    return WAIT_KEY
+                self._q34_opening_door_attempts = attempts + 1
                 self.last_reason = "quest-strategy:open-opening-door"
                 return self._step_toward(snapshot, door)
 
@@ -3059,14 +3069,12 @@ class QuestMixin:
                 return False
             if cell.in_view:
                 return True
-            # New protocol-3 symbols can merge dark and lit variants. They
-            # cannot certify that this empty fixed cell is currently visible.
-            if snapshot.player.melee_displayed_totals:
-                return False
-            # Older protocol 3 sends the lighting variant, not CAVE_VIEW.
-            # At the reviewed Q34 stand a lit target down an open line is
-            # observable with the opening lantern.  Checking each intervening
-            # square prevents an occluded cell from certifying a kill.
+            # Protocol 3 has no CAVE_VIEW flag, but its current lighting symbol
+            # can certify the reviewed Q34 target when the player is at the
+            # approved stand, the target and each intervening cell are present
+            # in this snapshot, and the orthogonal line is open.  Checking the
+            # full radius-2 ray keeps merged symbols from certifying an
+            # unobserved or occluded target.
             planned_stand = next(
                 (
                     Position(*plan["stand"])

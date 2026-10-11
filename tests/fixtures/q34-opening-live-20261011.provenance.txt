@@ -1,0 +1,4 @@
+Source: captures-q34/autorecover-20261011-162509 bot-state-fixed and bot-decisions.
+The gzip fixture copies the exact captured rows for turns 75789, 75805,
+76566, 76579, 76737, and 76746, plus the exact opening, torch-throw, and
+blocked-decision records. No constructed or altered board parts are included.

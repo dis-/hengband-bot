@@ -1887,6 +1887,10 @@ class WaitClassificationTest(unittest.TestCase):
             "quest:blocked:q34-recovery-no-progress",
             POLICY_FINAL_STOP_REASONS,
         )
+        self.assertIn(
+            "quest:blocked:q34-opening-door-locked",
+            POLICY_FINAL_STOP_REASONS,
+        )
 
     def test_q34_final_stops_have_quest_specific_operator_messages(self):
         recovery = _policy_final_stop_banner(
