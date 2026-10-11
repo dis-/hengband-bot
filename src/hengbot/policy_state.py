@@ -196,6 +196,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_remembered_grid_sources", {})
     restored.__dict__.setdefault("_q34_opening_door_attempts", 0)
     restored.__dict__.setdefault("_quest_strategy_visible_target_names", {})
+    restored.__dict__.setdefault("_quest_strategy_throw_exp", {})
     restored.__dict__.setdefault("_remembered_grid_signatures", {})
     restored.__dict__.setdefault("_threat_prediction_memo", {})
     restored.__dict__.setdefault("_map_predicate_snapshot", None)

@@ -62,6 +62,9 @@ class MonraceKnowledge:
     powerful: bool = False
     shoot_dice_num: int = 0
     shoot_dice_sides: int = 0
+    # Base experience ("exp" in MonraceDefinitions): a kill awards
+    # level * exp / (player max level + 2) on top of the per-damage share.
+    experience: int = 0
 
 
 def _strip_jsonc(text: str) -> str:
@@ -240,6 +243,7 @@ def load_monrace_knowledge(path: Path) -> dict[int, MonraceKnowledge]:
             ),
             armor_class=int(monster.get("armor_class", 0)),
             rarity=int(monster.get("rarity", 0)),
+            experience=int(monster.get("exp", 0)),
             flags=frozenset(flags),
             abilities=frozenset(abilities),
             blows=blows,

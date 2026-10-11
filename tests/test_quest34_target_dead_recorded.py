@@ -16,7 +16,6 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, WAIT_KEY
 
 
-FIXTURE = Path(__file__).parent / "fixtures" / "quest34-target-dead-20260928.json.gz"
 OPENING_FIXTURE = (
     Path(__file__).parent / "fixtures" / "q34-opening-live-20261011.json.gz"
 )
@@ -26,111 +25,11 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         quest_tests.ApprovedQuestStrategyExecutionTest.setUpClass()
-        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-            cls.rows = json.load(stream)
         with gzip.open(OPENING_FIXTURE, "rt", encoding="utf-8") as stream:
             cls.opening_rows = json.load(stream)
 
     def policy(self):
         return quest_tests.ApprovedQuestStrategyExecutionTest()._q34_source_policy()
-
-    def board(self, name, policy):
-        return parse_snapshot(self.rows["states"][name], policy._monrace_knowledge)
-
-    def test_capture_pins_the_kill_and_empty_lit_cell(self):
-        throw = self.rows["decisions"]["throw"]
-        wait = self.rows["decisions"]["wait"]
-        self.assertEqual(
-            (throw["turn"], throw["position"], throw["reason"], throw["key"]),
-            (76590, {"y": 7, "x": 13}, "quest-strategy:throw-torch", "vc6"),
-        )
-        self.assertEqual(
-            (wait["turn"], wait["reason"], wait["key"]),
-            (76603, "quest:blocked:fixed-target-not-visible", "5"),
-        )
-        policy = self.policy()
-        before = self.board("throw", policy)
-        killed = self.board("kill", policy)
-        later = self.board("wait", policy)
-        target = Position(7, 15)
-        self.assertEqual((before.player.position, killed.player.position),
-                         (Position(7, 13), Position(7, 13)))
-        self.assertEqual(killed.light_radius, 2)
-        self.assertTrue(any(m.race_id == 243 for m in before.visible_monsters))
-        self.assertFalse(any(m.race_id == 243 for m in killed.visible_monsters))
-        self.assertTrue(any("クローカーを倒した" in msg for msg in killed.messages))
-        self.assertTrue(killed.grid_at(target).known)
-        self.assertEqual(killed.grid_at(target).map_lighting, 1)
-        self.assertTrue(killed.grid_at(target).currently_observed)
-        self.assertFalse(killed.grid_at(target).has_monster)
-        self.assertEqual(killed.quests[34].status, 1)
-        self.assertEqual(later.grid_at(target).map_lighting, 1)
-        self.assertFalse(later.grid_at(target).has_monster)
-
-    def test_kill_advances_to_recovery_and_survives_checkpoint(self):
-        policy = self.policy()
-        before = self.board("throw", policy)
-        policy._build_grid_index(before)
-        self.assertEqual(
-            policy._approved_quest_strategy_key(before, before.visible_monsters, []),
-            "vc6",
-        )
-        killed = self.board("kill", policy)
-        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-        for label, runner, expected_first in (
-            ("live", policy, "quest-strategy:recovery-complete"),
-            ("restored", restored, "quest-strategy:recovery-complete"),
-            ("cold", self.policy(), "quest-strategy:survey-target-cleared"),
-        ):
-            with self.subTest(label=label):
-                runner._build_grid_index(killed)
-                key = runner._approved_quest_strategy_key(
-                    killed, killed.visible_monsters, []
-                )
-                self.assertEqual(key, WAIT_KEY)
-                self.assertEqual(runner.last_reason, expected_first)
-                self.assertIn((243, 7, 15),
-                              runner._quest_strategy_cleared_targets[34])
-                if label == "cold":
-                    self.assertEqual(
-                        runner._quest_strategy_pending_recovery[34]["target"], [7, 15]
-                    )
-                else:
-                    self.assertNotIn(34, runner._quest_strategy_pending_recovery)
-                runner._build_grid_index(killed)
-                next_key = runner._approved_quest_strategy_key(
-                    killed, killed.visible_monsters, []
-                )
-                if label == "cold":
-                    self.assertEqual(runner.last_reason,
-                                     "quest-strategy:recovery-complete")
-                    self.assertEqual(next_key, WAIT_KEY)
-                    runner._build_grid_index(killed)
-                    next_key = runner._approved_quest_strategy_key(
-                        killed, killed.visible_monsters, []
-                    )
-                self.assertEqual(runner.last_reason,
-                                 "quest-strategy:survey-throw-point")
-                self.assertNotEqual(next_key, WAIT_KEY)
-
-    def test_unobservable_target_stays_uncleared_and_stops(self):
-        policy = self.policy()
-        killed = self.board("kill", policy)
-        target = Position(7, 15)
-        dark = replace(killed, grids={
-            **killed.grids,
-            target: replace(killed.grid_at(target), in_view=False, map_lighting=2),
-        })
-        policy._build_grid_index(dark)
-        self.assertEqual(
-            policy._approved_quest_strategy_key(dark, [], []), WAIT_KEY
-        )
-        self.assertEqual(policy.last_reason,
-                         "quest:blocked:fixed-target-not-visible")
-        self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
-        self.assertNotIn((243, 7, 15),
-                         policy._quest_strategy_cleared_targets[34])
-        self.assertNotIn(34, policy._quest_strategy_pending_recovery)
 
     def test_live_locked_opening_door_is_bounded_and_route_continues(self):
         rows = self.opening_rows
@@ -237,21 +136,87 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         self.assertTrue(any(m.race_id == 243 for m in hit.visible_monsters))
         policy._build_grid_index(hit)
         policy._approved_quest_strategy_key(hit, hit.visible_monsters, [])
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
         policy._build_grid_index(killed)
         policy._approved_quest_strategy_key(killed, [], [])
         self.assertIn((243, 7, 15), policy._quest_strategy_cleared_targets[34])
         self.assertNotEqual(policy.last_reason, "quest:blocked:fixed-target-not-visible")
+        # A checkpoint taken before the kill keeps the seen name: the restored
+        # policy also confirms the kill and walks east to recover the torches.
+        restored._build_grid_index(killed)
+        self.assertEqual(
+            restored._approved_quest_strategy_key(killed, [], []), "6"
+        )
+        self.assertEqual(
+            restored.last_reason, "quest-strategy:recover-defeated-target-torches"
+        )
+        self.assertIn((243, 7, 15), restored._quest_strategy_cleared_targets[34])
+        self.assertEqual(
+            restored._quest_strategy_pending_recovery[34]["target"], [7, 15]
+        )
 
-        # Control: the same boards without the defeat message stay uncleared.
+        # The defeat message can scroll past (2026-10-12 Linux smoke: only the
+        # level-up lines arrived). Experience gained right after the throw at
+        # this target, which then vanished, also proves the kill.
+        gained = self.policy()
+        # DECLARED CONSTRUCTED: the stub monster table lacks the cloaker's
+        # MonraceDefinitions id 243 values (level 13, exp 30) the kill-share
+        # check needs: kill share at max level 2 is 13 * 30 / 4 = 97.5.
+        gained._monrace_knowledge[243] = replace(
+            gained._monrace_knowledge[243], level=13, experience=30)
+        hit = self.board_from_opening("first_torch_hit", policy=gained)
+        gained._build_grid_index(hit)
+        self.assertEqual(
+            gained.last_reason if gained._approved_quest_strategy_key(
+                hit, hit.visible_monsters, []) else None,
+            "quest-strategy:throw-torch",
+        )
+        no_message = replace(killed, messages=tuple(
+            message for message in killed.messages if "を倒した" not in message))
+        self.assertGreater(no_message.player.exp, hit.player.exp)
+        # DECLARED CONSTRUCTED: the paralyzer ring the live run remembered for
+        # the cloaker (the direct strategy call does not run the threat scan).
+        gained._remembered_paralyzers[Position(7, 15)] = True
+        gained._build_grid_index(no_message)
+        gained._approved_quest_strategy_key(no_message, [], [])
+        self.assertIn((243, 7, 15), gained._quest_strategy_cleared_targets[34])
+        # The confirmed kill releases the ring that blocked torch recovery.
+        self.assertNotIn(Position(7, 15), gained._remembered_paralyzers)
+
+        # Control: a non-lethal hit also earns experience in proportion to its
+        # damage (well under half the kill share); a vanished target with only
+        # that gain is not a kill. DECLARED CONSTRUCTED: +4 experience.
+        grazed = self.policy()
+        grazed._monrace_knowledge[243] = replace(
+            grazed._monrace_knowledge[243], level=13, experience=30)
+        hit = self.board_from_opening("first_torch_hit", policy=grazed)
+        grazed._build_grid_index(hit)
+        grazed._approved_quest_strategy_key(hit, hit.visible_monsters, [])
+        graze = replace(no_message, player=replace(
+            no_message.player, exp=hit.player.exp + 4,
+            level=hit.player.level, max_level=hit.player.max_level))
+        grazed._build_grid_index(graze)
+        grazed._approved_quest_strategy_key(graze, [], [])
+        self.assertNotIn((243, 7, 15), grazed._quest_strategy_cleared_targets.get(34, set()))
+
+        # Control: no defeat message and no experience gain stay uncleared.
+        # DECLARED CONSTRUCTED: experience held at the pre-throw value.
         silent = self.policy()
         hit = self.board_from_opening("first_torch_hit", policy=silent)
         silent._build_grid_index(hit)
         silent._approved_quest_strategy_key(hit, hit.visible_monsters, [])
-        quiet = replace(killed, messages=tuple(
-            message for message in killed.messages if "を倒した" not in message))
-        silent._build_grid_index(quiet)
-        silent._approved_quest_strategy_key(quiet, [], [])
+        quiet = replace(no_message, player=replace(no_message.player, exp=hit.player.exp))
+        target = Position(7, 15)
+        dark = replace(quiet, grids={
+            **quiet.grids,
+            target: replace(quiet.grid_at(target), in_view=False, map_lighting=2),
+        })
+        silent._build_grid_index(dark)
+        self.assertEqual(silent._approved_quest_strategy_key(dark, [], []), WAIT_KEY)
         self.assertNotIn((243, 7, 15), silent._quest_strategy_cleared_targets.get(34, set()))
+        self.assertEqual(silent.last_reason, "quest:blocked:fixed-target-not-visible")
+        self.assertIn(silent.last_reason, POLICY_FINAL_STOP_REASONS)
+        self.assertNotIn(34, silent._quest_strategy_pending_recovery)
 
     def board_from_opening(self, name, policy=None):
         policy = policy or self.policy()

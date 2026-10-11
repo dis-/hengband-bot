@@ -1,0 +1,51 @@
+PLAN-STEP: 4
+Task: opening guard clean-up (owner decision 2026-10-12: "両方入れて。役に立たなくなった古い形式はいらない" and
+"試験は最新版で行う。必要なbotの直しがあれば行う。"). Branch opening-guard-1012 at q34-opening-1011 09e29595 (the Q34
+opening fix and its protocol-3 live fixture tests; it is being merged now).
+
+1. Delete the old-format opening tests and their fixtures (recorded before the 2026-10-04 exe / protocol change,
+   or constructed boards that never exercised the live format):
+   - tests/test_golden_trajectory.py: GoldenOpeningTrajectoryTest.test_fresh_birth_reaches_q34_strategy_in_order_and_within_bounds,
+     IncidentConverterTest.test_today_opening_stall_telemetry_is_pinned, test_today_decision_110_checkpoint,
+     test_q34_throwpoint_absent_progress_fact_does_not_self_block_escape,
+     test_q34_throwpoint_real_checkpoints_escape_recorded_decisions,
+     test_prefixed_q34_checkpoint_seeds_recovery_observation_attributes.
+     KEEP GoldenOpeningWorld / GoldenOpeningTrajectoryTest.build() and setUpClass: tests/test_pure_decision_telemetry.py,
+     tests/test_town_arbiter.py and scripts/decision_equivalence.py use them as a constructed-world builder.
+     KEEP IncidentConverterTest.test_missing_fixture_fails_loudly and test_malformed_window_is_not_a_silent_pass.
+   - tests/test_quest34_target_dead_recorded.py: the three tests on the 2026-09-28 old-exe fixture
+     (test_capture_pins_the_kill_and_empty_lit_cell, test_kill_advances_to_recovery_and_survives_checkpoint,
+     test_unobservable_target_stays_uncleared_and_stops) and fixture quest34-target-dead-20260928.json.gz(+provenance).
+     Keep the 2026-10-11 live tests; if a deleted test covered a behaviour (kill -> recovery survives a checkpoint,
+     an unobservable target stays uncleared and stops) that the 10-11 fixture can also show, port that assertion to
+     the 10-11 board instead of dropping it; say which ones you ported.
+   - Fixtures golden-trajectory-opening-stall.jsonl, golden-trajectory-decision-110.jsonl.gz,
+     q34-throwpoint-checkpoints.jsonl.gz, q34-throwpoint-r2.json.
+   - tests/test_runtime_file_isolation.py test_live_captured_checkpoint_is_redirected_on_restore uses
+     golden-trajectory-decision-110: switch it to a newer recorded live checkpoint fixture already in tests/fixtures
+     that carries the same live paths (_loadout_report_path, _exploration_ledger.path, _home_disposal.events_path);
+     do not weaken its assertions.
+   Update anything else that references the deleted names (grep). Write the exact list of deleted tests/fixtures
+   to LUNA-REPORT-opening-guard.txt (the operator files an Issue from it).
+2. Bot option for the Linux opening smoke (no change to live behaviour): add CLI option
+   `--dump-interval-seconds` (float, default = the current DUMP_INTERVAL_SECONDS 180; 0 disables the periodic
+   character dump AND its paired game-save request scheduling only for the dump; keep game save as is if it is
+   requested separately - read _request_due_dump and keep the default path byte-identical). Reason: the headless
+   Linux game does not answer the character-sheet file prompt, so the periodic dump stalls the smoke run.
+   Also make hengbot.save_archive.LIVE_SAVE_PATH overridable by a CLI option `--game-save-path` (default unchanged)
+   so a non-Windows run does not log a FileNotFoundError. Tests for both options (default unchanged; 0 disables).
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. No game/bot control, no push, no merge, no
+  git reset --hard. Commit on this branch.
+- Final run: affected_tests.py (C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\opening-guard 09e29595 HEAD) plus
+  tests.test_golden_trajectory tests.test_quest34_target_dead_recorded tests.test_runtime_file_isolation
+  tests.test_pure_decision_telemetry tests.test_town_arbiter tests.test_cli and the hygiene set
+  (tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint
+  tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification
+  tests.test_test_fakery_lint), scripts/test_parallel_runner.py --workers 2, within 60 minutes; then
+  compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\27f32cbb (a merge gate runs at the same time; re-measure any flagged test against 27f32cbb concurrently before reporting it) (0 slower tests).
+- Token budget 200k, wall time 90 minutes. Write LUNA-REPORT-opening-guard.txt.
+
+"Existing tests" = tests at 09e29595. A merge gate is running on this machine: it is NOT a blocker; run your
+tests concurrently and never touch its processes.

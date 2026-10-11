@@ -3074,13 +3074,35 @@ class QuestMixin:
             if any(verb in message for verb in FIXED_TARGET_DEFEAT_VERBS)
         )
 
+        throw_exp = self._quest_strategy_throw_exp.pop(profile.quest_id, None)
+
         def defeated_by_message(target) -> bool:
             name = target_names.get(target)
-            return bool(name) and any(
+            if bool(name) and any(
                 f"{name}{verb}" in message
                 for message in defeat_messages
                 for verb in FIXED_TARGET_DEFEAT_VERBS
+            ):
+                return True
+            # The defeat message can scroll past between boards (2026-10-12
+            # Linux smoke: only the level-up messages arrived). Experience
+            # gained right after a throw at this target, which then vanished,
+            # is the same visible evidence.
+            # Every damaging hit also awards experience in proportion to the
+            # damage (MonsterDamageProcessor::get_exp_from_mon), so require
+            # the kill share: level * exp / (max player level + 2). A
+            # non-lethal hit earns under half of it, a kill at least all of it.
+            if throw_exp is None or throw_exp[0] != target:
+                return False
+            race = self._monrace_knowledge.get(target[0])
+            experience = getattr(race, "experience", 0)  # old pickled checkpoints
+            if race is None or experience <= 0 or race.level <= 0:
+                return False
+            max_level = max(
+                snapshot.player.level, snapshot.player.max_level or 0
             )
+            kill_share = race.level * experience / (max_level + 2)
+            return snapshot.player.exp - throw_exp[1] >= 0.75 * kill_share
         throwing_points = profile.engagement_plan.get("throwing_points", ())
 
         def fixed_target_cell_visible(target: Position, cell: GridState | None) -> bool:
@@ -3164,6 +3186,12 @@ class QuestMixin:
             profile.quest_id, set()
         )
         cleared_targets.update(newly_defeated_targets)
+        # A confirmed-dead fixed target no longer threatens its ring. The
+        # generic paralyzer memory clears only on an in_view empty cell, which
+        # the new protocol-3 boards never report (2026-10-12 Linux smoke: the
+        # dead cloaker's ring blocked torch recovery until loop-detected).
+        for _race, target_y, target_x in newly_defeated_targets:
+            self._remembered_paralyzers.pop(Position(target_y, target_x), None)
         recoverable_tvals = (
             {TVAL_LITE}
             if profile.quest_id == 34
@@ -3522,6 +3550,14 @@ class QuestMixin:
                     return self._step_toward(snapshot, step)
                 if torch is not None:
                     self.last_reason = "quest-strategy:throw-torch"
+                    # Remember the target and the experience shown before this
+                    # throw: a gain on the next board while the target vanishes
+                    # is player-visible proof of the kill.
+                    self._quest_strategy_throw_exp[profile.quest_id] = (
+                        (target_monster.race_id, target_monster.position.y,
+                         target_monster.position.x),
+                        snapshot.player.exp,
+                    )
                     return (
                         reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, target_monster.position))
                     )
@@ -3632,6 +3668,7 @@ class QuestMixin:
                         # kill after a checkpoint restore; a monster merely
                         # disappearing from the list does not.
                         cleared_targets.add(target_key)
+                        self._remembered_paralyzers.pop(target_position, None)
                         self._quest_strategy_pending_recovery[
                             profile.quest_id
                         ] = survey_plan
