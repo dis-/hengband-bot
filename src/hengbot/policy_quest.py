@@ -205,6 +205,8 @@ from hengbot.policy_constants import (
     VISIT_PENALTY,
     BACKTRACK_PENALTY,
     DOOR_OPEN_LIMIT,
+    Q34_OPENING_DOOR_ATTEMPT_LIMIT,
+    FIXED_TARGET_DEFEAT_VERBS,
     RUBBLE_DIG_LIMIT,
     RUBBLE_REJECT_LIMIT,
     NAV_ESCAPE_STEP_LIMIT,
@@ -2932,6 +2934,8 @@ class QuestMixin:
                     and not door_grid.is_closed_door
                 )
             )
+            if opening_complete:
+                self._q34_opening_door_attempts = 0
             if not opening_complete:
                 if snapshot.player.position != approach:
                     route_goal = approach
@@ -2951,6 +2955,13 @@ class QuestMixin:
                 if door_grid is None or not door_grid.known:
                     self.last_reason = "quest-strategy:search-opening-door"
                     return SEARCH_KEY
+                # Lock-pick attempts are exempt from the cell-loop guard (each
+                # one spends game time), so bound them here instead.
+                attempts = getattr(self, "_q34_opening_door_attempts", 0)
+                if attempts >= Q34_OPENING_DOOR_ATTEMPT_LIMIT:
+                    self.last_reason = "quest:blocked:q34-opening-door-locked"
+                    return WAIT_KEY
+                self._q34_opening_door_attempts = attempts + 1
                 self.last_reason = "quest-strategy:open-opening-door"
                 return self._step_toward(snapshot, door)
 
@@ -3052,6 +3063,24 @@ class QuestMixin:
         previous_targets = self._quest_strategy_visible_targets.get(
             profile.quest_id, set()
         )
+        # The game's own defeat message is player-visible proof of death where
+        # the new protocol-3 map symbols cannot certify the empty target cell
+        # (2026-10-11 live Lv1 opening: "クローカーを倒した。" at the stand).
+        target_names = self._quest_strategy_visible_target_names.setdefault(
+            profile.quest_id, {}
+        )
+        defeat_messages = tuple(
+            message for message in snapshot.messages
+            if any(verb in message for verb in FIXED_TARGET_DEFEAT_VERBS)
+        )
+
+        def defeated_by_message(target) -> bool:
+            name = target_names.get(target)
+            return bool(name) and any(
+                f"{name}{verb}" in message
+                for message in defeat_messages
+                for verb in FIXED_TARGET_DEFEAT_VERBS
+            )
         throwing_points = profile.engagement_plan.get("throwing_points", ())
 
         def fixed_target_cell_visible(target: Position, cell: GridState | None) -> bool:
@@ -3106,8 +3135,11 @@ class QuestMixin:
             if (
                 (target_grid := snapshot.grid_at(Position(target[1], target[2])))
                 is not None
-                and fixed_target_cell_visible(Position(target[1], target[2]), target_grid)
                 and not target_grid.has_monster
+                and (
+                    fixed_target_cell_visible(Position(target[1], target[2]), target_grid)
+                    or defeated_by_message(target)
+                )
                 and (
                     profile.quest_id != 34
                     or any(
@@ -3123,6 +3155,11 @@ class QuestMixin:
             )
         }
         self._quest_strategy_visible_targets[profile.quest_id] = current_targets
+        for monster in hostiles:
+            if monster.race_id in never_move_races and monster.name:
+                target_names[
+                    (monster.race_id, monster.position.y, monster.position.x)
+                ] = monster.name
         cleared_targets = self._quest_strategy_cleared_targets.setdefault(
             profile.quest_id, set()
         )

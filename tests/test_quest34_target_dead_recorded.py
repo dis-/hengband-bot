@@ -17,6 +17,9 @@ from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, WAIT_KEY
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "quest34-target-dead-20260928.json.gz"
+OPENING_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "q34-opening-live-20261011.json.gz"
+)
 
 
 class Quest34TargetDeadRecordedTest(unittest.TestCase):
@@ -25,6 +28,8 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         quest_tests.ApprovedQuestStrategyExecutionTest.setUpClass()
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             cls.rows = json.load(stream)
+        with gzip.open(OPENING_FIXTURE, "rt", encoding="utf-8") as stream:
+            cls.opening_rows = json.load(stream)
 
     def policy(self):
         return quest_tests.ApprovedQuestStrategyExecutionTest()._q34_source_policy()
@@ -126,6 +131,133 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         self.assertNotIn((243, 7, 15),
                          policy._quest_strategy_cleared_targets[34])
         self.assertNotIn(34, policy._quest_strategy_pending_recovery)
+
+    def test_live_locked_opening_door_is_bounded_and_route_continues(self):
+        rows = self.opening_rows
+        initial_decision = rows["decisions"]["door_open_attempt"]
+        self.assertEqual(
+            (initial_decision["turn"], initial_decision["position"],
+             initial_decision["reason"], initial_decision["key"]),
+            (75789, {"y": 11, "x": 1},
+             "quest-strategy:open-opening-door", "o6"),
+        )
+        failed = self.board_from_opening("door_failed_pick")
+        door = failed.grid_at(Position(11, 2))
+        self.assertTrue(door.known)
+        self.assertTrue(door.is_closed_door)
+        self.assertFalse(door.passable)
+        self.assertIn("鍵をはずせなかった。", failed.messages)
+        self.assertEqual(failed.player.position, Position(11, 1))
+
+        policy = self.policy()
+        approach = self.board_from_opening("door_approach", policy=policy)
+        results = []
+        for _ in range(4):
+            policy._build_grid_index(approach)
+            results.append((
+                policy._approved_quest_strategy_key(
+                    approach, approach.visible_monsters, []
+                ),
+                policy.last_reason,
+            ))
+
+        self.assertEqual(results[:3], [
+            ("o6", "quest-strategy:open-opening-door"),
+            ("o6", "quest-strategy:open-opening-door"),
+            ("o6", "quest-strategy:open-opening-door"),
+        ])
+        self.assertEqual(results[3], ("o6", "quest-strategy:open-opening-door"))
+        from hengbot.cli import _cell_loop_guard_applies
+        self.assertFalse(_cell_loop_guard_applies(
+            approach, "quest-strategy:open-opening-door",
+            approach.player.position,
+        ))
+        opened = self.board_from_opening("door_opened", policy=policy)
+        entered = self.board_from_opening("door_entered", policy=policy)
+        self.assertIn("鍵をはずした。", opened.messages)
+        self.assertEqual(entered.player.position, Position(11, 2))
+
+    def test_opening_door_lock_pick_attempts_end_in_a_visible_stop(self):
+        # DECLARED CONSTRUCTED: the attempt counter is set to the bound; the board
+        # is the recorded closed-door approach (the cell-loop guard is exempt).
+        from hengbot.policy_constants import Q34_OPENING_DOOR_ATTEMPT_LIMIT
+        policy = self.policy()
+        approach = self.board_from_opening("door_approach", policy=policy)
+        policy._build_grid_index(approach)
+        policy._q34_opening_door_attempts = Q34_OPENING_DOOR_ATTEMPT_LIMIT
+        key = policy._approved_quest_strategy_key(
+            approach, approach.visible_monsters, []
+        )
+        self.assertEqual(
+            (key, policy.last_reason),
+            (WAIT_KEY, "quest:blocked:q34-opening-door-locked"),
+        )
+        self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
+    def test_live_q34_torch_kill_is_confirmed_by_the_defeat_message(self):
+        rows = self.opening_rows
+        throw1 = rows["decisions"]["torch_throw_1"]
+        throw2 = rows["decisions"]["torch_throw_2"]
+        blocked = rows["decisions"]["blocked_after_kill"]
+        self.assertEqual(
+            [(d["turn"], d["position"], d["reason"], d["key"])
+             for d in (throw1, throw2)],
+            [
+                (76727, {"y": 7, "x": 13}, "quest-strategy:throw-torch", "vc6"),
+                (76737, {"y": 7, "x": 13}, "quest-strategy:throw-torch", "vc6"),
+            ],
+        )
+        self.assertEqual(
+            (blocked["turn"], blocked["reason"], blocked["key"]),
+            (76746, "quest:blocked:fixed-target-not-visible", "5"),
+        )
+        killed = self.board_from_opening("cloaker_killed")
+        self.assertTrue(killed.player.melee_displayed_totals)
+        self.assertEqual(killed.player.position, Position(7, 13))
+        self.assertEqual(killed.light_radius, 2)
+        self.assertFalse(any(m.race_id == 243 for m in killed.visible_monsters))
+        self.assertIn("松明(1500ターンの寿命) {@v0=g}がクローカーに命中した。",
+                      killed.messages)
+        self.assertIn("クローカーを倒した。", killed.messages)
+        target = killed.grid_at(Position(7, 15))
+        between = killed.grid_at(Position(7, 14))
+        self.assertTrue(target.known and target.currently_observed)
+        self.assertFalse(target.in_view)
+        self.assertEqual(target.map_lighting, 1)
+        self.assertFalse(target.has_monster)
+        self.assertTrue(between.currently_observed)
+        self.assertEqual(between.map_lighting, 1)
+        self.assertTrue(between.allows_los)
+
+        # The new protocol-3 symbol cannot certify the empty cell
+        # (test_protocol3_display_align); the game's defeat message can, once
+        # the bot has seen the cloaker by name on the previous board.
+        policy = self.policy()
+        hit = self.board_from_opening("first_torch_hit", policy=policy)
+        self.assertTrue(any(m.race_id == 243 for m in hit.visible_monsters))
+        policy._build_grid_index(hit)
+        policy._approved_quest_strategy_key(hit, hit.visible_monsters, [])
+        policy._build_grid_index(killed)
+        policy._approved_quest_strategy_key(killed, [], [])
+        self.assertIn((243, 7, 15), policy._quest_strategy_cleared_targets[34])
+        self.assertNotEqual(policy.last_reason, "quest:blocked:fixed-target-not-visible")
+
+        # Control: the same boards without the defeat message stay uncleared.
+        silent = self.policy()
+        hit = self.board_from_opening("first_torch_hit", policy=silent)
+        silent._build_grid_index(hit)
+        silent._approved_quest_strategy_key(hit, hit.visible_monsters, [])
+        quiet = replace(killed, messages=tuple(
+            message for message in killed.messages if "を倒した" not in message))
+        silent._build_grid_index(quiet)
+        silent._approved_quest_strategy_key(quiet, [], [])
+        self.assertNotIn((243, 7, 15), silent._quest_strategy_cleared_targets.get(34, set()))
+
+    def board_from_opening(self, name, policy=None):
+        policy = policy or self.policy()
+        return parse_snapshot(
+            self.opening_rows["states"][name], policy._monrace_knowledge
+        )
 
 
 if __name__ == "__main__":

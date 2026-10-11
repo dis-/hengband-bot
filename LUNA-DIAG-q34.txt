@@ -1,0 +1,70 @@
+PLAN-STEP: 4 — Q34 opening diagnosis
+
+Baseline: branch q34-opening-1011, failing code at 27f32cbb. Line numbers below
+refer to that revision (the task branch's baseline).
+
+1. Lower-left opening door loop
+
+Exact predicate: in src/hengbot/policy_quest.py:2927-2955,
+`opening_complete` is true only when the player is within
+`supply_recovery_bounds` [5,2,11,18], or the known configured door at [11,2]
+is no longer closed. While false, the route moves to `opening_approach` [11,1];
+once there, a known closed door unconditionally returns `_step_toward(...door)`
+with reason `quest-strategy:open-opening-door` (line 2954). There is no
+predicate for failed lock-picking attempts or a bounded alternate action.
+
+Observed facts: the fixed-state captures identify floor `(dungeon_id=0,
+level=5, quest_id=34)`, with the player at [11,1], no visible monsters, and the
+known configured door [11,2] closed, not passable. The board has not entered
+the recovery rectangle: x=1 is outside its x=2..18 bounds. Decisions at turns
+75789 onward repeatedly send `o6`. Failed attempts report the exact messages `鍵をはずせなかった。` and `中断しました。` (failed to pick the lock; stopped). The first two captures trip
+loop detection after 40 decisions confined to [(6,1)..(11,1)]; the last 11
+decisions are `open-opening-door`. The outer cause is src/hengbot/cli.py:365-380
+and :627-653: this action is not a stationary-action exception, so same-cell
+lock-pick attempts remain eligible for the generic confined-cell stop even
+though each attempt consumes game time and can unlock the door. The later
+capture continues the same board: the door remains closed through turn 76557,
+then reports `鍵をはずした。` (picked the lock) at turn 76566, and the player steps through
+to [11,2] at turn 76579. Thus the door is openable but the cell-loop predicate
+misclassifies the progressing lock-pick actions. The route/profile values match
+the board; code never handled repeated attempts as a progressing opening.
+No earlier working behavior was found: commit d703c882 (“Route Q34 through the lower-left
+door”) introduced this configured route and the `opening-door` action, while
+its tests assert only the emitted `o6` command. The failure is an unhandled
+board case, not a demonstrated regression from an earlier working opening.
+
+2. Cloaker death / fixed target visibility stop
+
+Exact predicate: in src/hengbot/policy_quest.py:3057-3060,
+`fixed_target_cell_visible` first requires a known, currently observed cell.
+It accepts `cell.in_view`, but then explicitly returns false when
+`snapshot.player.melee_displayed_totals` is true (lines 3064-3066), before the
+Q34-specific lit-cell and clear orthogonal-ray checks at lines 3068-3095.
+At the approved stand, the target is considered cleared only if this predicate
+is true and `has_monster` is false (lines 3586-3595). Otherwise Q34 returns
+`quest:blocked:fixed-target-not-visible` (lines 3596-3599).
+
+Observed facts: the floor is again `(0,5,34)`. The cloaker (race 243) is at
+[7,15]; the approved stand is [7,13], with an open, straight eastward lane
+through [7,14]. At turns 76727 and 76737 the bot throws `vc6`. Both state rows
+report the exact hit message `松明(1500ターンの寿命) {@v0=g}がクローカーに命中した。` (the torch hit the cloaker); the second row also reports `クローカーを倒した。` (defeated the cloaker). At turn 76746 the
+player is still at [7,13], the visible-monster list is empty, [7,15] is known
+and currently observed, has no monster, is lit (`map_lighting=1`), and has
+`in_view=false`; the intervening [7,14] cell is also currently observed and
+lit. The character has radius-2 light and this is a protocol-3 board with
+`melee_displayed_totals=true`. The protocol-3 guard rejects the cell before
+evaluating the exact stand, lit radius-2 ray evidence that would establish
+visibility. This is why the bot emits a stop rather than record the confirmed
+kill and recover torches.
+
+The protocol-3 rejection was added with the fixed-target confirmation change
+in commit 4f722a15 (“Advance Q34 after confirmed fixed-target death”); it
+prevents accepting merged tile symbols without a line-of-sight check, but its
+blanket guard also rejects this captured, lit, observed orthogonal ray. The
+new behavior regressed this reviewed Q34 board's ability to confirm the kill.
+
+Relevant source locations at baseline: `policy_quest.py:2912-2955`
+(opening predicate/action), `cli.py:365-380,627-653` (stationary-action
+loop predicate), `policy_quest.py:3057-3095` (cell visibility predicate),
+`policy_quest.py:3540-3599` (survey and blocked decision),
+`strategy/quests/QUEST_34.jsonc:13-24` (door and approved throwing points).

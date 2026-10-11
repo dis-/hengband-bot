@@ -157,8 +157,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2385,
-    "end_line": 2387,
+    "line": 2390,
+    "end_line": 2392,
     "ast_sha256": "1b7575cccf71e0d0c91d2bc6ef83c0a25744fb1520b8beb173a77701a9ca141c"
   },
   "cli.py:_ExecutorInputPort.submit_operation": {
@@ -169,8 +169,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2389,
-    "end_line": 2470,
+    "line": 2394,
+    "end_line": 2475,
     "ast_sha256": "ab162296d394485f75ad08e5fe5222d6c9fb458d15918d5611292a1e8bf36216"
   },
   "cli.py:_consume_response_sequence": {
@@ -181,8 +181,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5514,
-    "end_line": 5560,
+    "line": 5519,
+    "end_line": 5565,
     "ast_sha256": "8ad521e691b3242916d3b44d9b1f71c72007fbed6534ef32d64f0986024b3e33"
   },
   "cli.py:_handle_owner_retirement": {
@@ -193,8 +193,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 517,
-    "end_line": 551,
+    "line": 522,
+    "end_line": 556,
     "ast_sha256": "25f539c0a9ca5713138f3c236ca3733b36e1971daef33af38099dbec9da668cd"
   },
   "cli.py:_release_prompt_gated_tail": {
@@ -205,8 +205,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2910,
-    "end_line": 2961,
+    "line": 2915,
+    "end_line": 2966,
     "ast_sha256": "abd2ca4f2487ba9647350421ffa33cc62c7aef72fa6bc8d8e884d8d58ca5954e"
   },
   "cli.py:_run_follow": {
@@ -217,8 +217,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4014,
-    "end_line": 5161,
+    "line": 4019,
+    "end_line": 5166,
     "ast_sha256": "292d445fdbdcbba9a0d6dff6922f2a318486c3ba233a9a2c9436e4f49a6329db"
   },
   "cli.py:_send_decision_key_with_prompt_chain": {
@@ -229,8 +229,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3095,
-    "end_line": 3161,
+    "line": 3100,
+    "end_line": 3166,
     "ast_sha256": "9dbe3be9f1c41847a04910e4a070a2520777481934aedbb90208740ba26be9d4"
   },
   "cli.py:_send_new_decision_key": {
@@ -241,8 +241,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2473,
-    "end_line": 2584,
+    "line": 2478,
+    "end_line": 2589,
     "ast_sha256": "7499b69aa3d820d71cc411917747e6da4d5230b6fc7813fa857c000c33d44df2"
   },
   "cli.py:_send_prompt_gated_decision_key": {
@@ -253,8 +253,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2964,
-    "end_line": 3092,
+    "line": 2969,
+    "end_line": 3097,
     "ast_sha256": "1f1c03c037d658326466889827d6d8d926c18c290404ad9e43dc9c00c335e551"
   },
   "cli.py:_send_stall_recovery_nudge": {
@@ -265,8 +265,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3284,
-    "end_line": 3291,
+    "line": 3289,
+    "end_line": 3296,
     "ast_sha256": "f5a8717f51209b9d43ecb8452f79b91d83dfbc314d1ad3ad391f226d1c3ed51c"
   },
   "cli.py:main": {
@@ -277,8 +277,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3620,
-    "end_line": 4011,
+    "line": 3625,
+    "end_line": 4016,
     "ast_sha256": "60fee8361401b60b3268b0f7d7b34e0c7d5cff1ab2c6f8563864470a195d53dc"
   },
   "cli.py:main.wm_post": {
@@ -289,8 +289,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3865,
-    "end_line": 3876,
+    "line": 3870,
+    "end_line": 3881,
     "ast_sha256": "0097d3c58c3a10de0d18d310213a9952f6a93ac304355914e9ab44d0ed8af4b4"
   },
   "control_client.py:ControlClient.post_keys": {
@@ -6724,8 +6724,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4924,
-    "end_line": 4945,
+    "line": 4922,
+    "end_line": 4943,
     "ast_sha256": "671034b91dfd970f166dfd09661d564b193d59b9dd610e9c236b837cdff98a32"
   },
   "policy_quest.py:QuestMixin._fixed_quest_building_key": {
@@ -6734,8 +6734,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4857,
-    "end_line": 4922,
+    "line": 4855,
+    "end_line": 4920,
     "ast_sha256": "d779dd6289e4b792fb341cc2f7311db8bd20b8c1ff26859cf6a2c1703a22deef"
   },
   "policy_quest.py:QuestMixin._fixed_quest_building_positions": {
@@ -6744,8 +6744,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4787,
-    "end_line": 4799,
+    "line": 4785,
+    "end_line": 4797,
     "ast_sha256": "e7fc9b5ff250f5c9762c5af55c741e564633ec206a244e9d63ea99e20e74798e"
   },
   "policy_quest.py:QuestMixin._fixed_quest_building_unavailable_candidate": {
@@ -6754,8 +6754,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4947,
-    "end_line": 4968,
+    "line": 4945,
+    "end_line": 4966,
     "ast_sha256": "15a5f712eb42804116920860c77fcf97b7e94c03ac948b14f026199c71ab5b0c"
   },
   "policy_quest.py:QuestMixin._fixed_quest_enter_key": {
@@ -6764,8 +6764,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4971,
-    "end_line": 5058,
+    "line": 4969,
+    "end_line": 5056,
     "ast_sha256": "28809bfb34269d90d57b580dd487fcca39559100be78d848cc043cce6c89c91a"
   },
   "policy_quest.py:QuestMixin._fixed_quest_enter_key.has_onward_route": {
@@ -6774,8 +6774,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5001,
-    "end_line": 5012,
+    "line": 4999,
+    "end_line": 5010,
     "ast_sha256": "7da8c5a98f040be08d3a219dded7bbc876dcab7099d93598d1d30dcac39af151"
   },
   "policy_quest.py:QuestMixin._fixed_quest_entrance_positions": {
@@ -6784,8 +6784,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4843,
-    "end_line": 4855,
+    "line": 4841,
+    "end_line": 4853,
     "ast_sha256": "4ff10559c07a0c6f2a500065a1474130f6f64a7957767c582847ece9261b4ad2"
   },
   "policy_quest.py:QuestMixin._fixed_quest_exit_key": {
@@ -6794,8 +6794,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5061,
-    "end_line": 5075,
+    "line": 5059,
+    "end_line": 5073,
     "ast_sha256": "3176f07c39d2f0b3aa2e34b1bba54a9a178adaa1dac61dc8ddfc95788380d322"
   },
   "policy_quest.py:QuestMixin._fixed_quest_head": {
@@ -6804,8 +6804,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4447,
-    "end_line": 4459,
+    "line": 4445,
+    "end_line": 4457,
     "ast_sha256": "fb5b79e2b525a7488bf9c8b53e19cf22a9eabc18dd095ccbc684d6f0a5fc8656"
   },
   "policy_quest.py:QuestMixin._fixed_quest_is_offered": {
@@ -6814,8 +6814,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4801,
-    "end_line": 4841,
+    "line": 4799,
+    "end_line": 4839,
     "ast_sha256": "4f47d67dc505ed9091b279cb82e3a087ffde7860a2e30770b74ba20761497ffa"
   },
   "policy_quest.py:QuestMixin._fixed_quest_key": {
@@ -6824,8 +6824,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3905,
-    "end_line": 4173,
+    "line": 3903,
+    "end_line": 4171,
     "ast_sha256": "02cf0b39cb83b5d7ffe71fad88f95e4af7ed0f356c6c1198c887a4cfdb1cc8a1"
   },
   "policy_quest.py:QuestMixin._fixed_quest_reward_key": {
@@ -6834,8 +6834,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5094,
-    "end_line": 5234,
+    "line": 5092,
+    "end_line": 5232,
     "ast_sha256": "0cf9bbf32733a8338048f4c8de87b287d1f47eae33e2da20a44bf73db884b5c4"
   },
   "policy_quest.py:QuestMixin._fixed_quest_reward_positions": {
@@ -6844,8 +6844,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5077,
-    "end_line": 5091,
+    "line": 5075,
+    "end_line": 5089,
     "ast_sha256": "2a5cf955b255fe4533e63ca4e2e496b1e046b57affbe6158dd6be26486aee32d"
   },
   "policy_quest.py:QuestMixin._fixed_quest_target": {
@@ -6854,8 +6854,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4414,
-    "end_line": 4445,
+    "line": 4412,
+    "end_line": 4443,
     "ast_sha256": "fd64fa2595156eb983f51fce1ce465f07ce506b9fdb59d255d2ecbb88f463e32"
   },
   "policy_quest.py:QuestMixin._fixed_quest_target.supported": {
@@ -6864,8 +6864,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4415,
-    "end_line": 4425,
+    "line": 4413,
+    "end_line": 4423,
     "ast_sha256": "986fdcfb185acfa3594fa8f9ef4622c3f54ba68b5dfd77f458cffe4fb12fee39"
   },
   "policy_quest.py:QuestMixin._kill_quest_descent_allowed": {
@@ -6874,8 +6874,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5707,
-    "end_line": 5710,
+    "line": 5705,
+    "end_line": 5708,
     "ast_sha256": "78f5b3099ac3538e99004a74129fcf1e0f4b0c49b162a37a045e28bff062cf31"
   },
   "policy_quest.py:QuestMixin._kill_quest_floor_recovery_key": {
@@ -6884,8 +6884,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5713,
-    "end_line": 5755,
+    "line": 5711,
+    "end_line": 5753,
     "ast_sha256": "4ba1873ed0e2a67c50540c570d5e640e209ee8887ddd9d3bc5edd356d4224b49"
   },
   "policy_quest.py:QuestMixin._morivant_full_identify_key": {
@@ -6928,8 +6928,8 @@
       "cross-town"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4217,
-    "end_line": 4224,
+    "line": 4215,
+    "end_line": 4222,
     "ast_sha256": "9e6b12b0643c536782503840bedd2cd19fa558045b70dddcd3caf84e1e9dc335"
   },
   "policy_quest.py:QuestMixin._prepare_return_3_candidate": {
@@ -6939,8 +6939,8 @@
       "cross-town"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4226,
-    "end_line": 4233,
+    "line": 4224,
+    "end_line": 4231,
     "ast_sha256": "ca2474cb9f62fe6523e0b7366301b0aba04c088ff33f48aac72799cfa7f4c957"
   },
   "policy_quest.py:QuestMixin._prepare_return_candidate": {
@@ -6950,8 +6950,8 @@
       "cross-town"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4244,
-    "end_line": 4301,
+    "line": 4242,
+    "end_line": 4299,
     "ast_sha256": "ad651607d6932969079b692856c9b2f25a9ccebe71f2faa4ac3ec6227fc089a1"
   },
   "policy_quest.py:QuestMixin._q2_breach_key": {
@@ -7040,8 +7040,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5684,
-    "end_line": 5705,
+    "line": 5682,
+    "end_line": 5703,
     "ast_sha256": "06cf7fcf0fab7c52bc82ff00c65e4d2614ee3b5b43b14663d9988baea67045a8"
   },
   "policy_quest.py:QuestMixin._quest_carry_purchase": {
@@ -7091,8 +7091,8 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "line": 2715,
-    "end_line": 3878,
-    "ast_sha256": "0c410374f29e4a52c9e9d59c9373425e90f512c31b90635b8f337500f976c3d3"
+    "end_line": 3876,
+    "ast_sha256": "cba4c2cb9bf890d3a4af24297ab8389058a54f920cba8a941f0a0c12b78e2bc3"
   },
   "policy_quest.py:QuestMixin._quest_final_target_position": {
     "classification": "data",
@@ -7160,8 +7160,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3880,
-    "end_line": 3902,
+    "line": 3878,
+    "end_line": 3900,
     "ast_sha256": "08c52e78096429bd1aebbfc860ba5a92f46b640adf0dc586522dc69476f97819"
   },
   "policy_quest.py:QuestMixin._quest_strategy_route_step": {
@@ -7200,8 +7200,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4235,
-    "end_line": 4237,
+    "line": 4233,
+    "end_line": 4235,
     "ast_sha256": "f9c77b5da07016dc11f0e0a2d15280cfbce7300907b1f61e3dbfe1d146fb147e"
   },
   "policy_quest.py:QuestMixin._retain_return_3_unavailable": {
@@ -7210,8 +7210,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4239,
-    "end_line": 4241,
+    "line": 4237,
+    "end_line": 4239,
     "ast_sha256": "9d9e949705766070e6d07aabd57c204698d97405ecd198e3045db67e733dc0a0"
   },
   "policy_quest.py:QuestMixin._uncached_fixed_quest_head": {
@@ -7220,8 +7220,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4461,
-    "end_line": 4507,
+    "line": 4459,
+    "end_line": 4505,
     "ast_sha256": "cc312f63f65e51bfe3dff7d86eedf1947ab5cc2619d75f26f97a35d6396f473f"
   },
   "policy_quest.py:QuestMixin._uncached_fixed_quest_head.supported": {
@@ -7230,8 +7230,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4464,
-    "end_line": 4465,
+    "line": 4462,
+    "end_line": 4463,
     "ast_sha256": "e24d5883bd27acbfad4a6164ee46e8aefb5d987e4835b5b71e1450d834bee683"
   },
   "policy_quest.py:QuestMixin._unique_combat_consumable": {
@@ -7240,8 +7240,8 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 5433,
-    "end_line": 5581,
+    "line": 5431,
+    "end_line": 5579,
     "ast_sha256": "2c1b86542e1205ca5bc7b6b7c64433beb987af812a4595d5f90af2b28bd50d47"
   },
   "policy_quest.py:QuestMixin._unique_fight_projection": {
@@ -7250,8 +7250,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5365,
-    "end_line": 5430,
+    "line": 5363,
+    "end_line": 5428,
     "ast_sha256": "99eae92126d04106ca7d4db0db6426dd4bd3c96c4591c4407afa099437b87916"
   },
   "policy_quest.py:QuestMixin._unique_sale_tag": {

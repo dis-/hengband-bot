@@ -371,6 +371,11 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
         "unseen:choke-wait",
+        # Repeated opens against the reviewed Q34 ordinary locked door are
+        # productive game actions: each lock-pick attempt advances the game
+        # even while the player stays at the approved approach cell. Counting
+        # them as a position loop stops the quest before the lock is picked.
+        "quest-strategy:open-opening-door",
         # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
         "summoner:hold-choke",
         "quest-strategy:hold",
@@ -613,6 +618,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
         "town:blocked:walk-in-entrance-unavailable": "the mining plan refuses recall, and this town has no entrance the walk can use",
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
+        "quest:blocked:q34-opening-door-locked": "the Q34 opening door stayed locked after the bounded lock-pick attempts",
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
