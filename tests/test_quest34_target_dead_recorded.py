@@ -169,9 +169,14 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         no_message = replace(killed, messages=tuple(
             message for message in killed.messages if "を倒した" not in message))
         self.assertGreater(no_message.player.exp, hit.player.exp)
+        # DECLARED CONSTRUCTED: the paralyzer ring the live run remembered for
+        # the cloaker (the direct strategy call does not run the threat scan).
+        gained._remembered_paralyzers[Position(7, 15)] = True
         gained._build_grid_index(no_message)
         gained._approved_quest_strategy_key(no_message, [], [])
         self.assertIn((243, 7, 15), gained._quest_strategy_cleared_targets[34])
+        # The confirmed kill releases the ring that blocked torch recovery.
+        self.assertNotIn(Position(7, 15), gained._remembered_paralyzers)
 
         # Control: no defeat message and no experience gain stay uncleared.
         # DECLARED CONSTRUCTED: experience held at the pre-throw value.

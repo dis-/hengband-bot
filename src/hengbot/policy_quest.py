@@ -3176,6 +3176,12 @@ class QuestMixin:
             profile.quest_id, set()
         )
         cleared_targets.update(newly_defeated_targets)
+        # A confirmed-dead fixed target no longer threatens its ring. The
+        # generic paralyzer memory clears only on an in_view empty cell, which
+        # the new protocol-3 boards never report (2026-10-12 Linux smoke: the
+        # dead cloaker's ring blocked torch recovery until loop-detected).
+        for _race, target_y, target_x in newly_defeated_targets:
+            self._remembered_paralyzers.pop(Position(target_y, target_x), None)
         recoverable_tvals = (
             {TVAL_LITE}
             if profile.quest_id == 34
@@ -3652,6 +3658,7 @@ class QuestMixin:
                         # kill after a checkpoint restore; a monster merely
                         # disappearing from the list does not.
                         cleared_targets.add(target_key)
+                        self._remembered_paralyzers.pop(target_position, None)
                         self._quest_strategy_pending_recovery[
                             profile.quest_id
                         ] = survey_plan
