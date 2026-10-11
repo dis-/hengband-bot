@@ -3074,12 +3074,24 @@ class QuestMixin:
             if any(verb in message for verb in FIXED_TARGET_DEFEAT_VERBS)
         )
 
+        throw_exp = self._quest_strategy_throw_exp.pop(profile.quest_id, None)
+
         def defeated_by_message(target) -> bool:
             name = target_names.get(target)
-            return bool(name) and any(
+            if bool(name) and any(
                 f"{name}{verb}" in message
                 for message in defeat_messages
                 for verb in FIXED_TARGET_DEFEAT_VERBS
+            ):
+                return True
+            # The defeat message can scroll past between boards (2026-10-12
+            # Linux smoke: only the level-up messages arrived). Experience
+            # gained right after a throw at this target, which then vanished,
+            # is the same visible evidence.
+            return (
+                throw_exp is not None
+                and throw_exp[0] == target
+                and snapshot.player.exp > throw_exp[1]
             )
         throwing_points = profile.engagement_plan.get("throwing_points", ())
 
@@ -3522,6 +3534,14 @@ class QuestMixin:
                     return self._step_toward(snapshot, step)
                 if torch is not None:
                     self.last_reason = "quest-strategy:throw-torch"
+                    # Remember the target and the experience shown before this
+                    # throw: a gain on the next board while the target vanishes
+                    # is player-visible proof of the kill.
+                    self._quest_strategy_throw_exp[profile.quest_id] = (
+                        (target_monster.race_id, target_monster.position.y,
+                         target_monster.position.x),
+                        snapshot.player.exp,
+                    )
                     return (
                         reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, target_monster.position))
                     )

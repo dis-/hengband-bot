@@ -155,13 +155,31 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
             restored._quest_strategy_pending_recovery[34]["target"], [7, 15]
         )
 
-        # Control: the same boards without the defeat message stay uncleared.
+        # The defeat message can scroll past (2026-10-12 Linux smoke: only the
+        # level-up lines arrived). Experience gained right after the throw at
+        # this target, which then vanished, also proves the kill.
+        gained = self.policy()
+        hit = self.board_from_opening("first_torch_hit", policy=gained)
+        gained._build_grid_index(hit)
+        self.assertEqual(
+            gained.last_reason if gained._approved_quest_strategy_key(
+                hit, hit.visible_monsters, []) else None,
+            "quest-strategy:throw-torch",
+        )
+        no_message = replace(killed, messages=tuple(
+            message for message in killed.messages if "を倒した" not in message))
+        self.assertGreater(no_message.player.exp, hit.player.exp)
+        gained._build_grid_index(no_message)
+        gained._approved_quest_strategy_key(no_message, [], [])
+        self.assertIn((243, 7, 15), gained._quest_strategy_cleared_targets[34])
+
+        # Control: no defeat message and no experience gain stay uncleared.
+        # DECLARED CONSTRUCTED: experience held at the pre-throw value.
         silent = self.policy()
         hit = self.board_from_opening("first_torch_hit", policy=silent)
         silent._build_grid_index(hit)
         silent._approved_quest_strategy_key(hit, hit.visible_monsters, [])
-        quiet = replace(killed, messages=tuple(
-            message for message in killed.messages if "を倒した" not in message))
+        quiet = replace(no_message, player=replace(no_message.player, exp=hit.player.exp))
         target = Position(7, 15)
         dark = replace(quiet, grids={
             **quiet.grids,
