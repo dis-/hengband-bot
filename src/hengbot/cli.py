@@ -618,8 +618,7 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
         "last_pair_before": retirement_data.get(
             "last_pair_before", arbiter_data.get("last_pair_before")
         ),
-        "last_pair_after": (retirement_data.get("last_pair_after")
-                             or getattr(arbiter, "_last_pair", None)),
+        "last_pair_after": retirement_data.get("last_pair_after"),
         "minimum_before": settlement.get("minimum_before"),
         "minimum_after": settlement.get("minimum_after"),
         "matched_effect_identity": settlement.get("matched_effect_identity", []),
@@ -2139,8 +2138,7 @@ def _write_decision(
                     "last_pair_before": retirement_data.get(
                         "last_pair_before", arbiter_data.get("last_pair_before")
                     ),
-                    "last_pair_after": (retirement_data.get("last_pair_after")
-                                         or getattr(arbiter, "_last_pair", None)),
+                    "last_pair_after": retirement_data.get("last_pair_after"),
                     "minimum_before": settlement.get("minimum_before"),
                     "minimum_after": settlement.get("minimum_after"),
                     "matched_effect_identity": settlement.get("matched_effect_identity", []),
