@@ -157,8 +157,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2510,
-    "end_line": 2512,
+    "line": 2502,
+    "end_line": 2504,
     "ast_sha256": "1b7575cccf71e0d0c91d2bc6ef83c0a25744fb1520b8beb173a77701a9ca141c"
   },
   "cli.py:_ExecutorInputPort.submit_operation": {
@@ -169,8 +169,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2514,
-    "end_line": 2595,
+    "line": 2506,
+    "end_line": 2587,
     "ast_sha256": "ab162296d394485f75ad08e5fe5222d6c9fb458d15918d5611292a1e8bf36216"
   },
   "cli.py:_consume_response_sequence": {
@@ -181,8 +181,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 5654,
-    "end_line": 5700,
+    "line": 5646,
+    "end_line": 5692,
     "ast_sha256": "8ad521e691b3242916d3b44d9b1f71c72007fbed6534ef32d64f0986024b3e33"
   },
   "cli.py:_handle_owner_retirement": {
@@ -205,8 +205,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3035,
-    "end_line": 3086,
+    "line": 3027,
+    "end_line": 3078,
     "ast_sha256": "abd2ca4f2487ba9647350421ffa33cc62c7aef72fa6bc8d8e884d8d58ca5954e"
   },
   "cli.py:_run_follow": {
@@ -217,8 +217,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4151,
-    "end_line": 5301,
+    "line": 4143,
+    "end_line": 5293,
     "ast_sha256": "a9127cabe36c1c87eb638f9aa9c0c07ce6d014a3e2b4be35311f73c91e355392"
   },
   "cli.py:_send_decision_key_with_prompt_chain": {
@@ -229,8 +229,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3220,
-    "end_line": 3286,
+    "line": 3212,
+    "end_line": 3278,
     "ast_sha256": "9dbe3be9f1c41847a04910e4a070a2520777481934aedbb90208740ba26be9d4"
   },
   "cli.py:_send_new_decision_key": {
@@ -241,8 +241,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 2598,
-    "end_line": 2709,
+    "line": 2590,
+    "end_line": 2701,
     "ast_sha256": "7499b69aa3d820d71cc411917747e6da4d5230b6fc7813fa857c000c33d44df2"
   },
   "cli.py:_send_prompt_gated_decision_key": {
@@ -253,8 +253,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3089,
-    "end_line": 3217,
+    "line": 3081,
+    "end_line": 3209,
     "ast_sha256": "1f1c03c037d658326466889827d6d8d926c18c290404ad9e43dc9c00c335e551"
   },
   "cli.py:_send_stall_recovery_nudge": {
@@ -265,8 +265,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3409,
-    "end_line": 3416,
+    "line": 3401,
+    "end_line": 3408,
     "ast_sha256": "f5a8717f51209b9d43ecb8452f79b91d83dfbc314d1ad3ad391f226d1c3ed51c"
   },
   "cli.py:main": {
@@ -277,8 +277,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3757,
-    "end_line": 4148,
+    "line": 3749,
+    "end_line": 4140,
     "ast_sha256": "60fee8361401b60b3268b0f7d7b34e0c7d5cff1ab2c6f8563864470a195d53dc"
   },
   "cli.py:main.wm_post": {
@@ -289,8 +289,8 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4002,
-    "end_line": 4013,
+    "line": 3994,
+    "end_line": 4005,
     "ast_sha256": "0097d3c58c3a10de0d18d310213a9952f6a93ac304355914e9ab44d0ed8af4b4"
   },
   "control_client.py:ControlClient.post_keys": {
@@ -9381,8 +9381,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1073,
-    "end_line": 1080,
+    "line": 1058,
+    "end_line": 1065,
     "ast_sha256": "1757717d7ab08bbccdc1783d1ef4abd1189bde616171b73453489eae069f37e5"
   },
   "town_arbiter.py:TownArbiterMixin._owner_may_select": {
@@ -9391,8 +9391,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1174,
-    "end_line": 1177,
+    "line": 1159,
+    "end_line": 1162,
     "ast_sha256": "d65f56fa32af69092b9fa582fc8aa62fcf6266de343de1380f0846390d4a354f"
   },
   "town_arbiter.py:TownArbiterMixin._owner_progress_core": {
@@ -9401,8 +9401,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1115,
-    "end_line": 1121,
+    "line": 1100,
+    "end_line": 1106,
     "ast_sha256": "b1be257e6cd7ddbc81c5b8ea18483669560283fb44cbd636cb291a497b5d350c"
   },
   "town_arbiter.py:TownArbiterMixin._progress_core_of": {
@@ -9411,8 +9411,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1123,
-    "end_line": 1150,
+    "line": 1108,
+    "end_line": 1135,
     "ast_sha256": "8ac450ff5d7beb9733cf218138581766283eb09cbd6995c407e8bcc07909d3c5"
   },
   "town_arbiter.py:TownTurnArbiter.__init__.registration": {
@@ -9451,8 +9451,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 691,
-    "end_line": 732,
+    "line": 676,
+    "end_line": 717,
     "ast_sha256": "7f93fbb9afe7baa167c9a436444cc094491579de46b00058aac76ecf98349875"
   },
   "town_arbiter.py:TownTurnArbiter.observe": {
@@ -9462,8 +9462,8 @@
     ],
     "delegation": "selected child; no independent success",
     "line": 463,
-    "end_line": 689,
-    "ast_sha256": "45365d8401e4c80060e68a58ff1b30cf0874c278202ea69e564a42f73bec75c0"
+    "end_line": 674,
+    "ast_sha256": "b490c4290dcad887ef30bebc2abc076a4e7b3c7c5efb34254a9bd3020b348264"
   },
   "town_arbiter.py:TownTurnArbiter.owner_for_reason": {
     "classification": "data",
@@ -9491,8 +9491,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 743,
-    "end_line": 764,
+    "line": 728,
+    "end_line": 749,
     "ast_sha256": "c74a38439127fa1db157ed63cfde58cbdd1808f217faffd290c6bf5ae48e9ffc"
   },
   "town_arbiter.py:reason_owner_family": {
@@ -9501,8 +9501,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 767,
-    "end_line": 780,
+    "line": 752,
+    "end_line": 765,
     "ast_sha256": "a266312e8ce493463739d5bd8a49717199fa924b28861fa36b3ddad3cce44599"
   },
   "town_maps.py:TownMap.building_position": {

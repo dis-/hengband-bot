@@ -586,7 +586,10 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
     progress_state = getattr(policy, "_owner_retired_progress", None) or {}
     settlement = progress_state.get("last_settlement") or {}
     arbiter_data = telemetry if isinstance(telemetry, dict) else {}
-    retirement_data = arbiter_data.get("retirement_diagnostic") or {}
+    retirement_data = getattr(arbiter, "_retirement_diagnostic", None) or {}
+    producer_owner = arbiter_data.get("producer_owner")
+    registration = (getattr(arbiter, "registry", {}).get(producer_owner)
+                    if producer_owner is not None else None)
     d0 = {
         "schema": 1,
         "process_session_id": _TOWN_IDLE_D0_SESSION_ID,
@@ -597,27 +600,20 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
                                or (work or {}).get("work_id")),
         "operation_producer": (work or {}).get("producer"),
         "own_unsuccessful_count": retirement_data.get(
-            "own_unsuccessful_count", arbiter_data.get("own_unsuccessful_count")
+            "own_unsuccessful_count",
+            getattr(arbiter, "_no_progress_by_owner", {}).get(producer_owner)
+            if producer_owner is not None else None,
         ),
         "own_unsuccessful_bound": retirement_data.get(
-            "own_unsuccessful_bound", arbiter_data.get("own_unsuccessful_bound")
+            "own_unsuccessful_bound",
+            registration.budget if registration is not None else None,
         ),
         "retirement_entry_points": retirement_data.get("entry_points", []),
-        "trigger_category": retirement_data.get(
-            "trigger_category", arbiter_data.get("trigger_category")
-        ),
-        "recurrence_key": retirement_data.get(
-            "recurrence_key", arbiter_data.get("recurrence_key")
-        ),
-        "recurrence_count": retirement_data.get(
-            "recurrence_count", arbiter_data.get("recurrence_count")
-        ),
-        "recurrence_limit": retirement_data.get(
-            "recurrence_limit", arbiter_data.get("recurrence_limit")
-        ),
-        "last_pair_before": retirement_data.get(
-            "last_pair_before", arbiter_data.get("last_pair_before")
-        ),
+        "trigger_category": retirement_data.get("trigger_category"),
+        "recurrence_key": retirement_data.get("recurrence_key"),
+        "recurrence_count": retirement_data.get("recurrence_count"),
+        "recurrence_limit": retirement_data.get("recurrence_limit"),
+        "last_pair_before": retirement_data.get("last_pair_before"),
         "last_pair_after": retirement_data.get("last_pair_after"),
         "minimum_before": settlement.get("minimum_before"),
         "minimum_after": settlement.get("minimum_after"),
@@ -2103,7 +2099,10 @@ def _write_decision(
                 arbiter = getattr(policy, "_town_turn_arbiter", None)
                 arbiter_data = getattr(arbiter, "telemetry", None)
                 arbiter_data = arbiter_data if isinstance(arbiter_data, dict) else {}
-                retirement_data = arbiter_data.get("retirement_diagnostic") or {}
+                retirement_data = getattr(arbiter, "_retirement_diagnostic", None) or {}
+                producer_owner = arbiter_data.get("producer_owner")
+                registration = (getattr(arbiter, "registry", {}).get(producer_owner)
+                                if producer_owner is not None else None)
                 work = current_record(policy, key)
                 progress_state = getattr(policy, "_owner_retired_progress", None) or {}
                 settlement = progress_state.get("last_settlement") or {}
@@ -2117,27 +2116,20 @@ def _write_decision(
                                            or (work or {}).get("work_id")),
                     "operation_producer": (work or {}).get("producer"),
                     "own_unsuccessful_count": retirement_data.get(
-                        "own_unsuccessful_count", arbiter_data.get("own_unsuccessful_count")
+                        "own_unsuccessful_count",
+                        getattr(arbiter, "_no_progress_by_owner", {}).get(producer_owner)
+                        if producer_owner is not None else None,
                     ),
                     "own_unsuccessful_bound": retirement_data.get(
-                        "own_unsuccessful_bound", arbiter_data.get("own_unsuccessful_bound")
+                        "own_unsuccessful_bound",
+                        registration.budget if registration is not None else None,
                     ),
                     "retirement_entry_points": retirement_data.get("entry_points", []),
-                    "trigger_category": retirement_data.get(
-                        "trigger_category", arbiter_data.get("trigger_category")
-                    ),
-                    "recurrence_key": retirement_data.get(
-                        "recurrence_key", arbiter_data.get("recurrence_key")
-                    ),
-                    "recurrence_count": retirement_data.get(
-                        "recurrence_count", arbiter_data.get("recurrence_count")
-                    ),
-                    "recurrence_limit": retirement_data.get(
-                        "recurrence_limit", arbiter_data.get("recurrence_limit")
-                    ),
-                    "last_pair_before": retirement_data.get(
-                        "last_pair_before", arbiter_data.get("last_pair_before")
-                    ),
+                    "trigger_category": retirement_data.get("trigger_category"),
+                    "recurrence_key": retirement_data.get("recurrence_key"),
+                    "recurrence_count": retirement_data.get("recurrence_count"),
+                    "recurrence_limit": retirement_data.get("recurrence_limit"),
+                    "last_pair_before": retirement_data.get("last_pair_before"),
                     "last_pair_after": retirement_data.get("last_pair_after"),
                     "minimum_before": settlement.get("minimum_before"),
                     "minimum_after": settlement.get("minimum_after"),

@@ -144,11 +144,18 @@ class RecordedRetirementTest(unittest.TestCase):
                     'trigger_category': 'recurrence',
                     'own_unsuccessful_count': recorded['arbiter']['tenure'],
                     'own_unsuccessful_bound': 8,
-                    'retirement_diagnostic': {
-                        'entry_points': ['policy.py:2994'],
-                        'last_pair_after': ['constructed-owner', ['constructed', index]],
-                    },
                 })
+                arbiter._retirement_diagnostic = {
+                    'entry_points': ['policy.py:2994'],
+                    'recurrence_key': arbiter.telemetry['recurrence_key'],
+                    'recurrence_count': index,
+                    'recurrence_limit': 2,
+                    'trigger_category': 'recurrence',
+                    'own_unsuccessful_count': recorded['arbiter']['tenure'],
+                    'own_unsuccessful_bound': 8,
+                    'last_pair_before': arbiter.telemetry['last_pair_before'],
+                    'last_pair_after': ['constructed-owner', ['constructed', index]],
+                }
                 arbiter._pending_retirements = set(recorded['retirement_owners'])
                 log = Path(root) / 'decisions.jsonl'
                 with patch('sys.stderr', io.StringIO()):
@@ -167,7 +174,7 @@ class RecordedRetirementTest(unittest.TestCase):
                 self.assertEqual(receipt['town_idle_d0']['last_pair_before'],
                                  arbiter.telemetry['last_pair_before'])
                 self.assertEqual(receipt['town_idle_d0']['last_pair_after'],
-                                 arbiter.telemetry['retirement_diagnostic']['last_pair_after'])
+                                 arbiter._retirement_diagnostic['last_pair_after'])
                 self.assertEqual(receipt['town_idle_d0']['operation_identity'],
                                  f'constructed-operation-{index}')
                 self.assertEqual(receipt['town_idle_d0']['visit_epoch'], 1000)

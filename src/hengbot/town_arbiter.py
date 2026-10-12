@@ -652,21 +652,6 @@ class TownTurnArbiter:
             "would_retire": would_retire,
             "retired": owner in self._retired,
             "retirement_set": sorted(self._retired),
-            "recurrence_key": {
-                "owner": recurrence_key[0],
-                "progress_vector": repr(recurrence_key[1]),
-            },
-            "recurrence_count": self._recurrences[recurrence_key],
-            "recurrence_limit": recurrence_limit,
-            "last_pair_before": ({
-                "owner": self._last_pair[0],
-                "progress_vector": repr(self._last_pair[1]),
-            } if getattr(self, "_last_pair", None) is not None else None),
-            "trigger_category": ("recurrence" if recurrence_exhausted else
-                                 "budget" if would_retire else None),
-            "own_unsuccessful_count": no_progress,
-            "own_unsuccessful_bound": registration.budget if registration else None,
-            "retirement_diagnostic": getattr(self, "_retirement_diagnostic", None),
         }
         if self._transfer_exhausted:
             transfer = self._last_transfer_pair
