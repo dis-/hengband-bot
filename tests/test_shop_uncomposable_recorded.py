@@ -165,6 +165,39 @@ class ShopUncomposableRecordedTest(unittest.TestCase):
         self.assertEqual(diagnostic["cause"], "selection-emission-mismatch")
         self.assertEqual(diagnostic["row"], blocker.letter)
 
+    def test_emitted_row_must_match_the_pure_ordinary_selection_and_key(self):
+        record = _records()[0]
+        for case in ("other-row", "other-quantity"):
+            with self.subTest(case=case):
+                policy, board = self._policy(record)
+                rows = {item.letter: item for item in board.store.items}
+                blocker = rows[record["departure_row"]]
+                ordinary = rows[record["ordinary_row"]]
+                required = SimpleNamespace(item=blocker, quantity=1)
+                # The stateful selector emits the recorded row n; the pure
+                # recomputation disagrees on the row or on the quantity.
+                pure_row = blocker if case == "other-row" else ordinary
+                pure_quantity = (record["ordinary_quantity"]
+                                 if case == "other-row"
+                                 else record["ordinary_quantity"] + 1)
+                with patch.object(
+                    policy, "_departure_blocking_page_purchase", return_value=required
+                ), patch.object(policy, "_departure_blocking_page_operation",
+                                return_value={"op": "buy", "purchase": required}), patch.object(
+                    policy, "_shop",
+                    return_value=f"p{ordinary.letter}{record['ordinary_quantity']}\r\r",
+                ), patch.object(policy, "_next_purchase", return_value=pure_row), patch.object(
+                    policy, "_purchase_quantity", return_value=pure_quantity
+                ):
+                    key = policy._in_store_entry_key(board)
+
+                self.assertEqual(key, "\x1b")
+                self.assertEqual(
+                    policy.last_reason,
+                    "town:blocked:shop-required-operation-uncomposable",
+                )
+                self.assertNotIn("emitted-buy-verified", policy._in_store_telemetry)
+
 
 if __name__ == "__main__":
     unittest.main()

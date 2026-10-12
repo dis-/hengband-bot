@@ -6414,8 +6414,8 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 778,
-    "end_line": 790,
+    "line": 789,
+    "end_line": 801,
     "ast_sha256": "6de40789aa6178fbc7c4cb94e7f0482aee141838882346b7b2243bad89f4db2d"
   },
   "policy_instore.py:InStoreMixin._in_store_commit_operation": {
@@ -6431,8 +6431,8 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 608,
-    "end_line": 671,
+    "line": 619,
+    "end_line": 682,
     "ast_sha256": "d692cb4f8253f3acdc576131967626f66c02df79d11f59a4bf47944ce7dee6d7"
   },
   "policy_instore.py:InStoreMixin._in_store_emit": {
@@ -6449,8 +6449,8 @@
     ],
     "delegation": "selected child; no independent success",
     "line": 522,
-    "end_line": 606,
-    "ast_sha256": "faf1c21c7db8030a37c90ae2fb620d4117dd4b2df3976ea5265d44f81f1c02e4"
+    "end_line": 617,
+    "ast_sha256": "946f8f753d0e2949a6c946f1aa678fe67032c32fe01e649d536e08911bcd8373"
   },
   "policy_instore.py:InStoreMixin._in_store_entry_key": {
     "classification": "adapter",
@@ -6475,8 +6475,8 @@
       "sale-address"
     ],
     "delegation": "supports selected child; no independent success",
-    "line": 718,
-    "end_line": 729,
+    "line": 729,
+    "end_line": 740,
     "ast_sha256": "4dd83737694adc0732efa96b9901dae5feef6e86e038c2306c43f02cdbd2f403"
   },
   "policy_instore.py:InStoreMixin._in_store_leave": {
@@ -6485,8 +6485,8 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 673,
-    "end_line": 699,
+    "line": 684,
+    "end_line": 710,
     "ast_sha256": "c2016f33e11c72024d57b786fcdd48d97e6a17c1247ccd517787e9b974857a0a"
   },
   "policy_instore.py:InStoreMixin._in_store_required_operation_stop": {
@@ -6533,8 +6533,8 @@
       "browse"
     ],
     "delegation": "supports selected child; no independent success",
-    "line": 793,
-    "end_line": 847,
+    "line": 804,
+    "end_line": 858,
     "ast_sha256": "45560dbb128b5864860177c20252099662df6be3c17db24c0b1389e502c4497a"
   },
   "policy_instore.py:_row_identity": {
