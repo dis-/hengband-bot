@@ -78,6 +78,7 @@ def plan_equipment_transactions(
     preserve_pack_item_ids: frozenset[str] = frozenset(),
     retain_item_identities: frozenset[str] = frozenset(),
     preserve_worn_light: bool = False,
+    home_deposit_available: bool = True,
 ) -> EquipmentTransactionPlan:
     """Build a batched, fail-closed Home/equipment transaction plan."""
     catalog = {item.id: item for item in items}
@@ -146,16 +147,17 @@ def plan_equipment_transactions(
         key=lambda item: item.id,
     )
     actions: list[EquipmentTransaction] = []
-    actions.extend(
-        EquipmentTransaction(
-            PHASE_HOME_PREPARE,
-            "deposit",
-            item.id,
-            item_identity=equipment_identity(item.item),
-            move_identity=equipment_move_identity(item.item),
+    if home_deposit_available:
+        actions.extend(
+            EquipmentTransaction(
+                PHASE_HOME_PREPARE,
+                "deposit",
+                item.id,
+                item_identity=equipment_identity(item.item),
+                move_identity=equipment_move_identity(item.item),
+            )
+            for item in prepare_deposits
         )
-        for item in prepare_deposits
-    )
     actions.extend(
         EquipmentTransaction(
             PHASE_HOME_PREPARE,
@@ -183,12 +185,10 @@ def plan_equipment_transactions(
     # ring repositioning, and deliberately empty target slots.
     peak_pack_items = (
         current_pack_items
-        - len(prepare_deposits)
+        - (len(prepare_deposits) if home_deposit_available else 0)
         + len(target_home)
         + len(takeoffs)
     )
-    if peak_pack_items > pack_capacity:
-        blockers.append(f"pack-space-required:{peak_pack_items - pack_capacity}")
     actions.extend(
         EquipmentTransaction(
             PHASE_EQUIP,
@@ -230,17 +230,144 @@ def plan_equipment_transactions(
         ),
         key=lambda item: item.id,
     )
-    actions.extend(
-        EquipmentTransaction(
-            PHASE_HOME_FINALIZE,
-            "deposit",
-            item.id,
-            item_identity=equipment_identity(item.item),
-            move_identity=equipment_move_identity(item.item),
+    if home_deposit_available:
+        actions.extend(
+            EquipmentTransaction(
+                PHASE_HOME_FINALIZE,
+                "deposit",
+                item.id,
+                item_identity=equipment_identity(item.item),
+                move_identity=equipment_move_identity(item.item),
+            )
+            for item in displaced
+            if equipment_identity(item.item) not in retain_item_identities
         )
-        for item in displaced
-        if equipment_identity(item.item) not in retain_item_identities
-    )
+    if peak_pack_items > pack_capacity:
+        # Keep the all-at-once plan above when it fits. Otherwise build one
+        # capacity-safe batch from complete slot changes; each rebuilt batch
+        # must include at least one observable slot change.
+        pack = current_pack_items
+        staged = []
+        for action in actions:
+            if action.phase == PHASE_HOME_PREPARE and action.kind == "deposit":
+                staged.append(action)
+                pack -= 1
+        original = {
+            (action.kind, action.target_slot or action.item_id): action
+            for action in actions
+        }
+        emitted = set(staged)
+        changed = sorted(
+            (
+                slot for slot in set(current_slots) | set(target_slots)
+                if current_slots.get(slot) is None
+                or target_slots.get(slot) is None
+                or current_slots[slot].id != target_slots[slot].id
+            ),
+            key=lambda slot: (_EQUIP_ORDER.get(slot, 1_000), slot),
+        )
+        completed_slots = set()
+        staged_peak = pack
+        minimum_shortfall = None
+        target_item_ids = {item.id for item in target_slots.values()}
+        finalize_deposits = {
+            action.item_id: action for action in actions
+            if action.phase == PHASE_HOME_FINALIZE
+            and action.item_identity not in retain_item_identities
+        }
+        for slot in changed:
+            if slot in completed_slots:
+                continue
+            target = target_slots.get(slot)
+            old = current_slots.get(slot)
+            withdrawal = None
+            if target is not None and target.origin == "home":
+                candidate = original.get(("withdraw", target.id))
+                if candidate is not None and candidate not in emitted:
+                    withdrawal = candidate
+            source_slot = current_positions.get(target.id) if target is not None else None
+            takeoff_items = []
+            if source_slot is not None and source_slot != slot:
+                takeoff_items.append((source_slot, current_slots[source_slot]))
+            if old is not None and (target is None or old.id != target.id):
+                takeoff_items.append((slot, old))
+            takeoff_items.sort(
+                key=lambda entry: (_EQUIP_ORDER.get(entry[0], 1_000), entry[1].id),
+                reverse=True,
+            )
+            takeoff_actions = []
+            for takeoff_slot, item in takeoff_items:
+                candidate = original.get(("takeoff", takeoff_slot))
+                if candidate is not None and candidate not in emitted:
+                    takeoff_actions.append((item, candidate))
+            equip_action = None
+            if target is not None and (old is None or old.id != target.id):
+                kind = "reposition" if target.id in current_positions else "equip"
+                candidate = original.get((kind, slot))
+                if candidate is not None and candidate not in emitted:
+                    equip_action = candidate
+
+            # Put displaced occupants Home as soon as possible. This avoids
+            # needing simultaneous slots for the replacement and old item.
+            group = []
+            remaining_takeoffs = []
+            for item, action in takeoff_actions:
+                deposit = finalize_deposits.get(item.id)
+                if (home_deposit_available and item.id not in target_item_ids
+                        and deposit is not None and deposit not in emitted):
+                    group.extend((action, deposit))
+                else:
+                    remaining_takeoffs.append(action)
+            if withdrawal is not None:
+                group.append(withdrawal)
+            group.extend(remaining_takeoffs)
+            if equip_action is not None:
+                group.append(equip_action)
+            if not group:
+                continue
+
+            next_pack = pack
+            group_peak = next_pack
+            feasible = True
+            for action in group:
+                if action.kind in {"withdraw", "takeoff"}:
+                    next_pack += 1
+                elif action.kind in {"equip", "reposition", "deposit"}:
+                    next_pack -= 1
+                group_peak = max(group_peak, next_pack)
+                if next_pack > pack_capacity or next_pack < 0:
+                    feasible = False
+            if not feasible:
+                shortfall = max(1, group_peak - pack_capacity, -next_pack)
+                minimum_shortfall = (shortfall if minimum_shortfall is None
+                                     else min(minimum_shortfall, shortfall))
+                continue
+
+            displaced_ids = {
+                item.id for takeoff_slot, item in takeoff_items
+                if target_slots.get(takeoff_slot) is None
+                or target_slots[takeoff_slot].id != item.id
+            }
+            for action in actions:
+                if (action.phase == PHASE_HOME_FINALIZE
+                        and action.item_id in displaced_ids
+                        and action.item_identity not in retain_item_identities
+                        and action not in emitted and action not in group
+                        and home_deposit_available):
+                    group.append(action)
+                    next_pack -= 1
+            staged.extend(group)
+            emitted.update(group)
+            pack = next_pack
+            staged_peak = max(staged_peak, group_peak)
+            completed_slots.add(slot)
+            if (target is not None and source_slot is not None
+                    and target_slots.get(source_slot) is None):
+                completed_slots.add(source_slot)
+
+        if any(action.kind in {"takeoff", "equip", "reposition"} for action in staged):
+            return EquipmentTransactionPlan(tuple(staged), tuple(blockers), staged_peak)
+        blockers.append(f"pack-space-required:{minimum_shortfall or 1}")
     return EquipmentTransactionPlan(
         tuple(actions), tuple(dict.fromkeys(blockers)), peak_pack_items
     )

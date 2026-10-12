@@ -808,6 +808,14 @@ class EquipmentMixin:
             and closure.get("epoch") == self._town_visit_epoch
             and not self._equipment_transaction_restoring
         ):
+            if closure.get("reason") == "pack-space-home-full":
+                preparation = self._equipment_optimization_preparation
+                if preparation is not None:
+                    self._offer_execution_no_step(
+                        producer="equipment-opt", work_id="equipment:visit-closed",
+                        cause="pack-space-home-full",
+                    )
+                    return preparation
             # The remaining Home work already failed a live feasibility check
             # this visit. Keep the record, but do not regenerate the same plan.
             self._equipment_optimization_telemetry["result_source"] = (
@@ -1239,6 +1247,7 @@ class EquipmentMixin:
                     current_pack_items=len(snapshot.inventory),
                     home_scan_complete=self._equipment_catalog.home_scan_complete,
                     preserve_pack_item_ids=preserve,
+                    home_deposit_available=not self._home_is_full(snapshot),
                     retain_item_identities=self._transaction_retain_identities(
                         snapshot,
                         preparation.current,
@@ -1454,6 +1463,7 @@ class EquipmentMixin:
                 current_pack_items=len(snapshot.inventory),
                 home_scan_complete=self._equipment_catalog.home_scan_complete,
                 preserve_pack_item_ids=preserve,
+                home_deposit_available=not self._home_is_full(snapshot),
                 retain_item_identities=self._transaction_retain_identities(
                     snapshot, preparation.current, loadout
                 ),
@@ -2804,6 +2814,54 @@ class EquipmentMixin:
         if optional_ready:
             self._stage_optional_equipment_failure_departure(snapshot, depth)
         ready = complete_now or optional_ready
+        closure = getattr(self, "_equipment_transaction_visit_closure", None)
+        if (
+            not ready
+            and premise
+            and preparation is not None
+            and self._home_is_full(snapshot)
+            and self._current_worn_loadout_confirmed(snapshot, preparation)
+            and preparation.blockers
+            and all(
+                blocker.startswith("pack-space-required:")
+                for blocker in preparation.blockers
+            )
+            and self._equipment_transaction_session is None
+        ):
+            loadout_id = ",".join(sorted(preparation.current.item_ids))
+            closure = {
+                "epoch": self._town_visit_epoch,
+                "reason": "pack-space-home-full",
+                "loadout_id": loadout_id,
+                "target_loadout_id": loadout_id,
+                "blockers": list(preparation.blockers),
+                "turn": snapshot.turn,
+            }
+            self._equipment_transaction_visit_closure = closure
+            self._equipment_optional_failure_pending = {
+                "reason": "pack-space-home-full-current-loadout",
+                "posted": False,
+                "depth": depth,
+                "item_ids": sorted(preparation.current.item_ids),
+                "failed_item_ids": [],
+            }
+            ready = True
+        elif (
+            not ready
+            and premise
+            and closure is not None
+            and closure.get("epoch") == self._town_visit_epoch
+            and closure.get("reason") == "pack-space-home-full"
+            and self._home_is_full(snapshot)
+            and ",".join(sorted(preparation.current.item_ids))
+            == closure.get("loadout_id")
+            and preparation.blockers
+            and all(
+                blocker.startswith("pack-space-required:")
+                for blocker in preparation.blockers
+            )
+        ):
+            ready = True
         if not ready and premise and preparation is not None:
             if (
                 preparation.blockers
@@ -2823,12 +2881,6 @@ class EquipmentMixin:
             elif (
                 "pending-random-teleport-suppression" in preparation.blockers
                 and not self._random_teleport_suppression_actionable(snapshot, preparation)
-            ):
-                ready = True
-            elif (
-                preparation.blockers
-                and all(blocker.startswith("pack-space-required:") for blocker in preparation.blockers)
-                and self._town_pack_space_ready(snapshot)
             ):
                 ready = True
             elif (

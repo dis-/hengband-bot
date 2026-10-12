@@ -98,7 +98,7 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
         self.assertEqual(plan.actions, ())
         self.assertEqual(dict(current.slots)["body"].id, armour.id)
 
-    def test_reports_pack_space_when_non_equipment_consumables_fill_pack(self):
+    def test_stages_target_items_when_the_all_at_once_prefix_would_overflow(self):
         targets = tuple(gear(f"target-{index}", "home", tval=45) for index in range(2))
         target = Loadout(
             (("main_ring", targets[0]), ("sub_ring", targets[1])), "empty"
@@ -107,7 +107,50 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
             targets, Loadout((), "empty"), target,
             current_pack_items=22, home_scan_complete=True,
         )
-        self.assertIn("pack-space-required:1", plan.blockers)
+        self.assertEqual(plan.blockers, ())
+        self.assertEqual(
+            [(action.kind, action.item_id) for action in plan.actions],
+            [
+                ("withdraw", "target-0"), ("equip", "target-0"),
+                ("withdraw", "target-1"), ("equip", "target-1"),
+            ],
+        )
+
+    def test_home_full_still_allows_a_fitting_staged_step(self):
+        old = gear("old", "equipped")
+        target = gear("home-target", "home")
+        plan = plan_equipment_transactions(
+            (old, target),
+            Loadout((("main_hand", old),), "one_handed"),
+            Loadout((("main_hand", target),), "one_handed"),
+            current_pack_items=21,
+            home_scan_complete=True,
+            home_deposit_available=False,
+        )
+
+        self.assertEqual(plan.blockers, ())
+        self.assertEqual(
+            [(action.kind, action.item_id) for action in plan.actions],
+            [("withdraw", "home-target"), ("takeoff", "old"),
+             ("equip", "home-target")],
+        )
+
+    def test_pack_blocker_remains_when_no_single_staged_step_fits(self):
+        old = gear("old", "equipped")
+        target = gear("home-target", "home")
+        plan = plan_equipment_transactions(
+            (old, target),
+            Loadout((("main_hand", old),), "one_handed"),
+            Loadout((("main_hand", target),), "one_handed"),
+            current_pack_items=23,
+            home_scan_complete=True,
+            home_deposit_available=False,
+        )
+
+        self.assertTrue(any(
+            blocker.startswith("pack-space-required:")
+            for blocker in plan.blockers
+        ))
 
     def test_cursed_changed_equipment_blocks_plan(self):
         cursed = gear("cursed", "equipped", cursed=True)

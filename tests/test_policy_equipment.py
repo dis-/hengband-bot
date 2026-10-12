@@ -374,7 +374,7 @@ class OverflowDisposalTest(unittest.TestCase):
 
         self.assertFalse(policy._town_pack_space_ready(snapshot))
 
-    def test_optimizer_pack_space_block_keeps_current_loadout_at_terminal_four(self):
+    def test_optimizer_stages_pack_space_limited_equipment_transaction(self):
         worn = [
             item("main_hand", TVAL_SWORD, 1, is_equipment=True),
             item("light", TVAL_LITE, SV_LITE_TORCH, is_equipment=True),
@@ -400,10 +400,15 @@ class OverflowDisposalTest(unittest.TestCase):
             current_pack_items=len(snapshot.inventory), home_scan_complete=True,
         )
         self.assertTrue(transaction.actions)
-        self.assertTrue(any(
+        # The old all-at-once plan stopped here despite five open pack slots.
+        # Step 3 now starts with one observed slot change and deposits its
+        # displaced item before continuing, so this is executable work.
+        self.assertFalse(any(
             blocker.startswith("pack-space-required:")
             for blocker in transaction.blockers
         ))
+        self.assertEqual(transaction.actions[0].kind, "takeoff")
+        self.assertEqual(transaction.actions[1].kind, "deposit")
         preparation = SimpleNamespace(
             blockers=transaction.blockers, ready=False, transaction=transaction,
             # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: focused optimizer unit supplies a collaborator result whose downstream handling is the subject
@@ -416,7 +421,7 @@ class OverflowDisposalTest(unittest.TestCase):
         ), patch.object(
             policy, "_town_pack_space_ready", return_value=True
         ):
-            self.assertTrue(policy._equipment_departure_ready(snapshot))
+            self.assertFalse(policy._equipment_departure_ready(snapshot))
 
         preparation.result = None
         policy = HengbotPolicy()
