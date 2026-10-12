@@ -484,7 +484,7 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
             if status == "done" and evidence and work_id in state["admitted"]:
                 tokens.add(("execution-effect", producer, work_id, evidence))
     productive = bool(tokens - state["effects"]) and not baseline
-    matched_effects = sorted(tokens - state["effects"], key=repr)
+    matched_effects = sorted(repr(token) for token in tokens - state["effects"])
     state["effects"].update(tokens)
     record = current_record(policy, key)
     minimum_before = None
