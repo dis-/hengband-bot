@@ -12840,6 +12840,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._first_item(snapshot, lambda it: it.is_oil and it.fuel > 0) is None:
             return None
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
+        # Do not replace a working light with an empty lantern just to refill
+        # it. The refill path runs after the worn light is exhausted; this
+        # keeps the optimizer and the refill owner from alternating slots.
+        if equipped is not None and (
+            self._is_usable_light(equipped)
+            or not equipped.known
+        ):
+            return None
         if equipped is not None and (
             equipped.sval > SV_LITE_LANTERN
             or (equipped.is_lantern and equipped.fuel > LANTERN_REFILL_FUEL)
