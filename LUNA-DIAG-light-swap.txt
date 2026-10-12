@@ -1,0 +1,114 @@
+﻿PLAN-STEP: 3 / ISSUE: #46 — Light swap diagnosis
+
+Evidence
+========
+The 23:12 autorecover decision capture contains 90 rows: 43 `restore-lantern`
+and 42 `equipment-transaction:equip` decisions. The sampled fixed-state boards
+alternate between the same two arrangements. At turn 514401 the equipped
+light is a Brass Lantern (`tval=39, sval=1, light_turns=0`), with a Wooden
+Torch (`tval=39, sval=0, light_turns=1866`) in inventory and five oil flasks
+(`tval=77`). At turn 514408 the torch is equipped and the empty lantern is in
+the pack. The sequence repeats through turn 514948. Player light radius
+alternates 2/1 accordingly. The decisions carry the same `wl` key, confirming
+that both decisions address the light slot.
+
+(a) Why a zero-turn lantern is restored
+---------------------------------------
+At `src/hengbot/policy.py:11464-11469`, before normal light selection,
+`_decide` calls `_empty_lantern_to_restore` and immediately returns an
+`_equipment_wield` command when it gets an item. The predicate at
+`src/hengbot/policy.py:12831-12864` requires no usable permanent light, at
+least one oil flask, and no currently equipped permanent light or lantern
+above `LANTERN_REFILL_FUEL`. It then explicitly returns an identified, not
+cursed/broken lantern with `fuel <= LANTERN_REFILL_FUEL`; zero qualifies. On
+the torch-equipped capture board, those conditions hold: no permanent light,
+oil in the pack, torch currently equipped, empty lantern carried. The helper
+does not require the lantern itself to be usable before it wields it; its
+purpose is to get it into the slot for a subsequent refill.
+
+This restoration behavior was introduced by commit `d6cd3975` (2026-07-24).
+The helper is reasonable in isolation; its interaction with the separately
+selecting equipment optimizer was never handled. The repeat alternation is a
+regression of having these two owners run sequentially without a common
+selection rule, rather than a failure to recognize that zero fuel is empty.
+
+(b) Why the equipment transaction equips the torch
+-------------------------------------------------
+`_equipment_wield` routes the chosen slot change into the equipment transaction
+owner. The capture's transaction execution at decision sequence 11139 names
+`phase='equip'`, `item_id='pack:441248f0e6daf1d7:0'`, `target_slot='light'`; the
+board at turn 514437 shows the torch in that slot and the lantern in inventory.
+The optimizer predicate `operational_equipment_candidate` at
+`src/hengbot/equipment_optimizer.py:251-261` excludes a known carried/equipped
+consumable light when `fuel <= 0`. `usable_light_candidate` at lines 869-875
+uses that predicate, so the empty lantern never enters loadout search. The
+usable, fueled torch does.
+
+The score at `src/hengbot/equipment_optimizer.py:299-308` ranks permanent
+lights 2, lanterns 1, and torches 0; `_better_loadout` compares that rank only
+when combat metrics are identical (`:1008-1015`). Thus a usable lantern beats
+a torch on a complete combat tie; otherwise combat score can take precedence.
+In this capture the optimizer is not comparing the empty lantern to the torch
+at all. Its chosen torch reflects that omission plus its permitted loadout,
+not a higher torch light score. This optimizer behavior is a pre-existing
+selection policy (light quality ranking was added in `56ac155d`); the case of
+an empty-but-refillable lantern versus torch was never represented.
+
+(c) Why the two owners never converge
+-------------------------------------
+The survival restore selector sees that the lantern is empty, oil exists, and
+the equipped torch is not a lantern or permanent light; it does not ask whether
+the optimizer can retain that lantern in a usable loadout. The equipment
+transaction selector sees current owned equipment and operational fuel, but
+excludes the zero-fuel lantern before scoring and does not know that the
+survival selector intends to refill it. Each therefore acts on a different
+state: survival sees *refillable carried item + oil*, while equipment sees
+*usable candidates only*. Each action makes the other condition true again.
+The unconditional early return for restore at `policy.py:11464-11469` also
+prevents the later `_light_refill_item` path (`:11491-11494`) from running.
+This is the unhandled conflict described in (a), introduced when independent
+light-selection owners were combined.
+
+(d) Why the lantern remains empty despite oil; the `lit` observation
+--------------------------------------------------------------------
+For an identified equipped lantern, `_light_refill_item` at
+`src/hengbot/policy_supply.py:153-156` returns carried oil whenever fuel is at
+or below `LANTERN_REFILL_FUEL`. The capture's lantern is known with zero fuel
+and the pack contains oil, so this predicate would supply a refill command if
+reached. But while the torch is equipped, the earlier restore branch returns
+at `policy.py:11464-11469`; after the restore's transaction equips the torch,
+the next decision again takes that same branch. Thus refill is starved by
+control-flow ordering, not by a lack of oil or by the known-lantern predicate.
+
+For an *unknown* equipped lantern, `_light_refill_item` instead tests the
+player grid's `lit` flag at `policy_supply.py:139-152`. The live protocol's
+`GridState.lit` is always false, so that branch cannot observe an unknown
+lantern still burning and may treat it as empty. This observation defect was
+never corrected in this path; it does not explain this capture's known,
+identified zero-turn lantern, but it is why that fallback is not a reliable
+fuel signal.
+
+(e) Torch-over-lantern report and regression classification
+------------------------------------------------------------
+Issue #46's reported torch choice has two possible observed forms. For the
+capture loop, the optimizer selects the torch because the empty lantern is
+excluded from candidates, while the restore selector puts it back before
+refilling; this is the unhandled ownership conflict above. For an optimizer
+comparison where both lights are usable, `light_source_quality` prefers a
+lantern only on equal combat metrics; greater modeled offense/defense may still
+select the torch. The 2026-10-03 report that an inferior light was equipped is
+a case the existing score never fully handled: the quality score is a tie
+breaker, rather than a consistent radius/remaining-turns decision. No specific
+commit changed the quality score to prefer torch over lantern; the described
+inferior-light case was never handled by the optimizer's score contract.
+
+Attribution summary
+-------------------
+* `d6cd3975`: introduced restore-empty-lantern behavior; the interaction with
+  the equipment transaction owner and the refill step was never handled.
+* `56ac155d`: introduced the optimizer's permanent/lantern/torch tie-break;
+  remaining-fuel/refillability and light preference ahead of combat ties were
+  never handled.
+* `fd660d96`: introduced unknown-lantern refill based on grid `lit`; the
+  protocol's always-false `lit` observation was never handled here.
+

@@ -1010,6 +1010,59 @@ class ShoppingTest(unittest.TestCase):
 
         self.assertEqual(HengbotPolicy()._light_to_wield(snap).slot, "f")
 
+    def test_capture_does_not_restore_empty_lantern_over_working_torch(self):
+        fixture = Path(__file__).parent / "fixtures" / "light-swap-20261012.json.gz"
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            boards = json.load(stream)
+
+        # DECLARED CONSTRUCTED: build minimal domain snapshots from the two
+        # captured boards; the item values themselves come from the fixture.
+        snapshots = []
+        for board in boards:
+            snapshots.append(Snapshot(
+                player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+                inventory=[
+                    InventoryItem(
+                        slot=raw["slot"], name=raw.get("name", "captured item"),
+                        count=raw.get("count", 1), tval=raw["tval"],
+                        sval=raw["sval"], aware=raw.get("known", True),
+                        known=raw.get("known", True),
+                        fuel=(5000 if raw["tval"] == TVAL_FLASK
+                              else raw.get("light_turns", 0)),
+                        is_equipment=raw["tval"] == TVAL_LITE,
+                    )
+                    for raw in board["inventory"]
+                ],
+                equipment=[
+                    InventoryItem(
+                        slot=raw["slot"], name=raw.get("name", "captured item"),
+                        count=raw.get("count", 1), tval=raw["tval"],
+                        sval=raw["sval"], aware=raw.get("known", True),
+                        known=raw.get("known", True),
+                        fuel=(5000 if raw["tval"] == TVAL_FLASK
+                              else raw.get("light_turns", 0)),
+                        is_equipment=raw["tval"] == TVAL_LITE,
+                    )
+                    for raw in board["equipment"]
+                ],
+            ))
+
+        policy = HengbotPolicy()
+        torch_worn = snapshots[1]
+        self.assertEqual(torch_worn.equipment[0].sval, SV_LITE_TORCH)
+        self.assertGreater(torch_worn.equipment[0].fuel, 0)
+        self.assertIsNone(policy._empty_lantern_to_restore(torch_worn))
+        self.assertIsNone(policy._light_refill_item(torch_worn))
+
+        # On the captured lantern-worn board, the known empty lantern and
+        # carried oil reach the ordinary refill predicate.
+        lantern_worn = snapshots[0]
+        self.assertEqual(lantern_worn.equipment[0].sval, SV_LITE_LANTERN)
+        self.assertEqual(lantern_worn.equipment[0].fuel, 0)
+        self.assertIs(
+            policy._light_refill_item(lantern_worn), lantern_worn.inventory[-1]
+        )
+
     def test_home_owned_permanent_light_makes_all_pack_oil_depositable(self):
         oil = item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500)
         feanorian = store_item(
@@ -1482,7 +1535,7 @@ class WieldLightTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "wb")
         self.assertEqual(pol.last_reason, "wield-light")
 
-    def test_restores_empty_pack_lantern_after_oil_is_acquired(self):
+    def test_keeps_working_torch_until_pack_lantern_can_be_refilled(self):
         grids = {Position(10, 10): grid(10, 10)}
         torch = item(
             "light", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=640
@@ -1509,8 +1562,10 @@ class WieldLightTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
 
-        self.assertEqual(pol.choose_key(town), "wo")
-        self.assertEqual(pol.last_reason, "restore-lantern")
+        # Changed by Issue #46: a fueled torch remains the selected light;
+        # do not replace it with an empty lantern just to refill the lantern.
+        self.assertNotEqual(pol.choose_key(town), "wo")
+        self.assertNotEqual(pol.last_reason, "restore-lantern")
 
         lantern_equipped = replace(
             town,

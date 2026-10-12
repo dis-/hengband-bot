@@ -1,0 +1,82 @@
+﻿PLAN-STEP: 3 / ISSUE: #46 — Light swap report
+
+Diagnosis
+=========
+See `LUNA-DIAG-light-swap.txt` for the capture facts, base-revision predicate
+locations, and commit attribution. In short, the survival path repeatedly
+wielded a carried zero-turn lantern because oil was present; the equipment
+optimizer then excluded that lantern as non-operational and chose the fueled
+torch. The restore branch returned before the refill branch could oil the
+lantern. The live capture records 43 restore decisions and 42 torch equip
+decisions, alternating with player light radius 2/1. The capture boards show
+five oil flasks, an empty known lantern, and a torch with 1,866 turns remaining.
+
+`_light_refill_item` correctly offers oil for a known equipped lantern at zero
+fuel. Its unknown-lantern fallback relies on `GridState.lit`, which is always
+false in the live protocol, so that branch cannot distinguish a burning
+unknown lantern. This did not explain the captured board, whose lantern was
+known and empty; the refill action was starved by the earlier restore return.
+The optimizer's pre-existing score prefers lantern over torch (quality 1 vs
+0) only when combat metrics are equal; it excludes the known empty lantern
+before evaluating loadouts. The missing case was refillability and the
+conflicting owners, not a score that ranks a torch above a lantern in an
+otherwise equal operational comparison.
+
+Change
+======
+`_empty_lantern_to_restore` now returns no lantern while the equipped light is
+usable or unidentified. This preserves the current working light and leaves
+light selection to the equipment optimizer while it has a usable candidate.
+Once that light is exhausted, the existing recovery sequence can equip the
+empty lantern and `_light_refill_item` can refill it. The existing light rank
+and optimizer tie-break both order permanent light > lantern > torch. The
+optimizer then keeps the refilled lantern on equal combat scores. An exhausted
+light allows at most one empty-lantern restoration followed by one refill;
+with a usable worn light, the restoration count is zero, so the captured
+alternation cannot recur. The existing Quest 34 throwing-torch reservation
+code was not changed.
+
+One existing assertion was updated: `test_restores_empty_pack_lantern_after_oil_is_acquired`
+expected the bot to replace a fueled torch with an empty lantern. That test's
+torch had 640 turns remaining, so the expectation directly contradicted the
+requested rule. Its replacement asserts that the torch is kept and retains the
+separate check that an equipped empty lantern is refilled from carried oil.
+
+Capture pin and revert check
+===========================
+Fixture: `tests/fixtures/light-swap-20261012.json.gz` (285 bytes compressed),
+containing only the two light-slot boards and relevant torch, lantern, and oil
+fields from turns 514401 and 514408.
+
+* Base predicate on 32f93f9c: FAIL. With the new guard temporarily removed,
+  `test_capture_does_not_restore_empty_lantern_over_working_torch` failed at
+  its torch-worn board assertion because `_empty_lantern_to_restore` returned
+the zero-turn lantern.
+* After the guard: PASS. The same pin asserts no restore over the 1,866-turn
+torch and confirms `_light_refill_item` offers the carried oil on the captured
+empty-lantern board.
+* Reverting the new usable/unknown-equipped-light predicate alone reproduces
+the pin failure. It is the only new production predicate in this change.
+* The existing torch-to-lantern upgrade test also passes.
+
+Final verification
+==================
+Command:
+`PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --timings jsonlog/test-parallel-timings.json --modules tests.test_absorbing_states tests.test_policy_home tests.test_policy_shop tests.test_policy_supply tests.test_policy_town tests.test_runtime_file_isolation tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_test_fakery_lint tests.test_town_arbiter tests.test_cli tests.test_quest34_target_dead_recorded`
+
+Runner output:
+* worker-1: 542 tests, 1303.091s, exit 0
+* worker-2: 955 tests, 1384.197s, exit 0
+* worker-3: 247 tests, 421.094s, exit 0
+* Failures: none
+* Errors: none
+* Total: 1744 tests, 1384.236s
+
+Timing comparison:
+`[timings] base C:\hengband-backups\suite-batches\32f93f9c new jsonlog\test-parallel-timings.json: 0 tests slower than 1.5x and +10s`
+
+The town work manifest and generated site index were regenerated with
+`PYTHONPATH=src python scripts/town_work_manifest.py --write` after the source
+predicate changed their AST digest.
+
+Commit: `c5ae7389 Stop empty lantern light-slot alternation`
