@@ -1,0 +1,65 @@
+PLAN-STEP: 1.5 - report
+
+Diagnosis
+
+- The behavior was present and unhandled at baseline 35fcd16f. Commit 218c95e9
+  introduced only the task file.
+- A: capture decisions 749-758 show Home deposit `di`, then the Home identification
+  owner exits, followed by route-unavailable / abandon-blocked alternation and the
+  existing repeated-route terminal. The board assigns slot i while the captured
+  game response accepts only a-h. The deposit serializer uses the observed target
+  slot without validating the game's selectable pack-address range. Once the next
+  Home observation cannot find the planned target, the `target is None` branch
+  records `deposit-missing`. See LUNA-DIAG-eqtxn-reserved.txt for predicates,
+  board facts, and source references.
+- B: capture decisions 7-13 show travel-home, `retain-reserved`, then the same
+  alternation. The captured plan's remaining torch deposits conflict with the
+  live `carry-strategy:lit_torch` reservation; the conflict row names
+  f53f3657deb1e21d and `in_keep_set=true`.
+- The visit-local closure was missing: route failure retired an attempt and let
+  optimization search again. A generic route failure remains eligible for the
+  existing repeated-route terminal.
+
+Changes
+
+- A missing planned Home deposit now abandons the optional transaction once and
+  records a visit closure before leaving Home.
+- A currently reserved deposit does the same. The record contains the town epoch,
+  reason, loadout ID, item identity, and observed turn.
+- `_prepare_equipment_optimization` suppresses replanning for the closed epoch.
+  It still allows a separately reconstructed restoration session; town entry/exit
+  observation resets the marker for the next visit.
+- Added capture pins with only the needed decision rows in
+  tests/fixtures/eqtxn-reserved-20261012.json.gz. No new helper function was
+  introduced. Registered the new state in scripts/item_intent_baseline.json and
+  regenerated scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json.
+
+Pins and revert checks
+
+- Before fix: captured A ends in `equipment-transaction:home-route-repeat-terminal`;
+  captured B ends in the same terminal after repeated reservation refusal.
+- After fix: both added pins pass. Their constructed continuations assert one
+  deposit-missing or retain-reserved closure, no replacement transaction in the
+  same town epoch, and reset on the next epoch.
+- Revert check for the reserved predicate: removing only the retain-reserved
+  closure made `test_eqtxn_reserved_capture_pins_close_unexecutable_home_work_once`
+  fail at its closure assertion; restoring it made the pin pass.
+- Revert check for the missing-target predicate: removing only the deposit-missing
+  abandonment/closure made `test_eqtxn_missing_deposit_is_visit_bounded` fail at
+  its closure assertion; restoring it made the pin pass.
+- The pin assertions also fail against the pre-fix behavior because neither branch
+  creates a visit closure.
+
+Required lint and final verification
+
+- `PYTHONPATH=src python -m unittest tests.test_item_sink_lint` - PASS, 18 tests.
+- `PYTHONPATH=src python -m unittest tests.test_town_structure_lint` - PASS, 19 tests.
+- `PYTHONPATH=src;tests python -m unittest test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_eqtxn_missing_deposit_is_visit_bounded test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_eqtxn_reserved_capture_pins_close_unexecutable_home_work_once` - PASS, 2 tests.
+- `python C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\eqtxn-reserved 35fcd16f HEAD` - 22 modules.
+- Final run command (PowerShell): `$env:PYTHONPATH='src'; python scripts/test_parallel_runner.py --workers 2 --modules tests.test_ability_sources_incident tests.test_absorbing_states tests.test_crossarea_live2 tests.test_declarations_r3b tests.test_declarations_r7 tests.test_equipment_home_full_incident_recorded tests.test_equipment_homefull_step15a tests.test_equipment_swap_loop_incident tests.test_home_light_alternation tests.test_homeexit_recorded tests.test_loot_triage tests.test_policy_equipment tests.test_policy_home tests.test_policy_observation tests.test_policy_quest tests.test_policy_shop tests.test_policy_supply tests.test_policy_town tests.test_pure_decision_telemetry tests.test_runtime_file_isolation tests.test_s33_batch_reconciliation tests.test_warrior_optimization tests.test_home_equipment_disposal tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_test_fakery_lint tests.test_town_arbiter tests.test_cli tests.test_quest34_target_dead_recorded` - PASS, 2,521 tests; worker-1 1,025 tests / 1,633.685s, worker-2 1,249 tests / 2,354.598s, worker-3 247 tests / 414.771s; zero failures, zero errors; total 2,354.638s. The runner reported timing weights unavailable and used fallback weights for 31/31 modules.
+- `python C:\hengband-backups\guard-tools\compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\35fcd16f` - PASS: 0 tests slower than 1.5x and +10s.
+
+Commit
+
+- Implementation and pins committed on `eqtxn-reserved-1012` as ccd4984d before
+  the final runner. This report is added to that commit after verification.

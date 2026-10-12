@@ -1,0 +1,61 @@
+PLAN-STEP: 1.5
+Task: diagnose and fix one live town stop (owner decision 2026-10-12: "次に同じ場面が出たら直す" - it recurred at
+once). Branch eqtxn-reserved-1012 at main 35fcd16f. Fix this scene only; do not widen the scope.
+
+Live evidence (captures-eqtxn/, not tracked; each capture has bot-decisions / bot-state-fixed / stdout):
+Fresh quick-start character (Level 7 Zombie Warrior, Outpost), main 35fcd16f, 2026-10-12.
+A. 18:00:54-18:01:05 and twice more until the 18:02:37 escalation:
+   town:restore-combat-weapon 'wja' -> equipment-transaction:travel-home -> (in Home, store_type 7)
+   equipment-transaction:deposit 'di' (game message "...を持っていない。": the pack has letters a-h only) ->
+   home:identify-staff-reserve-unavailable ESC (leaves Home) ->
+   town:entrance-step-off:equipment-transaction:home-route-unavailable -> equipment-transaction:abandon-blocked <->
+   equipment-transaction:home-route-unavailable -> equipment-transaction:home-route-repeat-terminal (final stop).
+B. 18:06:13-18:07:33 after the operator wielded the Brass Lantern by hand: shop buys 3 torches ->
+   equipment-transaction:travel-home (claim expectation: three home_prepare deposits of pack torches, identities
+   5e6e3382b7319e8c and f53f3657deb1e21d x2) -> (in Home) equipment-transaction:retain-reserved ESC (leaves without
+   depositing) -> the same home-route-unavailable <-> abandon-blocked alternation -> home-route-repeat-terminal x3
+   -> escalation.
+The character carries torches inscribed {@v0=g} (quest/throwing reserve), an Identify staff (20 charges), a Brass
+Lantern. Code: policy_equipment.py ~1634-1649, ~1821-1844, ~2110, ~2266 (retain-reserved), ~2541
+(home-route-unavailable); policy.py ~8484; the retention reservation (policy_home.py _retention_reservation*).
+
+Owner decisions that apply (do not narrow them):
+- 2026-10-09 sale-no-preempt: 装備の売却は入れ替えに割り込まない・満杯で入れ替え失敗なら今の装備で出発＋記録.
+- 2026-10-03: 入れ替え失敗は今の装備で出発＋記録 (a failed equipment swap must not block departure).
+- Ownership contract: town errands have equal rank; a defect stop stays visible; no silent waiting or wandering.
+
+Do:
+1. LUNA-DIAG-eqtxn-reserved.txt first: for A and B, the exact predicates with file:line and the board facts from the
+   captures - why the transaction plans a deposit of an item the retention reservation keeps (B), why 'di' targets
+   a letter that is not in the pack (A), why the Home route is "unavailable" after the transaction itself left
+   Home, and why abandon-blocked does not end the transaction. Say whether this regressed (commit) or was never
+   handled.
+2. Fix so that this scene ends with the character leaving town with its current equipment and a record, without
+   the alternation and without a final stop: a transaction whose remaining Home steps are all retained/reserved or
+   impossible completes or is abandoned ONCE for this town visit (bounded, recorded), and is not re-planned in the
+   same visit. Keep the final stop for a genuinely unbounded repeat.
+3. Pins from the captures (fail on 35fcd16f, pass after; revert each new predicate alone -> its pin fails).
+   Constructed parts carry DECLARED CONSTRUCTED comments. Copy only the needed rows into tests/fixtures (small gzip).
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. No game/bot control (the live game is running
+  with a held bot), no push, no merge, no git reset --hard. Commit on this branch.
+- "Existing tests" = tests at 35fcd16f; tests you add may be edited freely. A failing existing test is a regression
+  unless the change is the decided behaviour above; give the reason in the test and the report.
+- New helper functions: add scripts/town_producer_baseline.json ("pure helper: ...") and
+  scripts/town_work_review.json entries (append, keep the file's key order and formatting: json.dumps
+  ensure_ascii=False indent=2 + trailing newline, no sorting) and regenerate the manifest
+  (PYTHONPATH=src python scripts/town_work_manifest.py --write); run tests.test_item_sink_lint and
+  tests.test_town_structure_lint. New attributes need restore defaults; new reasons that are final stops need
+  POLICY_FINAL_STOP_REASONS + cli banner; reason-setting sites need claims or ownership_claim_exceptions entries.
+- Final run ONLY with scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src), never a serial unittest run of
+  many modules: affected_tests.py (C:\hengband-backups\guard-tools\affected_tests.py
+  C:\hengband\bot-client\.worktrees\eqtxn-reserved 35fcd16f HEAD) plus tests.test_equipment_homefull_step15a
+  tests.test_home_equipment_disposal and the hygiene set (tests.test_ownership_s2b1_ladder
+  tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract
+  tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_test_fakery_lint
+  tests.test_town_arbiter tests.test_cli tests.test_quest34_target_dead_recorded), within 60 minutes; then
+  compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\35fcd16f
+  (0 slower tests).
+- Token budget 300k, wall time 120 minutes. Write LUNA-REPORT-eqtxn-reserved.txt (diagnosis summary, changes, pins
+  before/after, revert checks, final run lines, compare_timings output).

@@ -24,6 +24,7 @@ class ObservationMixin:
             self._overweight_surplus_disposal = None
             self._home_store_block_owner = None
             self._town_visit_epoch = None
+            self._equipment_transaction_visit_closure = None
             self.settle_home_knowledge_request()
         elif self._town_visit_epoch is None:
             self._home_store_block_owner = None
@@ -34,6 +35,7 @@ class ObservationMixin:
                 ledger = json.loads(path.read_text(encoding="utf8"))
                 ledger["sold"] = [tuple(signature) for signature in ledger.get("sold", [])]
             self._town_visit_epoch = ledger.get("epoch") or turn
+            self._equipment_transaction_visit_closure = None
             self._overweight_surplus_ledger = {
                 "epoch": self._town_visit_epoch, "sold": ledger.get("sold", [])}
             pending = ledger.get("pending")

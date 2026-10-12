@@ -2428,6 +2428,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             str, str, object
         ] | None = None
         self._equipment_transaction_route_terminal_pending = False
+        # A Home transaction whose remaining work is known to be retained or
+        # impossible is closed for this physical town visit. Keep its evidence
+        # with the no-replan latch.
+        self._equipment_transaction_visit_closure: dict[str, object] | None = None
         self._equipment_transaction_route_terminal: str | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         # A structurally actionless failed transaction may retire for the
