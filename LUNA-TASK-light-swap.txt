@@ -1,0 +1,51 @@
+PLAN-STEP: 3
+ISSUE: #46
+Task A (owner decision 2026-10-13, plan step 3): diagnose and fix the light-source alternation and the
+torch-over-lantern choice. Branch light-swap-1013 at main 32f93f9c. This scene only; do not widen the scope.
+
+Live evidence (captures-light/, not tracked), low-level character (Zombie Warrior, Level ~15-18), main 32f93f9c:
+- 2026-10-12 22:12:19 - 23:12:34, in town, about 1,400 decisions (one hour): `restore-lantern` (key 'wl', game
+  message "真鍮のランタン(0ターンの寿命)(g)を光源にした。") alternates with `equipment-transaction:equip` (key 'wl',
+  message "松明(2459ターンの寿命) {明}(g)を光源にした。"), every 2-3 seconds, until the owner-retired burst watcher
+  restarted the bot at 23:12:48. Decisions 21:50-22:16: captures-light/decisions-2026-10-12T2150-2216.jsonl.gz;
+  the 23:12:48 autorecover capture has the last decisions and 95 state boards of the alternation.
+- Owner report (same day): the bot wears a Wooden Torch instead of its Brass Lantern (Issue #46).
+  2026-10-03 note: a clearly inferior light source was equipped.
+- At 18:06 the operator wielded the Brass Lantern by hand once (the bot had been wearing a torch).
+Code: policy.py ~11467-11480 (`_empty_lantern_to_restore`, "restore-lantern", `_light_to_wield`), the equipment
+optimizer / equipment transaction (policy_equipment.py), `_light_refill_item` (policy_supply.py ~140-165: note that
+on the live protocol GridState.lit is always False), the retention reservation for lit torches
+(carry-strategy:lit_torch).
+
+Do:
+1. LUNA-DIAG-light-swap.txt first: the exact predicates (file:line) and board facts for (a) why an EMPTY lantern
+   (0 turns) is "restored" to the light slot, (b) why the equipment transaction then equips the torch, (c) why the
+   two owners never converge (which state each one fails to see), (d) why the lantern was empty and not refilled
+   although the character buys/keeps Flasks of Oil (check `_light_refill_item` and the always-False `lit`), and
+   (e) how the optimizer scores torch vs lantern (Issue #46). Say for each whether it regressed (commit) or was
+   never handled.
+2. Fix: one owner decides the light slot. An empty lantern is never wielded over a usable light; a lantern with
+   oil available is refilled and preferred to a torch when it is the better light (radius/turns), consistent with
+   the equipment optimizer so the two cannot disagree; the alternation cannot recur (name the bound).
+   Do not change throwing-torch reservation behaviour for Quest 34.
+3. Pins from the captures (fail on 32f93f9c, pass after; revert each new predicate alone -> its pin fails);
+   constructed parts carry DECLARED CONSTRUCTED comments; copy only the needed rows into tests/fixtures (small gzip).
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. No game/bot control, no push, no merge, no
+  git reset --hard. Commit on this branch.
+- "Existing tests" = tests at 32f93f9c; tests you add may be edited freely. A failing existing test is a regression
+  unless the change is the behaviour described above; give the reason in the test and the report.
+- New helper functions: append entries to scripts/town_producer_baseline.json ("pure helper: ...") and
+  scripts/town_work_review.json (keep key order and formatting: json.dumps ensure_ascii=False indent=2 + trailing
+  newline, no sorting), regenerate the manifest (PYTHONPATH=src python scripts/town_work_manifest.py --write), and run
+  tests.test_item_sink_lint tests.test_town_structure_lint. New attributes need restore defaults.
+- Final run ONLY with scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src): affected_tests.py
+  (C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\light-swap 32f93f9c HEAD) plus
+  the hygiene set (tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint
+  tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification
+  tests.test_test_fakery_lint tests.test_town_arbiter tests.test_cli tests.test_quest34_target_dead_recorded),
+  within 60 minutes; then compare_timings.py jsonlog\test-parallel-timings.json --base
+  C:\hengband-backups\suite-batches\32f93f9c (0 slower tests).
+- Token budget 300k, wall time 120 minutes. Write LUNA-REPORT-light-swap.txt (diagnosis summary, changes, pins
+  before/after, revert checks, final run lines, compare_timings output).
