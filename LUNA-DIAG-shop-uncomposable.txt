@@ -1,0 +1,68 @@
+PLAN-STEP: 3 - ISSUE #1 diagnosis
+
+Observed failure
+----------------
+In both captures the bot stayed inside one store visit, completed its in-store
+inscribe/sell work, and then stopped when the continuation preflight selected a
+departure-blocking buy but the stateful shop selector emitted a different,
+also-needed buy.
+
+Selection path (b8f5ac67)
+------------------------
+`src/hengbot/policy_instore.py:193-265` is `_in_store_selection`. Once the
+entry ledger has `ops > 0` (`:217-230`), it calls
+`_departure_blocking_page_purchase(snapshot)` and returns that buy before
+considering further ordinary sales or purchases. The returned purchase is
+chosen in `src/hengbot/policy_shop.py:3078-3146`, by
+`_departure_blocking_page_purchase_pure`: it filters live purchase rungs to
+town needs that still block departure, then chooses the first affordable,
+page-available candidate in those rungs. This chose Alchemist row `h` and
+General row `f` in the two captures.
+
+The actual command comes from `_in_store_emit` in
+`src/hengbot/policy_instore.py:522-606`, which calls `_shop(snapshot)` once.
+`src/hengbot/policy_shop.py:5072-5081` runs `_next_purchase(snapshot)` after
+the shop's higher-priority sale checks. The ordinary selector delegates through
+`_next_purchase_unreserved` (`policy_shop.py:2996-3010`) to
+`_legacy_next_purchase_unreserved` (`policy_shop.py:3148+`) and uses its
+ordinary procurement ordering. That path chose row `n`: it is the earlier
+quest-procurement purchase in the ordinary ordering. Thus the continuation's
+departure-blocker-first ordering and `_shop`'s quest-purchase-first ordering
+can validly select different affordable items on the same page. `_in_store_emit`
+refused to post the different row under the preflight identity and returned
+None; the continuation then treated that disagreement as uncomposable and
+raised the visible F2 stop.
+
+Capture facts
+-------------
+* Alchemist, turn 313094, sequences 98-101: one visit opened at sequence 98.
+  Sequence 99 inscribed pack item `h` (`{h@0\r`); sequence 100 sold it
+  (`d0y`). At sequence 101 the ledger had two operations. Its `continue`
+  selection was a buy with all preconditions true; the fallback was
+  `pn6\r\r`, identity false. The required-page diagnostic identifies store 4,
+  row `h`, tval 70, sval 11, quantity 1. The live page had the desired Quest
+  Light scroll row `n` at price 24; quantity 6 was missing, and the character
+  had 11364 gold. `_shop` wanted those six Quest Light scrolls; the departure
+  blocker was one Word of Recall scroll. Both were affordable and on the visible
+  page. There was no leave/re-entry between the sale and stop.
+* General store, turn 325496, sequences 1061-1068: one visit opened at
+  sequence 1061. Three inscribe/sell pairs occupied sequences 1062-1067;
+  sequence 1068 had six operations in the same ledger. Its `continue`
+  preconditions were all true; `_shop` emitted `pn30\r\r`, identity false.
+  The required-page diagnostic identifies store 0, row `f`, tval 77, sval 0,
+  quantity 1. `_shop` wanted 30 Quest launcher ammunition at row `n`, price 3;
+  one flask of oil was the departure blocker. Gold was 3584. Both purchases
+  were affordable and on the page. Again, no leave/re-entry occurred before
+  the stop.
+
+First-operation scope
+---------------------
+The captured ordering conflict is a continuation-only case. The special
+departure-blocking selection runs only after `ledger.ops > 0`
+(`policy_instore.py:217-230`). On the first operation, `_in_store_selection`
+falls through to `_next_purchase`, the ordinary purchase selector used later by
+`_shop`; it does not prioritize the departure blocker over the quest purchase.
+A first-page selection/emission mismatch from another stateful producer remains
+possible, but `_in_store_emit(first=True)` hands that `_shop` key to the
+existing outside composition path rather than raising this continuation stop
+(`policy_instore.py:590-600`).

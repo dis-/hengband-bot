@@ -1,0 +1,92 @@
+PLAN-STEP: 3 - ISSUE #1 report
+
+Diagnosis
+---------
+See LUNA-DIAG-shop-uncomposable.txt for source locations and both capture
+boards. The visit did not leave and re-enter before either stop. After prior
+in-store sale/inscription work, the continuation preflight intentionally
+prioritized the first departure-blocking purchase (row h or f), while the
+single stateful _shop call selected a different affordable quest purchase
+(row n). The old emit gate compared the key only with the preflight row and
+turned a valid selector disagreement into F2.
+
+Chosen fix and bound
+--------------------
+Implemented option (b): keep _shop as the sole stateful operation producer.
+When a continuation's buy letter differs from the pure preflight, resolve that
+letter on the current store page and recheck the row identity, unique letter,
+page one, verified screen, and affordability before committing the operation.
+An absent/duplicate row, wrong page, unverified screen, invalid quantity, or
+unaffordable emitted buy still falls through to the existing visible
+shop-required-operation-uncomposable stop and keeps its diagnostic.
+
+This does not add operations or visits. The existing STORE_STUCK_LIMIT of 8
+still bounds the ledger. The pins start at 2 operations for Alchemist and 6 for
+General; after the ordinary purchase and required blocker they are at 4 and 8,
+respectively, before the same-visit leave.
+
+Changes
+-------
+* src/hengbot/policy_instore.py: verify and accept a different _shop buy only
+after visible-page checks; preserve the old F2 path for unverifiable buys.
+* tests/fixtures/shop-uncomposable-20261013.jsonl.gz: two captured stop boards
+only, compressed to about 5 KB.
+* tests/test_shop_uncomposable_recorded.py: replay through the real in-store
+entry and _shop path with in-store operations enabled; exercise both captured
+selection disagreements, the same-visit blocker purchase and leave, and an
+unverifiable-row stop control. Following pages are marked DECLARED CONSTRUCTED.
+* scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json:
+regenerated because the existing indexed _in_store_emit function's AST changed.
+No policy helper was added, so no producer-baseline or review entry was needed.
+* LUNA-DIAG-shop-uncomposable.txt: requested diagnosis.
+
+Pins and revert check
+---------------------
+On b8f5ac67, both recorded scenes end in the existing F2 stop. After the fix,
+the Alchemist decision posts verified row n with pn6\r\r; its constructed next
+page posts the row h departure blocker. The General decision posts verified
+row n with pn30\r\r; its constructed next page posts the row f departure
+blocker. Both then leave within the original ledger limit. The invalid emitted
+row control still stops with cause selection-emission-mismatch and the required
+row diagnostic.
+
+Reverting only src/hengbot/policy_instore.py to b8f5ac67 made both captured
+scene assertions fail at the first emitted key (they got ESC instead of pn6
+and pn30); restoring the fix made the replay module pass.
+
+Verification
+------------
+Developing test command:
+`PYTHONPATH=src python -m unittest tests.test_shop_uncomposable_recorded`
+Result after fix: 2 tests passed.
+Revert-only check: the same module failed both recorded scene pins, as required.
+
+Required affected-test discovery:
+`python C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\shop-uncomposable b8f5ac67 HEAD`
+Result: 6 modules: tests.test_absorbing_states, tests.test_policy_home,
+tests.test_policy_shop, tests.test_policy_supply, tests.test_policy_town, and
+tests.test_runtime_file_isolation.
+
+Required final run:
+`PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --modules tests.test_absorbing_states tests.test_policy_home tests.test_policy_shop tests.test_policy_supply tests.test_policy_town tests.test_runtime_file_isolation tests.test_shop_uncomposable_recorded tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_test_fakery_lint tests.test_town_arbiter tests.test_cli tests.test_quest34_target_dead_recorded`
+Initial result: 1746 tests; worker-1 458 tests/exit 1, worker-2 1041 tests/exit 1,
+worker-3 247 tests/exit 0. Failures were the three manifest-stale checks
+(test_item_sink_lint, test_town_work_contract, test_town_structure_lint); five
+fakery-lint errors came from a UTF-8 BOM on the new test file. Removed the BOM
+and regenerated the manifest with:
+`PYTHONPATH=src python scripts/town_work_manifest.py --write`.
+
+Per the task's failed-module rule, both reruns were restricted to the four failed modules. First rerun:
+`PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --modules tests.test_item_sink_lint tests.test_town_work_contract tests.test_town_structure_lint tests.test_test_fakery_lint`
+Result: 59 tests, 0 failures, 0 errors; worker-1 9 tests/exit 0 and worker-2
+50 tests/exit 0. After preserving first-page fallback behavior, the second and
+final permitted rerun used the same four modules and also passed: 59 tests,
+0 failures, 0 errors; worker-1 9 tests/exit 0 (808.913s) and worker-2 50
+tests/exit 0 (198.464s). The town work manifest was regenerated again.
+
+Timing comparison command:
+`python C:\hengband-backups\guard-tools\compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\b8f5ac67`
+Output: `[timings] base C:\hengband-backups\suite-batches\b8f5ac67 new jsonlog\test-parallel-timings.json: 0 tests slower than 1.5x and +10s`.
+This comparison used the timing file written by the second permitted
+failed-module rerun, which replaced the initial full-run timing file. No flagged tests were
+reported; no tests were remeasured. The merge gate was left running.
