@@ -1,0 +1,67 @@
+﻿PLAN-STEP: 1.5 - diagnosis before fix
+
+Scope and history
+
+The captures are from baseline 35fcd16f. HEAD 218c95e9 only adds the task file, so
+neither refusal path was introduced by a code change on this branch. This scene had
+not been handled at the baseline.
+
+A - combat weapon restoration and the invalid deposit address
+
+- At capture A decision 750 the emitted command is `di`: Home deposit (`d`) plus
+  address `i`. The immediately preceding transaction decision is travel-home. The
+  captured game response says the pack has letters a-h only. The Home board's
+  protocol inventory also assigns `i` and `j` (turn 126058; the `i` row is tval 35,
+  sval 1, while `j` is the digging tool), exposing the address disagreement: the
+  serializer trusts an observed item.slot even though the game's accepted pack
+  address range for this command is only a-h. In `policy_equipment.py:2227-2252`,
+  the deposit predicate searches by identity/move identity, then
+  `policy_equipment.py:2327-2335` passes the found item's current slot to
+  `reserved_item_command`; no predicate verifies that the resulting pack address
+  exists in the game's current selectable range. Once the later Home board no
+  longer contains the planned target, the exact `target is None` predicate at
+  `policy_equipment.py:2241-2252` records `deposit-missing` and exits Home.
+- The following captured decision is `home:identify-staff-reserve-unavailable` with
+  ESC and `store_type=7`: the identification owner itself leaves Home. On returning
+  to town, the equipment session still requires Home. At
+  `policy_equipment.py:2583-2600`, failure to get a Home step (including the
+  entrance arbitration state after leaving Home) adds `home-route-unavailable` and
+  returns WAIT. Thus "unavailable" describes the current approach-step result, not
+  the permanent absence of a map route.
+- `policy_equipment.py:2543-2549` next sees the non-executable session, calls
+  `_abandon_blocked_equipment_transaction`, and records `abandon-blocked`.
+  `policy_town.py:1792-1850` steps off the entrance while preserving that owner.
+  The abandonment is attempt-local: `policy_equipment.py:1691-1830` can reconstruct
+  restoration work, and clearing the session invalidates optimization for a fresh
+  search. There was no marker saying this visit's planned Home deposit had already
+  been disproved. Consequently the same plan is eligible again. The captured
+  decisions alternate route-unavailable and abandon-blocked until the repeated
+  route signature becomes terminal at `policy_equipment.py:1647-1668` and
+  `:1818-1822`.
+
+B - the reserved torch deposit
+
+- The 18:06:35 Home transaction follows purchases of three torches. The captured
+  plan's remaining Home-prepare actions are torch deposits (identities
+  5e6e3382b7319e8c and f53f3657deb1e21d twice). The carried {@v0=g} torches appear
+  in `retention_reservations` under `carry-strategy:lit_torch`. At the first
+  refused deposit, `deposit_keep_conflict` says the session identity is
+  f53f3657deb1e21d, `in_keep_set=true`, and the reserving branch is
+  `carry-strategy:lit_torch`. The plan was computed for the post-purchase board
+  before this live reservation was applied, so its transaction contains a transfer
+  the current board says must remain in the pack.
+- `policy_equipment.py:2291-2307` correctly finds the target and tests its current
+  reservation. It abandons the stale transaction and exits Home as
+  `retain-reserved`. However, like A, this only ends the current attempt. The
+  unchanged reservation remains true, and clearing the optimization signature
+  permits the optimizer to create the same deposit plan again.
+- A's missing-target refusal and B's reserved-target refusal therefore need a
+  visit-local completion record. A generic route failure alone must not close the
+  visit: the existing repeated-route final stop remains available for a genuinely
+  unbounded route failure.
+
+Required behavior: after a Home deposit is observed missing or retained, abandon
+that optional equipment transaction once, retain any separately reconstructed
+restoration work, and suppress its replanning until the town visit epoch changes.
+The decision reason and closure record provide bounded evidence; other town work
+and departure remain eligible.

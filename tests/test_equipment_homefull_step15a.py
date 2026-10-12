@@ -40,6 +40,9 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 FIXTURE = Path(__file__).parent / 'fixtures/step1.5a-equipment-homefull.json.gz'
 assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == '0983fc092cca64be34d7400d3ed9d9e6327d6662e4aeaa4be93feaf9a09502ae'
 CAPTURES = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+EQTXN_RESERVED_PINS = json.loads(gzip.decompress(
+    (Path(__file__).parent / 'fixtures/eqtxn-reserved-20261012.json.gz').read_bytes()
+))
 
 
 def dump_bytes(raw, character, monrace=None):
@@ -540,6 +543,79 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         del policy._equipment_home_deposit_tombstone
         upgraded = restore_checkpoint(HengbotPolicy, checkpoint(policy))
         self.assertFalse(upgraded._equipment_home_full_refused_this_visit())
+
+    def test_eqtxn_reserved_capture_pins_close_unexecutable_home_work_once(self):
+        # Captured pins: A's `di` refusal and B's reserved torch deposit. Boards
+        # used to drive the direct policy seam below are DECLARED CONSTRUCTED.
+        scene_a = EQTXN_RESERVED_PINS['A']
+        self.assertEqual(scene_a[1]['key'], 'di')
+        self.assertEqual(scene_a[2]['reason'], 'home:identify-staff-reserve-unavailable')
+        self.assertEqual(scene_a[3]['reason'],
+                         'town:entrance-step-off:equipment-transaction:home-route-unavailable')
+        self.assertTrue(any(row['reason'] == 'equipment-transaction:home-route-repeat-terminal'
+                            for row in scene_a))
+
+        scene_b = EQTXN_RESERVED_PINS['B']
+        self.assertEqual(scene_b[0]['reason'], 'equipment-transaction:travel-home')
+        self.assertEqual(scene_b[1]['reason'], 'equipment-transaction:retain-reserved')
+        self.assertEqual(scene_b[1]['deposit_keep_conflict']['reserving_branch'],
+                         'carry-strategy:lit_torch')
+
+        # DECLARED CONSTRUCTED continuation: preserve a live Home deposit action,
+        # then feed the captured retained-item verdict through the real Home seam.
+        policy = self.policy()
+        home = self.board(home=True)
+        # DECLARED CONSTRUCTED roomy Home page for the reservation refusal.
+        home = replace(home, store=replace(
+            home.store, stock_num=home.store.capacity - 1
+        ))
+        policy.prime(home)
+        # The source fixture also contains an unrelated Home-full observation.
+        policy._home_capacity_observation = None
+        policy._equipment_home_deposit_tombstone = None
+        policy._equipment_transaction_session = self.deposit_session(home, phase=PHASE_HOME_PREPARE)
+        with patch.object(policy, '_retention_reservation', return_value=1):
+            self.assertEqual(policy._equipment_transaction_home_key(home), '\x1b')
+        closure = policy._equipment_transaction_visit_closure
+        self.assertEqual(closure['reason'], 'retain-reserved')
+        self.assertEqual(closure['epoch'], policy._town_visit_epoch)
+        self.assertIsNone(policy._equipment_transaction_session)
+
+        # DECLARED CONSTRUCTED outside-Home board: the closure blocks optimizer
+        # replanning for this epoch, and a new town epoch releases the latch.
+        outside = replace(home, store=None)
+        policy.observe_town_visit_epoch(True, outside.turn)
+        self.assertIsNone(policy._prepare_equipment_optimization(outside))
+        self.assertIsNone(policy._equipment_transaction_session)
+        policy.observe_town_visit_epoch(False, outside.turn + 1)
+        policy.observe_town_visit_epoch(True, outside.turn + 2)
+        self.assertIsNone(policy._equipment_transaction_visit_closure)
+
+    def test_eqtxn_missing_deposit_is_visit_bounded(self):
+        # DECLARED CONSTRUCTED missing target on the captured Home board.
+        policy = self.policy()
+        board = self.board(home=True)
+        # DECLARED CONSTRUCTED capacity observation; this pin is about a
+        # missing planned item, not Home-full recovery.
+        board = replace(board, store=replace(
+            board.store, stock_num=board.store.capacity - 1
+        ))
+        policy.prime(board)
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, 'deposit', 'pack:missing:0',
+            item_identity='captured-item-no-longer-carried',
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0), physical_context='home'
+        )
+        policy._equipment_transaction_session = session
+        self.assertEqual(policy._equipment_transaction_home_key(board), '\x1b')
+        self.assertEqual(policy.last_reason, 'equipment-transaction:deposit-missing')
+        self.assertEqual(policy._equipment_transaction_visit_closure['reason'], 'deposit-missing')
+        self.assertIsNone(policy._equipment_transaction_session)
+        # DECLARED CONSTRUCTED same town board: no replacement plan this visit.
+        self.assertIsNone(policy._prepare_equipment_optimization(board))
+        self.assertIsNone(policy._equipment_transaction_session)
 
 
 if __name__ == '__main__':

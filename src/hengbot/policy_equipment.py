@@ -801,6 +801,26 @@ class EquipmentMixin:
                 source="in-flight-session",
             )
             return self._equipment_optimization_preparation
+        closure = getattr(self, "_equipment_transaction_visit_closure", None)
+        if (
+            snapshot.in_town
+            and closure is not None
+            and closure.get("epoch") == self._town_visit_epoch
+            and not self._equipment_transaction_restoring
+        ):
+            # The remaining Home work already failed a live feasibility check
+            # this visit. Keep the record, but do not regenerate the same plan.
+            self._equipment_optimization_telemetry["result_source"] = (
+                "town-visit-transaction-closed"
+            )
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "current-inputs"
+            self._offer_execution_no_step(
+                producer="equipment-opt", work_id="equipment:visit-closed",
+                cause=str(closure.get("reason", "home-work-unexecutable")),
+            )
+            return None
         # Missing observations skip optimization. The existing periodic dump
         # path refreshes equipped constants without owning movement or gear.
         calibration = self._validated_character_calibration(snapshot)
@@ -2238,6 +2258,17 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     f"deposit-item-missing:{action.item_id}"
                 )
+                # The live Home board disproves this planned deposit. Retire
+                # the optional transaction once for this visit rather than
+                # routing back to recreate the same impossible action.
+                self._abandon_blocked_equipment_transaction(snapshot)
+                self._equipment_transaction_visit_closure = {
+                    "epoch": self._town_visit_epoch,
+                    "reason": "deposit-missing",
+                    "target_loadout_id": session.target_loadout_id,
+                    "item_identity": action.item_identity,
+                    "turn": snapshot.turn,
+                }
                 self.last_reason = "equipment-transaction:deposit-missing"
                 return self._equipment_home_outcome(
                     LEAVE_STORE_KEY, label="deposit-item-missing",
@@ -2263,6 +2294,13 @@ class EquipmentMixin:
                 # A transaction cached before a purchase or plan transition is
                 # stale. Replan without ever dispatching its reserved deposit.
                 self._abandon_blocked_equipment_transaction(snapshot)
+                self._equipment_transaction_visit_closure = {
+                    "epoch": self._town_visit_epoch,
+                    "reason": "retain-reserved",
+                    "target_loadout_id": session.target_loadout_id,
+                    "item_identity": equipment_identity(target),
+                    "turn": snapshot.turn,
+                }
                 self.last_reason = "equipment-transaction:retain-reserved"
                 return self._equipment_home_outcome(
                     LEAVE_STORE_KEY, label="retain-reserved",

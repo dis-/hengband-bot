@@ -34,6 +34,7 @@
   "_equipment_transaction_last_failure": "Completed transaction failure report, not future selected work.",
   "_equipment_transaction_route_abandonment": "Terminal route report; selected identities are in session.",
   "_equipment_transaction_route_terminal_pending": "Transaction route terminal flag; selected identities are in session.",
+  "_equipment_transaction_visit_closure": "Visit-local completed unexecutable transaction evidence; selected items remain owned only by any restoration session.",
   "_execution_pending_post": "Execution declaration awaiting post; item ownership stays in registered operation sources.",
   "_explore_path": "Navigation positions; no item identities.",
   "_fixed_quest_offer_cache": "Observed quest offer snapshot/cache; not future item work.",
