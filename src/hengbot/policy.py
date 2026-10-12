@@ -15265,28 +15265,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._equipment_transaction_posted_catalog_update is None
             and self._optional_failure_current_loadout(snapshot, preparation)
         )
-        closure = getattr(self, "_equipment_transaction_visit_closure", None)
-        home_full_packspace_closed = bool(
-            self._equipment_home_full_refused_this_visit()
-            and closure is not None
-            and closure.get("epoch") == self._town_visit_epoch
-            and closure.get("reason") == "pack-space-home-full"
-            and self._home_is_full(snapshot)
-            and preparation is not None
-            and tuple(getattr(preparation, "blockers", ()))
-            and all(str(blocker).startswith("pack-space-required:")
-                    for blocker in preparation.blockers)
-            and not self._equipment_transaction_session
-            and not self._equipment_transaction_owned_items
-            and not self._equipment_transaction_restoring
-            and not self._equipment_transaction_restore_remainder
-            and not self._equipment_transaction_restore_terminal
-            and self._equipment_transaction_posted_catalog_update is None
-            and not self._missing_required_abilities(
-                snapshot, self._equipment_departure_destination_depth(snapshot))
-            and self._optional_failure_current_loadout(snapshot, preparation)
-        )
-        if (not home_full_equipment_closed and not home_full_packspace_closed
+        if (not home_full_equipment_closed
                 and not self._safe_optional_equipment_failure_departure(snapshot, preparation)):
             return False
         # Close the impossible equipment owner even while another Home owner

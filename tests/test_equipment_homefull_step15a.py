@@ -148,6 +148,19 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         self.assertIsNotNone(session)
         self.assertTrue(session.executable)
         self.assertIn(session.current_action.kind, {'withdraw', 'takeoff'})
+        # The whole staged plan stays inside the pack (Home has room, so each
+        # deposit frees a slot), changes at least one slot, and runs inside
+        # Home: no slot is carried empty through town between stages.
+        carried = len(board.inventory)
+        peak = carried
+        for action in session.plan.actions:
+            carried += {'withdraw': 1, 'takeoff': 1}.get(action.kind, -1)
+            peak = max(peak, carried)
+        self.assertLessEqual(peak, 23)
+        kinds = [action.kind for action in session.plan.actions]
+        self.assertIn('equip', kinds)
+        self.assertIn('deposit', kinds)
+        self.assertEqual(session.physical_context, 'home')
         first_action = session.current_action
         home = replace(
             home, turn=board.turn, inventory=board.inventory,
@@ -189,6 +202,13 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         self.assertEqual(closure['loadout_id'], ','.join(sorted(current.item_ids)))
         self.assertEqual(closure['blockers'], list(blockers))
         self.assertEqual(closure['turn'], board.turn)
+        # The decided record ("今の装備で出発＋記録") is staged for the departure
+        # command and shown in the decision log until it is posted.
+        pending = policy._equipment_optional_failure_pending
+        self.assertEqual(pending['reason'], 'pack-space-home-full-current-loadout')
+        self.assertFalse(pending['posted'])
+        self.assertEqual(pending['depth'], 19)
+        self.assertEqual(pending['item_ids'], sorted(current.item_ids))
 
         # DECLARED CONSTRUCTED control: same blocker with Home room keeps the
         # visible equipment gate. Each reverted predicate below must fail.
@@ -310,7 +330,6 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
                 pages[buyer] = dict(alchemist, store_type=buyer, items=[], stock_num=0)
         equipment_home_entries = 0
         completion_reason = None
-        completed_departure = False
         for sequence in range(80):
             board = parse_snapshot(raw, self.monrace)
             policy.observe_store_screen(board.store is not None)
@@ -323,15 +342,6 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
                 break
             if reason == 'town:overweight-surplus-sold:home-full' and not policy._inventory_overweight(board):
                 completion_reason = reason
-            if (
-                completion_reason is not None
-                and reason in {'town:recall-to-alt-dungeon', 'town:travel-entrance'}
-            ):
-                # The captured weight-relief sequence has no external dungeon
-                # response frame. Its departure command is the completion of
-                # this recorded episode, so stop before fabricating a response.
-                completed_departure = True
-                break
             # F3 can settle before equipment's next registry arbitration.
             # Continue public choose_key through the real retirement, rather
             # than seeding its flags or discarding the retirement assertion.
@@ -406,8 +416,7 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         self.assertEqual(completion_reason, 'town:overweight-surplus-sold:home-full', (stamp,reasons))
         self.assertLessEqual(equipment_home_entries, 1)
         self.assertNotIn('equipment-transaction:home-route-repeat-terminal', reasons)
-        if not completed_departure:
-            self.assertTrue(policy._equipment_retired_worn_item_ids)
+        self.assertTrue(policy._equipment_retired_worn_item_ids)
         self.assertEqual(policy._equipment_home_deposit_tombstone['reason'],
                          'town:work-closed:impossible:equipment-transaction:home-full')
         self.assertFalse(policy._inventory_overweight(board))
@@ -620,12 +629,11 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         policy._mark_equipment_home_full_unavailable(board)
         self.assertIs(policy._equipment_home_deposit_tombstone, record)
 
-    def test_fresh_optimizer_keeps_current_target_after_home_deposit_refusal(self):
+    def test_fresh_optimizer_and_rearm_reject_only_home_deposit_plan(self):
         policy = self.policy()
         board = self.board()
-        # DECLARED CONSTRUCTED unused, fully known pack armour. With the
-        # same-visit Home-deposit tombstone active, the fresh search keeps the
-        # current target and produces no Home-deposit action.
+        # DECLARED CONSTRUCTED unused, fully known pack armour: the actual
+        # planner deposits it before the selected Home light withdrawal.
         armour = next(i for i in board.equipment if i.slot=='feet')
         surplus = replace(armour, slot='r', name='Declared useless boots',
                           pval=0, to_a=-100, known_flags=frozenset(),
@@ -654,16 +662,13 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         policy._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
         policy._refresh_carried_equipment_catalog(board)
         preparation = policy._prepare_equipment_optimization(board)
-        self.assertEqual(preparation.blockers, ())
-        self.assertIsNotNone(preparation.transaction)
-        self.assertEqual(preparation.transaction.actions, ())
-        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertEqual(preparation.blockers, ('equipment-transaction-failed',))
+        self.assertIsNone(preparation.transaction)
         self.assertTrue(policy._equipment_home_full_refused_this_visit())
         policy._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
         policy._equipment_optimization_signature = None
         preparation = policy._prepare_equipment_optimization(board)
-        self.assertEqual(preparation.blockers, ())
-        self.assertEqual(preparation.transaction.actions, ())
+        self.assertEqual(preparation.blockers, ('equipment-transaction-failed',))
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 

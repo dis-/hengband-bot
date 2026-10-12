@@ -55,6 +55,7 @@ from hengbot.equipment_transaction_session import (
 )
 from hengbot.equipment_transaction_planner import (
     PHASE_EQUIP,
+    PHASE_HOME_FINALIZE,
     PHASE_HOME_PREPARE,
     EquipmentTransaction,
     EquipmentTransactionPlan,
@@ -1247,10 +1248,7 @@ class EquipmentMixin:
                     current_pack_items=len(snapshot.inventory),
                     home_scan_complete=self._equipment_catalog.home_scan_complete,
                     preserve_pack_item_ids=preserve,
-                    home_deposit_available=(
-                        not self._home_is_full(snapshot)
-                        and not self._equipment_home_full_refused_this_visit()
-                    ),
+                    home_deposit_available=not self._home_is_full(snapshot),
                     retain_item_identities=self._transaction_retain_identities(
                         snapshot,
                         preparation.current,
@@ -1466,10 +1464,7 @@ class EquipmentMixin:
                 current_pack_items=len(snapshot.inventory),
                 home_scan_complete=self._equipment_catalog.home_scan_complete,
                 preserve_pack_item_ids=preserve,
-                home_deposit_available=(
-                    not self._home_is_full(snapshot)
-                    and not self._equipment_home_full_refused_this_visit()
-                ),
+                home_deposit_available=not self._home_is_full(snapshot),
                 retain_item_identities=self._transaction_retain_identities(
                     snapshot, preparation.current, loadout
                 ),
@@ -1590,6 +1585,15 @@ class EquipmentMixin:
                 if any(
                     action.phase == PHASE_HOME_PREPARE
                     for action in plan.actions
+                )
+                # A staged plan stores one slot's old item before changing the
+                # next slot.  Run it inside Home so no slot is carried empty
+                # through town and Home is not re-entered once per slot.
+                or any(
+                    earlier.phase == PHASE_HOME_FINALIZE
+                    and later.phase == PHASE_EQUIP
+                    for index, earlier in enumerate(plan.actions)
+                    for later in plan.actions[index + 1:]
                 )
                 else "legacy"
             ),

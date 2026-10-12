@@ -400,7 +400,7 @@ class OverflowDisposalTest(unittest.TestCase):
             current_pack_items=len(snapshot.inventory), home_scan_complete=True,
         )
         self.assertTrue(transaction.actions)
-        # The old all-at-once plan stopped here despite five open pack slots.
+        # The old all-at-once plan stopped here although single steps fit.
         # Step 3 now starts with one observed slot change and deposits its
         # displaced item before continuing, so this is executable work.
         self.assertFalse(any(
