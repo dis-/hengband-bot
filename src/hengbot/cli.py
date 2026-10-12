@@ -585,9 +585,6 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
     work = current_record(policy, key)
     progress_state = getattr(policy, "_owner_retired_progress", None) or {}
     settlement = progress_state.get("last_settlement") or {}
-    claim = getattr(getattr(policy, "_claim_register", None), "current", None)
-    execution = getattr(claim, "execution", None)
-    goal = getattr(claim, "goal", None)
     arbiter_data = telemetry if isinstance(telemetry, dict) else {}
     retirement_data = arbiter_data.get("retirement_diagnostic") or {}
     d0 = {
@@ -597,13 +594,8 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
         "decision_sequence": getattr(policy, "_decision_sequence", None),
         "visit_epoch": getattr(policy, "_town_visit_epoch", None),
         "operation_identity": (settlement.get("operation_identity")
-                               or (work or {}).get("work_id")
-                               or getattr(execution, "work_id", None)),
-        "operation_producer": ((work or {}).get("producer")
-                               or getattr(execution, "producer", None)),
-        "operation_target": goal.as_dict() if goal is not None else None,
-        "expected_effect": getattr(execution, "expected_effect", None),
-        "operation_ref": getattr(execution, "operation_ref", None),
+                               or (work or {}).get("work_id")),
+        "operation_producer": (work or {}).get("producer"),
         "own_unsuccessful_count": retirement_data.get(
             "own_unsuccessful_count", arbiter_data.get("own_unsuccessful_count")
         ),
@@ -2116,9 +2108,6 @@ def _write_decision(
                 work = current_record(policy, key)
                 progress_state = getattr(policy, "_owner_retired_progress", None) or {}
                 settlement = progress_state.get("last_settlement") or {}
-                claim_state = getattr(getattr(policy, "_claim_register", None), "current", None)
-                execution = getattr(claim_state, "execution", None)
-                goal = getattr(claim_state, "goal", None)
                 record["town_idle_d0"] = {
                     "schema": 1,
                     "process_session_id": _TOWN_IDLE_D0_SESSION_ID,
@@ -2126,13 +2115,8 @@ def _write_decision(
                     "decision_sequence": getattr(policy, "_decision_sequence", None),
                     "visit_epoch": getattr(policy, "_town_visit_epoch", None),
                     "operation_identity": (settlement.get("operation_identity")
-                                           or (work or {}).get("work_id")
-                                           or getattr(execution, "work_id", None)),
-                    "operation_producer": ((work or {}).get("producer")
-                                           or getattr(execution, "producer", None)),
-                    "operation_target": goal.as_dict() if goal is not None else None,
-                    "expected_effect": getattr(execution, "expected_effect", None),
-                    "operation_ref": getattr(execution, "operation_ref", None),
+                                           or (work or {}).get("work_id")),
+                    "operation_producer": (work or {}).get("producer"),
                     "own_unsuccessful_count": retirement_data.get(
                         "own_unsuccessful_count", arbiter_data.get("own_unsuccessful_count")
                     ),

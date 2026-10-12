@@ -414,7 +414,10 @@ class TownTurnArbiter:
         if diagnostic is None:
             diagnostic = {
                 "entry_points": [],
-                "recurrence_key": recurrence_key,
+                "recurrence_key": ({
+                    "owner": recurrence_key[0],
+                    "progress_vector": repr(recurrence_key[1]),
+                } if recurrence_key is not None else None),
                 "recurrence_count": recurrence_count,
                 "recurrence_limit": recurrence_limit,
                 "trigger_category": trigger_category,
@@ -424,7 +427,10 @@ class TownTurnArbiter:
                 "own_unsuccessful_bound": getattr(
                     self, "registry", {}
                 ).get(owner).budget if getattr(self, "registry", {}).get(owner) else None,
-                "last_pair_before": getattr(self, "_last_pair", None),
+                "last_pair_before": ({
+                    "owner": self._last_pair[0],
+                    "progress_vector": repr(self._last_pair[1]),
+                } if getattr(self, "_last_pair", None) is not None else None),
             }
             self._retirement_diagnostic = diagnostic
         if entry_point not in diagnostic["entry_points"]:
@@ -433,7 +439,10 @@ class TownTurnArbiter:
         self.__dict__.setdefault("_pending_retirements", set()).add(owner)
         if close_visit is not None:
             close_visit(owner, "arbiter-retired")
-        diagnostic["last_pair_after"] = getattr(self, "_last_pair", None)
+        last_pair = getattr(self, "_last_pair", None)
+        diagnostic["last_pair_after"] = ({
+            "owner": last_pair[0], "progress_vector": repr(last_pair[1]),
+        } if last_pair is not None else None)
 
     def _decision_owner(self, reason: str) -> str:
         """Bind ordinary work to the active errand; survival may hand off."""
@@ -643,10 +652,16 @@ class TownTurnArbiter:
             "would_retire": would_retire,
             "retired": owner in self._retired,
             "retirement_set": sorted(self._retired),
-            "recurrence_key": recurrence_key,
+            "recurrence_key": {
+                "owner": recurrence_key[0],
+                "progress_vector": repr(recurrence_key[1]),
+            },
             "recurrence_count": self._recurrences[recurrence_key],
             "recurrence_limit": recurrence_limit,
-            "last_pair_before": getattr(self, "_last_pair", None),
+            "last_pair_before": ({
+                "owner": self._last_pair[0],
+                "progress_vector": repr(self._last_pair[1]),
+            } if getattr(self, "_last_pair", None) is not None else None),
             "trigger_category": ("recurrence" if recurrence_exhausted else
                                  "budget" if would_retire else None),
             "own_unsuccessful_count": no_progress,
@@ -667,7 +682,10 @@ class TownTurnArbiter:
         if not observation_wait and not recall_wait_progress:
             self._last_pair = recurrence_key
         if self._retirement_diagnostic is not None:
-            self._retirement_diagnostic["last_pair_after"] = self._last_pair
+            last_pair = self._last_pair
+            self._retirement_diagnostic["last_pair_after"] = ({
+                "owner": last_pair[0], "progress_vector": repr(last_pair[1]),
+            } if last_pair is not None else None)
         return dict(self.telemetry)
 
     def may_select(
