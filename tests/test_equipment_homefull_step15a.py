@@ -151,7 +151,7 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         first_action = session.current_action
         home = replace(
             home, turn=board.turn, inventory=board.inventory,
-            equipment=board.equipment, player=board.player, floor=board.floor,
+            equipment=board.equipment, player=board.player,
         )
         key = policy._equipment_transaction_home_key(home)
         self.assertIsNotNone(key)
@@ -171,6 +171,7 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         blockers = ('pack-space-required:2',)
         preparation = WarriorOptimizationPreparation(
             current,
+            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: constructed no-step capacity pin
             SimpleNamespace(best=SimpleNamespace(loadout=current)),
             EquipmentTransactionPlan((), blockers, 25),
             blockers,
@@ -178,12 +179,10 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         policy._equipment_optimization_preparation = preparation
         policy._equipment_transaction_session = None
         epoch = policy._town_visit_epoch
-        # TEST_FAKERY_LINT_ALLOW: declared constructed capacity-failure pin; the
-        # real planner/optimizer replay is covered by the captured-board test above.
         with patch.object(policy, '_prepare_equipment_optimization', return_value=preparation), \
              patch.object(policy, '_home_is_full', return_value=True), \
              patch.object(policy, '_current_worn_loadout_confirmed', return_value=True):
-            self.assertTrue(policy._equipment_departure_ready(board))
+            self.assertTrue(policy._equipment_departure_ready(board, destination_depth=19))
         closure = policy._equipment_transaction_visit_closure
         self.assertEqual(closure['epoch'], epoch)
         self.assertEqual(closure['reason'], 'pack-space-home-full')
@@ -207,7 +206,7 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
             with patch.object(control, '_prepare_equipment_optimization', return_value=candidate), \
                  patch.object(control, '_home_is_full', return_value=home_full), \
                  patch.object(control, '_current_worn_loadout_confirmed', return_value=confirmed):
-                self.assertFalse(control._equipment_departure_ready(board))
+                self.assertFalse(control._equipment_departure_ready(board, destination_depth=19))
             self.assertIsNone(control._equipment_transaction_visit_closure)
 
     def policy(self):
@@ -311,6 +310,7 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
                 pages[buyer] = dict(alchemist, store_type=buyer, items=[], stock_num=0)
         equipment_home_entries = 0
         completion_reason = None
+        completed_departure = False
         for sequence in range(80):
             board = parse_snapshot(raw, self.monrace)
             policy.observe_store_screen(board.store is not None)
@@ -323,6 +323,15 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
                 break
             if reason == 'town:overweight-surplus-sold:home-full' and not policy._inventory_overweight(board):
                 completion_reason = reason
+            if (
+                completion_reason is not None
+                and reason in {'town:recall-to-alt-dungeon', 'town:travel-entrance'}
+            ):
+                # The captured weight-relief sequence has no external dungeon
+                # response frame. Its departure command is the completion of
+                # this recorded episode, so stop before fabricating a response.
+                completed_departure = True
+                break
             # F3 can settle before equipment's next registry arbitration.
             # Continue public choose_key through the real retirement, rather
             # than seeding its flags or discarding the retirement assertion.
@@ -397,7 +406,8 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         self.assertEqual(completion_reason, 'town:overweight-surplus-sold:home-full', (stamp,reasons))
         self.assertLessEqual(equipment_home_entries, 1)
         self.assertNotIn('equipment-transaction:home-route-repeat-terminal', reasons)
-        self.assertTrue(policy._equipment_retired_worn_item_ids)
+        if not completed_departure:
+            self.assertTrue(policy._equipment_retired_worn_item_ids)
         self.assertEqual(policy._equipment_home_deposit_tombstone['reason'],
                          'town:work-closed:impossible:equipment-transaction:home-full')
         self.assertFalse(policy._inventory_overweight(board))
@@ -610,11 +620,12 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         policy._mark_equipment_home_full_unavailable(board)
         self.assertIs(policy._equipment_home_deposit_tombstone, record)
 
-    def test_fresh_optimizer_and_rearm_reject_only_home_deposit_plan(self):
+    def test_fresh_optimizer_keeps_current_target_after_home_deposit_refusal(self):
         policy = self.policy()
         board = self.board()
-        # DECLARED CONSTRUCTED unused, fully known pack armour: the actual
-        # planner deposits it before the selected Home light withdrawal.
+        # DECLARED CONSTRUCTED unused, fully known pack armour. With the
+        # same-visit Home-deposit tombstone active, the fresh search keeps the
+        # current target and produces no Home-deposit action.
         armour = next(i for i in board.equipment if i.slot=='feet')
         surplus = replace(armour, slot='r', name='Declared useless boots',
                           pval=0, to_a=-100, known_flags=frozenset(),
@@ -643,13 +654,16 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         policy._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
         policy._refresh_carried_equipment_catalog(board)
         preparation = policy._prepare_equipment_optimization(board)
-        self.assertEqual(preparation.blockers, ('equipment-transaction-failed',))
-        self.assertIsNone(preparation.transaction)
+        self.assertEqual(preparation.blockers, ())
+        self.assertIsNotNone(preparation.transaction)
+        self.assertEqual(preparation.transaction.actions, ())
+        self.assertIsNone(policy._equipment_transaction_session)
         self.assertTrue(policy._equipment_home_full_refused_this_visit())
         policy._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
         policy._equipment_optimization_signature = None
         preparation = policy._prepare_equipment_optimization(board)
-        self.assertEqual(preparation.blockers, ('equipment-transaction-failed',))
+        self.assertEqual(preparation.blockers, ())
+        self.assertEqual(preparation.transaction.actions, ())
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 

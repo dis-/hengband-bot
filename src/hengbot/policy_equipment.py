@@ -1247,7 +1247,10 @@ class EquipmentMixin:
                     current_pack_items=len(snapshot.inventory),
                     home_scan_complete=self._equipment_catalog.home_scan_complete,
                     preserve_pack_item_ids=preserve,
-                    home_deposit_available=not self._home_is_full(snapshot),
+                    home_deposit_available=(
+                        not self._home_is_full(snapshot)
+                        and not self._equipment_home_full_refused_this_visit()
+                    ),
                     retain_item_identities=self._transaction_retain_identities(
                         snapshot,
                         preparation.current,
@@ -1463,7 +1466,10 @@ class EquipmentMixin:
                 current_pack_items=len(snapshot.inventory),
                 home_scan_complete=self._equipment_catalog.home_scan_complete,
                 preserve_pack_item_ids=preserve,
-                home_deposit_available=not self._home_is_full(snapshot),
+                home_deposit_available=(
+                    not self._home_is_full(snapshot)
+                    and not self._equipment_home_full_refused_this_visit()
+                ),
                 retain_item_identities=self._transaction_retain_identities(
                     snapshot, preparation.current, loadout
                 ),
@@ -2820,6 +2826,7 @@ class EquipmentMixin:
             and premise
             and preparation is not None
             and self._home_is_full(snapshot)
+            and not self._missing_required_abilities(snapshot, depth)
             and self._current_worn_loadout_confirmed(snapshot, preparation)
             and preparation.blockers
             and all(
@@ -2853,6 +2860,7 @@ class EquipmentMixin:
             and closure.get("epoch") == self._town_visit_epoch
             and closure.get("reason") == "pack-space-home-full"
             and self._home_is_full(snapshot)
+            and not self._missing_required_abilities(snapshot, depth)
             and ",".join(sorted(preparation.current.item_ids))
             == closure.get("loadout_id")
             and preparation.blockers
