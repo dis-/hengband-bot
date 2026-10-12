@@ -131,6 +131,11 @@ PREFIX_DIVERGENCES = (
     9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
     53, 69, 70, 71, 72, 73,
+    # 2026-10-12 owner decision (protocol-3 visibility fallbacks, item 1): a
+    # remembered paralyzer cell seen empty under the player's own light is
+    # released, so the loot its ring deferred is collected before digging to
+    # treasure (live kept the ring until the floor change). Reconverges at 210.
+    *range(170, 210),
     1057, 1377, 1378,
 )
 SUITEFIX6_PREFIX_CHANGES = {

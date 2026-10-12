@@ -1,0 +1,59 @@
+PLAN-STEP: 4
+Task: protocol-3 visibility fallbacks for four places that can never clear/confirm on the live protocol
+(owner decision 2026-10-12: "止まる・避け続ける4件を今直す"). Branch inview-fallback-1012 at c73d8b00 (q34-exp-1012:
+Q34 opening fixes incl. defeat-message + kill-share-experience confirmation and paralyzer-ring release on a
+confirmed kill). Do not change anything else.
+
+Fact: on the live protocol (protocol 3, player.melee_displayed_totals True, since 2026-10-04) GridState.in_view and
+GridState.lit are ALWAYS False (the emitter sends only canonical lighting symbols; see
+tests/test_protocol3_display_align.py). visible_monsters IS sent, and snapshot can_see_own_grid is sent.
+visibility_flags_present is True on live (found_items always sent), so `lit or mnlt or (in_view and ...)` is False,
+not "unknown".
+
+The four items (from a code sweep; line numbers at c73d8b00, re-locate):
+1. policy_combat.py ~2320-2345 `_refresh_paralyzer_avoidance`: `_remembered_paralyzers` is released only when the
+   cell is in_view and empty, so on live it is never released until a floor change; a moving paralyzer leaves a
+   growing trail of permanent 3x3 avoid rings, deferred loot and invalidated explore paths.
+2. policy_quest.py ~3086-3094 `fixed_target_cell_visible` used by the Q34 restart survey (~3625-3645): an uncleared
+   Q34 target at its stand ends in the final stop quest:blocked:fixed-target-not-visible after a restart or when the
+   kill evidence was missed (the defeat-message / kill-share checks exist only on the newly-defeated path).
+3. policy_quest.py ~3231-3241 Q34 restart reconstruction of cleared targets: needs every recovery-lane cell in_view.
+4. policy_quest.py ~3587-3597 non-Q34 survey-plan selection (target cell has_monster or in_view): a dead fixed target
+   is never surveyed, cleared_targets stays incomplete, the target halo blocks routing and final_target_phase never
+   starts.
+
+Required approach: use only player-visible facts. For "this empty cell is currently seen", use geometry of what the
+player's own light shows: the player is not blind, can_see_own_grid is true, the cell is within the player's light
+radius (snapshot.light_radius) and the line of sight from the player to the cell is clear over known cells
+(allows_los), and no monster is listed there in visible_monsters; for a monster race that is invisible (INVISIBLE
+flag) never certify. Put this in ONE shared helper used by all four items. For items 2-4 also accept the kill
+evidence already used on the newly-defeated path (defeat message for a target seen by name, or an experience gain of
+at least 3/4 of the kill share right after a throw at it) where it applies.
+STOP AND REPORT (do not flip it) if tests/test_protocol3_display_align.py
+test_canonical_lighting_one_cannot_certify_fixed_target_death would need a different expectation: explain the
+board and why, and wait for the operator.
+
+Pins: each item gets a pin from recorded boards where one exists (Q34: tests/fixtures/q34-opening-live-20261011.json.gz;
+for the paralyzer memory find a recorded protocol-3 board in tests/fixtures or the CL45 decision archive
+C:\hengband-backups\state-logs\step2-20261011 - copy only the needed rows, small gzip) or a DECLARED CONSTRUCTED board;
+fail on c73d8b00, pass after; revert each predicate alone -> its pin fails. Controls: an invisible race and a cell
+outside the light radius / behind a wall stay uncleared.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. A merge gate is running on this machine
+  (C:\hengband-backups\suite-logs\gate-q34-exp-2.run.log). Do NOT start your broad final run until that log contains
+  "MERGED" or "STOP" (poll it; targeted single-module runs before that are fine).
+- "Existing tests" = tests at c73d8b00; tests you add may be edited freely. No game/bot control, no push, no merge,
+  no git reset --hard. Commit on this branch. New attributes need restore defaults; new final stop reasons need
+  POLICY_FINAL_STOP_REASONS + cli banner (avoid adding any).
+- Final run: affected_tests.py (C:\hengband-backups\guard-tools\affected_tests.py
+  C:\hengband\bot-client\.worktrees\inview-fallback c73d8b00 HEAD, it includes core modules) plus
+  tests.test_quest34_target_dead_recorded tests.test_protocol3_display_align tests.test_policy_quest
+  tests.test_policy_combat and the hygiene set (tests.test_ownership_s2b1_ladder tests.test_town_structure_lint
+  tests.test_item_sink_lint tests.test_town_work_contract tests.test_ownership_s2a1_closure
+  tests.test_ownership_s2a_classification tests.test_test_fakery_lint), ALWAYS with
+  scripts/test_parallel_runner.py --workers 2 (never a serial unittest run of many modules), within 60 minutes;
+  then compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\<short sha of
+  current main> (0 slower tests).
+- Token budget 250k, wall time 120 minutes. Write LUNA-REPORT-inview-fallback.txt (changes per item, helper, pins
+  before/after, revert checks, controls, final run lines, compare_timings output).

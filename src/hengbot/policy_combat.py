@@ -2319,19 +2319,41 @@ class CombatMixin:
         visible_positions = {monster.position for monster in hostiles}
         for monster in ring_threats:
             knowledge = self._monrace_knowledge.get(monster.race_id)
-            self._remembered_paralyzers[monster.position] = bool(
-                knowledge is not None and "NEVER_MOVE" in knowledge.flags
+            self._remembered_paralyzers[monster.position] = (
+                bool(knowledge is not None and "NEVER_MOVE" in knowledge.flags),
+                monster.race_id,
             )
         for position in list(self._remembered_paralyzers):
             observed = snapshot.grids.get(position)
+            remembered = self._remembered_paralyzers[position]
+            race_id = remembered[1] if isinstance(remembered, tuple) else None
+            remembered_race = (
+                self._monrace_knowledge.get(race_id)
+                if race_id is not None
+                else None
+            )
             if (
                 position not in visible_positions
                 and observed is not None
-                and observed.in_view
                 and observed.currently_observed
+                and not (
+                    remembered_race is not None
+                    and "INVISIBLE" in remembered_race.flags
+                )
                 and (
-                    observed.lit
-                    or snapshot.player.position.distance_to(position) <= 1
+                    (
+                        observed.in_view
+                        and (
+                            observed.lit
+                            or snapshot.player.position.distance_to(position) <= 1
+                        )
+                    )
+                    or (
+                        isinstance(remembered, tuple)
+                        and self._player_can_see_empty_cell(
+                            snapshot, position, race_id=race_id
+                        )
+                    )
                 )
                 and not observed.has_monster
             ):

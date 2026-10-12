@@ -192,15 +192,22 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
         hit = self.board_from_opening("first_torch_hit", policy=grazed)
         grazed._build_grid_index(hit)
         grazed._approved_quest_strategy_key(hit, hit.visible_monsters, [])
+        # DECLARED CONSTRUCTED: the same empty cell is now outside the
+        # lantern's one-cell radius, so its sub-kill-share experience cannot
+        # be mistaken for the new geometric empty-cell proof.
         graze = replace(no_message, player=replace(
             no_message.player, exp=hit.player.exp + 4,
-            level=hit.player.level, max_level=hit.player.max_level))
+            level=hit.player.level, max_level=hit.player.max_level),
+            light_radius=1)
         grazed._build_grid_index(graze)
         grazed._approved_quest_strategy_key(graze, [], [])
         self.assertNotIn((243, 7, 15), grazed._quest_strategy_cleared_targets.get(34, set()))
 
-        # Control: no defeat message and no experience gain stay uncleared.
-        # DECLARED CONSTRUCTED: experience held at the pre-throw value.
+        # The recorded board also pins restart reconstruction when both kill
+        # evidence channels were missed: own-grid vision, range, and LOS show
+        # the target cell is empty even though canonical lighting is dark.
+        # DECLARED CONSTRUCTED: restart has no prior visible-target or throw
+        # record, and the defeat line is omitted from this recorded board.
         silent = self.policy()
         hit = self.board_from_opening("first_torch_hit", policy=silent)
         silent._build_grid_index(hit)
@@ -212,11 +219,163 @@ class Quest34TargetDeadRecordedTest(unittest.TestCase):
             target: replace(quiet.grid_at(target), in_view=False, map_lighting=2),
         })
         silent._build_grid_index(dark)
-        self.assertEqual(silent._approved_quest_strategy_key(dark, [], []), WAIT_KEY)
-        self.assertNotIn((243, 7, 15), silent._quest_strategy_cleared_targets.get(34, set()))
-        self.assertEqual(silent.last_reason, "quest:blocked:fixed-target-not-visible")
-        self.assertIn(silent.last_reason, POLICY_FINAL_STOP_REASONS)
-        self.assertNotIn(34, silent._quest_strategy_pending_recovery)
+        self.assertEqual(silent._approved_quest_strategy_key(dark, [], []), "6")
+        self.assertIn((243, 7, 15), silent._quest_strategy_cleared_targets[34])
+        self.assertEqual(
+            silent.last_reason,
+            "quest-strategy:recover-defeated-target-torches",
+        )
+        self.assertIn(34, silent._quest_strategy_pending_recovery)
+
+        # Geometry controls use the same restart survey with one fact removed.
+        for control_name, control in (
+            ("outside-light", replace(dark, light_radius=1)),
+            (
+                "behind-wall",
+                replace(
+                    dark,
+                    grids={
+                        **dark.grids,
+                        Position(7, 14): replace(
+                            dark.grid_at(Position(7, 14)), allows_los=False
+                        ),
+                    },
+                ),
+            ),
+        ):
+            blocked = self.policy()
+            blocked._build_grid_index(control)
+            blocked._approved_quest_strategy_key(control, [], [])
+            self.assertNotIn(
+                (243, 7, 15),
+                blocked._quest_strategy_cleared_targets.get(34, set()),
+                control_name,
+            )
+
+        invisible_target = self.policy()
+        race = invisible_target._monrace_knowledge[243]
+        invisible_target._monrace_knowledge[243] = replace(
+            race, flags=frozenset(set(race.flags) | {"INVISIBLE"})
+        )
+        invisible_target._build_grid_index(dark)
+        invisible_target._approved_quest_strategy_key(dark, [], [])
+        self.assertNotIn(
+            (243, 7, 15),
+            invisible_target._quest_strategy_cleared_targets.get(34, set()),
+        )
+
+    def test_protocol3_geometry_retires_paralyzer_memory_and_reconstructs_lane(self):
+        # Pin the fallback to the recorded protocol-3 Q34 board: the cloaker
+        # cell and all known grids use canonical lighting symbols, while the
+        # player's light and open LOS give current visibility.
+        target = Position(7, 15)
+        board = self.board_from_opening("cloaker_killed")
+        self.assertTrue(board.can_see_own_grid)
+        self.assertFalse(board.grids[target].in_view)
+
+        policy = self.policy()
+        policy._remembered_paralyzers[target] = (False, 243)
+        policy._refresh_paralyzer_avoidance(board, [])
+        self.assertNotIn(target, policy._remembered_paralyzers)
+
+        # Controls: geometry cannot clear a remembered invisible race, a cell
+        # beyond the player's light, or one hidden behind a known wall.
+        invisible = self.policy()
+        race = invisible._monrace_knowledge[243]
+        invisible._monrace_knowledge[243] = replace(
+            race, flags=frozenset(set(race.flags) | {"INVISIBLE"})
+        )
+        invisible._remembered_paralyzers[target] = (False, 243)
+        invisible._refresh_paralyzer_avoidance(board, [])
+        self.assertIn(target, invisible._remembered_paralyzers)
+
+        outside_board = replace(board, light_radius=1)
+        outside = self.policy()
+        outside._remembered_paralyzers[target] = (False, 243)
+        outside._refresh_paralyzer_avoidance(outside_board, [])
+        self.assertIn(target, outside._remembered_paralyzers)
+
+        wall_grids = dict(board.grids)
+        between = Position(7, 14)
+        wall_grids[between] = replace(wall_grids[between], allows_los=False)
+        behind_wall_board = replace(board, grids=wall_grids)
+        behind_wall = self.policy()
+        behind_wall._remembered_paralyzers[target] = (False, 243)
+        behind_wall._refresh_paralyzer_avoidance(behind_wall_board, [])
+        self.assertIn(target, behind_wall._remembered_paralyzers)
+
+        # DECLARED CONSTRUCTED from the recorded Q34 board: moving the player
+        # to the centre of the approved recovery lane and removing the torch
+        # substrate makes all five lane cells lie within light radius 2.
+        lane_policy = self.policy()
+        lane_cells = [Position(7, x) for x in range(14, 19)]
+        lane_grids = dict(board.grids)
+        for cell in lane_cells:
+            self.assertIn(cell, lane_grids)
+            lane_grids[cell] = replace(
+                lane_grids[cell], object_count=0, object_tvals=(),
+                has_monster=False,
+            )
+        lane_player = replace(board.player, position=Position(7, 16))
+        lane = replace(board, player=lane_player, grids=lane_grids)
+        lane_policy._build_grid_index(lane)
+        lane_policy._approved_quest_strategy_key(lane, [], [])
+        self.assertIn((243, 7, 15), lane_policy._quest_strategy_cleared_targets[34])
+
+        # The same lane remains uncleared when its target race is invisible.
+        invisible_lane = self.policy()
+        race = invisible_lane._monrace_knowledge[243]
+        invisible_lane._monrace_knowledge[243] = replace(
+            race, flags=frozenset(set(race.flags) | {"INVISIBLE"})
+        )
+        invisible_lane._build_grid_index(lane)
+        invisible_lane._approved_quest_strategy_key(lane, [], [])
+        self.assertNotIn(
+            (243, 7, 15),
+            invisible_lane._quest_strategy_cleared_targets.get(34, set()),
+        )
+
+    def test_non_q34_survey_uses_live_light_geometry(self):
+        # DECLARED CONSTRUCTED from the Q31 approved survey plan: its first
+        # fixed target is empty and outside CAVE_VIEW, but lies in live light
+        # with known, unobstructed LOS from the approved stand.
+        quest_tests.ApprovedQuestStrategyExecutionTest.setUpClass()
+        case = quest_tests.ApprovedQuestStrategyExecutionTest()
+        profile = replace(case.profiles[31], approved=True)
+        info = quest_tests.load_quest_knowledge(
+            quest_tests.REAL_QUEST_DEFINITIONS
+        )[31]
+        policy = HengbotPolicy(
+            quest_strategies={31: profile},
+            quest_knowledge={31: info},
+            monrace_knowledge={
+                329: quest_tests.MonraceKnowledge(
+                    500, 110, False, False,
+                    flags=frozenset({"NEVER_MOVE"}),
+                )
+            },
+        )
+        stand = Position(18, 1)
+        target = Position(16, 3)
+        snapshot = quest_tests.Snapshot(
+            quest_tests.player(stand.y, stand.x),
+            {
+                stand: quest_tests.grid(stand.y, stand.x),
+                Position(17, 2): quest_tests.grid(17, 2),
+                target: quest_tests.grid(target.y, target.x),
+            },
+            [],
+            floor_key=(0, 22, 31),
+            can_see_own_grid=True,
+            light_radius=3,
+        )
+        policy._quest_strategy_initial_hold_turns[31] = 60
+        policy._build_grid_index(snapshot)
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [], []), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:survey-target-cleared")
+        self.assertIn((329, target.y, target.x), policy._quest_strategy_cleared_targets[31])
 
     def board_from_opening(self, name, policy=None):
         policy = policy or self.policy()

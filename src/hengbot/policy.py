@@ -1588,7 +1588,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # stationary and moving threats retain their last observed cell while
         # unseen, and observation of that cell without the monster retires it.
         self._paralyzer_avoid_cells: set[Position] = set()
-        self._remembered_paralyzers: dict[Position, bool] = {}
+        self._remembered_paralyzers: dict[
+            Position, bool | tuple[bool, int]
+        ] = {}
         # Grids whose entry a TR_WARNING prompt refused (this floor).  Injected
         # into _engagement_avoid_cells every decision — the same hard weight as
         # a lethal-danger cell — until the supply ledger is entirely exhausted,
@@ -12863,6 +12865,65 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
 
+
+    @staticmethod
+    def _line_of_sight_over_known_grids(
+        snapshot: Snapshot, origin: Position, target: Position
+    ) -> bool:
+        """Return whether every known grid between two cells allows LOS."""
+        y0, x0 = origin.y, origin.x
+        y1, x1 = target.y, target.x
+        dy, dx = abs(y1 - y0), abs(x1 - x0)
+        sy, sx = (1 if y0 < y1 else -1), (1 if x0 < x1 else -1)
+        error = dx - dy
+        while (y0, x0) != (y1, x1):
+            twice = error * 2
+            if twice > -dy:
+                error -= dy
+                x0 += sx
+            if twice < dx:
+                error += dx
+                y0 += sy
+            grid = snapshot.grid_at(Position(y0, x0))
+            if grid is None or not grid.known or not grid.allows_los:
+                return False
+        return True
+
+    def _player_can_see_empty_cell(
+        self,
+        snapshot: Snapshot,
+        position: Position,
+        *,
+        race_id: int | None = None,
+    ) -> bool:
+        """Certify an empty cell from the player's live light and clear LOS."""
+        cell = snapshot.grid_at(position)
+        if (
+            cell is None
+            or not cell.known
+            or not cell.currently_observed
+            or cell.has_monster
+            or any(
+                monster.position == position
+                for monster in snapshot.visible_monsters
+            )
+            or snapshot.player.blind
+        ):
+            return False
+        race = self._monrace_knowledge.get(race_id) if race_id is not None else None
+        if race is not None and "INVISIBLE" in race.flags:
+            return False
+        if cell.in_view:
+            return True
+        if (
+            snapshot.can_see_own_grid is not True
+            or snapshot.light_radius is None
+            or snapshot.player.position.distance_to(position) > snapshot.light_radius
+        ):
+            return False
+        return self._line_of_sight_over_known_grids(
+            snapshot, snapshot.player.position, position
+        )
 
     def _is_dark(self, snapshot: Snapshot) -> bool:
         if snapshot.can_see_own_grid is not None:

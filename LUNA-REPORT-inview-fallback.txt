@@ -1,0 +1,32 @@
+﻿PLAN-STEP: 4 — protocol-3 visibility fallbacks
+
+Commit: a16fac14 Add protocol 3 visibility fallbacks
+Base: c73d8b00
+
+Implementation
+
+- Item 1: remembered paralyzers now retain their race id. The shared visibility helper can retire a remembered cell using live light geometry; invisible races are not certified. Older bool-only memories retain the legacy in_view clearance path.
+- Item 2: Q34 fixed-target visibility now uses the shared helper. Restart survey can confirm a target cell empty from live own-grid visibility, light radius, and known clear LOS even when the defeat message and throw experience evidence are absent.
+- Item 3: Q34 recovery-lane reconstruction requires every lane cell to be known, empty, and visible through the shared helper; invisible target races cannot be reconstructed as dead.
+- Item 4: non-Q34 survey selection uses the same empty-cell visibility proof and the existing defeat-message / kill-share experience evidence. Survey confirmation accepts that same evidence.
+- Shared helper: `_player_can_see_empty_cell` checks known/currently observed emptiness, no visible monster at the position, non-blind state, and rejects an invisible race. A direct `in_view` fact remains usable for older protocol snapshots; otherwise the helper requires `can_see_own_grid is True`, the cell within `light_radius`, and Bresenham LOS through known `allows_los` cells.
+
+Pins and controls
+
+- Item 1 pin: recorded `tests/fixtures/q34-opening-live-20261011.json.gz` `cloaker_killed` board with a declared constructed remembered-paralyzer entry for race 243. It retires the memory under live geometry.
+- Item 2 pin: the same recorded Q34 board with defeat message and throw history removed for a restart survey. It clears the target and advances to torch recovery.
+- Item 3 pin: declared constructed empty recovery lane derived from the recorded Q34 board, with the player at lane center so all five cells are within radius 2.
+- Item 4 pin: declared constructed Q31 approved survey plan with an empty target, `in_view` false, and known clear LOS under live light geometry.
+- Controls: invisible target races, target cells outside light radius, and cells behind a known LOS-blocking wall remain uncleared. The canonical-lighting test remains unchanged and passes because its board does not assert `can_see_own_grid`.
+- Predicate reversion checks: each of the four pins failed when its specific predicate was temporarily reverted, then passed after restoration. Failures were: remembered paralyzer remained; recovery target absent from cleared set; Q34 restart returned key `5` instead of recovery key `6`; non-Q34 survey returned key `8` instead of `5`.
+
+Targeted runs
+
+- `tests.test_protocol3_display_align`: 13 tests, OK.
+- `tests.test_quest34_target_dead_recorded`: 5 tests, OK.
+- `test_policy_combat.py`: 303 tests, 5 skipped, OK.
+- `test_policy_quest.py`: 334 tests, 7 skipped, OK.
+
+Final affected/hygiene run and timing comparison
+
+Pending the required merge gate terminal state (`MERGED` or `STOP`). The full final runner output and `compare_timings.py` result will be added here before completion.
