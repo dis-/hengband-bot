@@ -106,8 +106,8 @@ class RecordedRetirementTest(unittest.TestCase):
 
     def test_d0_replays_all_sixteen_retirement_proposals_without_changing_driver_results(self):
         """Replay recorded proposal rows; D0-only counters below are DECLARED CONSTRUCTED."""
-        evidence = (Path(__file__).parents[1]
-                    / 'evidence-d/owner-retired-log-only-step2.jsonl')
+        evidence = (Path(__file__).parent
+                    / 'fixtures/owner-retired-log-only-step2.jsonl')
         records = [json.loads(line) for line in
                    evidence.read_text(encoding='utf-8').splitlines()]
         self.assertEqual(len(records), 16)
