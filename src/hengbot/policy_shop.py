@@ -5719,6 +5719,20 @@ class ShopMixin(InStoreMixin):
             atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
             if atomic_withdrawal is not None:
                 return atomic_withdrawal
+            session = self._equipment_transaction_session
+            action = session.current_action if session is not None else None
+            if (self._shopping_approach_store_type == STORE_HOME
+                    and self.last_reason == "home:await-fresh-knowledge"
+                    and not self._home_knowledge_current
+                    and (self._home_pending_item is not None or self._home_pending_batch)
+                    and self._home_atomic_withdraw_pending is None
+                    and self._home_atomic_deposit_pending is None
+                    and not self._town_space_deposit_actionable(snapshot)
+                    and action is None
+                    and (session is None or session.pending_action is None)):
+                # The composer refuses an unobserved address. Resolve that
+                # prerequisite here instead of labelling fallback travel await.
+                return self._home_full_knowledge_key(snapshot)
             atomic_deposit = (None if survival_home else
                               self._atomic_home_deposit_key(snapshot, step))
             if atomic_deposit is not None:

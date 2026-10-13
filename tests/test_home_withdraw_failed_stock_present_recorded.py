@@ -602,7 +602,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         """Decision 33 rescans Home without deferring the shovel."""
         replay = self._replay()
         self.assertEqual(
-            replay["decisions"][CONFIRM], ("5", "shop:travel:await-entry")
+            replay["decisions"][CONFIRM], ("~9\x1b", "home:request-knowledge-scan")
         )
         after = replay["after"]
         self.assertFalse(after["knowledge_current"])

@@ -1276,13 +1276,17 @@ class HomeMixin:
             return self._town_blocked_key(snapshot)
         self.last_reason = (self._home_errand.reason("await-fresh-knowledge")
                             if producer == "home-errand" else "home:scan-await-observation")
+        key = WAIT_KEY if (self._home_full_relief is not None
+                           or self._home_full_retry_deposits is not None
+                           or (producer == "home-errand" and self._home_errand.request is not None
+                               and self._home_errand.request.purpose == "full-home-sale")) else ""
         self._offer_execution(
-            "", producer=producer,
+            key, producer=producer,
             work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
             next_step="home.knowledge.observe", expected_effect="catalogue-adopted",
             continuation="home.knowledge.observe",
             budget_ref="home-knowledge-existing-epoch")
-        return ""
+        return key
 
 
 
@@ -2761,7 +2765,9 @@ class HomeMixin:
         if not self._home_knowledge_current:
             if self._home_errand.active:
                 return self._home_errand_knowledge_key(snapshot)
-            return self._home_full_knowledge_key(snapshot)
+            self.last_reason = "home:await-fresh-knowledge"
+            self._offer_home_atomic_no_step("withdraw", "await-fresh-knowledge")
+            return None
         if not self._home_page_size:
             self.last_reason = "home:await-page-size"
             self._offer_home_atomic_no_step("withdraw", "await-page-size")
@@ -2895,9 +2901,9 @@ class HomeMixin:
                     self._home_pending_quantity = None
                 if catalogued_beyond_prefix:
                     self._invalidate_home_observation()
-                    return (self._home_errand_knowledge_key(snapshot)
-                            if self._home_errand.active
-                            else self._home_full_knowledge_key(snapshot))
+                    self.last_reason = "home:await-fresh-knowledge"
+                    self._offer_home_atomic_no_step("withdraw", "catalogue-address-invalidated")
+                    return None
                 if taken is not None and (not (self._home_pending_batch or (action is not None and action.kind == 'withdraw'))):
                     return self._town_entrance_step_off_key(
                         snapshot, "home:atomic-withdraw-complete"

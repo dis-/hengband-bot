@@ -150,11 +150,11 @@ class HomeCatalogueTakeSequenceTest(unittest.TestCase):
         # Finish the observed exit before composing the prerequisite outside.
         policy.choose_key(board(turn=104))
         policy._shopping_approach_store_type = STORE_HOME
-        self.assertEqual(policy._atomic_home_withdraw_key(board(turn=105), ENTRANCE), "")
+        self.assertEqual(policy._shopping_approach_key(board(turn=105), ENTRANCE, "shop:travel"), "")
         self.assertEqual(policy.last_reason, "home:scan-await-observation")
         self.assertNotEqual(key, HOME_KNOWLEDGE_MACRO)
         policy.settle_home_knowledge_request()
-        self.assertEqual(policy._atomic_home_withdraw_key(board(turn=106), ENTRANCE),
+        self.assertEqual(policy._shopping_approach_key(board(turn=106), ENTRANCE, "shop:travel"),
                          HOME_KNOWLEDGE_MACRO)
 
     def test_named_take_lost_request_is_bounded_without_reposting(self):

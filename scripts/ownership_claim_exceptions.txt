@@ -94,3 +94,4 @@ policy_instore.py:_in_store_best_effort  # restores the existing producer reason
 policy_town.py:_town_travel_key  # relays the travel reason its caller composed
 policy_equipment.py:_close_full_home_equipment_deposit  # records the equipment owner's full-Home closure reason for its caller; emits no command
 policy_home.py:_observe_overweight_surplus_effect  # records the observed overweight surplus sale/destroy reason; emits no command
+policy_home.py:_home_knowledge_await_key  # delegated adapter: inherits the marked Home scan/errand caller and relays its observation/refusal; no independent owner
