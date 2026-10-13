@@ -9,7 +9,8 @@ import unittest
 
 from hengbot.cli import _dispatch_response_lines
 from hengbot.home_errand import HomeErrandRequest
-from hengbot.model import Position, StoreState, STORE_HOME
+from hengbot.model import Position, StoreState, STORE_HOME, TVAL_POTION, SV_POTION_CURE_CRITICAL
+from policy_fixtures import item
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO, WAIT_KEY
 from tests.test_home_withdraw_moved_address import (
@@ -116,6 +117,20 @@ class HomeCatalogueTakeSequenceTest(unittest.TestCase):
         self.assertTrue(policy._home_knowledge_scan_requested)
         self.assertNotEqual(policy.last_reason, "home:request-knowledge-scan")
         self.response(policy)
+
+    def test_recovery_interrupts_the_scan_without_charging_or_reposting(self):
+        policy = self.policy()
+        policy._home_pending_item = policy._item_signature(wares()[LATER])
+        policy.confirm_key_posted(policy.choose_key(board(turn=101)))
+        hurt = board([item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)], turn=102)
+        hurt = replace(hurt, player=replace(hurt.player, hp=4, poisoned=True))
+        key = policy.choose_key(hurt)
+        self.assertEqual((key, policy.last_reason), ("R&\r", "town:recover"))
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+        self.assertEqual(policy._home_knowledge_scan_wait_decisions, 0)
+        self.assertEqual(policy.choose_key(board(turn=103)), "")
+        self.assertEqual(policy.last_reason, "home:scan-await-observation")
+        self.assertEqual(policy._home_knowledge_scan_wait_decisions, 1)
 
     def test_contrary_shelf_does_not_repost_an_unsettled_request(self):
         policy = self.policy()

@@ -7887,7 +7887,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                          and knowledge_exit_holder.is_open
                          and knowledge_exit_holder.owner.value in {"home-scan", "home-errand"}
                          and knowledge_exit is not None
-                         and knowledge_exit.continuation == "home.knowledge.observe"))):
+                         and knowledge_exit.continuation == "home.knowledge.observe"
+                         and snapshot.player.hp >= snapshot.player.max_hp
+                         and not (snapshot.player.poisoned or snapshot.player.cut
+                                  or snapshot.player.confused or snapshot.player.blind)
+                         and snapshot.player.food_state in {"normal", "full", "gorged"}
+                         and not self._physical_hostiles(snapshot)))):
             # Continue the posted census with its own holder. A complete page
             # may settle it independently; an incomplete page cannot renew it.
             scan_key = self._town_producer_entry(
