@@ -1,6 +1,8 @@
 PLAN-STEP: 3 ISSUE: #1 -- D4 rework 2 report
 Base574bfba6; started4994040e; branch town-idle-d4-1013.
-STATUS: qualification pending failed-module round1 and post-round guards.
+STATUS: QUALIFIED under the prescribed final-run/failed-module-round gate.
+The single195-module run found5 additional(R), repaired; round1 is85/85 OK,
+post-round sequential preflight and mutation are OK. No round2 needed.
 
 Diagnosis: SOL-DIAG-town-idle-d4-rework2.txt was written before source edits.
 All7 failures are(R). The unchanged test bodies against independently extracted
@@ -30,8 +32,8 @@ home-scan holder whose named take requires stale knowledge answers its own
 continuation. This handles the cross-area Home hold without offering await
 before other producers. Its predicates require the selected Home stop, an
 open home-scan home.knowledge.observe holder, a posted request, stale contents,
-named pending take(s), no atomic operation/actionable deposit and no equipment
-session. No general scan-in-flight veto over another producer is installed.
+a named pending take or catalogue-only SCAN already at its Home goal,
+no atomic operation/actionable deposit and no equipment session. No general scan-in-flight veto over another producer is installed.
 
 policy.py:8473 preserves the posted epoch on a fresh incomplete Home page.
 Previously the early return hid a later fresh-entry reset which cleared the
@@ -48,7 +50,8 @@ renewal, re-entry/movement or repost is emitted by the declared empty await.
 Recovery interrupts as before. Home-errand still owns its own request/await.
 No restart memory, owner, priority reorder, D5, game/bot control, push or merge.
 
-New controls: tests.test_home_scan_owner_priority (6 tests), no producer mocks:
+New controls: tests.test_home_scan_owner_priority (7 final tests;6 at the
+initial final run,1 added for the discovered regression), no producer mocks:
 - launcher: actual carried enchant scroll is read while census stays in flight;
 - q22: actual inn travel decisions run with unspent Home own-decision budget;
 - reward: actual route reaches one pickup with >8 non-Home decisions and no
@@ -198,3 +201,57 @@ purity: ran (inputs sha256=6442e0adab1c4b4ba8a4a73739e8e8f6c322b80120750cbbc3a29
 weights: unavailable; fallback=192/192; stale=yes
 Total: 4118 tests, 6899.390s; output: C:\Users\user\AppData\Local\Temp\d4-rework2-final.json
 Receipt: C:\hengband\bot-client\.worktrees\town-idle-d4\jsonlog\receipts\test_parallel_runner-full-20261014T061152+0900.json; sha256: dd0342c40e90ba0aafccbe515cb01d190a15b3287ae9470a10d16b4010a7b55c
+
+Round1 ONLY the2 failed modules, at74a14110:
+worker-1: 5 tests, 96.613s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-pbf2rn8j\worker-1\home-history
+worker-2: 80 tests, 207.808s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-pbf2rn8j\worker-2\home-history
+Failures: none
+Errors: none
+purity: ran (inputs sha256=711d9ca52a8ceb45ea74da6071bdf0f1b214420f8faf00837fdc3772e6711f49)
+weights: unavailable; fallback=2/2; stale=yes
+Total: 85 tests, 207.834s; output: C:\Users\user\AppData\Local\Temp\d4-rework2-round1.json
+Receipt: C:\hengband\bot-client\.worktrees\town-idle-d4\jsonlog\receipts\test_parallel_runner-full-20261014T081306+0900.json; sha256: 8ea962a89751500ff680e0da09ff08c0abc9285a5e005925079b172650b2d089
+
+Post-round sequential preflight at74a14110:
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_batch_owner_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_pending_take_with_owners_on_both_sides_rescans_then_takes_later
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_recorded_one_shot_retired_at_its_own_entry
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys
+[preflight] NOTE existing-test MODIFIED: tests/test_ownership_s2b1_ladder.py::LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order
+[preflight] NOTE existing-test MODIFIED: tests/test_town_cure_supplier_recorded.py::TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards
+[preflight] PREFLIGHT OK: 25 changed files, 0 findings (town-idle-d4 vs 574bfba6)
+
+Post-round sequential mutation at74a14110:
+[mutation] 11 source hunks, tests: tests.test_home_catalogue_take_sequence tests.test_home_withdraw_moved_address tests.test_home_scan_owner_priority
+[mutation] caught     src/hengbot/claim_ladder.py:331 (_decide("_home_full_knowledge_key", "home-scan"),  # posted named-take): test_home_sequence_holder_answers_at_its_router_rung
+[mutation] caught     src/hengbot/policy.py:7970 (or ((not self._home_knowledge_current or self._home_knowledge_invalida): test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation, test_catalogue_only_home_holder_awaits_at_its_router_rung
+[mutation] caught     src/hengbot/policy.py:8470 (if fresh_home_entry and self._home_knowledge_scan_epoch is None:): test_posted_scan_survives_home_entry_without_repost
+[mutation] caught     src/hengbot/policy.py:11685 (holder = self._claim_register.current): test_catalogue_only_home_holder_awaits_at_its_router_rung, test_home_sequence_holder_answers_at_its_router_rung
+[mutation] caught     src/hengbot/policy.py:14059 (self._home_knowledge_scan_wait_decisions = 0): test_recovery_interrupts_the_scan_without_charging_or_reposting, test_launcher_enchant_runs_while_scan_is_inflight, test_pending_store_travel_runs_while_scan_is
+[mutation] caught     src/hengbot/policy_home.py:1220 (if self._home_knowledge_scan_inflight or self._home_knowledge_scan_epo): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:1239 (waiting = self._home_knowledge_scan_inflight or self._home_knowledge_s): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:2941 (return self._home_errand_knowledge_key(snapshot)): test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[mutation] caught     src/hengbot/policy_shop.py:15 (from hengbot.home_visit import HomeVisitKind): test_errand_lost_request_records_its_optional_outcome_once
+[mutation] caught     src/hengbot/policy_shop.py:5720 (session = self._equipment_transaction_session): test_contrary_shelf_does_not_repost_an_unsettled_request, test_named_take_lost_request_is_bounded_without_reposting, test_posted_scan_survives_home_entry_withou
+[mutation] caught     src/hengbot/policy_town.py:1451 (if (key == "" and self._home_knowledge_scan_inflight): test_declared_inflight_scan_is_not_counterfactual_travel
+[mutation] MUTATION OK: 0 of 11 hunks are not pinned by a test
+[mutation] recorded for 74a14110
+
+Final disposition: all7 gate failures are(R), fixed in src, tests unchanged.
+All5 final-run additional failures are(R), fixed in src, tests unchanged.
+No new(F) test edit. Earlier(F) first request keys remain unchanged, with
+oneshot index3 and all its independent suffix controls passing round1.
+The sanctioned3 moved-address flips still pass unchanged in the final guard.
+Cure-supplier and both existing D4 pin modules remain byte-for-byte unchanged
+from4994040e. The only existing-test edit is required ladder count80->81.
+No undecided qualification item remains in this rework. This is offline
+qualification of this slice, not a claim about live/game operation or5696
+full-suite tests; the prescribed union ran4118 tests, then only85 failed-module
+controls, with the25-test guard set (10+8+7) passing before hunk reversions.
+Implementation commits886a9de2,11240b6d,74a14110; a report-only commit follows.
+All required work finished inside210 minutes and the final run inside150.
