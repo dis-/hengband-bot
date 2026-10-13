@@ -108,3 +108,27 @@ after it and its failed module passed in the targeted rerun.
 Timing comparison:
 `python C:\\hengband-backups\\guard-tools\\compare_timings.py jsonlog\\test-parallel-timings.json --base C:\\hengband-backups\\suite-batches\\6ccc8a04`
 Output: `0 tests slower than 1.5x and +10s`; no tests were flagged.
+
+Operator follow-up (after the implementer run) - this section supersedes the text above where they differ
+---------------------------------------------------------------------------------------------------
+Mutation check of the six guard sites (each `"outside_home"` comparison disabled in turn):
+- policy.py (both catalogue predicates): each one is caught by the new public-path pins below.
+- policy_shop.py (claims filter, two projection guards, `_shopping_approach_step` guard): NOT caught by any
+  test, and the implementer's projection/router tests passed with policy_shop.py reverted to 6ccc8a04
+  (they were vacuous). There is no board for R8 (router step-off after the restart), so these four guards
+  had no evidence and no pin. They were REMOVED: policy_shop.py is identical to 6ccc8a04, and the three
+  vacuous tests were deleted. R8 stays open until a board exists (the D0 diagnostics now record the
+  retiring entry point and recurrence key).
+
+Public-path pins (tests/test_policy_equipment.py, captured R5 board, turn 16442332, pack 20, standing on the
+Home entrance, session = wield pack item 496a911c336315db to sub_hand, Home knowledge invalidated):
+- 6ccc8a04: choose_key -> `5 / equipment-transaction:travel-home:await-entry` (the live R5 decision).
+- now, with pack item p shown fully identified (DECLARED CONSTRUCTED): `wqy / equipment-transaction:equip`.
+- now, raw board: `identify:full` (the *Identify* of the unrelated pack item p runs first) - not a Home entry.
+The source-text (AST) pin was replaced by these behaviour pins.
+
+Not done: a dedicated pin for "equip refused -> existing current-loadout closure once" (that path is unchanged).
+
+Runs (single process, while a merge gate was running): tests.test_policy_equipment tests.test_item_sink_lint
+tests.test_s33_batch_context tests.test_equipment_transaction_session: 235 OK
+(C:\hengband-backups\suite-logs\d1-focused.log). The full affected set is left to the merge gate.

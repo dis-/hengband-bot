@@ -5836,57 +5836,89 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertTrue(projection["outstanding_equipment_work"])
         self.assertTrue(projection["equipment_work_need_present"])
 
-    def test_outside_equip_session_keeps_work_without_projecting_home_need(self):
-        policy, snapshot, _ = self._stripped_fixture()
-        carried = snapshot.inventory[0]
+    def _captured_r5_public_decision(self, *, identified, knowledge_invalidated=True):
+        """choose_key on the captured R5 board with its admitted outside equip.
+
+        Live 2026-10-11 12:47:15, turn 16442332 (log-only record R5): the
+        character stands on the Home entrance with pack 20; the session's
+        next action wields pack item 496a911c336315db to sub_hand outside
+        Home, and the Home knowledge is invalidated.
+        """
+        from hengbot.claim_register import observe
+
+        fixture_path = (
+            Path(__file__).parent / "fixtures" / "town-idle-d1-r5-r6-boards.jsonl.gz"
+        )
+        with gzip.open(fixture_path, "rt", encoding="utf-8") as source:
+            outside = parse_snapshot(json.loads(next(source)), {})
+        self.assertEqual(outside.turn, 16442332)
+        self.assertEqual(len(outside.inventory), 20)
+        self.assertEqual(
+            outside.grid_at(outside.player.position).store_number, STORE_HOME
+        )
+        target = next(
+            item for item in outside.inventory
+            if policy_module.equipment_identity(item) == "496a911c336315db"
+        )
+        if identified:
+            # DECLARED CONSTRUCTED: the unrelated pack item p is shown fully
+            # identified, as after the *Identify* that the raw board asks for.
+            outside = replace(outside, inventory=tuple(
+                replace(item, fully_known=True) if item.slot == "p" else item
+                for item in outside.inventory
+            ))
         action = policy_module.EquipmentTransaction(
-            policy_module.PHASE_EQUIP, "equip", "pack:outside-action",
-            "sub_hand", policy_module.equipment_identity(carried),
+            policy_module.PHASE_EQUIP, "equip", "pack:496a911c336315db:0",
+            "sub_hand", policy_module.equipment_identity(target),
         )
-        policy._equipment_transaction_session = (
-            policy_module.EquipmentTransactionSession(
-                policy_module.EquipmentTransactionPlan((action,), (), 1)
-            )
+        policy = HengbotPolicy()
+        policy.prime(outside)
+        policy._home_knowledge_current = not knowledge_invalidated
+        policy._home_knowledge_invalidated = knowledge_invalidated
+        policy._equipment_catalog.home_scan_complete = True
+        policy._town_claim_bar_enforced = True
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 20)
         )
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=(), result=None, encounters_total=0,
-            encounters_evaluated=0, transaction=None,
+        policy._equipment_transaction_session = session
+        session.opened_sequence = 1
+        claim = policy._claim_register.declare(
+            "equipment-txn",
+            observe(("recorded-session",), 8, source="transaction"),
+            floor=outside.floor_key,
         )
-
-        projection = policy.equipment_optimization_state(snapshot)[
-            "home_route_projection"
-        ]
-
-        self.assertTrue(projection["outstanding_equipment_work"])
-        self.assertFalse(projection["equipment_work_need_present"])
-
-    def test_both_catalogue_entry_predicates_exclude_outside_equip(self):
-        source = textwrap.dedent(inspect.getsource(HengbotPolicy._choose_key))
-        tree = ast.parse(source)
-        predicates = [
-            ast.unparse(node.test)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.If)
-            and "acquire-home-catalog" in ast.unparse(node.test)
-        ]
-
-        self.assertEqual(len(predicates), 1)
-        self.assertIn("self._equipment_transaction_session.required_context", predicates[0])
-        self.assertIn("outside_home", predicates[0])
-        decision_source = textwrap.dedent(inspect.getsource(HengbotPolicy._decide))
-        decision_tree = ast.parse(decision_source)
-        decision_predicates = [
-            ast.unparse(node.test)
-            for node in ast.walk(decision_tree)
-            if isinstance(node, ast.If)
-            and "acquire-home-catalog" in ast.unparse(node.test)
-        ]
-        self.assertEqual(len(decision_predicates), 1)
-        self.assertIn(
-            "self._equipment_transaction_session.required_context",
-            decision_predicates[0],
+        policy._claim_register.declare_execution(
+            claim.claim_id, producer="equipment-txn", work_id="equipment:outside",
+            state="acting", next_step="equipment.next-action",
+            expected_effect="equipment-action-confirmed",
+            continuation="equipment.next-action",
         )
-        self.assertIn("outside_home", decision_predicates[0])
+        # The fresh process first asks for the skill list (bookkeeping).
+        self.assertEqual(policy.choose_key(outside), "~f\x1b")
+        policy.consume_skill_knowledge({
+            "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
+            "player": {"level": outside.player.level},
+        })
+        key = policy.choose_key(outside)
+        return key, policy.last_reason, policy
+
+    def test_captured_r5_board_wields_outside_instead_of_waiting_at_home(self):
+        # On 6ccc8a04 this decision is the live one,
+        # `5 / equipment-transaction:travel-home:await-entry`.
+        key, reason, policy = self._captured_r5_public_decision(identified=True)
+
+        self.assertEqual((key, reason), ("wqy", "equipment-transaction:equip"))
+        self.assertIsNotNone(policy._equipment_transaction_session)
+
+    def test_captured_r5_raw_board_does_not_return_to_home(self):
+        # The raw board still owes another owner's work (the *Identify* of
+        # pack item p); that runs first and is not a Home entry either.
+        key, reason, _policy = self._captured_r5_public_decision(identified=False)
+
+        self.assertFalse(reason.startswith("equipment-transaction:travel-home"))
+        self.assertNotEqual(reason, "equipment-transaction:acquire-home-catalog")
+        self.assertEqual(reason, "identify:full")
+        self.assertTrue(key.startswith("r"))
 
     def test_captured_r5_session_dispatches_its_pack_item_after_home_exit(self):
         fixture_path = (
@@ -5918,72 +5950,6 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         wield_key = policy._equipment_transaction_town_key(outside)
         self.assertEqual(wield_key, "wqy")
         self.assertEqual(policy.last_reason, "equipment-transaction:equip")
-
-    def test_outside_equip_session_blocks_router_home_alias_but_keeps_home_work(self):
-        policy, outside, _ = self._stripped_fixture()
-        carried = outside.inventory[0]
-        equip = policy_module.EquipmentTransaction(
-            policy_module.PHASE_EQUIP, "equip", "pack:outside-action",
-            "sub_hand", policy_module.equipment_identity(carried),
-        )
-        policy._equipment_transaction_session = (
-            policy_module.EquipmentTransactionSession(
-                policy_module.EquipmentTransactionPlan((equip,), (), 1)
-            )
-        )
-        policy._town_errand_plan = policy_module.TownErrandPlan(
-            [STORE_HOME],
-            need_categories={STORE_HOME: ("equipment-transaction",)},
-        )
-
-        self.assertIsNone(policy._shopping_approach_step(
-            outside, STORE_HOME, router_plan_stop=True,
-        ))
-
-        fixture_path = (
-            Path(__file__).parent / "fixtures" / "town-idle-d1-r5-r6-boards.jsonl.gz"
-        )
-        with gzip.open(fixture_path, "rt", encoding="utf-8") as source:
-            outside = parse_snapshot(json.loads(next(source)), {})
-        policy = HengbotPolicy()
-        home_action = policy_module.EquipmentTransaction(
-            policy_module.PHASE_HOME_PREPARE, "withdraw", "home:required-action",
-            item_identity="home:required-action",
-        )
-        policy._equipment_transaction_session = (
-            policy_module.EquipmentTransactionSession(
-                policy_module.EquipmentTransactionPlan((home_action,), (), 1)
-            )
-        )
-        policy._town_errand_plan = policy_module.TownErrandPlan(
-            [STORE_HOME],
-            need_categories={STORE_HOME: ("equipment-transaction",)},
-        )
-        self.assertIsNotNone(policy._shopping_approach_step(
-            outside, STORE_HOME, requester="equipment-txn",
-        ))
-
-    def test_declared_constructed_r8_router_alias_is_suppressed(self):
-        # DECLARED CONSTRUCTED: R8's decision record has no full board snapshot.
-        policy, outside, _ = self._stripped_fixture()
-        carried = outside.inventory[0]
-        action = policy_module.EquipmentTransaction(
-            policy_module.PHASE_EQUIP, "equip", "pack:outside-action",
-            "sub_hand", policy_module.equipment_identity(carried),
-        )
-        policy._equipment_transaction_session = (
-            policy_module.EquipmentTransactionSession(
-                policy_module.EquipmentTransactionPlan((action,), (), 1)
-            )
-        )
-        policy._town_errand_plan = policy_module.TownErrandPlan(
-            [STORE_HOME],
-            need_categories={STORE_HOME: ("equipment-transaction",)},
-        )
-
-        self.assertIsNone(policy._shopping_approach_step(
-            outside, STORE_HOME, requester="store-router", router_plan_stop=True,
-        ))
 
     def test_satisfied_zero_action_optimization_does_not_own_home(self):
         policy, snapshot = town_fixture.NoSafeRecallDestinationTest()._fixture()
