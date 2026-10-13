@@ -47,4 +47,83 @@ No game/bot control, process stop/restart, push, merge, reset, D5 or delegation.
 Task/captures-d4 inputs remain untracked; the new pins use existing tracked
 fixtures and read existing game definitions via the inherited test setup.
 
-Fast guards and final run outputs will be appended after execution.
+Qualification commits and scope
+3de26e01 committed the diagnostic, report draft and three pins BEFORE guards.
+Both guards ran sequentially against574bfba6 using Codex runtime Python.
+The listed existing-test modification NOTES below belong to the earlier D4
+slice, not to this rework. All8 source hunks in the slice remain behavior pinned.
+After mutation_check restored the source, git diff --exit-code ff6a253e -- src
+ tests/test_town_cure_supplier_recorded.py produced no differences.
+
+Final run ONCE, HEAD3de26e01, PYTHONPATH=src, workers2, purity=always:
+All11 explicitly required modules plus the new pin module were scheduled.
+274 tests;614.600s (10.24 minutes). New pins all pass.5 existing skips.
+One failure, no errors: the SAME unresolved existing prefix-whitelist test.
+Its measured divergence set gains exactly59,60,61; all other expectations in
+that module remain intact. This is UNDECIDED (R/W under the strict proof rule),
+not a newly sanctioned(F) expectation change. Rework instruction4 expressly
+requires leaving it unchanged when qualification is undecidable.
+No failed-module retry round: there is no authorized source/expectation fix to
+verify, and repeating an unchanged undecidable assertion adds no evidence.
+No additional affected/hygiene set: src did not change in this rework.
+The final qualification remains NOT QUALIFIED; it is not claimed as passing.
+
+Preflight output:
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_batch_owner_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_pending_take_with_owners_on_both_sides_rescans_then_takes_later
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_recorded_one_shot_retired_at_its_own_entry
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys
+[preflight] PREFLIGHT OK: 19 changed files, 0 findings (town-idle-d4 vs 574bfba6)
+
+Mutation output:
+[mutation] 8 source hunks, tests: tests.test_home_catalogue_take_sequence tests.test_home_withdraw_moved_address tests.test_town_cure_catalogue_continuation
+[mutation] caught     src/hengbot/policy.py:7880 (and not self._open_home_page_is_complete(snapshot)): test_posted_scan_survives_home_entry_without_repost, test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation, test_own_keys_from_58_request_await_ad
+[mutation] caught     src/hengbot/policy.py:7984 (or ((not self._home_knowledge_current or self._home_knowledge_invalida): test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation
+[mutation] caught     src/hengbot/policy.py:14048 (self._home_knowledge_scan_wait_decisions = 0): test_recovery_interrupts_the_scan_without_charging_or_reposting, test_named_take_lost_request_is_bounded_without_reposting
+[mutation] caught     src/hengbot/policy_home.py:1220 (if self._home_knowledge_scan_inflight or self._home_knowledge_scan_epo): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:1239 (waiting = self._home_knowledge_scan_inflight or self._home_knowledge_s): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:2941 (return self._home_errand_knowledge_key(snapshot)): test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[mutation] caught     src/hengbot/policy_shop.py:5719 (session = self._equipment_transaction_session): test_contrary_shelf_does_not_repost_an_unsettled_request, test_named_take_lost_request_is_bounded_without_reposting, test_posted_scan_survives_home_entry_withou
+[mutation] caught     src/hengbot/policy_town.py:1451 (if (key == "" and self._home_knowledge_scan_inflight): test_declared_inflight_scan_is_not_counterfactual_travel
+[mutation] MUTATION OK: 0 of 8 hunks are not pinned by a test
+[mutation] recorded for 3de26e01
+
+Final runner output:
+worker-1: 39 tests, 387.563s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-gcbljy7v\worker-1\home-history
+worker-2: 235 tests, 614.563s, exit 1; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-gcbljy7v\worker-2\home-history
+................................s..............................................................................................................................ssss.......................................................................F
+======================================================================
+FAIL: test_walled_prefix_reproduces_live_except_declared_boards (tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-d4\tests\test_town_cure_supplier_recorded.py", line 340, in test_walled_prefix_reproduces_live_except_declared_boards
+    self.assertEqual(divergent, PREFIX_DIVERGENCES)
+AssertionError: Tuples differ: (9, 1[138 chars] 53, 59, 60, 61, 69, 70, 71, 72, 73, 170, 171,[203 chars]1378) != (9, 1[138 chars] 53, 69, 70, 71, 72, 73, 170, 171, 172, 173, 1[191 chars]1378)
+
+First differing element 37:
+59
+69
+
+First tuple contains 3 additional elements.
+First extra element 85:
+1057
+
+Diff is 661 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 235 tests in 612.802s
+
+FAILED (failures=1, skipped=5)
+Failures: ['tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards']
+Errors: none
+purity: ran (inputs sha256=a3582745e4e579f3e383bbc56ce190a1310ee7273feac5e50188ed4bf0a6f513)
+weights: unavailable; fallback=12/12; stale=yes
+Total: 274 tests, 614.600s; output: C:\Users\user\AppData\Local\Temp\town-idle-d4-rework-final-20261014-030152.json
+Receipt: C:\hengband\bot-client\.worktrees\town-idle-d4\jsonlog\receipts\test_parallel_runner-full-20261014T030210+0900.json; sha256: d67624566835c9d8a6b8cd08a3a0ab97f0f728fbd33eb4a7d476bdee2acf6949
+
+No other module failed. The untouched prefix test remains the sole open item.

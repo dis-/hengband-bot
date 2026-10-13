@@ -35,7 +35,7 @@ StoreVisit town-errand/shopping/Home/APPROACHING, opened_sequence=59,
 operation_posted=False, operation_released=False. Leave latch=None.
 Claim55 home-scan ACTIVE: home.knowledge.request -> catalogue-adopted ->
 home.knowledge.observe. The router consumes the stale composer's no-step at
-policy_shop.py:5719-5732 and uses _home_full_knowledge_key, policy_home.py:1205.
+policy_shop.py:5719-5732 and uses _home_full_knowledge_key, policy_home.py:1209.
 This meets the named stale-take request shape, without other physical work.
 
 Board 60, turn6455264, inside Home:
@@ -46,10 +46,10 @@ Claim55 is still ACTIVE; its request declaration revision is now2.
 Page: page_top=0, page_size=52, stock_num=197, len(items)=52, capacity=240.
 _open_home_page_is_complete=False (policy_home.py:1751-1763): the page does
 not contain the whole Home. _store_page_can_request_knowledge=True
-(policy_home.py:1195-1203): ALL52 displayed slots are rendered. These are
+(policy_home.py:1199-1205): ALL52 displayed slots are rendered. These are
 different predicates. This is not a genuinely incomplete rendered page.
 The early request at policy.py:7906-7918 accepts this fully rendered surface
-and invalidated catalogue with a procurement probe; it has no posted request
+and invalidated catalogue prerequisite; it has no posted request
 to await, because the wall posted live59 instead. It may request ~9 in Home.
 The real incomplete-rendering control removes one of those52 slots and still
 gets ESC/home:scan-incomplete-open-page through policy.py:9252-9264.
@@ -124,8 +124,8 @@ The board59 inventory already has9 of the SAME speed-potion signature as its
 queued batch entry. The independent confirmation at66 also has9. Following
 the shovel gain, _town_item_processing_dispatch_key activates the remaining
 batch item (policy_town.py:2388; policy_home.py:4299), finds that carried stack
-(policy_town.py:2478), and completes its identification processing, clearing
-the active batch entry at policy_town.py:2584-2602. It is in
+(policy_town.py:2467), and completes its identification processing, clearing
+the active batch entry at policy_town.py:2578-2596. It is in
 _processed_home_items, not deferred, and no speed take is pending or posted.
 Attaching the later independent Home page67 and outside board68 in a diagnostic
 run yielded ESC/home:scan-incomplete-open-page then the recorded identify:full
