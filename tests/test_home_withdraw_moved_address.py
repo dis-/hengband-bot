@@ -59,6 +59,7 @@ from hengbot.model import (
     Snapshot,
 )
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 
 
 PAGE_SIZE = 12
@@ -203,8 +204,8 @@ class HomeWithdrawMovedAddressTest(unittest.TestCase):
         self.assertEqual(taken_key, "5pf1\r\x1b")
         # Recorded: '6' town:entrance-step-off:home:atomic-withdraw-target-
         # unobserved, deferring the scroll, then the shovel.  Fixed: the
-        # shovel's address moved, so Home is entered for a fresh scan.
-        self.assertEqual((decision, reason), ("5", "shop:travel:await-entry"))
+        # shovel's address moved, so request its catalogue outside.
+        self.assertEqual((decision, reason), (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
         self.assert_rescan_requested()
         self.assertIsNone(policy._home_pending_item)
         self.assertEqual(policy._home_pending_batch, [self.later, self.earlier])
@@ -230,7 +231,7 @@ class HomeWithdrawMovedAddressTest(unittest.TestCase):
         taken_key, decision, reason = self.take(self.shelf[TAKEN])
 
         self.assertEqual(taken_key, "5pf1\r\x1b")
-        self.assertEqual((decision, reason), ("5", "shop:travel:await-entry"))
+        self.assertEqual((decision, reason), (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
         self.assert_rescan_requested()
         self.assertEqual(policy._home_pending_batch, [self.later, self.earlier])
         self.assert_nothing_failed()
@@ -254,13 +255,14 @@ class HomeWithdrawMovedAddressTest(unittest.TestCase):
         policy._shopping_approach_store_type = STORE_HOME
         policy._store_entrance_step_off = None
 
-        self.assertIsNone(
-            policy._atomic_home_withdraw_key(board(turn=5552450), ENTRANCE)
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(board(turn=5552450), ENTRANCE),
+            HOME_KNOWLEDGE_MACRO,
         )
 
         self.assertEqual(
             policy.last_reason,
-            policy._home_errand.reason("await-fresh-knowledge"),
+            policy._home_errand.reason("request-knowledge"),
         )
         self.assert_rescan_requested()
         self.assert_nothing_failed()

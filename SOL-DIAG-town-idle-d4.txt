@@ -1,0 +1,45 @@
+D4 diagnosis on base 574bfba6 (2026-10-13). DECLARED CONSTRUCTED boards;
+R1/R2 have decision rows only, not replayable state captures.
+
+R1: policy_shop.py:5669 _shopping_approach_key, :5768-5783 offers the
+store-router entry wait when already on the entrance. policy.py:9239-9248
+exits the incomplete Home page and declares home.knowledge.request, but
+:7963-7982 requires _home_knowledge_invalidated for its outside continuation.
+An initial incomplete observation has current=False AND invalidated=False;
+therefore that declared obligation is ignored. The outside scan at :8640-8670
+also excludes entrance tiles. The router can offer a second entry instead.
+Constructed producer sequence: entrance -> '5'/shop:travel:await-entry;
+20-stock/12-page with zero rendered rows -> ESC/home:scan-incomplete-open-page;
+outside entrance, same Home route -> '5'/shop:travel:await-entry (router).
+Public choose_key additionally preserves the existing outside-entry step-off
+barrier: its continuation on this construction is '4'/shop:approach. The
+historical seq4 '5' is a decision fact, not proof of that barrier's state.
+
+R2: policy_home.py:2701 _atomic_home_withdraw_dispatch_key, :2738-2747 sets
+home:await-fresh-knowledge but returns None. policy_shop.py:5712 accepts no
+withdrawal and continues through :5787-5791 to movement. Constructed entrance
+board with named shovel and stale knowledge, step=(44,124):
+'9'/home:await-fresh-knowledge. The same defect repeats after address loss.
+The beyond-prefix branches :2880-2883 and :2916-2919 similarly invalidate and
+return no step, allowing re-entry instead of the explicit scan prerequisite.
+
+Important base distinction: historical seq29/30/31/32 knowledge alternation
+does NOT by itself prove which internal condition destroyed knowledge. On
+574bfba6, the constructed correlated adoption -> rendered Home page ->
+ESC/home:leave-for-pending-withdraw -> outside take preserves current content
+and yields '5 pd1\\r\\x1b'/home:atomic-withdraw. policy.py:9197-9204 only
+requests the trip and leaves; town_arbiter.py:1047-1072 closes the visit without
+invalidating Home content. Real contrary shelf count is independently checked
+at policy.py:7992-8004; witnessed operations invalidate addresses separately.
+Do not add a redundant cleanup fix or invent historical state evidence.
+
+Historical seq36 resolves page0 letter h and seq37 pack17->18 confirms the
+take. The decision suffix cannot prove the internal enabling condition. The
+constructed base take is enabled by current complete knowledge, page size and
+resolved local target index; preserve those independently attached controls.
+
+Existing loss bound: tests/test_home_knowledge_scan.py:339-368 demonstrates one
+posted scan, no repost, owner-retired stop within 8 decisions, then new visit
+rearming. STORE_STUCK_LIMIT=8 bounds posted physical confirmation. Existing
+unobserved target deferral, procurement failure and errand outcomes remain;
+an address failure must not close the entire Home. No new owner or priority.

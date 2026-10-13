@@ -10579,5 +10579,17 @@
     "admission": "existing final policy emission",
     "observer": "shared INN receipt consumed by arbiter and CLI; baseline grants no credit",
     "delegation": "retained child; no independent command"
+  },
+  "policy_home.py:HomeMixin._home_knowledge_await_key": {
+    "classification": "producer",
+    "rows": [
+      "home-catalogue",
+      "store-exit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Delegated shared await adapter: its producer argument is supplied by the existing home-scan or home-errand holder. Empty await has no movement or independent success. Eight own stalled decisions end with the existing retirement or errand scan-refusal outcome.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

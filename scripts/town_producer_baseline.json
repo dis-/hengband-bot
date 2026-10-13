@@ -669,5 +669,6 @@
   "policy.py:HengbotPolicy._equipment_catalogue_only": "pure helper: tests whether catalogue acquisition has no physical or closed Home work; no command or progress credit",
   "policy_home.py:HomeMixin._ensure_home_visit_request": "delegated adapter: file/check the existing bounded HomeVisit request and return route availability; no keyboard command or independent progress credit",
   "home_visit.py:HomeVisitExecutor.begin_approach": "delegated adapter: advance the existing HomeVisit approach state under its attempt bound; returns bool and emits no keyboard command",
-  "policy_town.py:TownMixin._town_inn_route_receipt": "pure helper: previews and settles process-local observed INN route evidence; emits no command."
+  "policy_town.py:TownMixin._town_inn_route_receipt": "pure helper: previews and settles process-local observed INN route evidence; emits no command.",
+  "policy_home.py:HomeMixin._home_knowledge_await_key": "delegated adapter: awaits the posted census for the existing home-scan or home-errand caller; counts own stalled decisions and forwards the existing terminal/refusal outcome"
 }

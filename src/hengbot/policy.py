@@ -7880,13 +7880,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._home_catalogue_work_key(snapshot)
         if (snapshot.in_town and self._home_knowledge_scan_inflight
                 and not self._home_knowledge_current
+                and not self._open_home_page_is_complete(snapshot)
                 and (self._home_full_relief is not None
-                     or self._home_full_retry_deposits is not None)):
-            # A posted surplus-sale census keeps its observed scan owner even
-            # when the unchanged board still shows the selling store.
+                     or self._home_full_retry_deposits is not None
+                     or (knowledge_exit_holder is not None
+                         and knowledge_exit_holder.is_open
+                         and knowledge_exit_holder.owner.value in {"home-scan", "home-errand"}
+                         and knowledge_exit is not None
+                         and knowledge_exit.continuation == "home.knowledge.observe"))):
+            # Continue the posted census with its own holder. A complete page
+            # may settle it independently; an incomplete page cannot renew it.
             scan_key = self._town_producer_entry(
-                "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
-                family="home-scan")
+                "home-full-knowledge",
+                lambda: (self._home_errand_knowledge_key(snapshot)
+                         if self._home_errand.needs_knowledge
+                         else self._home_full_knowledge_key(snapshot)),
+                family="home-errand" if self._home_errand.needs_knowledge else "home-scan")
             if scan_key is not None:
                 return scan_key
         if (
@@ -7970,7 +7979,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and (self._home_full_relief is not None
                      or self._home_full_retry_deposits is not None
                      or self._home_errand.needs_knowledge
-                     or (self._home_knowledge_invalidated
+                     or ((not self._home_knowledge_current or self._home_knowledge_invalidated)
                          and (self._home_visit.request is None
                           or self._home_visit.request.kind == HomeVisitKind.SCAN)
                          and not self._town_space_deposit_actionable(snapshot)
@@ -14034,6 +14043,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
             self._home_knowledge_scan_epoch = self._town_visit_epoch
+            self._home_knowledge_scan_wait_decisions = 0
+            self._home_knowledge_scan_wait_sequence = None
+            self._home_knowledge_scan_wait_outcome_recorded = False
             return True
         if key == SKILL_KNOWLEDGE_MACRO:
             self._skill_exp_request_inflight = True
