@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
 import tests  # noqa: F401 -- protect live runtime files
-from hengbot.model import PLAYER_CLASS_WARRIOR, Position, parse_snapshot
+from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_HOME, Position, parse_snapshot
 from hengbot.cli import _dispatch_response_lines
 from hengbot.policy import HengbotPolicy
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
@@ -145,6 +145,43 @@ class Live23HomeCycleTest(unittest.TestCase):
         self.assertEqual(policy._home_knowledge_scan_epoch, request_epoch)
         self.assertTrue(policy._home_knowledge_scan_inflight)
         self.assertEqual(outside.player.position, Position(31, 99))
+
+        # The second acquisition branch starts from a mapped non-Home town
+        # tile, so the first branch's entrance-cell predicate is false.
+        second_policy, second_boards = attachment()
+        second_outside = replace(second_boards[0], player=replace(
+            second_boards[0].player, position=Position(37, 91)))
+        self.assertTrue(second_outside.in_town)
+        self.assertNotEqual(
+            second_outside.grid_at(second_outside.player.position).store_number,
+            STORE_HOME,
+        )
+        key = second_policy.choose_key(second_outside)
+        self.assertEqual((key, second_policy.last_reason), (
+            HOME_KNOWLEDGE_MACRO,
+            "equipment-transaction:catalogue-request-knowledge"))
+        second_policy.confirm_key_posted(key)
+        key = second_policy.choose_key(second_outside)
+        self.assertEqual((key, second_policy.last_reason), (
+            "", "equipment-transaction:catalogue-await-knowledge"))
+        self.assertEqual(second_outside.player.position, Position(37, 91))
+
+        # A posted scan can also predate the registered equipment holder.
+        waiting_policy, waiting_boards = attachment()
+        waiting_outside = replace(waiting_boards[0], player=replace(
+            waiting_boards[0].player, position=Position(31, 99)))
+        waiting_policy._home_knowledge_scan_inflight = True
+        waiting_policy._home_knowledge_scan_requested = True
+        waiting_policy._home_knowledge_scan_epoch = waiting_policy._town_visit_epoch
+        request_epoch = waiting_policy._home_knowledge_scan_epoch
+        self.assertIsNone(waiting_policy._home_catalogue_work_holder())
+
+        key = waiting_policy.choose_key(waiting_outside)
+        self.assertEqual((key, waiting_policy.last_reason), (
+            "", "equipment-transaction:catalogue-await-knowledge"))
+        self.assertEqual(waiting_policy._home_knowledge_scan_epoch, request_epoch)
+        self.assertTrue(waiting_policy._home_knowledge_scan_inflight)
+        self.assertEqual(waiting_outside.player.position, Position(31, 99))
 
     def test_historical_competing_actor_names_registered_holder_in_shadow(self):
         for restored in (False, True):

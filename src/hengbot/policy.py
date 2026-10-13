@@ -6853,8 +6853,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "equipment-transaction:catalogue-await-knowledge"
                 self._offer_execution_awaiting(
                     "", producer=family, work_id="equipment:acquire-home-catalog",
-                    operation_ref=(holder.execution.operation_ref
-                                   if holder is not None else None),
+                    operation_ref=holder.execution.operation_ref,
                     expected_effect="home-catalog-available",
                     continuation="home.catalogue.acquire",
                 )
@@ -6865,8 +6864,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         else:
             if self._home_knowledge_scan_inflight:
                 self.last_reason = "equipment-transaction:catalogue-await-knowledge"
-                # '5' on the Home entrance activates entry. Observe the
-                # already posted scan without sending another game command.
+                # The outside request may be in flight before the equipment
+                # holder has been recorded. Await without reposting or moving.
                 self._offer_execution_awaiting(
                     "", producer=family, work_id="equipment:acquire-home-catalog",
                     operation_ref=(holder.execution.operation_ref
@@ -7824,27 +7823,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return LEAVE_STORE_KEY
         knowledge_exit_holder = getattr(self._claim_register, "current", None)
         knowledge_exit = getattr(knowledge_exit_holder, "execution", None)
-        catalogue_holder = self._home_catalogue_work_holder()
-        if (snapshot.store is None and snapshot.in_town
-                and catalogue_holder is not None
-                and catalogue_holder.execution.next_step
-                == "home.approach-for-equipment-catalog"
-                and not self._town_space_deposit_actionable(snapshot)
-                and self._home_atomic_withdraw_pending is None
-                and self._home_atomic_deposit_pending is None
-                and not self._home_entry_operation_posted
-                and not (
-                    self._equipment_transaction_session is not None
-                    and self._equipment_transaction_session.current_action is not None
-                    and self._equipment_transaction_session.required_context == "home"
-                )):
-            # A registered catalogue holder may still carry the legacy route
-            # step; continue its own work with the outside knowledge request.
-            return self._town_producer_entry(
-                "_home_catalogue_work_key",
-                lambda: self._home_catalogue_work_key(snapshot),
-                family="equipment-txn",
-            )
         if (snapshot.store is None and snapshot.in_town
                 and (catalogue_holder := self._home_catalogue_work_holder()) is not None
                 and catalogue_holder.execution.continuation == "home.catalogue.acquire"):
