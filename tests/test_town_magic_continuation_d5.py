@@ -131,6 +131,8 @@ class MagicContinuationTest(unittest.TestCase):
                                 player=replace(snapshot.player, gold=8981))
                 key = policy.choose_key(reply)
                 self.assertEqual(bool(policy._town_visit_purchases), matched)
+                self.assertEqual(sum(policy._town_visit_purchase_quantities.values()),
+                                 1 if matched else 0)
                 self.assertEqual(getattr(policy, '_magic_staff_buy_receipt', None)
                                  is not None, matched)
                 cli._observe_owner_retired_progress(policy, reply, key, visit)
