@@ -668,6 +668,5 @@
   "policy_instore.py:InStoreMixin._in_store_required_operation_stop": "delegated adapter: publishes the existing town blocked terminal after a required store operation cannot fit its current entry budget.",
   "policy_shop.py:ShopMixin._departure_blocking_page_operation": "pure helper: returns required page-operation facts for Home relief and IST selection; emits no command.",
   "policy_town.py:TownMixin._town_inn_route_receipt": "pure helper: previews and settles process-local observed INN route evidence; emits no command.",
-  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command.",
-  "policy_town.py:TownMixin._town_entrance_cells": "pure helper: returns observed town entrance cells for legal BFS; emits no command."
+  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command."
 }
