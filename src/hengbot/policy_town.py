@@ -325,6 +325,16 @@ class TownMixin:
             # and the arbiter retired this family nine cells into the walk
             # (2026-09-24 02:27).
             or (reason or self.last_reason) == "town:cross-town-walk-in-return"
+            # The cross-town shopping trip walks to the same teleport building
+            # through _town_teleport_key.  Its vector held only durable facts,
+            # so a walk that was closing the route was retired on a repeated
+            # vector (2026-10-11 13:10 and 15:10, log-only records R9/R11).
+            or (
+                (reason or self.last_reason or "").startswith(
+                    "town:cross-town-shopping:travel-"
+                )
+                and getattr(self, "_cross_town_shopping", None) is not None
+            )
         ):
             # The *Identify* expedition walks to this town's teleport building
             # along the route _town_teleport_route steps on.  Its remaining

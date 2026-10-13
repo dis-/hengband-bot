@@ -34,7 +34,10 @@ from hengbot.policy_constants import (
     OUTPOST_TOWN_ID,
     TOWN_TRAVEL_STALL_LIMIT,
 )
-from hengbot.policy_types import MorivantFullIdentifyExpedition
+from hengbot.policy_types import (
+    CrossTownShoppingExpedition,
+    MorivantFullIdentifyExpedition,
+)
 from hengbot.town_maps import find_town_map, parse_town_map
 
 from policy_fixtures import grid, item, player
@@ -303,6 +306,96 @@ class MorivantWalkLocomotionTest(unittest.TestCase):
         self._assert_walked(
             walk, "town:morivant-full-identify:library", library, arrived
         )
+
+
+class CrossTownShoppingWalkLocomotionTest(unittest.TestCase):
+    """Step 3 D3a: the shopping trip's walk to the inn registers its distance.
+
+    Live 2026-10-11 13:10:46 (turn 16500120) and 15:10:33 (turn 16732099):
+    ``town:cross-town-shopping:travel-1`` was retired (log-only records R9 and
+    R11) while the walk toward the Outpost inn (37,119) was under way; its
+    vector held only durable facts.  DECLARED CONSTRUCTED boards: the state
+    rows of those turns were not kept, so the walk is driven on the town map
+    like the Morivant expedition walks above.
+    """
+
+    def _walk(self, policy, board, *, expedition=True):
+        if expedition:
+            policy._cross_town_shopping = CrossTownShoppingExpedition(
+                trigger_town_id=OUTPOST_TOWN_ID,
+                blocking_categories=("recall",),
+                shortage_costs={"recall": 150},
+                reserve=0,
+                required_gold=150,
+                candidate_order=(MORIVANT_TOWN_ID,),
+                target_town_id=MORIVANT_TOWN_ID,
+            )
+        reason = f"town:cross-town-shopping:travel-{MORIVANT_TOWN_ID}"
+        arbiter = policy._town_turn_arbiter
+        walk = []
+        for move in range(8 * TOWN_TRAVEL_STALL_LIMIT):
+            policy.prime(board)
+            policy._decision_goal = None
+            # The producer's own transport call and reason
+            # (policy_shop.py _cross_town_shopping_key).
+            key = policy._town_teleport_key(
+                board, MORIVANT_TOWN_ID, producer="cross-town",
+                reason="town:cross-town-shopping",
+            )
+            policy.last_reason = reason
+            policy._adopt_decision_goal()
+            slot = policy._decision_goal
+            vector = policy._town_arbiter_progress_vector(board, reason)
+            arbiter.observe(in_town=True, reason=reason, progress_vector=vector)
+            telemetry = arbiter.telemetry
+            walk.append((key, slot[1].cell if slot else None, vector[-1],
+                         telemetry["progress"], telemetry["retired"]))
+            if key is None or len(key) > 1 or telemetry["retired"]:
+                break
+            dy, dx = STEPS[key[0]]
+            position = board.player.position
+            board = replace(
+                board,
+                player=replace(
+                    board.player, position=Position(position.y + dy, position.x + dx)
+                ),
+                grids={Position(position.y + dy, position.x + dx):
+                       grid(position.y + dy, position.x + dx)},
+                turn=board.turn + 10,
+            )
+        return walk
+
+    def test_walk_to_the_inn_closes_a_registered_route(self):
+        policy = _policy()
+        walk = self._walk(policy, _board(OUTPOST_TOWN_ID, (46, 83)))
+
+        # The walk arrives (the inn command is longer than one step key).
+        self.assertGreater(len(walk[-1][0]), 1, walk[-1])
+        self.assertGreater(len(walk), TOWN_TRAVEL_STALL_LIMIT + 1)
+        self.assertEqual({entry[1] for entry in walk},
+                         {(OUTPOST_INN.y, OUTPOST_INN.x)})
+        parts = [entry[2] for entry in walk]
+        for part in parts:
+            self.assertEqual(part[:3], ("locomotion", "cross-town", (0, 0, 0)))
+        remaining = [part[4] for part in parts]
+        self.assertEqual(remaining, sorted(remaining, reverse=True))
+        self.assertEqual(len(set(remaining)), len(remaining))
+        self.assertEqual(
+            [(entry[3], entry[4]) for entry in walk], [(True, False)] * len(walk)
+        )
+
+    def test_without_an_expedition_the_alias_registers_no_route(self):
+        # Control: the reason string alone earns no distance.
+        policy = _policy()
+        board = _board(OUTPOST_TOWN_ID, (46, 83))
+        policy.prime(board)
+        vector = policy._town_arbiter_progress_vector(
+            board, f"town:cross-town-shopping:travel-{MORIVANT_TOWN_ID}"
+        )
+        self.assertFalse(any(
+            isinstance(part, tuple) and part[:1] == ("locomotion",)
+            for part in vector
+        ))
 
 
 if __name__ == "__main__":
