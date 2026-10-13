@@ -66,7 +66,8 @@ class MagicContinuationTest(unittest.TestCase):
     def test_constructed_3358_cleanup_composes_from_its_saved_page(self):
         policy, snapshot = self.scene()
         key = policy.choose_key(snapshot)
-        self.assertEqual((key, policy.last_reason), ('\x1b', 'shop:observe-and-leave'))
+        self.assertEqual((key, policy.last_reason),
+                         ('\x1b', 'town-progress-invariant:continue-observed-shop'))
         self.assertIsNotNone(policy._shop_observation)
         outside = replace(snapshot, store=None, turn=snapshot.turn + 1)
         key = policy.choose_key(outside)
@@ -205,7 +206,7 @@ class MagicContinuationTest(unittest.TestCase):
         policy, snapshot = self.scene()
         policy._town_claim_bar_enforced = True
         self.assertEqual((policy.choose_key(snapshot), policy.last_reason),
-                         ('\x1b', 'shop:observe-and-leave'))
+                         ('\x1b', 'town-progress-invariant:continue-observed-shop'))
         visit = policy._store_visit
         outside = replace(snapshot, store=None, turn=snapshot.turn + 1,
                           player=replace(snapshot.player, position=Position(37, 91)))

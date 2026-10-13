@@ -1625,10 +1625,6 @@ class TownMixin:
         if proposed_reason == "shop:observe-and-leave":
             if not self._town_observed_purchase_is_composable(snapshot):
                 return key
-            if self._can_resume_magic_shelf(replace(snapshot, store=None)):
-                # The composable Magic operation owns its cleanup exit. A
-                # detector label would replace that ownership with a terminal.
-                return key
             self.last_reason = "town-progress-invariant:continue-observed-shop"
             self._town_progress_invariant_defect = {
                 "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
