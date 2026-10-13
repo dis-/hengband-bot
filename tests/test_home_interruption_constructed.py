@@ -156,6 +156,9 @@ class HomeInterruptionTest(unittest.TestCase):
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
         self.assertEqual(policy._owner_retired_progress["last_settlement"]["operation_identity"],
                          receipt["operation_identity"])
+        # The settled child is named as the physical Home action, not a teleport.
+        self.assertIn("equipment-home", receipt["operation_identity"])
+        self.assertNotIn("teleport", receipt["operation_identity"])
 
     def test_stationary_and_own_bounce_retire_within_eight_unsuccessful_decisions(self):
         for positions in [[(45, 101)], [(46, 101), (44, 101)]]:
