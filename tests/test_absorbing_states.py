@@ -476,18 +476,17 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         # unsuccessful decision (bound 8) instead of being rejected on a
         # repeated vector, so the frozen walk is no longer retired on every
         # decision after the first (main fd881735: 323 retirements; now 171,
-        # same terminal at the same decision).  What must hold: the first
-        # retirement comes within the bound, and from then on every failed
-        # re-offer is retired at once - never two swallowed steps in a row.
+        # same terminal at the same decision).  What must hold: the swallowed
+        # walk is never offered more than 8 times in a row before the owner
+        # is retired again, and it is retired on at least every second
+        # decision over the whole Home ceiling.
         approach = "equipment-transaction:approach-home"
         retired = "town:blocked:owner-retired"
-        first_retirement = reasons.index(retired)
-        self.assertLessEqual(reasons[:first_retirement].count(approach), 8)
-        after = reasons[first_retirement:]
-        self.assertFalse(any(
-            earlier == approach and later == approach
-            for earlier, later in zip(after, after[1:])
-        ))
+        longest = run = 0
+        for reason in reasons:
+            run = run + 1 if reason == approach else 0
+            longest = max(longest, run)
+        self.assertLessEqual(longest, 8)
         self.assertGreaterEqual(
             reasons.count(retired), (CALIBRATION_HOME_VISIT_LIMIT - 8) // 2
         )

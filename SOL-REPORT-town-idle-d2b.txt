@@ -146,8 +146,8 @@ Operator follow-up (after the implementer stopped at 24 minutes) - supersedes th
   after the first); this branch = the same terminal at the same decision with the same 300 passes, 171
   retirements: 8 approach decisions, then approach / retired alternating. That is the designed change of
   cadence (own unsuccessful decisions, bound 8, instead of vector recurrence). The count assertion was
-  replaced by the bound itself: at most 8 approach decisions before the first retirement, never two
-  swallowed approach decisions in a row afterwards, and at least (300 - 8) / 2 retirements. Terminal,
+  replaced by the bound itself: at most 8 approach decisions before the first retirement, never more than 8
+  swallowed approach decisions in a row anywhere, and at least (300 - 8) / 2 retirements. Terminal,
   blocked store, pass ceiling and decision limit assertions are unchanged.
 - Related existing modules run by the operator: tests.test_town_arbiter, tests.test_owner_retirement_slice1,
   tests.test_travel_interrupted_store_await, tests.test_home_route_release_recorded,
