@@ -300,7 +300,8 @@ class LadderOrderTest(unittest.TestCase):
         # Step 1.5b's separately owned surplus disposal producer makes 79.
         # Step 3 D2a's in-place catalogue request (same owner, directly
         # before the Home approach it replaces for catalogue-only work): 80.
-        self.assertEqual(len(decide_rungs()), 80)
+        # D4's posted named-take prerequisite is answered at the router rung.
+        self.assertEqual(len(decide_rungs()), 81)
         approach = next(
             index for index, rung in enumerate(decide_rungs())
             if rung.producer == "_shopping_approach_key"

@@ -1,0 +1,93 @@
+PLAN-STEP: 3 ISSUE: #1 -- D4 rework 2 report
+Base574bfba6; started4994040e; branch town-idle-d4-1013.
+Qualification pending guards and the single final module union run.
+
+Diagnosis: SOL-DIAG-town-idle-d4-rework2.txt was written before source edits.
+All7 failures are(R). The unchanged test bodies against independently extracted
+base src reproduce the prior winners; current4994040e reproduces all7 failures.
+First public decision changes (zero-based indices):
+launcher index1/seq2: rac/enchant-launcher-tohit -> empty/scan-await-observation;
+q22 index1/seq2: 7/fixedquest:q22-travel -> empty/scan-await-observation;
+return on-inn-no-exit index19, variant-local1/seq2:
+empty/fixedquest:prepare-return:route-unavailable -> empty/scan-await-observation;
+reward damaged index1/seq2: 5/reward-approach:route-unavailable -> empty/scan-await;
+reward positive index1/seq2: 7/reward-approach -> empty/scan-await;
+reward stalled index1/seq2: 7/reward-approach -> empty/scan-await;
+abandoned travel index1/seq2: \x1b`n(./shop:travel -> empty/scan-await.
+Full reasons, turns and winning producer references are in the diagnosis.
+
+Placement before -> after:
+Before: policy.py:7881-7905 in _choose_key, an early generic
+home.knowledge.observe holder clause selected Home await before _decide.
+After: that whole expansion is removed; the early full-Home exception is
+byte-for-byte the base branch. Other owners retain their original ladder.
+The existing stale named-take composer/router branch remains at
+policy_shop.py:5723 onward. A catalogue-only route already at its Home goal
+awaits at policy_shop.py:5741-5757 after executable atomic shop/take/deposit
+composers have had their turn, instead of re-entering or stepping off Home.
+At _decide's existing shopping router rung, policy.py:11675 onward, a posted
+home-scan holder whose named take requires stale knowledge answers its own
+continuation. This handles the cross-area Home hold without offering await
+before other producers. Its predicates require the selected Home stop, an
+open home-scan home.knowledge.observe holder, a posted request, stale contents,
+named pending take(s), no atomic operation/actionable deposit and no equipment
+session. No general scan-in-flight veto over another producer is installed.
+
+policy.py:8473 preserves the posted epoch on a fresh incomplete Home page.
+Previously the early return hid a later fresh-entry reset which cleared the
+in-flight flags. Merely observing a partial page cannot settle the request or
+allow its repost; genuine incomplete rendered pages still exit under the
+existing home:scan-incomplete-open-page owner. Complete observations and the
+existing correlated adoption/supersession/settlement protocol still settle work.
+
+Bounds/outcomes: _home_knowledge_await_key and confirm_key_posted are unchanged
+from4994040e.8 own stalled decisions, once per decision; the existing
+knowledge-unobserved mandatory/optional result is recorded once. Other owners'
+executable decisions do not invoke this helper or charge this budget. No epoch
+renewal, re-entry/movement or repost is emitted by the declared empty await.
+Recovery interrupts as before. Home-errand still owns its own request/await.
+No restart memory, owner, priority reorder, D5, game/bot control, push or merge.
+
+New controls: tests.test_home_scan_owner_priority (6 tests), no producer mocks:
+- launcher: actual carried enchant scroll is read while census stays in flight;
+- q22: actual inn travel decisions run with unspent Home own-decision budget;
+- reward: actual route reaches one pickup with >8 non-Home decisions and no
+  Home budget charge, epoch renewal or repost;
+- store: the abandoned-travel fixture still emits shop:travel toward Home;
+- Home only: three empty awaits, no movement/post/repost, same epoch, count1..3;
+- cross-area Home sequence: existing holder answers at its router rung, same
+  owner and epoch, count1..2. Also pins the compiled rung registration/rank.
+Inputs are existing tracked fixtures; definitions are read from C:/hengband.
+
+Every edited existing test in this rework:
+tests/test_ownership_s2b1_ladder.py::LadderOrderTest.
+test_the_decide_rungs_are_the_marked_calls_in_order: count80 ->81 and explanatory
+comment. This is the task's required ladder bookkeeping, not an assertion-failure
+flip. claim_ladder.py registers the added marked _home_full_knowledge_key call
+immediately before the existing ordinary store-router call. Its family retains
+the shared town rank; existing producer order is unchanged. The producer census
+comparison and10 unchanged/updated LadderOrderTest cases pass.
+
+No scene/expectation edit in tests/test_home_catalogue_take_sequence.py or
+tests/test_town_cure_catalogue_continuation.py was necessary. Their10 and3 pins
+pass unchanged. The7 failure bodies, cure-supplier module, all3 moved-address
+sanctioned flips and earlier(F) test edits are unchanged from4994040e.
+No assertion was removed. The earlier(F) first request keys remain the D4
+request keys; the final run will check their later independent controls.
+Bookkeeping: router item-sink adapter predicates refreshed; gate Python3.13
+regenerates town_work_manifest.json.gz and town_work_sites.json. No new helper
+baseline/review entry is needed. All text additions are UTF-8 without BOM and
+source keys use escapes. Task/captures/gate-failures inputs stay untracked.
+
+Development checks: single modules/identities only (not the parallel runner):
+home catalogue10 OK; moved address8 OK; Home priority5 OK before the sixth
+holder control was added, then holder control1 OK; cure continuation3 OK;
+equipment194 OK; q22 identity1 OK; travel interruption8 OK;
+LadderOrderTest10 OK. Temporary new-control mistakes (single vs double ESC,
+fixture route suffix and importing TestCase classes) were corrected in the new
+module without changing existing tests. The initial broad temporary base
+diagnostic was redundant after the7 focused identity traces completed; only
+its own verified PowerShell/Python processes were stopped. No external process
+was stopped, killed or restarted. No delegation was used.
+
+Guard outputs and final runner result lines will be appended below.

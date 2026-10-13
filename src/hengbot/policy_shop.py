@@ -15,6 +15,7 @@ from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.town_arbiter import _new_town_turn_arbiter
 from hengbot.home_errand import HomeErrandRequest
+from hengbot.home_visit import HomeVisitKind
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from math import ceil
 from hengbot.equipment_optimizer import equipment_identity
@@ -5737,6 +5738,22 @@ class ShopMixin(InStoreMixin):
                               self._atomic_home_deposit_key(snapshot, step))
             if atomic_deposit is not None:
                 return atomic_deposit
+            if (writer_family == "store-router"
+                    and self._shopping_approach_store_type == STORE_HOME
+                    and self._shopping_approach_goal == snapshot.player.position
+                    and not self._home_knowledge_current
+                    and (self._home_knowledge_scan_inflight
+                         or self._home_knowledge_scan_epoch is not None)
+                    and self._home_visit.request is not None
+                    and self._home_visit.request.kind == HomeVisitKind.SCAN
+                    and self._home_atomic_withdraw_pending is None
+                    and self._home_atomic_deposit_pending is None
+                    and not self._town_space_deposit_actionable(snapshot)
+                    and action is None
+                    and (session is None or session.pending_action is None)):
+                # Only this catalogue route's redundant Home entry awaits the
+                # posted scan. Other ladder producers have already had their turn.
+                return self._home_full_knowledge_key(snapshot)
             # This is one observed-uncomposable-stop rule with two entry
             # points: Home is observed through the ~9 knowledge scan and has
             # no _shop_observation, while ordinary shops must consume their

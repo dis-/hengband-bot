@@ -7880,27 +7880,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._home_catalogue_work_key(snapshot)
         if (snapshot.in_town and self._home_knowledge_scan_inflight
                 and not self._home_knowledge_current
-                and not self._open_home_page_is_complete(snapshot)
                 and (self._home_full_relief is not None
-                     or self._home_full_retry_deposits is not None
-                     or (knowledge_exit_holder is not None
-                         and knowledge_exit_holder.is_open
-                         and knowledge_exit_holder.owner.value in {"home-scan", "home-errand"}
-                         and knowledge_exit is not None
-                         and knowledge_exit.continuation == "home.knowledge.observe"
-                         and snapshot.player.hp >= snapshot.player.max_hp
-                         and not (snapshot.player.poisoned or snapshot.player.cut
-                                  or snapshot.player.confused or snapshot.player.blind)
-                         and snapshot.player.food_state in {"normal", "full", "gorged"}
-                         and not self._physical_hostiles(snapshot)))):
-            # Continue the posted census with its own holder. A complete page
-            # may settle it independently; an incomplete page cannot renew it.
+                     or self._home_full_retry_deposits is not None)):
+            # A posted surplus-sale census keeps its observed scan owner even
+            # when the unchanged board still shows the selling store.
             scan_key = self._town_producer_entry(
-                "home-full-knowledge",
-                lambda: (self._home_errand_knowledge_key(snapshot)
-                         if self._home_errand.needs_knowledge
-                         else self._home_full_knowledge_key(snapshot)),
-                family="home-errand" if self._home_errand.needs_knowledge else "home-scan")
+                "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                family="home-scan")
             if scan_key is not None:
                 return scan_key
         if (
@@ -8484,7 +8470,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_carried_equipment_catalog(snapshot)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             fresh_home_entry = not self._last_snapshot_was_store
-            if fresh_home_entry:
+            if fresh_home_entry and self._home_knowledge_scan_epoch is None:
                 self._home_knowledge_scan_requested = False
                 self._home_knowledge_scan_inflight = False
                 self._home_knowledge_scan_retries_remaining = 1
@@ -11700,7 +11686,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if step is not None:
                     self.last_reason = "shop:approach"
-                    return self._town_producer_entry("_shopping_approach_key#2", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"))
+                    holder = self._claim_register.current
+                    scan_wait = bool(
+                        self._shopping_approach_store_type == STORE_HOME
+                        and holder is not None and holder.is_open
+                        and holder.owner.value == "home-scan"
+                        and holder.execution is not None
+                        and holder.execution.continuation == "home.knowledge.observe"
+                        and self._home_knowledge_scan_inflight
+                        and not self._home_knowledge_current
+                        and (self._home_pending_item is not None or self._home_pending_batch)
+                        and self._home_atomic_withdraw_pending is None
+                        and self._home_atomic_deposit_pending is None
+                        and not self._town_space_deposit_actionable(snapshot)
+                        and self._equipment_transaction_session is None
+                    )
+                    # A posted scan is the named Home take's prerequisite at
+                    # this router rung; its holder answers its own continuation.
+                    return self._town_producer_entry(
+                        "_shopping_approach_key#2",
+                        lambda: (self._home_full_knowledge_key(snapshot) if scan_wait
+                                 else self._shopping_approach_key(snapshot, step, "shop:travel")),
+                        family="home-scan" if scan_wait else None)
 
         destroy = self._town_destroy_key(snapshot)
         if destroy is not None:
