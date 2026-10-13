@@ -472,9 +472,24 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             policy._town_visit_ledger.unsatisfied_passes[cat.STORE_HOME],
             CALIBRATION_HOME_VISIT_LIMIT,
         )
+        # Step 3 D2b (2026-10-13): the physical Home route is charged per own
+        # unsuccessful decision (bound 8) instead of being rejected on a
+        # repeated vector, so the frozen walk is no longer retired on every
+        # decision after the first (main fd881735: 323 retirements; now 171,
+        # same terminal at the same decision).  What must hold: the first
+        # retirement comes within the bound, and from then on every failed
+        # re-offer is retired at once - never two swallowed steps in a row.
+        approach = "equipment-transaction:approach-home"
+        retired = "town:blocked:owner-retired"
+        first_retirement = reasons.index(retired)
+        self.assertLessEqual(reasons[:first_retirement].count(approach), 8)
+        after = reasons[first_retirement:]
+        self.assertFalse(any(
+            earlier == approach and later == approach
+            for earlier, later in zip(after, after[1:])
+        ))
         self.assertGreaterEqual(
-            reasons.count("town:blocked:owner-retired"),
-            CALIBRATION_HOME_VISIT_LIMIT - 3,
+            reasons.count(retired), (CALIBRATION_HOME_VISIT_LIMIT - 8) // 2
         )
         self.assertLessEqual(terminal_decision, 2 * CALIBRATION_HOME_VISIT_LIMIT)
 

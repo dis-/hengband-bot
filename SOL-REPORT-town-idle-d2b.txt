@@ -131,3 +131,24 @@ captures remain untracked; only the extracted decision fixture is tracked.
 Game maps were not copied. Source and new test strings use escaped controls.
 No collaborators were spawned. Stop was caused by the specified existing
 assertion rule, not by the token or wall-time limit.
+
+Operator follow-up (after the implementer stopped at 24 minutes) - supersedes the text above where they differ
+---------------------------------------------------------------------------------------------------
+- The preflight stop was bookkeeping: `_town_entrance_cells` was no longer a producer candidate, so its
+  producer-baseline and review entries were removed.
+- mutation_check found two unpinned hunks (the CLI goal-minimum suppression by retained route owners and
+  the label-change charging branch); both were removed (cli.py is identical to fd881735; those cases keep
+  the legacy accounting). The settlement name of the Home child is pinned. Final: 8 of 8 hunks caught.
+- The merge gate's affected set failed one existing harness assertion:
+  tests/test_absorbing_states.py::test_frozen_owned_home_approach_reaches_existing_ceiling_publicly expected
+  `town:blocked:owner-retired` on (almost) every decision (>= 297). Side-by-side on the same frozen walk:
+  main fd881735 = terminal "repetition" at decision 347, 300 Home passes, 323 retirements (every decision
+  after the first); this branch = the same terminal at the same decision with the same 300 passes, 171
+  retirements: 8 approach decisions, then approach / retired alternating. That is the designed change of
+  cadence (own unsuccessful decisions, bound 8, instead of vector recurrence). The count assertion was
+  replaced by the bound itself: at most 8 approach decisions before the first retirement, never two
+  swallowed approach decisions in a row afterwards, and at least (300 - 8) / 2 retirements. Terminal,
+  blocked store, pass ceiling and decision limit assertions are unchanged.
+- Related existing modules run by the operator: tests.test_town_arbiter, tests.test_owner_retirement_slice1,
+  tests.test_travel_interrupted_store_await, tests.test_home_route_release_recorded,
+  tests.test_s33_batch_context: 67 OK. Linux opening smoke (532a0dd7): pass, 78 s.
