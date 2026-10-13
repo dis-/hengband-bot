@@ -1,4 +1,4 @@
-PLAN-STEP: 3 / ISSUE #1 ? pre-edit diagnosis (HEAD 5bef1808)
+PLAN-STEP: 3 / ISSUE #1 - pre-edit diagnosis (HEAD 5bef1808)
 
 R: tests/test_equipment_home_full_incident_recorded.py:160, test_full_home_ends_transaction_deposit_with_visible_reason.
 The first choose_key on the recorded full page closes the deposit with equipment-transaction:deposit-home-full. The following outside decision incorrectly restarts equipment catalogue work. policy.py:7888 offers the request before the old Home route checks the full-Home block. Missing conditions: applicable Home block, visit transaction closure and equipment deposit tombstone. Step 1.5a forbids this restart.

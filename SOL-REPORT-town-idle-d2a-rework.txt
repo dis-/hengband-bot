@@ -1,10 +1,10 @@
-PLAN-STEP: 3 / ISSUE #1 ? D2a rework
+PLAN-STEP: 3 / ISSUE #1 - D2a rework
 Branch: town-idle-d2a-1013; starting HEAD: 5bef1808; guard base: 69aaf659.
 No game/bot control, process termination, push, merge, reset, game-data copy or collaborators.
 
 Classification and replay evidence
 ----------------------------------
-PLAN-STEP: 3 / ISSUE #1 ? pre-edit diagnosis (HEAD 5bef1808)
+PLAN-STEP: 3 / ISSUE #1 - pre-edit diagnosis (HEAD 5bef1808)
 
 R: tests/test_equipment_home_full_incident_recorded.py:160, test_full_home_ends_transaction_deposit_with_visible_reason.
 The first choose_key on the recorded full page closes the deposit with equipment-transaction:deposit-home-full. The following outside decision incorrectly restarts equipment catalogue work. policy.py:7888 offers the request before the old Home route checks the full-Home block. Missing conditions: applicable Home block, visit transaction closure and equipment deposit tombstone. Step 1.5a forbids this restart.
@@ -62,3 +62,51 @@ The first fakery-lint run detected one stale allowance comment on the archive co
 Mandatory fast checks and final run
 ----------------------------------
 The first preflight found the new pure predicate was absent from the producer census, making its required baseline entry stale. The acquisition result now exposes the predicate as a return dependency while distinguishing False/None from string commands, including empty-string awaits. This preserves behavior and permits the baseline/review inventory to cover the helper. Exact final outputs and final run lines are appended after execution.
+
+Certified preflight (after source commit 79072811; tested HEAD 145d635a)
+python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\town-idle-d2a 69aaf659
+[preflight] NOTE existing-test MODIFIED: tests/test_catcycle.py::CatcycleTest.test_partial_home_requests_catalogue_before_other_errands
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_replay_reproduces_the_process_before_equipment_choice
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_historical_competing_actor_names_registered_holder_in_shadow
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_recorded_entry_completes_catalogue_before_other_errand
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_recorded_off_scan_continues_registered_catalogue
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw
+[preflight] NOTE existing-test MODIFIED: tests/test_ownership_s2b1_ladder.py::LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order
+[preflight] PREFLIGHT OK: 15 changed files, 0 findings (town-idle-d2a vs 69aaf659)
+
+Final development response-control run: tests.test_home_withdraw_failed_stock_present_recorded - 7 tests, 88.113s, OK. Both old suffix key assertions (indices 3 and 4) now have explicit independent controls.
+
+Certified mutation check (HEAD 145d635a)
+python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\town-idle-d2a 69aaf659 --record
+[mutation] 6 source hunks, tests: tests.test_catcycle tests.test_home_withdraw_failed_stock_present_recorded tests.test_live23_home_cycle tests.test_margin_ratio_home_withdraw_divergence_recorded tests.test_ownership_s2b1_ladder
+[mutation] caught     src/hengbot/claim_ladder.py:308 (# Step 3 D2a (2026-10-13): catalogue-only work asks the knowledge scre): test_the_decide_rungs_are_the_marked_calls_in_order
+[mutation] caught     src/hengbot/policy.py:6817 (def _equipment_catalogue_only(self, snapshot: Snapshot) -> bool:): test_partial_home_requests_catalogue_before_other_errands, test_attached_partial_page_keeps_request_response_and_shortage_controls, test_replay_reproduces_the_p
+[mutation] caught     src/hengbot/policy.py:6899 (# The outside request may be in flight before the equipment): test_constructed_r3_catalogue_request_stays_outside_while_inflight
+[mutation] caught     src/hengbot/policy.py:7079 (catalogue_request = (): test_partial_home_requests_catalogue_before_other_errands
+[mutation] caught     src/hengbot/policy.py:7923 (catalogue_key = (self._equipment_catalogue_only(snapshot)): test_replay_reproduces_the_process_before_equipment_choice, test_constructed_r3_catalogue_request_stays_outside_while_inflight, test_historical_competing_actor_
+[mutation] caught     src/hengbot/policy.py:11477 (catalogue_key = (self._equipment_catalogue_only(snapshot)): test_partial_home_requests_catalogue_before_other_errands, test_constructed_r3_catalogue_request_stays_outside_while_inflight, test_the_decide_rungs_are_the_mar
+[mutation] MUTATION OK: 0 of 6 hunks are not pinned by a test
+[mutation] recorded for 145d635a
+
+
+Required final run (ONCE; 40 unique modules)
+------------------------------------------
+Tested HEAD: 145d635a; last source commit: 79072811.
+PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --modules tests.test_absorbing_states tests.test_ammo_surplus tests.test_calibration_crlf_dump_recorded tests.test_catcycle tests.test_cli tests.test_crossarea_live2 tests.test_declarations_r5 tests.test_declarations_r7 tests.test_equipment_alternation_recorded tests.test_equipment_home_full_incident_recorded tests.test_equipment_homefull_step15a tests.test_home_catalogue_response_in_store tests.test_home_knowledge_scan tests.test_home_withdraw_failed_stock_present_recorded tests.test_home_withdraw_moved_address tests.test_item_sink_lint tests.test_live23_home_cycle tests.test_margin_ratio_home_withdraw_divergence_recorded tests.test_margin_ratio_tour_divergence_recorded tests.test_newchar_light_churn_recorded tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_ownership_s2b1_ladder tests.test_ownership_s3a_record tests.test_policy_equipment tests.test_policy_home tests.test_policy_shop tests.test_policy_supply tests.test_policy_town tests.test_quest34_target_dead_recorded tests.test_runtime_file_isolation tests.test_s33_shadow_zero tests.test_test_fakery_lint tests.test_town_arbiter tests.test_town_cure_supplier_recorded tests.test_town_latency_caches tests.test_town_structure_lint tests.test_town_work_contract tests.test_unaffordable_claim_tour_recorded tests.test_xbow_pref_recorded_divergence
+
+worker-1: 822 tests, 2060.998s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-nynq_2i7\worker-1\home-history
+worker-2: 1147 tests, 3079.166s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-nynq_2i7\worker-2\home-history
+worker-3: 247 tests, 519.360s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-nynq_2i7\worker-3\home-history
+Failures: none
+Errors: none
+purity: ran (inputs sha256=12ea0f79186db651850a35eafdc92f543036f89af11f77528b2392e245f88668)
+weights: source=C:\hengband\bot-client\.worktrees\town-idle-d2a\jsonlog\test-parallel-timings.json; age=0.2d; fallback=11/38; stale=yes
+Total: 2216 tests, 3079.205s; output: C:\hengband\bot-client\.worktrees\town-idle-d2a\jsonlog\test-parallel-timings.json
+Receipt: C:\hengband\bot-client\.worktrees\town-idle-d2a\jsonlog\receipts\test_parallel_runner-full-20261013T194109+0900.json; sha256: f013fb0f4d046d204afead9056113ad73472187a5f33103c35cd7b7e9bb82df1
+
+Launcher exit: 0; wall time: 3082.394s (51.37 minutes, within 75 minutes).
+Verified receipt: all 40 requested/affected modules are present, 2216 tests, all three shards exit 0, failures/errors empty, receipt SHA256 matches the runner line.
+No failed-module retry was needed. No source file changed after the final run or after the certified fast checks. Only the report and diagnosis text are updated for the final commit.
+Undecided work: none. All nine original failures are addressed (3 regressions, 6 sanctioned flips). Historical fixture facts and outcome assertions are preserved.
+Task inputs/captures/gate-failure files remain untracked; no push, merge or game/bot/process control was performed.
