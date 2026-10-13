@@ -1,0 +1,78 @@
+D1 diagnosis ? base 6ccc8a042670709745e3ee707643f9ca033ca05f
+
+Scope
+-----
+This is the required pre-fix diagnosis for plan step 3 D1 only. References below
+are file:line locations on this worktree base; design row references are to
+captures-d1/SOL-DESIGN-town-idle-20261013.md revision 2.
+
+Producer diagnosis
+------------------
+The two catalogue/entrance producers are policy.py:7810-7890 and
+policy.py:11380-11423. Both can initiate `equipment:acquire-home-catalog` and
+Home travel. The town-context entrance branch at policy.py:11392-11419 checks
+warrior/town/full-pack/catalogue freshness and the errand arbiter, but does not
+exclude an admitted equipment transaction whose current action requires
+`outside_home`. The nearby catalogue macro branch at policy.py:7810-7890 also
+permits the equipment-owned entrance offer under its own conditions. Thus the
+catalogue producer can retarget the held `equipment-txn` claim to its Home
+knowledge observation before the transaction action is emitted.
+
+The transaction owner does know how to continue: policy_equipment.py:2572-2668
+handles a session requiring `outside_home` separately from a Home-required
+session, and for an equip/reposition action derives the pack item from the
+session identity, then calls `_equipment_wield` and sets
+`equipment-transaction:equip` (approximately :2710-2760 on this base). However,
+that action is reached only after earlier policy producers. R5 shows the
+catalogue offer wins before this session-own action is selected. While inside
+Home, policy_equipment.py:2084-2105 emits one
+`ESC / equipment-transaction:leave-home-for-equip`; the defect is that after
+that exit the next town selection can again choose Home catalogue work.
+
+The Home route projection is policy.py:13620-13633. Its
+`equipment_work_need_present` bit is true for any live `equipment-work` or
+`equipment-transaction` claim, while `outstanding_equipment_work` is reported
+independently. It does not distinguish a current action requiring Home from one
+requiring outside Home. The route producer is
+policy_shop.py:5333-5400 (`_shopping_approach_step`); its
+`equipment_home_route` exception is limited to a session requiring `home`, but
+there is no matching suppression of Home route selection for a session
+requiring `outside_home`. Router plan consumers therefore retain a route alias
+which can produce R8's `shop:approach` step-off/return even when the next
+transaction action is outside-only.
+
+Capture evidence and interpretation
+-----------------------------------
+The D1 design's G4 record identifies R5/R6/R7 in C1 decision rows 158/161/164
+and corresponding state rows 63-68 and 72. Raw capture decoding must use the
+capture's original encoding; the essential recorded facts are: at turn
+16442332 the session next action is equip of pack identity
+`496a911c336315db` to `sub_hand`, the pack count is 20, and no worn `sub_hand`
+exists; the offered decision is `5 / equipment-transaction:travel-home:await-entry`.
+At turn 16442343 the offered key is `ESC / equipment-transaction:leave-home-for-equip`
+while the store is Home (7). At turn 16442358 the Home entry offer repeats and
+retires; there was no equip posted between these rows and pack count remains 20.
+These establish producer sequencing and absence of observed transaction
+progress, not a claim that a posted action failed.
+
+Step 3 B does not change this scene on the current base. Its staged plans run
+in Home context, but the captured current action requires `outside_home`; a
+Home-context plan cannot satisfy or replace that action. The actual C1 R5
+record on base 6ccc8a04 is still `5 /
+equipment-transaction:travel-home:await-entry`, which is direct historical
+output from the real policy at that decision boundary. The R5 board plus a
+fresh policy is not a complete process replay: a diagnostic attempt that
+restored only the board and session emitted an earlier `identify:full` (and,
+without restored periodic-knowledge cache, `~f`). Those outputs are setup
+artifacts, not R5. The D1 fixture therefore copies only C1's required boards;
+the regression test restores the admitted session and invokes its real Home
+exit and town action producers, stopping at the first changed transaction
+command. This proves the session's selector/reason but does not claim that the
+board alone reconstructs every earlier policy decision.
+
+R8 is sourced from
+C:\hengband-backups\state-logs\step2-20261011\bot-decisions.jsonl.ba369f140f50.gz
+line 8367. That decision row is read line-by-line; it contains no full input
+board, so the R8 route pin uses a separate DECLARED CONSTRUCTED router board.
+The Home catalogue guard alone cannot suppress that alias; the route projection
+and `_shopping_approach_step` router guard are also required.
