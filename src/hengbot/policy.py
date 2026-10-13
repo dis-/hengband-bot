@@ -7824,24 +7824,33 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return LEAVE_STORE_KEY
         knowledge_exit_holder = getattr(self._claim_register, "current", None)
         knowledge_exit = getattr(knowledge_exit_holder, "execution", None)
+        catalogue_holder = self._home_catalogue_work_holder()
+        if (snapshot.store is None and snapshot.in_town
+                and catalogue_holder is not None
+                and catalogue_holder.execution.next_step
+                == "home.approach-for-equipment-catalog"
+                and not self._town_space_deposit_actionable(snapshot)
+                and self._home_atomic_withdraw_pending is None
+                and self._home_atomic_deposit_pending is None
+                and not self._home_entry_operation_posted
+                and not (
+                    self._equipment_transaction_session is not None
+                    and self._equipment_transaction_session.current_action is not None
+                    and self._equipment_transaction_session.required_context == "home"
+                )):
+            # A registered catalogue holder may still carry the legacy route
+            # step; continue its own work with the outside knowledge request.
+            return self._town_producer_entry(
+                "_home_catalogue_work_key",
+                lambda: self._home_catalogue_work_key(snapshot),
+                family="equipment-txn",
+            )
         if (snapshot.store is None and snapshot.in_town
                 and (catalogue_holder := self._home_catalogue_work_holder()) is not None
-                and (catalogue_holder.execution.continuation == "home.catalogue.acquire"
-                     or (catalogue_holder.execution.next_step
-                         == "home.approach-for-equipment-catalog"
-                         and not self._town_space_deposit_actionable(snapshot)
-                         and self._home_atomic_withdraw_pending is None
-                         and self._home_atomic_deposit_pending is None
-                         and not self._home_entry_operation_posted
-                         and not (
-                             self._equipment_transaction_session is not None
-                             and self._equipment_transaction_session.current_action is not None
-                             and self._equipment_transaction_session.required_context == "home"
-                         )))):
-            # A catalogue holder with a legacy entrance step has not yet done
-            # physical Home work; request the scan here before its route can
-            # be emitted. A posted partial-page exit also owns this outside
-            # continuation, even with S3.3 OFF. A returned catalogue closes
+                and catalogue_holder.execution.continuation == "home.catalogue.acquire"):
+            # The posted partial-page exit owns its outside continuation, even
+            # with S3.3 OFF. Dispatch it before entrance acquisition can replace
+            # the same work with another approach. A returned catalogue closes
             # this work before any subsequent Home operation is considered.
             self._store_leave_inflight = None
             if self._home_knowledge_current and not self._home_knowledge_invalidated:
@@ -7901,7 +7910,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 (here is not None and here.store_number == STORE_HOME)
                 or (here is None and self._current_town_has_home(snapshot))
             ):
-                catalogue_key = self._home_catalogue_work_key(snapshot)
+                catalogue_key = self._town_producer_entry(
+                    "_home_catalogue_work_key",
+                    lambda: self._home_catalogue_work_key(snapshot),
+                    family="equipment-txn",
+                )
                 if catalogue_key is not None:
                     return catalogue_key
                 self._ensure_home_visit_request(snapshot)
@@ -11449,7 +11462,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # route and not authority to step off/re-enter.
                 step = snapshot.player.position
             if step is not None and self._shopping_approach_store_type == STORE_HOME:
-                catalogue_key = self._home_catalogue_work_key(snapshot)
+                catalogue_key = self._town_producer_entry(
+                    "_home_catalogue_work_key",
+                    lambda: self._home_catalogue_work_key(snapshot),
+                    family="equipment-txn",
+                )
                 if catalogue_key is not None:
                     return catalogue_key
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
