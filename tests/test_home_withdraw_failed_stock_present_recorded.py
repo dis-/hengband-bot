@@ -532,6 +532,47 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         self.assertEqual(self._replay()["decisions"][5], (
             "5pb1\r\x1b", "home:atomic-withdraw"))
 
+    def test_attached_partial_page_keeps_request_response_and_shortage_controls(self):
+        """Keep old prefix rows 3/4 as an independent physical Home visit."""
+        from hengbot.model import STORE_HOME
+
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy = _policy(directory, self.monrace)
+            policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            _, snapshots = _consume_response_sequence(
+                self.lines[self.starts[3]:self.starts[4]], policy,
+                lambda _key: True, self.monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            board = snapshots[-1]
+            policy.prime(board)
+            policy.observe_town_visit_epoch(True, board.turn)
+            skill_row = next(json.loads(line) for line in self._board_lines(1)
+                             if json.loads(line).get("type") == "knowledge")
+            policy.consume_skill_knowledge(skill_row)
+            policy._invalidate_home_observation()
+            self.assertTrue(policy._ensure_home_visit_request(board))
+            policy._request_store_trip(STORE_HOME, "home-scan")
+            key = policy.choose_key(board)
+            self.assertEqual((str(key), policy.last_reason), (
+                self.recorded[3]["key"], self.recorded[3]["reason"]))
+            policy.confirm_key_posted(key)
+            _, snapshots = _consume_response_sequence(
+                self.lines[self.starts[4]:self.starts[5]], policy,
+                lambda _key: True, self.monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            key = policy.choose_key(snapshots[-1])
+            self.assertEqual((str(key), policy.last_reason), (
+                self.recorded[4]["key"], self.recorded[4]["reason"]))
+            self.assertTrue(policy._home_knowledge_current)
+            self.assertIsNotNone(policy._home_pending_item)
+        # The complete-page attachment independently preserves the same
+        # queued shortage and its physical take on this town visit.
+        self.assertEqual(self._replay()["decisions"][4], (
+            self.recorded[4]["key"], self.recorded[4]["reason"]))
+
     def test_the_take_shortened_the_prefix_past_the_shovel(self):
         """On the confirming board: owners on both sides of index 11."""
         replay = self._replay()

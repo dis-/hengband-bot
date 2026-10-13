@@ -39,6 +39,7 @@ Edited existing tests: old -> new (no assertion deleted without control)
 -----------------------------------------------------------------------
 Rework edits:
 - tests/test_home_withdraw_failed_stock_present_recorded.py::test_replay_reproduces_the_process_before_equipment_choice: historical decisions [:5] equality -> unchanged [:2] equality plus exact decision-2 HOME_KNOWLEDGE_MACRO/catalogue-request-knowledge assertion and no pending take/session/atomic work assertions. Sequential prefix ends there. The independently attached Home visit explicitly retains decision-5 5pb1\r\x1b/home:atomic-withdraw.
+- Replacement response control ::test_attached_partial_page_keeps_request_response_and_shortage_controls independently attaches the recorded partial Home page to a physically registered Home visit, then asserts the original decision-3 request and decision-4 shortage keys/reasons, complete catalogue adoption and a queued item. It also asserts decision 4 on the complete-page attachment. Thus neither removed historical suffix key assertion is lost.
 - Same module ::test_shield_and_weapon_survival_terms_on_first_changed_board: sequential 0..5 setup -> independently attached captured full Home catalogue/page at 4..5. Exact withdraw command, all combat/HP/AC/survival/offense/calibration checks unchanged.
 - Same module ::test_the_take_shortened_the_prefix_past_the_shovel: shared 0..33 setup -> independently attached 4..33 visit. Every signature/index/prefix/knowledge/pending/batch/catalogue assertion unchanged.
 - Same module ::test_w1_confirming_board_rescans_instead_of_deferring: same independent setup replacement. Exact decision-33 shop:travel:await-entry, invalidation, no-deferral, no-failure and queued-Home-work assertions unchanged. This decision has physical work and MUST NOT flip to catalogue-only.
@@ -49,11 +50,13 @@ The independent attachment reads only original tracked fixtures. It supplies the
 Inherited D2a edits since guard base 69aaf659 (unchanged by this rework):
 - test_live23_home_cycle.py::test_recorded_entry_completes_catalogue_before_other_errand, ::test_historical_competing_actor_names_registered_holder_in_shadow, ::test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw, ::test_recorded_off_scan_continues_registered_catalogue: first catalogue-only old Home step/5 + travel-home:await-entry -> HOME_KNOWLEDGE_MACRO + catalogue-request-knowledge; later page/response controls independently attached, earlier prefix and fixture facts preserved.
 - test_catcycle.py::test_partial_home_requests_catalogue_before_other_errands: same first-key flip and independent later-page controls.
+- test_ownership_s2b1_ladder.py::test_the_decide_rungs_are_the_marked_calls_in_order: inherited D2a registration changes 79 -> 80 rungs and asserts the equipment catalogue producer immediately before its Home approach; unchanged by this rework.
 The three regression tests are untouched. No historical fixture/fact rewritten. Undecided failures: none.
 
 Development single-module results
 ---------------------------------
 PASS: equipment_home_full_incident_recorded (2), ammo_surplus (4), home_withdraw_failed_stock_present_recorded (6), margin_ratio_home_withdraw_divergence_recorded (2), live23_home_cycle (10), catcycle (4), ownership_s2b1_ladder (52).
+PASS: unaffordable_claim_tour_recorded (8; 809.303s), item_sink_lint (18).
 The first fakery-lint run detected one stale allowance comment on the archive counter (the scanner did not classify that assignment as an injection). Removed the needless allowance; required final hygiene run will verify it.
 
 Mandatory fast checks and final run
