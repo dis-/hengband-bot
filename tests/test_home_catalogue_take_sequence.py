@@ -5,6 +5,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 
 from hengbot.cli import _dispatch_response_lines
@@ -131,6 +132,19 @@ class HomeCatalogueTakeSequenceTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(board(turn=103)), "")
         self.assertEqual(policy.last_reason, "home:scan-await-observation")
         self.assertEqual(policy._home_knowledge_scan_wait_decisions, 1)
+
+    def test_declared_inflight_scan_is_not_counterfactual_travel(self):
+        policy = self.policy()
+        # DECLARED CONSTRUCTED optimizer input: Home contents are its blocker.
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",), result=None)
+        outside = board(turn=101)
+        key = policy._home_full_knowledge_key(outside)
+        policy.confirm_key_posted(key)
+        key = policy._home_full_knowledge_key(outside)
+        self.assertEqual(key, "")
+        self.assertEqual(policy._town_procurement_decision(outside, key), "")
+        self.assertEqual(policy.last_reason, "home:scan-await-observation")
 
     def test_contrary_shelf_does_not_repost_an_unsettled_request(self):
         policy = self.policy()
