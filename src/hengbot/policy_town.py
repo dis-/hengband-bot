@@ -458,8 +458,7 @@ class TownMixin:
         receipt = {"owner": None, "qualified": False, "progress": None,
                    "productive": False, "minimum_before": None,
                    "minimum_after": None, "rebaseline": False,
-                   "settled_owner": None, "operation_identity": None,
-                   "route_owners": tuple(state["routes"])}
+                   "settled_owner": None, "operation_identity": None}
         last = state["last"]
         for route_owner, child in state["routes"].items():
             child["minimum_before"] = child["minimum"]
@@ -558,6 +557,15 @@ class TownMixin:
                                rebaseline=rebaseline,
                                operation_identity=(repr(operation) if home_operation
                                                    else f"teleport:{destination}"))
+        if (owner == "equipment-txn" and owner in state["routes"]
+                and receipt["owner"] is None and reason.startswith((
+                    "equipment-transaction:travel-home",
+                    "equipment-transaction:approach-home"))):
+            # Removing/changing a route label or goal is not an observed
+            # effect. Keep charging the retained child's own failed offers.
+            child = state["routes"][owner]
+            receipt.update(owner=owner, qualified=child["qualified"], progress=False,
+                           operation_identity=repr(child["operation"]))
         receipt["route_owners"] = tuple(state["routes"])
         state.update(sequence=sequence, receipt=receipt,
                      last={"position": position, "owner": owner,

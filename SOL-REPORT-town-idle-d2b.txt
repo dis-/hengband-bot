@@ -1,0 +1,133 @@
+PLAN-STEP 3 / ISSUE #1 / D2b -- STOPPED, NOT QUALIFIED
+Base fd881735; branch town-idle-d2b-1013; 2026-10-13.
+
+Mandatory stop
+The task says: "If an existing assertion fails, STOP and report its name,
+old and new value - do not edit, rename, weaken or make it conditional."
+The fast preflight failed the existing assertion in
+tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks
+(tests/test_item_sink_lint.py:14). Expected value: []. Observed value: a
+nonempty findings list, reporting:
+  policy_town.py:TownMixin._town_entrance_cells: producer baseline entry
+  disappeared or became registered; review/remove it
+  unmapped candidates=[]; stale reviews=['policy_town.py:TownMixin._town_entrance_cells']
+The complete captured preflight output is pasted below. Its list display is
+abbreviated by unittest and its individual lines by the guard's output filter.
+The stale census metadata concerns the added review of an existing helper,
+not a changed existing assertion. No existing assertion was edited. Work was
+stopped when this failure was received. The already-started new Home module
+was allowed to finish; no further tests or repairs were started after receipt
+of the failure. The source and generated manifest are therefore NOT qualified.
+
+Diagnosis summary
+SOL-DIAG-town-idle-d2b.txt was written before source edits, after executing the
+base reproduction on the game's real Outpost map. On fd881735, travel-home
+and travel-home:await-entry have the eight durable vector fields but no route
+distance. Only approach-home registers the old goal distance. The constructed
+R13 owner order (travel, monster approach, melee displacement, resumed travel)
+retires equipment-txn on recurrence count 2 / limit 2, with only one own
+unsuccessful decision counted. The final diagnostic entry label is
+policy.py:3086. Historical R13 telemetry cannot identify its actual first seam.
+
+Implemented rule and bounds
+Physical Home actions only: withdraw, deposit and actions of a Home-context
+staged session. The helper reads the immutable session action identity and
+the producer's fixed Home goal. It excludes catalogue aliases, refuses closed
+Home and rejects a retargeted goal differing from the active map's Home.
+Remaining distance is observed legal BFS via _town_map_goal_route. There is
+no geometric fallback and no route credit when a path is absent.
+The existing _town_inn_route_receipt now also retains equipment Home children.
+It attributes a legal directional edge or a native Home command's observed
+route reduction to the previous own command, before the next owner selects.
+External witnessed movement may re-baseline the same operation/goal/topology
+once; this earns no progress and resets neither own failures nor burst count.
+Own bounce, renamed alias, retarget, stationary safety and save earn no route
+credit. Removing a Home route vector element does not count as progress.
+Observed Home entry is a consumed child milestone; the same entry cannot be
+credited again. A changed action can open a new finite child after confirmed
+business work. Unsuccessful qualified Home offers retain the existing bound
+of 8 own decisions. Legacy recurrence limit 2 is unchanged for other work.
+Existing store pass ceilings, ownership order, priority order, emitted keys
+and producer reasons are unchanged. No enforcing/log-only setting was changed.
+
+Changes at the three existing seams
+Preview: existing policy.py call to the shared helper remains read-only;
+the same receipt reaches preview_may_select, including the held-claim path.
+Final: existing consuming call commits one observation per decision sequence.
+TownTurnArbiter also settles a preceding equipment-txn route effect when the
+next owner is combat, using the same settlement path as the two INN routes.
+CLI: consumes the final shared receipt for the burst ledger. Its old goal-only
+fallback cannot replace retained equipment Home evidence. This additional
+restriction is limited to equipment-txn, preserving other INN accounting.
+No new policy attributes were added: _town_inn_accounting already has restore
+defaults and checkpoint exclusion, so Home memory is process/visit-local.
+Pure helper metadata was appended to the two required JSON inventories. The
+existing entrance helper was also conservatively catalogued when it appeared
+in the census; after removal of a redundant receipt initializer it ceased to
+be a candidate, causing the mandatory stop above. Generated files require
+reconciliation before this branch can pass the gate.
+
+Pins and controls
+tests/fixtures/d2b-r13-decision-pins.json contains tracked decision projections
+for lines 9898-9904. These supply positions, reasons, keys, owner order, the
+historical retirement and pack counts. They are not recorded state boards.
+tests/test_home_interruption_constructed.py explicitly declares constructed
+boards and reads Outpost from C:/hengband, like the existing surface/INN tests.
+R13 before: native ESC + `n(. / travel-home retired at (45,101).
+R13 constructed after: the same key/reason resumes without retirement;
+re-baseline reports progress false and preserves burst 2 and one own failure.
+Arrival at (45,123), pd1\r, and a real session confirmation of the constructed
+13 -> 14 pack delta consume entry/take once. Duplicate observation earns none.
+Controls cover all three physical aliases; withdraw/deposit/staged contexts;
+prior native effect before combat; stationary repetition and equidistant own
+oscillation; eight failed resumed offers; duplicate preview/final observations;
+stationary safety/save; alias and goal changes; refused full Home; catalogue
+exclusion; no path; fabricated directional jump rejected by CLI; consumed entry
+return; Home entry wait; held-claim preview; changed action; restart/restore.
+The new module's final in-flight execution completed successfully after the
+stop decision; it does not substitute for the required final suite.
+
+Single-module development results
+tests.test_inn_interruption_constructed:
+  Ran 16 tests in 15.854s -- OK
+tests.test_town_arbiter:
+  Ran 30 tests in 579.721s -- OK
+  Its existing negative controls and every original assertion were retained.
+tests.test_home_interruption_constructed (latest already-started execution):
+  Ran 14 tests in 17.966s -- OK
+New-module development import/setup errors were fixed before these results.
+No claim is made about the other mandated recorded replay modules.
+
+Preflight output (last completed invocation, before the stop)
+Command, using the Codex runtime Python:
+python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\town-idle-d2b fd881735
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy_town.py:TownMixin._town_entrance_[169 chars]s']"] != []
+[preflight] FAIL fakery/sink: + []
+[preflight] FAIL fakery/sink: - ['policy_town.py:TownMixin._town_entrance_cells: producer baseline entry '
+[preflight] FAIL fakery/sink: -  'unmapped candidates=[]; stale '
+[preflight] PREFLIGHT FAIL: 10 changed files, 5 findings (town-idle-d2b vs fd881735)
+
+An earlier intermediate preflight passed with 0 findings. It is superseded by
+the failed invocation above, which ran across the last source refinements and
+is not a final clean-HEAD receipt. The final source refinements and this report
+are committed for inspection, without repairing the failed existing assertion.
+
+Mutation check output
+NOT RUN. The existing-assertion STOP occurred before mutation checking. No
+mutation record exists for the finished source/test trees. The required
+--record command has not been completed and no successful output is claimed.
+
+Final run lines
+NOT RUN. affected_tests.py and the one required test_parallel_runner.py
+--workers 2 union run were not executed after the mandatory stop. No failed
+module retry round was used. The task is incomplete; the branch must not be
+treated as tested or merge-ready.
+
+Operational constraints
+No game or bot control, no push, no merge, no reset --hard, and no process
+stop/kill/restart. Other running merge gates were left alone. Input task and
+captures remain untracked; only the extracted decision fixture is tracked.
+Game maps were not copied. Source and new test strings use escaped controls.
+No collaborators were spawned. Stop was caused by the specified existing
+assertion rule, not by the token or wall-time limit.

@@ -224,6 +224,8 @@ class HomeInterruptionTest(unittest.TestCase):
                                                         NATIVE, consume=True)
                 self.assertFalse(receipt["rebaseline"])
                 self.assertFalse(receipt["productive"])
+                if change in {"alias", "retarget"}:
+                    self.assertFalse(receipt["progress"])
 
     def test_stationary_command_cannot_supply_an_own_edge(self):
         policy, _ = home_policy()
@@ -290,7 +292,7 @@ class HomeInterruptionTest(unittest.TestCase):
         self.assertIsNone(policy._town_equipment_home_route(board, TRAVEL))
         policy._decision_sequence += 1
         receipt = policy._town_inn_route_receipt(board, TRAVEL, NATIVE, consume=True)
-        self.assertIsNone(receipt["owner"])
+        self.assertFalse(receipt["progress"])
         self.assertFalse(receipt["productive"])
         self.assertFalse(receipt["rebaseline"])
         fresh, _ = home_policy()
@@ -318,7 +320,7 @@ class HomeInterruptionTest(unittest.TestCase):
         policy._rubble_t.clear()
         policy._decision_sequence += 1
         receipt = policy._town_inn_route_receipt(board, TRAVEL, NATIVE, consume=True)
-        self.assertIsNone(receipt["owner"])
+        self.assertFalse(receipt["progress"])
         self.assertFalse(receipt["productive"])
 
     def test_return_to_consumed_entry_cannot_credit_or_rebaseline(self):
