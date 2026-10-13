@@ -1,0 +1,79 @@
+PLAN-STEP: 3 / ISSUE #1 — D2a report
+Branch: town-idle-d2a-1013
+Base for guards: 69aaf659
+Implementation HEAD before this report: 0b29051fca03821c4b3ab93539ed60def646d7ff
+
+Diagnosis and rule
+------------------
+The R3 capture is decisions-only: it records the character walking toward Home for equipment-transaction:acquire-home-catalog and retiring that walk, then selecting ~9 ESC ESC / home:request-knowledge-scan from outside Home. There are no state rows, so the required R3 pin is a declared constructed board.
+
+Catalogue-only means the catalogue is missing or invalidated and no physical Home action is pending: no actionable Home deposit, pending atomic take/deposit, posted Home-entry operation, or equipment-transaction action that currently requires Home. The D1 outside-equip guards remain. Named take/deposit work, page-relative addressing, or any other transaction action requiring Home still follows the existing Home route.
+
+For catalogue-only work, request HOME_KNOWLEDGE_MACRO in place through _home_catalogue_work_key, with reason equipment-transaction:catalogue-request-knowledge. While a request is posted, use the existing await declaration; do not repost or move. This preserves the existing request-loss/settlement bound and one request per unresolved catalogue revision. No new town owner, priority reordering, ownership/retirement change, or cross-restart memory was introduced.
+
+Changes
+-------
+- Added the D2a pre-edit diagnosis in LUNA-DIAG-town-idle-d2a.txt.
+- Routed both catalogue acquisition branches through _home_catalogue_work_key after confirming the Home route would otherwise be available. The in-town board branch and the approach-step branch now request catalogue knowledge where the character stands. Registered holders with an already posted request await it without movement or reposting.
+- Added constructed R3 pins for both acquisition branches, request/await behavior, and the already-posted-before-holder-registration path. Kept physical Home routing and the D1 R5 pins unchanged.
+- Regenerated the town work manifest and committed it with the policy and test changes.
+
+Sanctioned existing expectation flips (old -> new)
+--------------------------------------------------
+- tests/test_live23_home_cycle.py::test_recorded_entry_completes_catalogue_before_other_errand: recorded Home approach step / travel-home:await-entry -> HOME_KNOWLEDGE_MACRO / equipment-transaction:catalogue-request-knowledge.
+- tests/test_live23_home_cycle.py::test_historical_competing_actor_names_registered_holder_in_shadow: '5' / travel-home:await-entry -> HOME_KNOWLEDGE_MACRO / equipment-transaction:catalogue-request-knowledge.
+- tests/test_live23_home_cycle.py::test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw: '5' / travel-home:await-entry -> HOME_KNOWLEDGE_MACRO / equipment-transaction:catalogue-request-knowledge.
+- tests/test_live23_home_cycle.py::test_recorded_off_scan_continues_registered_catalogue: first catalogue-only outside decision (recorded step) -> HOME_KNOWLEDGE_MACRO / equipment-transaction:catalogue-request-knowledge. Earlier prefix and fixture hash/data assertions remain; later page controls are detached into independently attached checks.
+- tests/test_catcycle.py::test_partial_home_requests_catalogue_before_other_errands: first key '5' / travel-home:await-entry -> HOME_KNOWLEDGE_MACRO / equipment-transaction:catalogue-request-knowledge; later page controls are detached.
+
+No other existing assertion was edited. D1 R5 and physical Home route controls remain intact.
+
+Constructed pins
+----------------
+- R3 board, first acquisition branch: pre-fix behavior on 69aaf659 was a step key / equipment-transaction:acquire-home-catalog. After the fix it is HOME_KNOWLEDGE_MACRO / equipment-transaction:catalogue-request-knowledge. Next decision awaits the posted scan, with no second request and no movement.
+- R3 board, second acquisition branch on a mapped non-Home tile: same request and await behavior, no movement.
+- Physical Home work still travels to Home with its existing key/reason. D1 captured R5 pins in tests/test_policy_equipment.py remain unchanged and passed.
+
+Fast checks (final repeated run)
+-------------------------------
+Preflight command:
+python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\town-idle-d2a 69aaf659
+Output:
+[preflight] NOTE existing-test MODIFIED: tests/test_catcycle.py::CatcycleTest.test_partial_home_requests_catalogue_before_other_errands
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_historical_competing_actor_names_registered_holder_in_shadow
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_recorded_entry_completes_catalogue_before_other_errand
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_recorded_off_scan_continues_registered_catalogue
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (town-idle-d2a vs 69aaf659)
+
+Mutation command:
+python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\town-idle-d2a 69aaf659 --record
+Output:
+[mutation] 5 source hunks, tests: tests.test_catcycle tests.test_live23_home_cycle
+[mutation] caught     src/hengbot/policy.py:6819 ("""Start or advance catalogue work before a later Home errand."""): test_constructed_r3_catalogue_request_stays_outside_while_inflight, test_historical_competing_actor_names_registered_holder_in_shadow, test_recorded_entry_completes_catalogue_before_other_errand, and related pins
+[mutation] caught     src/hengbot/policy.py:6864 (# The outside request may be in flight before the equipment): test_constructed_r3_catalogue_request_stays_outside_while_inflight
+[mutation] caught     src/hengbot/policy.py:7044 (catalogue_request = (): test_partial_home_requests_catalogue_before_other_errands
+[mutation] caught     src/hengbot/policy.py:7888 (catalogue_key = self._town_producer_entry(): test_constructed_r3_catalogue_request_stays_outside_while_inflight, test_historical_competing_actor_names_registered_holder_in_shadow, test_recorded_entry_completes_catalogue_before_other_errand, and related pins
+[mutation] caught     src/hengbot/policy.py:11440 (catalogue_key = self._town_producer_entry(): test_partial_home_requests_catalogue_before_other_errands, test_constructed_r3_catalogue_request_stays_outside_while_inflight
+[mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+[mutation] recorded for 0b29051f
+
+Final parallel run
+------------------
+The one required final run was:
+PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --modules <19 affected modules plus the 10 mandated additions; 29 unique modules total>
+
+Runner lines:
+worker-1: 642 tests, 2025.784s, exit 1
+worker-2: 1074 tests, 1365.552s, exit 0
+worker-3: 247 tests, 442.339s, exit 0
+Failures: ['tests.test_ownership_s2b1_ladder.LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order']
+Errors: none
+purity: ran (inputs sha256=7e04d722fbd10acf882901c3920d234f6d6db223d0890cbce81106128e1a6430)
+weights: unavailable; fallback=27/27; stale=yes
+Total: 1963 tests, 2025.825s; output: jsonlog/test-parallel-timings.json
+Receipt sha256: fc9f5febd315f57f8199f486c82e54e9da41637f59bbf08bf664fe3db363f005
+
+The allowed failed-module retry ran tests.test_ownership_s2b1_ladder (52 tests) and reproduced exactly one failure. Its expected rung at index 56 is ('_shopping_approach_key', 'equipment-txn'); the source call sequence now contains ('_home_catalogue_work_key', 'equipment-txn'), yielding 24 ladder-order mismatches. This is an unrelated existing static ownership-ladder assertion. The task explicitly says every other existing assertion must remain unchanged and instructs us to stop and report an unexpected existing assertion failure, so the ladder test and its table were not edited and no further retry was run. The retry invocation initially omitted scripts from PYTHONPATH and failed to import ownership_claim_lint; with PYTHONPATH=src;tests;scripts the actual module ran and reproduced the failure.
+
+No source file changed after the final parallel run. Preflight and mutation_check both pass after the failed-module retry. The task and captures-d2a inputs remain untracked and were not added to the commit.

@@ -38,8 +38,12 @@ released as complete (neither deferred nor taken again) unless a new request
 queues it.  Class tests: tests/test_home_withdraw_moved_address.py.
 
 Substrate (tests/extract_home_withdraw_failed_stock_present_fixture.py): the
-input rows of decisions 0..33 and the recorded facts of all 66, replayed
-through the public response path on one policy.  Walls, each declared:
+input rows of decisions 0..33 and the recorded facts of all 66. D2a ends
+its historical sequential prefix at decision 2, now an outside knowledge
+request. Later page/take/response controls attach independently at decision
+4's Home page with its complete recorded catalogue and skill observation;
+no later historical page is a response to that changed outside command.
+The controls drive the public response path on this separately attached visit.  Walls, each declared:
 - the calibration file is the one the process loaded, in a temporary
   directory with the Home history/disposal files;
 - the board of every decision that follows a posted key carries the live
@@ -166,9 +170,38 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         return list(_parse_items(row["knowledge"]["items"]))
 
     @classmethod
+    def _attached_home_policy(cls, directory):
+        """Independent attachment to decision 4's complete Home page/list.
+
+        No page after the changed decision 2 is treated as its response.
+        The archived page, full catalogue and skill list are observation
+        inputs to this separate Home visit; commands from here run normally.
+        """
+        policy = _policy(directory, cls.monrace)
+        policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+        _decoded, snapshots = _consume_response_sequence(
+            cls.lines[cls.starts[4]:cls.starts[5]], policy, lambda _key: True,
+            cls.monrace, knowledge_ledger_path=directory / "knowledge.jsonl",
+        )
+        board = snapshots[-1]
+        policy.prime(board)
+        policy.observe_town_visit_epoch(True, board.turn)
+        skill_row = next(json.loads(line) for line in cls._board_lines(1)
+                         if json.loads(line).get("type") == "knowledge")
+        policy.consume_skill_knowledge(skill_row)
+        catalogue_row = next(json.loads(line) for line in cls._board_lines(4)
+                             if json.loads(line).get("type") == "knowledge")
+        policy.consume_home_knowledge(tuple(
+            _parse_items(catalogue_row["knowledge"]["items"])))
+        # Archived decision sequence for the independently attached visit;
+        # keep subsequent fixture executor operation identities aligned.
+        policy._decision_sequence = cls.recorded[4]["decision_sequence"] - 1
+        return policy
+
+    @classmethod
     @recorded_loadout_replay
     def _replay(cls):
-        """Decisions 0..33 on one policy, then the constructed continuation."""
+        """Independent Home attachment at 4..33, then fresh-scan continuation."""
         if cls.replay is not None:
             return cls.replay
         decisions = []
@@ -176,11 +209,9 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         confirmed = {}
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
-            policy = _policy(directory, cls.monrace)
-            policy._character_calibration_path.write_bytes(
-                CALIBRATION.read_bytes()
-            )
-            for index in range(cls.replayed):
+            policy = cls._attached_home_policy(directory)
+            decisions = [None] * 4  # earlier rows belong to the separate prefix pin
+            for index in range(4, cls.replayed):
                 _decoded, snapshots = _consume_response_sequence(
                     cls._board_lines(index), policy, lambda _key: True,
                     cls.monrace,
@@ -269,9 +300,8 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         """The shield protects; Theoden's CON and two-hand offense explain the swap."""
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
-            policy = _policy(directory, self.monrace)
-            policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
-            for index in range(6):
+            policy = self._attached_home_policy(directory)
+            for index in range(4, 6):
                 _decoded, snapshots = _consume_response_sequence(
                     self._board_lines(index), policy, lambda _key: True,
                     self.monrace, knowledge_ledger_path=directory / "knowledge.jsonl",
@@ -471,18 +501,77 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
 
     # ------------------------------------------------------------ fidelity
     def test_replay_reproduces_the_process_before_equipment_choice(self):
-        decisions = self._replay()["decisions"]
-        # R4: index 5 is the first changed key. The comparison also changes
-        # weapons: Theoden's CON raises HP from 550 to 601. At equal speed 114,
-        # it has 12.669 survival turns with an empty off hand, versus 12.632
-        # for Avabia with the shield. With Theoden in both loadouts, the shield
-        # improves survival to 13.108. The 5% survival band permits the empty
-        # hand's 8.8% melee output gain. Subsequent recorded boards followed
-        # the old key, so live-key comparison ends before 5.
-        self.assertEqual(
-            decisions[:5],
-            [(row["key"], row["reason"]) for row in self.recorded[:5]],
-        )
+        from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
+
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy = _policy(directory, self.monrace)
+            policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            decisions = []
+            for index in range(3):
+                _, snapshots = _consume_response_sequence(
+                    self._board_lines(index), policy, lambda _key: True,
+                    self.monrace, knowledge_ledger_path=directory / "knowledge.jsonl",
+                )
+                key = policy.choose_key(snapshots[-1])
+                decisions.append((str(key), policy.last_reason))
+                if index == 2:
+                    self.assertIsNone(policy._home_pending_item)
+                    self.assertEqual(policy._home_pending_batch, [])
+                    self.assertIsNone(policy._equipment_transaction_session)
+                    self.assertIsNone(policy._home_atomic_withdraw_pending)
+                    self.assertIsNone(policy._home_atomic_deposit_pending)
+                policy.confirm_key_posted(key)
+            self.assertEqual(decisions[:2], [
+                (row["key"], row["reason"]) for row in self.recorded[:2]])
+            self.assertEqual(decisions[2], (
+                HOME_KNOWLEDGE_MACRO,
+                "equipment-transaction:catalogue-request-knowledge"))
+            # End this sequential replay here. The later take and address
+            # checks use _attached_home_policy, not this changed command.
+        self.assertEqual(self._replay()["decisions"][5], (
+            "5pb1\r\x1b", "home:atomic-withdraw"))
+
+    def test_attached_partial_page_keeps_request_response_and_shortage_controls(self):
+        """Keep old prefix rows 3/4 as an independent physical Home visit."""
+        from hengbot.model import STORE_HOME
+
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy = _policy(directory, self.monrace)
+            policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            _, snapshots = _consume_response_sequence(
+                self.lines[self.starts[3]:self.starts[4]], policy,
+                lambda _key: True, self.monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            board = snapshots[-1]
+            policy.prime(board)
+            policy.observe_town_visit_epoch(True, board.turn)
+            skill_row = next(json.loads(line) for line in self._board_lines(1)
+                             if json.loads(line).get("type") == "knowledge")
+            policy.consume_skill_knowledge(skill_row)
+            policy._invalidate_home_observation()
+            self.assertTrue(policy._ensure_home_visit_request(board))
+            policy._request_store_trip(STORE_HOME, "home-scan")
+            key = policy.choose_key(board)
+            self.assertEqual((str(key), policy.last_reason), (
+                self.recorded[3]["key"], self.recorded[3]["reason"]))
+            policy.confirm_key_posted(key)
+            _, snapshots = _consume_response_sequence(
+                self.lines[self.starts[4]:self.starts[5]], policy,
+                lambda _key: True, self.monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            key = policy.choose_key(snapshots[-1])
+            self.assertEqual((str(key), policy.last_reason), (
+                self.recorded[4]["key"], self.recorded[4]["reason"]))
+            self.assertTrue(policy._home_knowledge_current)
+            self.assertIsNotNone(policy._home_pending_item)
+        # The complete-page attachment independently preserves the same
+        # queued shortage and its physical take on this town visit.
+        self.assertEqual(self._replay()["decisions"][4], (
+            self.recorded[4]["key"], self.recorded[4]["reason"]))
 
     def test_the_take_shortened_the_prefix_past_the_shovel(self):
         """On the confirming board: owners on both sides of index 11."""

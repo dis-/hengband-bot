@@ -308,6 +308,12 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_return_to_town_key", "departure"),                       # 6739
     _decide("_return_to_town_key", "departure", "return:",
             ordinary=True),                                            # 6756
+    # Step 3 D2a (2026-10-13): catalogue-only work asks the knowledge screen
+    # where the character stands; same owner and position as the Home
+    # approach below, which remains for physical Home work.
+    _decide("_home_catalogue_work_key", "equipment-txn",
+            "equipment-transaction:catalogue-request-knowledge",
+            "equipment-transaction:catalogue-await-knowledge"),
     _decide("_shopping_approach_key", "equipment-txn",
             "equipment-transaction:acquire-home-catalog",
             "equipment-transaction:travel-home"),                      # 6788
