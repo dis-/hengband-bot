@@ -5908,7 +5908,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     })):
             return None
         if (getattr(self, "_town_claim_bar_enforced", False)
-                and self._town_plan_defers(rung.family)):
+                and self._town_plan_defers(rung.family)
+                and not (rung_name == "_atomic_shop_transaction_key"
+                         and board is not None
+                         and self._can_resume_magic_shelf(board))):
             plan = self._town_errand_plan
             if getattr(self, "_decision_errand_deferred", None) is None:
                 self._decision_errand_deferred = []
@@ -8355,12 +8358,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 wait_count,
                 action_generation,
             ) = self._store_buy_inflight
-            confirmed = (
+            magic_staff = (watched_store == STORE_MAGIC
+                           and watched_signature[1:] == (TVAL_STAFF, SV_STAFF_IDENTIFY))
+            magic_watch = getattr(self, "_magic_staff_buy_watch", None)
+            matched_staff_count = (sum(
+                item.count for item in snapshot.inventory
+                if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+                and item.charges == magic_watch[1]
+            ) if magic_staff and magic_watch is not None else 0)
+            confirmed = (bool(
+                magic_watch is not None and magic_watch[0] == action_generation
+                and matched_staff_count > magic_watch[2]
+            ) if magic_staff else (
                 self._inventory_signature_count(snapshot, watched_signature)
                 > before_count
                 or snapshot.player.gold < before_gold
-            )
+            ))
             if confirmed:
+                if magic_staff:
+                    self._magic_staff_buy_receipt = (
+                        watched_store, action_generation, watched_signature,
+                        magic_watch[1], magic_watch[2], matched_staff_count,
+                    )
                 # Design rev 9 item 3: the posted purchase is confirmed.
                 self._complete_observed_effect(
                     "purchase-observed",
@@ -8373,6 +8392,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._inventory_signature_count(snapshot, watched_signature)
                     - before_count,
                 )
+                if magic_staff:
+                    bought = matched_staff_count - magic_watch[2]
                 self._town_visit_purchase_quantities[watched_signature] = (
                     self._town_visit_purchase_quantities.get(watched_signature, 0)
                     + bought
@@ -8922,14 +8943,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.store is None
             and self._shop_observation is not None
             and self._store_leave_inflight is not None
-            and self._can_compose_shop_observation(snapshot)
+            and (self._can_compose_shop_observation(snapshot)
+                 or self._can_resume_magic_shelf(snapshot))
         ):
             # The saved ordinary-store page is the address of the second
             # visit.  Claim it before generic routing can turn the entrance
             # board into another approach.  The page/position predicate is
             # sufficient provenance even when the derived LEAVING view was
             # lost between the posted ESC and this authoritative board.
-            self._store_leave_inflight = None
+            if self._can_resume_magic_shelf(snapshot):
+                # ESC completed the cleanup child, not this shelf's work.
+                # Keep its visit identity through transport and composition.
+                self._store_visit.transition(StoreVisitPhase.APPROACHING)
+                self._store_visit.posted_sequence = None
+                self._store_visit.posted_turn = None
+            else:
+                self._store_leave_inflight = None
             observed_store = self._shop_observation[0].store_type
             arbiter = self._town_turn_arbiter
             if arbiter is None:
@@ -14196,6 +14225,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._store_buy_inflight = (
                 store, signature, count, gold, 0, self._decision_sequence
             )
+            magic_watch = getattr(self, "_magic_staff_buy_watch", None)
+            if magic_watch is not None and magic_watch[0] == _generation:
+                self._magic_staff_buy_watch = (
+                    self._decision_sequence, magic_watch[1], magic_watch[2],
+                )
         self._discard_unposted_equipment_transaction_command()
 
     def _discard_unposted_equipment_transaction_command(self) -> None:
