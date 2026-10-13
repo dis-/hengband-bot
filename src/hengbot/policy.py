@@ -7923,13 +7923,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 (here is not None and here.store_number == STORE_HOME)
                 or (here is None and self._current_town_has_home(snapshot))
             ):
-                catalogue_key = self._town_producer_entry(
+                catalogue_key = (self._equipment_catalogue_only(snapshot)
+                                 and self._ensure_home_visit_request(snapshot)
+                                 and self._town_producer_entry(
                     "_home_catalogue_work_key",
                     lambda: self._home_catalogue_work_key(snapshot),
                     family="equipment-txn",
-                ) if (self._equipment_catalogue_only(snapshot)
-                      and self._ensure_home_visit_request(snapshot)) else None
-                if catalogue_key is not None:
+                ))
+                if isinstance(catalogue_key, str):
                     return catalogue_key
                 self._ensure_home_visit_request(snapshot)
                 self._request_store_trip(STORE_HOME, 'equipment-txn')
@@ -11476,12 +11477,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # route and not authority to step off/re-enter.
                 step = snapshot.player.position
             if step is not None and self._shopping_approach_store_type == STORE_HOME:
-                catalogue_key = self._town_producer_entry(
+                catalogue_key = (self._equipment_catalogue_only(snapshot)
+                                 and self._town_producer_entry(
                     "_home_catalogue_work_key",
                     lambda: self._home_catalogue_work_key(snapshot),
                     family="equipment-txn",
-                ) if self._equipment_catalogue_only(snapshot) else None
-                if catalogue_key is not None:
+                ))
+                if isinstance(catalogue_key, str):
                     return catalogue_key
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
                 key = self._town_producer_entry("_shopping_approach_key#1", lambda: self._shopping_approach_key(

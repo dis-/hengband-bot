@@ -10557,5 +10557,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._ensure_home_visit_request": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Home route admission, including outside equipment catalogue acquisition.",
+    "evidence": "Existing HomeVisit filing/begin-approach adapter returns bool and consumes its finite executor report; it sends no command and receives no independent progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
