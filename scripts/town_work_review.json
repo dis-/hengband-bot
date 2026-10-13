@@ -10546,5 +10546,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._town_inn_route_receipt": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Bound Q2 teleport and cross-town shopping INN transport only.",
+    "evidence": "pure helper: read-only preview and once-per-decision settlement of observed legal route edges and externally caused resumption baselines.",
+    "admission": "existing final policy emission",
+    "observer": "shared INN receipt consumed by arbiter and CLI; baseline grants no credit",
+    "delegation": "retained child; no independent command"
   }
 }

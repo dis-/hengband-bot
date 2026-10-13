@@ -1,0 +1,1526 @@
+{
+  "R12": [
+    {
+      "decision_sequence": 35040,
+      "turn": 16732590,
+      "reason": "fixedquest:q2-teleport",
+      "key": "6",
+      "position": {
+        "y": 23,
+        "x": 49
+      },
+      "arbiter": {
+        "owner": "quest-request",
+        "producer_owner": "quest-request",
+        "tenure": 22,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "quest-request"
+      }
+    },
+    {
+      "decision_sequence": 35041,
+      "turn": 16732601,
+      "reason": "fixedquest:q2-teleport",
+      "key": "6",
+      "position": {
+        "y": 23,
+        "x": 50
+      },
+      "arbiter": {
+        "owner": "quest-request",
+        "producer_owner": "quest-request",
+        "tenure": 23,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "quest-request"
+      }
+    },
+    {
+      "decision_sequence": 35042,
+      "turn": 16732611,
+      "reason": "fixedquest:q2-teleport",
+      "key": "3",
+      "position": {
+        "y": 23,
+        "x": 51
+      },
+      "arbiter": {
+        "owner": "quest-request",
+        "producer_owner": "quest-request",
+        "tenure": 24,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "quest-request"
+      }
+    },
+    {
+      "decision_sequence": 35043,
+      "turn": 16732619,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 24,
+        "x": 52
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35044,
+      "turn": 16732626,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 23,
+        "x": 53
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35045,
+      "turn": 16732635,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 22,
+        "x": 54
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35046,
+      "turn": 16732642,
+      "reason": "town:kill-mob-approach",
+      "key": "3",
+      "position": {
+        "y": 21,
+        "x": 55
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35047,
+      "turn": 16732651,
+      "reason": "town:kill-mob-approach",
+      "key": "6",
+      "position": {
+        "y": 22,
+        "x": 56
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35048,
+      "turn": 16732660,
+      "reason": "town:kill-mob-approach",
+      "key": "6",
+      "position": {
+        "y": 22,
+        "x": 57
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35049,
+      "turn": 16732665,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 22,
+        "x": 58
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35050,
+      "turn": 16732669,
+      "reason": "periodic:game-save",
+      "key": "\u0013",
+      "position": {
+        "y": 21,
+        "x": 59
+      },
+      "arbiter": {
+        "owner": "misc",
+        "producer_owner": "misc",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "detectors"
+      }
+    },
+    {
+      "decision_sequence": 35051,
+      "turn": 16732669,
+      "reason": "periodic:character-dump",
+      "key": "Cf\ry\u001b\u001b",
+      "position": {
+        "y": 21,
+        "x": 59
+      },
+      "arbiter": {
+        "owner": "misc",
+        "producer_owner": "misc",
+        "tenure": 2,
+        "progress": false,
+        "budget_remaining_estimate": 2,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "detectors"
+      }
+    },
+    {
+      "decision_sequence": 35052,
+      "turn": 16732669,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 21,
+        "x": 59
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35053,
+      "turn": 16732673,
+      "reason": "town:kill-mob-approach",
+      "key": "3",
+      "position": {
+        "y": 20,
+        "x": 60
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35054,
+      "turn": 16732685,
+      "reason": "town:kill-mob-approach",
+      "key": "3",
+      "position": {
+        "y": 21,
+        "x": 61
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35055,
+      "turn": 16732689,
+      "reason": "town:kill-mob-approach",
+      "key": "6",
+      "position": {
+        "y": 22,
+        "x": 62
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35056,
+      "turn": 16732695,
+      "reason": "town:kill-mob-approach",
+      "key": "6",
+      "position": {
+        "y": 22,
+        "x": 63
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35057,
+      "turn": 16732703,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 22,
+        "x": 64
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35058,
+      "turn": 16732709,
+      "reason": "melee",
+      "key": "9",
+      "position": {
+        "y": 21,
+        "x": 65
+      },
+      "arbiter": {
+        "owner": "misc",
+        "producer_owner": "misc",
+        "tenure": 3,
+        "progress": false,
+        "budget_remaining_estimate": 1,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 35059,
+      "turn": 16732715,
+      "reason": "fixedquest:q2-teleport",
+      "key": "1",
+      "position": {
+        "y": 21,
+        "x": 65
+      },
+      "arbiter": {
+        "owner": "quest-request",
+        "producer_owner": "quest-request",
+        "tenure": 1,
+        "progress": false,
+        "budget_remaining_estimate": 0,
+        "would_retire": true,
+        "retired": true,
+        "retirement_set": [
+          "quest-request"
+        ],
+        "decision_attribution": "quest-request"
+      }
+    }
+  ],
+  "R11": [
+    {
+      "decision_sequence": 34975,
+      "turn": 16731916,
+      "reason": "shop:in-store-buy",
+      "key": "po19\r\r",
+      "position": {
+        "y": 31,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 34976,
+      "turn": 16731916,
+      "reason": "shop:in-store-done",
+      "key": "\u001b",
+      "position": {
+        "y": 31,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 34977,
+      "turn": 16731923,
+      "reason": "periodic:character-dump",
+      "key": "Cf\ry\u001b\u001b",
+      "position": {
+        "y": 31,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "misc",
+        "producer_owner": "misc",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "detectors"
+      }
+    },
+    {
+      "decision_sequence": 34978,
+      "turn": 16731923,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "3",
+      "position": {
+        "y": 31,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34979,
+      "turn": 16731929,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "6",
+      "position": {
+        "y": 32,
+        "x": 92
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34980,
+      "turn": 16731937,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "6",
+      "position": {
+        "y": 32,
+        "x": 93
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 3,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34981,
+      "turn": 16731949,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "6",
+      "position": {
+        "y": 32,
+        "x": 94
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 4,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34982,
+      "turn": 16731956,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 32,
+        "x": 95
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 5,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34983,
+      "turn": 16731963,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 31,
+        "x": 96
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 6,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34984,
+      "turn": 16731970,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 30,
+        "x": 97
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 7,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34985,
+      "turn": 16731977,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 29,
+        "x": 98
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 8,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34986,
+      "turn": 16731989,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 28,
+        "x": 99
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 9,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34987,
+      "turn": 16731997,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "6",
+      "position": {
+        "y": 27,
+        "x": 100
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 10,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34988,
+      "turn": 16732005,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "6",
+      "position": {
+        "y": 27,
+        "x": 101
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 11,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34989,
+      "turn": 16732008,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "6",
+      "position": {
+        "y": 27,
+        "x": 102
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 12,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34990,
+      "turn": 16732018,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "6",
+      "position": {
+        "y": 27,
+        "x": 103
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 13,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 34991,
+      "turn": 16732024,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 27,
+        "x": 104
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 34992,
+      "turn": 16732034,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 26,
+        "x": 105
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 34993,
+      "turn": 16732041,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 25,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 34994,
+      "turn": 16732048,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 24,
+        "x": 107
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 34995,
+      "turn": 16732056,
+      "reason": "town:kill-mob-approach",
+      "key": "9",
+      "position": {
+        "y": 23,
+        "x": 108
+      },
+      "arbiter": {
+        "owner": "survival",
+        "producer_owner": "survival",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 34996,
+      "turn": 16732065,
+      "reason": "melee",
+      "key": "6",
+      "position": {
+        "y": 22,
+        "x": 109
+      },
+      "arbiter": {
+        "owner": "misc",
+        "producer_owner": "misc",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "survival"
+      }
+    },
+    {
+      "decision_sequence": 34997,
+      "turn": 16732074,
+      "reason": "trigger-autodestroy",
+      "key": "4",
+      "position": {
+        "y": 22,
+        "x": 109
+      },
+      "arbiter": {
+        "owner": "unregistered",
+        "producer_owner": "unregistered",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": null,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-plan"
+      }
+    },
+    {
+      "decision_sequence": 34998,
+      "turn": 16732083,
+      "reason": "seek-loot",
+      "key": "6",
+      "position": {
+        "y": 22,
+        "x": 108
+      },
+      "arbiter": {
+        "owner": "misc",
+        "producer_owner": "misc",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-plan"
+      }
+    },
+    {
+      "decision_sequence": 34999,
+      "turn": 16732090,
+      "reason": "seek-loot",
+      "key": "6",
+      "position": {
+        "y": 22,
+        "x": 109
+      },
+      "arbiter": {
+        "owner": "misc",
+        "producer_owner": "misc",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-plan"
+      }
+    },
+    {
+      "decision_sequence": 35000,
+      "turn": 16732099,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "1",
+      "position": {
+        "y": 22,
+        "x": 110
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 1,
+        "progress": false,
+        "budget_remaining_estimate": 0,
+        "would_retire": true,
+        "retired": true,
+        "retirement_set": [
+          "cross-town"
+        ],
+        "decision_attribution": "cross-town"
+      }
+    }
+  ],
+  "R9": [
+    {
+      "decision_sequence": 6712,
+      "turn": 16497561,
+      "reason": "shop:approach",
+      "key": "7",
+      "position": {
+        "y": 32,
+        "x": 100
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 21,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6713,
+      "turn": 16497571,
+      "reason": "shop:approach",
+      "key": "7",
+      "position": {
+        "y": 31,
+        "x": 99
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 22,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6714,
+      "turn": 16497582,
+      "reason": "shop:approach",
+      "key": "1",
+      "position": {
+        "y": 30,
+        "x": 98
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 23,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6715,
+      "turn": 16497592,
+      "reason": "shop:approach",
+      "key": "1",
+      "position": {
+        "y": 31,
+        "x": 97
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 24,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6716,
+      "turn": 16497597,
+      "reason": "shop:approach",
+      "key": "1",
+      "position": {
+        "y": 32,
+        "x": 96
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 25,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6717,
+      "turn": 16497603,
+      "reason": "shop:approach",
+      "key": "1",
+      "position": {
+        "y": 33,
+        "x": 95
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 26,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6718,
+      "turn": 16497614,
+      "reason": "shop:approach",
+      "key": "1",
+      "position": {
+        "y": 34,
+        "x": 94
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 27,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6719,
+      "turn": 16497623,
+      "reason": "shop:approach",
+      "key": "1",
+      "position": {
+        "y": 35,
+        "x": 93
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 28,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6720,
+      "turn": 16497627,
+      "reason": "shop:approach",
+      "key": "1",
+      "position": {
+        "y": 36,
+        "x": 92
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 29,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6721,
+      "turn": 16497627,
+      "reason": "shop:in-store-buy",
+      "key": "pi2\r\r",
+      "position": {
+        "y": 37,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6722,
+      "turn": 16497627,
+      "reason": "shop:in-store-buy",
+      "key": "ph1\r\r",
+      "position": {
+        "y": 37,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6723,
+      "turn": 16497627,
+      "reason": "shop:in-store-done",
+      "key": "\u001b",
+      "position": {
+        "y": 37,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 3,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6724,
+      "turn": 16497636,
+      "reason": "shop:travel",
+      "key": "\u001b`n&.",
+      "position": {
+        "y": 37,
+        "x": 91
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "store-router",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6725,
+      "turn": 16497751,
+      "reason": "shop:in-store-inscribe",
+      "key": "{a@0\r",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-sell",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6726,
+      "turn": 16497751,
+      "reason": "shop:in-store-sell",
+      "key": "d0y",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-sell",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6727,
+      "turn": 16497751,
+      "reason": "shop:in-store-inscribe",
+      "key": "{j@0\r",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-sell",
+        "tenure": 3,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6728,
+      "turn": 16497751,
+      "reason": "shop:in-store-sell",
+      "key": "d0y",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-sell",
+        "tenure": 4,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6729,
+      "turn": 16497751,
+      "reason": "shop:in-store-buy",
+      "key": "pl\r",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6730,
+      "turn": 16497751,
+      "reason": "shop:in-store-buy",
+      "key": "pn1\r\r",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6731,
+      "turn": 16497751,
+      "reason": "shop:in-store-inscribe",
+      "key": "{f@0\r",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-sell",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6732,
+      "turn": 16497751,
+      "reason": "shop:in-store-sell",
+      "key": "d0y",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-sell",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 3,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6733,
+      "turn": 16497751,
+      "reason": "shop:in-store-done",
+      "key": "\u001b",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "town-errand",
+        "producer_owner": "shop-buy",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "town-errand"
+      }
+    },
+    {
+      "decision_sequence": 6734,
+      "turn": 16497762,
+      "reason": "town:wait-restock:alchemist",
+      "key": "R300\r",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "shop-buy",
+        "producer_owner": "shop-buy",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "shop-buy"
+      }
+    },
+    {
+      "decision_sequence": 6735,
+      "turn": 16500104,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 38,
+        "x": 106
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 1,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 6736,
+      "turn": 16500113,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 37,
+        "x": 107
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 2,
+        "progress": true,
+        "budget_remaining_estimate": 8,
+        "would_retire": false,
+        "retired": false,
+        "retirement_set": [],
+        "decision_attribution": "cross-town"
+      }
+    },
+    {
+      "decision_sequence": 6737,
+      "turn": 16500120,
+      "reason": "town:cross-town-shopping:travel-1",
+      "key": "9",
+      "position": {
+        "y": 36,
+        "x": 108
+      },
+      "arbiter": {
+        "owner": "cross-town",
+        "producer_owner": "cross-town",
+        "tenure": 3,
+        "progress": false,
+        "budget_remaining_estimate": 0,
+        "would_retire": true,
+        "retired": true,
+        "retirement_set": [
+          "cross-town"
+        ],
+        "decision_attribution": "cross-town"
+      }
+    }
+  ]
+}

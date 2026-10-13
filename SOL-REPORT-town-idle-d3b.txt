@@ -1,0 +1,221 @@
+PLAN-STEP 3 / ISSUE #1 / D3b, implementation base 6e0af396.
+Branch: town-idle-d3b-1013. Full-run code: 52256812; final source: 33819f09.
+
+Diagnosis and evidence:
+SOL-DIAG-town-idle-d3b.txt was written before production edits. The base
+already registers both Q2 and shopping INN BFS distances. The recurrence
+pair is (owner, complete progress vector), with detector limit 2. Another
+owner's misc/melee decision splits _last_pair; survival alone freezes it.
+The resumed old distance can recur before its next closing step. The exact
+base paths are policy.py:2996 -> :3007, held :3087 -> :3095, and final
+:3120 -> town_arbiter.py:565-641. D0 entry-point labels still use the legacy
+strings policy.py:2994, policy.py:3069 and policy.py:3086.
+Historical R12/R11/R9 have decisions only, so their actual old vectors and
+retiring seam cannot be uniquely reconstructed. The new tests explicitly
+declare constructed state on the real Outpost/Telmora maps (game directory). Frozen
+decision coordinates/reasons/order and historical retirement remain facts.
+
+Accounting rule and bounds:
+Only quest-request / fixedquest:q2-teleport and cross-town /
+town:cross-town-shopping:travel-N retain this INN child. Identity contains
+the operation/destination, fixed INN target and observed walking topology.
+Position changes belong to the preceding command's owner. Both positions
+must be observed; bookkeeping and stationary actions do not establish an
+interruption. A matched external displacement re-baselines once on the
+same child at resumption, with no progress credit or counter/burst reset.
+The next legal observed own edge below this baseline earns progress, even
+above the old minimum. Own unsuccessful decisions still retire at Q2 3
+or cross-town 8; re-baselining retains an already spent budget. Qualified
+children bypass stale recurrence only, not retirement or failure bounds.
+All other owners retain legacy recurrence, priorities and stop handling.
+
+Changes at the three seams:
+TownMixin._town_inn_route_receipt previews without mutation, and consumes
+once by decision sequence at final emission, including zero-energy boards.
+It also settles a prior own legal edge before a different selected owner.
+Both ordinary and held policy previews receive this evidence; final observe
+uses its progress and qualification without giving displacement credit.
+Final observe also settles a prior route owner's unsuccessful counter before
+the survival shortcut, so a legal own edge is not lost when combat wins the
+next selection. Only the two INN owners can receive that settlement.
+CLI consumes the same committed receipt for the burst ledger, and suppresses
+the independent goal-only minimum for the bound child. A repeated read cannot
+renew credit. The burst's three-retirement visible stop and log-only mode stay.
+The native teleport work ID and minimum before/after identify a prior edge
+even when the next command is combat. A stationary route-named command cannot
+supply that edge. The new attribute is initialized on fresh policies, has an
+explicit restore default, is cleared on restart normalization, and is excluded
+from the serialized checkpoint payload. Fresh processes and visits have no
+old evidence. The restore pin uses a tracked empty monster catalogue.
+Pure-helper/work-review, item-intent and exact adapter catalogues were updated,
+and generated manifests committed. No new producer rung or town owner exists.
+
+Pins and controls:
+The legacy-path test reproduces recurrence count 1 -> 2, a misc _last_pair,
+and route retirement after only one unsuccessful own decision on this base's
+unchanged legacy API. The constructed R12 walk reaches old BFS5 at (23,51),
+then combat displacement reaches (21,65), BFS9. The fixed resumed key is 1,
+baseline grants no credit, and legal BFS8,7,... closing steps reach the INN
+command without retiring the route. R11 resumes from (22,110), Outpost
+BFS15; R9 shape uses Outpost BFS9 -> 8 before displacement and resumption.
+Shopping and Q2 positive pins check policy progress and CLI burst together.
+Separate pins cover stale ordinary preview, held preview, preserved spent
+budget, and a second actual interruption. Own bounce, stationary survival,
+save/bookkeeping and melee interruptions retain visible failure; a stalled
+qualified resumed walk retires at its existing bound. Duplicate resumption,
+renamed alias, same-owner retargeting, changed topology and invalid own jumps
+grant no new baseline/credit. Fresh/restored policies have no route memory.
+
+Development verification:
+Existing assertions were neither edited, renamed, weakened nor made conditional.
+Single-module passes: Q2 recorded 6; owner-retirement/burst 16; town arbiter 30;
+goldburn 8; surface map 11; S3.3 batch context 8. The final new module has 16
+behavior tests, including preceding-edge settlement, restart-memory removal,
+actual checkpoint exclusion and the other-owner/stationary-action controls.
+An initial policy-town run (589 tests) had one AttributeError before assertions:
+test_cycle_break_cannot_descend_from_non_target_entrance_underfoot used a
+limited map without stores. Topology access was inadvertently eager for
+unrelated work. It is now limited to an INN operation or retained INN child;
+the old test is unchanged, and a new limited-map control pins that boundary.
+Early preflight failures required manifest/adapter/observation catalogue
+updates and removal of the _decide replacement from the new test corridor.
+The corridor now runs the real _decide, with two producer-boundary collaborators
+(at most three when additionally exercising the independent held seam).
+The first mutation pass exposed one unpinned CLI fallback suppression; real
+admitted Reach goals and an invalid-own-jump behavior pin now detect it.
+Final self-review additionally pinned a closing own edge observed when combat
+is selected: its minimum and CLI credit already settled, but the prior owner's
+counter needed settlement before the survival shortcut. This is fixed and
+covered for Q2 and shopping; unrelated owner receipts cannot clear a budget.
+
+The requested full run executed ONCE with workers=2, purity=always, all 23
+affected modules plus the required regression/hygiene union and S3.3 context
+(37 modules). It completed in 3031.155 seconds (50 minutes 31 seconds), within
+the 60-minute limit: 1984 tests, 5 skips, 2 failures, no errors. All explicitly
+protected module assertions passed. The two failures were outside that list,
+both in test_calibration_checkpoint:
+test_empty_upgrade_has_exact_fresh_key_set_and_is_idempotent, line18, and
+test_v2_upgrade_removes_inactive_strip_fields_and_supplies_new_defaults, line136.
+Expected fresh/restored attribute sets were equal; actual restored set had
+the extra _town_inn_accounting. Fresh initialization now supplies the same
+None default. Only this failed module was rerun, once: 9 tests in 6.508s, OK.
+No full-run repetition or existing assertion edit occurred. The source changes
+after the full run are qualified by the failed-module rerun and the final
+preflight/mutation checks below; the full-run version and final source differ.
+
+No game/bot control, other-process termination, push, merge or hard reset was
+performed. Supplied task/capture inputs remain untracked; new tests use only
+tracked fixtures. Live qualification and enforcing migration are outside D3b.
+
+Final verification: both mandatory fast checks passed after the last source
+edit/commit and after the failed-module rerun. Mutation baseline ran all 16
+new behavior tests successfully, and every one of 18 source hunks was caught.
+The record is for source HEAD 33819f09; this report/diagnosis-only commit follows.
+
+Final preflight output (verbatim):
+[preflight] PREFLIGHT OK: 19 changed files, 0 findings (town-idle-d3b vs 6e0af396)
+
+Final mutation_check --record output (verbatim):
+[mutation] 18 source hunks, tests: tests.test_inn_interruption_constructed
+[mutation] caught     src/hengbot/cli.py:489 (inn_state = getattr(policy, "_town_inn_accounting", None)): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_fresh_and_restored_policies_have_no_interruption_memory, test_held_route_preview_uses_
+[mutation] caught     src/hengbot/cli.py:515 (if route is not None and not (inn_receipt and (): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum
+[mutation] caught     src/hengbot/cli.py:526 ("operation_identity": ((inn_receipt or {}).get("operation_identity")): test_prior_own_edge_settles_budget_before_combat_and_identifies_its_work
+[mutation] caught     src/hengbot/latch_onset_capture.py:40 (# INN interruption evidence and minima are process/visit local.): test_fresh_and_restored_policies_have_no_interruption_memory
+[mutation] caught     src/hengbot/policy.py:1889 (self._town_inn_accounting = None): test_fresh_and_restored_policies_have_no_interruption_memory
+[mutation] caught     src/hengbot/policy.py:2946 (inn_receipt = self._town_inn_route_receipt(snapshot, self.last_reason,): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_fresh_and_restored_policies_have_no_interruption_memory, test_held_route_preview_uses_
+[mutation] caught     src/hengbot/policy.py:2996 (self.last_reason, vector, retirement_key=current_retirement_key,): test_second_real_interruption_survives_stale_preview_recurrence
+[mutation] caught     src/hengbot/policy.py:3089 (retirement_key=current_retirement_key,): test_held_route_preview_uses_the_same_qualified_receipt
+[mutation] caught     src/hengbot/policy.py:3121 (inn_receipt = self._town_inn_route_receipt(): test_own_bounce_and_stationary_interrupt_keep_legacy_failure_visible, test_r12_and_shopping_resume_to_the_inn_with_all_three_seams, test_cli_cannot_replace_the_
+[mutation] caught     src/hengbot/policy_state.py:368 (if restart:): test_fresh_and_restored_policies_have_no_interruption_memory
+[mutation] caught     src/hengbot/policy_town.py:381 (def _town_inn_route_receipt(self, snapshot, reason, key, *, consume=Fa): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_fresh_and_restored_policies_have_no_interruption_memory, test_held_route_preview_uses_
+[mutation] caught     src/hengbot/town_arbiter.py:472 (route_receipt=None,): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_fresh_and_restored_policies_have_no_interruption_memory, test_held_route_preview_uses_
+[mutation] caught     src/hengbot/town_arbiter.py:518 (settled_owner = (route_receipt or {}).get("settled_owner")): test_prior_own_edge_settles_budget_before_combat_and_identifies_its_work
+[mutation] caught     src/hengbot/town_arbiter.py:578 (bound_route = bool(route_receipt and route_receipt.get("owner") == own): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_fresh_and_restored_policies_have_no_interruption_memory, test_held_route_preview_uses_
+[mutation] caught     src/hengbot/town_arbiter.py:590 (if bound_route and route_receipt["progress"] is not None:): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_no_closing_resumption_retires_at_existing_own_bound, test_own_bounce_and_stationary_in
+[mutation] caught     src/hengbot/town_arbiter.py:687 (_mutate: bool = True, route_receipt=None,): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_fresh_and_restored_policies_have_no_interruption_memory, test_held_route_preview_uses_
+[mutation] caught     src/hengbot/town_arbiter.py:705 (and not (route_receipt and route_receipt.get("owner") == owner): test_held_route_preview_uses_the_same_qualified_receipt, test_second_real_interruption_survives_stale_preview_recurrence
+[mutation] caught     src/hengbot/town_arbiter.py:731 (self, reason: str, progress_vector: object, *, retirement_key=None,): test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum, test_fresh_and_restored_policies_have_no_interruption_memory, test_held_route_preview_uses_
+[mutation] MUTATION OK: 0 of 18 hunks are not pinned by a test
+[mutation] recorded for 33819f09
+
+Full-run output (verbatim):
+worker-1: 579 tests, 3031.108s, exit 1; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-37rvzpm7\worker-1\home-history
+..F..F.......................................................................................................................................................................ssss..................................................................................................................................................................................................................................................................................................................................................................................................................
+======================================================================
+FAIL: test_empty_upgrade_has_exact_fresh_key_set_and_is_idempotent (tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_empty_upgrade_has_exact_fresh_key_set_and_is_idempotent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-d3b\tests\test_calibration_checkpoint.py", line 18, in test_empty_upgrade_has_exact_fresh_key_set_and_is_idempotent
+    self.assertEqual(set(vars(restored)), set(vars(fresh)))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Items in the first set but not the second:
+'_town_inn_accounting'
+
+======================================================================
+FAIL: test_v2_upgrade_removes_inactive_strip_fields_and_supplies_new_defaults (tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_v2_upgrade_removes_inactive_strip_fields_and_supplies_new_defaults)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-d3b\tests\test_calibration_checkpoint.py", line 136, in test_v2_upgrade_removes_inactive_strip_fields_and_supplies_new_defaults
+    self.assertEqual(set(vars(policy)), set(vars(HengbotPolicy(monrace_knowledge={}))))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Items in the first set but not the second:
+'_town_inn_accounting'
+
+----------------------------------------------------------------------
+Ran 579 tests in 3028.782s
+
+FAILED (failures=2, skipped=4)
+worker-2: 1158 tests, 1571.182s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-37rvzpm7\worker-2\home-history
+worker-3: 247 tests, 521.090s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-37rvzpm7\worker-3\home-history
+Failures: ['tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_empty_upgrade_has_exact_fresh_key_set_and_is_idempotent', 'tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_v2_upgrade_removes_inactive_strip_fields_and_supplies_new_defaults']
+Errors: none
+purity: ran (inputs sha256=fc7c80e49c459cddb6cc35a44fd404423711321e2c00940d43823e1841ae2038)
+weights: unavailable; fallback=35/35; stale=yes
+Total: 1984 tests, 3031.155s; output: C:\hengband\bot-client\.worktrees\town-idle-d3b\validation\d3b-final-results.json
+Receipt: C:\hengband\bot-client\.worktrees\town-idle-d3b\jsonlog\receipts\test_parallel_runner-full-20261013T172146+0900.json; sha256: 0be0785bca666d1228fcf631b51b0f4452556827c70184a6f040aabd7c80620f
+
+Only failed module rerun (round 1, exit 0):
+PYTHONPATH=src;tests;scripts python -m unittest tests.test_calibration_checkpoint
+----------------------------------------------------------------------
+Ran 9 tests in 6.508s
+
+OK
+
+Selected full-run modules (affected_tests.py output union required set):
+tests.test_absorbing_states
+tests.test_calibration_checkpoint
+tests.test_cli
+tests.test_crosstown_alt_recorded
+tests.test_entrance_travel_retired_recorded
+tests.test_goldburn_shopping_constructed
+tests.test_home_relief_progress_recorded
+tests.test_identify_staff_live27_recorded
+tests.test_inn_interruption_constructed
+tests.test_item_sink_lint
+tests.test_overweight_home_hold_recorded
+tests.test_overweight_homefull_step15b
+tests.test_owner_retirement_slice1
+tests.test_ownership_s2a_classification
+tests.test_ownership_s2a1_closure
+tests.test_ownership_s2b1_ladder
+tests.test_pattern_a_owner_retired_recorded
+tests.test_policy
+tests.test_policy_home
+tests.test_policy_shop
+tests.test_policy_supply
+tests.test_policy_town
+tests.test_q2travel_progress_recorded
+tests.test_quest_enter_approach_progress
+tests.test_quest34_target_dead_recorded
+tests.test_retirement_self_clearing
+tests.test_runtime_file_isolation
+tests.test_s33_batch_context
+tests.test_s33_batch_reconciliation
+tests.test_step15d2_f2
+tests.test_store_reentry_recorded
+tests.test_surface_map_walks
+tests.test_test_fakery_lint
+tests.test_town_approach_retired_recorded
+tests.test_town_arbiter
+tests.test_town_structure_lint
+tests.test_town_work_contract

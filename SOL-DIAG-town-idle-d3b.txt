@@ -1,0 +1,54 @@
+Base: 6e0af396, 2026-10-13. Diagnosis before production edits.
+R12/R11/R9 contain decisions only, so their exact historical entry point and
+vector cannot be recovered. The following are DECLARED CONSTRUCTED walks on
+the real town maps; they prove the reachable accounting defect, not a replay
+of missing state or a claim that the historical path is uniquely known.
+
+Existing seams on this base:
+policy_town.py:223-247 registers Q2 INN BFS, :329-354 registers shopping INN BFS.
+policy.py:2949 calls read-only probe (no settlement); :2996 preview may reject,
+:3007-3015 publishes retirement; held-claim preview :3087 / retirement :3095 does
+the same. town_arbiter.py:676-715 may_select checks stored recurrence >= 2
+before changed retirement-key clearance. Final policy.py:3120 calls observe;
+town_arbiter.py:565-573 increments a pair after a different _last_pair,
+:622-641 publishes recurrence retirement. D0 labels this policy.py:3086.
+cli.py:451-526 observes an independent route minimum only for the current
+claim/selected goal; it cannot undo a retirement published by policy.
+
+Constructed R12 shape: Telmora INN (28,56), observed legal BFS ranks:
+(23,47)=9 -> (22,48)=8 -> (23,49)=7 -> (23,50)=6 -> (23,51)=5,
+then town combat displaces
+(23,51) -> (21,65). Route reason fixedquest:q2-teleport, owner quest-request.
+Let Vn be the unchanged durable facts plus registered locomotion rank n.
+Own at rank9: _last_pair=(quest-request,V9), recurrence=1, observed min=9.
+Own at rank8: _last_pair=(quest-request,V8), recurrence=1, observed min=8.
+Own at rank7: _last_pair=(quest-request,V7), recurrence=1, observed min=7.
+Own at rank6: _last_pair=(quest-request,V6), recurrence=1, observed min=6.
+Own at rank5: _last_pair=(quest-request,V5), recurrence=1, observed min=5.
+kill-mob-approach is survival: freezes errand counters and _last_pair=V5;
+misc/melee: _last_pair=(misc,combat-vector); route min remains 5.
+Resumption rank9: preview allows count1; final observe increments V9 to2,
+progress=false, remaining=0, retired=true. D0 entry_point=policy.py:3086,
+recurrence_key=(quest-request,V9), count=2, limit=2, category=recurrence,
+own_unsuccessful_count=1, own_unsuccessful_bound=3.
+If V9 already has count2 on resumption, preview refuses before walking;
+policy.py:2994 (or :3069 for a held claim) publishes the same key/count/limit
+with trigger_category=recurrence. A later rank8 also recurs and cannot close
+the old minimum before rejection. Baseline displacement is never credit.
+D0 entry-point strings are legacy labels: "policy.py:2994", "policy.py:3069"
+and "policy.py:3086"; the physical source lines above were verified with
+git show 6e0af396 after diagnosis. Do not confuse these labels with line numbers.
+
+Constructed R11/R9 shape: Outpost INN (37,119), real ranks
+(34,110)=9 -> (33,111)=8; own at the inn approach reduces the minimum;
+combat/loot displacement returns to the prior rank9 and melee splits the
+pair. Identical trace with owner cross-town and reason
+town:cross-town-shopping:travel-1, bound8. V9 count1 ->2 publishes final
+retirement with unsuccessful count1 rather than eight failed own decisions.
+R11 recorded resumption (22,110) has BFS15 on this constructed map; R9 goal
+is (37,119). State absence prevents computing their actual old minima.
+
+This base has D3a: no missing shopping distance branch remains. The defect
+is recurrence/settlement after external displacement. Fix is limited to the
+retained Q2-teleport/shopping INN child, with unchanged owner priorities,
+log-only handling, burst stop and all other legacy recurrence accounting.
