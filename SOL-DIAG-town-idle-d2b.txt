@@ -1,0 +1,45 @@
+Diagnosis before source edits, base fd881735, 2026-10-13.
+Read design revision 2: G3, D2b, shared accounting, existing tests and alias inventory.
+
+Physical Home producer: policy_equipment.py:2573 _equipment_transaction_town_key,
+required_context == home at :2613; :2668 sets approach-home, :2669 delegates
+to _shopping_approach_key with equipment-transaction:travel-home.
+policy_shop.py:5669 implements that route; :5768 rewrites to
+equipment-transaction:travel-home:await-entry with key 5 on the entrance;
+:5810 delegates native ESC + `n(. to _town_travel_key; the fallback at :5848
+keeps equipment-transaction:approach-home and emits a direction.
+policy.py also wraps transaction entry/plan routing. Catalogue acquisition is
+separate work and is excluded from this slice.
+
+policy_town.py:115 progress vector zeros position, turn, sequence and gold.
+Only the exact approach-home alias is registered at :166; it uses the
+shopping goal's legacy locomotion part. travel-home and its await-entry alias
+have only the eight durable fields, no remaining route edges.
+
+Constructed pre-edit reproduction executed using the real Outpost map read
+from C:/hengband, _board/_policy in test_surface_map_walks. These are declared
+constructed observations, not a recorded state replay:
+  (46,83) travel-home: vector length 8, progress true, retired false
+  (47,101) town:kill-mob-approach: length 8, progress true, retired false
+  (46,101) town:kill-mob-approach: length 8, progress false, retired false
+  (45,101) melee: length 8, progress true, retired false
+  (45,101) resumed travel-home: length 8, progress false, retired true
+The command/owner order matches the R13 decisions. Combat displacement and
+the intervening board are constructed; coordinates alone do not prove BFS.
+
+D0 diagnostic at resumed observe:
+  entry_points = [policy.py:3086] (existing final-observe diagnostic label)
+  recurrence_key = (equipment-txn, eight-field durable vector above)
+  recurrence_count = 2; recurrence_limit = 2
+  trigger_category = recurrence
+  own_unsuccessful_count = 1; own_unsuccessful_bound = 8
+  last_pair_before.owner = misc; last_pair_after.owner = equipment-txn
+This is an early vector recurrence retirement, not eight failed route attempts.
+The telemetry cannot establish which reachable seam published historical R13.
+
+Reuse D3b: policy_town.py:384 _town_inn_route_receipt (preview read-only,
+final consume once per decision); policy.py:2949 preview, :3124 final;
+cli.py:492 consumes that same receipt for burst settlement. town_arbiter.py:570
+counts nonconsecutive owner/vector recurrence; :581 qualified receipt guards
+recurrence; :593 receipt overrides progress. Existing may_select and
+preview_may_select accept route_receipt. Keep the legacy path for other work.

@@ -474,6 +474,9 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
         return
     state["sequence"] = sequence
     tokens = set()
+    magic_receipt = getattr(policy, "_magic_staff_buy_receipt", None)
+    if magic_receipt is not None:
+        tokens.add(("magic-staff-buy", *magic_receipt))
     for candidate in (observed_visit, getattr(policy, "_store_visit", None)):
         if (candidate is not None and candidate.operation_effect_observed
                 and candidate.posted_sequence is not None):

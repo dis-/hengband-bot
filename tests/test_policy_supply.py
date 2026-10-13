@@ -1063,6 +1063,56 @@ class ShoppingTest(unittest.TestCase):
             policy._light_refill_item(lantern_worn), lantern_worn.inventory[-1]
         )
 
+    def test_burst_stop_boards_do_not_restore_the_empty_lantern(self):
+        """Step 3 D6: the boards of the 2026-10-12 23:12:48 burst stop.
+
+        Live turns 515159 / 515167 (state rows 91 / 92 of the stop capture):
+        `wl / equipment-transaction:equip` (torch) and `wl / restore-lantern`
+        (empty lantern) alternated until the third retirement stopped the
+        bot (log-only records R14-R16).  With step 3 A the restore half is
+        gone on the torch-worn board, and the lantern-worn board reaches the
+        ordinary refill with the carried oil.
+        """
+        fixture = Path(__file__).parent / "fixtures" / "light-swap-c2-20261012.json.gz"
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            boards = json.load(stream)
+        self.assertEqual([board["turn"] for board in boards], [515159, 515167])
+
+        # DECLARED CONSTRUCTED: minimal domain snapshots; every item value
+        # (kind, fuel, count) is the captured one.
+        def carried(raw):
+            return InventoryItem(
+                slot=raw["slot"], name=raw.get("name", "captured item"),
+                count=raw.get("count", 1), tval=raw["tval"], sval=raw["sval"],
+                aware=raw.get("aware", True), known=raw.get("known", True),
+                fuel=(5000 if raw["tval"] == TVAL_FLASK
+                      else raw.get("light_turns", 0)),
+                is_equipment=raw["tval"] == TVAL_LITE,
+            )
+
+        snapshots = [
+            Snapshot(
+                player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+                inventory=[carried(raw) for raw in board["inventory"]],
+                equipment=[carried(raw) for raw in board["equipment"]],
+            )
+            for board in boards
+        ]
+        torch_worn, lantern_worn = snapshots
+        policy = HengbotPolicy()
+
+        worn = next(gear for gear in torch_worn.equipment if gear.tval == TVAL_LITE)
+        self.assertEqual((worn.sval, worn.fuel), (SV_LITE_TORCH, 1830))
+        self.assertIsNone(policy._empty_lantern_to_restore(torch_worn))
+        self.assertIsNone(policy._light_refill_item(torch_worn))
+
+        worn = next(gear for gear in lantern_worn.equipment if gear.tval == TVAL_LITE)
+        self.assertEqual((worn.sval, worn.fuel), (SV_LITE_LANTERN, 0))
+        self.assertIsNone(policy._empty_lantern_to_restore(lantern_worn))
+        refill = policy._light_refill_item(lantern_worn)
+        self.assertIsNotNone(refill)
+        self.assertEqual((refill.tval, refill.count), (TVAL_FLASK, 5))
+
     def test_home_owned_permanent_light_makes_all_pack_oil_depositable(self):
         oil = item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500)
         feanorian = store_item(

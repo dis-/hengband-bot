@@ -438,6 +438,7 @@ class ShopMixin(InStoreMixin):
                 and visit.phase
                 in (StoreVisitPhase.APPROACHING, StoreVisitPhase.ENTERING)
                 and not visit.operation_posted
+                and not self._can_resume_magic_shelf(snapshot)
                 and visit.store_type in released_stores
                 and required_store is not None
                 and visit.store_type != required_store
@@ -5265,6 +5266,13 @@ class ShopMixin(InStoreMixin):
             0,
             self._decision_sequence,
         )
+        if store.store_type == STORE_MAGIC and item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
+            self._magic_staff_buy_watch = (
+                self._decision_sequence, item.charges,
+                sum(carried.count for carried in snapshot.inventory
+                    if carried.tval == TVAL_STAFF and carried.sval == SV_STAFF_IDENTIFY
+                    and carried.charges == item.charges),
+            )
         if item.is_digging_tool and fallback_purchase:
             self._digger_fallback_bought_this_visit = True
         prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
@@ -5335,6 +5343,12 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, store_type: int | None = None,
         *, requester: str | None = None, router_plan_stop: bool = False,
     ) -> Position | None:
+        if router_plan_stop and self._can_resume_magic_shelf(snapshot):
+            if store_type not in (None, STORE_MAGIC):
+                # A detector's alternate supplier is not a release of the saved
+                # Magic operation. Its own transport/composer must settle first.
+                return None
+            store_type = STORE_MAGIC
         if router_plan_stop:
             requester = self._router_plan_stop_family(store_type)
         equipment_home_route = (
@@ -5714,7 +5728,9 @@ class ShopMixin(InStoreMixin):
                              and snapshot.player.hungry)
             if self._shopping_approach_store_type == STORE_HOME and not survival_home:
                 self._bind_catalogued_home_identification_withdrawal(snapshot)
-            atomic_shop = self._atomic_shop_transaction_key(snapshot)
+            atomic_shop = (self._atomic_shop_transaction_key(snapshot)
+                           if not self._can_resume_magic_shelf(snapshot)
+                           or self._can_compose_shop_observation(snapshot) else None)
             if atomic_shop is not None:
                 return atomic_shop
             atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
@@ -5897,6 +5913,26 @@ class ShopMixin(InStoreMixin):
             and observation[0].page_top in (None, 0)
         )
 
+    def _can_resume_magic_shelf(self, snapshot: Snapshot) -> bool:
+        """A selected Identify-staff shelf still owns its outside continuation."""
+        observation = self._shop_observation
+        visit = self._store_visit
+        if (not snapshot.in_town or snapshot.store is not None
+                or observation is None or observation[0].store_type != STORE_MAGIC
+                or observation[0].page_top not in (None, 0)
+                or visit is None or visit.store_type != STORE_MAGIC
+                or visit.operation_posted or visit.operation_effect_observed):
+            return False
+        observed = replace(snapshot, store=observation[0])
+        selection = self._in_store_selection(observed)
+        if selection is None or selection.get("op") != "buy":
+            return False
+        row = next((row for row in observation[0].items
+                    if row.letter == selection.get("letter")), None)
+        return bool(row is not None and row.tval == TVAL_STAFF
+                    and row.sval == SV_STAFF_IDENTIFY
+                    and row.price * selection["quantity"] <= snapshot.player.gold)
+
     def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
         """Compose one transaction from the latest observed page, outside."""
         observation = self._shop_observation
@@ -5918,6 +5954,15 @@ class ShopMixin(InStoreMixin):
                     continuation="town-plan.resume", post_on_emit=False,
                 )
         if not self._can_compose_shop_observation(snapshot):
+            if self._can_resume_magic_shelf(snapshot):
+                # Displacement does not choose another supplier or grant a new
+                # shelf/route identity. Only transport is legal away from Magic;
+                # the checked composer still requires its entrance observation.
+                step = self._shopping_approach_step(
+                    snapshot, STORE_MAGIC, router_plan_stop=True,
+                )
+                if step is not None:
+                    return self._shopping_approach_key(snapshot, step, "shop:travel")
             # Preserve the established malformed-page disposal at the same
             # composition boundary.  The predicate itself remains pure.
             if (

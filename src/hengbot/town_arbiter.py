@@ -519,7 +519,7 @@ class TownTurnArbiter:
             self.telemetry = None
             return None
         settled_owner = (route_receipt or {}).get("settled_owner")
-        if settled_owner in {"quest-request", "cross-town"}:
+        if settled_owner in {"quest-request", "cross-town", "equipment-txn"}:
             # The preceding route command's observed effect belongs to that
             # child even when combat owns this next decision. A re-baseline
             # never sets settled_owner and cannot renew this budget.

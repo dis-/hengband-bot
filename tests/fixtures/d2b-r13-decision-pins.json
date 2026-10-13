@@ -1,0 +1,193 @@
+[
+  {
+    "source_line": 9898,
+    "decision_sequence": 9758,
+    "turn": 501747,
+    "reason": "equipment-transaction:travel-home",
+    "key": "\u001b`n(.",
+    "position": {
+      "y": 46,
+      "x": 83
+    },
+    "inventory": {
+      "used": 13,
+      "free": 10
+    },
+    "arbiter": {
+      "owner": "equipment-txn",
+      "producer_owner": "equipment-txn",
+      "tenure": 1,
+      "progress": true,
+      "budget_remaining_estimate": 8,
+      "would_retire": false,
+      "retired": false,
+      "retirement_set": [],
+      "decision_attribution": "equipment-txn"
+    },
+    "store_type": null
+  },
+  {
+    "source_line": 9899,
+    "decision_sequence": 9759,
+    "turn": 501903,
+    "reason": "town:kill-mob-approach",
+    "key": "8",
+    "position": {
+      "y": 47,
+      "x": 101
+    },
+    "inventory": {
+      "used": 13,
+      "free": 10
+    },
+    "arbiter": {
+      "owner": "survival",
+      "producer_owner": "survival",
+      "tenure": 1,
+      "progress": true,
+      "budget_remaining_estimate": 8,
+      "would_retire": false,
+      "retired": false,
+      "retirement_set": [],
+      "decision_attribution": "survival"
+    },
+    "store_type": null
+  },
+  {
+    "source_line": 9900,
+    "decision_sequence": 9760,
+    "turn": 501912,
+    "reason": "town:kill-mob-approach",
+    "key": "8",
+    "position": {
+      "y": 46,
+      "x": 101
+    },
+    "inventory": {
+      "used": 13,
+      "free": 10
+    },
+    "arbiter": {
+      "owner": "survival",
+      "producer_owner": "survival",
+      "tenure": 1,
+      "progress": true,
+      "budget_remaining_estimate": 8,
+      "would_retire": false,
+      "retired": false,
+      "retirement_set": [],
+      "decision_attribution": "survival"
+    },
+    "store_type": null
+  },
+  {
+    "source_line": 9901,
+    "decision_sequence": 9761,
+    "turn": 501921,
+    "reason": "melee",
+    "key": "9",
+    "position": {
+      "y": 45,
+      "x": 101
+    },
+    "inventory": {
+      "used": 13,
+      "free": 10
+    },
+    "arbiter": {
+      "owner": "equipment-txn",
+      "producer_owner": "misc",
+      "tenure": 1,
+      "progress": true,
+      "budget_remaining_estimate": 3,
+      "would_retire": false,
+      "retired": false,
+      "retirement_set": [],
+      "decision_attribution": "equipment-txn"
+    },
+    "store_type": null
+  },
+  {
+    "source_line": 9902,
+    "decision_sequence": 9762,
+    "turn": 501929,
+    "reason": "equipment-transaction:travel-home",
+    "key": "\u001b`n(.",
+    "position": {
+      "y": 45,
+      "x": 101
+    },
+    "inventory": {
+      "used": 13,
+      "free": 10
+    },
+    "arbiter": {
+      "owner": "equipment-txn",
+      "producer_owner": "equipment-txn",
+      "tenure": 1,
+      "progress": false,
+      "budget_remaining_estimate": 0,
+      "would_retire": true,
+      "retired": true,
+      "retirement_set": [
+        "equipment-txn"
+      ],
+      "decision_attribution": "equipment-txn"
+    },
+    "store_type": null
+  },
+  {
+    "source_line": 9903,
+    "decision_sequence": 9763,
+    "turn": 502122,
+    "reason": "equipment-transaction:withdraw",
+    "key": "pd1\r",
+    "position": {
+      "y": 45,
+      "x": 123
+    },
+    "inventory": {
+      "used": 13,
+      "free": 10
+    },
+    "arbiter": {
+      "owner": "equipment-txn",
+      "producer_owner": "equipment-txn",
+      "tenure": 1,
+      "progress": true,
+      "budget_remaining_estimate": 8,
+      "would_retire": false,
+      "retired": false,
+      "retirement_set": [],
+      "decision_attribution": "equipment-txn"
+    },
+    "store_type": 7
+  },
+  {
+    "source_line": 9904,
+    "decision_sequence": 9764,
+    "turn": 502122,
+    "reason": "home:store-context-exit",
+    "key": "\u001b",
+    "position": {
+      "y": 45,
+      "x": 123
+    },
+    "inventory": {
+      "used": 14,
+      "free": 9
+    },
+    "arbiter": {
+      "owner": "equipment-txn",
+      "producer_owner": "home-visit",
+      "tenure": 1,
+      "progress": true,
+      "budget_remaining_estimate": 300,
+      "would_retire": false,
+      "retired": false,
+      "retirement_set": [],
+      "decision_attribution": "equipment-txn"
+    },
+    "store_type": 7
+  }
+]

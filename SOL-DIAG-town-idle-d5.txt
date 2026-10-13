@@ -1,0 +1,59 @@
+Task D5 / issue #1 / base 4a762806. Diagnosis before production edits.
+
+Evidence: R10 physical decisions 3358/3359/3361, not state captures.
+All reproduction boards in tests/test_town_magic_continuation_d5.py are
+DECLARED CONSTRUCTED; read the installed C:/hengband Outpost map. They do not
+claim to reconstruct the unseen inventory, Home census, or execution screen.
+
+3358: policy.py:10495-10523 saves the observed ordinary shelf and offers ESC
+after policy_instore.py:278-285 selects home-first (no would_key). The log's
+in_store.shadow proves all seven preconditions true, including flag and screen;
+it also proves op=home-first, would_key=null. Thus screen verification was NOT
+the historical reason it left. The pure _next_purchase selector names the
+19-charge Identify staff; _evaluate_purchase_home_gate prevented actual shop
+operation emission. _town_procurement_decision (policy_town.py:1625-1638)
+then labels ESC continue-observed-shop based on wanted/affordable alone,
+without resolving the Home gate or composing an operation. The recorded
+shop_selector says preempted, not a posted purchase. No legal blind pm command
+may be inferred from that marker.
+
+3359: policy.py:8919-8963 gives the outside saved shelf to
+_atomic_shop_transaction_key; policy_shop.py:5919-5925 runs the actual _shop
+selection. The recorded composition_refusal is home-first-yields-to-current-visit.
+policy_shop.py:6071-6087 advances/releases that pass and returns None;
+policy.py:8963-8965 resumes _decide. The ordinary router
+_shopping_approach_step/_shopping_approach_key (policy_shop.py:5335,5669)
+then offers Alchemist ESC`n%./shop:travel. This is an ordinary router leg,
+not a detector command at 3359. The detector later substitutes Magic through
+_town_procurement_progress_key (policy_town.py:1399-1409), labelled by
+_town_procurement_decision. The eventual 3362 purchase does not justify the
+two earlier shelf exits.
+
+The detector vector (policy_town.py:115-168) retains durable inventory/equipment
+core, town fingerprint, departure blockers, Home current/blocked flags and
+concrete refusal/descent states. Position, turn, sequence and gold are zeroed.
+Only registered locomotion aliases add distance; detector aliases add none.
+Shelf evidence is not a matched acquisition receipt.
+
+R10 historical telemetry proves detectors retirement with recurrence limit 2,
+but does not contain its vector/recurrence count or entry-point discriminator.
+Do not invent an exact historical seam. On this base D0 records:
+preselection policy.py:3008-3026 (entry_point label policy.py:2994), held-claim
+preselection (same retire API), or final town_arbiter.py:645-655 (entry_point
+label policy.py:3086). Diagnostics include recurrence_key=(producer,vector),
+count, limit, trigger_category recurrence/budget/retired-key and last_pair.
+town_arbiter.py:573-580 increments recurrence on pair changes and tests >=2.
+The driver's log-only forgiveness cannot supply business progress.
+
+Base reproduction, codex runtime Python, single module:
+Ran 2 tests in 0.144s; OK.
+Verified fresh-Home Magic page: pm1\r\r / shop:in-store-buy immediately.
+Unverified page: ESC, then adjacent outside 5 / shop:one-shot-buy;
+operation_key=pm1\r\r\x1b. Today's code still leaves when screen is unverified,
+but DOES compose on the next adjacent board; the normal handoff is already
+fixed on this base. Historical home-first was a separate concrete refusal,
+so this reproduction is not a claim that the exact historical state now buys.
+Remaining D5 work: retain a genuinely composable saved Magic shelf if displaced
+to Alchemist exterior, block competing supplier substitution, preserve refusal
+controls and existing ownership barriers, and require target acquisition rather
+than unrelated gold/pack movement for purchase confirmation.
