@@ -2503,6 +2503,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.__dict__.update(state)
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
+        active_arbiter = getattr(self, "_town_turn_arbiter", None)
+        if active_arbiter is not None and not hasattr(
+            active_arbiter, "_retirement_diagnostic"
+        ):
+            active_arbiter._retirement_diagnostic = None
 
     # ------------------------------------------------------------------ core
     def _with_grid_memory(self, snapshot: Snapshot) -> Snapshot:
@@ -2595,6 +2600,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_full_retry_deposits = getattr(self, "_home_full_retry_deposits", None)
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
+        active_arbiter = getattr(self, "_town_turn_arbiter", None)
+        if active_arbiter is not None:
+            active_arbiter._retirement_diagnostic = None
         self._observe_cross_town_shopping_arrival(snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
@@ -2991,7 +2999,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 rejected_candidate = key
                 retired_owner = arbiter.owner_for_reason(self.last_reason)
-                arbiter.retire(retired_owner, current_retirement_key)
+                recurrence_key = (retired_owner, vector)
+                recurrence_count = getattr(arbiter, "_recurrences", {}).get(
+                    recurrence_key, 0
+                )
+                recurrence_limit = arbiter.registry["detectors"].budget
+                arbiter.retire(
+                    retired_owner, current_retirement_key,
+                    entry_point="policy.py:2994",
+                    recurrence_key=recurrence_key,
+                    recurrence_count=recurrence_count,
+                    recurrence_limit=recurrence_limit,
+                    trigger_category=("recurrence" if recurrence_count >= recurrence_limit
+                                     else "retired-key"),
+                )
                 self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
                 supplier = self._departure_supplier_counterfactual(snapshot)
                 step = (
@@ -3066,7 +3087,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                   and not arbiter.preview_may_select(
                       self.last_reason, vector,
                       retirement_key=current_retirement_key)):
-                arbiter.retire(current_owner, current_retirement_key)
+                recurrence_key = (current_owner, vector)
+                recurrence_count = getattr(arbiter, "_recurrences", {}).get(
+                    recurrence_key, 0
+                )
+                recurrence_limit = arbiter.registry["detectors"].budget
+                arbiter.retire(
+                    current_owner, current_retirement_key,
+                    entry_point="policy.py:3069",
+                    recurrence_key=recurrence_key,
+                    recurrence_count=recurrence_count,
+                    recurrence_limit=recurrence_limit,
+                    trigger_category=("recurrence" if recurrence_count >= recurrence_limit
+                                     else "retired-key"),
+                )
                 self._town_refuse_rewrite(
                     "arbiter-retirement", self._town_held_decision(key, snapshot))
             if snapshot.store is not None and key in DIRECTION_KEYS.values():

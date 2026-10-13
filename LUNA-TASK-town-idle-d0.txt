@@ -1,0 +1,38 @@
+PLAN-STEP: 3
+ISSUE: #1
+Task D0 (plan step 3 D, first slice): implement ONLY slice "D0: disclose retirement trigger" of
+SOL-DESIGN-town-idle-20261013.md (revision 2, reviewed; follow it exactly, including the owner decisions it
+quotes). Branch town-idle-d0-1013 at main b8f5ac67. D0 is record-only: it must not change any key or reason the
+bot emits, any retirement, forgiveness or stop decision. Do not implement D1-D6.
+
+Read first: SOL-DESIGN-town-idle-20261013.md (the Revision 2 changelog, "Shared accounting rule", the D0 row of the
+slice table and the D0 rows of both existing-test tables, and "Returning log-only to enforcing: gate and
+measurement" for the counters D0 must expose) and SOL-DESIGN-town-idle-20261013.review.md (recommendations: record
+the retiring entry point, the recurrence key and count and `_last_pair`; D0 starts the measurement clock; the
+detector for idle spinning without a retirement). evidence-d/owner-retired-log-only-step2.jsonl holds the 16 live
+records the design is built on.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself (another implementer is running tests on this
+  machine). No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- "Existing tests" = tests at b8f5ac67; tests you add may be edited freely. D0 must not flip any existing
+  expectation about keys/reasons/retirements; only the listed record-shape assertions may gain fields.
+- Pins: replay the recorded rows the design names for D0 and assert (1) the original proposal and driver result are
+  unchanged and (2) the new fields are present with the recorded values. Constructed parts carry DECLARED
+  CONSTRUCTED comments. Revert the new recording -> the pins fail.
+- New helper functions: append entries to scripts/town_producer_baseline.json ("pure helper: ...") and
+  scripts/town_work_review.json (keep key order and formatting: json.dumps ensure_ascii=False indent=2 + trailing
+  newline, no sorting), regenerate the manifest (PYTHONPATH=src python scripts/town_work_manifest.py --write), and run
+  tests.test_item_sink_lint tests.test_town_structure_lint. New attributes need restore defaults.
+- The log file stays within the existing log budget: one line per retirement event, no per-decision growth.
+- Final run ONLY with scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src): affected_tests.py
+  (C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\town-idle-d0 b8f5ac67 HEAD)
+  plus tests.test_owner_retirement_slice1 tests.test_cli tests.test_town_arbiter and the hygiene set
+  (tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint
+  tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification
+  tests.test_test_fakery_lint tests.test_quest34_target_dead_recorded), within 60 minutes; then
+  compare_timings.py jsonlog\test-parallel-timings.json --base C:\hengband-backups\suite-batches\b8f5ac67
+  (0 slower tests; re-measure any flagged test against b8f5ac67 concurrently before reporting it - another
+  implementer's tests share this machine).
+- Token budget 250k, wall time 120 minutes. Write LUNA-REPORT-town-idle-d0.txt (changes, new record fields with an
+  example line, pins before/after, revert check, final run lines, compare_timings output).

@@ -193,6 +193,7 @@ class TownTurnArbiter:
         self._transfer_exhausted = False
         self._transferred_visit: StoreVisit | None = None
         self.telemetry: dict[str, object] | None = None
+        self._retirement_diagnostic: dict[str, object] | None = None
         self.store_visit: StoreVisit | None = None
         self._snapshot_turn: int | None = None
         self._recall_wait_started_turn: int | None = None
@@ -401,14 +402,47 @@ class TownTurnArbiter:
             owners.add("store-transfer")
         return tuple(sorted(owners))
 
-    def retire(self, owner, retirement_key, close_visit=None) -> None:
+    def retire(
+        self, owner, retirement_key, close_visit=None, *, entry_point="unknown",
+        recurrence_key=None, recurrence_count=None, recurrence_limit=None,
+        trigger_category=None,
+    ) -> None:
         """Publish retirement before a caller can rewrite its reason or key."""
         if owner == "survival":
             return  # Safety interrupts and returns; only its own producer can fail.
+        diagnostic = getattr(self, "_retirement_diagnostic", None)
+        if diagnostic is None:
+            diagnostic = {
+                "entry_points": [],
+                "recurrence_key": ({
+                    "owner": recurrence_key[0],
+                    "progress_vector": repr(recurrence_key[1]),
+                } if recurrence_key is not None else None),
+                "recurrence_count": recurrence_count,
+                "recurrence_limit": recurrence_limit,
+                "trigger_category": trigger_category,
+                "own_unsuccessful_count": getattr(
+                    self, "_no_progress_by_owner", {}
+                ).get(owner, 0),
+                "own_unsuccessful_bound": getattr(
+                    self, "registry", {}
+                ).get(owner).budget if getattr(self, "registry", {}).get(owner) else None,
+                "last_pair_before": ({
+                    "owner": self._last_pair[0],
+                    "progress_vector": repr(self._last_pair[1]),
+                } if getattr(self, "_last_pair", None) is not None else None),
+            }
+            self._retirement_diagnostic = diagnostic
+        if entry_point not in diagnostic["entry_points"]:
+            diagnostic["entry_points"].append(entry_point)
         self.__dict__.setdefault("_retired", {})[owner] = retirement_key
         self.__dict__.setdefault("_pending_retirements", set()).add(owner)
         if close_visit is not None:
             close_visit(owner, "arbiter-retired")
+        last_pair = getattr(self, "_last_pair", None)
+        diagnostic["last_pair_after"] = ({
+            "owner": last_pair[0], "progress_vector": repr(last_pair[1]),
+        } if last_pair is not None else None)
 
     def _decision_owner(self, reason: str) -> str:
         """Bind ordinary work to the active errand; survival may hand off."""
@@ -596,8 +630,16 @@ class TownTurnArbiter:
             and (remaining == 0 or recurrence_exhausted)
         )
         if would_retire:
-            self.retire(owner, retirement_key if retirement_key is not None else progress_vector,
-                        close_visit)
+            self.retire(
+                owner,
+                retirement_key if retirement_key is not None else progress_vector,
+                close_visit,
+                entry_point="policy.py:3086",
+                recurrence_key=recurrence_key,
+                recurrence_count=self._recurrences[recurrence_key],
+                recurrence_limit=recurrence_limit,
+                trigger_category=("recurrence" if recurrence_exhausted else "budget"),
+            )
         self.telemetry = {
             "owner": self._decision_owner(reason),
             # The visit owner is the authority for the errand, while this
@@ -624,6 +666,11 @@ class TownTurnArbiter:
         # manufactures a recurrence of the board before the designed wait.
         if not observation_wait and not recall_wait_progress:
             self._last_pair = recurrence_key
+        if self._retirement_diagnostic is not None:
+            last_pair = self._last_pair
+            self._retirement_diagnostic["last_pair_after"] = ({
+                "owner": last_pair[0], "progress_vector": repr(last_pair[1]),
+            } if last_pair is not None else None)
         return dict(self.telemetry)
 
     def may_select(

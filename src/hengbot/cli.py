@@ -10,12 +10,16 @@ import os
 import re
 import sys
 import time
+import uuid
 from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
 
+from hengbot import __version__ as HENGBOT_VERSION
+
 _CONTROL_OWNER_HANDLES: dict[int, object] = {}
+_TOWN_IDLE_D0_SESSION_ID = uuid.uuid4().hex
 
 from hengbot.model import (
     Position,
@@ -459,7 +463,7 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
              if snapshot.in_town or snapshot.store is not None else None)
     if state is None or state["visit"] != visit:
         state = dict(visit=visit, routes={}, effects=set(), admitted=set(),
-                     sequence=None)
+                     sequence=None, last_settlement={})
         policy._owner_retired_progress = state
         policy._owner_retired_no_progress_count = 0
         baseline = True
@@ -480,8 +484,11 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
             if status == "done" and evidence and work_id in state["admitted"]:
                 tokens.add(("execution-effect", producer, work_id, evidence))
     productive = bool(tokens - state["effects"]) and not baseline
+    matched_effects = sorted(repr(token) for token in tokens - state["effects"])
     state["effects"].update(tokens)
     record = current_record(policy, key)
+    minimum_before = None
+    minimum_after = None
     if record is not None:
         claim = getattr(getattr(policy, "_claim_register", None), "current", None)
         execution = getattr(claim, "execution", None)
@@ -505,9 +512,18 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
             target = (visit, route.target)
             rank = route.remaining_edges
             minimum = state["routes"].get(target)
+            minimum_before = minimum
+            minimum_after = rank if minimum is None else min(rank, minimum)
             if minimum is not None and rank < minimum:
                 productive = True
-            state["routes"][target] = rank if minimum is None else min(rank, minimum)
+            state["routes"][target] = minimum_after
+    state["last_settlement"] = {
+        "operation_identity": (record or {}).get("work_id"),
+        "visit_epoch": getattr(policy, "_town_visit_epoch", None),
+        "minimum_before": minimum_before,
+        "minimum_after": minimum_after,
+        "matched_effect_identity": matched_effects,
+    }
     if productive:
         policy._owner_retired_no_progress_count = 0
 
@@ -565,6 +581,50 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
     """Log an owner retirement and give town owners a fresh budget."""
     arbiter = getattr(policy, "_town_turn_arbiter", None)
     telemetry = getattr(arbiter, "telemetry", None) if arbiter is not None else None
+    from hengbot.town_work import current_record
+    work = current_record(policy, key)
+    progress_state = getattr(policy, "_owner_retired_progress", None) or {}
+    settlement = progress_state.get("last_settlement") or {}
+    arbiter_data = telemetry if isinstance(telemetry, dict) else {}
+    retirement_data = getattr(arbiter, "_retirement_diagnostic", None) or {}
+    producer_owner = arbiter_data.get("producer_owner")
+    registration = (getattr(arbiter, "registry", {}).get(producer_owner)
+                    if producer_owner is not None else None)
+    d0 = {
+        "schema": 1,
+        "process_session_id": _TOWN_IDLE_D0_SESSION_ID,
+        "build_version": os.environ.get("HENGBOT_BUILD_VERSION", HENGBOT_VERSION),
+        "decision_sequence": getattr(policy, "_decision_sequence", None),
+        "visit_epoch": getattr(policy, "_town_visit_epoch", None),
+        "operation_identity": (settlement.get("operation_identity")
+                               or (work or {}).get("work_id")),
+        "operation_producer": (work or {}).get("producer"),
+        "own_unsuccessful_count": retirement_data.get(
+            "own_unsuccessful_count",
+            getattr(arbiter, "_no_progress_by_owner", {}).get(producer_owner)
+            if producer_owner is not None else None,
+        ),
+        "own_unsuccessful_bound": retirement_data.get(
+            "own_unsuccessful_bound",
+            registration.budget if registration is not None else None,
+        ),
+        "retirement_entry_points": retirement_data.get("entry_points", []),
+        "trigger_category": retirement_data.get("trigger_category"),
+        "recurrence_key": retirement_data.get("recurrence_key"),
+        "recurrence_count": retirement_data.get("recurrence_count"),
+        "recurrence_limit": retirement_data.get("recurrence_limit"),
+        "last_pair_before": retirement_data.get("last_pair_before"),
+        "last_pair_after": retirement_data.get("last_pair_after"),
+        "minimum_before": settlement.get("minimum_before"),
+        "minimum_after": settlement.get("minimum_after"),
+        "matched_effect_identity": settlement.get("matched_effect_identity", []),
+        "raw_key": key,
+        "raw_reason": policy.last_reason,
+        "final_key": (WAIT_KEY if not forgive else
+                      LEAVE_STORE_KEY if snapshot.store is not None else key),
+        "final_reason": ("town:blocked:owner-retired-burst" if not forgive
+                         else policy.last_reason),
+    }
     record = {
         "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "turn": getattr(snapshot, "turn", None),
@@ -576,6 +636,7 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
         "retirement_owners": list(arbiter.pending_retirement_owners) if arbiter is not None else [],
         "retirements_without_progress": getattr(policy, "_owner_retired_no_progress_count", 0),
         "arbiter": telemetry if isinstance(telemetry, dict) else None,
+        "town_idle_d0": d0,
     }
     path = None
     if getattr(args, "decision_log", None):
@@ -1067,6 +1128,7 @@ def _decision_record(
     home_candidate_waiting: bool | None = None,
     identification_need: str | None = None,
     claim: dict | None = None,
+    town_idle_d0: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -1115,6 +1177,7 @@ def _decision_record(
             else {}
         ),
         **({"arbiter": arbiter} if arbiter is not None else {}),
+        **({"town_idle_d0": town_idle_d0} if town_idle_d0 is not None else {}),
         **(
             {"town_emit_ownership": town_emit_ownership}
             if town_emit_ownership is not None
@@ -2032,7 +2095,50 @@ def _write_decision(
                     ),
                 )
             if policy is not None:
-                from hengbot.town_work import receipts
+                from hengbot.town_work import current_record, receipts
+                arbiter = getattr(policy, "_town_turn_arbiter", None)
+                arbiter_data = getattr(arbiter, "telemetry", None)
+                arbiter_data = arbiter_data if isinstance(arbiter_data, dict) else {}
+                retirement_data = getattr(arbiter, "_retirement_diagnostic", None) or {}
+                producer_owner = arbiter_data.get("producer_owner")
+                registration = (getattr(arbiter, "registry", {}).get(producer_owner)
+                                if producer_owner is not None else None)
+                work = current_record(policy, key)
+                progress_state = getattr(policy, "_owner_retired_progress", None) or {}
+                settlement = progress_state.get("last_settlement") or {}
+                record["town_idle_d0"] = {
+                    "schema": 1,
+                    "process_session_id": _TOWN_IDLE_D0_SESSION_ID,
+                    "build_version": os.environ.get("HENGBOT_BUILD_VERSION", HENGBOT_VERSION),
+                    "decision_sequence": getattr(policy, "_decision_sequence", None),
+                    "visit_epoch": getattr(policy, "_town_visit_epoch", None),
+                    "operation_identity": (settlement.get("operation_identity")
+                                           or (work or {}).get("work_id")),
+                    "operation_producer": (work or {}).get("producer"),
+                    "own_unsuccessful_count": retirement_data.get(
+                        "own_unsuccessful_count",
+                        getattr(arbiter, "_no_progress_by_owner", {}).get(producer_owner)
+                        if producer_owner is not None else None,
+                    ),
+                    "own_unsuccessful_bound": retirement_data.get(
+                        "own_unsuccessful_bound",
+                        registration.budget if registration is not None else None,
+                    ),
+                    "retirement_entry_points": retirement_data.get("entry_points", []),
+                    "trigger_category": retirement_data.get("trigger_category"),
+                    "recurrence_key": retirement_data.get("recurrence_key"),
+                    "recurrence_count": retirement_data.get("recurrence_count"),
+                    "recurrence_limit": retirement_data.get("recurrence_limit"),
+                    "last_pair_before": retirement_data.get("last_pair_before"),
+                    "last_pair_after": retirement_data.get("last_pair_after"),
+                    "minimum_before": settlement.get("minimum_before"),
+                    "minimum_after": settlement.get("minimum_after"),
+                    "matched_effect_identity": settlement.get("matched_effect_identity", []),
+                    "raw_key": key,
+                    "raw_reason": reason,
+                    "final_key": key,
+                    "final_reason": reason,
+                }
                 record['town_work'] = receipts(policy)
             in_store = (
                 policy.in_store_decision_telemetry()

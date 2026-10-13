@@ -93,13 +93,105 @@ class RecordedRetirementTest(unittest.TestCase):
                 self.assertEqual(receipt['reason'], decision['reason'])
                 self.assertEqual(receipt['retirement_reason'], 'town:blocked:owner-retired')
                 self.assertTrue(receipt['forgiven'])
-                self.assertEqual(receipt['arbiter'], decision['arbiter'])
+                for field, value in decision['arbiter'].items():
+                    self.assertEqual(receipt['arbiter'][field], value)
+                self.assertEqual(receipt['town_idle_d0']['operation_identity'], None)
+                self.assertEqual(receipt['town_idle_d0']['visit_epoch'], None)
                 self.assertEqual(policy._owner_retired_no_progress_count, 1)
                 # Probe telemetry remains for the decision log, but is consumed.
                 policy._decision_sequence += 1
                 with patch('sys.stderr', io.StringIO()):
                     cli._handle_owner_retirement(args(log), board(), decision['key'], policy)
                 self.assertEqual(policy._owner_retired_no_progress_count, 1)
+
+    def test_d0_replays_all_sixteen_retirement_proposals_without_changing_driver_results(self):
+        """Replay recorded proposal rows; D0-only counters below are DECLARED CONSTRUCTED."""
+        evidence = (Path(__file__).parent
+                    / 'fixtures/owner-retired-log-only-step2.jsonl')
+        records = [json.loads(line) for line in
+                   evidence.read_text(encoding='utf-8').splitlines()]
+        self.assertEqual(len(records), 16)
+        for index, recorded in enumerate(records, 1):
+            with self.subTest(turn=recorded['turn']), TemporaryDirectory() as root:
+                policy = Policy()
+                policy._decision_sequence = index
+                policy.last_reason = recorded['reason']
+                visit = (1, (0, 0, 0))
+                policy._town_visit_epoch = 1000
+                policy._owner_retired_progress = {
+                    'visit': visit, 'routes': {}, 'effects': set(),
+                    'admitted': set(), 'sequence': index,
+                    'last_settlement': {
+                        'operation_identity': f'constructed-operation-{index}',
+                        'visit_epoch': 1000, 'minimum_before': None,
+                        'minimum_after': None,
+                        'matched_effect_identity': [],
+                    },
+                }
+                policy._owner_retired_no_progress_count = (
+                    recorded['retirements_without_progress'] - 1
+                )
+                arbiter = policy._town_turn_arbiter
+                arbiter.telemetry = dict(recorded['arbiter'])
+                # DECLARED CONSTRUCTED: recurrence vectors and recurrence history
+                # are absent from the historical retirement JSONL, so these values
+                # exercise D0 serialization without claiming historical evidence.
+                arbiter.telemetry.update({
+                    'recurrence_key': [recorded['retirement_owners'][0], ['constructed', index]],
+                    'recurrence_count': index,
+                    'recurrence_limit': 2,
+                    'last_pair_before': ['constructed-owner', ['constructed', index - 1]],
+                    'trigger_category': 'recurrence',
+                    'own_unsuccessful_count': recorded['arbiter']['tenure'],
+                    'own_unsuccessful_bound': 8,
+                })
+                arbiter._retirement_diagnostic = {
+                    'entry_points': ['policy.py:2994'],
+                    'recurrence_key': arbiter.telemetry['recurrence_key'],
+                    'recurrence_count': index,
+                    'recurrence_limit': 2,
+                    'trigger_category': 'recurrence',
+                    'own_unsuccessful_count': recorded['arbiter']['tenure'],
+                    'own_unsuccessful_bound': 8,
+                    'last_pair_before': arbiter.telemetry['last_pair_before'],
+                    'last_pair_after': ['constructed-owner', ['constructed', index]],
+                }
+                arbiter._pending_retirements = set(recorded['retirement_owners'])
+                log = Path(root) / 'decisions.jsonl'
+                with patch('sys.stderr', io.StringIO()):
+                    result = cli._handle_owner_retirement(
+                        args(log), board(), recorded['key'], policy
+                    )
+                receipt = json.loads(
+                    log.with_name('owner-retired-log-only.jsonl').read_text()
+                )
+                self.assertEqual(receipt['key'], recorded['key'])
+                self.assertEqual(receipt['reason'], recorded['reason'])
+                self.assertEqual(receipt['town_idle_d0']['recurrence_key'],
+                                 arbiter.telemetry['recurrence_key'])
+                self.assertEqual(receipt['town_idle_d0']['recurrence_count'], index)
+                self.assertEqual(receipt['town_idle_d0']['recurrence_limit'], 2)
+                self.assertEqual(receipt['town_idle_d0']['last_pair_before'],
+                                 arbiter.telemetry['last_pair_before'])
+                self.assertEqual(receipt['town_idle_d0']['last_pair_after'],
+                                 arbiter._retirement_diagnostic['last_pair_after'])
+                self.assertEqual(receipt['town_idle_d0']['operation_identity'],
+                                 f'constructed-operation-{index}')
+                self.assertEqual(receipt['town_idle_d0']['visit_epoch'], 1000)
+                self.assertEqual(receipt['town_idle_d0']['trigger_category'], 'recurrence')
+                self.assertTrue(receipt['town_idle_d0']['process_session_id'])
+                self.assertTrue(receipt['town_idle_d0']['build_version'])
+                if recorded['forgiven']:
+                    self.assertEqual(result, recorded['key'])
+                    self.assertEqual(policy.last_reason, recorded['reason'])
+                    self.assertEqual(receipt['town_idle_d0']['final_key'], recorded['key'])
+                    self.assertEqual(receipt['town_idle_d0']['final_reason'], recorded['reason'])
+                else:
+                    self.assertEqual(result, cli.WAIT_KEY)
+                    self.assertEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
+                    self.assertEqual(receipt['town_idle_d0']['final_key'], cli.WAIT_KEY)
+                    self.assertEqual(receipt['town_idle_d0']['final_reason'],
+                                     'town:blocked:owner-retired-burst')
 
     def test_c_survival_route_interrupts_the_disclosed_home_relocation_hold(self):
         pin = self.pins()[0]

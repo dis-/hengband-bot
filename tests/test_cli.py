@@ -3632,12 +3632,21 @@ class DecisionRecordTest(unittest.TestCase):
             "result": "allow",
             "branch": "wrapper-fresh-catalogue-absence",
         }
+        d0 = {
+            "process_session_id": "constructed-session",
+            "visit_epoch": 123,
+            "operation_identity": "constructed-operation",
+            "own_unsuccessful_count": 2,
+            "own_unsuccessful_bound": 8,
+        }
 
         record = _decision_record(
-            snapshot, "pa1\r\r\x1b", "shop:one-shot-buy", home_gate=evidence
+            snapshot, "pa1\r\r\x1b", "shop:one-shot-buy", home_gate=evidence,
+            town_idle_d0=d0,
         )
 
         self.assertEqual(record["home_gate"], evidence)
+        self.assertEqual(record["town_idle_d0"], d0)
 
     def test_decision_record_carries_home_identification_latch_state(self):
         snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
