@@ -6819,11 +6819,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _home_catalogue_work_key(self, snapshot: Snapshot) -> str | None:
-        """Advance registered catalogue work before a later Home errand."""
+        """Start or advance catalogue work before a later Home errand."""
         holder = self._home_catalogue_work_holder()
-        if holder is None:
+        if holder is None and snapshot.store is not None:
             return None
-        family = holder.owner.value
+        # The outside acquisition predicates can begin catalogue work before
+        # its first decision has registered a holder. Offer that first request
+        # as equipment work; subsequent decisions use the registered holder.
+        family = holder.owner.value if holder is not None else "equipment-txn"
         if snapshot.store is not None:
             if snapshot.store.store_type != STORE_HOME:
                 self._release_claim_goal("catalogue-wrong-store", owners=(family,))
@@ -6850,7 +6853,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "equipment-transaction:catalogue-await-knowledge"
                 self._offer_execution_awaiting(
                     "", producer=family, work_id="equipment:acquire-home-catalog",
-                    operation_ref=holder.execution.operation_ref,
+                    operation_ref=(holder.execution.operation_ref
+                                   if holder is not None else None),
                     expected_effect="home-catalog-available",
                     continuation="home.catalogue.acquire",
                 )
@@ -6865,7 +6869,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # already posted scan without sending another game command.
                 self._offer_execution_awaiting(
                     "", producer=family, work_id="equipment:acquire-home-catalog",
-                    operation_ref=holder.execution.operation_ref,
+                    operation_ref=(holder.execution.operation_ref
+                                   if holder is not None else None),
                     expected_effect="home-catalog-available",
                     continuation="home.catalogue.acquire",
                 )
@@ -7040,6 +7045,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and offer[4] == declaration.arguments
                 for offer in own
             ):
+                catalogue_request = (
+                    family == "equipment-txn"
+                    and declaration.work_id == "equipment:acquire-home-catalog"
+                    and declaration.next_step == "home.approach-for-equipment-catalog"
+                    and declaration.continuation is None
+                    and key == HOME_KNOWLEDGE_MACRO
+                    and reason == "equipment-transaction:catalogue-request-knowledge"
+                    and any(
+                        offer[2] == "equipment:acquire-home-catalog"
+                        and offer[3] == "home.catalogue.acquire"
+                        and offer[4] == ()
+                        and offer[5] == "home-catalog-available"
+                        for offer in own
+                    )
+                )
+                if catalogue_request:
+                    return None
                 session = self._equipment_transaction_session
                 action = session.current_action if session is not None else None
                 if (family == "equipment-txn" and session is not None
@@ -7804,10 +7826,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         knowledge_exit = getattr(knowledge_exit_holder, "execution", None)
         if (snapshot.store is None and snapshot.in_town
                 and (catalogue_holder := self._home_catalogue_work_holder()) is not None
-                and catalogue_holder.execution.continuation == "home.catalogue.acquire"):
-            # The posted partial-page exit owns its outside continuation, even
-            # with S3.3 OFF. Dispatch it before entrance acquisition can replace
-            # the same work with another approach. A returned catalogue closes
+                and (catalogue_holder.execution.continuation == "home.catalogue.acquire"
+                     or (catalogue_holder.execution.next_step
+                         == "home.approach-for-equipment-catalog"
+                         and not self._town_space_deposit_actionable(snapshot)
+                         and self._home_atomic_withdraw_pending is None
+                         and self._home_atomic_deposit_pending is None
+                         and not self._home_entry_operation_posted
+                         and not (
+                             self._equipment_transaction_session is not None
+                             and self._equipment_transaction_session.current_action is not None
+                             and self._equipment_transaction_session.required_context == "home"
+                         )))):
+            # A catalogue holder with a legacy entrance step has not yet done
+            # physical Home work; request the scan here before its route can
+            # be emitted. A posted partial-page exit also owns this outside
+            # continuation, even with S3.3 OFF. A returned catalogue closes
             # this work before any subsequent Home operation is considered.
             self._store_leave_inflight = None
             if self._home_knowledge_current and not self._home_knowledge_invalidated:
@@ -7867,6 +7901,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 (here is not None and here.store_number == STORE_HOME)
                 or (here is None and self._current_town_has_home(snapshot))
             ):
+                catalogue_key = self._home_catalogue_work_key(snapshot)
+                if catalogue_key is not None:
+                    return catalogue_key
                 self._ensure_home_visit_request(snapshot)
                 self._request_store_trip(STORE_HOME, 'equipment-txn')
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
@@ -11412,6 +11449,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # route and not authority to step off/re-enter.
                 step = snapshot.player.position
             if step is not None and self._shopping_approach_store_type == STORE_HOME:
+                catalogue_key = self._home_catalogue_work_key(snapshot)
+                if catalogue_key is not None:
+                    return catalogue_key
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
                 key = self._town_producer_entry("_shopping_approach_key#1", lambda: self._shopping_approach_key(
                     snapshot, step, "equipment-transaction:travel-home"

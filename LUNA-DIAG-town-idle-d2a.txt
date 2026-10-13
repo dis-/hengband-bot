@@ -1,0 +1,34 @@
+PLAN-STEP: 3 / ISSUE #1 — D2a pre-fix diagnosis
+Base: 69aaf659 (D1), branch town-idle-d2a-1013
+Design: captures-d2a/SOL-DESIGN-town-idle-20261013.md revision 2, D2a/G3
+
+Scope and capture
+-----------------
+R3 is a decisions-only record: captures-d2a/r3-decisions-5284-5300.jsonl.gz, copied from the dated state-log archive. At lines 5286-5294 (seq 13046-13054, turns 16227852-16227915), the character walks from (37,91) toward (31,99) with reason equipment-transaction:acquire-home-catalog; the recorded retirement is at line 5294. At line 5295 (seq 13055, turn 16227920), still outside Home at (32,100), the same scene selects ~9 ESC ESC / home:request-knowledge-scan. The log has no state rows, so the exact R3 pin must be a declared constructed board as specified by the task.
+
+Catalogue acquisition producers on this base
+--------------------------------------------
+In src/hengbot/policy.py:7858-7890, the first acquisition predicate checks in-town/no-store context, no actionable town-space deposit, no pending atomic take/deposit or posted Home entry operation, incomplete/invalidated catalogue, no current outside-Home transaction action, and no errand deferral. If the current grid is Home (or absent while the town has Home), it requests a Home trip and emits _shopping_approach_key with equipment-transaction:acquire-home-catalog. This branch already includes D1's outside-equip guard; retain it.
+
+The second producer is src/hengbot/policy.py:11394-11432. It checks warrior/town context, pack pressure, incomplete/invalidated catalogue, no current outside-Home transaction action, no deferral, and a Home visit request. It resolves a Home approach step and emits the same acquisition execution/travel. This branch also already includes D1's outside-equip guard; retain it.
+
+The work is catalogue-only only when there is no physical Home operation to perform first: no actionable town-space deposit, no pending atomic Home withdrawal/deposit, no posted Home-entry operation, and no equipment transaction whose current action requires Home (the D1 outside_home guard remains). A named take/deposit, a transaction action requiring Home, or page-relative item addressing still needs the physical Home visit and its existing route.
+
+Existing request and await behavior
+-----------------------------------
+src/hengbot/policy.py:6821-6881: _home_catalogue_work_key handles a registered equipment catalogue holder. Outside Home, an already inflight _home_knowledge_scan_inflight request emits the existing empty-key await declaration, reason equipment-transaction:catalogue-await-knowledge, expected effect home-catalog-available and continuation home.catalogue.acquire. If no request is inflight, it emits HOME_KNOWLEDGE_MACRO, reason equipment-transaction:catalogue-request-knowledge, and an execution declaration using budget_ref home-knowledge-existing-epoch. Inside Home it retains the analogous request/await behavior. Thus the new branch should enter this helper and preserve its posted-request settlement/loss bound; it must neither repost nor move while waiting.
+
+Existing-test expectation inventory before edits
+-----------------------------------------------
+The required grep (tests/**/*.py, exact strings acquire-home-catalog or travel-home:await-entry) returned:
+- tests/test_catcycle.py:63 — recorded catalogue-only sequence expects ('5', travel-home:await-entry).
+- tests/test_equipment_home_full_incident_recorded.py:156 — legacy reason guard; not a sanctioned flip.
+- tests/test_home_catalogue_response_in_store.py:41 — holder work_id fixture; not a flip.
+- tests/test_live23_home_cycle.py:63, 212 — holder fixtures/assertions; line 106 is a travel-home:await-entry expectation. The D2a-sanctioned catalogue-only initial-entry flips are test_recorded_entry_completes_catalogue_before_other_errand, test_historical_competing_actor_names_registered_holder_in_shadow, test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw, and the first catalogue-only assertion in test_recorded_off_scan_continues_registered_catalogue. Preserve fixture hash/data assertions and earlier prefix; detach later page-response controls as required by the task.
+- tests/test_ownership_s2a1_closure.py:369 — legacy acquire-home-catalog Reach typing stays unchanged.
+- tests/test_ownership_s3a_record.py:871, 1051 — synthetic travel-home await typing controls stay unchanged.
+- tests/test_policy_equipment.py:5907, 5919 — D1 outside-transaction regression/control stays unchanged.
+- tests/test_policy_home.py:4318, 5536 — physical Home route expectations stay unchanged.
+- tests/test_town_cure_supplier_recorded.py:346 — unrelated physical Home expectation stays unchanged.
+
+D2a permits only the exact first outside catalogue-only decision flips named above and test_catcycle.py::test_partial_home_requests_catalogue_before_other_errands. Every other existing assertion is a control. Do not alter D1 R5 pins, physical Home routing, retirement accounting, ownership/priority rules, or adjacent D2b/D3b/D4/D5/D6 behavior.

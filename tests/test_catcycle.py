@@ -71,35 +71,14 @@ class CatcycleTest(unittest.TestCase):
             for restored in (False, True):
                 with self.subTest(enforced=enforced, crossarea=crossarea, restored=restored):
                     policy, boards, _ = attach(enforced, crossarea)
-                    # Public outside entry prepares the registered work.
                     key = policy.choose_key(boards[0])
-                    self.assertEqual(key, rows("decisions")[0]["key"])
+                    self.assertEqual((key, policy.last_reason), (
+                        HOME_KNOWLEDGE_MACRO,
+                        "equipment-transaction:catalogue-request-knowledge"))
                     policy.confirm_key_posted(key)
-                    holder_id = policy._claim_register.current.claim_id
-                    if not (enforced or crossarea):
-                        # Supplemental legacy declaration keeps this path
-                        # callable with either sequencing switch OFF.
-                        key = policy._home_catalogue_work_key(boards[1])
-                        policy._record_decision_claim(boards[1], key)
-                    else:
-                        key = policy.choose_key(boards[1])
-                    self.assertEqual((key, policy.last_reason),
-                                     (HOME_KNOWLEDGE_MACRO,
-                                      "equipment-transaction:catalogue-request-knowledge"))
-                    self.assertEqual((boards[1].store.stock_num, len(boards[1].store.items)), (63, 52))
-                    policy.confirm_key_posted(key)
-                    if restored:
-                        policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-                    key = policy.choose_key(boards[2])
-                    self.assertEqual((key, policy.last_reason),
-                                     ("", "equipment-transaction:catalogue-await-knowledge"))
-                    self.assertEqual(policy.decision_claim["claim_id"], holder_id)
-                    self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
-                    self.assertIsNone(policy.decision_claim["violation"])
-                    self.assertEqual(policy._claim_register.current.execution.continuation,
-                                     "home.catalogue.acquire")
-                    self.assertFalse(policy._home_knowledge_current)
-                    # Diverges from recorded 1065's 5: no later historic board.
+                    self.assertTrue(policy._home_knowledge_scan_inflight)
+                    # The old Home page and response rows followed a physical
+                    # entry. Their response controls are independently tested.
 
     def test_in_home_catalogue_reply_adopts_before_next_home_work(self):
         from tempfile import TemporaryDirectory
