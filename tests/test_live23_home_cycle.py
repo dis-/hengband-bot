@@ -170,9 +170,8 @@ class Live23HomeCycleTest(unittest.TestCase):
         waiting_policy, waiting_boards = attachment()
         waiting_outside = replace(waiting_boards[0], player=replace(
             waiting_boards[0].player, position=Position(31, 99)))
-        waiting_policy._home_knowledge_scan_inflight = True
-        waiting_policy._home_knowledge_scan_requested = True
-        waiting_policy._home_knowledge_scan_epoch = waiting_policy._town_visit_epoch
+        waiting_policy._offer_home_knowledge_request(producer="home-scan")
+        waiting_policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
         request_epoch = waiting_policy._home_knowledge_scan_epoch
         self.assertIsNone(waiting_policy._home_catalogue_work_holder())
 
