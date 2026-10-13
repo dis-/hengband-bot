@@ -150,7 +150,6 @@
   "policy.py:HengbotPolicy._food_ready": "pure helper: _food_ready returns bool used as input/observation, not an independently selected game action",
   "policy.py:HengbotPolicy._has_charged_stone_to_mud": "pure helper: _has_charged_stone_to_mud returns bool used as input/observation, not an independently selected game action",
   "policy.py:HengbotPolicy._healing_potion_effective_hp": "pure helper: _healing_potion_effective_hp returns int used as input/observation, not an independently selected game action",
-  "policy.py:HengbotPolicy._home_catalogue_work_key": "town producer to migrate: Advance registered catalogue work before a later Home errand.",
   "policy.py:HengbotPolicy._home_tail_leave_continuation": "town producer to migrate: Continue the bound Home exit while its posted effect is unresolved.",
   "policy.py:HengbotPolicy._identify_staff_stockout_key": "town producer to migrate: Pass one Yeek Cave 1F mining run, then retry Home and Magic.",
   "policy.py:HengbotPolicy._immediate_quest_targets": "pure helper: Return visible targets that must preempt the current quest phase.",
