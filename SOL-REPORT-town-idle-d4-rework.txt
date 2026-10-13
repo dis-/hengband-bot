@@ -1,0 +1,50 @@
+PLAN-STEP: 3 ISSUE: #1 -- D4 narrow rework report
+Base 574bfba6. Started at ff6a253e on town-idle-d4-1013.
+STATUS: NOT QUALIFIED / literal W proof remains incomplete.
+
+See SOL-DIAG-town-idle-d4-rework.txt for file:line paths, measured policy state
+on59/60/61, HomeVisit request/queue and every posted wall key.
+59 is the intended D4 stale named-take request.60 has52/52 rendered page slots
+of197 Home slots: _open_home_page_is_complete=False but the displayed page IS
+fully rendered and can request knowledge. Neither59 nor60's scan is posted by
+the LIVE-KEY wall; the scan latches remain false with epoch=None.61's active
+home-scan holder consequently blocks the router, but is not a posted scan the
+early continuation can await. The idle fallback then steps off the entrance.
+No retirement or HomeVisit attempt exhaustion explains61.
+
+Tracked independent attachment:
+tests.test_town_cure_catalogue_continuation (3 tests, no policy producer mocks).
+Its inherited LIVE-KEY checkpoint ends57. It posts OWN58 cure take, OWN59
+HOME_KNOWLEDGE_MACRO, a declared outside empty await at the unchanged entrance,
+adopts the independently attached63 response through the real CLI dispatcher,
+posts OWN freshly resolved shovel177/page3/v ('5   pv\x1b'), and attaches66's
+matching pack gain. The response ledger pins accepted/settled and the epoch is
+not renewed. The wall control pins60 rendering and61's actual holder deferral;
+the incomplete-rendering control removes one of52 page slots and still exits
+ESC/home:scan-incomplete-open-page. Development last module run:3 tests,
+110.475s, OK. Earlier diagnostic runs used only this single module.
+
+UNDECIDED under rework step1/3/4:
+The own-key continuation does not take speed potions. It already carries9 of
+the SAME signature as the queued entry. After the shovel gain, existing town
+item processing completes that known carried batch item and clears it. The
+pin asserts nine before/after, processed_home_items membership, no deferral and
+no remaining pending take. This is a shovel business control and speed-item
+resolution observation, NOT the specified two-take W proof. A separately
+attached diagnostic Home67/outside68 suffix also produced incomplete-page exit
+and shovel identification, not a speed take; no suffix expectation was changed
+or deleted. The full required W proof is not supplied by an argument that ~9
+does not enter Home.60 and61 remain unqualified candidate wall artefacts.
+
+Therefore instruction4 applies: tests/test_town_cure_supplier_recorded.py,
+including PREFIX_DIVERGENCES, SUITEFIX6_PREFIX_CHANGES, the target test and
+all other expectations/docstrings, is BYTE-FOR-BYTE unchanged from ff6a253e.
+No confirmed source regression was repaired in this narrow rework; src is
+unchanged, and no owner, priority, bound, bookkeeping helper or manifest was
+changed. The existing request/settlement and8 own-decision loss bounds remain.
+No affected-tests expansion is required when this rework does not edit src.
+No game/bot control, process stop/restart, push, merge, reset, D5 or delegation.
+Task/captures-d4 inputs remain untracked; the new pins use existing tracked
+fixtures and read existing game definitions via the inherited test setup.
+
+Fast guards and final run outputs will be appended after execution.

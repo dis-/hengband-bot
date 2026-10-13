@@ -1,0 +1,140 @@
+PLAN-STEP: 3 ISSUE: #1 -- D4 narrow rework diagnosis
+Examined HEAD ff6a253e; slice base 574bfba6. No source edits.
+
+Evidence scope and disposition
+59: (F) intended request after the observed cure take at 58. The current-key
+independent attachment proves its posted request, empty await, accepted/settled
+adoption, freshly addressed shovel take and matching inventory gain.
+60: W candidate, NOT a sanctioned/proven W under the rework's full proof rule.
+61: W candidate (versus R), UNDECIDED under that same rule.
+The requested proof includes a speed-potion TAKE. On current code the carried
+nine speed potions instead finish their identification batch without a take.
+The independently attached control therefore does not meet the literal W proof
+condition. Do not add 59/60/61 to PREFIX_DIVERGENCES or edit any expectation of
+tests.test_town_cure_supplier_recorded. This uses rework instruction 4.
+
+Wall measurement, after choose_key and before confirm_key_posted
+All three boards: _home_knowledge_current=False;
+_home_knowledge_invalidated=True; _home_knowledge_scan_inflight=False;
+_home_knowledge_scan_requested=False; _home_knowledge_scan_epoch=None;
+town visit epoch=6452929. No atomic withdrawal or deposit remains outstanding;
+no equipment transaction session/action is present.
+_home_pending_item=None; _home_pending_batch consists, in order, of the named
+dwarf shovel (tval=20,sval=3) and speed potion (tval=75,sval=29).
+
+Board 59, turn6455264, outside Home at(45,123):
+last posted key on entry is 58's '5pC5\r\x1b' (cure take).
+current ('~9\x1b','home:request-knowledge-scan'); wall posts live '5'.
+The cure take is observed and its atomic pending operation is cleared.
+HomeVisit state=APPROACHING; visit_id=7; attempts_used=7/300; request is a
+legacy-withdrawal WITHDRAW of treasure-detection scroll (70,26), quantity1,
+with the shovel/speed batch. Queue empty, operation/evidence=None. Its previous
+completed delta is visit5's scroll withdrawal. The old immutable request is
+still present, not a new scan request or an in-flight take.
+StoreVisit town-errand/shopping/Home/APPROACHING, opened_sequence=59,
+operation_posted=False, operation_released=False. Leave latch=None.
+Claim55 home-scan ACTIVE: home.knowledge.request -> catalogue-adopted ->
+home.knowledge.observe. The router consumes the stale composer's no-step at
+policy_shop.py:5719-5732 and uses _home_full_knowledge_key, policy_home.py:1205.
+This meets the named stale-take request shape, without other physical work.
+
+Board 60, turn6455264, inside Home:
+last posted key on entry is live59 '5', NOT the policy's own '~9\x1b'.
+current ('~9\x1b','home:request-knowledge-scan'); wall posts live '\x1b'.
+HomeVisit and StoreVisit have the same request/state and empty queue as59.
+Claim55 is still ACTIVE; its request declaration revision is now2.
+Page: page_top=0, page_size=52, stock_num=197, len(items)=52, capacity=240.
+_open_home_page_is_complete=False (policy_home.py:1751-1763): the page does
+not contain the whole Home. _store_page_can_request_knowledge=True
+(policy_home.py:1195-1203): ALL52 displayed slots are rendered. These are
+different predicates. This is not a genuinely incomplete rendered page.
+The early request at policy.py:7906-7918 accepts this fully rendered surface
+and invalidated catalogue with a procurement probe; it has no posted request
+to await, because the wall posted live59 instead. It may request ~9 in Home.
+The real incomplete-rendering control removes one of those52 slots and still
+gets ESC/home:scan-incomplete-open-page through policy.py:9252-9264.
+Thus the page-completeness explanation is established; no rendered-page R was
+found. The UI entry at60 is a historical effect of the wall's '5', not of ~9.
+
+Board 61, turn6455275, outside Home at(45,123):
+last posted key on entry is live60 '\x1b', NOT the policy's own '~9\x1b'.
+current ('3','town:entrance-step-off:policy:none-wait'); wall posts live '9'.
+HomeVisit is still APPROACHING on the old scroll request, now with one queued
+legacy-withdrawal WITHDRAW for the shovel, quantity1, batch(shovel,speed).
+It has not entered, posted an operation, or acquired fresh operation evidence.
+StoreVisit remains the unposted APPROACHING visit described above; leave=None.
+Home errand is DONE (old identification-catalog weapon); needs_knowledge=False.
+No Home full relief/retry, equipment session, or posted scan exists.
+Before fallback, claim55 home-scan remains the active Observe holder, with
+request/observe continuation, expected_effect=catalogue-adopted. After fallback,
+claim56 idle owns policy:none-wait and its entrance-step-off execution.
+The arbiter's retired map is EMPTY: this is not a retirement or attempt bound.
+
+Exactly why the producers decline at61:
+- Equipment catalogue continuation recognizes only equipment:acquire-home-catalog
+  work (policy.py:6794-6801); claim55 is the generic home-knowledge request.
+  Catalogue-only equipment work also excludes named pending batches and the
+  physical WITHDRAW HomeVisit (policy.py:6832-6848).
+- Posted-scan continuation requires _home_knowledge_scan_inflight=True
+  (policy.py:7881-7904). Both wall substitutions prevented that latch.
+- After-exit continuation requires expected_effect=outside-store and
+  continuation=home.knowledge.request (policy.py:7976-7987); claim55 instead
+  awaits catalogue-adopted/home.knowledge.observe. The live ESC did not execute
+  the policy's declared exit; the policy declared a scan on60.
+- Ordinary outside scan excludes any store entrance cell (policy.py:8667-8672).
+  This board is exactly on Home. It is not the off-entrance board62.
+- Home-errand has no active work/knowledge need; no full-Home relief exists.
+- _town_claims_active IS True. The normal router finds step(45,123), re-files
+  the shovel into HomeVisit's queue, and keeps the old request APPROACHING.
+  It reaches _shopping_approach_key#2 (policy.py:11696-11705). The entry gate
+  rejects it BEFORE calling the composer: policy.py:5901-5907 invokes
+  _defer_town_errand. The existing Home sequence hold is enforced even with
+  the overall claim-bar switch off (policy.py:5778-5784,6810-6823).
+  Recorded deferral: holder_family=home-scan, holder_claim_id=55,
+  deferred_reason=entry:_shopping_approach_key#2, token_would_admit=False.
+  The stale named-take branch in policy_shop.py:5719 is never reached.
+- The common idle fallback runs (policy.py:9405-9414); the existing entrance
+  invariant rewrites WAIT to3 under town:entrance-step-off:policy:none-wait
+  (policy_town.py:1413 and1922). It has no posted-scan await to protect.
+
+Can that state occur on the own-key path after a posted take?
+The independently attached test starts at the wall's checkpoint57, then POSTS
+the policy's own58 cure take and its own59 scan. It retains the same named
+batch, stale content and physical HomeVisit. A constructed delayed outside
+board at the same entrance then emits empty/home:scan-await-observation with
+the SAME epoch. It cannot follow the wall's60 entry: its posted key was ~9.
+After correlated adoption, it posts '5   pv\x1b' for shovel index177/page3/v
+and independently attaches66's matching pack gain. No fallback movement appears
+before that adoption/take. Thus the unposted-scan mechanism of61 is absent on
+this attached own-key path, but that is only a PARTIAL W control under the
+requested full-business proof rule, not permission to whitelist61.
+
+Tracked independent controls (tests/test_town_cure_catalogue_continuation.py):
+- test_own_keys_from_58_request_await_adopt_and_take_shovel
+- test_wall_60_is_rendered_but_not_a_complete_catalogue (also pins61's deferral)
+- test_genuinely_incomplete_rendered_home_page_still_exits
+Only the inherited replay endpoint is shortened (57); no policy producer is
+mocked, no source-text assertions, and no fixture from captures-d4 is used.
+Request/response dispatch, choose_key, posted acknowledgement and staged-chain
+receipt are real. The response at63 and confirmation at66 are independently
+attached controls, not a claimed recorded trajectory of the changed key59.
+
+Remaining literal proof failure: speed potion
+The board59 inventory already has9 of the SAME speed-potion signature as its
+queued batch entry. The independent confirmation at66 also has9. Following
+the shovel gain, _town_item_processing_dispatch_key activates the remaining
+batch item (policy_town.py:2388; policy_home.py:4299), finds that carried stack
+(policy_town.py:2478), and completes its identification processing, clearing
+the active batch entry at policy_town.py:2584-2602. It is in
+_processed_home_items, not deferred, and no speed take is pending or posted.
+Attaching the later independent Home page67 and outside board68 in a diagnostic
+run yielded ESC/home:scan-incomplete-open-page then the recorded identify:full
+of the shovel, not a speed take. Those diagnostic suffixes are NOT used to
+claim business proof or to replace any existing assertion.
+Changing the carried count, forcing another reservation, mocking identification,
+or invoking the composer outside the actual choose_key sequence would invent
+a different business premise. No such workaround is used. The task explicitly
+requires the speed take before a W declaration. Its literal proof is missing.
+Under instruction4 both candidate W boards remain unqualified; the existing
+test and all its expectations stay byte-for-byte unchanged. No source change
+is justified by a proven R within this narrow rework; no D5 or new owner work.
