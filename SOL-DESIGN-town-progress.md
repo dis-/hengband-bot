@@ -46,6 +46,12 @@ selector is not an independently successful work operation. Fail the coverage ga
 candidates; justify dungeon-only paths from predicates. Do not accept a blanket module exclusion or
 a baseline label as a proof. Future additions must fail the same gate until reviewed.
 
+D2a equipment catalogue acquisition uses `_equipment_catalogue_only` as a pure
+admission predicate. It excludes physical Home requests (including queued work),
+posted operations and closed or unavailable Home routes. It emits no command
+and earns no progress credit; its data classification is recorded in the baseline
+and work review inventory alongside the existing catalogue producer.
+
 Slice 0 certification also requires a runtime fail-closed receipt at the single logical emit seam:
 `_offer_execution*` (P:3371-3435) and the driver's actual send must share one validator, including
 driver `LEAVE_STORE_KEY` overrides (cli.py:4381-4385), prompt clears and executor-released tails

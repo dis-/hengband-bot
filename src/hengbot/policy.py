@@ -6817,11 +6817,46 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or (holder.goal.source == CLAIM_OBSERVE_STORE_OPERATION
                 and str(STORE_HOME) in holder.goal.expectation)))
 
+    def _equipment_catalogue_only(self, snapshot: Snapshot) -> bool:
+        """Whether a new equipment scan may replace the physical Home route."""
+        session = self._equipment_transaction_session
+        visit = self._store_visit
+        request = self._home_visit.request
+        if (
+            self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
+            or self._equipment_transaction_visit_closure is not None
+            or self._equipment_home_full_refused_this_visit()
+            or self._home_full_relief is not None
+            or self._home_full_retry_deposits is not None
+            or self._home_pending_item is not None
+            or self._home_pending_batch
+            or self._home_atomic_withdraw_pending is not None
+            or self._home_atomic_deposit_pending is not None
+            or self._home_entry_operation_posted
+            or (session is not None and session.current_action is not None)
+            or (visit is not None and visit.store_type == STORE_HOME
+                and visit.operation_posted and not visit.operation_released)
+            or (request is not None and request.kind != HomeVisitKind.SCAN)
+            or any(queued.kind != HomeVisitKind.SCAN for queued in self._home_visit.queued)
+            or self._home_visit.state == HomeVisitState.DEFECT
+            or self._home_visit.entry_pending
+            or self._home_visit.semantic_churn_cooldown
+            or self._home_visit.attempts_used >= self._home_visit.attempt_limit
+            or self._store_entry_failed_owner == STORE_HOME
+            or (self._town_blocked_reason is not None
+                and self._town_blocked_reason != "repetition")
+        ):
+            return False
+        derived = self._derived_home_visit_request(snapshot)
+        return derived is not None and derived.kind == HomeVisitKind.SCAN
+
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _home_catalogue_work_key(self, snapshot: Snapshot) -> str | None:
         """Start or advance catalogue work before a later Home errand."""
         holder = self._home_catalogue_work_holder()
         if holder is None and snapshot.store is not None:
+            return None
+        if holder is None and not self._equipment_catalogue_only(snapshot):
             return None
         # The outside acquisition predicates can begin catalogue work before
         # its first decision has registered a holder. Offer that first request
@@ -7892,7 +7927,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "_home_catalogue_work_key",
                     lambda: self._home_catalogue_work_key(snapshot),
                     family="equipment-txn",
-                )
+                ) if (self._equipment_catalogue_only(snapshot)
+                      and self._ensure_home_visit_request(snapshot)) else None
                 if catalogue_key is not None:
                     return catalogue_key
                 self._ensure_home_visit_request(snapshot)
@@ -11444,7 +11480,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "_home_catalogue_work_key",
                     lambda: self._home_catalogue_work_key(snapshot),
                     family="equipment-txn",
-                )
+                ) if self._equipment_catalogue_only(snapshot) else None
                 if catalogue_key is not None:
                     return catalogue_key
                 self.last_reason = "equipment-transaction:acquire-home-catalog"

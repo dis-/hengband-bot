@@ -10546,5 +10546,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._equipment_catalogue_only": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Outside equipment catalogue acquisition; preserves physical Home routing and visit closure.",
+    "evidence": "Pure bool predicate over existing Home obligations, route bounds and visit state.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
