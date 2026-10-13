@@ -1,0 +1,110 @@
+D1 implementation report ? ISSUE #1
+====================================
+
+Base/branch
+-----------
+Base: 6ccc8a042670709745e3ee707643f9ca033ca05f
+Branch: town-idle-d1-1013
+Scope: D1 only. No D2-D6 behavior was started.
+
+Diagnosis
+---------
+See LUNA-DIAG-town-idle-d1.txt. On the base, both equipment catalogue/entry
+producers could offer Home work while the active transaction required
+`outside_home` (policy.py:7855-7890 and policy.py:11389-11424 before this
+change). The admitted transaction producer already derived a wield from the
+session's item identity (policy_equipment.py:2572-2770), and its Home-side
+handler already offered one `ESC / equipment-transaction:leave-home-for-equip`
+(policy_equipment.py:2084-2140). Home plan projection treated outstanding
+equipment work generically (policy_shop.py:1077-1167); the router could then
+publish an equipment Home route through `_shopping_approach_step`
+(policy_shop.py:5345 onward).
+
+C1 decisions rows 158/161/164 record R5/R6/R7 and the accompanying board rows
+63-68/72 show the pending `sub_hand` equip, pack 20, absent worn sub_hand, and
+Home at the exit decisions. R5 is `5 / equipment-transaction:travel-home:await-entry`;
+R6 is `ESC / equipment-transaction:leave-home-for-equip`; R7 repeats Home entry
+and the owner-retired burst. The recorded decisions contain no posted equip in
+that interval. R8 is the line 8367 decision in the external backup, read
+line-by-line; its record has no full board.
+
+A fresh-process attempt using only the R5 board and reconstructed session is
+not a complete replay: it emitted earlier `identify:full` work because other
+process memory is absent from the state-fixed capture. The diagnostic file
+records this limitation. The C1 decision row is the historical base output;
+the regression test copies the required raw board rows and runs the real
+transaction exit and wield producers after restoring the admitted session.
+Step 3 B does not change the captured scene: staged Home-context plans do not
+change the current action's `outside_home` requirement, and the base R5 record
+still offers Home entry.
+
+Changes and guard bound
+-----------------------
+- Both catalogue/entry predicates now suppress equipment Home entry while the
+  admitted session has a current action requiring `outside_home`.
+- Live Home route claims for `equipment-catalog`, `equipment-work`, and
+  `equipment-transaction` are omitted during that action; `outstanding_equipment_work`
+  remains true. `_shopping_approach_step` also rejects an equipment-only Home
+  plan and the store-router alias while this context is active.
+- Home-required actions remain routable. The existing Home handler still emits
+  one exit for the outside action. On the outside board the same session
+  composes the pack wield with reason `equipment-transaction:equip`; the
+  existing target-slot confirmation is unchanged.
+- The scope is one current action. Once the session advances to an action whose
+  required context is Home, the guards no longer apply. No owner, priority, or
+  retirement accounting changed. No new attributes were introduced.
+
+Pins and regression controls
+----------------------------
+Added `tests/fixtures/town-idle-d1-r5-r6-boards.jsonl.gz` by copying only C1
+board rows 63, 65, 66, and 68 as raw JSON lines; the compressed fixture is
+21,306 bytes. The test replays the inside-Home exit and then the transaction's
+pack-derived wield, which is `wqy` for this captured selector and `sub_hand`.
+The test also statically pins both catalogue entry predicates. A projection pin
+keeps outstanding work true while clearing the equipment Home need. A
+DECLARED CONSTRUCTED R8-style router test suppresses the Home return alias; a
+Home-required transaction control still receives a Home route. Existing
+`test_blocked_home_does_not_steal_outside_home_transaction` and
+`test_outstanding_equipment_work_always_projects_a_home_need` were not edited.
+The existing equipment session context tests were not edited.
+
+Predicate revert sentries: removing either catalogue predicate fails the
+catalogue AST pin; removing the outside-only projection filter fails the
+projection assertion; removing the `_shopping_approach_step` guard fails the
+constructed router alias assertion. The final run exercised these pins with
+all new predicates present. Revert mutants were not separately executed after
+the final suite because the prescribed post-failure rerun was limited to failed
+modules.
+
+The equip refusal and current-loadout closure implementation was not changed.
+The existing named equipment and Home-full closure controls ran in the final
+suite; no new refusal-specific closure test was added in this slice.
+
+Verification
+------------
+Development module runs before the final suite:
+- `PYTHONPATH=src;tests python -m unittest tests.test_policy_equipment`: 195
+  tests, OK before the final added catalogue sentry.
+- `PYTHONPATH=src;tests python -m unittest tests.test_equipment_transaction_session`:
+  15 tests, OK.
+- The new catalogue sentry, captured R5 producer, and R8 route pins passed in
+  targeted runs.
+
+Required final runner command used `--workers 2` with the six modules from
+`affected_tests.py`, the D1 equipment/session/Home route controls, and the
+specified hygiene modules. Result: 1,975 tests total; worker 1 ran 1,220 tests
+and worker 2 ran 508 tests, both exited 1; worker 3 ran 247 tests and exited 0.
+The two failures were `tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks`
+and `...test_every_pinned_adapter_call_still_exists`, because the catalogue
+predicate changed the pinned call context. The runner also reported an import
+error for the requested name `tests.test_ownership_s2a1_classification`; this
+worktree's module is `tests.test_ownership_s2a_classification`.
+
+I updated only the item-sink adapter pin and reran the failed item-sink module
+and the correctly named ownership classification module: 34 tests, OK. No
+application source changed after the final runner. The adapter metadata changed
+after it and its failed module passed in the targeted rerun.
+
+Timing comparison:
+`python C:\\hengband-backups\\guard-tools\\compare_timings.py jsonlog\\test-parallel-timings.json --base C:\\hengband-backups\\suite-batches\\6ccc8a04`
+Output: `0 tests slower than 1.5x and +10s`; no tests were flagged.

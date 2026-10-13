@@ -5836,6 +5836,155 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertTrue(projection["outstanding_equipment_work"])
         self.assertTrue(projection["equipment_work_need_present"])
 
+    def test_outside_equip_session_keeps_work_without_projecting_home_need(self):
+        policy, snapshot, _ = self._stripped_fixture()
+        carried = snapshot.inventory[0]
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", "pack:outside-action",
+            "sub_hand", policy_module.equipment_identity(carried),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=None, encounters_total=0,
+            encounters_evaluated=0, transaction=None,
+        )
+
+        projection = policy.equipment_optimization_state(snapshot)[
+            "home_route_projection"
+        ]
+
+        self.assertTrue(projection["outstanding_equipment_work"])
+        self.assertFalse(projection["equipment_work_need_present"])
+
+    def test_both_catalogue_entry_predicates_exclude_outside_equip(self):
+        source = textwrap.dedent(inspect.getsource(HengbotPolicy._choose_key))
+        tree = ast.parse(source)
+        predicates = [
+            ast.unparse(node.test)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.If)
+            and "acquire-home-catalog" in ast.unparse(node.test)
+        ]
+
+        self.assertEqual(len(predicates), 1)
+        self.assertIn("self._equipment_transaction_session.required_context", predicates[0])
+        self.assertIn("outside_home", predicates[0])
+        decision_source = textwrap.dedent(inspect.getsource(HengbotPolicy._decide))
+        decision_tree = ast.parse(decision_source)
+        decision_predicates = [
+            ast.unparse(node.test)
+            for node in ast.walk(decision_tree)
+            if isinstance(node, ast.If)
+            and "acquire-home-catalog" in ast.unparse(node.test)
+        ]
+        self.assertEqual(len(decision_predicates), 1)
+        self.assertIn(
+            "self._equipment_transaction_session.required_context",
+            decision_predicates[0],
+        )
+        self.assertIn("outside_home", decision_predicates[0])
+
+    def test_captured_r5_session_dispatches_its_pack_item_after_home_exit(self):
+        fixture_path = (
+            Path(__file__).parent / "fixtures" / "town-idle-d1-r5-r6-boards.jsonl.gz"
+        )
+        with gzip.open(fixture_path, "rt", encoding="utf-8") as source:
+            boards = [parse_snapshot(json.loads(line), {}) for line in source]
+        outside, inside_home = boards[0], boards[1]
+        target = next(
+            item for item in outside.inventory
+            if policy_module.equipment_identity(item) == "496a911c336315db"
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", "pack:496a911c336315db:0",
+            "sub_hand", policy_module.equipment_identity(target),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 20)
+            )
+        )
+
+        exit_key = policy._equipment_transaction_home_key(inside_home)
+        self.assertEqual(exit_key, "\x1b")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:leave-home-for-equip"
+        )
+        wield_key = policy._equipment_transaction_town_key(outside)
+        self.assertEqual(wield_key, "wqy")
+        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
+
+    def test_outside_equip_session_blocks_router_home_alias_but_keeps_home_work(self):
+        policy, outside, _ = self._stripped_fixture()
+        carried = outside.inventory[0]
+        equip = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", "pack:outside-action",
+            "sub_hand", policy_module.equipment_identity(carried),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((equip,), (), 1)
+            )
+        )
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("equipment-transaction",)},
+        )
+
+        self.assertIsNone(policy._shopping_approach_step(
+            outside, STORE_HOME, router_plan_stop=True,
+        ))
+
+        fixture_path = (
+            Path(__file__).parent / "fixtures" / "town-idle-d1-r5-r6-boards.jsonl.gz"
+        )
+        with gzip.open(fixture_path, "rt", encoding="utf-8") as source:
+            outside = parse_snapshot(json.loads(next(source)), {})
+        policy = HengbotPolicy()
+        home_action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw", "home:required-action",
+            item_identity="home:required-action",
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((home_action,), (), 1)
+            )
+        )
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("equipment-transaction",)},
+        )
+        self.assertIsNotNone(policy._shopping_approach_step(
+            outside, STORE_HOME, requester="equipment-txn",
+        ))
+
+    def test_declared_constructed_r8_router_alias_is_suppressed(self):
+        # DECLARED CONSTRUCTED: R8's decision record has no full board snapshot.
+        policy, outside, _ = self._stripped_fixture()
+        carried = outside.inventory[0]
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", "pack:outside-action",
+            "sub_hand", policy_module.equipment_identity(carried),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("equipment-transaction",)},
+        )
+
+        self.assertIsNone(policy._shopping_approach_step(
+            outside, STORE_HOME, requester="store-router", router_plan_stop=True,
+        ))
+
     def test_satisfied_zero_action_optimization_does_not_own_home(self):
         policy, snapshot = town_fixture.NoSafeRecallDestinationTest()._fixture()
         policy._home_pending_item = None

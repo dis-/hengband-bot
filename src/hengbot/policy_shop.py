@@ -1086,6 +1086,20 @@ class ShopMixin(InStoreMixin):
         This is the sole input to the town-plan projection.
         """
         claims = list(self._enumerate_town_needs(snapshot))
+        session = self._equipment_transaction_session
+        if (
+            session is not None and session.current_action is not None
+            and session.required_context == "outside_home"
+        ):
+            # The admitted session must finish its outside action before any
+            # Home catalogue/route projection for that same equipment work.
+            claims = [
+                claim for claim in claims
+                if claim.category not in {
+                    "equipment-catalog", "equipment-work",
+                    "equipment-transaction",
+                }
+            ]
         # Withdrawal requesters must file an exact executor request before the
         # router may act.  The legacy terminal posts this same owner expectation,
         # so an unchanged progress core suppresses the claim instead of rebuilding
@@ -1127,6 +1141,11 @@ class ShopMixin(InStoreMixin):
         )
         if (
             self._equipment_work_home_route_available()
+            and not (
+                self._equipment_transaction_session is not None
+                and self._equipment_transaction_session.current_action is not None
+                and self._equipment_transaction_session.required_context == "outside_home"
+            )
             and self._home_owner_goal_pending(snapshot)
             and self._owner_may_select(snapshot, "home-withdrawal:equipment-work")
             and not any(claim.category == "equipment-work" for claim in claims)
@@ -1138,6 +1157,11 @@ class ShopMixin(InStoreMixin):
             ))
         if (
             self._equipment_transaction_home_work()
+            and not (
+                self._equipment_transaction_session is not None
+                and self._equipment_transaction_session.current_action is not None
+                and self._equipment_transaction_session.required_context == "outside_home"
+            )
             and not any(claim.category == "equipment-transaction" for claim in claims)
         ):
             claims.append(TownNeed(
@@ -5358,6 +5382,30 @@ class ShopMixin(InStoreMixin):
             store_type = self._next_required_store_type(snapshot)
         if store_type is None:
             return None
+        session = self._equipment_transaction_session
+        if (
+            store_type == STORE_HOME and session is not None
+            and session.current_action is not None
+            and session.required_context == "outside_home"
+        ):
+            plan = self._town_errand_plan
+            home_categories = (
+                set(plan.need_categories.get(STORE_HOME, ()))
+                if plan is not None else set()
+            )
+            router_families = (
+                self._router_plan_stop_families(STORE_HOME)
+                if router_plan_stop else frozenset()
+            )
+            equipment_only_plan = bool(home_categories) and home_categories <= {
+                "equipment-work", "equipment-transaction", "equipment-catalog"
+            }
+            if (
+                requester == "equipment-txn"
+                or "equipment-txn" in router_families
+                or equipment_only_plan
+            ):
+                return None
         plan = self._town_errand_plan
         home_categories = (
             set(plan.need_categories.get(STORE_HOME, ()))
