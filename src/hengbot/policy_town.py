@@ -161,6 +161,16 @@ class TownMixin:
             else "unregistered"
         )
         goal: Position | None = None
+        home_leg = self._town_equipment_home_route(snapshot, reason or self.last_reason)
+        if home_leg is not None:
+            _, home_goal = home_leg
+            route = self._town_map_goal_route(snapshot, home_goal)
+            if route is not None or snapshot.player.position == home_goal:
+                return durable + ((
+                    "locomotion", owner, snapshot.floor_key, home_goal,
+                    route.remaining_edges if route is not None else 0,
+                ),)
+            return durable
         if owner == "store-router" or (
             owner == "equipment-txn"
             and (reason or self.last_reason) == "equipment-transaction:approach-home"
@@ -381,8 +391,35 @@ class TownMixin:
             self._locomotion_part(snapshot, owner, goal),
         )
 
+    def _town_equipment_home_route(
+        self, snapshot, reason,
+    ) -> tuple[tuple[str | int | None, ...], Position] | None:
+        """Return the existing physical action and its fixed Home destination."""
+        if reason not in {
+            "equipment-transaction:approach-home",
+            "equipment-transaction:travel-home",
+            "equipment-transaction:travel-home:await-entry",
+        }:
+            return None
+        session = self._equipment_transaction_session
+        if (not snapshot.in_town or snapshot.store is not None
+                or session is None or not session.executable
+                or session.required_context != "home"
+                or self._equipment_home_full_refused_this_visit()
+                or self._town_store_blocked_under_applicable_bound(STORE_HOME)
+                or self._store_entry_failed_owner == STORE_HOME):
+            return None
+        goal = self._shopping_approach_goal
+        if self._shopping_approach_store_type != STORE_HOME or goal is None:
+            return None
+        if self._town_map_active(snapshot) and goal != self._town_map.store_position(STORE_HOME):
+            return None
+        action = session.current_action
+        return (("equipment-home", session.target_loadout_id, session.index,
+                 action.kind, action.item_identity, action.target_slot), goal)
+
     def _town_inn_route_receipt(self, snapshot, reason, key, *, consume=False):
-        """Preview/settle the retained INN child from observed command effects.
+        """Preview/settle retained INN and physical Home route children.
 
         Only final emission commits this process/visit-local observation. A
         foreign command's witnessed movement may re-baseline the same child;
@@ -402,6 +439,9 @@ class TownMixin:
         owner = self._town_turn_arbiter.owner_for_reason(reason)
         position = snapshot.player.position
         operation = None
+        home_leg = self._town_equipment_home_route(snapshot, reason)
+        if home_leg is not None:
+            operation, home_goal = home_leg
         if visit is not None and snapshot.store is None and reason == "fixedquest:q2-teleport":
             operation = ("q2-teleport", 1 if snapshot.town_id == 0 else 0)
         elif (visit is not None and snapshot.store is None
@@ -426,6 +466,11 @@ class TownMixin:
             rank = (0 if position == child["target"] else
                     route.remaining_edges if route is not None else None)
             same_topology = topology == child["topology"]
+            home_child = child["operation"][0] == "equipment-home"
+            home_open = (not home_child or not (
+                self._equipment_home_full_refused_this_visit()
+                or self._town_store_blocked_under_applicable_bound(STORE_HOME)
+                or self._store_entry_failed_owner == STORE_HOME))
             moved = (last is not None and last["position"] is not None
                      and position is not None and last["position"] != position)
             # Attribute the edge to the command that preceded this board,
@@ -433,18 +478,31 @@ class TownMixin:
             legal_own_edge = (moved and last["owner"] == route_owner
                               and last["operation"] == child["operation"]
                               and last["walking"]
-                              and position in self._walkable_neighbors(snapshot, last["position"]))
-            if same_topology and rank is not None and legal_own_edge and rank < child["minimum"]:
+                              and (position in self._walkable_neighbors(snapshot, last["position"])
+                                   or (home_child and last["key"] == "\x1b`n(."
+                                       and (route is not None or position == child["target"]))))
+            entry = (home_child and home_open and not child.get("entered", False)
+                     and snapshot.store is not None and snapshot.store.store_type == STORE_HOME
+                     and position == child["target"] and last is not None
+                     and last["owner"] == route_owner
+                     and last["operation"] == child["operation"] and last["walking"])
+            if home_open and same_topology and (
+                    entry or (rank is not None and legal_own_edge and rank < child["minimum"]
+                              and not child.get("entered", False))):
                 child["minimum"] = rank
+                if entry:
+                    child["entered"] = True
                 destination = (child["operation"][1] if child["operation"][0] == "q2-teleport"
                                else child["operation"][2])
                 receipt.update(productive=True, settled_owner=route_owner,
                                minimum_before=child["minimum_before"], minimum_after=rank,
-                               operation_identity=f"teleport:{destination}")
+                               operation_identity=(repr(child["operation"]) if home_child
+                                                   else f"teleport:{destination}"))
                 child["observed_progress"] = True
             else:
                 child["observed_progress"] = False
-            if (same_topology and moved and last["owner"] != route_owner
+            if (home_open and not child.get("entered", False)
+                    and same_topology and moved and last["owner"] != route_owner
                     and last["key"] not in {"", WAIT_KEY}
                     and not last["reason"].startswith("periodic:")):
                 child["displaced"] = True
@@ -452,29 +510,44 @@ class TownMixin:
                 # Retargeting/relabeling cannot inherit displacement proof.
                 child["displaced"] = False
                 child["qualified"] = False
+        home_operation = operation is not None and operation[0] == "equipment-home"
         destination = (operation[1] if operation and operation[0] == "q2-teleport"
-                       else operation[2] if operation else None)
+                       else operation[2] if operation and not home_operation else None)
         walking = (str(key) in DIRECTION_KEYS.values() or
+                   (home_operation and (str(key) == "\x1b`n(." or
+                    (reason == "equipment-transaction:travel-home:await-entry"
+                     and position == home_goal and str(key) == WAIT_KEY))) or
                    (destination is not None and str(key)[:-2] in DIRECTION_KEYS.values()
                     and str(key)[-2:] == "m" + chr(ord("a") + destination)))
         if operation is not None and walking:
-            positions = self._town_teleport_building_positions(snapshot)
-            route = self._town_teleport_building_route(snapshot, positions) if positions else None
-            if route is not None:
+            if home_operation:
+                route = self._town_map_goal_route(snapshot, home_goal)
+                target = home_goal
+                rank = (0 if position == target else
+                        route.remaining_edges if route is not None else None)
+            else:
+                positions = self._town_teleport_building_positions(snapshot)
+                route = self._town_teleport_building_route(snapshot, positions) if positions else None
+                target = route.target if route is not None else None
+                rank = route.remaining_edges if route is not None else None
+            if rank is not None:
                 child = state["routes"].get(owner)
-                identity = (operation, route.target, topology)
+                identity = (operation, target, topology)
                 fresh = child is None or child["identity"] != identity
                 admitted_before = child is not None
                 if fresh:
                     child = {"identity": identity, "operation": operation,
-                             "target": route.target, "topology": topology,
-                             "minimum": route.remaining_edges, "displaced": False,
-                             "qualified": False, "observed_progress": False}
+                             "target": target, "topology": topology,
+                             "minimum": rank, "displaced": False,
+                             "qualified": home_operation, "observed_progress": False,
+                             "entered": bool(home_operation and child
+                                             and child["operation"] == operation
+                                             and child.get("entered"))}
                     state["routes"][owner] = child
                 before = child.get("minimum_before", child["minimum"])
                 rebaseline = child["displaced"]
                 if rebaseline:
-                    child["minimum"] = route.remaining_edges
+                    child["minimum"] = rank
                     child["displaced"] = False
                     child["qualified"] = True
                 receipt.update(owner=owner, qualified=child["qualified"],
@@ -482,7 +555,8 @@ class TownMixin:
                                          child["observed_progress"] and not rebaseline),
                                minimum_before=before, minimum_after=child["minimum"],
                                rebaseline=rebaseline,
-                               operation_identity=f"teleport:{destination}")
+                               operation_identity=(repr(operation) if home_operation
+                                                   else f"teleport:{destination}"))
         state.update(sequence=sequence, receipt=receipt,
                      last={"position": position, "owner": owner,
                            "reason": reason, "operation": operation, "key": str(key),
