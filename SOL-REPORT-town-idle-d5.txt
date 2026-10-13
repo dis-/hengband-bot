@@ -1,0 +1,448 @@
+PLAN-STEP 3 / ISSUE #1 / Task D5 / base 4a762806
+Branch: town-idle-d5-1014
+Implementation commits: 66ed1963, f632f5be, e19f236b, 8f331dc7.
+
+Diagnosis
+See SOL-DIAG-town-idle-d5.txt for base file:line references and evidence limits.
+The historical 3358 in_store shadow reports flag/screen/page/visit all ready,
+but op=home-first and no would_key. Its Identify staff was a wanted candidate,
+not a posted purchase. The ordinary store observation producer offered ESC;
+the procurement detector relabelled it continue-observed-shop without buying.
+At 3359 the outside composer recorded home-first-yields-to-current-visit and
+released that pass; the ordinary router then selected Alchemist. At 3361 the
+detector substituted Magic. A later 19-charge staff receipt cannot justify
+either earlier shelf exit. The historical log does not expose the Home gate's
+full inputs or the retirement's exact entry point/vector; no such facts were
+invented. D0 records the entry point, recurrence key/count/limit, trigger and
+last pair on the current source. Constructed detector recurrence below ends at
+count 2, trigger recurrence, final-accounting label policy.py:3086.
+
+Today's base already buys from a verified, fresh-Home Magic page, and already
+composes from its saved page after an unverified-screen cleanup exit. The
+remaining reproduced defect is displacement to another supplier's exterior:
+the saved composable Magic shelf lost priority and visit identity there.
+All new boards are DECLARED CONSTRUCTED. They use the installed Outpost map
+at C:/hengband, not copied game data or historical state captures.
+
+Rule and bounds
+A wanted, affordable, actually composable Magic Identify-staff shelf retains
+the same StoreVisit through cleanup, transport, and checked outside composition.
+Its existing cleanup diagnostic remains
+town-progress-invariant:continue-observed-shop. The saved page and StoreVisit,
+not that diagnostic label, carry the pending operation. A competing router/detector supplier is refused
+before acquiring a new visit. An existing registered owner still passes through
+the original admission/hold gates; only this retained composer's projection
+against the next plan stop is bypassed. No new owner or priority rung is added.
+Explicit higher-owner routes are outside this router-plan-stop restriction.
+A genuine Home-first/uncomposable operation keeps its existing concrete refusal
+and release rules. Absent/unaffordable shelves are not bound or bought.
+
+At constructed Alchemist exterior (37,91), continuation is ESC + `n&. with
+shop:travel, the same Magic StoreVisit/opened identity, and no Alchemist leg.
+At Magic (38,106) the existing checked composer offers 5, then releases the
+page-addressed pm1\r\r\x1b tail. A verified page may buy pm1\r\r in place.
+Route child: the existing store-router allowance is 8 unsuccessful own
+decisions; native travel fallback does not reset it. The new route pin selects
+the real route, then isolates eight identical no-progress accounting samples.
+Detector unresolved routing: unchanged recurrence limit 2; the second return
+to the same producer/vector still retires. No detector forgiveness was added.
+Buy confirmation: unchanged 8 outside no-effect observations; expiry releases
+the pending buy. Executor prompt/tail and posted-entry bounds remain their own
+existing bounds. Genuine stale posted-operation context still stops visibly.
+No process-local watch/receipt is loaded into a fresh process.
+
+Purchase credit is restricted to this Magic Identify-staff operation: the
+watch's action generation, staff type/subtype and selected charge count must
+match, and the matching carried quantity must increase. This handles rendered
+store-stack names changing after acquisition. Gold alone, unrelated pack gain,
+wrong charge count and an unchanged matching staff give no receipt. The driver
+credits the immutable target-scoped receipt once per visit, including when
+the in-store ledger clears its transient effect flag for the next operation.
+The existing confirmation behavior for other purchases is unchanged in D5.
+
+Changes and bookkeeping
+policy_shop.py: composability predicate, retained route selection, competing
+supplier refusal, visit lifecycle preservation, checked composer transport,
+and narrow acquisition watch alongside the existing purchase watch.
+policy.py: retain the visit through its exit, admit its existing composer before
+the next projected stop, match acquisitions and quantities, preserve correlation
+when the existing prompt-owner posting-refusal recovery advances its generation.
+policy_town.py is unchanged against the base after repairing the reason-only
+regression; the existing cleanup diagnostic remains visible.
+cli.py: consume the matching Magic receipt once through existing progress state.
+item_sink_adapters.json: update changed predicate keys and the composer's existing
+route adapter. item_intent_baseline.json: classify observation-only watch and
+completed receipt; active item selection remains in _store_buy_inflight.
+Town work manifest/sites regenerated after the last source edit: 823 candidates,
+20654 sites, zero unmapped (final source). The boolean predicate is not a new command-producing
+candidate; producer/review baselines need no new entry. Existing ownership
+exception for the atomic composer remains applicable; no marked _decide call,
+ladder rung, or producer count was added.
+
+Pins before / after
+3358 verified constructed shelf: base and final pm1\r\r / shop:in-store-buy.
+3358 unverified constructed shelf: base ESC (detector continuation label),
+then 5 / shop:one-shot-buy; final ESC retains the same existing diagnostic,
+then the same composer/buy, retaining the Magic visit. No competing supplier before settlement.
+3361 displaced constructed exterior: base ESC + `n$. / shop:travel (a competing
+Temple leg in this constructed inventory); final ESC + `n&. / shop:travel,
+same visit/observation, no retirement, then arrival composes its Magic buy.
+Controls cover competing Alchemist refusal, affordability/absence, Home-first
+concrete refusal, matched and mismatched acquisition, duplicate credit, unchanged
+matching quantity/gold-only, fresh process, route 8, detector 2, confirmation 8,
+ON ownership continuation, genuine posted-context stop, and prompt-owner recovery.
+New module: tests.test_town_magic_continuation_d5, 15 tests.
+
+Existing test changes and failure classification
+No existing test body or assertion was edited, removed or flipped.
+Development existing semantic failure: (R)
+tests.test_policy_shop.ShopPurchaseSellPolicyTest.
+test_live_shaped_recall_purchase_completes_with_gold_and_pack_delta.
+An initial broad removal of gold-based confirmation left its existing Temple
+recall watch pending because the constructed store/pack names differ. Fixed src
+by restricting D5 matching to Magic Identify staff. Old assertion -> new:
+unchanged self.assertIsNone(policy._store_buy_inflight). The module then passed
+275 tests, skipped 1. The owner retirement module passed all 16 unchanged tests.
+No sanctioned (F) flip, detached sequential replay, or edited LIVE-KEY wall was
+needed. The additional final-run regressions are listed below. Existing genuine-uncomposable Home/non-Home controls
+remain in test_policy_shop, and existing admission/UI-only assertions remain in
+test_owner_retirement_slice1.
+
+Bookkeeping failures were fixed as required, without assertion changes: stale
+manifest; edited adapter predicate keys; two observation-only intent exclusions;
+one accidentally empty adapter entry removed. Preflight also rejected the new
+route-bound test's repeated turn-only movement boards. The replacement first
+selects the real route, then tests that route's unchanged accounting vector in
+the arbiter, explicitly without claiming a sequential physical replay. No lint
+exception or assertion-count ratchet was added.
+
+Evidence limits / undecided
+Known assertion failures were repaired, with existing assertions unchanged.
+Full 192-module qualification remains INCOMPLETE after the required 100-minute
+cutoff. Unfinished recorded-control results are undecided; see the cutoff below. Historical
+R10 is decisions-only: its exact Home census and retiring seam cannot be replayed
+as a historical board. Positive composability and negative Home-first are separate
+declared controls; neither is presented as proof of the unseen historical state.
+R4 remains unclassified and untouched. This task does not qualify live enforcement.
+No game/bot control, push, merge, reset, or stopping another process was performed.
+
+Guard outputs and final run
+The exact preflight/mutation outputs and final run lines are appended below.
+
+Runtime Python: C:/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe
+Preflight command: python C:/hengband-backups/guard-tools/preflight.py C:/hengband/bot-client/.worktrees/town-idle-d5 4a762806
+First preflight output (fixed before final run):
+[preflight] FAIL fakery/sink: FAIL: test_tree_has_only_catalogued_undeclared_shapes (tests.test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes)
+[preflight] FAIL fakery/sink: AssertionError: Items in the first set but not the second:
+[preflight] FAIL fakery/sink: ('frozen-drive-state', 'test_retained_route_still_retires_after_eight_unsuccessful_decisions')
+[preflight] PREFLIGHT FAIL: 10 changed files, 3 findings (town-idle-d5 vs 4a762806)
+
+Second preflight output:
+[preflight] PREFLIGHT OK: 10 changed files, 0 findings (town-idle-d5 vs 4a762806)
+
+Mutation command: python C:/hengband-backups/guard-tools/mutation_check.py C:/hengband/bot-client/.worktrees/town-idle-d5 4a762806 --record --tests tests.test_town_magic_continuation_d5
+[mutation] 13 source hunks, tests: tests.test_town_magic_continuation_d5
+[mutation] caught     src/hengbot/cli.py:474 (magic_receipt = getattr(policy, "_magic_staff_buy_receipt", None)): test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit
+[mutation] caught     src/hengbot/policy.py:5908 (and self._town_plan_defers(rung.family)): test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop
+[mutation] caught     src/hengbot/policy.py:8358 (magic_staff = (watched_store == STORE_MAGIC): test_gold_only_and_unchanged_matching_staff_do_not_confirm, test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit, test_prompt_owner_recov
+[mutation] caught     src/hengbot/policy.py:8392 (if magic_staff:): test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit
+[mutation] caught     src/hengbot/policy.py:8943 (and (self._can_compose_shop_observation(snapshot)): test_buy_confirmation_expires_at_eight_without_target_receipt, test_constructed_3361_displaced_shelf_resumes_same_magic_visit, test_enforced_ownership_keeps_mag
+[mutation] caught     src/hengbot/policy.py:14225 (magic_watch = getattr(self, "_magic_staff_buy_watch", None)): test_prompt_owner_recovery_keeps_matching_staff_confirmation
+[mutation] caught     src/hengbot/policy_shop.py:437 (and not self._can_resume_magic_shelf(snapshot)): test_constructed_3361_displaced_shelf_resumes_same_magic_visit
+[mutation] caught     src/hengbot/policy_shop.py:5265 (if store.store_type == STORE_MAGIC and item.tval == TVAL_STAFF and ite): test_prompt_owner_recovery_keeps_matching_staff_confirmation, test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit
+[mutation] caught     src/hengbot/policy_shop.py:5342 (if router_plan_stop and self._can_resume_magic_shelf(snapshot):): test_constructed_3361_displaced_shelf_resumes_same_magic_visit
+[mutation] caught     src/hengbot/policy_shop.py:5727 (atomic_shop = (self._atomic_shop_transaction_key(snapshot)): test_constructed_3361_displaced_shelf_resumes_same_magic_visit, test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop, test_retained_route_still_reti
+[mutation] caught     src/hengbot/policy_shop.py:5882 (def _can_resume_magic_shelf(self, snapshot: Snapshot) -> bool:): test_absent_and_unaffordable_shelves_do_not_bind_or_buy, test_buy_confirmation_expires_at_eight_without_target_receipt, test_constructed_3358_cleanup_composes_f
+[mutation] caught     src/hengbot/policy_shop.py:5923 (if self._can_resume_magic_shelf(snapshot):): test_constructed_3361_displaced_shelf_resumes_same_magic_visit, test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop, test_retained_route_still_reti
+[mutation] caught     src/hengbot/policy_town.py:1625 (if self._can_resume_magic_shelf(replace(snapshot, store=None)):): test_constructed_3358_cleanup_composes_from_its_saved_page, test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop
+[mutation] MUTATION OK: 0 of 13 hunks are not pinned by a test
+[mutation] recorded for e19f236b
+
+Affected command: python C:/hengband-backups/guard-tools/affected_tests.py C:/hengband/bot-client/.worktrees/town-idle-d5 4a762806 HEAD --with-replays
+189 affected modules + the required hygiene union = 192 modules.
+Final command: PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --purity always --modules <the following 192-module union> --output jsonlog/d5-final-timings.json --summary-output jsonlog/d5-final-summary.json --streams-dir jsonlog/d5-final-streams
+tests.test_absorbing_states
+tests.test_blocked_purchase_namespace
+tests.test_buy_deposit_loop_recorded
+tests.test_calibration_crlf_dump_recorded
+tests.test_castle_top_floor_exit_recorded
+tests.test_choke_hold_loop_recorded
+tests.test_classC_departure_remedies
+tests.test_classC2_departure_recorded
+tests.test_cli
+tests.test_crossarea_live2
+tests.test_crosstown_alt_recorded
+tests.test_curse_priority_recorded
+tests.test_declarations_r11
+tests.test_declarations_r12
+tests.test_declarations_r4
+tests.test_declarations_r5
+tests.test_declarations_r7
+tests.test_departure_unsatisfiable_weight_recorded
+tests.test_dualwield_recorded
+tests.test_e6_prelanding_live_recorded
+tests.test_entrance_travel_retired_recorded
+tests.test_equipment_alternation_recorded
+tests.test_equipment_deposit_owner_recorded
+tests.test_equipment_home_entry_cycle_recorded
+tests.test_equipment_home_full_incident_recorded
+tests.test_equipment_homefull_step15a
+tests.test_equipment_in_home_stage1
+tests.test_equipment_margin_ratio_recorded
+tests.test_equipment_swap_loop_incident
+tests.test_esp_threat_rest_recorded
+tests.test_execution_declaration
+tests.test_first_dungeon_entrance_prompt_recorded
+tests.test_fundraise_light_block
+tests.test_fundraising_restart_purpose_recorded
+tests.test_fundraising_set_end_counter_recorded
+tests.test_guardian_recall_pingpong_recorded
+tests.test_home_catalogue_response_in_store
+tests.test_home_deposit_hang_recorded
+tests.test_home_discard_followup_recorded
+tests.test_home_discard_incidents_recorded
+tests.test_home_disposal
+tests.test_home_entry_capture
+tests.test_home_equipment_disposal
+tests.test_home_errand
+tests.test_home_full_await_knowledge_recorded
+tests.test_home_full_destroy_posted_confirm
+tests.test_home_full_identification_procurement_recorded
+tests.test_home_full_relief_recorded
+tests.test_home_full_withdraw_failure_incident_recorded
+tests.test_home_interruption_constructed
+tests.test_home_knowledge_scan
+tests.test_home_light_alternation
+tests.test_home_light_alternation_cli
+tests.test_home_relief_progress_recorded
+tests.test_home_route_release_recorded
+tests.test_home_route_stall_recorded
+tests.test_home_surplus_inscription_recorded
+tests.test_home_surplus_sale_screen_recorded
+tests.test_home_visit
+tests.test_home_withdraw_deposit_alternation_recorded
+tests.test_home_withdraw_failed_stock_present_recorded
+tests.test_home_withdraw_moved_address
+tests.test_homeexit_recorded
+tests.test_homefull3_recorded
+tests.test_identify_scroll_target_recorded
+tests.test_identify_staff_live27_recorded
+tests.test_identify_staff_stockout_recorded
+tests.test_identify_staff_swap_churn_recorded
+tests.test_idw_block_recorded
+tests.test_inn_interruption_constructed
+tests.test_item_destroying_breeder_leave_recorded
+tests.test_item_sink_lint
+tests.test_latch_ownership
+tests.test_lethal_unseen_caster_recorded
+tests.test_live_coverage_audit
+tests.test_live10
+tests.test_live11
+tests.test_live13_full_equipped_identify
+tests.test_live15_identify_source
+tests.test_live17_identify_observation
+tests.test_live18_identify_result
+tests.test_live22_bounty
+tests.test_live23_home_cycle
+tests.test_live30_identify_normal
+tests.test_live32_shop_leave
+tests.test_live35_store_page
+tests.test_live36_weight
+tests.test_live37_home_scan
+tests.test_live8
+tests.test_loot_before_recall_recorded
+tests.test_loot_choke_oscillation_recorded
+tests.test_loot_ledger_mass_deferral_recorded
+tests.test_loot_suppression_returning_recorded
+tests.test_magic_required_staff_homefull_recorded
+tests.test_mana_home_recorded
+tests.test_manafood_departure_recorded
+tests.test_margin_ratio_home_withdraw_divergence_recorded
+tests.test_margin_ratio_tour_divergence_recorded
+tests.test_morivant_return_walks_away_recorded
+tests.test_morivant_travel_retired_recorded
+tests.test_navigation
+tests.test_newchar_light_churn_recorded
+tests.test_newchar_light_loop_recorded
+tests.test_newchar_town_wander_recorded
+tests.test_no_live_state_artifact
+tests.test_no_safe_destination_recorded
+tests.test_oneshot_preempt_recorded
+tests.test_overweight_home_hold_recorded
+tests.test_overweight_home_unreachable_recorded
+tests.test_overweight_homefull_step15b
+tests.test_owner_retirement_slice1
+tests.test_ownership_on_replay
+tests.test_ownership_s2a_classification
+tests.test_ownership_s2a1_closure
+tests.test_ownership_s2b1_ladder
+tests.test_ownership_s2b2_bar
+tests.test_ownership_s3_3_live_short_route
+tests.test_ownership_s3a_record
+tests.test_pattern_a_owner_retired_recorded
+tests.test_pickup_pile_prompt_recorded
+tests.test_policy
+tests.test_policy_equipment
+tests.test_policy_home
+tests.test_policy_navigation
+tests.test_policy_quest
+tests.test_policy_shop
+tests.test_policy_supply
+tests.test_policy_town
+tests.test_posted_effect_unobserved
+tests.test_q2_choke_loop_recorded
+tests.test_q2travel_progress_recorded
+tests.test_quest_carry_departure_recorded
+tests.test_quest_leave_confirm_recorded
+tests.test_quest_prepare_return_stage2
+tests.test_quest34_target_dead_recorded
+tests.test_recall_read_cancel_pingpong_recorded
+tests.test_recall_stockout_set_end_recorded
+tests.test_restore_stall_recorded
+tests.test_reverse_choke_loot_loop_recorded
+tests.test_runtime_file_isolation
+tests.test_s3_live_report
+tests.test_s33_batch_admission
+tests.test_s33_batch_context
+tests.test_s33_batch_replay
+tests.test_s33_shadow
+tests.test_s33_shadow_recorded
+tests.test_shadow3_recorded
+tests.test_shop_one_shot
+tests.test_shop_uncomposable_recorded
+tests.test_slow_home_recorded
+tests.test_star_identify_departure_recorded
+tests.test_star_remove_curse_unused_recorded
+tests.test_starving_town_recorded
+tests.test_step15d2_f2
+tests.test_stop_shape_recorded
+tests.test_store_entry_travel_interrupted_relabelled
+tests.test_store_reentry_recorded
+tests.test_storewhich_recorded
+tests.test_storewhich2_recorded
+tests.test_stuck_prompt_staged_tail_recorded
+tests.test_summoner_loot_choke_loop_recorded
+tests.test_supply_stockout_recorded
+tests.test_test_fakery_lint
+tests.test_torch_predicate_recorded
+tests.test_town_acquire_bypass_recorded
+tests.test_town_approach_retired_recorded
+tests.test_town_arbiter
+tests.test_town_blackmarket_stall_recorded
+tests.test_town_cure_supplier_recorded
+tests.test_town_emit_ownership_recorded
+tests.test_town_home_candidate_stall_recorded
+tests.test_town_latency_caches
+tests.test_town_loot_store_20260926_recorded
+tests.test_town_magic_continuation_d5
+tests.test_town_overflow_recorded
+tests.test_town_plan_exhausted_wander
+tests.test_town_progress_invariant
+tests.test_town_restock_trajectory
+tests.test_town_stall
+tests.test_town_structure_lint
+tests.test_town_work_contract
+tests.test_tpstockout_recorded
+tests.test_tpstockout_restart_recorded
+tests.test_two_cell_oscillation_recorded
+tests.test_unaffordable_claim_tour_recorded
+tests.test_unsafe_recall_fallback_recorded
+tests.test_unseen_caster_death_recorded
+tests.test_unseen_loot_deferral_recorded
+tests.test_unseen_retreat_visible_attacker_recorded
+tests.test_warrior_optimization
+tests.test_worldmap_key_hygiene
+tests.test_xbow_pref_recorded_divergence
+
+Final run outcome / cutoff
+Started 2026-10-14 03:27:32 JST; own remaining worker 55488 stopped at 05:07:30 JST (99m58s), after verifying its parent 559076 and this worktree's test_timing_runner.py command. No unrelated process was stopped.
+Completed worker-3: 247 tests, 532.443s, OK (absorbing states and CLI).
+Completed worker-2: 2031 tests, 4426.693s, OK (skipped=6).
+Complete-worker total: 2278 tests passed. Worker-1 was incomplete with nine failure marks. The interrupted case was tests.test_unaffordable_claim_tour_recorded.test_declared_full_resupply_reserve_changes_the_first_black_market_board; later controls in that shard also remain unqualified.
+The runner could not write a combined result after the cutoff: its expected worker-1 timing JSON was not produced. This FileNotFoundError is a consequence of stopping that worker, not a tenth assertion failure.
+Initial final-run stderr summary lines:
+worker-2:
+................................................................s..........................................................................s........................................................................................................................................
+----------------------------------------------------------------------
+Ran 2031 tests in 4426.693s
+
+OK (skipped=6)
+worker-3:
+..........................
+----------------------------------------------------------------------
+Ran 247 tests in 532.443s
+
+OK
+
+Interrupted runner output:
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-d5\scripts\test_parallel_runner.py", line 276, in <module>
+    raise SystemExit(run_receipt.run_native(
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-d5\scripts\run_receipt.py", line 181, in run_native
+    exit_code = action()
+                ^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-d5\scripts\test_parallel_runner.py", line 236, in main
+    results.append(future.result())
+                   ^^^^^^^^^^^^^^^
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-d5\scripts\test_parallel_runner.py", line 171, in run_shard
+    payload = json.loads(timing_path.read_text(encoding="utf-8"))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\pathlib.py", line 1027, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\user\\AppData\\Local\\Temp\\hengbot-parallel-gyyjosza\\worker-1.json'
+
+Final-run regression classification (each recovered existing failure: R)
+A read-only diagnostic of the own worker recovered six unique assertion traceback methods behind the nine marks. All compare the unchanged ESC key with a changed reason: old town-progress-invariant:continue-observed-shop -> erroneous shop:observe-and-leave. These are R, not sanctioned key flips. Source fixed by restoring the original cleanup reason; retention and supplier refusal remain in the StoreVisit/composer paths. No existing test assertion changed.
+(R) tests.test_store_reentry_recorded.test_p0_switch_off_replay_reproduces_every_recorded_key; old assertion -> new assertion: unchanged.
+(R) tests.test_store_reentry_recorded.test_p0_switch_off_shadow_records_the_would_be_operation; old assertion -> new assertion: unchanged.
+(R) tests.test_store_reentry_recorded.test_p4_unverified_page_falls_back_to_observe_and_leave; old assertion -> new assertion: unchanged.
+(R) tests.test_store_reentry_recorded.test_p8_store_command_refusal_trips_a_breaker_that_survives_restart; old assertion -> new assertion: unchanged.
+(R) tests.test_store_reentry_recorded.test_a1_shadow_failures_preserve_recorded_decisions; old assertion -> new assertion: unchanged.
+(R) tests.test_store_reentry_recorded.test_restored_policy_without_the_new_attributes_gets_defaults; old assertion -> new assertion: unchanged.
+The trace recovery also found intentional/lost-substrate H-scene exceptions; they were not promoted to additional final-run failures. A diagnostic memory scan sampled only the own worker, read-only, and no game/bot process.
+
+Failed-module rerun, round 1 only (36 tests, existing assertions intact):
+....................................
+----------------------------------------------------------------------
+Ran 36 tests in 185.255s
+System.Management.Automation.RemoteException
+OK
+No full-suite rerun and no second failed-module round. No claim that all 192 modules passed. The full-run timeout has two possible readings: inherited long recorded replay work versus a performance effect from this slice; no base timing comparison within the permitted run was performed, so that point remains undecided.
+
+Repeated fast checks after the source repair / source HEAD 8f331dc7
+Preflight exact output:
+[preflight] PREFLIGHT OK: 9 changed files, 0 findings (town-idle-d5 vs 4a762806)
+
+Mutation exact output:
+[mutation] 12 source hunks, tests: tests.test_town_magic_continuation_d5
+[mutation] caught     src/hengbot/cli.py:474 (magic_receipt = getattr(policy, "_magic_staff_buy_receipt", None)): test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit
+[mutation] caught     src/hengbot/policy.py:5908 (and self._town_plan_defers(rung.family)): test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop
+[mutation] caught     src/hengbot/policy.py:8358 (magic_staff = (watched_store == STORE_MAGIC): test_gold_only_and_unchanged_matching_staff_do_not_confirm, test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit, test_prompt_owner_recov
+[mutation] caught     src/hengbot/policy.py:8392 (if magic_staff:): test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit
+[mutation] caught     src/hengbot/policy.py:8943 (and (self._can_compose_shop_observation(snapshot)): test_buy_confirmation_expires_at_eight_without_target_receipt, test_constructed_3361_displaced_shelf_resumes_same_magic_visit, test_enforced_ownership_keeps_mag
+[mutation] caught     src/hengbot/policy.py:14225 (magic_watch = getattr(self, "_magic_staff_buy_watch", None)): test_prompt_owner_recovery_keeps_matching_staff_confirmation
+[mutation] caught     src/hengbot/policy_shop.py:437 (and not self._can_resume_magic_shelf(snapshot)): test_constructed_3361_displaced_shelf_resumes_same_magic_visit
+[mutation] caught     src/hengbot/policy_shop.py:5265 (if store.store_type == STORE_MAGIC and item.tval == TVAL_STAFF and ite): test_prompt_owner_recovery_keeps_matching_staff_confirmation, test_matching_acquisition_credits_once_and_unrelated_gold_pack_never_credit
+[mutation] caught     src/hengbot/policy_shop.py:5342 (if router_plan_stop and self._can_resume_magic_shelf(snapshot):): test_constructed_3361_displaced_shelf_resumes_same_magic_visit
+[mutation] caught     src/hengbot/policy_shop.py:5727 (atomic_shop = (self._atomic_shop_transaction_key(snapshot)): test_constructed_3361_displaced_shelf_resumes_same_magic_visit, test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop, test_retained_route_still_reti
+[mutation] caught     src/hengbot/policy_shop.py:5882 (def _can_resume_magic_shelf(self, snapshot: Snapshot) -> bool:): test_absent_and_unaffordable_shelves_do_not_bind_or_buy, test_buy_confirmation_expires_at_eight_without_target_receipt, test_constructed_3358_cleanup_composes_f
+[mutation] caught     src/hengbot/policy_shop.py:5923 (if self._can_resume_magic_shelf(snapshot):): test_constructed_3361_displaced_shelf_resumes_same_magic_visit, test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop, test_retained_route_still_reti
+[mutation] MUTATION OK: 0 of 12 hunks are not pinned by a test
+[mutation] recorded for 8f331dc7
+
+Final verification summary
+Constructed pin module: 15 tests green before each mutation run. All 12 final source hunks caught. Existing store-reentry module: 36 tests green on the repaired source, no assertion edits. Final tracked source and bookkeeping committed as 8f331dc7. Full 192-module run remains unqualified because of the 100-minute cutoff; no missing result was treated as PASS. No source edit after the repeated fast checks.
+The failed-module transcript includes a PowerShell rendering of an empty stderr line as System.Management.Automation.RemoteException; the actual unittest result is OK and its process exit code is 0.
