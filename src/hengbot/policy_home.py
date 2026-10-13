@@ -1220,15 +1220,8 @@ class HomeMixin:
                 next_step="store.leave.send", expected_effect="outside-store",
                 continuation="home.knowledge.request", budget_ref="home-knowledge-existing-epoch")
             return LEAVE_STORE_KEY
-        if self._home_knowledge_scan_inflight:
-            self.last_reason = "home:scan-await-observation"
-            self._offer_execution(
-                WAIT_KEY, producer="home-scan",
-                work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
-                next_step="home.knowledge.observe", expected_effect="catalogue-adopted",
-                continuation="home.knowledge.observe",
-                budget_ref="home-knowledge-existing-epoch")
-            return WAIT_KEY
+        if self._home_knowledge_scan_inflight or self._home_knowledge_scan_epoch is not None:
+            return self._home_knowledge_await_key(snapshot, producer="home-scan")
         self.last_reason = "home:request-knowledge-scan"
         self._offer_home_knowledge_request(producer="home-scan")
         return HOME_KNOWLEDGE_MACRO
@@ -1246,19 +1239,53 @@ class HomeMixin:
                 next_step="store.leave.send", expected_effect="outside-store",
                 continuation="home.knowledge.request", budget_ref="home-errand-existing-budget")
             return LEAVE_STORE_KEY
-        waiting = self._home_knowledge_scan_inflight
-        key = WAIT_KEY if waiting else HOME_KNOWLEDGE_MACRO
-        self.last_reason = self._home_errand.reason(
-            "await-fresh-knowledge" if waiting else "request-knowledge")
+        waiting = self._home_knowledge_scan_inflight or self._home_knowledge_scan_epoch is not None
         if waiting:
-            self._offer_execution(
-                key, producer="home-errand",
-                work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
-                next_step="home.knowledge.observe", expected_effect="catalogue-adopted",
-                continuation="home.knowledge.observe",
-                budget_ref="home-knowledge-existing-epoch")
-        else:
-            self._offer_home_knowledge_request(producer="home-errand")
+            return self._home_knowledge_await_key(snapshot, producer="home-errand")
+        key = HOME_KNOWLEDGE_MACRO
+        self.last_reason = self._home_errand.reason("request-knowledge")
+        self._offer_home_knowledge_request(producer="home-errand")
+        return key
+
+    def _home_knowledge_await_key(self, snapshot: Snapshot, *, producer: str) -> str:
+        """Await one posted census without entering Home or renewing its bound."""
+        if getattr(self, "_home_knowledge_scan_wait_sequence", None) != self._decision_sequence:
+            self._home_knowledge_scan_wait_sequence = self._decision_sequence
+            self._home_knowledge_scan_wait_decisions = getattr(
+                self, "_home_knowledge_scan_wait_decisions", 0) + 1
+        if self._home_knowledge_scan_wait_decisions >= STORE_STUCK_LIMIT:
+            if not getattr(self, "_home_knowledge_scan_wait_outcome_recorded", False):
+                self._home_knowledge_scan_wait_outcome_recorded = True
+                self._pending_home_visit_report = f"home-visit:{producer}:knowledge-unobserved"
+                if producer == "home-errand":
+                    self._home_errand.observe_scan_refused("knowledge-unobserved")
+                    self._defer_unobserved_home_withdrawal(self._home_errand.request.signature)
+                else:
+                    self._town_turn_arbiter.retire(
+                        producer, self._town_retirement_clearance_key(snapshot, producer),
+                        self._arbiter_close_store_visit,
+                        entry_point="home-knowledge-await", trigger_category="request-loss")
+            if producer == "home-errand":
+                self.last_reason = self._home_errand.reason("stopped")
+                self._offer_execution(
+                    LEAVE_STORE_KEY, producer=producer,
+                    work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+                    state="releasing", cause="knowledge-unobserved", post_on_emit=False)
+                return LEAVE_STORE_KEY
+            self._town_blocked_reason = "owner-retired"
+            return self._town_blocked_key(snapshot)
+        self.last_reason = (self._home_errand.reason("await-fresh-knowledge")
+                            if producer == "home-errand" else "home:scan-await-observation")
+        key = WAIT_KEY if (self._home_full_relief is not None
+                           or self._home_full_retry_deposits is not None
+                           or (producer == "home-errand" and self._home_errand.request is not None
+                               and self._home_errand.request.purpose == "full-home-sale")) else ""
+        self._offer_execution(
+            key, producer=producer,
+            work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+            next_step="home.knowledge.observe", expected_effect="catalogue-adopted",
+            continuation="home.knowledge.observe",
+            budget_ref="home-knowledge-existing-epoch")
         return key
 
 
@@ -2914,9 +2941,7 @@ class HomeMixin:
             # Catalogued beyond a confirmed take's shortened prefix: the
             # errand's item is in Home at a moved address (see above).
             self._invalidate_home_observation()
-            self.last_reason = self._home_errand.reason("await-fresh-knowledge")
-            self._offer_unaddressed_home_withdraw(None, signature)
-            return None
+            return self._home_errand_knowledge_key(snapshot)
         if signature not in observed_signatures and self._home_errand.active:
             self._home_errand.observe_unaddressed_entry(
                 self._town_store_visit_limit(STORE_HOME), "target-unobserved"

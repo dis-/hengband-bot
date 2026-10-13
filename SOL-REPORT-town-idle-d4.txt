@@ -1,0 +1,293 @@
+PLAN-STEP: 3 ISSUE: #1 -- D4 report
+Base: 574bfba6. Branch: town-idle-d4-1013.
+Implementation commits: 9dce7870, 1f782cf6, 0f681bcf, 95e4e49d, dec89276, 7d5d1928, 1be0fc91.
+FINAL STATUS: NOT QUALIFIED. One existing replay test remains failing after
+the authorized two failed-module rounds. No further qualification loop.
+No D5, game/bot control, push, merge, process termination or restart.
+Task/captures-d4 inputs remain untracked and are not used as test fixtures.
+
+Diagnosis
+See SOL-DIAG-town-idle-d4.txt, written before source edits, with base file:line.
+R1: incomplete-page exit declared home.knowledge.request but initial unknown
+knowledge did not have the invalidated flag required by its outside continuation.
+The entrance excludes the ordinary outside scan; store-router could enter again.
+R2: the stale named take composer set await-fresh-knowledge and returned no step,
+so the router could send movement under the await reason. Beyond-prefix owners
+also invalidated and fell through to a new entry rather than their scan request.
+On this base a necessary leave-for-pending-withdraw already preserves content.
+Historical R2 knowledge loss / internal enabling condition at seq36 is not proved
+by decision-only records. Constructed contrary shelf facts pin real invalidation;
+matching current content pins the exit/adoption/take without inventing a replay.
+
+Rule and bounds
+Existing home-scan owns the catalogue-only exit/request/adoption continuation.
+A genuinely needed physical first entry remains; an incomplete page still exits.
+A stale named take requests HOME_KNOWLEDGE_MACRO explicitly. A posted request,
+including one superseded by an independent observation but not yet settled,
+awaits without movement, entering Home or reposting. Its epoch is not renewed.
+Proved content survives necessary cleanup; witnessed mutation and contrary shelf
+facts still invalidate addresses. A take resolves page and local letter freshly.
+Home-errand retains its request/await aliases and owner; it is not moved to scan.
+Recovery can interrupt the posted scan without charging its child decision count.
+
+The existing settlement protocol remains: one posted request in the visit epoch,
+accepted correlated response adopts, superseded response settles, leaving town
+settles the old epoch. No memory is installed across an autorecover restart.
+A request gets STORE_STUCK_LIMIT (8) own unsuccessful await decisions, once per
+policy decision, without renewal by entry/cleanup/reason changes or forgiveness.
+On loss the home-scan prerequisite records knowledge-unobserved once and publishes
+the existing retirement/visible town:blocked:owner-retired result. The home-errand
+uses its existing observe_scan_refused / STOPPED outcome and unobserved withdrawal
+deferral, recording knowledge-unobserved once. It does not mark the Home attempted
+or close the whole Home. Independent subsequent work remains subject to existing
+routing and procurement rules. No new town owner, priority or departure gate.
+Posted physical take/no-effect confirmation retains STORE_STUCK_LIMIT=8 and its
+existing digger retry, mandatory procurement failure and optional deferral rules.
+The first physical entry retains the existing transport/executor bounds; repeated
+page opening cannot renew the posted catalogue request or its own wait bound.
+
+Changes
+policy.py resumes the incomplete-page obligation even before the initial
+invalidated flag exists, and continues an admitted scan before fallback routing.
+Its new continuation preserves existing recovery priority and complete-page
+adoption. confirm_key_posted initializes the request's own finite wait accounting.
+policy_home.py retains ordinary composers' existing no-step contract. The store
+router consumes their stale-address no-step with a real home-scan request/await
+only when no other physical work or admitted equipment action is pending. The
+home-errand composer emits its own actual request at the beyond-prefix seam. Shared D4 await uses an empty key with declared observation; existing full-Home
+relief and full-home-sale waits keep their original WAIT key. The town
+procurement seam protects an explicitly declared posted empty home-scan await
+from counterfactual movement;
+it bounds loss and records its existing outcome once. Superseded epochs await
+settlement rather than permitting another outstanding request.
+Bookkeeping: refreshed item-sink adapter predicates, added the delegated await
+helper baseline/review entry, regenerated town work manifest/sites with Codex
+runtime Python. No marked call added to _decide: its ladder rungs/count unchanged.
+
+Pins (DECLARED CONSTRUCTED boards, never claimed as captured R1/R2 states)
+tests.test_home_catalogue_take_sequence (10 tests):
+- R1 needed first entry 5/shop:travel:await-entry; incomplete rendered page
+  ESC/home:scan-incomplete-open-page; next outside decision now
+  HOME_KNOWLEDGE_MACRO/home:request-knowledge-scan, owner home-scan;
+  empty/home:scan-await-observation; correlated adoption completes catalogue.
+  Frozen decision fact at historical seq4 is 5/shop:travel:await-entry. The
+  constructed public base sequence additionally exposes 4/shop:approach because
+  it contains a safe step-off neighbour; the router's base offer is the same 5.
+  That base/public distinction is disclosed in the diagnosis, not overwritten.
+- R2 seq28/32 shape: named stale shovel, entrance, requested step=(44,124):
+  old 9/home:await-fresh-knowledge -> explicit HOME_KNOWLEDGE_MACRO / request;
+  owner home-scan, no repost during two empty awaits; correlated adoption ->
+  5 pd1\r\x1b / home:atomic-withdraw, index15/page1/letter d. Posted take plus
+  matching observed pack gain clears the pending operation/item without failure.
+- A posted request survives a subsequently attached incomplete Home page.
+- Independent adoption then contrary shelf count invalidates; outstanding epoch
+  still prevents repost; settlement allows the next request.
+- Lost named request stops within 8 child decisions, retirement is published,
+  report consumed once; repeated same-decision consultation cannot republish it;
+  a new visit/post starts its wait budget again.
+- Errand request/empty await stays home-errand; errand loss records STOPPED/refusal
+  and deferral once without marking the Home attempted.
+- Matching content -> leave-for-pending-withdraw -> fresh take preserves content.
+- Recovery interrupts an in-flight scan and resumption charges only its own await.
+Existing moved-address tests retain actual mutation, batch retention, no-failure,
+fresh independently attached response page/letter/take and absent-target controls.
+Existing home knowledge scan tests remain unchanged, including incomplete exits,
+correlation, late/superseded responses and the historical lost-request bound.
+
+Edited existing tests: class (F), only the three explicitly sanctioned flips
+1. test_pending_take_with_owners_on_both_sides_rescans_then_takes_later:
+   ('5','shop:travel:await-entry') ->
+   (HOME_KNOWLEDGE_MACRO,'home:request-knowledge-scan').
+   First changed key follows observed mutation with no other pending physical
+   work. Batch retained, nothing failed. Independently attached fresh catalogue
+   still selects LATER, index15/page1/letter d and 5 pd2\r\x1b; passes.
+2. test_batch_owner_beyond_the_prefix_rescans_instead_of_failing:
+   same old/new tuple. Batch retained, nothing failed. Independently attached
+   fresh catalogue selects LATER and 5 pd1\r\x1b; passes.
+3. test_errand_target_beyond_the_prefix_rescans_instead_of_failing:
+   helper None / home-errand:await-fresh-knowledge:identification-catalog ->
+   HOME_KNOWLEDGE_MACRO / home-errand:request-knowledge:identification-catalog.
+   Independently attached response still selects the fresh target with
+   selecting_branch='home-errand'; passes. Request and await owner pins added.
+No existing assertion was deleted without a replacement. Additional existing recorded test changes and their conditional (F)
+classification are listed below. Unchanged later checks remain controls.
+
+Development existing failures and disposition
+(R) test_home_knowledge_scan.test_pin_a2_superseded_response_settles_before_second_request:
+new await intercepted a complete independent page. Fixed src to allow complete
+page adoption. Entire unchanged module passes (38 tests, 1 existing skip).
+Bookkeeping, expressly outside existing-assertion failure classification:
+test_town_structure_lint new helper census/review, test_item_sink_lint adapter
+predicate changes, test_town_work_contract stale manifest. Fixed registrations
+and regenerated; preflight now passes. Initial development used installed
+Python313 (not the WindowsApps stub); all guards/final qualification use the
+required Codex runtime Python. Version-dependent generated manifests refreshed.
+New constructed tests' temporary development failures drove source/test design;
+they are not existing assertion failures and are not labelled sanctioned flips.
+
+Unproved/undecided
+No R1/R2 board capture exists: exact historical internal state, the R2 seq31
+knowledge-loss cause and seq36 enabling condition cannot be asserted as recorded
+facts. This is explicitly retained as evidence scope; constructed mechanism and
+independently attached content/withdrawal controls are pinned on the current code.
+
+Before-final-run guard outputs (after last source edit and commit)
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_batch_owner_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_pending_take_with_owners_on_both_sides_rescans_then_takes_later
+[preflight] PREFLIGHT OK: 10 changed files, 0 findings (town-idle-d4 vs 574bfba6)
+
+[mutation] 8 source hunks, tests: tests.test_home_catalogue_take_sequence tests.test_home_withdraw_moved_address
+[mutation] caught     src/hengbot/policy.py:7880 (and not self._open_home_page_is_complete(snapshot)): test_posted_scan_survives_home_entry_without_repost, test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation
+[mutation] caught     src/hengbot/policy.py:7984 (or ((not self._home_knowledge_current or self._home_knowledge_invalida): test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation
+[mutation] caught     src/hengbot/policy.py:14048 (self._home_knowledge_scan_wait_decisions = 0): test_recovery_interrupts_the_scan_without_charging_or_reposting, test_named_take_lost_request_is_bounded_without_reposting
+[mutation] caught     src/hengbot/policy_home.py:1220 (if self._home_knowledge_scan_inflight or self._home_knowledge_scan_epo): test_contrary_shelf_does_not_repost_an_unsettled_request, test_named_take_lost_request_is_bounded_without_reposting, test_r1_first_entry_and_incomplete_exit_the
+[mutation] caught     src/hengbot/policy_home.py:1239 (waiting = self._home_knowledge_scan_inflight or self._home_knowledge_s): test_contrary_shelf_does_not_repost_an_unsettled_request, test_named_take_lost_request_is_bounded_without_reposting, test_posted_scan_survives_home_entry_withou
+[mutation] caught     src/hengbot/policy_home.py:2761 (return self._home_full_knowledge_key(snapshot)): test_contrary_shelf_does_not_repost_an_unsettled_request, test_named_take_lost_request_is_bounded_without_reposting, test_posted_scan_survives_home_entry_withou
+[mutation] caught     src/hengbot/policy_home.py:2895 (return (self._home_errand_knowledge_key(snapshot)): test_batch_owner_beyond_the_prefix_rescans_instead_of_failing, test_pending_take_with_owners_on_both_sides_rescans_then_takes_later
+[mutation] caught     src/hengbot/policy_home.py:2931 (return self._home_errand_knowledge_key(snapshot)): test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[mutation] MUTATION OK: 0 of 8 hunks are not pinned by a test
+[mutation] recorded for 0f681bcf
+
+Final run
+Started once at HEAD 0f681bcf; Codex runtime Python, PYTHONPATH=src.
+Affected --with-replays: 155 modules. Union with required hygiene and explicit
+input-executor/ownership/catcycle/typed-declaration controls: 164 modules.
+scripts/test_parallel_runner.py --workers 2 --purity always; 6000-second bound.
+Final run completed: 2834 tests, 5365.952s (89.43 minutes), 14 failing
+identities, no errors. It ran once, within the 100-minute bound.
+Round 1: only the 8 failed modules, 224 tests, 561.294s; 5 identities remained.
+Round 2: only the 2 then-failed modules, 12 tests, 413.568s; one identity remains:
+tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards.
+The oneshot module passed all 5 tests in round 2. No third failed-module round.
+The constructed pin module separately passed all 10 tests after its final pin.
+
+Every final-run failure disposition
+(R) DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target
+and .test_replay_decides_as_live_until_the_first_overweight_board:
+first changed key was index65 Home scan while an equipment transaction's
+withdrawal remained admitted. A diagnostic prefix showed index63 deposit,
+index64 leave, index65 session.current_action.kind='withdraw', pending ammo,
+no atomic pending operation. This is other owned physical work, outside the
+permitted standalone scan flip. Restricted router scanning to no active action.
+Both unchanged tests pass round 1, including the target/departure recall buy.
+(F) HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring:
+confirmed take33, old ('5','shop:travel:await-entry') ->
+(HOME_KNOWLEDGE_MACRO,'home:request-knowledge-scan'). Existing batch/no-deferred/
+no-digger-failure assertions remain. Its already independently attached fresh
+catalogue still resolves shovel index114/page2/letter k/quantity2 and emits
+'5  pk2\r\x1b'. Both controls pass round 1; no synthetic suffix was added.
+(F) OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key,
+.test_weapon_smith_one_shot_keeps_its_tail_and_buys,
+.test_temple_entry_composes_and_releases_the_recall_purchase, and
+IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop:
+first changed index3 is old 9 / town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off,
+now HOME_KNOWLEDGE_MACRO / home:request-knowledge-scan. The helper asserts no
+atomic operation, no equipment action and no actionable deposit at that point.
+Recorded current-key replay stops at3. Index4 is a constructed outside empty
+home:scan-await-observation (replaces later historical request at4); index5 is
+an independently attached recorded response and board. Matching-key suffix
+controls preserve every ammo one-shot dispatch/tail/shelf/price/retirement
+check, the Temple recall dispatch/tail/price, and four-staff-cap sale g/h/i
+counts, 31 charges, release {'i':1}, selected sale and Magic route. They all
+pass round2. The raw index3/index4 facts are added to the existing historical
+characterization test; its other original assertions are unchanged. Raw ESC
+literals in that edited file were normalized to escapes without changing bytes
+of the expected keys. The first-round new await assertion also exposed a real
+(R) downstream rewrite of an explicitly posted scan await into movement; fixed
+src rather than weakening the new await. No later assertion was removed.
+(R) HomeFullAwaitKnowledgeRecordedTest.test_071040_board_requests_scan_instead_of_recorded_escape
+(both enforced modes), and RecordedHomeFull3Test.test_C_stale_catalogue_has_owner_declared_request_and_wait:
+restored existing physical full-Home relief/full-home-sale WAIT behavior;
+existing assertions unchanged, pass round1.
+(R, registration bookkeeping) ExceptionsFileTest.test_no_uncovered_site_is_unexcused
+and .test_the_lint_still_reports_rather_than_failing:
+shared await adapter's two relayed return sites needed inherited-owner coverage
+in ownership_claim_exceptions.txt. Callers remain marked home-scan/home-errand;
+no independent owner or priority introduced. Unchanged assertions pass round1.
+(R) HomeOneOperationPerEntryTest.test_complete_cached_open_page_repairs_atomic_prefix_mismatch
+and .test_invalidated_address_refuses_until_home_is_reobserved:
+restored ordinary composer None/home:await-fresh-knowledge contract, moved the
+real request/await choice to its store router. Existing assertions unchanged;
+unchanged entire tests.test_policy_home passes round1.
+
+UNDECIDED (R/F), test deliberately left unchanged, still failing in round2:
+TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards.
+A short diagnostic reconstruction stopped at59 (never used as a replacement
+assertion or a claimed current trajectory). At57 proved catalogue is current
+and leave-for-pending-withdraw; at58 actual '5pC5\r\x1b'; at59 its observed
+confirmation yields HOME_KNOWLEDGE_MACRO/home:request-knowledge-scan. No equipment
+session/action or actionable deposit exists. The completed cure take and the
+queued shovel/speed-potion work are visible in that constructed reconstruction.
+F reading: this is exactly D4's stale-address prerequisite after a witnessed
+mutation, rather than another entry. R reading: this existing test's explicit
+LIVE-KEY wall reconstructs a long policy checkpoint and its exact declaration/
+checkpoint bookkeeping is part of its contract. The current 59/60/61 proposal
+changes cannot simply be appended to its divergence whitelist: the user requires
+cutting at the first changed key and independently preserving every later check.
+A new current-key business continuation through that exact long scene was not
+proved; therefore it is not sanctioned F and its existing test/body stays intact.
+Other six tests in that module pass; that is not claimed as proof of the missing
+new-key continuation. Maximum two failed rounds reached: stop and report.
+
+Post-round guards
+A first narrowed mutation run found an unneeded, behavior-equivalent simplification
+of the ordinary composer's last_reason ternary NOT CAUGHT. Restored the exact
+base expression, removing that source hunk; no behavior change. The final source
+has eight hunks. Fast final mutation explicitly selects the two constructed pin
+modules (10+8 tests), including a new direct progress-seam blocker pin, so every
+source hunk is exercised without replaying two-minute historical modules per
+hunk. This is the mutation tool's supported --tests option; the original required
+before-final-run invocation used its default complete changed-module set.
+A preflight was mistakenly launched while mutation temporarily reverted hunks;
+it reported a stale manifest. Discarded that mixed run, regenerated after restore,
+committed, and repeated mutation then preflight sequentially. No process was killed.
+Final guard outputs follow below.
+
+
+final result lines:
+worker-1: exit 1, 5365.905s
+worker-2: exit 1, 4362.645s
+worker-3: exit 0, 533.462s
+Total: 2834 tests, 5365.952s
+Failures: ['tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target', 'tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_replay_decides_as_live_until_the_first_overweight_board', 'tests.test_home_withdraw_failed_stock_present_recorded.HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring', 'tests.test_oneshot_preempt_recorded.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys', 'tests.test_home_full_await_knowledge_recorded.HomeFullAwaitKnowledgeRecordedTest.test_071040_board_requests_scan_instead_of_recorded_escape', 'tests.test_homefull3_recorded.RecordedHomeFull3Test.test_C_stale_catalogue_has_owner_declared_request_and_wait', 'tests.test_ownership_s2a_classification.ExceptionsFileTest.test_no_uncovered_site_is_unexcused', 'tests.test_ownership_s2a_classification.ExceptionsFileTest.test_the_lint_still_reports_rather_than_failing', 'tests.test_policy_home.HomeOneOperationPerEntryTest.test_complete_cached_open_page_repairs_atomic_prefix_mismatch', 'tests.test_policy_home.HomeOneOperationPerEntryTest.test_invalidated_address_refuses_until_home_is_reobserved', 'tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards']
+Errors: []
+
+round1 result lines:
+worker-1: exit 1, 505.758s
+worker-2: exit 1, 561.251s
+Total: 224 tests, 561.294s
+Failures: ['tests.test_oneshot_preempt_recorded.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys', 'tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards']
+Errors: []
+
+round2 result lines:
+worker-1: exit 0, 131.625s
+worker-2: exit 1, 413.536s
+Total: 12 tests, 413.568s
+Failures: ['tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards']
+Errors: []
+
+Final mutation output:
+[mutation] 8 source hunks, tests: tests.test_home_catalogue_take_sequence tests.test_home_withdraw_moved_address
+[mutation] caught     src/hengbot/policy.py:7880 (and not self._open_home_page_is_complete(snapshot)): test_posted_scan_survives_home_entry_without_repost, test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation
+[mutation] caught     src/hengbot/policy.py:7984 (or ((not self._home_knowledge_current or self._home_knowledge_invalida): test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation
+[mutation] caught     src/hengbot/policy.py:14048 (self._home_knowledge_scan_wait_decisions = 0): test_recovery_interrupts_the_scan_without_charging_or_reposting, test_named_take_lost_request_is_bounded_without_reposting
+[mutation] caught     src/hengbot/policy_home.py:1220 (if self._home_knowledge_scan_inflight or self._home_knowledge_scan_epo): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:1239 (waiting = self._home_knowledge_scan_inflight or self._home_knowledge_s): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:2941 (return self._home_errand_knowledge_key(snapshot)): test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[mutation] caught     src/hengbot/policy_shop.py:5719 (session = self._equipment_transaction_session): test_contrary_shelf_does_not_repost_an_unsettled_request, test_named_take_lost_request_is_bounded_without_reposting, test_posted_scan_survives_home_entry_withou
+[mutation] caught     src/hengbot/policy_town.py:1451 (if (key == "" and self._home_knowledge_scan_inflight): test_declared_inflight_scan_is_not_counterfactual_travel
+[mutation] MUTATION OK: 0 of 8 hunks are not pinned by a test
+[mutation] recorded for 1be0fc91
+
+Final sequential preflight output:
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_batch_owner_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_pending_take_with_owners_on_both_sides_rescans_then_takes_later
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_recorded_one_shot_retired_at_its_own_entry
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys
+[preflight] PREFLIGHT OK: 15 changed files, 0 findings (town-idle-d4 vs 574bfba6)

@@ -1,0 +1,78 @@
+PLAN-STEP: 3 ISSUE: #1 -- D4 rework 2 diagnosis (before source edits)
+Base 574bfba6; measured D4 HEAD 4994040e.
+
+Method: run each failing test with its unchanged test body and real policy,
+first against an isolated temporary extraction of base src, then current src.
+A read-only wrapper logs every public choose_key result. No producer is mocked,
+no fixture or assertion is changed. Indices below are zero-based public decisions
+within that test; sequence is the policy's decision sequence. The prepare-return
+test creates independent policies per variant; its index19 is variant-local
+index1 in on-inn-no-exit, sequence2. Earlier two variants agree with base.
+Base runs of all seven failing identities pass; D4 reproduces all seven failures.
+
+All seven are (R), not sanctioned flips: another owner's existing work or
+visible route-failure outcome is displaced. None is a redundant Home re-entry
+or a movement key home:await-fresh-knowledge owned by the Home producer.
+
+1 (R) tests.test_policy_equipment.LauncherEnchantTest.
+  test_successful_launcher_enchant_rearms_same_visit
+  index1, sequence2, turn1868699:
+  ('rac','town:enchant-launcher-tohit') -> ('','home:scan-await-observation').
+  Winning producer: curse-enchant, launcher enchant composer in
+  src/hengbot/policy_equipment.py:3748-3785 (read of carried to-hit scroll).
+
+2 (R) tests.test_quest_enter_approach_progress.QuestEnterApproachProgressPins.
+  test_taken_q22_cross_town_uses_stage1_clearance_values
+  index1, sequence2, turn2856171:
+  ('7','fixedquest:q22-travel') -> ('','home:scan-await-observation').
+  Winning producer: quest-request, _fixed_quest_key q22 travel branch,
+  src/hengbot/policy_quest.py:4102-4130, with its declared inn route.
+
+3 (R) tests.test_quest_prepare_return_stage2.QuestPrepareReturnStage2Pins.
+  test_n_return_3_route_failure_variants_retire_and_restore
+  variant on-inn-no-exit, index19 (variant-local1), sequence2, turn2856713:
+  ('','fixedquest:prepare-return:route-unavailable') ->
+  ('','home:scan-await-observation'). Even equal empty keys have different
+  ownership and bounds; the required quest budget/retirement is lost.
+  Winning producer: quest-request, _prepare_return_candidate,
+  src/hengbot/policy_quest.py:4311-4348; route-unavailable declared outcome.
+
+4 (R) tests.test_reward_approach_progress.RewardApproachProgressPins.
+  test_damaged_retired_reward_claim_posts_safety_key
+  index1, sequence2, turn2866800:
+  ('5','fixedquest:reward-approach:route-unavailable') ->
+  ('','home:scan-await-observation').
+  Winning producer: quest-request, reward approach's route-unavailable branch,
+  src/hengbot/policy_quest.py:5255-5285. Pre-emption prevents its retirement
+  before the later damaged board; the later recovery key itself is unchanged.
+
+5 (R) tests.test_reward_approach_progress.RewardApproachProgressPins.
+  test_recorded_route_and_continuation_reach_pickup_once_then_release
+  index1, sequence2, turn2866800:
+  ('7','fixedquest:reward-approach') -> ('','home:scan-await-observation').
+  Winning producer: quest-request, reward approach route composer,
+  src/hengbot/policy_quest.py:5238-5254 and its DecisionCandidate continuation.
+
+6 (R) tests.test_reward_approach_progress.RewardApproachProgressPins.
+  test_unchanged_rank_retires_but_no_route_is_visible_terminal
+  index1, sequence2, turn2866800:
+  ('7','fixedquest:reward-approach') -> ('','home:scan-await-observation').
+  Winning producer: same quest-request reward route composer as5. The scan
+  owner's 299/298/297/296 telemetry replaces the quest's 3/2/1/0 budget.
+
+7 (R) tests.test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.
+  test_recorded_abandoned_travel_releases_empty_key_barrier
+  index1, sequence2, turn3972621:
+  ('\x1b`n(.','shop:travel') -> ('','home:scan-await-observation').
+  Winning producer: store-router, existing shopping route and
+  _shopping_approach_key in src/hengbot/policy_shop.py:5669 onward.
+
+Shared pre-empting D4 site in every case:
+src/hengbot/policy.py:7881-7905, specifically the added generic holder clause
+at7886-7896 and the early return at7905. This runs in _choose_key before the
+normal _decide ladder. It treats any posted home.knowledge.observe holder as
+the winner of the whole decision. The child at7900-7902 reaches
+src/hengbot/policy_home.py:1223 / _home_knowledge_await_key:1253 onward, which
+increments the Home own-decision counter even though another producer should
+have won. Restore the base full-Home exception here; put the D4 empty await
+at the Home router's existing refused-address/redundant-entry branch instead.

@@ -7973,7 +7973,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and (self._home_full_relief is not None
                      or self._home_full_retry_deposits is not None
                      or self._home_errand.needs_knowledge
-                     or (self._home_knowledge_invalidated
+                     or ((not self._home_knowledge_current or self._home_knowledge_invalidated)
                          and (self._home_visit.request is None
                           or self._home_visit.request.kind == HomeVisitKind.SCAN)
                          and not self._town_space_deposit_actionable(snapshot)
@@ -8491,7 +8491,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_carried_equipment_catalog(snapshot)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             fresh_home_entry = not self._last_snapshot_was_store
-            if fresh_home_entry:
+            if fresh_home_entry and self._home_knowledge_scan_epoch is None:
                 self._home_knowledge_scan_requested = False
                 self._home_knowledge_scan_inflight = False
                 self._home_knowledge_scan_retries_remaining = 1
@@ -11714,6 +11714,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot, router_plan_stop=True
                 )
                 if step is not None:
+                    holder = self._claim_register.current
+                    scan_wait = bool(
+                        self._shopping_approach_store_type == STORE_HOME
+                        and holder is not None and holder.is_open
+                        and holder.owner.value == "home-scan"
+                        and holder.execution is not None
+                        and holder.execution.continuation == "home.knowledge.observe"
+                        and self._home_knowledge_scan_inflight
+                        and not self._home_knowledge_current
+                        and (self._home_pending_item is not None or self._home_pending_batch
+                             or (self._shopping_approach_goal == snapshot.player.position
+                                 and self._home_visit.request is not None
+                                 and self._home_visit.request.kind == HomeVisitKind.SCAN))
+                        and self._home_atomic_withdraw_pending is None
+                        and self._home_atomic_deposit_pending is None
+                        and not self._town_space_deposit_actionable(snapshot)
+                        and self._equipment_transaction_session is None
+                    )
+                    # The posted catalogue/take prerequisite answers at this
+                    # router rung, before its own redundant Home entry.
+                    if scan_wait:
+                        return self._town_producer_entry(
+                            "_home_full_knowledge_key",
+                            lambda: self._home_full_knowledge_key(snapshot),
+                            family="home-scan")
                     self.last_reason = "shop:approach"
                     return self._town_producer_entry("_shopping_approach_key#2", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"))
 
@@ -14063,6 +14088,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
             self._home_knowledge_scan_epoch = self._town_visit_epoch
+            self._home_knowledge_scan_wait_decisions = 0
+            self._home_knowledge_scan_wait_sequence = None
+            self._home_knowledge_scan_wait_outcome_recorded = False
             return True
         if key == SKILL_KNOWLEDGE_MACRO:
             self._skill_exp_request_inflight = True

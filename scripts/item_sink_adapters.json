@@ -210,13 +210,14 @@
     "self._home_deposit_key(snapshot, item, forced_count=deposit_count) @ For:sorted(deposits, key=lambda entry: entry[0].slot, reverse=True)": 1
   },
   "policy_home.py:_atomic_home_withdraw_dispatch_key": {
+    "self._home_errand_knowledge_key(snapshot) @ If:body:signature not in observed_signatures and self._home_errand.active and any((self._item_signature(item) == signature for index, item in enumerate(self._home_knowledge_items) if index >= self._home_knowledge_valid_before))": 1,
+    "self._defer_unobserved_home_withdrawal(signature) @ If:body:signature not in observed_signatures and self._home_errand.active": 1,
+    "self._home_errand_knowledge_key(snapshot) @ If:body:not self._home_knowledge_current / If:body:self._home_errand.active": 1,
     "self._defer_unobserved_home_withdrawal(None) @ If:body:signature is None / If:body:signature is None": 1,
-    "self._defer_unobserved_home_withdrawal(signature) @ If:body:not letter or len(letter) != 1 / If:body:self._home_errand.active": 1,
-    "self._defer_unobserved_home_withdrawal(signature) @ If:body:not letter or len(letter) != 1 / If:orelse:self._home_errand.active": 1,
     "self._defer_unobserved_home_withdrawal(signature) @ If:body:selected is None / If:body:self._home_errand.active": 1,
     "self._defer_unobserved_home_withdrawal(signature) @ If:body:selected is None / If:orelse:self._home_errand.active": 1,
-    "self._defer_unobserved_home_withdrawal(signature) @ If:body:signature not in observed_signatures and self._home_errand.active": 1,
-    "self._home_errand_knowledge_key(snapshot) @ If:body:not self._home_knowledge_current / If:body:self._home_errand.active": 1
+    "self._defer_unobserved_home_withdrawal(signature) @ If:body:not letter or len(letter) != 1 / If:body:self._home_errand.active": 1,
+    "self._defer_unobserved_home_withdrawal(signature) @ If:body:not letter or len(letter) != 1 / If:orelse:self._home_errand.active": 1
   },
   "policy_home.py:_home_disposal_processing_key": {
     "self._verified_destroy_key(snapshot, lambda current: target if self._home_disposal_inventory_item(current) is not None else None, 'home-disposal:destroy-approved') @ If:body:decision == 'destroy'": 1
@@ -337,9 +338,6 @@
     "self._q2_ranged_core_key(snapshot, profile, combat_hostiles) @ If:body:profile.required_force.get('launcher') and combat_hostiles": 1,
     "self._survival_gate_key(snapshot, hostiles) @ If:body:final_target_phase and profile.quest_id != 2": 1
   },
-  "policy_shop.py:_atomic_shop_transaction_key": {
-    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:not self._can_compose_shop_observation(snapshot) / If:body:self._can_resume_magic_shelf(snapshot) / If:body:step is not None": 1
-  },
   "policy_shop.py:_batch_sell_key": {
     "self._batch_sale_entry(snapshot, item, digit) @ For:candidates[:1]": 1,
     "self._batch_sale_entry(snapshot, item, entry['tag']) @ If:body:pending is not None and pending['store_type'] == store.store_type / If:body:pending['phase'] == 'await-inscription' / For:entries": 1
@@ -458,5 +456,15 @@
     "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:context is None / If:orelse:step in positions and (not owner._quest_equipment_entry_allowed(snapshot, quest_id))": 1,
     "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:snapshot.player.position in positions / If:orelse:not owner._quest_equipment_entry_allowed(snapshot, quest_id)": 1,
     "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:orelse:route.first_step in positions and (not owner._quest_equipment_entry_allowed(snapshot, quest_id))": 1
+  },
+  "policy_home.py:_home_knowledge_await_key": {
+    "self._defer_unobserved_home_withdrawal(self._home_errand.request.signature) @ If:body:self._home_knowledge_scan_wait_decisions >= STORE_STUCK_LIMIT / If:body:not getattr(self, '_home_knowledge_scan_wait_outcome_recorded', False) / If:body:producer == 'home-errand'": 1
+  },
+  "policy_shop.py:_shopping_approach_key": {
+    "self._home_full_knowledge_key(snapshot) @ If:body:not entry_failed_here / If:body:self._shopping_approach_store_type == STORE_HOME and self.last_reason == 'home:await-fresh-knowledge' and (not self._home_knowledge_current) and (self._home_pending_item is not None or self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (self._home_atomic_deposit_pending is None) and (not self._town_space_deposit_actionable(snapshot)) and (action is None) and (session is None or session.pending_action is None)": 1,
+    "self._home_full_knowledge_key(snapshot) @ If:body:not entry_failed_here / If:body:writer_family == 'store-router' and self._shopping_approach_store_type == STORE_HOME and (self._shopping_approach_goal == snapshot.player.position) and (not self._home_knowledge_current) and (self._home_knowledge_scan_inflight or self._home_knowledge_scan_epoch is not None) and (self._home_visit.request is not None) and (self._home_visit.request.kind == HomeVisitKind.SCAN) and (self._home_atomic_withdraw_pending is None) and (self._home_atomic_deposit_pending is None) and (not self._town_space_deposit_actionable(snapshot)) and (action is None) and (session is None or session.pending_action is None)": 1
+  },
+  "policy_shop.py:_atomic_shop_transaction_key": {
+    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:not self._can_compose_shop_observation(snapshot) / If:body:self._can_resume_magic_shelf(snapshot) / If:body:step is not None": 1
   }
 }

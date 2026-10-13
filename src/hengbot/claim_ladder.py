@@ -331,6 +331,7 @@ _RUNGS: tuple[Rung, ...] = (
             ordinary=True),                                            # 6847
     _decide("_normal_loot_key", "floor-loot", "seek-loot", "loot:",
             ordinary=True),                                            # 6855
+    _decide("_home_full_knowledge_key", "home-scan"),  # posted named-take prerequisite
     _decide("_shopping_approach_key", "store-router",
             ordinary=True),                                            # 6923
     # Its own site writes ``town:blocked:overflow-no-legal-disposal``, which

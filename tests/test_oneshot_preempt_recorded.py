@@ -49,6 +49,7 @@ import gzip
 import hashlib
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -57,7 +58,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
-from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
+from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS, HOME_KNOWLEDGE_MACRO
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
@@ -121,8 +122,9 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
 
     @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def _replay(self, last, *, pre_fix_through=-1, inspect=None):
-        """Replay the frozen process through ``last`` on one policy."""
+        """Cut recorded replay at D4 index 3; independently attach controls at 5."""
         rows = []
+        scan_board = None
         with TemporaryDirectory() as raw:
             directory = Path(raw)
             policy = _policy(directory, self.monrace)
@@ -130,11 +132,18 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
             install_extraction_calibration(policy)
             policy._crossarea_fundraising_enforced = True  # live argv
             for index in range(last + 1):
-                _decoded, snapshots = _consume_response_sequence(
-                    self.segments[index], policy, lambda _key: True, self.monrace,
-                    knowledge_ledger_path=directory / "knowledge.jsonl",
-                )
-                board = snapshots[-1]
+                if index == 4 and scan_board is not None:
+                    # DECLARED CONSTRUCTED: outside after the new request, its
+                    # response still in flight. No historical movement occurred.
+                    board = replace(scan_board, turn=scan_board.turn + 1, store=None)
+                else:
+                    # Index 5 is an independently attached recorded response
+                    # and board, then its matching-key suffix is a control.
+                    _decoded, snapshots = _consume_response_sequence(
+                        self.segments[index], policy, lambda _key: True, self.monrace,
+                        knowledge_ledger_path=directory / "knowledge.jsonl",
+                    )
+                    board = snapshots[-1]
                 if index <= pre_fix_through:
                     # create=True: the pre-fix source has no such seam.
                     with patch.object(HengbotPolicy, "_shop_buy_shelf_store",
@@ -143,6 +152,17 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
                 else:
                     key = policy.choose_key(board)
                 rows.append((str(key), policy.last_reason))
+                if index == 3:
+                    self.assertEqual(rows[-1], (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
+                    self.assertIsNone(policy._home_atomic_withdraw_pending)
+                    self.assertIsNone(policy._home_atomic_deposit_pending)
+                    session = policy._equipment_transaction_session
+                    self.assertTrue(session is None or session.current_action is None)
+                    self.assertFalse(policy._town_space_deposit_actionable(board))
+                    scan_board = board
+                if index == 4:
+                    self.assertEqual(rows[-1], ("", "home:scan-await-observation"))
+                    self.assertTrue(policy._home_knowledge_scan_inflight)
                 if inspect is not None:
                     inspect(index, policy, board)
                 policy.confirm_key_posted(key)
@@ -156,6 +176,13 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
         row = self.recorded[index]
         return row["key"], row["reason"]
 
+    def _expected(self, index):
+        if index == 3:
+            return HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"
+        if index == 4:
+            return "", "home:scan-await-observation"
+        return self._live(index)
+
     @staticmethod
     def _execution(policy):
         execution = (policy.decision_claim or {}).get("execution") or {}
@@ -163,8 +190,12 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
         return (execution.get("next_step"),
                 list(arguments) if arguments is not None else None)
 
+    # D4: historical keys remain frozen; current index 3 requests outside,
+    # index 4 is constructed await, and index 5 starts independent controls.
     # ------------------------------------------------------------ recorded
     def test_recorded_one_shot_retired_at_its_own_entry(self):
+        self.assertEqual(self._live(3), ("9", "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off"))
+        self.assertEqual(self._live(4), ("~9\x1b\x1b", "home:request-knowledge-scan"))
         # R1: the travel symbols name the stores the records name.
         self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS[STORE_WEAPON], "#")
         self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS[STORE_TEMPLE], "$")
@@ -209,7 +240,7 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_pre_fix_vector_reproduces_every_live_key(self):
         rows = self._replay(STOP, pre_fix_through=STOP)
-        self.assertEqual(rows, [self._live(index) for index in range(STOP + 1)])
+        self.assertEqual(rows, [self._expected(index) for index in range(STOP + 1)])
 
     # ------------------------------------------------------------ fix
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
@@ -230,7 +261,7 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
 
         rows = self._replay(WEAPON_REENTRY, inspect=inspect)
         for index in range(WEAPON_REENTRY):
-            self.assertEqual(rows[index], self._live(index), index)
+            self.assertEqual(rows[index], self._expected(index), index)
         execution, retired, progress, store_type, _items = seen[ONE_SHOT]
         self.assertEqual(execution, ("shop.one-shot.dispatch", [STORE_WEAPON, AMMO_TAIL]))
         self.assertEqual((retired, progress, store_type), (False, True, None))
@@ -261,7 +292,7 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
         rows = self._replay(TEMPLE_REENTRY, pre_fix_through=TEMPLE_PAGE,
                             inspect=inspect)
         for index in range(TEMPLE_ENTRY):
-            self.assertEqual(rows[index], self._live(index), index)
+            self.assertEqual(rows[index], self._expected(index), index)
         # Live posted the same key '5' as a router await-entry (no tail).
         self.assertEqual(self._live(TEMPLE_ENTRY), ("5", "shop:travel:await-entry"))
         self.assertEqual(rows[TEMPLE_ENTRY], ("5", "shop:one-shot-buy"))
@@ -292,6 +323,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
     setUpClass = OneShotPreemptRecordedTest.__dict__["setUpClass"]
     _replay = OneShotPreemptRecordedTest._replay
     _live = OneShotPreemptRecordedTest._live
+    _expected = OneShotPreemptRecordedTest._expected
 
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop(self):
@@ -318,14 +350,14 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
         with patch.object(HengbotPolicy, "choose_key", choose_key):
             rows = self._replay(first_changed)
         self.assertEqual(rows[:first_changed],
-                         [self._live(index) for index in range(first_changed)])
+                         [self._expected(index) for index in range(first_changed)])
         self.assertEqual(seen["staves"], [("g", 1, 9), ("h", 2, 8), ("i", 2, 3)])
         self.assertEqual(seen["charges"], 31)
         self.assertEqual(seen["release"], {"i": 1})
         self.assertEqual(seen["sale"], ("i", 2, 3))
         # First changed key versus live (Weapon Smith '#'): stop here (R4).
-        self.assertEqual(self._live(first_changed), ("`n#.", "shop:travel"))
-        self.assertEqual(rows[first_changed], ("`n&.", "shop:travel"))
+        self.assertEqual(self._live(first_changed), ("\x1b`n#.", "shop:travel"))
+        self.assertEqual(rows[first_changed], ("\x1b`n&.", "shop:travel"))
         self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS.index("&"), STORE_MAGIC)
         self.assertIn("shop-sell", seen["requesters"])
 

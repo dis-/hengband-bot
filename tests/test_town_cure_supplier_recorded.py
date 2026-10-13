@@ -73,6 +73,22 @@ One replay of the process through ``CHECKPOINT`` is shared by every pin
   differs from the recorded exit. The live keys are still posted on every
   prefix board, so later boards remain historical inputs within this LIVE-KEY
   WALL.
+  STEP 3 D4 (2026-10-14, operator decision on the implementer's evidence in
+  SOL-DIAG-town-idle-d4-rework.txt): boards 59-61 are the live R2 pattern
+  ('5' re-entry, ESC from the page, the movement key '9' labelled
+  home:await-fresh-knowledge) that D4 removes; parity returns at 62.
+  59 INTENDED: after the observed cure take (58) the named pending takes need
+  fresh addresses, so the request is posted where the character stands.
+  60 WALL ONLY: the wall posted the live '5', so this board is inside Home;
+  its page is fully rendered (52 of 52 displayed slots of 197 Home stacks) and
+  requests from there like board 72 - a page with a missing slot still exits
+  (tests/test_town_cure_catalogue_continuation.py).
+  61 WALL ONLY: neither request was posted by the wall, so the holder has no
+  posted scan to await and the entrance fallback steps off once; 62 requests
+  as live did.  With the policy's OWN keys posted from 58 the same module
+  pins request -> declared await -> adoption -> the shovel take with a fresh
+  address; the queued speed potions resolve without a take because nine of
+  that signature are already carried.
 - CLI TIMER WALL: the periodic dump/save requests come from the CLI wall
   clock; each is delivered on the board where the live process posted it.
 - PRE-FIX WALL (``_pre_fix_supply_rule``): ``_shortage_supplier_visit_page``
@@ -130,7 +146,11 @@ STOP = 1390
 PREFIX_DIVERGENCES = (
     9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
-    53, 69, 70, 71, 72, 73,
+    53,
+    # Step 3 D4: the stale-address prerequisite of a named take is requested
+    # in place (59); 60 and 61 are wall-only (see the module docstring).
+    59, 60, 61,
+    69, 70, 71, 72, 73,
     # 2026-10-12 owner decision (protocol-3 visibility fallbacks, item 1): a
     # remembered paralyzer cell seen empty under the player's own light is
     # released, so the loot its ring deferred is collected before digging to
@@ -140,6 +160,11 @@ PREFIX_DIVERGENCES = (
 )
 SUITEFIX6_PREFIX_CHANGES = {
     72: ('~9\x1b', 'home:request-knowledge-scan'),
+}
+D4_PREFIX_CHANGES = {
+    59: ('~9\x1b', 'home:request-knowledge-scan'),
+    60: ('~9\x1b', 'home:request-knowledge-scan'),
+    61: ('3', 'town:entrance-step-off:policy:none-wait'),
 }
 PERIODIC_REQUESTS = {
     "periodic:character-dump": "request_character_dump",
@@ -340,6 +365,14 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
         self.assertEqual(divergent, PREFIX_DIVERGENCES)
         for index, expected in SUITEFIX6_PREFIX_CHANGES.items():
             self.assertEqual(self.prefix[index], expected, index)
+        for index, expected in D4_PREFIX_CHANGES.items():
+            self.assertEqual(self.prefix[index], expected, index)
+        self.assertEqual(
+            [self._live(index) for index in (59, 60, 61)],
+            [('5', 'shop:travel:await-entry'),
+             ('\x1b', 'home:scan-incomplete-open-page'),
+             ('9', 'home:await-fresh-knowledge')])
+        self.assertEqual(self.prefix[62], self._live(62))
         self.assertEqual(self.discard_scan_surfaces,
                          {56: STORE_HOME, 61: None, 68: None, 80: STORE_HOME, 87: STORE_HOME})
         self.assertEqual(self._live(15),
