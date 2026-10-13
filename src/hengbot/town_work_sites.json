@@ -5716,8 +5716,8 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3442,
-    "end_line": 3645,
+    "line": 3446,
+    "end_line": 3649,
     "ast_sha256": "094fdd58d77fcc5aafeb8094f80898d43b1f20c77dbd1d80e60b14c99e6b79c1"
   },
   "policy_home.py:HomeMixin._atomic_home_deposit_key": {
@@ -5726,8 +5726,8 @@
       "home-deposit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3431,
-    "end_line": 3440,
+    "line": 3435,
+    "end_line": 3444,
     "ast_sha256": "e41b534a182bde1b67377740f9514f97c397e2699b0b86a53e466a259a0e79eb"
   },
   "policy_home.py:HomeMixin._atomic_home_withdraw_dispatch_key": {
@@ -5737,8 +5737,8 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "line": 2728,
-    "end_line": 3203,
-    "ast_sha256": "bc787a1026e27f9dec26a557da5d742ab06f690785e73f9f0cfd9fb7dff38e8c"
+    "end_line": 3207,
+    "ast_sha256": "d68a19015de15734437b186c1ac73597d95646f332cc5aa722e0e47bbe361a01"
   },
   "policy_home.py:HomeMixin._atomic_home_withdraw_key": {
     "classification": "adapter",
@@ -5766,8 +5766,8 @@
       "home-executor"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3807,
-    "end_line": 3842,
+    "line": 3811,
+    "end_line": 3846,
     "ast_sha256": "4b98c4f8b95dcb5b0ce121dbef2ddb0c9e2c3c851fa18fd35dd04969729cb093"
   },
   "policy_home.py:HomeMixin._confirm_home_withdrawal_address": {
@@ -5776,8 +5776,8 @@
       "home-withdraw"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3207,
-    "end_line": 3251,
+    "line": 3211,
+    "end_line": 3255,
     "ast_sha256": "024796975e8d4c368f48a78ef90f1b4a440bd956f0bf6d4d2843621a9366f86f"
   },
   "policy_home.py:HomeMixin._defer_home_full_deposit": {
@@ -5796,8 +5796,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3374,
-    "end_line": 3400,
+    "line": 3378,
+    "end_line": 3404,
     "ast_sha256": "53d3393b4918a9235a919071771502c9ba6735ba71f09652a52e2166b119c98b"
   },
   "policy_home.py:HomeMixin._destroy_item_key": {
@@ -5806,8 +5806,8 @@
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4414,
-    "end_line": 4431,
+    "line": 4418,
+    "end_line": 4435,
     "ast_sha256": "28900677c3779d09b017abd54039c0f290d0ce52c3a369770526d2d76e9b125d"
   },
   "policy_home.py:HomeMixin._ensure_home_visit_request": {
@@ -5846,8 +5846,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3883,
-    "end_line": 3946,
+    "line": 3887,
+    "end_line": 3950,
     "ast_sha256": "0085315bbe543aa6066e36cbbf5739ad418a7e495ce06d05237d459ea7009034"
   },
   "policy_home.py:HomeMixin._home_available": {
@@ -5896,8 +5896,8 @@
       "home-disposal"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4010,
-    "end_line": 4062,
+    "line": 4014,
+    "end_line": 4066,
     "ast_sha256": "55caee43934d920fb94bafbb10666e675570f2d74b932ff2f155c63b429a1e77"
   },
   "policy_home.py:HomeMixin._home_disposal_inventory_item": {
@@ -5906,8 +5906,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3992,
-    "end_line": 4007,
+    "line": 3996,
+    "end_line": 4011,
     "ast_sha256": "1a813a6403abdfa1a92ca24e8ba1b2b287f601c620835722aacc00283655f77f"
   },
   "policy_home.py:HomeMixin._home_disposal_processing_key": {
@@ -5916,8 +5916,8 @@
       "home-disposal"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4065,
-    "end_line": 4101,
+    "line": 4069,
+    "end_line": 4105,
     "ast_sha256": "0b01ac8874974458ba776468d43dd3d9e4a79acf4245aedc513d1c508535ecbc"
   },
   "policy_home.py:HomeMixin._home_disposal_store": {
@@ -5926,8 +5926,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 3985,
-    "end_line": 3990,
+    "line": 3989,
+    "end_line": 3994,
     "ast_sha256": "72da73a99be74f10f63f886280013d96136cd3a023eefed2f1437e1e76123440"
   },
   "policy_home.py:HomeMixin._home_dominated_disposal_key": {
@@ -5936,8 +5936,8 @@
       "home-disposal"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4364,
-    "end_line": 4411,
+    "line": 4368,
+    "end_line": 4415,
     "ast_sha256": "9a74c75bd09f1c911811905a9f514be8ffe8cc25a52081894739cec8c06dfb5f"
   },
   "policy_home.py:HomeMixin._home_errand_knowledge_key": {
@@ -5978,8 +5978,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4527,
-    "end_line": 4536,
+    "line": 4531,
+    "end_line": 4540,
     "ast_sha256": "9c9e341ac67f231bdddfb2ded4537759af3ac6a18f03ca4349de8b89d89b7926"
   },
   "policy_home.py:HomeMixin._home_full_knowledge_key": {
@@ -6050,8 +6050,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 4985,
-    "end_line": 5003,
+    "line": 4989,
+    "end_line": 5007,
     "ast_sha256": "9468b160ce63117911fe5f232a4261b6a35176e8c8af9b7d770370922563996c"
   },
   "policy_home.py:HomeMixin._home_page_letter": {
@@ -6072,8 +6072,8 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 4949,
-    "end_line": 4983,
+    "line": 4953,
+    "end_line": 4987,
     "ast_sha256": "4be4771bee90705b72ef46a5accad805d20ef9d725f5ae457419dbb9720f97bf"
   },
   "policy_home.py:HomeMixin._home_visit_retention": {
@@ -6122,8 +6122,8 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3685,
-    "end_line": 3780,
+    "line": 3689,
+    "end_line": 3784,
     "ast_sha256": "93ffc717c1058cc37de3d811d9fe2a8479b0c0817420a5ea23bef5c74a153c68"
   },
   "policy_home.py:HomeMixin._overweight_home_deposit": {
@@ -6235,8 +6235,8 @@
       "home-executor"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 3844,
-    "end_line": 3881,
+    "line": 3848,
+    "end_line": 3885,
     "ast_sha256": "5940cd528e61e5379231642fb993bd63992cd748944688c55b8c06e9705e3f51"
   },
   "policy_home.py:HomeMixin._weight_deposit_candidates": {

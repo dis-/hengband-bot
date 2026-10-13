@@ -2765,7 +2765,11 @@ class HomeMixin:
         if not self._home_knowledge_current:
             if self._home_errand.active:
                 return self._home_errand_knowledge_key(snapshot)
-            self.last_reason = "home:await-fresh-knowledge"
+            self.last_reason = (
+                self._home_errand.reason("await-fresh-knowledge")
+                if self._home_errand.active
+                else "home:await-fresh-knowledge"
+            )
             self._offer_home_atomic_no_step("withdraw", "await-fresh-knowledge")
             return None
         if not self._home_page_size:
