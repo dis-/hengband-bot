@@ -1451,6 +1451,16 @@ class TownMixin:
                 )
             return None
         proposed_reason = self.last_reason or ""
+        if (key == "" and self._home_knowledge_scan_inflight
+                and self._home_knowledge_scan_epoch is not None
+                and proposed_reason == "home:scan-await-observation"
+                and any(offer[0] == key and offer[1] == "home-scan"
+                        and offer[3] == "home.knowledge.observe"
+                        and offer[5] == "catalogue-adopted"
+                        for offer in self._execution_offers_for())):
+            # A declared posted census has its own finite observation bound.
+            # Counterfactual travel cannot settle it or replace its await.
+            return key
         if (
             snapshot.store is None
             and self._town_committed_loot()
