@@ -13,7 +13,7 @@ from hengbot.model import Position, StoreState, STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO, WAIT_KEY
 from tests.test_home_withdraw_moved_address import (
-    board, wares, ENTRANCE, BESIDE, LATER,
+    board, wares, carried, ENTRANCE, BESIDE, LATER,
 )
 
 
@@ -96,6 +96,12 @@ class HomeCatalogueTakeSequenceTest(unittest.TestCase):
         telemetry = policy._home_atomic_withdraw_telemetry
         self.assertEqual((telemetry["resolved_index"], telemetry["resolved_page"],
                           telemetry["resolved_letter"]), (15, 1, "d"))
+        policy.confirm_key_posted(key)
+        observed = board([carried(wares()[LATER], 1)], turn=110)
+        policy.choose_key(observed)
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+        self.assertIsNone(policy._home_pending_item)
+        self.assertEqual(policy._digger_home_withdraw_failures, 0)
 
     def test_posted_scan_survives_home_entry_without_repost(self):
         policy = self.policy()
