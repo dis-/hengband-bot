@@ -140,6 +140,10 @@ class HomeInterruptionTest(unittest.TestCase):
                     receipt = policy._town_inn_route_receipt(board, reason, key, consume=True)
                     self.assertEqual(receipt["owner"], "equipment-txn")
                     self.assertTrue(receipt["qualified"])
+                    # The route's own offer is named as the physical Home
+                    # action in the settlement record, not as a teleport.
+                    self.assertIn("equipment-home", receipt["operation_identity"])
+                    self.assertNotIn("teleport", receipt["operation_identity"])
 
     def test_prior_native_effect_settles_before_other_owner_and_cli(self):
         policy, _ = home_policy()
