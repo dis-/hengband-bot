@@ -1,0 +1,40 @@
+PLAN-STEP: 3 B (pack space short at departure) - branch packspace-depart-1013
+Implementer run (luna) was stopped at the time limit without a report; the operator finished the branch after the
+fable review (LUNA-B-packspace.review.md, FIX-THEN-MERGE). Head 9b0c245f.
+
+Behaviour
+- Home has room: a swap that does not fit all at once is staged per changed slot. Preferred order per slot is
+  withdraw -> take off -> wield -> deposit; deposit-first (take off -> deposit -> withdraw -> wield) is used only
+  when the preferred order does not fit. Stages <= changed slots; a plan is returned only if it changes a slot.
+  A staged plan (a Home deposit precedes a later slot change) runs with the Home physical context.
+- Plans that fit all at once are unchanged.
+- Home full: deposits stay planned (their refusal is the step-1.5a record path, unchanged); a full Home only stops
+  deposits from being counted as freed pack space. If no single step fits, `pack-space-required` stays and
+  `_equipment_departure_ready` closes the swap once for the visit (closure reason pack-space-home-full, pending
+  record pack-space-home-full-current-loadout) and departs on the current equipment. Required abilities for the
+  destination depth are still checked.
+- Removed: the `_town_pack_space_ready` shortcut for pack-space blockers (unreachable now: one stage needs at most
+  +3 slots) - see review item 3.
+
+Review fixes applied (9b0c245f)
+1. Deposit actions are never stripped; step-1.5a tests are back to their b8f5ac67 text and pass.
+2. Stage order + Home context as above; planner tests for both orders and for "staging only reorders".
+3. Unreachable home_full_packspace_closed gate removed (policy.py identical to b8f5ac67).
+
+Pins
+- tests.test_equipment_homefull_step15a.test_packspace_capture_stages_before_departure_stop: captured board
+  (2026-10-12 23:45, turn 639606). b8f5ac67: no session (departure-unsatisfiable). Now: executable session, 12
+  actions, peak 20 of 23, Home context, first key posted. Note: the live plan had 15 actions / shortfall 3, the
+  replayed catalog gives 12 / shortfall 1 (calibration is reconstructed); same class.
+- test_constructed_home_full_closure_requires_an_unfittable_staged_step (DECLARED CONSTRUCTED): closure + pending
+  record; four controls keep the visible gate.
+- tests.test_equipment_transaction_planner: 19 tests.
+
+Runs (single modules, while a merge gate was running)
+- tests.test_equipment_transaction_planner: 19 OK
+- tests.test_policy_equipment: 191 OK (39.5 s)
+- tests.test_equipment_homefull_step15a: 20 OK (285.7 s)
+- tests.test_test_fakery_lint tests.test_town_structure_lint tests.test_item_sink_lint tests.test_town_work_contract:
+  59 OK (C:\hengband-backups\suite-logs\b-lints-9b0c245f.log)
+- Linux opening smoke (nth-vps, seed 20261012): pass, quest 34 completed, 78 s.
+- Affected set / full suite / timings: left to the merge gate (no separate final run).

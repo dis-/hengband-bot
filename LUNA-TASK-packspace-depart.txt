@@ -1,0 +1,65 @@
+PLAN-STEP: 3
+Task B, corrected scope (owner decision 2026-10-13 plan step 3; owner correction 2026-10-13: "自宅が満杯のときの話で
+間違いないか？常時それだと問題が大きい"). Branch packspace-depart-1013 at main b8f5ac67. The earlier version of this
+task (abandon whenever pack space is short) was WRONG and is withdrawn. This scene only; do not widen the scope.
+
+Live evidence (captures-packspace/, not tracked), low-level character (Zombie Warrior, Level 18), main 32f93f9c,
+2026-10-12 23:43:57 / 23:45 / 23:45:50: `town:blocked:departure-unsatisfiable` (final stop, escalated).
+departure_block.failed == ["equipment_departure_ready"]; all other departure values true.
+equipment_optimization: blockers == ['pack-space-required:3'], transaction_actions == 15, catalog origins
+{equipped 7, pack 2, home 17}, preserve_pack_items 2 (a reserved torch, a shovel), no session.
+THE HOME WAS NOT FULL (17 items); the pack held 18 of 23 slots (5 free).
+Cause in code: equipment_transaction_planner.py ~137-191 plans "deposit prepare items, withdraw ALL target Home
+items, take off ALL changed slots, then wield", so peak_pack_items = pack - deposits + withdrawals + takeoffs
+exceeds the capacity although the swap could be done piecewise.
+
+Owner decisions (apply exactly; do not widen or narrow):
+- 2026-10-03 / 2026-10-09: 「満杯で入れ替え失敗なら今の装備で出発＋記録」- departing with the current equipment is for
+  the case where the HOME IS FULL (the swap cannot store the replaced items) and the swap failed. It is NOT a
+  general answer to a crowded pack.
+- Ownership contract: a defect stop stays visible; no silent waiting or wandering; no new town owners or priority
+  changes; no change to the other departure conditions.
+
+Do:
+1. LUNA-DIAG-packspace-depart.txt first (file:line + board facts from the captures): the 15 planned actions, the
+   peak computation, which items are withdrawn/taken off, why 5 free slots are not enough for the all-at-once
+   order, and what the smallest piecewise order would need.
+2. Fix (Home has room): make the transaction executable within the pack capacity by staging it instead of
+   refusing it - e.g. rounds of "withdraw as many target items as fit -> take off / wield -> deposit the replaced
+   items to Home", or an equivalent ordering that lowers the peak; the result must be the same target loadout.
+   Every round must make observable progress (a slot changed or an item moved), the number of rounds is bounded by
+   the number of changed slots, and the existing transaction failure/visit-closure rules still apply to a round
+   that fails. The pack-space-required blocker remains only when even one step cannot fit.
+3. Home full (cannot deposit the replaced items) AND the staged plan cannot fit: only then the decided behaviour -
+   abandon the swap once for this town visit with a record (reuse the visit closure from 32f93f9c: town epoch,
+   reason, loadout id, blockers, turn) and treat the current equipment as departure-ready. Hard safety gates that
+   are independent of the swap are not relaxed.
+4. Pins: from the captures - on b8f5ac67 the scene ends in town:blocked:departure-unsatisfiable; after the fix the
+   same board starts the staged transaction (first staged action is emitted, no final stop). A constructed
+   Home-full variant (DECLARED CONSTRUCTED) departs with the current equipment and writes the record. A
+   constructed control where one step cannot fit keeps the visible blocker. Revert each new predicate alone ->
+   its pin fails. Copy only the needed rows into tests/fixtures (small gzip).
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself (another implementer is running tests on this
+  machine). No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- "Existing tests" = tests at b8f5ac67; tests you add may be edited freely. A failing existing test is a regression
+  unless the change is the behaviour above; give the reason in the test and the report. Existing planner tests
+  that assert the all-at-once order for transactions that DO fit must stay green (do not reorder plans that fit).
+- New helper functions: append entries to scripts/town_producer_baseline.json ("pure helper: ...") and
+  scripts/town_work_review.json (keep key order and formatting: json.dumps ensure_ascii=False indent=2 + trailing
+  newline, no sorting), regenerate the manifest (PYTHONPATH=src python scripts/town_work_manifest.py --write), and run
+  tests.test_item_sink_lint tests.test_town_structure_lint. New attributes need restore defaults; new reasons that
+  are final stops need POLICY_FINAL_STOP_REASONS + cli banner; reason-setting sites need claims or
+  scripts/ownership_claim_exceptions.txt entries; scripts/item_intent_baseline.json for new item-state.
+- Final run ONLY with scripts/test_parallel_runner.py --workers 2 (PYTHONPATH=src): affected_tests.py
+  (C:\hengband-backups\guard-tools\affected_tests.py C:\hengband\bot-client\.worktrees\packspace-depart b8f5ac67 HEAD)
+  plus tests.test_equipment_homefull_step15a tests.test_home_equipment_disposal and the hygiene set
+  (tests.test_ownership_s2b1_ladder tests.test_town_structure_lint tests.test_item_sink_lint
+  tests.test_town_work_contract tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification
+  tests.test_test_fakery_lint tests.test_town_arbiter tests.test_cli tests.test_quest34_target_dead_recorded),
+  within 60 minutes; then compare_timings.py jsonlog\test-parallel-timings.json --base
+  C:\hengband-backups\suite-batches\b8f5ac67 (0 slower tests; re-measure any flagged test against b8f5ac67
+  concurrently before reporting it).
+- Token budget 350k, wall time 150 minutes. Write LUNA-REPORT-packspace-depart.txt (diagnosis summary, the staging
+  rule and its bound, changes, pins before/after, revert checks, final run lines, compare_timings output).

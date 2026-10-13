@@ -17,6 +17,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from hengbot.policy_types import TownNeed
 import unittest
+from types import SimpleNamespace
 
 import tests  # noqa: F401
 from hengbot.cli import _consume_response_sequence
@@ -40,6 +41,8 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 FIXTURE = Path(__file__).parent / 'fixtures/step1.5a-equipment-homefull.json.gz'
 assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == '0983fc092cca64be34d7400d3ed9d9e6327d6662e4aeaa4be93feaf9a09502ae'
 CAPTURES = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+PACKSPACE_FIXTURE = Path(__file__).parent / 'fixtures/packspace-depart-20261012.json.gz'
+PACKSPACE_CAPTURE = json.loads(gzip.decompress(PACKSPACE_FIXTURE.read_bytes()))
 EQTXN_RESERVED_PINS = json.loads(gzip.decompress(
     (Path(__file__).parent / 'fixtures/eqtxn-reserved-20261012.json.gz').read_bytes()
 ))
@@ -91,6 +94,140 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         runtime = patch.dict('os.environ', {'HENGBOT_RUNTIME_DIR': str(self.directory)})
         runtime.start()
         self.addCleanup(runtime.stop)
+
+    def test_packspace_capture_stages_before_departure_stop(self):
+        # Captured endpoint on b8f5ac67: all independent departure values were
+        # true, but the all-at-once equipment plan ended the town visit.
+        decision = PACKSPACE_CAPTURE['blocked_decision']
+        self.assertEqual(decision['reason'], 'town:blocked:departure-unsatisfiable')
+        self.assertEqual(decision['turn'], 639606)
+        self.assertEqual(decision['inventory'], {'used': 18, 'free': 5})
+        self.assertEqual(
+            decision['equipment_optimization']['search_catalog_origins'],
+            {'equipped': 7, 'pack': 2, 'home': 17},
+        )
+        self.assertEqual(decision['equipment_optimization']['blockers'],
+                         ['pack-space-required:3'])
+        self.assertEqual(decision['equipment_optimization']['transaction_actions'], 15)
+        self.assertEqual(decision['departure_block']['failed'], ['equipment_departure_ready'])
+        values = decision['departure_block']['values']
+        self.assertFalse(values['equipment_departure_ready'])
+        self.assertTrue(all(
+            value for key, value in values.items()
+            if key != 'equipment_departure_ready'
+        ))
+
+        # Replay the captured board, Home contents, and acknowledged character
+        # sheet through the real optimizer and transaction producer.
+        raw = PACKSPACE_CAPTURE['outside_board']
+        board = parse_snapshot(raw, self.monrace)
+        home = parse_snapshot(PACKSPACE_CAPTURE['home_board'], self.monrace)
+        policy = self.policy()
+        policy.prime(board)
+        policy._equipment_catalog.refresh_carried(board.inventory, board.equipment)
+        policy.consume_skill_knowledge(PACKSPACE_CAPTURE['skill_exp'])
+        policy._character_dump_path.write_bytes(
+            dump_bytes(raw, PACKSPACE_CAPTURE['character'])
+        )
+        # DECLARED CONSTRUCTED C response: the capture omitted its original
+        # dump envelope, so derive calibration from the captured board and the
+        # reconstructed sheet using the production calibration validator.
+        policy._calibration_dump_pending = {
+            'baseline': None, 'started_ns': 1, 'sequence': None,
+        }
+        envelope = dict(raw, sequence=1)
+        policy.observe_character_snapshot(
+            PACKSPACE_CAPTURE['character'], envelope=envelope
+        )
+        policy._complete_character_dump(board)
+        board = policy._with_cached_skill_exp(board)
+        policy.consume_home_knowledge(tuple(home.store.items))
+        preparation = policy._prepare_equipment_optimization(board)
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(preparation)
+        self.assertIsNotNone(session)
+        self.assertTrue(session.executable)
+        self.assertIn(session.current_action.kind, {'withdraw', 'takeoff'})
+        # The whole staged plan stays inside the pack (Home has room, so each
+        # deposit frees a slot), changes at least one slot, and runs inside
+        # Home: no slot is carried empty through town between stages.
+        carried = len(board.inventory)
+        peak = carried
+        for action in session.plan.actions:
+            carried += {'withdraw': 1, 'takeoff': 1}.get(action.kind, -1)
+            peak = max(peak, carried)
+        self.assertLessEqual(peak, 23)
+        kinds = [action.kind for action in session.plan.actions]
+        self.assertIn('equip', kinds)
+        self.assertIn('deposit', kinds)
+        self.assertEqual(session.physical_context, 'home')
+        first_action = session.current_action
+        home = replace(
+            home, turn=board.turn, inventory=board.inventory,
+            equipment=board.equipment, player=board.player,
+        )
+        key = policy._equipment_transaction_home_key(home)
+        self.assertIsNotNone(key)
+        post(policy, key)
+        self.assertEqual(session.pending_action, first_action)
+        self.assertNotIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
+    def test_constructed_home_full_closure_requires_an_unfittable_staged_step(self):
+        # DECLARED CONSTRUCTED: the captured board has Home capacity, while
+        # this variant supplies a full-Home observation and a planner result
+        # whose first staged action cannot fit in the pack.
+        board = self.board()
+        policy = self.policy()
+        policy.prime(board)
+        policy._equipment_catalog.refresh_carried(board.inventory, board.equipment)
+        current = current_loadout(policy._equipment_catalog.items)
+        blockers = ('pack-space-required:2',)
+        preparation = WarriorOptimizationPreparation(
+            current,
+            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: constructed no-step capacity pin
+            SimpleNamespace(best=SimpleNamespace(loadout=current)),
+            EquipmentTransactionPlan((), blockers, 25),
+            blockers,
+        )
+        policy._equipment_optimization_preparation = preparation
+        policy._equipment_transaction_session = None
+        epoch = policy._town_visit_epoch
+        with patch.object(policy, '_prepare_equipment_optimization', return_value=preparation), \
+             patch.object(policy, '_home_is_full', return_value=True), \
+             patch.object(policy, '_current_worn_loadout_confirmed', return_value=True):
+            self.assertTrue(policy._equipment_departure_ready(board, destination_depth=19))
+        closure = policy._equipment_transaction_visit_closure
+        self.assertEqual(closure['epoch'], epoch)
+        self.assertEqual(closure['reason'], 'pack-space-home-full')
+        self.assertEqual(closure['loadout_id'], ','.join(sorted(current.item_ids)))
+        self.assertEqual(closure['blockers'], list(blockers))
+        self.assertEqual(closure['turn'], board.turn)
+        # The decided record ("今の装備で出発＋記録") is staged for the departure
+        # command and shown in the decision log until it is posted.
+        pending = policy._equipment_optional_failure_pending
+        self.assertEqual(pending['reason'], 'pack-space-home-full-current-loadout')
+        self.assertFalse(pending['posted'])
+        self.assertEqual(pending['depth'], 19)
+        self.assertEqual(pending['item_ids'], sorted(current.item_ids))
+
+        # DECLARED CONSTRUCTED control: same blocker with Home room keeps the
+        # visible equipment gate. Each reverted predicate below must fail.
+        for home_full, confirmed, step_blockers, active_session in (
+            (False, True, blockers, None),
+            (True, False, blockers, None),
+            (True, True, ('equipment-transaction-failed',), None),
+            (True, True, blockers, object()),
+        ):
+            control = self.policy()
+            control.prime(board)
+            control._equipment_optimization_preparation = preparation
+            control._equipment_transaction_session = active_session
+            candidate = replace(preparation, blockers=step_blockers)
+            with patch.object(control, '_prepare_equipment_optimization', return_value=candidate), \
+                 patch.object(control, '_home_is_full', return_value=home_full), \
+                 patch.object(control, '_current_worn_loadout_confirmed', return_value=confirmed):
+                self.assertFalse(control._equipment_departure_ready(board, destination_depth=19))
+            self.assertIsNone(control._equipment_transaction_visit_closure)
 
     def policy(self):
         policy = _policy(self.directory, self.monrace)

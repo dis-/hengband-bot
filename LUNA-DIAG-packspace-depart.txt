@@ -1,0 +1,54 @@
+PLAN-STEP 3 diagnosis - packspace departure (captures-packspace)
+
+Capture / board facts
+---------------------
+The final decision in
+captures-packspace/autorecover-20261012-234600-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz
+is at 2026-10-12 23:45:50 +0900, turn 639606, decision_sequence 11. It is
+town:blocked:departure-unsatisfiable. departure_block.failed contains only
+equipment_departure_ready; every other departure value is true. Its inventory
+is used=18/free=5. The fresh Home scan is complete/current and the equipment
+catalog has 26 entries: 7 equipped, 2 pack, 17 Home. Both pack items are
+preserved (one retention-reserved torch and a shovel), so the preparation
+deposit list is empty. Home therefore has room; this is not a Home-full case.
+The selected optimization has blockers [pack-space-required:3] and reports 15
+transaction actions. The block is solely the equipment-swap readiness gate.
+
+Cause in equipment_transaction_planner.py
+-----------------------------------------
+The planner emits the transaction in broad phases: preparation deposits,
+withdraw every target item from Home, take off every changed equipped item,
+equip/reposition every changed target slot, then deposit all displaced items.
+The peak check counts the initial 18 carried objects, minus preparation
+deposits, plus all target-Home withdrawals and all changed-slot takeoffs.
+Consequently the blocker value 3 means that the all-at-once withdrawal/takeoff
+prefix needs 26 pack slots, while only 23 exist. At the observed starting
+state the five free slots cannot contain that prefix. The later equip and
+Home-finalize actions would free space, but they are deliberately ordered
+after the peak and cannot help it.
+
+The decision telemetry does not serialize its 15 planner action rows or the
+selected target-slot identities. To make the item set reviewable, the small
+fixture also copies the final outside board, preceding Home page, and character
+sheet. The real optimizer replay with the reconstructed C sheet derives these
+staged members: withdraw `home:523d457d37cb5b14:0` for body, `home:65b3bfbbf227e45e:0`
+for head, and `home:098efb2a6795b536:0` for sub-ring; take off
+`equipped:e5c2402e0e3df6f0:0` (body), `equipped:a4a10489dd003130:0` (main ring),
+and `equipped:d505049098c29136:0` (sub-ring). That constructed replay yields
+four changed slots (body, head, main ring, sub-ring); its confirmed staged
+groups stay within the four-round bound. The original endpoint's exact action
+identity list is not present in its telemetry, so the derived names above are
+explicitly the replayed optimizer plan, not claimed as serialized original
+action rows.
+
+Smallest useful staged order
+----------------------------
+Reserve capacity for changed-slot takeoffs, withdraw only target items that
+fit, then for each changed slot take off its old item and equip its target;
+deposit each displaced item to Home as soon as the Home page has room. Repeat
+with the remaining target Home items. Each completed round must move an item
+or change a slot, so there can be no more rounds than changed slots (and an
+immediate one-step impossibility remains a pack-space-required blocker).
+For a Home-full board, displaced items cannot be deposited; that fact must be
+combined with failure of the staged capacity check before the visit-scoped
+depart-as-is closure applies.

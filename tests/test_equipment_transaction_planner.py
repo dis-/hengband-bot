@@ -98,7 +98,7 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
         self.assertEqual(plan.actions, ())
         self.assertEqual(dict(current.slots)["body"].id, armour.id)
 
-    def test_reports_pack_space_when_non_equipment_consumables_fill_pack(self):
+    def test_stages_target_items_when_the_all_at_once_prefix_would_overflow(self):
         targets = tuple(gear(f"target-{index}", "home", tval=45) for index in range(2))
         target = Loadout(
             (("main_ring", targets[0]), ("sub_ring", targets[1])), "empty"
@@ -107,7 +107,126 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
             targets, Loadout((), "empty"), target,
             current_pack_items=22, home_scan_complete=True,
         )
-        self.assertIn("pack-space-required:1", plan.blockers)
+        self.assertEqual(plan.blockers, ())
+        self.assertEqual(
+            [(action.kind, action.item_id) for action in plan.actions],
+            [
+                ("withdraw", "target-0"), ("equip", "target-0"),
+                ("withdraw", "target-1"), ("equip", "target-1"),
+            ],
+        )
+
+    def test_home_full_still_allows_a_fitting_staged_step(self):
+        old = gear("old", "equipped")
+        target = gear("home-target", "home")
+        plan = plan_equipment_transactions(
+            (old, target),
+            Loadout((("main_hand", old),), "one_handed"),
+            Loadout((("main_hand", target),), "one_handed"),
+            current_pack_items=21,
+            home_scan_complete=True,
+            home_deposit_available=False,
+        )
+
+        # A full Home changes only the space accounting.  The deposit of the
+        # replaced item stays planned: its refusal is the step-1.5a record.
+        self.assertEqual(plan.blockers, ())
+        self.assertEqual(
+            [(action.kind, action.item_id) for action in plan.actions],
+            [("withdraw", "home-target"), ("takeoff", "old"),
+             ("equip", "home-target"), ("deposit", "old")],
+        )
+
+    def test_staged_slots_stay_worn_until_the_replacement_is_carried(self):
+        old = [gear(f"old-{index}", "equipped", tval=45) for index in range(2)]
+        new = [gear(f"new-{index}", "home", tval=45) for index in range(2)]
+        plan = plan_equipment_transactions(
+            (*old, *new),
+            Loadout((("main_ring", old[0]), ("sub_ring", old[1])), "empty"),
+            Loadout((("main_ring", new[0]), ("sub_ring", new[1])), "empty"),
+            current_pack_items=21,
+            home_scan_complete=True,
+        )
+
+        self.assertEqual(plan.blockers, ())
+        kinds = [action.kind for action in plan.actions]
+        self.assertEqual(
+            kinds, ["withdraw", "takeoff", "equip", "deposit"] * 2
+        )
+        self.assertLessEqual(plan.peak_pack_items, 23)
+        self.assertEqual(
+            sorted(action.item_id for action in plan.actions if action.kind == "equip"),
+            ["new-0", "new-1"],
+        )
+        self.assertEqual(
+            sorted(action.item_id for action in plan.actions if action.kind == "deposit"),
+            ["old-0", "old-1"],
+        )
+        # Staging reorders the unstaged plan; it never adds or drops a step,
+        # so the resulting loadout is the same target.
+        unstaged = plan_equipment_transactions(
+            (*old, *new),
+            Loadout((("main_ring", old[0]), ("sub_ring", old[1])), "empty"),
+            Loadout((("main_ring", new[0]), ("sub_ring", new[1])), "empty"),
+            current_pack_items=21,
+            home_scan_complete=True,
+            pack_capacity=99,
+        )
+        self.assertEqual(
+            [action.phase for action in unstaged.actions],
+            [PHASE_HOME_PREPARE] * 2 + [PHASE_EQUIP] * 4 + [PHASE_HOME_FINALIZE] * 2,
+        )
+        self.assertEqual(set(plan.actions), set(unstaged.actions))
+        self.assertEqual(len(plan.actions), len(unstaged.actions))
+
+    def test_deposit_first_order_only_when_in_place_does_not_fit(self):
+        old = gear("old", "equipped")
+        target = gear("home-target", "home")
+        arguments = dict(
+            current_pack_items=22,
+            home_scan_complete=True,
+        )
+        plan = plan_equipment_transactions(
+            (old, target),
+            Loadout((("main_hand", old),), "one_handed"),
+            Loadout((("main_hand", target),), "one_handed"),
+            **arguments,
+        )
+
+        self.assertEqual(plan.blockers, ())
+        self.assertEqual(
+            [(action.kind, action.item_id) for action in plan.actions],
+            [("takeoff", "old"), ("deposit", "old"),
+             ("withdraw", "home-target"), ("equip", "home-target")],
+        )
+        self.assertEqual(plan.peak_pack_items, 23)
+
+        # A full Home cannot free the slot first: the blocker stays visible.
+        full = plan_equipment_transactions(
+            (old, target),
+            Loadout((("main_hand", old),), "one_handed"),
+            Loadout((("main_hand", target),), "one_handed"),
+            home_deposit_available=False,
+            **arguments,
+        )
+        self.assertEqual(full.blockers, ("pack-space-required:1",))
+
+    def test_pack_blocker_remains_when_no_single_staged_step_fits(self):
+        old = gear("old", "equipped")
+        target = gear("home-target", "home")
+        plan = plan_equipment_transactions(
+            (old, target),
+            Loadout((("main_hand", old),), "one_handed"),
+            Loadout((("main_hand", target),), "one_handed"),
+            current_pack_items=23,
+            home_scan_complete=True,
+            home_deposit_available=False,
+        )
+
+        self.assertTrue(any(
+            blocker.startswith("pack-space-required:")
+            for blocker in plan.blockers
+        ))
 
     def test_cursed_changed_equipment_blocks_plan(self):
         cursed = gear("cursed", "equipped", cursed=True)
