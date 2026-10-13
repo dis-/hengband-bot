@@ -79,6 +79,17 @@ class CatcycleTest(unittest.TestCase):
                     self.assertTrue(policy._home_knowledge_scan_inflight)
                     # The old Home page and response rows followed a physical
                     # entry. Their response controls are independently tested.
+                    # What the removed tail pinned still holds outside Home:
+                    # the same registered work awaits its posted request, also
+                    # after a checkpoint restore, without a second request.
+                    if restored:
+                        policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+                    key = policy.choose_key(boards[0])
+                    self.assertEqual((key, policy.last_reason),
+                                     ("", "equipment-transaction:catalogue-await-knowledge"))
+                    self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                    self.assertIsNone(policy.decision_claim["violation"])
+                    self.assertFalse(policy._home_knowledge_current)
 
     def test_in_home_catalogue_reply_adopts_before_next_home_work(self):
         from tempfile import TemporaryDirectory
