@@ -368,6 +368,10 @@ def normalize_policy_state(restored, *, restart=False):
         register.__dict__.setdefault("_bars", [])
         register.__dict__.setdefault("_ended", [])
     restored.__dict__.setdefault("_town_turn_arbiter", None)
+    if restart:
+        restored.__dict__["_town_inn_accounting"] = None
+    else:
+        restored.__dict__.setdefault("_town_inn_accounting", None)
     # A pre-executor checkpoint: the Home visit executor is rebuilt lazily on
     # its first operation, which reports restart-refile-required instead of
     # inheriting an unknown posted visit (every reader guards None).

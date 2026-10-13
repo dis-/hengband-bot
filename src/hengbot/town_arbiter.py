@@ -472,6 +472,7 @@ class TownTurnArbiter:
         close_visit: Callable[[str, str], None] | None = None,
         retirement_key: object | None = None,
         retirement_key_for: Callable[[str], object] | None = None,
+        route_receipt=None,
     ) -> dict[str, object] | None:
         if probe:
             # A refusal observation is a read-only anti-freeze refresh.  It must
@@ -517,6 +518,12 @@ class TownTurnArbiter:
             self._transferred_visit = None
             self.telemetry = None
             return None
+        settled_owner = (route_receipt or {}).get("settled_owner")
+        if settled_owner in {"quest-request", "cross-town"}:
+            # The preceding route command's observed effect belongs to that
+            # child even when combat owns this next decision. A re-baseline
+            # never sets settled_owner and cannot renew this budget.
+            self._no_progress_by_owner[settled_owner] = 0
         if self.owner_for_reason(reason) == "survival":
             # An interrupt freezes the errand's counters and transfer history.
             # Do not retire safety, even at a repeated vector or a terminal
@@ -571,6 +578,9 @@ class TownTurnArbiter:
             self._recurrences[recurrence_key] += 1
         recurrence_limit = self.registry["detectors"].budget
         recurrent = self._recurrences[recurrence_key] >= recurrence_limit
+        bound_route = bool(route_receipt and route_receipt.get("owner") == owner)
+        if bound_route and route_receipt["qualified"]:
+            recurrent = False
         progress = (
             not terminal
             and (
@@ -580,6 +590,8 @@ class TownTurnArbiter:
             )
             and not recurrent
         )
+        if bound_route and route_receipt["progress"] is not None:
+            progress = bool(route_receipt["progress"] and not terminal and not recurrent)
         durable_progress = (
             progress
             and previous_vector is not None
@@ -675,7 +687,7 @@ class TownTurnArbiter:
 
     def may_select(
         self, reason: str, progress_vector: object, *, retirement_key=None,
-        _mutate: bool = True,
+        _mutate: bool = True, route_receipt=None,
     ) -> bool:
         """Return whether the reason's owner may acquire this town decision."""
         if _mutate and not hasattr(self, "_retired"):
@@ -693,6 +705,8 @@ class TownTurnArbiter:
         if (
             recurrences[(owner, progress_vector)]
             >= self.registry["detectors"].budget
+            and not (route_receipt and route_receipt.get("owner") == owner
+                     and route_receipt["qualified"])
         ):
             if _mutate:
                 self.retire(owner, retirement_key if retirement_key is not None else progress_vector)
@@ -717,11 +731,13 @@ class TownTurnArbiter:
         return False
 
     def preview_may_select(
-        self, reason: str, progress_vector: object, *, retirement_key=None
+        self, reason: str, progress_vector: object, *, retirement_key=None,
+        route_receipt=None,
     ) -> bool:
         """Read-only form of may_select for a candidate not yet emitted."""
         return self.may_select(
-            reason, progress_vector, retirement_key=retirement_key, _mutate=False
+            reason, progress_vector, retirement_key=retirement_key, _mutate=False,
+            route_receipt=route_receipt,
         )
 
 
