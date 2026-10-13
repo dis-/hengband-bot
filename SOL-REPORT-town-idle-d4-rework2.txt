@@ -75,8 +75,10 @@ sanctioned flips and earlier(F) test edits are unchanged from4994040e.
 No assertion was removed. The earlier(F) first request keys remain the D4
 request keys; the final run will check their later independent controls.
 Bookkeeping: router item-sink adapter predicates refreshed; gate Python3.13
-regenerates town_work_manifest.json.gz and town_work_sites.json. No new helper
-baseline/review entry is needed. All text additions are UTF-8 without BOM and
+regenerates town_work_manifest.json.gz and town_work_sites.json. The newly
+registered _home_full_knowledge_key producer's former unregistered-helper
+baseline entry is removed and its existing producer review evidence updated.
+All text additions are UTF-8 without BOM and
 source keys use escapes. Task/captures/gate-failures inputs stay untracked.
 
 Development checks: single modules/identities only (not the parallel runner):
@@ -91,3 +93,10 @@ its own verified PowerShell/Python processes were stopped. No external process
 was stopped, killed or restarted. No delegation was used.
 
 Guard outputs and final runner result lines will be appended below.
+
+First preflight at886a9de2 found bookkeeping, not an existing assertion flip:
+the now registered _home_full_knowledge_key still appeared in the unregistered
+producer baseline. Its stale entry is removed and existing review updated.
+The first result was PREFLIGHT FAIL:25 changed files,4 findings, all from that
+single baseline registration mismatch. Guards are repeated sequentially after
+committing that required bookkeeping; no source change accompanies it.

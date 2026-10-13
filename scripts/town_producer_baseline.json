@@ -358,7 +358,6 @@
   "policy_home.py:HomeMixin._home_full_discard_candidate": "pure helper: Apply retention before reclaiming a shelf slot by destruction.",
   "policy_home.py:HomeMixin._home_full_identify_carried_key": "town producer to migrate: _home_full_identify_carried_key emits legacy action keys; requires explicit ownership migration",
   "policy_home.py:HomeMixin._home_full_identify_targets": "pure helper: _home_full_identify_targets returns list[InventoryItem] used as input/observation, not an independently selected game action",
-  "policy_home.py:HomeMixin._home_full_knowledge_key": "pure helper: Reacquire changed stock through the existing observed scan owner.",
   "policy_home.py:HomeMixin._home_full_leave_key": "town producer to migrate: _home_full_leave_key emits legacy action keys; requires explicit ownership migration",
   "policy_home.py:HomeMixin._home_full_sale_candidate": "pure helper: _home_full_sale_candidate returns tuple[InventoryItem, int, int] | None used as input/observation, not an independently selected game action",
   "policy_home.py:HomeMixin._home_mana_food_candidate": "pure helper: returns an InventoryItem selected from the current Home catalogue; never emits game input",
