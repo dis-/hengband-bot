@@ -90,3 +90,14 @@ Output: `[timings] base C:\hengband-backups\suite-batches\b8f5ac67 new jsonlog\t
 This comparison used the timing file written by the second permitted
 failed-module rerun, which replaced the initial full-run timing file. No flagged tests were
 reported; no tests were remeasured. The merge gate was left running.
+
+Operator follow-up (after the implementer run)
+----------------------------------------------
+The accepted row was compared only with itself. The continuation now accepts a
+different `_shop` buy only when the pure ordinary selector (`_next_purchase` in
+the pure scope) picks the same visible row and the checked item-command
+serializer rebuilds exactly the emitted key (pure quantity). Two control tests
+were added (other row; unbuildable quantity). Single-module runs:
+tests.test_shop_uncomposable_recorded + tests.test_item_sink_lint 22 OK; fakery
+scan has no finding in the new module. Linux opening smoke (1f79a428): pass,
+78 s. The full affected set is left to the merge gate.

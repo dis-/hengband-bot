@@ -562,12 +562,17 @@ class InStoreMixin:
                    if not first else None)
             quantity = 0
             ordinary = None
+            rebuilt_key = None
             if row is not None:
                 # Same standard as a first operation: the pure ordinary
                 # selector must pick this row and rebuild this exact key.
                 with self._in_store_pure_scope():
                     ordinary = self._next_purchase(snapshot)
                     quantity = self._purchase_quantity(snapshot, row)
+                    rebuilt_key = reserved_item_command(
+                        self, snapshot, "buy", row, "shop-buy",
+                        suffix=f"{quantity}\r\r" if row.count > 1 else "\r",
+                    )
             emitted_selection = (None if row is None else {
                 "op": "buy", "letter": row.letter,
                 "identity": _row_identity(row),
@@ -580,10 +585,9 @@ class InStoreMixin:
                 and row is not None
                 and sum(item.letter == key[1:2] for item in store.items) == 1
                 and ordinary is not None
-                and ordinary.letter == row.letter
-                and _row_identity(ordinary) == _row_identity(row)
-                and key == BUY_KEY + row.letter + (
-                    f"{quantity}\r\r" if row.count > 1 else "\r")
+                and (ordinary.letter, _row_identity(ordinary))
+                == (row.letter, _row_identity(row))
+                and key == rebuilt_key
                 and emitted_conditions["page_one"]
                 and emitted_conditions["identity"]
                 and emitted_conditions["screen_on_page"]
