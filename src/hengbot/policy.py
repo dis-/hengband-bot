@@ -7855,6 +7855,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._home_full_retry_deposits is None
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
+            and not (
+                self._equipment_transaction_session is not None
+                and self._equipment_transaction_session.current_action is not None
+                and self._equipment_transaction_session.required_context == "outside_home"
+            )
             and not self._defer_town_errand("equipment-txn", "acquire-home-catalog")
         ):
             here = snapshot.grid_at(snapshot.player.position)
@@ -11389,6 +11394,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._home_entry_operation_posted
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
+            and not (
+                self._equipment_transaction_session is not None
+                and self._equipment_transaction_session.current_action is not None
+                and self._equipment_transaction_session.required_context == "outside_home"
+            )
             and not self._defer_town_errand("equipment-txn", "acquire-home-catalog")
             and self._ensure_home_visit_request(snapshot)
         ):
