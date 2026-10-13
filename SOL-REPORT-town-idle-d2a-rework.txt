@@ -1,0 +1,112 @@
+PLAN-STEP: 3 / ISSUE #1 - D2a rework
+Branch: town-idle-d2a-1013; starting HEAD: 5bef1808; guard base: 69aaf659.
+No game/bot control, process termination, push, merge, reset, game-data copy or collaborators.
+
+Classification and replay evidence
+----------------------------------
+PLAN-STEP: 3 / ISSUE #1 - pre-edit diagnosis (HEAD 5bef1808)
+
+R: tests/test_equipment_home_full_incident_recorded.py:160, test_full_home_ends_transaction_deposit_with_visible_reason.
+The first choose_key on the recorded full page closes the deposit with equipment-transaction:deposit-home-full. The following outside decision incorrectly restarts equipment catalogue work. policy.py:7888 offers the request before the old Home route checks the full-Home block. Missing conditions: applicable Home block, visit transaction closure and equipment deposit tombstone. Step 1.5a forbids this restart.
+
+R: tests/test_ammo_surplus.py:92, test_captured_inferior_stack_routes_to_home.
+Replayed decision 17 starts catalogue work and decisions 18 onward await with an empty key. At 17 HomeVisitRequest is DEPOSIT / home-deposit, quantity 9, item identity the surplus bolt stack. No atomic operation is pending yet, but physical Home work is filed. Missing condition: a filed physical Home request (and the derived deposit), not merely _town_space_deposit_actionable. policy.py:7888 and :11443, policy_shop.py:5333/5669, policy_quest.py:419.
+
+F: tests/test_margin_ratio_home_withdraw_divergence_recorded.py:66, test_the_board_is_the_recorded_home_withdraw.
+F: tests/test_home_withdraw_failed_stock_present_recorded.py:482, test_replay_reproduces_the_process_before_equipment_choice.
+F: tests/test_home_withdraw_failed_stock_present_recorded.py:282, test_shield_and_weapon_survival_terms_on_first_changed_board.
+F: tests/test_home_withdraw_failed_stock_present_recorded.py:496, test_the_take_shortened_the_prefix_past_the_shovel.
+F: tests/test_home_withdraw_failed_stock_present_recorded.py:515, test_w1_confirming_board_rescans_instead_of_deferring.
+F: tests/test_home_withdraw_failed_stock_present_recorded.py:544, test_w1_after_the_rescan_the_shovels_are_taken.
+These six assertions share the same earliest changed decision: index 2 (decision 3), turn 5550756, position (45,123). Unchanged prefix: ~f\x1b / periodic:skill-exp-knowledge; \x1b / home:scan-incomplete-open-page. Old index 2: 5 / equipment-transaction:travel-home:await-entry. Current: HOME_KNOWLEDGE_MACRO (~9\x1b) / equipment-transaction:catalogue-request-knowledge (policy.py:7888).
+At that decision, pending item=None, batch=[], session=None, required context=None, atomic take/deposit=None, Home-entry operation not posted, Home request=None, procurement probe=None, errand request=None, derived deposit=None, Home not blocked, closure=None, tombstone=False, relief=None. This is catalogue-only; subsequent historical pages are counterfactual responses to the replaced command.
+Independent current-code attachment to the captured complete Home catalogue/page at index 4, with its captured skill values, preserves the business: index 4 emits ESC / home:queue-catalogue-shortage and index 5 emits 5pb1\r\x1b / home:atomic-withdraw. This is a single attached town visit. Later scroll confirmation and shovel controls must be attached to this independent Home control, and retain their original assertions. At index 33 there IS named take/batch work and a WITHDRAW request, so its route must be preserved by the regression guard (not flipped again).
+Evidence: diagnostic runtime rows in gate-failures/diag-withdraw.txt, diag-prefix.txt and diag-attach.txt. The new tracked controls will use only the original tracked fixture, not these diagnostic files.
+
+R: tests/test_unaffordable_claim_tour_recorded.py:719, test_s2a1_observe_goals_complete_on_their_confirmed_effect.
+At decision/index 2655, turn 4393048, position (45,123), the new in-place request runs at policy.py:11443 (the approach branch). The current request is SCAN, but HomeVisitExecutor.queued contains an EQUIPMENT_MUTATION / equipment-transaction request to deposit the (+2) ring, including its shelving_plan and keep_set. StoreVisit is Home/APPROACHING; no operation has been posted yet. This is not catalogue-only: physical Home work is already queued for the same visit. The subsequent historical rows 2656..2661 are therefore not a sanctioned flip. Missing condition: queued physical Home requests, not just the current scan request or the current session action. Diagnostic evidence: gate-failures/diag-tour-boundary.txt. Keep the test and its expected five home-knowledge-current completions unchanged.
+
+Summary: 3 R, 6 F, 0 undecided. The F controls independently attach to the captured complete Home page at index 4, rather than continue the changed index-2 command. Current code there sends ESC / home:queue-catalogue-shortage, then 5pb1\r\x1b / home:atomic-withdraw; the same attached visit subsequently confirms the scroll take and takes the shovel after its fresh rescan. Single-module run: all six withdrawal tests PASS and both margin-ratio tests PASS. Full-Home closure module PASS. Source and test edits follow this pre-edit diagnosis; the queued-work classification is now resolved before editing that source condition.
+
+Source fixes and pins
+--------------------
+policy.py: _equipment_catalogue_only is the common pure predicate for BOTH acquisition branches and for _home_catalogue_work_key's new outside start. It preserves the D1 outside-equipment guards and excludes: applicable blocked Home, equipment transaction visit closure, equipment deposit tombstone, Home-full relief/retry, named pending/batched take, atomic take/deposit, posted Home entry operation, any current session action, an unreleased posted Home StoreVisit operation, current or queued physical HomeVisit requests, HomeVisit defect/entry-pending/cooldown/exhausted budget, failed Home entry and concrete town block. The derived Home request must itself be SCAN, so a retained physical deposit cannot slip through the narrower town-space predicate. The first acquisition also files/checks the old Home request before offering knowledge, retaining route refusal semantics; the second has already checked that route.
+No new state attributes, reason setters, producer rungs, owners, owner priorities or retirement behavior. Existing catalogue holder/request-loss/settlement behavior remains; posted catalogue requests still await without movement/repost. Physical branches keep the original approach code.
+Pins: unchanged full-Home incident and ammo-surplus modules cover the two observed regressions. The unchanged tour Observe-closure test covers queued physical Home work. New Live23HomeCycleTest.test_new_catalogue_start_refuses_physical_or_closed_home_work covers fresh starts for blocked/closed/tombstoned work, named/batched takes, posted operations, current/queued physical requests, session deposit and unavailable routes. Existing constructed R3 request/await/restore and captured D1 controls remain unchanged.
+The pure helper is recorded in town_producer_baseline.json and town_work_review.json. The short-circuit acquisition result distinguishes a refused boolean gate from a string command (including an empty-string await); the producer census follows that return dependency and includes the new predicate as reviewed data. The newly exposed existing _ensure_home_visit_request and HomeVisitExecutor.begin_approach adapters are also classified as bounded state/filing adapters without commands or independent credit. Manifest/sites regenerated after the last source edit.
+
+Edited existing tests: old -> new (no assertion deleted without control)
+-----------------------------------------------------------------------
+Rework edits:
+- tests/test_home_withdraw_failed_stock_present_recorded.py::test_replay_reproduces_the_process_before_equipment_choice: historical decisions [:5] equality -> unchanged [:2] equality plus exact decision-2 HOME_KNOWLEDGE_MACRO/catalogue-request-knowledge assertion and no pending take/session/atomic work assertions. Sequential prefix ends there. The independently attached Home visit explicitly retains decision-5 5pb1\r\x1b/home:atomic-withdraw.
+- Replacement response control ::test_attached_partial_page_keeps_request_response_and_shortage_controls independently attaches the recorded partial Home page to a physically registered Home visit, then asserts the original decision-3 request and decision-4 shortage keys/reasons, complete catalogue adoption and a queued item. It also asserts decision 4 on the complete-page attachment. Thus neither removed historical suffix key assertion is lost.
+- Same module ::test_shield_and_weapon_survival_terms_on_first_changed_board: sequential 0..5 setup -> independently attached captured full Home catalogue/page at 4..5. Exact withdraw command, all combat/HP/AC/survival/offense/calibration checks unchanged.
+- Same module ::test_the_take_shortened_the_prefix_past_the_shovel: shared 0..33 setup -> independently attached 4..33 visit. Every signature/index/prefix/knowledge/pending/batch/catalogue assertion unchanged.
+- Same module ::test_w1_confirming_board_rescans_instead_of_deferring: same independent setup replacement. Exact decision-33 shop:travel:await-entry, invalidation, no-deferral, no-failure and queued-Home-work assertions unchanged. This decision has physical work and MUST NOT flip to catalogue-only.
+- Same module ::test_w1_after_the_rescan_the_shovels_are_taken: same independent setup replacement. Fresh rescan continuation and all exact selected-signature/page/letter/quantity/key/reason/no-deferral/no-failure assertions unchanged.
+- tests/test_margin_ratio_home_withdraw_divergence_recorded.py::test_the_board_is_the_recorded_home_withdraw and ::test_the_ratio_drops_the_shield_for_two_handed_avabia: shared sequential 0..5 setup -> independently attached full Home catalogue/page at 4..5; withdraw command and every ratio/loadout/metrics assertion unchanged.
+The independent attachment reads only original tracked fixtures. It supplies the recorded complete Home list and skill list through public consumers, primes the separately attached Home observation, and retains the archived decision counter so the existing executor operation-identity bindings align. It does not install a completed subject or bypass any producer.
+
+Inherited D2a edits since guard base 69aaf659 (unchanged by this rework):
+- test_live23_home_cycle.py::test_recorded_entry_completes_catalogue_before_other_errand, ::test_historical_competing_actor_names_registered_holder_in_shadow, ::test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw, ::test_recorded_off_scan_continues_registered_catalogue: first catalogue-only old Home step/5 + travel-home:await-entry -> HOME_KNOWLEDGE_MACRO + catalogue-request-knowledge; later page/response controls independently attached, earlier prefix and fixture facts preserved.
+- test_catcycle.py::test_partial_home_requests_catalogue_before_other_errands: same first-key flip and independent later-page controls.
+- test_ownership_s2b1_ladder.py::test_the_decide_rungs_are_the_marked_calls_in_order: inherited D2a registration changes 79 -> 80 rungs and asserts the equipment catalogue producer immediately before its Home approach; unchanged by this rework.
+The three regression tests are untouched. No historical fixture/fact rewritten. Undecided failures: none.
+
+Development single-module results
+---------------------------------
+PASS: equipment_home_full_incident_recorded (2), ammo_surplus (4), home_withdraw_failed_stock_present_recorded (6), margin_ratio_home_withdraw_divergence_recorded (2), live23_home_cycle (10), catcycle (4), ownership_s2b1_ladder (52).
+PASS: unaffordable_claim_tour_recorded (8; 809.303s), item_sink_lint (18).
+The first fakery-lint run detected one stale allowance comment on the archive counter (the scanner did not classify that assignment as an injection). Removed the needless allowance; required final hygiene run will verify it.
+
+Mandatory fast checks and final run
+----------------------------------
+The first preflight found the new pure predicate was absent from the producer census, making its required baseline entry stale. The acquisition result now exposes the predicate as a return dependency while distinguishing False/None from string commands, including empty-string awaits. This preserves behavior and permits the baseline/review inventory to cover the helper. Exact final outputs and final run lines are appended after execution.
+
+Certified preflight (after source commit 79072811; tested HEAD 145d635a)
+python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\town-idle-d2a 69aaf659
+[preflight] NOTE existing-test MODIFIED: tests/test_catcycle.py::CatcycleTest.test_partial_home_requests_catalogue_before_other_errands
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_replay_reproduces_the_process_before_equipment_choice
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_historical_competing_actor_names_registered_holder_in_shadow
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_recorded_entry_completes_catalogue_before_other_errand
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_recorded_off_scan_continues_registered_catalogue
+[preflight] NOTE existing-test MODIFIED: tests/test_live23_home_cycle.py::Live23HomeCycleTest.test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw
+[preflight] NOTE existing-test MODIFIED: tests/test_ownership_s2b1_ladder.py::LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order
+[preflight] PREFLIGHT OK: 15 changed files, 0 findings (town-idle-d2a vs 69aaf659)
+
+Final development response-control run: tests.test_home_withdraw_failed_stock_present_recorded - 7 tests, 88.113s, OK. Both old suffix key assertions (indices 3 and 4) now have explicit independent controls.
+
+Certified mutation check (HEAD 145d635a)
+python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\town-idle-d2a 69aaf659 --record
+[mutation] 6 source hunks, tests: tests.test_catcycle tests.test_home_withdraw_failed_stock_present_recorded tests.test_live23_home_cycle tests.test_margin_ratio_home_withdraw_divergence_recorded tests.test_ownership_s2b1_ladder
+[mutation] caught     src/hengbot/claim_ladder.py:308 (# Step 3 D2a (2026-10-13): catalogue-only work asks the knowledge scre): test_the_decide_rungs_are_the_marked_calls_in_order
+[mutation] caught     src/hengbot/policy.py:6817 (def _equipment_catalogue_only(self, snapshot: Snapshot) -> bool:): test_partial_home_requests_catalogue_before_other_errands, test_attached_partial_page_keeps_request_response_and_shortage_controls, test_replay_reproduces_the_p
+[mutation] caught     src/hengbot/policy.py:6899 (# The outside request may be in flight before the equipment): test_constructed_r3_catalogue_request_stays_outside_while_inflight
+[mutation] caught     src/hengbot/policy.py:7079 (catalogue_request = (): test_partial_home_requests_catalogue_before_other_errands
+[mutation] caught     src/hengbot/policy.py:7923 (catalogue_key = (self._equipment_catalogue_only(snapshot)): test_replay_reproduces_the_process_before_equipment_choice, test_constructed_r3_catalogue_request_stays_outside_while_inflight, test_historical_competing_actor_
+[mutation] caught     src/hengbot/policy.py:11477 (catalogue_key = (self._equipment_catalogue_only(snapshot)): test_partial_home_requests_catalogue_before_other_errands, test_constructed_r3_catalogue_request_stays_outside_while_inflight, test_the_decide_rungs_are_the_mar
+[mutation] MUTATION OK: 0 of 6 hunks are not pinned by a test
+[mutation] recorded for 145d635a
+
+
+Required final run (ONCE; 40 unique modules)
+------------------------------------------
+Tested HEAD: 145d635a; last source commit: 79072811.
+PYTHONPATH=src python scripts/test_parallel_runner.py --workers 2 --modules tests.test_absorbing_states tests.test_ammo_surplus tests.test_calibration_crlf_dump_recorded tests.test_catcycle tests.test_cli tests.test_crossarea_live2 tests.test_declarations_r5 tests.test_declarations_r7 tests.test_equipment_alternation_recorded tests.test_equipment_home_full_incident_recorded tests.test_equipment_homefull_step15a tests.test_home_catalogue_response_in_store tests.test_home_knowledge_scan tests.test_home_withdraw_failed_stock_present_recorded tests.test_home_withdraw_moved_address tests.test_item_sink_lint tests.test_live23_home_cycle tests.test_margin_ratio_home_withdraw_divergence_recorded tests.test_margin_ratio_tour_divergence_recorded tests.test_newchar_light_churn_recorded tests.test_ownership_s2a1_closure tests.test_ownership_s2a_classification tests.test_ownership_s2b1_ladder tests.test_ownership_s3a_record tests.test_policy_equipment tests.test_policy_home tests.test_policy_shop tests.test_policy_supply tests.test_policy_town tests.test_quest34_target_dead_recorded tests.test_runtime_file_isolation tests.test_s33_shadow_zero tests.test_test_fakery_lint tests.test_town_arbiter tests.test_town_cure_supplier_recorded tests.test_town_latency_caches tests.test_town_structure_lint tests.test_town_work_contract tests.test_unaffordable_claim_tour_recorded tests.test_xbow_pref_recorded_divergence
+
+worker-1: 822 tests, 2060.998s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-nynq_2i7\worker-1\home-history
+worker-2: 1147 tests, 3079.166s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-nynq_2i7\worker-2\home-history
+worker-3: 247 tests, 519.360s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-nynq_2i7\worker-3\home-history
+Failures: none
+Errors: none
+purity: ran (inputs sha256=12ea0f79186db651850a35eafdc92f543036f89af11f77528b2392e245f88668)
+weights: source=C:\hengband\bot-client\.worktrees\town-idle-d2a\jsonlog\test-parallel-timings.json; age=0.2d; fallback=11/38; stale=yes
+Total: 2216 tests, 3079.205s; output: C:\hengband\bot-client\.worktrees\town-idle-d2a\jsonlog\test-parallel-timings.json
+Receipt: C:\hengband\bot-client\.worktrees\town-idle-d2a\jsonlog\receipts\test_parallel_runner-full-20261013T194109+0900.json; sha256: f013fb0f4d046d204afead9056113ad73472187a5f33103c35cd7b7e9bb82df1
+
+Launcher exit: 0; wall time: 3082.394s (51.37 minutes, within 75 minutes).
+Verified receipt: all 40 requested/affected modules are present, 2216 tests, all three shards exit 0, failures/errors empty, receipt SHA256 matches the runner line.
+No failed-module retry was needed. No source file changed after the final run or after the certified fast checks. Only the report and diagnosis text are updated for the final commit.
+Undecided work: none. All nine original failures are addressed (3 regressions, 6 sanctioned flips). Historical fixture facts and outcome assertions are preserved.
+Task inputs/captures/gate-failure files remain untracked; no push, merge or game/bot/process control was performed.

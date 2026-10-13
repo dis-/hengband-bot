@@ -150,7 +150,6 @@
   "policy.py:HengbotPolicy._food_ready": "pure helper: _food_ready returns bool used as input/observation, not an independently selected game action",
   "policy.py:HengbotPolicy._has_charged_stone_to_mud": "pure helper: _has_charged_stone_to_mud returns bool used as input/observation, not an independently selected game action",
   "policy.py:HengbotPolicy._healing_potion_effective_hp": "pure helper: _healing_potion_effective_hp returns int used as input/observation, not an independently selected game action",
-  "policy.py:HengbotPolicy._home_catalogue_work_key": "town producer to migrate: Advance registered catalogue work before a later Home errand.",
   "policy.py:HengbotPolicy._home_tail_leave_continuation": "town producer to migrate: Continue the bound Home exit while its posted effect is unresolved.",
   "policy.py:HengbotPolicy._identify_staff_stockout_key": "town producer to migrate: Pass one Yeek Cave 1F mining run, then retry Home and Magic.",
   "policy.py:HengbotPolicy._immediate_quest_targets": "pure helper: Return visible targets that must preempt the current quest phase.",
@@ -668,5 +667,8 @@
   "policy_instore.py:InStoreMixin._in_store_required_operation_stop": "delegated adapter: publishes the existing town blocked terminal after a required store operation cannot fit its current entry budget.",
   "policy_shop.py:ShopMixin._departure_blocking_page_operation": "pure helper: returns required page-operation facts for Home relief and IST selection; emits no command.",
   "policy_town.py:TownMixin._town_inn_route_receipt": "pure helper: previews and settles process-local observed INN route evidence; emits no command.",
-  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command."
+  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command.",
+  "policy.py:HengbotPolicy._equipment_catalogue_only": "pure helper: tests whether catalogue acquisition has no physical or closed Home work; no command or progress credit",
+  "policy_home.py:HomeMixin._ensure_home_visit_request": "delegated adapter: file/check the existing bounded HomeVisit request and return route availability; no keyboard command or independent progress credit",
+  "home_visit.py:HomeVisitExecutor.begin_approach": "delegated adapter: advance the existing HomeVisit approach state under its attempt bound; returns bool and emits no keyboard command"
 }

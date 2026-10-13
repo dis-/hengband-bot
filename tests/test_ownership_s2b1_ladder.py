@@ -298,7 +298,18 @@ class LadderOrderTest(unittest.TestCase):
         # follow retirement of the strip-calibration rung: 75 + 2; the
         # item-destroying breeder leave rung (2026-10-07) makes 78;
         # Step 1.5b's separately owned surplus disposal producer makes 79.
-        self.assertEqual(len(decide_rungs()), 79)
+        # Step 3 D2a's in-place catalogue request (same owner, directly
+        # before the Home approach it replaces for catalogue-only work): 80.
+        self.assertEqual(len(decide_rungs()), 80)
+        approach = next(
+            index for index, rung in enumerate(decide_rungs())
+            if rung.producer == "_shopping_approach_key"
+            and rung.family == "equipment-txn"
+        )
+        self.assertEqual(
+            (decide_rungs()[approach - 1].producer, decide_rungs()[approach - 1].family),
+            ("_home_catalogue_work_key", "equipment-txn"),
+        )
         self.assertEqual(decide_rungs()[0].producer, "_home_errand_knowledge_key")
         for reason in ("home-errand:request-knowledge:full-home-sale",
                        "home-errand:await-fresh-knowledge:full-home-sale"):

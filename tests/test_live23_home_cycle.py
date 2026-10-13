@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
 import tests  # noqa: F401 -- protect live runtime files
-from hengbot.model import parse_snapshot
+from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_HOME, Position, parse_snapshot
 from hengbot.cli import _dispatch_response_lines
 from hengbot.policy import HengbotPolicy
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
@@ -102,32 +102,165 @@ class Live23HomeCycleTest(unittest.TestCase):
             for restored in (False, True):
                 with self.subTest(enforced=enforced, crossarea=crossarea, restored=restored):
                     policy, boards = attachment(enforced, crossarea)
-                    self.assertEqual(policy.choose_key(boards[0]), "5")
-                    self.assertEqual(policy.last_reason, "equipment-transaction:travel-home:await-entry")
+                    key = policy.choose_key(boards[0])
+                    self.assertEqual((key, policy.last_reason), (
+                        HOME_KNOWLEDGE_MACRO,
+                        "equipment-transaction:catalogue-request-knowledge"))
                     holder_id = policy._claim_register.current.claim_id
-                    policy.confirm_key_posted("5")
+                    policy.confirm_key_posted(key)
                     if restored:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-                    # This page really follows the unchanged recorded 5.
-                    key = policy.choose_key(boards[1])
-                    self.assertEqual(key, "\x1b")
-                    self.assertEqual(policy.last_reason, "equipment-transaction:home-catalog-acquired")
-                    self.assertTrue(policy._home_knowledge_current)
-                    self.assertFalse(policy._home_knowledge_invalidated)
-                    self.assertEqual(len(policy._home_knowledge_items), 24)
-                    closed = policy.decision_claim["closed_claim"]
-                    self.assertEqual(closed["claim_id"], holder_id)
-                    self.assertEqual(closed["closed_reason"], "home-knowledge-current")
-                    self.assertIsNone(policy._home_pending_item)
-                    # Stop here: no historical board is claimed to follow a
-                    # changed purpose or a future equipment optimization.
+                    key = policy.choose_key(boards[0])
+                    self.assertEqual((key, policy.last_reason), (
+                        "", "equipment-transaction:catalogue-await-knowledge"))
+                    self.assertEqual(policy.decision_claim["claim_id"], holder_id)
+                    self.assertTrue(policy._home_knowledge_scan_inflight)
+                    # The old page/entry response belonged to a posted Home
+                    # walk. Its adoption controls remain independently
+                    # attached in the partial-page response test above.
+
+    def test_constructed_r3_catalogue_request_stays_outside_while_inflight(self):
+        policy, boards = attachment()
+        outside = replace(boards[0], player=replace(
+            boards[0].player, position=Position(31, 99)))
+        self.assertTrue(outside.in_town)
+        self.assertEqual(outside.player.position, Position(31, 99))
+        self.assertEqual(outside.player.class_id, PLAYER_CLASS_WARRIOR)
+        self.assertGreaterEqual(len(outside.inventory), 19)
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
+
+        key = policy.choose_key(outside)
+        self.assertEqual((key, policy.last_reason), (
+            HOME_KNOWLEDGE_MACRO,
+            "equipment-transaction:catalogue-request-knowledge"))
+        policy.confirm_key_posted(key)
+        request_epoch = policy._home_knowledge_scan_epoch
+
+        key = policy.choose_key(outside)
+        self.assertEqual((key, policy.last_reason), (
+            "", "equipment-transaction:catalogue-await-knowledge"))
+        self.assertEqual(policy._home_knowledge_scan_epoch, request_epoch)
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+        self.assertEqual(outside.player.position, Position(31, 99))
+
+        # The second acquisition branch starts from a mapped non-Home town
+        # tile, so the first branch's entrance-cell predicate is false.
+        second_policy, second_boards = attachment()
+        second_outside = replace(second_boards[0], player=replace(
+            second_boards[0].player, position=Position(37, 91)))
+        self.assertTrue(second_outside.in_town)
+        self.assertNotEqual(
+            second_outside.grid_at(second_outside.player.position).store_number,
+            STORE_HOME,
+        )
+        key = second_policy.choose_key(second_outside)
+        self.assertEqual((key, second_policy.last_reason), (
+            HOME_KNOWLEDGE_MACRO,
+            "equipment-transaction:catalogue-request-knowledge"))
+        second_policy.confirm_key_posted(key)
+        key = second_policy.choose_key(second_outside)
+        self.assertEqual((key, second_policy.last_reason), (
+            "", "equipment-transaction:catalogue-await-knowledge"))
+        self.assertEqual(second_outside.player.position, Position(37, 91))
+
+        # A posted scan can also predate the registered equipment holder.
+        waiting_policy, waiting_boards = attachment()
+        waiting_outside = replace(waiting_boards[0], player=replace(
+            waiting_boards[0].player, position=Position(31, 99)))
+        waiting_policy._offer_home_knowledge_request(producer="home-scan")
+        waiting_policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
+        request_epoch = waiting_policy._home_knowledge_scan_epoch
+        self.assertIsNone(waiting_policy._home_catalogue_work_holder())
+
+        key = waiting_policy.choose_key(waiting_outside)
+        self.assertEqual((key, waiting_policy.last_reason), (
+            "", "equipment-transaction:catalogue-await-knowledge"))
+        self.assertEqual(waiting_policy._home_knowledge_scan_epoch, request_epoch)
+        self.assertTrue(waiting_policy._home_knowledge_scan_inflight)
+        self.assertEqual(waiting_outside.player.position, Position(31, 99))
+
+    def test_new_catalogue_start_refuses_physical_or_closed_home_work(self):
+        from hengbot.home_visit import HomeVisitKind, HomeVisitRequest, HomeVisitState
+        from hengbot.policy_types import StoreVisit, StoreVisitPhase
+        from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
+        from hengbot.equipment_transaction_planner import (
+            EquipmentTransaction, EquipmentTransactionPlan, PHASE_HOME_FINALIZE)
+        from hengbot.equipment_transaction_session import EquipmentTransactionSession
+
+        # DECLARED CONSTRUCTED controls: attach each existing Home obligation
+        # independently to the tracked outside board, before a scan is posted.
+        cases = ("blocked", "closure", "tombstone", "take", "batch",
+                 "entry-operation", "posted-store-operation", "filed-deposit",
+                 "session-deposit", "queued-deposit", "route-defect", "entry-failed", "town-blocked", "entry-pending", "route-cooldown",
+                 "route-budget")
+        for case in cases:
+            with self.subTest(case=case):
+                policy, boards = attachment()
+                board = boards[0]
+                signature = policy._item_signature(board.inventory[0])
+                if case == "blocked":
+                    policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+                elif case == "closure":
+                    policy._equipment_transaction_visit_closure = {
+                        "reason": "pack-space-home-full"}
+                elif case == "tombstone":
+                    policy._mark_equipment_home_full_unavailable(board)
+                elif case == "take":
+                    policy._home_pending_item = signature
+                elif case == "batch":
+                    policy._home_pending_batch.append(signature)
+                elif case == "entry-operation":
+                    policy._home_entry_operation_posted = True
+                elif case == "posted-store-operation":
+                    policy._store_visit = StoreVisit(
+                        "home-visit", "deposit", STORE_HOME,
+                        StoreVisitPhase.OPERATING, operation_posted=True,
+                        operation_key="da")
+                elif case == "filed-deposit":
+                    policy._home_visit.file(HomeVisitRequest(
+                        HomeVisitKind.DEPOSIT, "home-deposit", signature))
+                elif case == "queued-deposit":
+                    policy._home_visit.file(HomeVisitRequest(
+                        HomeVisitKind.SCAN, "home-scan"))
+                    policy._home_visit.file(HomeVisitRequest(
+                        HomeVisitKind.DEPOSIT, "home-deposit", signature))
+                elif case == "session-deposit":
+                    target = next(item for item in board.inventory if item.is_equipment)
+                    action = EquipmentTransaction(
+                        PHASE_HOME_FINALIZE, "deposit", "pack:constructed:0", None,
+                        equipment_identity(target), equipment_move_identity(target))
+                    policy._equipment_transaction_session = EquipmentTransactionSession(
+                        EquipmentTransactionPlan((action,), (), 0), physical_context="home")
+                elif case == "route-defect":
+                    policy._home_visit.state = HomeVisitState.DEFECT
+                elif case == "entry-pending":
+                    policy._home_visit.state = HomeVisitState.ENTRY_PENDING
+                elif case == "route-cooldown":
+                    policy._home_visit.semantic_churn_cooldown = True
+                elif case == "route-budget":
+                    policy._home_visit.attempts_used = policy._home_visit.attempt_limit
+                elif case == "entry-failed":
+                    policy._store_entry_failed_owner = STORE_HOME
+                elif case == "town-blocked":
+                    policy._town_blocked_reason = "home-withdraw-failed-stock-present"
+                reason = policy.last_reason
+                self.assertIsNone(policy._home_catalogue_work_key(board))
+                self.assertEqual(policy.last_reason, reason)
+                self.assertFalse(policy._home_knowledge_scan_inflight)
+                self.assertIsNone(policy._home_catalogue_work_holder())
 
     def test_historical_competing_actor_names_registered_holder_in_shadow(self):
         for restored in (False, True):
             policy, boards = attachment()
-            self.assertEqual(policy.choose_key(boards[0]), "5")
+            key = policy.choose_key(boards[0])
+            self.assertEqual((key, policy.last_reason), (
+                HOME_KNOWLEDGE_MACRO,
+                "equipment-transaction:catalogue-request-knowledge"))
             holder_id = policy._claim_register.current.claim_id
-            policy.confirm_key_posted("5")
+            policy.confirm_key_posted(key)
             if restored:
                 policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
             # Independent shadow adjudication of the captured bad producer
@@ -155,8 +288,11 @@ class Live23HomeCycleTest(unittest.TestCase):
     def test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw(self):
         for enforced, crossarea in ((False, True), (True, False)):
             policy, boards = attachment(enforced, crossarea)
-            self.assertEqual(policy.choose_key(boards[0]), "5")
-            policy.confirm_key_posted("5")
+            key = policy.choose_key(boards[0])
+            self.assertEqual((key, policy.last_reason), (
+                HOME_KNOWLEDGE_MACRO,
+                "equipment-transaction:catalogue-request-knowledge"))
+            policy.confirm_key_posted(key)
             policy._fundraising_mode = "prepare"  # supplemental competing need
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
             self.assertIsNone(policy._queue_standing_home_digger(boards[1]))
@@ -193,32 +329,33 @@ class Live23HomeCycleTest(unittest.TestCase):
                 policy = _policy(directory, Capture.monrace)
                 policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
                 for index in range(5):
-                    if restored and index == 3:
+                    if restored and index == 2:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
                     _, boards = _consume_response_sequence(
                         Capture._board_lines(index), policy, lambda _key: True,
                         Capture.monrace, knowledge_ledger_path=directory / "knowledge.jsonl")
                     key = policy.choose_key(boards[-1])
                     historical = Capture.recorded[index]
-                    self.assertEqual((str(key), policy.last_reason),
-                                     (historical["key"], historical["reason"]))
+                    if index < 2:
+                        self.assertEqual((str(key), policy.last_reason),
+                                         (historical["key"], historical["reason"]))
                     if index == 2:
-                        holder_id = policy._claim_register.current.claim_id
-                    if index == 3:
+                        self.assertEqual((key, policy.last_reason), (
+                            HOME_KNOWLEDGE_MACRO,
+                            "equipment-transaction:catalogue-request-knowledge"))
                         self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                        holder_id = policy._claim_register.current.claim_id
                         self.assertEqual(policy.decision_claim["claim_id"], holder_id)
                         self.assertIsNone(policy.decision_claim["violation"])
                         self.assertEqual(policy._claim_register.current.execution.work_id,
                                          "equipment:acquire-home-catalog")
                         self.assertEqual(policy._claim_register.current.execution.continuation,
                                          "home.catalogue.acquire")
-                    if index == 4:
-                        closed = policy.decision_claim["closed_claim"]
-                        self.assertEqual(closed["claim_id"], holder_id)
-                        self.assertEqual(closed["closed"], "complete")
-                        self.assertEqual(closed["closed_reason"], "home-knowledge-current")
-                        self.assertTrue(policy._home_knowledge_current)
                     policy.confirm_key_posted(key)
+                    if index == 2:
+                        # Later recorded response rows followed the old walk;
+                        # response adoption is attached in independent checks.
+                        break
 
     def test_restored_legacy_entry_declaration_still_requires_catalogue_evidence(self):
         policy, boards = attachment()

@@ -39,11 +39,11 @@ class MarginRatioHomeWithdrawDivergenceRecordedTest(unittest.TestCase):
         replay = withdraw.HomeWithdrawFailedStockPresentRecordedTest
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
-            policy = _policy(directory, replay.monrace)
-            policy._character_calibration_path.write_bytes(
-                withdraw.CALIBRATION.read_bytes())
-            cls.rows = []
-            for index in range(6):
+            # Independent Home attachment after the changed outside request;
+            # this page is not a response to the old entrance command.
+            policy = replay._attached_home_policy(directory)
+            cls.rows = [None] * 4
+            for index in range(4, 6):
                 _decoded, snapshots = _consume_response_sequence(
                     replay._board_lines(index), policy, lambda _key: True,
                     replay.monrace,
