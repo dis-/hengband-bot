@@ -516,7 +516,9 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
                  if route_method is not None and goal is not None and snapshot.store is None
                  else None)
         if route is not None and not (inn_receipt and (
-                inn_receipt["owner"] is not None or inn_receipt.get("settled_owner") is not None)):
+                inn_receipt["owner"] is not None or inn_receipt.get("settled_owner") is not None
+                or (owner == "equipment-txn"
+                    and owner in inn_receipt.get("route_owners", ())))):
             target = (visit, route.target)
             rank = route.remaining_edges
             minimum = state["routes"].get(target)

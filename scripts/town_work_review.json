@@ -10552,10 +10552,32 @@
     "rows": [
       "data/no-independent-credit"
     ],
-    "context": "Bound Q2 teleport and cross-town shopping INN transport only.",
+    "context": "Bound Q2 and cross-town shopping INN routes plus physical equipment Home children.",
     "evidence": "pure helper: read-only preview and once-per-decision settlement of observed legal route edges and externally caused resumption baselines.",
     "admission": "existing final policy emission",
     "observer": "shared INN receipt consumed by arbiter and CLI; baseline grants no credit",
     "delegation": "retained child; no independent command"
+  },
+  "policy_town.py:TownMixin._town_equipment_home_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Physical equipment transaction Home child only; catalogue excluded.",
+    "evidence": "pure helper: reads current Home action, fixed goal and existing visit refusal facts.",
+    "admission": "existing final policy emission",
+    "observer": "shared route receipt consumed by arbiter and CLI",
+    "delegation": "retained child; no independent command"
+  },
+  "policy_town.py:TownMixin._town_entrance_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Observed entrance topology for the existing map routes.",
+    "evidence": "pure helper: retains observed town entrances and static map entrance cells; returns cells only.",
+    "admission": "existing map observer",
+    "observer": "legal BFS topology; no independent progress",
+    "delegation": "map facts; no command"
   }
 }
