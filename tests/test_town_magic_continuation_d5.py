@@ -149,10 +149,17 @@ class MagicContinuationTest(unittest.TestCase):
         outside = replace(snapshot, store=None,
                           player=replace(snapshot.player, position=Position(37, 91)))
         visit = policy._store_visit
-        for attempt in range(9):
-            policy.choose_key(replace(outside, turn=snapshot.turn + attempt + 1))
+        self.assertEqual(policy.choose_key(replace(outside, turn=snapshot.turn + 1)),
+                         '\x1b`n&.')
+        arbiter = policy._town_turn_arbiter
+        vector = arbiter._vector_by_owner['store-router']
+        # Isolate the existing accounting bound after a real route selection.
+        # These eight observations deliberately prove no further route progress;
+        # they are not a sequential replay of unapplied movement commands.
+        for attempt in range(1, 9):
+            arbiter.observe(in_town=True, reason='shop:travel', progress_vector=vector)
             self.assertIs(policy._store_visit, visit)
-            telemetry = policy._town_turn_arbiter.telemetry
+            telemetry = arbiter.telemetry
             self.assertEqual(telemetry['budget_remaining_estimate'], 8 - attempt)
             self.assertEqual(telemetry['would_retire'], attempt == 8)
 
