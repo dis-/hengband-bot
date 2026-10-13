@@ -489,6 +489,13 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
     record = current_record(policy, key)
     minimum_before = None
     minimum_after = None
+    inn_state = getattr(policy, "_town_inn_accounting", None)
+    inn_receipt = (inn_state["receipt"] if inn_state is not None
+                   and inn_state["sequence"] == sequence else None)
+    if inn_receipt is not None:
+        productive = productive or inn_receipt["productive"]
+        minimum_before = inn_receipt["minimum_before"]
+        minimum_after = inn_receipt["minimum_after"]
     if record is not None:
         claim = getattr(getattr(policy, "_claim_register", None), "current", None)
         execution = getattr(claim, "execution", None)
@@ -508,7 +515,8 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
         route = (route_method(snapshot, goal)
                  if route_method is not None and goal is not None and snapshot.store is None
                  else None)
-        if route is not None:
+        if route is not None and not (inn_receipt and (
+                inn_receipt["owner"] is not None or inn_receipt.get("settled_owner") is not None)):
             target = (visit, route.target)
             rank = route.remaining_edges
             minimum = state["routes"].get(target)
@@ -518,7 +526,8 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
                 productive = True
             state["routes"][target] = minimum_after
     state["last_settlement"] = {
-        "operation_identity": (record or {}).get("work_id"),
+        "operation_identity": ((inn_receipt or {}).get("operation_identity")
+                               or (record or {}).get("work_id")),
         "visit_epoch": getattr(policy, "_town_visit_epoch", None),
         "minimum_before": minimum_before,
         "minimum_after": minimum_after,

@@ -1889,6 +1889,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._crossarea_fundraising_enforced = False
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
+        self._town_inn_accounting = None
         self._unviable_quest_floor: tuple[int, int, int] | None = None
         self._escape_sustain_floor: tuple[int, int, int] | None = None
         self._escape_sustain_active = False
@@ -2945,6 +2946,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     key = unresolved_quest_candidate
                     self.last_reason = unresolved_reason
             vector = self._town_arbiter_progress_vector(snapshot, self.last_reason, key)
+            inn_receipt = self._town_inn_route_receipt(snapshot, self.last_reason, key)
             in_town = bool(snapshot.in_town or snapshot.store is not None)
             arbiter.observe(
                 in_town=in_town,
@@ -2994,7 +2996,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and not held_claim_decision
                 and not posted_shop_observation_wait
                 and not arbiter.preview_may_select(
-                    self.last_reason, vector, retirement_key=current_retirement_key
+                    self.last_reason, vector, retirement_key=current_retirement_key,
+                    route_receipt=inn_receipt,
                 )
             ):
                 rejected_candidate = key
@@ -3086,7 +3089,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             elif (in_town and held_claim_decision
                   and not arbiter.preview_may_select(
                       self.last_reason, vector,
-                      retirement_key=current_retirement_key)):
+                      retirement_key=current_retirement_key,
+                      route_receipt=inn_receipt)):
                 recurrence_key = (current_owner, vector)
                 recurrence_count = getattr(arbiter, "_recurrences", {}).get(
                     recurrence_key, 0
@@ -3117,11 +3121,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, self.last_reason, final_candidate
             )
             terminal = self._town_arbiter_terminal_result(key)
+            inn_receipt = self._town_inn_route_receipt(
+                snapshot, self.last_reason, key, consume=True
+            )
             arbiter.observe(
                 in_town=bool(snapshot.in_town or snapshot.store is not None),
                 reason=self.last_reason,
                 progress_vector=vector,
                 terminal=terminal,
+                route_receipt=inn_receipt,
                 observation_wait=(posted_shop_observation_wait or bool(
                     key == ""
                     and self._store_visit is not None
