@@ -553,14 +553,56 @@ class InStoreMixin:
         if key.startswith(BUY_KEY) and (
                 selection is None or selection.get("op") != "buy"
                 or key[1:2] != selection.get("letter")):
-            # Selection and ``_shop`` disagree on the row: never post it in
-            # the store.  A first page hands ``_shop``'s own result to the
-            # outside composition (today's path); a later page ends the entry.
-            # The first-page fallback will post this buy through the old path;
-            # its purchase watch must survive until outside confirmation.
-            if not first:
-                self._store_buy_inflight = None
-            self._in_store_note("fallback", {"shop_key": key, "identity": False})
+            # The continuation preflight can prefer a departure blocker while
+            # the ordinary shop selector prefers an earlier quest purchase.
+            # Re-address that emitted row from this visible page before
+            # accepting it; never trust the key by itself.
+            row = (next((item for item in store.items
+                         if item.letter == key[1:2]), None)
+                   if not first else None)
+            quantity = 0
+            ordinary = None
+            rebuilt_key = None
+            if row is not None:
+                # Same standard as a first operation: the pure ordinary
+                # selector must pick this row and rebuild this exact key.
+                with self._in_store_pure_scope():
+                    ordinary = self._next_purchase(snapshot)
+                    quantity = self._purchase_quantity(snapshot, row)
+                    rebuilt_key = reserved_item_command(
+                        self, snapshot, "buy", row, "shop-buy",
+                        suffix=f"{quantity}\r\r" if row.count > 1 else "\r",
+                    )
+            emitted_selection = (None if row is None else {
+                "op": "buy", "letter": row.letter,
+                "identity": _row_identity(row),
+            })
+            emitted_conditions = self._in_store_preconditions(
+                snapshot, emitted_selection, continuing=not first,
+            )
+            emitted_row_verified = bool(
+                not first
+                and row is not None
+                and sum(item.letter == key[1:2] for item in store.items) == 1
+                and ordinary is not None
+                and (ordinary.letter, _row_identity(ordinary))
+                == (row.letter, _row_identity(row))
+                and key == rebuilt_key
+                and emitted_conditions["page_one"]
+                and emitted_conditions["identity"]
+                and emitted_conditions["screen_on_page"]
+                and quantity >= 1
+                and quantity <= row.count
+                and row.price * quantity <= snapshot.player.gold
+            )
+            if not emitted_row_verified:
+                # A first page hands ``_shop``'s own result to the outside
+                # composition path. Its purchase watch must survive until
+                # outside confirmation. A continuation with an unverified
+                # row ends here and retains the visible uncomposable stop.
+                if not first:
+                    self._store_buy_inflight = None
+                self._in_store_note("fallback", {"shop_key": key, "identity": False})
             if first:
                 self._in_store_shop_fallback = {
                     "store": store.store_type,
@@ -568,7 +610,14 @@ class InStoreMixin:
                     "key": key,
                     "reason": self.last_reason,
                 }
-            return None
+            if not emitted_row_verified:
+                return None
+            self._in_store_note("emitted-buy-verified", {
+                "letter": row.letter,
+                "identity": _row_identity(row),
+                "quantity": quantity,
+                "preconditions": emitted_conditions,
+            })
         return self._in_store_commit_operation(snapshot, key)
 
     def _in_store_commit_operation(self, snapshot: Snapshot, key: str) -> str:
