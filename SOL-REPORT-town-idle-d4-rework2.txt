@@ -1,6 +1,6 @@
 PLAN-STEP: 3 ISSUE: #1 -- D4 rework 2 report
 Base574bfba6; started4994040e; branch town-idle-d4-1013.
-Qualification pending guards and the single final module union run.
+STATUS: qualification pending failed-module round1 and post-round guards.
 
 Diagnosis: SOL-DIAG-town-idle-d4-rework2.txt was written before source edits.
 All7 failures are(R). The unchanged test bodies against independently extracted
@@ -94,9 +94,107 @@ was stopped, killed or restarted. No delegation was used.
 
 Guard outputs and final runner result lines will be appended below.
 
+Final-run additional failures and authorized round1 repair:
+All5 are(R); no existing test expectations/scenes are edited.
+- IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop;
+  OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key;
+  .test_temple_entry_composes_and_releases_the_recall_purchase;
+  .test_weapon_smith_one_shot_keeps_its_tail_and_buys:
+  first new difference is their DECLARED CONSTRUCTED index4 after the posted
+  index3 request: empty/home:scan-await-observation ->
+  9/town:entrance-step-off:policy:none-wait. The earlier(F) first request at3
+  remains HOME_KNOWLEDGE_MACRO/home:request-knowledge-scan before and after.
+  Read-only diagnosis of the actual helper substrate measured entrance45,123,
+  request.kind=SCAN, no pending item/batch, no equipment session/action,
+  current open home-scan with home.knowledge.observe, claims_active=True.
+  After the failed await, selected Home goal is45,123 and the recorded
+  deferral is entry:_shopping_approach_key#2 against that home-scan holder.
+  The new _decide router continuation at11690 admitted only named pending
+  takes; the catalogue-only holder could not reach the router's inner await.
+  Extend that same router continuation to a selected SCAN already at its
+  Home goal, preserving the no-atomic-operation/actionable-deposit/session
+  exclusions. It still runs after other executable owners at the same rung.
+  No early global scan wait is restored. All suffix business assertions stay.
+- GoalTypingTableTest.test_every_reach_reason_site_writes_its_slot:
+  policy.py:11688 shop:approach was assigned before the scan-selection branch,
+  rather than adjacent to the actual ordinary route writer. Set that Reach
+  label only at the unchanged ordinary router return; the separate scan
+  branch returns its own Observe label. The existing test body is unchanged.
+  Marked call order/count remain81; the compiled census comparison is empty.
+
+New control7: test_catalogue_only_home_holder_awaits_at_its_router_rung.
+DECLARED CONSTRUCTED partial Home page -> actual exit -> actual posted request;
+its catalogue route is selected through the real data-returning route helper,
+with no item/batch. Cross-area Home holder stays its own owner and emits one
+empty await with the same epoch, count1 and no post. This catches the newly
+found missing catalogue-only continuation. The original6 controls stay.
+Development new control1 passes; no additional existing suite was replayed
+for diagnosis. Only the2 failed modules are scheduled for round1.
+
 First preflight at886a9de2 found bookkeeping, not an existing assertion flip:
 the now registered _home_full_knowledge_key still appeared in the unregistered
 producer baseline. Its stale entry is removed and existing review updated.
 The first result was PREFLIGHT FAIL:25 changed files,4 findings, all from that
 single baseline registration mismatch. Guards are repeated sequentially after
 committing that required bookkeeping; no source change accompanies it.
+
+First preflight output (before bookkeeping correction):
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_batch_owner_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_pending_take_with_owners_on_both_sides_rescans_then_takes_later
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_recorded_one_shot_retired_at_its_own_entry
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys
+[preflight] NOTE existing-test MODIFIED: tests/test_ownership_s2b1_ladder.py::LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order
+[preflight] NOTE existing-test MODIFIED: tests/test_town_cure_supplier_recorded.py::TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy_home.py:HomeMixin._home_full_know[82 chars] it'] != []
+[preflight] FAIL fakery/sink: + []
+[preflight] FAIL fakery/sink: - ['policy_home.py:HomeMixin._home_full_knowledge_key: producer baseline entry '
+[preflight] PREFLIGHT FAIL: 25 changed files, 4 findings (town-idle-d4 vs 574bfba6)
+
+Sequential successful preflight at11240b6d:
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_failed_stock_present_recorded.py::HomeWithdrawFailedStockPresentRecordedTest.test_w1_confirming_board_rescans_instead_of_deferring
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_batch_owner_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[preflight] NOTE existing-test MODIFIED: tests/test_home_withdraw_moved_address.py::HomeWithdrawMovedAddressTest.test_pending_take_with_owners_on_both_sides_rescans_then_takes_later
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_recorded_one_shot_retired_at_its_own_entry
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase
+[preflight] NOTE existing-test MODIFIED: tests/test_oneshot_preempt_recorded.py::OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys
+[preflight] NOTE existing-test MODIFIED: tests/test_ownership_s2b1_ladder.py::LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order
+[preflight] NOTE existing-test MODIFIED: tests/test_town_cure_supplier_recorded.py::TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards
+[preflight] PREFLIGHT OK: 25 changed files, 0 findings (town-idle-d4 vs 574bfba6)
+
+Sequential mutation output at11240b6d:
+[mutation] 11 source hunks, tests: tests.test_home_catalogue_take_sequence tests.test_home_withdraw_moved_address tests.test_home_scan_owner_priority
+[mutation] caught     src/hengbot/claim_ladder.py:331 (_decide("_home_full_knowledge_key", "home-scan"),  # posted named-take): test_home_sequence_holder_answers_at_its_router_rung
+[mutation] caught     src/hengbot/policy.py:7970 (or ((not self._home_knowledge_current or self._home_knowledge_invalida): test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation
+[mutation] caught     src/hengbot/policy.py:8470 (if fresh_home_entry and self._home_knowledge_scan_epoch is None:): test_posted_scan_survives_home_entry_without_repost
+[mutation] caught     src/hengbot/policy.py:11686 (holder = self._claim_register.current): test_home_sequence_holder_answers_at_its_router_rung
+[mutation] caught     src/hengbot/policy.py:14055 (self._home_knowledge_scan_wait_decisions = 0): test_recovery_interrupts_the_scan_without_charging_or_reposting, test_launcher_enchant_runs_while_scan_is_inflight, test_pending_store_travel_runs_while_scan_is
+[mutation] caught     src/hengbot/policy_home.py:1220 (if self._home_knowledge_scan_inflight or self._home_knowledge_scan_epo): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:1239 (waiting = self._home_knowledge_scan_inflight or self._home_knowledge_s): test_contrary_shelf_does_not_repost_an_unsettled_request, test_declared_inflight_scan_is_not_counterfactual_travel, test_named_take_lost_request_is_bounded_with
+[mutation] caught     src/hengbot/policy_home.py:2941 (return self._home_errand_knowledge_key(snapshot)): test_errand_target_beyond_the_prefix_rescans_instead_of_failing
+[mutation] caught     src/hengbot/policy_shop.py:15 (from hengbot.home_visit import HomeVisitKind): test_errand_lost_request_records_its_optional_outcome_once, test_r1_first_entry_and_incomplete_exit_then_catalogue_continuation
+[mutation] caught     src/hengbot/policy_shop.py:5720 (session = self._equipment_transaction_session): test_contrary_shelf_does_not_repost_an_unsettled_request, test_named_take_lost_request_is_bounded_without_reposting, test_posted_scan_survives_home_entry_withou
+[mutation] caught     src/hengbot/policy_town.py:1451 (if (key == "" and self._home_knowledge_scan_inflight): test_declared_inflight_scan_is_not_counterfactual_travel
+[mutation] MUTATION OK: 0 of 11 hunks are not pinned by a test
+[mutation] recorded for 11240b6d
+
+Final run ONCE at11240b6d:195 modules,4118 tests,6899.390s (114.99 minutes),
+workers2,purity always. Exact planned module union equals the scheduled shards.
+All7 gate failures pass unchanged; no errors.5 additional failures below.
+worker-1: 1836 tests, 6550.106s, exit 1; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-sy7xgyng\worker-1\home-history
+worker-2: 2028 tests, 6899.327s, exit 1; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-sy7xgyng\worker-2\home-history
+worker-3: 254 tests, 760.870s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-sy7xgyng\worker-3\home-history
+Failures: ['tests.test_oneshot_preempt_recorded.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase', 'tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys', 'tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_every_reach_reason_site_writes_its_slot']
+Errors: none
+purity: ran (inputs sha256=6442e0adab1c4b4ba8a4a73739e8e8f6c322b80120750cbbc3a297fea1ce0084)
+weights: unavailable; fallback=192/192; stale=yes
+Total: 4118 tests, 6899.390s; output: C:\Users\user\AppData\Local\Temp\d4-rework2-final.json
+Receipt: C:\hengband\bot-client\.worktrees\town-idle-d4\jsonlog\receipts\test_parallel_runner-full-20261014T061152+0900.json; sha256: dd0342c40e90ba0aafccbe515cb01d190a15b3287ae9470a10d16b4010a7b55c

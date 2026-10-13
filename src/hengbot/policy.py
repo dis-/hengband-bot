@@ -11685,7 +11685,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot, router_plan_stop=True
                 )
                 if step is not None:
-                    self.last_reason = "shop:approach"
                     holder = self._claim_register.current
                     scan_wait = bool(
                         self._shopping_approach_store_type == STORE_HOME
@@ -11695,19 +11694,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         and holder.execution.continuation == "home.knowledge.observe"
                         and self._home_knowledge_scan_inflight
                         and not self._home_knowledge_current
-                        and (self._home_pending_item is not None or self._home_pending_batch)
+                        and (self._home_pending_item is not None or self._home_pending_batch
+                             or (self._shopping_approach_goal == snapshot.player.position
+                                 and self._home_visit.request is not None
+                                 and self._home_visit.request.kind == HomeVisitKind.SCAN))
                         and self._home_atomic_withdraw_pending is None
                         and self._home_atomic_deposit_pending is None
                         and not self._town_space_deposit_actionable(snapshot)
                         and self._equipment_transaction_session is None
                     )
-                    # A posted scan is the named Home take's prerequisite at
-                    # this router rung; its holder answers its own continuation.
-                    return self._town_producer_entry(
-                        "_shopping_approach_key#2",
-                        lambda: (self._home_full_knowledge_key(snapshot) if scan_wait
-                                 else self._shopping_approach_key(snapshot, step, "shop:travel")),
-                        family="home-scan" if scan_wait else None)
+                    # The posted catalogue/take prerequisite answers at this
+                    # router rung, before its own redundant Home entry.
+                    if scan_wait:
+                        return self._town_producer_entry(
+                            "_home_full_knowledge_key",
+                            lambda: self._home_full_knowledge_key(snapshot),
+                            family="home-scan")
+                    self.last_reason = "shop:approach"
+                    return self._town_producer_entry("_shopping_approach_key#2", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"))
 
         destroy = self._town_destroy_key(snapshot)
         if destroy is not None:

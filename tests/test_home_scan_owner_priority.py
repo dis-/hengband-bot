@@ -8,7 +8,7 @@ import json
 import unittest
 
 from hengbot.model import (
-    parse_snapshot, TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, STORE_HOME,
+    parse_snapshot, TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, STORE_HOME, StoreState,
 )
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
@@ -128,6 +128,36 @@ class HomeScanOwnerPriorityTest(QuestTravelFixtureMixin, unittest.TestCase):
             self.assertEqual(policy._home_knowledge_scan_epoch, epoch)
             self.assertTrue(policy._home_knowledge_scan_inflight)
             self.assertFalse(policy.confirm_key_posted(key))
+
+    def test_catalogue_only_home_holder_awaits_at_its_router_rung(self):
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        policy._fundraising_mode = "prepare"
+        policy.prime(board(turn=100, at=BESIDE))
+        policy._shopping_approach_store_type = STORE_HOME
+        partial = replace(board(turn=101), store=StoreState(
+            STORE_HOME, [], stock_num=20, page_size=12, page_top=0))
+        key = policy.choose_key(partial)
+        self.assertEqual((str(key), policy.last_reason),
+                         ("\x1b", "home:scan-incomplete-open-page"))
+        policy.confirm_key_posted(key)
+        key = policy.choose_key(board(turn=102))
+        self.assertEqual(key, HOME_KNOWLEDGE_MACRO)
+        policy.confirm_key_posted(key)
+        self.assertIsNone(policy._home_pending_item)
+        self.assertEqual(policy._home_pending_batch, [])
+        # DECLARED CONSTRUCTED: the catalogue's Home route is selected, as
+        # in the oneshot substrate; no take or deposit is queued beside it.
+        policy._shopping_approach_step(board(turn=102), STORE_HOME, requester="home-scan")
+        self.assertTrue(policy._home_sequence_has_holder())
+        epoch = policy._home_knowledge_scan_epoch
+        key = policy.choose_key(board(turn=103))
+        self.assertEqual((str(key), policy.last_reason),
+                         ("", "home:scan-await-observation"))
+        self.assertEqual(policy._home_knowledge_scan_epoch, epoch)
+        self.assertEqual(policy._home_knowledge_scan_wait_decisions, 1)
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+        self.assertFalse(policy.confirm_key_posted(key))
 
     def test_home_sequence_holder_answers_at_its_router_rung(self):
         rung = rung_named("_home_full_knowledge_key")
