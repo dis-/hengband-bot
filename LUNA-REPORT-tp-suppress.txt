@@ -39,3 +39,31 @@ Preflight and mutation_check outputs will be appended after the required post-co
 Final required suite
 
 The exact affected/hygiene module set and final test_parallel_runner output will be appended after the single required final run.
+
+Final guard outputs (post-source-commit, base 4afde8ca)
+
+Preflight:
+[preflight] PREFLIGHT OK: 14 changed files, 0 findings (tp-suppress vs 4afde8ca)
+
+Mutation check:
+[mutation] 4 source hunks, tests: tests.test_policy_equipment tests.test_tp_suppression_incident
+[mutation] caught src/hengbot/policy.py:16352 (self._random_teleport_suppression_producer_action(snapshot, owned))
+[mutation] caught src/hengbot/policy_equipment.py:2892 (and not self._missing_required_abilities(snapshot, depth))
+[mutation] caught src/hengbot/policy_equipment.py:2961 (def _stage_optional_equipment_failure_departure())
+[mutation] caught src/hengbot/policy_town.py:5262 (targets = ()): test_reserved_pack_candidate_does_not_hide_actionable_home_candidate
+[mutation] MUTATION OK: 0 of 4 hunks are not pinned by a test
+[mutation] recorded for b1afe9a3
+
+Final required suite
+
+The affected-test command selected 160 modules. Adding modules with names containing equipment, departure, or policy_ and the required hygiene set produced 185 unique modules. The runner split these into two parallel shards and one serial shard:
+
+worker-1: 1995 tests, 5210.686s, exit 0
+worker-2: 1810 tests, 5373.841s, exit 0
+worker-3: 254 tests, 721.706s, exit 0
+Failures: none
+Errors: none
+purity: ran (inputs sha256=bd1c74eeab126ba66a85fa103b93c7359bcba04c43554b84e8cc5f16cd1aedd7)
+weights: unavailable; fallback=182/182; stale=yes
+Total: 4059 tests, 5373.911s; output: jsonlog/test-parallel-timings.json
+Receipt: jsonlog/receipts/test_parallel_runner-full-20261014T124623+0900.json; sha256: 7a952b16b2d91b75ef537960403b9c234bc9728665411cf7e08043f21e5d4777
