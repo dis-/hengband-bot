@@ -252,3 +252,40 @@ no F terminal assertion/seed transfer was needed. Existing test bodies and
 assertions are unchanged (the retirement double interface is the only existing
 file addition). No-key, stuck prompts, overweight and overflow stay H.
 Final preflight/mutation outputs follow after execution.
+
+Final preflight (after last source/test repair and commit):
+[preflight] PREFLIGHT OK: 31 changed files, 0 findings (keep-running-a0 vs 4afde8ca)
+
+Final mutation check (same committed source and test trees):
+[mutation] 17 source hunks, tests: tests.test_keep_running_a0
+[mutation] caught     src/hengbot/cli.py:582 (departure = policy.force_visit_departure(snapshot, "owner-retired-burs): test_burst_three_retirements_depart_or_retain_hard_stop, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] caught     src/hengbot/policy.py:1731 (self._visit_departure_committed = None): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_recall_keeps_existing_hard_hazar
+[mutation] caught     src/hengbot/policy.py:10288 (# A0 hands this visit to repetition. Pre-empt optional enchants and): test_committed_visit_preempts_release_shopping_and_refused_entrance
+[mutation] caught     src/hengbot/policy_navigation.py:489 (minimum: bool = False,): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_recall_keeps_existing_hard_hazar
+[mutation] caught     src/hengbot/policy_navigation.py:505 (if not self._visit_departure_committed:): test_minimum_entry_mode_keeps_recall_depth_and_digger_invariants
+[mutation] caught     src/hengbot/policy_navigation.py:524 (and not minimum): test_soft_work_and_one_free_slot_do_not_block
+[mutation] caught     src/hengbot/policy_navigation.py:1021 (if self._visit_departure_committed and not self._departure_minimum(): test_committed_descent_ignores_soft_preparation_but_keeps_hard_minimum
+[mutation] caught     src/hengbot/policy_observation.py:199 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_observation.py:225 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_state.py:173 (restored.__dict__.setdefault("_visit_departure_committed", None)): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_supply.py:430 (def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_que): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_descent_ignores_soft_preparation
+[mutation] caught     src/hengbot/policy_town.py:25 (import json): test_keep_running_a0
+[mutation] caught     src/hengbot/policy_town.py:5545 (def _departure_minimum(self, snapshot: Snapshot, depth: int) -> dict:): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_descent_ignores_soft_preparation
+[mutation] caught     src/hengbot/policy_town.py:5700 (if (self._town_blocked_reason in VISIT_CLOSABLE_REASONS): test_existing_supply_stockout_fallback_and_exhausted_hard_stop, test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_five_last_boards_cross_real_policy_
+[mutation] caught     src/hengbot/policy_town.py:5783 (if not self._visit_departure_committed:): test_committed_visit_preempts_release_shopping_and_refused_entrance, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] caught     src/hengbot/policy_town.py:5883 (if not (self._departure_minimum(snapshot,): test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock
+[mutation] caught     src/hengbot/policy_town.py:5914 (if self._visit_departure_committed and not self._departure_minimum(): test_committed_visit_preempts_release_shopping_and_refused_entrance, test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock
+[mutation] MUTATION OK: 0 of 17 hunks are not pinned by a test
+[mutation] recorded for 02c1ce3c
+
+Final disposition
+A0 implemented. Full run completed once within 150 minutes; its three
+regressions were fixed without changing any existing expected result. Both
+failed modules passed round 1; A0 fast pins passed; final preflight and all
+17 mutation hunks passed. No unresolved FAIL / NOT CAUGHT remains.
+No additional full run was made. No second failed-module round was needed.
+The final report-only commit leaves the source/test tree mutation record valid.
+No live bot/game/supervisor was stopped, restarted or controlled. No push or
+merge was performed. Runtime soak is not claimed; it was not part of this
+implementation task and the live sessions were left running.
+Verification finished: 2026-10-14T16:50:11.246235+09:00
