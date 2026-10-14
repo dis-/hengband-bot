@@ -8754,6 +8754,16 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
+    def test_checkpoint_from_before_the_switch_keeps_the_departure_dump(self):
+        from hengbot.policy_state import normalize_policy_state
+
+        pol, snap = self._ready_town(8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True)
+        pol._char_dump_done_this_visit = False  # a fresh town visit
+        del pol.__dict__["_departure_dump_enabled"]  # a checkpoint saved before the switch existed
+        normalize_policy_state(pol, restart=True)
+        self.assertTrue(pol._departure_dump_enabled)
+        self.assertEqual(pol._town_special_key(snap), CHARACTER_DUMP_MACRO)
+
     def test_writes_a_character_dump_before_the_first_recall_of_a_visit(self):
         pol, snap = self._ready_town(8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True)
         pol._char_dump_done_this_visit = False  # a fresh town visit
