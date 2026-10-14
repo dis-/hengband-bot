@@ -173,6 +173,8 @@ def normalize_policy_state(restored, *, restart=False):
     once from the persisted calibration file (``cli``), never here.
     """
     current_ledger = restored.__dict__.get("_town_visit_ledger")
+    restored.__dict__.setdefault("_visit_departure_committed", None)
+    restored.__dict__.setdefault("_visit_departure_recorded", set())
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(

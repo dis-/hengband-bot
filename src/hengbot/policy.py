@@ -1731,6 +1731,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_visit_epoch: int | None = None
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
+        self._visit_departure_committed = None
+        self._visit_departure_recorded = set()
         self._observed_town_id: int | None = None
         self._town_restock_suppressed = False
         self._town_suppression_claim_stores: set[int] = set()
@@ -10286,6 +10288,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return WAIT_KEY
 
     def _decide(self, snapshot: Snapshot) -> str:
+        # A0 hands this visit to repetition. Pre-empt optional enchants and
+        # required-purchase/release branches before they can reopen its work.
+        if snapshot.in_town and self._visit_departure_committed:
+            return self._town_blocked_key(snapshot)
         self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None

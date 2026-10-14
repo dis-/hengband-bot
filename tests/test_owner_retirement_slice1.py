@@ -42,6 +42,11 @@ class Policy:
     def _town_map_goal_route(self, snapshot, goal):
         return SimpleNamespace(target=goal, remaining_edges=self.rank)
 
+    def force_visit_departure(self, snapshot, cause):
+        # Driver-only double has no safety board. Real A0 minimum/burst
+        # behaviour is pinned in test_keep_running_a0 (DECLARED CONSTRUCTED).
+        return None
+
 
 def board(town=1, in_town=True):
     return SimpleNamespace(town_id=town, floor_key=(0, 0, 0), in_town=in_town,

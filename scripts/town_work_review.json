@@ -10602,5 +10602,17 @@
     "admission": "existing final policy emission",
     "observer": "shared route receipt consumed by arbiter and CLI",
     "delegation": "retained child; no independent command"
+  },
+  "policy_town.py:TownMixin.force_visit_departure": {
+    "classification": "producer",
+    "rows": [
+      "store-exit",
+      "plan-routing"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "owner decision 2026-10-14 A (keep running): stop-boundary adapter only; HARD minimum preserved, repeated errands latched closed until floor/town changes; delegates existing repetition/fundraising command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

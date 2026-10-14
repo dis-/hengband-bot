@@ -1,0 +1,111 @@
+PLAN-STEP: 3 / ISSUE #1 - A0 implementation report (2026-10-14)
+Base: 4afde8ca; branch keep-running-a0-1014.
+Owner decision 2026-10-14 A (keep running) authorizes replacing exhausted
+V0 town-work/burst stops with visit closure and minimum-safe departure.
+No resolver, persistent ledger, outbox, corpus manifest, ceiling rework,
+slices 1-5, game/bot control, push, merge, or other-process control was added.
+
+Changes
+- policy_town.py: pure _departure_minimum, force_visit_departure and append/flush
+  keep-running-events.jsonl writer; V0 hook at _town_blocked_key head.
+- cli.py: call force_visit_departure immediately before owner-retired-burst;
+  use its returned key and forgive retirement; D0 logging is retained.
+- policy_navigation.py: minimum entry mode skips only equipment optimization;
+  existing recall stock, ability, temporary-deposit and digger checks remain.
+  Committed walking/recall re-evaluate the HARD minimum at the actual landing.
+- policy.py: committed visits enter repetition at the head of _decide. This
+  pre-empts optional enchantment, required shopping and supplier-release paths
+  (including the old release at ~11674) before they can reopen closed work.
+  _town_blocked_key also skips its required-shopping branch while committed.
+- policy_observation.py: floor/town changes clear commitment and per-visit event
+  deduplication. policy_state.py supplies missing attributes on old checkpoints.
+- policy_supply.py: optional uncached quest-head evaluation keeps the minimum
+  pure; ordinary callers retain the existing cached default.
+- scripts/bot_autorecover.py: preserve a bounded tail of keep-running events.
+  No live supervisor was changed or restarted.
+- scripts/minimum_table.py: freeze current filenames, stream each gzip separately
+  and evaluate the last town board. Static monster knowledge is read from
+  C:/hengband/lib/edit/MonraceDefinitions.jsonc; no game data is copied.
+- Producer baseline/review, item-sink adapter context, ownership exception and
+  generated town-work manifest/site index updated; no new ladder rung/final reason.
+
+Minimum
+Returns {values, failed, unknown, holds}; None/missing/malformed predicate
+inputs fail closed. It does not invoke the equipment optimizer, normalize a
+policy, write a catalogue/ledger, or change policy/snapshot state.
+HARD leaves: recall_departure_ready (ordinary stock plus outgoing scroll and
+actual landing-depth target); ordinary food_ready; light_ready; cure_critical_ready
+(existing class/supplier exceptions retained); teleport_ready; identify_staff_ready
+(20 charges from 10F); remove_curse_ready; teleport_items_safe;
+temporary_status_clear; hp_full; mp_full; combat_weapon_ready (no digger-streak
+waiver); depth_abilities; inventory_weight_ready (unknown strength limit fails);
+equipment_observed; home_atomic_withdraw_clear (withdraw/deposit);
+store_transfer_clear (posted/unsettled buying/selling/store effect);
+equipment_transfer_clear (session, owned gear, restore, posted catalogue,
+temporary deposits); free_pack_slots_ready (>=1).
+Five slots remain the ordinary preparation target. Organization, optional
+optimization, Home catalogue/candidate/unposted review queues and queued ID
+work cannot fail this minimum. Weight is unchanged. No speed gate was added
+before 81F. Ability requirements use _missing_required_abilities on the actual
+landing, including the existing spell-success and Destruction rules.
+Minimum mode does not waive the recall-entry invariant. Only the existing
+Yeek 1F mining/scavenge walk-in exception remains. Existing supply-stockout
+mining and no-safe-destination fundraising retain their own eligibility/bounds.
+Uncommitted repetition/other nonterminal decisions retain their old behavior;
+new minimum checks apply to the A0 commitment. Entrance refusal retains the
+commitment; it cannot resume the closed town work. Residence fuse stays 1500.
+
+Two stop-boundary insertion points
+1. _town_blocked_key head, exactly V0: departure-unsatisfiable,
+   no-actionable-claim-owner, retired-equipment-transaction-failed,
+   equipment-work-home-route-exhausted, equipment-departure-incomplete,
+   home-known-empty-withdrawal, procurement-home-unavailable,
+   procurement-home-unroutable.
+2. _handle_owner_retirement immediately before the existing burst stop.
+No-key-exhausted, stuck-prompt, overweight-home-unreachable,
+overflow-no-legal-disposal and other H reasons keep their current behavior.
+Home-route-repeat-terminal is deferred to A0.1 as the review specifies.
+
+Event
+One append + flush per cause per visit to jsonlog/keep-running-events.jsonl
+(or the existing HENGBOT_RUNTIME_DIR isolation override). Fields: time,
+process_session_id, build, turn, character_level, visit_epoch, original cause,
+class V/H, outcome forced_departure/fallback/hard_stop, minimum values/failed/
+unknown/holds, free_pack_slots, closed_work_under_five, closed_work (source
+reason, blocked reason and available operation identity), entry_method,
+destination_depth, worn_kit_ids. One flushed stdout <keep-running> marker.
+Subsequent latched route decisions do not append duplicates. No crash outbox
+or cross-visit persistence is claimed. D0 is the pre-existing retirement
+proposal record; keep-running events record the A0 disposition.
+
+Evidence and tests
+- tests/fixtures/keep-running-a0 contains only the last state and decision
+  rows (ten small gzip files) from the five required 2026-10-14 captures.
+  baseline.json records a separate run against git-archived 4afde8ca source.
+  Baseline terminal reasons match each preserved decision, with keys 5,5,2,5,5.
+  The 114116 capture's recorded stop already carried a step-off key, not WAIT.
+- With A0 all five last boards satisfy the HARD minimum and yield keys
+  rha, rfa, 2, reb, reb under repetition, with one forced-departure event each.
+  114116 first steps off a store entrance; the other four read recall.
+- DECLARED CONSTRUCTED: no checkpoint is in these capture tails. Tests seed
+  only terminal cause/burst counter/arbiter boundary and board-derived target
+  depth; they stop at the first changed command. They do not replay invented
+  response histories or consume later historical boards after divergence.
+- tests.test_keep_running_a0 covers HARD-leaf toggles, unknown evidence, pure
+  evaluation, SOFT work/one slot, entry invariants, all V0 hooks and unchanged
+  H hooks, three retirements with/without minimum, record/dedup, real entrance,
+  committed refusal/release/shopping, existing fallback gates, restore defaults,
+  and floor/town transition reset. Constructed states are declared in tests.
+- Existing test edit so far: tests/test_owner_retirement_slice1.py:Policy adds
+  the new driver interface to its boardless double (returns no departure).
+  Class R fixture compatibility; existing assertions and terminal expectations
+  are retained. Real safe/unsafe burst cases live in test_keep_running_a0.
+- Development module runs: keep_running_a0 12 tests OK; owner_retirement_slice1
+  16 OK; ownership_s2a_classification 16 OK; test_test_fakery_lint 13 OK.
+  Initial structure/item-sink failures were bookkeeping omissions, corrected.
+  An exploratory full absorbing module was stopped (only our own test process)
+  before mutation to avoid simultaneous source mutation and test execution;
+  this is not counted as a passed run. Final absorbing verification is required.
+
+Minimum-table summary, guard outputs, final test lines and any subsequent
+existing-test classifications will be appended below after execution.

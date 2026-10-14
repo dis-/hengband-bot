@@ -409,9 +409,9 @@
     "self._normal_loot_key(snapshot, self._strategic_hostiles(snapshot), seek_reason='return:seek-loot') @ If:body:player.recalling / If:body:self._loot_before_recall_calm(snapshot)": 1
   },
   "policy_town.py:_town_blocked_key": {
+    "self._town_kill_mob_key(snapshot) @ If:body:self._town_blocked_reason == 'repetition'": 1,
     "self._descent_step(snapshot) @ If:body:self._town_blocked_reason == 'repetition'": 1,
-    "self._shopping_approach_key(snapshot, shopping_step, 'town:repetition-required-shopping') @ If:body:self._town_blocked_reason == 'repetition' / If:body:shopping_step is not None": 1,
-    "self._town_kill_mob_key(snapshot) @ If:body:self._town_blocked_reason == 'repetition'": 1
+    "self._shopping_approach_key(snapshot, shopping_step, 'town:repetition-required-shopping') @ If:body:self._town_blocked_reason == 'repetition' / If:body:not self._visit_departure_committed / If:body:shopping_step is not None": 1
   },
   "policy_town.py:_town_clear_traveler_key": {
     "self._town_kill_mob_key(snapshot) @ ": 1

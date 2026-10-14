@@ -489,6 +489,7 @@ class NavigationMixin:
         *,
         via_recall: bool,
         destination_depth: int,
+        minimum: bool = False,
     ) -> bool:
         """Enforce every invariant at the final town-to-dungeon boundary."""
         if (
@@ -504,7 +505,8 @@ class NavigationMixin:
             self._home_digger_withdraw_pending
             and not self._digger_fallback_bought_this_visit
         ):
-            self._town_blocked_reason = "home-digger-withdraw-pending"
+            if not self._visit_departure_committed:
+                self._town_blocked_reason = "home-digger-withdraw-pending"
             return False
         mining_walk_in = (
             not via_recall
@@ -522,6 +524,7 @@ class NavigationMixin:
         if (
             snapshot.dungeon_level == 0
             and snapshot.in_town
+            and not minimum
             and not self._equipment_departure_ready(
                 snapshot, destination_depth=destination_depth)
         ):
@@ -1018,7 +1021,12 @@ class NavigationMixin:
                 ):
                     self._descent_refusal_reason = "fundraising-light-shortage"
                     return True
-                if not self._town_restock_suppressed:
+                if self._visit_departure_committed and not self._departure_minimum(
+                        snapshot, self._dungeon_entry_depth(snapshot,
+                            self._active_dungeon_target(), via_recall=False))["holds"]:
+                    self._descent_refusal_reason = "town-departure-not-ready"
+                    return True
+                if not self._town_restock_suppressed and not self._visit_departure_committed:
                     if self._rumor_unlock_pending:
                         self._descent_refusal_reason = "rumor-unlock-pending"
                         return True

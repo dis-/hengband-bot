@@ -670,5 +670,6 @@
   "home_visit.py:HomeVisitExecutor.begin_approach": "delegated adapter: advance the existing HomeVisit approach state under its attempt bound; returns bool and emits no keyboard command",
   "policy_town.py:TownMixin._town_inn_route_receipt": "pure helper: previews and settles process-local observed INN route evidence; emits no command.",
   "policy_home.py:HomeMixin._home_knowledge_await_key": "delegated adapter: awaits the posted census for the existing home-scan or home-errand caller; counts own stalled decisions and forwards the existing terminal/refusal outcome",
-  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command."
+  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command.",
+  "policy_town.py:TownMixin.force_visit_departure": "delegated adapter: owner decision 2026-10-14 A (keep running); evaluates the HARD minimum at an existing stop and delegates to repetition or the existing bounded fundraising owner."
 }
