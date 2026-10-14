@@ -39,6 +39,7 @@ def _selected_preparation(policy, snapshot, owned):
     # include the private optimizer result. This frame pins the selected target
     # while exercising the production suppression and departure methods.
     selected = Loadout((("main_hand", owned),), "one_handed")
+    # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: declared constructed optimizer frame isolates the production path because the capture omits private optimizer state
     result = SimpleNamespace(best=SimpleNamespace(loadout=selected))
     return SimpleNamespace(
         current=current,
