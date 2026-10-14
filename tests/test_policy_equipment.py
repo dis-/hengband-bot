@@ -2405,14 +2405,10 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             snapshot.inventory, snapshot.equipment
         )
         owned = policy._equipment_catalog.items[0]
+        selected_result = set_known_target(policy).result
+        selected_result.best.loadout.item_ids = frozenset({owned.id})
         blocked = policy_module.WarriorOptimizationPreparation(
-            SimpleNamespace(),
-            SimpleNamespace(  # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: declared constructed optimizer frame supplies a selected item to test reservation-aware actionability
-                best=SimpleNamespace(
-                    loadout=SimpleNamespace(item_ids=frozenset({owned.id}))
-                )
-            ),
-            None,
+            SimpleNamespace(), selected_result, None,
             ("pending-random-teleport-suppression",),
         )
         signature = policy._item_signature(artifact)
@@ -2448,11 +2444,10 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             snapshot.inventory, snapshot.equipment
         )
         current = current_loadout(policy._equipment_catalog.items)
+        selected_result = set_known_target(policy).result
+        selected_result.best.loadout.item_ids = frozenset(current.item_ids)
         blocked = policy_module.WarriorOptimizationPreparation(
-            current,
-            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: declared constructed optimizer frame isolates the required-ability departure gate
-            SimpleNamespace(best=SimpleNamespace(loadout=current)),
-            None,
+            current, selected_result, None,
             ("pending-random-teleport-suppression",),
         )
         policy._equipment_optimizer_input_key = ("confirmed",)

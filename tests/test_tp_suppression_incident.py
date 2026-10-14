@@ -15,7 +15,9 @@ from hengbot.model import DUNGEON_YEEK_CAVE, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.equipment_optimizer import Loadout, TR_TELEPORT, current_loadout
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
-from policy_fixtures import seed_confirmed_loadout, store_item
+from policy_fixtures import (
+    seed_confirmed_loadout, set_completed_equipment_optimization, store_item,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "tp-suppress-e1-20261014.jsonl.gz"
@@ -37,10 +39,11 @@ def _selected_preparation(policy, snapshot, owned):
     current = current_loadout(policy._equipment_catalog.items)
     # DECLARED CONSTRUCTED optimizer result: the archived state stream does not
     # include the private optimizer result. This frame pins the selected target
-    # while exercising the production suppression and departure methods.
-    selected = Loadout((("main_hand", owned),), "one_handed")
-    # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: declared constructed optimizer frame isolates the production path because the capture omits private optimizer state
-    result = SimpleNamespace(best=SimpleNamespace(loadout=selected))
+    # through the shared optimizer fixture while exercising production policy.
+    result = set_completed_equipment_optimization(
+        policy,
+        best_loadout=Loadout((("main_hand", owned),), "one_handed"),
+    )(snapshot).result
     return SimpleNamespace(
         current=current,
         result=result,
