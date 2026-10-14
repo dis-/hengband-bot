@@ -3442,7 +3442,8 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         "--dump-interval-seconds",
         type=float,
         default=DUMP_INTERVAL_SECONDS,
-        help="seconds between periodic character dumps and their paired game-save requests (0 disables)",
+        help="seconds between periodic character dumps and their paired game-save requests "
+             "(0 disables them and the pre-departure dump)",
     )
     parser.add_argument(
         "--game-save-path",
@@ -3702,6 +3703,9 @@ def _configure_in_store_shop_ops(policy, args) -> None:
 
 def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     policy._character_dump_path = getattr(args, "character_dump_file", None)
+    policy._departure_dump_enabled = (
+        getattr(args, "dump_interval_seconds", DUMP_INTERVAL_SECONDS) != 0
+    )
     if args.decision_log is None:
         return None
     home_entry_capture = (

@@ -6313,6 +6313,7 @@ class TownMixin:
                 return WAIT_KEY
             if (
                 not self._char_dump_done_this_visit
+                and self._departure_dump_enabled
                 and not snapshot.player.blind
                 and not snapshot.player.confused
                 and self._periodic_filler_is_safe(snapshot)

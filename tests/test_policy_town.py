@@ -8746,6 +8746,14 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._char_dump_done_this_visit = True  # past the pre-dive dump for recall tests
         return pol, snap
 
+    def test_disabled_departure_dump_goes_straight_to_the_recall(self):
+        # --dump-interval-seconds 0 (headless soak runs): no file prompt before the dive.
+        pol, snap = self._ready_town(8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True)
+        pol._char_dump_done_this_visit = False  # a fresh town visit
+        pol._departure_dump_enabled = False
+        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-angband")
+
     def test_writes_a_character_dump_before_the_first_recall_of_a_visit(self):
         pol, snap = self._ready_town(8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True)
         pol._char_dump_done_this_visit = False  # a fresh town visit
