@@ -10291,6 +10291,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # A0 hands this visit to repetition. Pre-empt optional enchants and
         # required-purchase/release branches before they can reopen its work.
         if snapshot.in_town and self._visit_departure_committed:
+            cancel_unsafe_recall = self._town_cancel_unsafe_recall_key(snapshot)
+            if cancel_unsafe_recall is not None:
+                return cancel_unsafe_recall
             return self._town_blocked_key(snapshot)
         self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.

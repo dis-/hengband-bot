@@ -435,8 +435,9 @@ class SupplyMixin:
         # carry_identify_staff) needs a carried Identify staff regardless of the
         # planned depth: it lets the in-quest sweep identify unknown drops and
         # free pack slots instead of abandoning collectible loot on a full pack.
-        strategy = self._carry_procurement_strategy(
-            snapshot, cache_fixed_quest_head=cache_fixed_quest_head)
+        strategy = (self._carry_procurement_strategy(snapshot)
+                    if cache_fixed_quest_head else self._carry_procurement_strategy(
+                        snapshot, cache_fixed_quest_head=False))
         quest_requires_identify = (
             strategy is not None
             and bool(strategy.engagement_plan.get("carry_identify_staff"))

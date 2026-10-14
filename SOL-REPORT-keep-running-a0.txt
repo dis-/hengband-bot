@@ -194,3 +194,46 @@ Three collaborators are patched in that test, exactly the permitted maximum.
 Also pinned physical transfer debt: it now prevents either income fallback,
 including no-safe-destination fundraising. The transfer remains unsettled
 and the original terminal remains H. Fast A0 module: 15 tests OK.
+
+Final full run (ONCE, before the authorized failed-module repair):
+worker-1: 1171 tests, 5084.099s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-_kcw3yh4\worker-1\home-history
+worker-2: 2738 tests, 7971.926s, exit 1; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-_kcw3yh4\worker-2\home-history
+worker-3: 254 tests, 705.498s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-_kcw3yh4\worker-3\home-history
+Failures: ['tests.test_no_live_state_artifact.NoLiveStateArtifactTest.test_test_modules_do_not_read_mutating_bot_state']
+Errors: ['tests.test_policy_quest.FixedQuestTest.test_loot_quest_requires_identify_staff_even_when_shallow', 'tests.test_policy_quest.FixedQuestTest.test_non_carry_quest_leaves_shallow_identify_staff_optional']
+purity: ran (inputs sha256=235bb1995e2a2148a456db1c1b8f85562e24457a8ea7dbd9182ab3f5d700cc4d)
+weights: source=C:\hengband\bot-client\jsonlog\test-parallel-timings.json; age=7.1d; fallback=191/202; stale=yes
+Total: 4163 tests, 7971.984s; output: C:\hengband\bot-client\.worktrees\keep-running-a0\jsonlog\a0-final-timings.json
+Receipt: C:\hengband\bot-client\.worktrees\keep-running-a0\jsonlog\receipts\test_parallel_runner-full-20261014T142002+0900.json; sha256: 812e9de258529b35aeeccbadbbea36716b306112b1a36376b83932493a093b87
+Selection: affected_tests.py <worktree> 4afde8ca HEAD --with-replays
+(171 modules), union all names containing departure/town/policy_, the explicit
+CLI/retirement/absorbing/hygiene set, and the A0 pins: 205 modules total.
+PYTHONPATH=src; scripts/test_parallel_runner.py --workers 2 --modules <union>.
+Output jsonlog/a0-final-timings.json; full streams jsonlog/a0-final-streams/.
+Run started 2026-10-14T14:20:01+09:00; elapsed 7975.606 seconds (132.93 min),
+within the 150-minute limit. 4,163 tests: one failure and two errors.
+
+Repair classifications (no existing asserted expectation changed):
+R - tests.test_policy_quest.FixedQuestTest.test_loot_quest_requires_identify_staff_even_when_shallow
+R - tests.test_policy_quest.FixedQuestTest.test_non_carry_quest_leaves_shallow_identify_staff_optional
+  Both raised TypeError from a pre-existing keywordless strategy adapter.
+  Fixed src/policy_supply.py: ordinary readiness keeps its original no-keyword
+  call; only the A0 pure evaluator requests cache_fixed_quest_head=False.
+  The existing quest tests are untouched.
+R - tests.test_no_live_state_artifact.NoLiveStateArtifactTest.test_test_modules_do_not_read_mutating_bot_state
+  The new tests already read immutable fixtures only, but their captured live
+  filename suffix tripped the existing guard. Renamed the ten copied fixture
+  files to .state/.decision.jsonl.gz and updated only the new module references.
+  Original capture names remain in baseline.json for provenance. No lint or
+  existing assertion was weakened.
+R - additional review pin: the committed _decide guard could bypass the existing
+  active-recall hard-hazard cancellation. A DECLARED CONSTRUCTED real-policy
+  NO_TELE board reproduced WAIT instead of the existing cancellation key rh.
+  The guard now delegates to _town_cancel_unsafe_recall_key first. It keeps
+  the commitment and cannot reopen closed shopping. No new marked call/rung.
+  New default-adapter and cancellation pins were run red before the source fix
+  (17 tests, one failure/two subtest errors), then green (17 tests OK).
+F edits: none. No absorbing catalogue seed, test name or terminal expectation
+was changed; the full absorbing module passed its original assertions.
+Existing-test edit inventory remains only the boardless retirement Policy
+interface addition noted above (bookkeeping compatibility, no assertion edit).

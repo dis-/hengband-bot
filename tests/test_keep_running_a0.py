@@ -21,7 +21,7 @@ from unittest.mock import patch
 from hengbot import cli
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, TVAL_POTION, SV_POTION_CURE_CRITICAL, TVAL_STAFF, SV_STAFF_IDENTIFY
 from hengbot.policy import HengbotPolicy, TR_NO_TELE
-from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, WAIT_KEY
+from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, READ_KEY, WAIT_KEY
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_town import VISIT_CLOSABLE_REASONS
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -29,7 +29,7 @@ from minimum_table import board_policy, last_row
 from policy_fixtures import grid, item
 
 FIXTURES = Path(__file__).parent / "fixtures/keep-running-a0"
-BOARDS = sorted(FIXTURES.glob("*.bot-state-fixed.jsonl.gz"))
+BOARDS = sorted(FIXTURES.glob("*.state.jsonl.gz"))
 
 
 def ready_board():
@@ -37,6 +37,18 @@ def ready_board():
 
 
 class MinimumTest(unittest.TestCase):
+    def test_ordinary_identify_readiness_keeps_keywordless_strategy_override(self):
+        policy, board, _ = ready_board()
+        policy._equipment_optimization_last_depth = 1
+        board = replace(board, inventory=[i for i in board.inventory
+            if not (i.tval == TVAL_STAFF and i.sval == SV_STAFF_IDENTIFY)])
+        for required in (True, False):
+            # DECLARED CONSTRUCTED: the pre-existing quest strategy adapter.
+            with self.subTest(required=required), patch.object(policy,
+                    "_carry_procurement_strategy", lambda snapshot: SimpleNamespace(
+                        engagement_plan={"carry_identify_staff": required})):
+                self.assertEqual(policy._identify_staff_ready(board), not required)
+
     def test_minimum_is_pure_and_each_hard_leaf_blocks(self):
         policy, board, depth = ready_board()
         before = pickle.dumps(policy.__dict__)
@@ -140,9 +152,9 @@ class DepartureTest(unittest.TestCase):
         for path, wanted in zip(BOARDS, expected):
             with self.subTest(capture=path.name), TemporaryDirectory() as root, patch.dict(
                     os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                decision = last_row(path.with_name(path.name.replace("bot-state-fixed", "bot-decisions")))
+                decision = last_row(path.with_name(path.name.replace(".state.", ".decision.")))
                 baseline = next(row for row in json.loads((FIXTURES / "baseline.json").read_text(encoding="utf-8"))
-                                if row["capture"] == path.name)
+                                if row["capture"].split(".")[0] == path.name.split(".")[0])
                 self.assertEqual(baseline["reason"], decision["reason"])
                 self.assertEqual(baseline["base"], "4afde8ca")
                 self.assertIn(decision["reason"], {"town:blocked:departure-unsatisfiable", "town:blocked:owner-retired-burst"})
@@ -241,6 +253,21 @@ class DepartureTest(unittest.TestCase):
                 self.assertEqual(policy._town_blocked_reason, "repetition")
                 self.assertEqual(policy._decide(board), "rha")
                 self.assertEqual(len(self.records(root)), 1)
+
+    def test_committed_recall_keeps_existing_hard_hazard_cancellation(self):
+        policy, board, _ = ready_board()
+        with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
+            self.assertEqual(policy.force_visit_departure(board, "departure-unsatisfiable"), "rha")
+            # DECLARED CONSTRUCTED: NO_TELE becomes known while recall is armed.
+            armed = replace(board, player=replace(board.player, recalling=True),
+                equipment=[replace(i, known_flags=i.known_flags | {TR_NO_TELE})
+                           if i.slot == "main_hand" else i for i in board.equipment])
+            recall = next(i for i in board.inventory if i.is_recall_scroll)
+            self.assertEqual(policy._decide(armed), READ_KEY + recall.slot)
+            self.assertEqual(policy.last_reason, "town:cancel-unsafe-recall")
+            self.assertFalse(policy._emergency_recall_sanctioned)
+            self.assertEqual(policy._visit_departure_committed, "departure-unsatisfiable")
+            self.assertEqual(len(self.records(root)), 1)
 
     def test_existing_supply_stockout_fallback_and_exhausted_hard_stop(self):
         for exhausted in (False, True):
