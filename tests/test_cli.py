@@ -1870,6 +1870,39 @@ class DecisionTimingTest(unittest.TestCase):
             self.assertLess(abs(wall_interval_ms - accounted_ms), 5.0)
 
 
+class StartupSeedTest(unittest.TestCase):
+    class _Seeded(Exception):
+        pass
+
+    def test_restart_seeds_the_flight_recorder_from_the_tail_only(self):
+        # Issue #48: a restart read the whole 267 MB state log into memory.
+        with TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.jsonl"
+            old = "".join(_snap_line(turn, 5, 5) for turn in range(1, 200))
+            state_path.write_text(old + _snap_line(999, 5, 6), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path), "--poll-interval", "0.001"])
+            args.wait_telemetry = unittest.mock.Mock()
+            seeded = []
+
+            def capture(_recorder, lines):
+                seeded.extend(lines)
+                raise self._Seeded
+
+            with (
+                patch("hengbot.cli.STARTUP_SEED_BYTES", 1024),
+                patch("hengbot.flight_recorder.FlightRecorder.record_snapshot_lines",
+                      autospec=True, side_effect=capture),
+                self.assertRaises(self._Seeded),
+            ):
+                _run_follow(args, HengbotPolicy(), lambda *_a, **_k: None, {})
+
+            self.assertTrue(seeded)
+            self.assertLessEqual(sum(len(line) + 1 for line in seeded), 1024)
+            self.assertEqual(json.loads(seeded[-1])["turn"], 999)
+            self.assertTrue(all(json.loads(line) for line in seeded))  # no partial first row
+
+
 class PeriodicDumpTimerTest(unittest.TestCase):
     def test_dump_and_save_path_options_keep_defaults_and_accept_overrides(self):
         parser = _build_argument_parser()
