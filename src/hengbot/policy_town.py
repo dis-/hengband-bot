@@ -5665,6 +5665,10 @@ class TownMixin:
             self._town_cycle_breaks = TOWN_CYCLE_BREAK_LIMIT
             self._visit_departure_committed = cause
             key = self._town_blocked_key(snapshot)
+            if key == ENTER_DUNGEON_MACRO:
+                depth = self._dungeon_entry_depth(
+                    snapshot, self._active_dungeon_target(), via_recall=False)
+                minimum = self._departure_minimum(snapshot, depth)
             self._record_visit_departure(snapshot, cause, minimum, "forced_departure",
                                          "walk" if key == ENTER_DUNGEON_MACRO else
                                          "recall" if destination else "walk", depth, closed_work)

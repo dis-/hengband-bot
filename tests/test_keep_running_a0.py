@@ -209,10 +209,9 @@ class DepartureTest(unittest.TestCase):
         policy, board, depth = ready_board()
         while len(board.inventory) < PACK_CAPACITY - 1:
             board = replace(board, inventory=board.inventory + [replace(item("z", TVAL_POTION, 0), weight=0)])
-        policy._target_dungeon_id = DUNGEON_YEEK_CAVE
-        # DECLARED CONSTRUCTED: visible Yeek entrance under the player.
+        # DECLARED CONSTRUCTED: visible active dungeon entrance under player.
         entrance = grid(board.player.position.y, board.player.position.x,
-            entrance=True, downstairs=True, entrance_dungeon_id=DUNGEON_YEEK_CAVE, lit=True, in_view=True)
+            entrance=True, downstairs=True, entrance_dungeon_id=policy._active_dungeon_target(), lit=True, in_view=True)
         board = replace(board, grids={entrance.position: entrance})
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
             key = policy.force_visit_departure(board, "home-known-empty-withdrawal")
@@ -221,6 +220,8 @@ class DepartureTest(unittest.TestCase):
             self.assertEqual(row["free_pack_slots"], 1)
             self.assertEqual(row["closed_work_under_five"], ["home-known-empty-withdrawal"])
             self.assertEqual(row["entry_method"], "walk")
+            self.assertEqual(row["destination_depth"], policy._dungeon_entry_depth(
+                board, policy._active_dungeon_target(), via_recall=False))
             self.assertEqual(policy._town_blocked_key(board), ENTER_DUNGEON_MACRO)
             self.assertEqual(len(self.records(root)), 1)
 

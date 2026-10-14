@@ -109,3 +109,57 @@ Evidence and tests
 
 Minimum-table summary, guard outputs, final test lines and any subsequent
 existing-test classifications will be appended below after execution.
+
+Minimum table (final evaluator, frozen 367 filenames; 305 town boards)
+reason	holds	fails	unknown
+crash-hengbot-protocol-protocolschemaerror-protocol-3-charac	3	1	0
+cycle-equipment-transaction-equip-equipment-transaction-take	0	1	0
+cycle-home-full-destroy-await-effect-town-entrance-step-off-	0	1	0
+cycle-no-wait-flee-town-kill-mob-approach-town-recover	0	1	0
+cycle-policy-none-store-exit-shop-approach-shop-travel-await	0	1	0
+equipment-transaction-home-route-repeat-terminal	1	26	0
+exit-no-marker	1	9	0
+identify-staged-tail-dropped-executor-barrier	0	3	0
+loop-detected	3	13	0
+no-key-exhausted	4	16	0
+store-leave-key-suppressed	3	3	0
+stuck-prompt-equipment-transaction-abandon-blocked	0	1	0
+stuck-prompt-equipment-transaction-approach-home	0	1	0
+stuck-prompt-equipment-transaction-travel-home-await-entry	0	2	0
+stuck-prompt-home-errand-atomic-withdraw-full-home-sale	1	0	0
+stuck-prompt-home-full-queue-surplus-withdraw	4	0	0
+stuck-prompt-home-request-knowledge-scan	4	2	0
+stuck-prompt-shop-approach	0	2	0
+stuck-prompt-shop-one-shot-buy	0	1	0
+stuck-prompt-shop-one-shot-sale-compose	0	1	0
+stuck-prompt-shop-travel-await-entry	0	1	0
+stuck-prompt-town-blocked-owner-retired	0	1	0
+stuck-prompt-town-progress-invariant-defect-shop-travel-awai	0	1	0
+stuck-prompt-town-recall-to-alt-dungeon	1	0	0
+town-blocked-departure-unsatisfiable	13	11	0
+town-blocked-overflow-no-legal-disposal	0	3	0
+town-blocked-overweight-home-unreachable	1	17	0
+town-blocked-owner-retired	14	49	0
+town-blocked-owner-retired-burst	12	69	0
+town-blocked-shop-required-operation-uncomposable	2	0	0
+town-blocked-survival-mana-no-charges	0	1	0
+total town=305 frozen captures=367
+Totals: {'holds': 67, 'fails': 238, 'unknown': 0}
+This is board-only evidence. A fresh policy supplies empty internal transfer
+state and no supplier history; the board supplies recall target/landing depth.
+It is not proof that an unrecorded historical transfer was settled. Live policy
+checks the actual in-memory debt at the two stop boundaries. H reasons remain H
+even when their board minimum holds. Stuck prompts, no-key and exit:no-marker
+remain candidates for later frequency-driven work; no soak result is claimed.
+
+Initial preflight attempt (invalidated by the final entry-record correction;
+manifest regenerated and check repeated below):
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['generated town work manifest is stale; review then regenerate'] != []
+[preflight] FAIL fakery/sink: 'generated town work manifest is stale; review then regenerate'
+[preflight] FAIL fakery/sink: - ['generated town work manifest is stale; review then regenerate']
+[preflight] FAIL fakery/sink: + []
+[preflight] PREFLIGHT FAIL: 31 changed files, 5 findings (keep-running-a0 vs 4afde8ca)
+
+Entry event correction: when the selected key enters on foot, record the
+actual walk-in depth/minimum rather than the initial recall intent.
