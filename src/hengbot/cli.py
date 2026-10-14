@@ -4232,9 +4232,7 @@ def _run_follow(
         list(_read_last_snapshot_line(path)), monrace_knowledge
     )
     try:
-        recorder.record_snapshot_lines(
-            path.read_text(encoding="utf-8", errors="replace").splitlines()
-        )
+        recorder.record_snapshot_lines(_read_tail_lines(path, STARTUP_SEED_BYTES))
     except OSError as exc:
         print(f"flight recorder failed to seed snapshot history: {exc}", file=sys.stderr)
     if initial_snapshot is not None:
@@ -5740,6 +5738,24 @@ def _read_last_line(path: Path) -> Iterable[str]:
     if not lines:
         return []
     return [lines[-1].decode("utf-8", errors="replace")]
+
+
+# The state log is never rotated by the game. Seeding the flight recorder from
+# the whole file made every bot restart load it into memory (267 MB after four
+# hours on the 1 GB soak machine, issue #48); the newest rows are enough.
+STARTUP_SEED_BYTES = 8 * 1024 * 1024
+
+
+def _read_tail_lines(path: Path, max_bytes: int) -> list[str]:
+    """Complete lines from the last ``max_bytes`` of ``path``."""
+    with path.open("rb") as file:
+        file.seek(0, 2)
+        size = file.tell()
+        file.seek(max(0, size - max_bytes))
+        data = file.read()
+    if size > max_bytes:
+        data = data[data.find(b"\n") + 1:] if b"\n" in data else b""
+    return data.decode("utf-8", errors="replace").splitlines()
 
 
 def _read_last_snapshot_line(path: Path, *, end: int | None = None) -> Iterable[str]:
