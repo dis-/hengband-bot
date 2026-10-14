@@ -2427,6 +2427,61 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             (signature, 1, 0, 1),
         )
 
+    def test_reserved_pack_candidate_does_not_hide_actionable_home_candidate(self):
+        pack_item = item(
+            "a", 23, 17, name="Pack candidate", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        home_item = store_item(
+            "b", 32, 5, name="Home candidate", known=True,
+            fully_known=True, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([home_item])
+        snapshot = self._town(inventory=(pack_item,))
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        pack_owned = next(
+            owned for owned in policy._equipment_catalog.items
+            if owned.origin == "pack"
+        )
+        home_owned = next(
+            owned for owned in policy._equipment_catalog.items
+            if owned.origin == "home"
+        )
+        preparation = set_known_target(policy)
+        preparation.result.best.loadout.item_ids = frozenset(
+            {pack_owned.id, home_owned.id}
+        )
+        reserved_signature = policy._item_signature(pack_item)
+        policy._home_atomic_withdraw_pending = (
+            reserved_signature, 1, 0, 1
+        )
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization",
+            return_value=preparation,
+        ):
+            self.assertTrue(
+                policy._random_teleport_suppression_actionable(
+                    snapshot, preparation
+                )
+            )
+            self.assertIsNone(
+                policy._town_random_teleport_suppression_key(snapshot)
+            )
+
+        self.assertEqual(
+            policy._home_pending_item, policy._item_signature(home_item)
+        )
+        self.assertEqual(
+            policy._home_atomic_withdraw_pending,
+            (reserved_signature, 1, 0, 1),
+        )
+
     def test_unactionable_suppression_does_not_bypass_depth_abilities(self):
         stored = store_item(
             "b", 23, 17, name="Werewindle", known=True,
