@@ -163,3 +163,34 @@ manifest regenerated and check repeated below):
 
 Entry event correction: when the selected key enters on foot, record the
 actual walk-in depth/minimum rather than the initial recall intent.
+
+First mutation check (all findings resolved before final verification):
+[mutation] 18 source hunks, tests: tests.test_keep_running_a0
+[mutation] caught     src/hengbot/cli.py:582 (departure = policy.force_visit_departure(snapshot, "owner-retired-burs): test_burst_three_retirements_depart_or_retain_hard_stop, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] caught     src/hengbot/policy.py:1731 (self._visit_departure_committed = None): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_existing_ability_gap_fundraising_gate, tes
+[mutation] caught     src/hengbot/policy.py:10288 (# A0 hands this visit to repetition. Pre-empt optional enchants and): test_committed_visit_preempts_release_shopping_and_refused_entrance
+[mutation] caught     src/hengbot/policy_navigation.py:489 (minimum: bool = False,): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_visit_preempts_release_shopping_
+[mutation] caught     src/hengbot/policy_navigation.py:505 (if not self._visit_departure_committed:): test_minimum_entry_mode_keeps_recall_depth_and_digger_invariants
+[mutation] caught     src/hengbot/policy_navigation.py:524 (and not minimum): test_soft_work_and_one_free_slot_do_not_block
+[mutation] NOT CAUGHT src/hengbot/policy_navigation.py:1021 (if self._visit_departure_committed and not self._departure_minimum()
+[mutation] caught     src/hengbot/policy_observation.py:199 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_observation.py:225 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_state.py:173 (restored.__dict__.setdefault("_visit_departure_committed", None)): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_supply.py:430 (def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_que): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_visit_preempts_release_shopping_
+[mutation] caught     src/hengbot/policy_town.py:25 (import json): test_keep_running_a0
+[mutation] caught     src/hengbot/policy_town.py:5545 (def _departure_minimum(self, snapshot: Snapshot, depth: int) -> dict:): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_visit_preempts_release_shopping_
+[mutation] caught     src/hengbot/policy_town.py:5698 (if (self._town_blocked_reason in VISIT_CLOSABLE_REASONS): test_existing_supply_stockout_fallback_and_exhausted_hard_stop, test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_five_last_boards_cross_real_policy_
+[mutation] caught     src/hengbot/policy_town.py:5781 (if not self._visit_departure_committed:): test_committed_visit_preempts_release_shopping_and_refused_entrance, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] NOT CAUGHT src/hengbot/policy_town.py:5860 (or (self._visit_departure_committed and not self._departure_minimum()
+[mutation] NOT CAUGHT src/hengbot/policy_town.py:5884 (if not (self._departure_minimum(snapshot,)
+[mutation] NOT CAUGHT src/hengbot/policy_town.py:5915 (if self._visit_departure_committed and not self._departure_minimum()
+[mutation] MUTATION FAIL: 4 of 18 hunks are not pinned by a test
+Resolution: removed the redundant pre-selection recall minimum; the
+selected actual landing is still checked before posting recall. Added real
+descent-gate coverage with soft work outstanding, and a DECLARED CONSTRUCTED
+guardian switch to a deeper ability-safe landing with insufficient recall
+stock. This pins both the soft-work bypass and the actual-landing minimum.
+Three collaborators are patched in that test, exactly the permitted maximum.
+Also pinned physical transfer debt: it now prevents either income fallback,
+including no-safe-destination fundraising. The transfer remains unsettled
+and the original terminal remains H. Fast A0 module: 15 tests OK.

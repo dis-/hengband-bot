@@ -278,6 +278,61 @@ class DepartureTest(unittest.TestCase):
             self.assertEqual(self.records(root)[0]["outcome"], "fallback")
             self.assertIn("depth_abilities", self.records(root)[0]["minimum"]["failed"])
 
+    def test_transfer_debt_cannot_fall_back_to_income(self):
+        policy, board, _ = ready_board()
+        board = replace(board, player=replace(board.player, gold=1000),
+            recall_depth=40, dungeon_recall_depths={board.recall_dungeon_id: 40})
+        policy._equipment_optimization_last_depth = 40
+        policy._home_atomic_deposit_pending = ("posted",)
+        with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()), patch.object(
+                policy, "_supply_stockout_mining_key", side_effect=AssertionError("unsettled transfer")):
+            self.assertIsNone(policy.force_visit_departure(board, "equipment-departure-incomplete"))
+            self.assertIsNone(policy._fundraising_mode)
+            self.assertEqual(self.records(root)[0]["outcome"], "hard_stop")
+            self.assertEqual(policy._home_atomic_deposit_pending, ("posted",))
+
+    def test_committed_descent_ignores_soft_preparation_but_keeps_hard_minimum(self):
+        policy, board, _ = ready_board()
+        policy._town_blocked_reason = "repetition"
+        policy._visit_departure_committed = "equipment-departure-incomplete"
+        policy._town_restock_suppressed = False
+        policy._home_candidate_waiting = True
+        with patch.object(policy, "_equipment_departure_ready", side_effect=AssertionError("optimization reopened")):
+            self.assertFalse(policy._descent_is_blocked(board))
+            self.assertTrue(policy._descent_is_blocked(replace(board, player=replace(board.player, hp=1))))
+            self.assertEqual(policy._town_blocked_reason, "repetition")
+
+    def test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock(self):
+        policy, board, _ = ready_board()
+        original = policy._active_dungeon_target()
+        alternate = 7
+        board = replace(board, grids={}, entered_dungeon_ids=(original, alternate),
+            dungeon_recall_depths={original: 19, alternate: 40},
+            player=replace(board.player, abilities=board.player.abilities | {"resist_chaos", "resist_neth"}))
+        policy._town_blocked_reason = "repetition"
+        policy._visit_departure_committed = "equipment-departure-incomplete"
+        # DECLARED CONSTRUCTED: guardian refusal and its selected alternate.
+        # The real repetition path and both actual landing minima run here.
+        def destination(snapshot, *, guardian_gate=True, safety_gate=True):
+            dungeon = policy._active_dungeon_target()
+            return (None if guardian_gate and dungeon == original else "alt-dungeon", dungeon)
+
+        def switch(snapshot, dungeon):
+            self.assertEqual(dungeon, original)
+            policy._target_dungeon_id = alternate
+            return True
+
+        with patch.object(policy, "_town_recall_destination", side_effect=destination), patch.object(
+                policy, "_guardian_blocked_recall_switch", side_effect=switch), patch.object(
+                policy, "_recall_town_departure_conjuncts", return_value={"equipment_departure_ready": False}):
+            self.assertTrue(policy._departure_minimum(board, 19)["holds"])
+            self.assertEqual(policy._town_blocked_key(board), WAIT_KEY)
+            self.assertEqual(policy._active_dungeon_target(), alternate)
+            minimum = policy._departure_minimum(board, 40)
+            self.assertIn("recall_departure_ready", minimum["failed"])
+            self.assertTrue(minimum["values"]["depth_abilities"])
+            self.assertEqual(policy._town_blocked_reason, "repetition")
+
     def test_restore_defaults_and_visit_transition_release_commitment(self):
         policy, board, _ = ready_board()
         del policy._visit_departure_committed

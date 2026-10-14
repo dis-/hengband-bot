@@ -5674,9 +5674,11 @@ class TownMixin:
                                          "recall" if destination else "walk", depth, closed_work)
             return key
         key = None
-        if self._supply_stockout_cycles < 3:
+        transfer_clear = all(minimum["values"][name] is True for name in (
+            "home_atomic_withdraw_clear", "store_transfer_clear", "equipment_transfer_clear"))
+        if transfer_clear and self._supply_stockout_cycles < 3:
             key = self._supply_stockout_mining_key(snapshot)
-        if key is None and self._start_no_safe_destination_fundraising(snapshot, depth):
+        if transfer_clear and key is None and self._start_no_safe_destination_fundraising(snapshot, depth):
             self.last_reason = "fundraising:no-safe-destination"
             key = WAIT_KEY
             self._offer_execution(
@@ -5860,9 +5862,6 @@ class TownMixin:
                 if snapshot.in_town and (
                     not self._food_ready(snapshot)
                     or self._count_recall_scrolls(snapshot) < 2
-                    or (self._visit_departure_committed and not self._departure_minimum(
-                        snapshot, self._dungeon_entry_depth(snapshot,
-                        self._active_dungeon_target(), via_recall=True))["holds"])
                 ):
                     # A repetition remedy may defer optional readiness, but
                     # it cannot recall into a dungeon without carried food
