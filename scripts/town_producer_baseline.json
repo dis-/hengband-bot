@@ -177,7 +177,6 @@
   "policy.py:HengbotPolicy._nearest_position_step": "pure helper: _nearest_position_step returns Position | None used as input/observation, not an independently selected game action",
   "policy.py:HengbotPolicy._nearest_remembered_floor": "pure helper: Nearest remembered walkable tile other than where we stand — the target to",
   "policy.py:HengbotPolicy._nearest_upstairs": "pure helper: Nearest tile known to hold up-stairs, reachable by walking or not.",
-  "policy.py:HengbotPolicy._needs_random_teleport_suppression": "pure helper: _needs_random_teleport_suppression returns bool used as input/observation, not an independently selected game action",
   "policy.py:HengbotPolicy._normal_identification_flow_candidate": "pure helper: Union of carried/worn gear and device plain-Identify consumers.",
   "policy.py:HengbotPolicy._pending_disposal": "pure helper: _pending_disposal returns InventoryItem | None used as input/observation, not an independently selected game action",
   "policy.py:HengbotPolicy._pending_inventory_item": "pure helper: _pending_inventory_item returns InventoryItem | None used as input/observation, not an independently selected game action",
@@ -670,5 +669,6 @@
   "home_visit.py:HomeVisitExecutor.begin_approach": "delegated adapter: advance the existing HomeVisit approach state under its attempt bound; returns bool and emits no keyboard command",
   "policy_town.py:TownMixin._town_inn_route_receipt": "pure helper: previews and settles process-local observed INN route evidence; emits no command.",
   "policy_home.py:HomeMixin._home_knowledge_await_key": "delegated adapter: awaits the posted census for the existing home-scan or home-errand caller; counts own stalled decisions and forwards the existing terminal/refusal outcome",
-  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command."
+  "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command.",
+  "policy.py:HengbotPolicy._random_teleport_suppression_producer_action": "pure helper: Select the exact checked suppression key or eligible Home withdrawal that the shared predicate and town producer can emit"
 }

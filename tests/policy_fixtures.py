@@ -227,18 +227,19 @@ def set_known_target(policy):
     return preparation
 
 
-def set_completed_equipment_optimization(policy):
+def set_completed_equipment_optimization(policy, *, best_loadout=None):
     """Install a known, already-worn zero-action optimizer result."""
     def prepare(snapshot):
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
         worn = current_loadout(policy._equipment_catalog.items)
+        selected_loadout = worn if best_loadout is None else best_loadout
         policy._equipment_optimizer_input_key = "0" * 64
         return SimpleNamespace(
             ready=True,
             # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: focused optimizer unit supplies a collaborator result whose downstream handling is the subject
-            result=SimpleNamespace(best=SimpleNamespace(loadout=worn)),
+            result=SimpleNamespace(best=SimpleNamespace(loadout=selected_loadout)),
             transaction=SimpleNamespace(actions=()),
             blockers=(),
         )

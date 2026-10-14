@@ -1,0 +1,111 @@
+LUNA-DIAG-tp-suppress.txt
+
+Baseline: branch tp-suppress-1014 at 4afde8ca, using the two captures in captures-e1/.
+The source observations below are decision-log rows; state-fixed rows identify the boards by turn.
+The capture did not persist the policy's whole private state, so facts that require an omitted
+reservation/catalog/calibration state are marked NOT RECOVERABLE rather than inferred from the
+operator note.
+
+Measured capture facts
+
+1) autorecover-20261014-112103-town-blocked-owner-retired-burst
+
+- bot-decisions row 3249 (turn 676262) through row 3261 (turn 676360) records repeated
+  town:blocked:no-actionable-claim-owner, then town:blocked:owner-retired-burst / key 5.
+  At row 3261 departure_block.failed is exactly ["equipment_departure_ready"]. The
+  equipment blocker is ["pending-random-teleport-suppression"], transaction_actions is 0,
+  equipment_transaction is {context:null, entry_blocker:"no-session"}, and
+  identification_need is null. Gold is 4420.
+- At each of those terminal-town rows preserve_pack_items includes identity
+  pack:348d45730c4b7143:0 (the described 2d4 (+6,+6) item) with reason
+  identification-flow; it is known and not fully known in incomplete_item_details. The
+  record also includes a separate item kept for retention-reservation. The deferred Home
+  signatures include that pack item's signature and the not-fully-known Home item
+  (tval 37, sval 16). This is recorded state, not a live reservation verdict.
+- The captured state stream ends on turn 676360. It does not contain the private reservation
+  view or enough preceding response/calibration data to run a faithful full-lifetime replay.
+  Feeding its state rows to the live response parser and preparing equipment from a fresh
+  policy did not recreate the captured preparation: it stopped at calibration-required, or
+  with the available later calibration at skill-exp-unknown/home-scan-incomplete. Therefore
+  _selected_random_teleport_suppressions and the original-process reservation verdict are
+  NOT RECOVERABLE from this capture alone.
+- Source facts: _selected_random_teleport_suppressions (policy.py:16333-16342) filters the
+  catalog to selected IDs needing suppression. _random_teleport_suppression_actionable
+  (policy.py:16351-16367) presently returns true for any such pack item without checking the
+  inscription command's reservation verdict. The producer's pack branch
+  (policy_town.py:5267-5285) asks reserved_item_command; a denied command returns None at the
+  call site (policy_town.py:5273-5274). The original policy's verdict for this exact row is
+  NOT RECOVERABLE from the captured diagnostics.
+- The "identification-flow" preserve reason is not itself an exclusive reservation. In
+  item_reservation.py, _selection_source returns False (around line 170); a foreign owner
+  must arise from a different active source. Thus the operator claim that this label proves
+  the pack command is denied is not established. The terminal decision has
+  identification_need=null and gold 4420; the archived row does not establish whether a
+  full-identify source was available earlier in this visit or why the item was deferred.
+
+2) autorecover-20261014-113017-town-blocked-departure-unsatisfiable
+
+- bot-decisions row 596 (turn 682662) is a measured successful producer action:
+  equipment:suppress-random-teleport, key "{o.\r". At that row identification_need is
+  "full", gold is 2676, and procurement_requirements reports *Identify* source current 0,
+  target 1, missing 1. This supports missing source, not insufficient gold, as the active
+  identification obstacle at that time.
+- The final row 636 (turn 683372) records town:blocked:departure-unsatisfiable / key 5,
+  failed=["equipment_departure_ready"], blockers=["pending-random-teleport-suppression"],
+  transaction_actions=0, equipment_transaction={context:null,entry_blocker:"no-session"},
+  identification_need=null, gold 2686. deferred_home_item_signatures contains the Home
+  item (tval 37, sval 16). The final row's preserve_pack_items has two items with
+  retention-reservation / digging-tool-in-fundraising reasons; it does not report the
+  identification-flow item as preserved on this final board. That item was recorded with
+  identification-flow at row 596 before the successful inscription. Do not conflate those
+  two rows.
+- As above, the archived final-board data omits the original policy's complete selected set,
+  reservation view, and producer invocation result. The exact final
+  _selected_random_teleport_suppressions result, actionability return, and Home-arm refusal
+  are NOT RECOVERABLE from the capture alone. Source inspection shows the Home branch
+  (policy_town.py:5302-5318) arms only when outside a store, no Home item is pending, the
+  selected signature is not deferred, and pack space is ready. A deferred signature makes
+  that branch ineligible. It does not establish whether pack space or another pending Home
+  item was the additional blocker on the original process.
+- The captured identification rows show the full-identification source was absent at turn
+  682662, while gold exceeded the configured 1000-gold full-identification cost. The final
+  identification_need is null and the Home signature is deferred. The capture supports
+  source-unavailable then deferred; it does not support gold starvation.
+
+Policy interpretation checked against source
+
+The operator's broad dead-state model is plausible, but two parts are not measured facts:
+(1) "identification-flow" is not an ownership verdict; and (2) the archived rows do not
+prove that reserved_item_command returned None for the original process. Producer reach,
+selected catalog objects, and private reservation state are missing from these captures.
+The defect that can be fixed and pinned is the predicate mismatch: actionability currently
+accepts selected pack items without the producer's reservation check, and accepts Home items
+without all of the producer's arming conditions. The change will make both decisions use the
+same producer-target predicate. If that yields no target, the existing optional-equipment
+current-loadout departure route remains subject to required-depth abilities.
+
+Additional measured final-row gates
+
+- Row 3261 records free_pack_slots=6 (minimum=5); row 636 records free_pack_slots=9
+  (minimum=5). Both captured boards therefore satisfy the existing town pack-space
+  predicate. Both departure rows also record home_pending_item_clear=true and
+  home_atomic_withdraw_clear=true.
+- The final optimizer telemetry's incomplete_item_details are catalog-wide incomplete
+  entries, not a selected-ID list. Row 3261 lists pack:348d45730c4b7143:0 (tval 23/sval 14)
+  and home:3bd2f8d088d11f46:0 (tval 37/sval 16). Row 636 lists equipped:6eee31d9806e4e7a:0
+  (light), home:3bd2f8d088d11f46:0 (tval 37/sval 16), and
+  home:348d45730c4b7143:0 (tval 23/sval 14). It does not prove which IDs the original
+  preparation selected; the exact return of _selected_random_teleport_suppressions remains
+  NOT RECOVERABLE from the saved decision/state rows.
+- DECLARED CONSTRUCTED reservation probe on the exact row-3261 board: parsing its raw final
+  state yields the named pack item in slot p, known=true, fully_known=false. Seeding only
+  _identification_candidate with its signature gives reservation_verdict(...,
+  owner="equipment-txn", sink="inscribe") = ReservationVerdict(owner=None), and
+  reserved_item_command returns "{p". This is not the original process verdict because its
+  private reservation state was not captured. It demonstrates that the recorded
+  identification-flow preserve reason alone does not deny the command.
+- Current source gates are file:line facts: policy.py:16371-16380 checks the pack command's
+  reservation verdict and only then yields an inscription/store-exit key; policy.py:16382-16396
+  does the same for equipped gear with a legal slot. Home eligibility is
+  policy.py:16397-16405 (outside a store, no pending Home item, signature not deferred, and
+  pack-space ready); policy_town.py:5311-5318 is where that eligible Home item is armed.
