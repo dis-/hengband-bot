@@ -1428,6 +1428,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._dive_used_sigs: set[tuple[str, int, int]] = set()
         self._prev_inv_counts: dict[tuple[str, int, int], int] = {}
         self._char_dump_done_this_visit = False  # wrote a pre-dive character dump?
+        # The pre-dive dump is for the human; --dump-interval-seconds 0 turns it off
+        # with the periodic dumps (headless soak games do not answer its file prompt).
+        self._departure_dump_enabled = True
         # An unidentified lantern hides its fuel. Refill it exactly once before
         # departure, then let the ordinary oil ledger replace the spent flask.
         self._unknown_lantern_departure_refilled = False

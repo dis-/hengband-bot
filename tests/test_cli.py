@@ -1897,6 +1897,16 @@ class PeriodicDumpTimerTest(unittest.TestCase):
         policy.request_character_dump.assert_called_once_with()
         policy.request_game_save.assert_called_once_with()
 
+    def test_zero_interval_also_disables_the_pre_departure_dump(self):
+        parser = _build_argument_parser()
+        for interval, enabled in (("0", False), ("600", True)):
+            with self.subTest(interval=interval):
+                args = parser.parse_args(
+                    ["--state-file", "x", "--dump-interval-seconds", interval])
+                policy = unittest.mock.Mock()
+                _configure_policy_output_paths(policy, args)
+                self.assertIs(policy._departure_dump_enabled, enabled)
+
     def test_zero_interval_disables_dump_and_its_paired_save_request(self):
         policy = unittest.mock.Mock()
 
