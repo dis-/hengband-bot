@@ -25,6 +25,18 @@ from hengbot.policy_types import (
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
 from dataclasses import dataclass, replace
+import json
+import os
+import time
+from hengbot import __version__
+from hengbot.runtime_paths import runtime_path
+
+VISIT_CLOSABLE_REASONS = frozenset({
+    "departure-unsatisfiable", "no-actionable-claim-owner",
+    "retired-equipment-transaction-failed", "equipment-work-home-route-exhausted",
+    "equipment-departure-incomplete", "home-known-empty-withdrawal",
+    "procurement-home-unavailable", "procurement-home-unroutable",
+})
 
 @dataclass(frozen=True)
 class _TownNeedLookup:
@@ -5516,6 +5528,152 @@ class TownMixin:
         requested = {*[], *self._home_pending_batch, *((self._home_pending_item,) if self._home_pending_item is not None else ()), *((self._home_errand.request.signature,) if self._home_errand.active and self._home_errand.request is not None else ())}
         return any(self._item_signature(item) in requested for item in addressable)
 
+    def _departure_minimum(self, snapshot: Snapshot, depth: int) -> dict:
+        """Read the HARD leaves only; missing evidence is never permission.
+
+        No optimizer, catalogue scan, observer or state normalization runs here.
+        Supply predicates keep their ordinary targets; the explicit landing
+        ledger additionally prevents a shallow planning band weakening them.
+        """
+        def stock(kind):
+            status = self._supply_ledger(snapshot, depth)[kind]
+            return status.count >= status.required_departure
+
+        def recall_stock():
+            outgoing = (not snapshot.player.recalling and self._town_recall_destination(
+                snapshot, guardian_gate=False, safety_gate=False)[0] is not None)
+            return self._count_recall_scrolls(snapshot) >= self._recall_target(depth) + outgoing
+
+        checks = {
+            "recall_departure_ready": lambda: self._recall_departure_ready(snapshot)
+                and stock("recall") and recall_stock(),
+            "food_ready": lambda: self._food_ready(snapshot) and stock("food"),
+            "light_ready": lambda: self._light_ready(snapshot)
+                and (depth < 2 or self._owns_lantern(snapshot)),
+            "cure_critical_ready": lambda: self._cure_critical_ready(snapshot)
+                and (stock("cure") or (
+                    self._supply_ledger(snapshot, depth)["cure"].count
+                    == self._supply_ledger(snapshot, depth)["cure"].required_departure - 1
+                    and not self._supply_ledger(snapshot, depth)["cure"].obtainable)),
+            "teleport_ready": lambda: self._teleport_ready(snapshot) and stock("teleport"),
+            "identify_staff_ready": lambda: self._identify_staff_ready(snapshot, cache_fixed_quest_head=False)
+                and (depth < STAFF_IDENTIFY_MIN_DEPTH or
+                     self._total_identify_staff_charges(snapshot) >= STAFF_IDENTIFY_MIN_CHARGES),
+            "remove_curse_ready": lambda: self._required_remove_curse_kind(snapshot) is None,
+            "teleport_items_safe": lambda: not any(self._blocks_teleport(item)
+                for item in (*snapshot.inventory, *snapshot.equipment)),
+            "temporary_status_clear": lambda: self._temporary_status_clear(snapshot),
+            "hp_full": lambda: snapshot.player.max_hp > 0
+                and snapshot.player.hp >= snapshot.player.max_hp,
+            "mp_full": lambda: snapshot.player.max_mp >= 0
+                and snapshot.player.mp >= snapshot.player.max_mp,
+            "combat_weapon_ready": lambda: self._combat_weapon_ready(snapshot)
+                and self._equipped_digging_tool(snapshot) is None,
+            "depth_abilities": lambda: depth >= 1
+                and not self._missing_required_abilities(snapshot, depth),
+            "inventory_weight_ready": lambda: (
+                None if self._inventory_weight_limit(snapshot) is None
+                else not self._inventory_overweight(snapshot)),
+            "equipment_observed": lambda: snapshot.equipment_observed,
+            "home_atomic_withdraw_clear": lambda: self._home_atomic_withdraw_pending is None
+                and self._home_atomic_deposit_pending is None,
+            "store_transfer_clear": lambda: self._store_buy_inflight is None
+                and self._batch_sell_pending is None and (
+                    self._store_visit is None or not self._store_visit.operation_posted
+                    or self._store_visit.operation_effect_observed),
+            "equipment_transfer_clear": lambda: not (
+                self._equipment_transaction_session
+                or self._equipment_transaction_owned_items
+                or self._equipment_transaction_restoring
+                or self._equipment_transaction_restore_remainder
+                or self._equipment_transaction_restore_terminal
+                or self._equipment_transaction_posted_catalog_update is not None
+                or (self._morivant_full_identify is not None
+                    and self._morivant_full_identify.temporary_deposits)),
+            "free_pack_slots_ready": lambda: PACK_CAPACITY - len(snapshot.inventory) >= 1,
+        }
+        values = {}
+        for name, predicate in checks.items():
+            try:
+                value = predicate()
+                values[name] = None if value is None else bool(value)
+            except (AttributeError, TypeError, ValueError):
+                values[name] = None
+        failed = [name for name, value in values.items() if value is not True]
+        return {"values": values, "failed": failed,
+                "unknown": [name for name, value in values.items() if value is None],
+                "holds": not failed}
+
+    def _record_visit_departure(self, snapshot, cause, minimum, outcome, method, depth, closed_work):
+        free = PACK_CAPACITY - len(snapshot.inventory)
+        record = {
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "process_session_id": f"{os.getpid()}:{self._calibration_session_id}",
+            "build": os.environ.get("HENGBOT_BUILD_VERSION", __version__),
+            "turn": snapshot.turn, "character_level": snapshot.player.level,
+            "visit_epoch": self._town_visit_epoch, "cause": cause,
+            "class": "H" if outcome == "hard_stop" else "V", "outcome": outcome,
+            "minimum": minimum, "free_pack_slots": free,
+            "closed_work_under_five": [cause] if free < MIN_FREE_PACK_SLOTS else [],
+            "closed_work": closed_work,
+            "entry_method": method, "destination_depth": depth,
+            "worn_kit_ids": [equipment_identity(item) for item in snapshot.equipment],
+        }
+        path = runtime_path("keep-running-events.jsonl")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+            stream.flush()
+        print(f"<keep-running> {outcome} cause={cause} free={free} method={method}", flush=True)
+
+    def force_visit_departure(self, snapshot: Snapshot, cause: str) -> str | None:
+        """Close exhausted visit work only at the two existing stop boundaries."""
+        if self._visit_departure_committed:
+            return self._town_blocked_key(snapshot)
+        if cause in self._visit_departure_recorded:
+            return None
+        destination, dungeon = self._town_recall_destination(
+            snapshot, guardian_gate=False, safety_gate=False)
+        depth = self._dungeon_entry_depth(snapshot, dungeon, via_recall=destination is not None)
+        minimum = self._departure_minimum(snapshot, depth)
+        settlement = (getattr(self, "_owner_retired_progress", None) or {}).get("last_settlement", {})
+        closed_work = {"reason": self.last_reason, "blocked_reason": self._town_blocked_reason,
+                       "operation_identity": settlement.get("operation_identity")}
+        # Mark before calling existing fallback producers, which can themselves
+        # resolve a terminal through _town_blocked_key.
+        self._visit_departure_recorded.add(cause)
+        if minimum["holds"]:
+            self._break_town_cycle(snapshot)
+            self._town_blocked_reason = "repetition"
+            self._town_cycle_breaks = TOWN_CYCLE_BREAK_LIMIT
+            self._visit_departure_committed = cause
+            key = self._town_blocked_key(snapshot)
+            if key == ENTER_DUNGEON_MACRO:
+                depth = self._dungeon_entry_depth(
+                    snapshot, self._active_dungeon_target(), via_recall=False)
+                minimum = self._departure_minimum(snapshot, depth)
+            self._record_visit_departure(snapshot, cause, minimum, "forced_departure",
+                                         "walk" if key == ENTER_DUNGEON_MACRO else
+                                         "recall" if destination else "walk", depth, closed_work)
+            return key
+        key = None
+        transfer_clear = all(minimum["values"][name] is True for name in (
+            "home_atomic_withdraw_clear", "store_transfer_clear", "equipment_transfer_clear"))
+        if transfer_clear and self._supply_stockout_cycles < 3:
+            key = self._supply_stockout_mining_key(snapshot)
+        if transfer_clear and key is None and self._start_no_safe_destination_fundraising(snapshot, depth):
+            self.last_reason = "fundraising:no-safe-destination"
+            key = WAIT_KEY
+            self._offer_execution(
+                key, producer="fundraising", work_id="fundraise:no-safe-destination",
+                next_step="fundraising.prepare", expected_effect="fundraising-set-started")
+        if key is not None:
+            self._town_blocked_reason = None
+        self._record_visit_departure(snapshot, cause, minimum,
+                                     "fallback" if key is not None else "hard_stop",
+                                     "yeek-income" if key is not None else "none", depth, closed_work)
+        return key
+
     def _town_blocked_key(self, snapshot: Snapshot) -> str | None:
         """Leave an open/interleaved store UI before handling a town block.
 
@@ -5525,6 +5683,11 @@ class TownMixin:
         issue WAIT forever outside a store, so the CLI could only stop the bot.
         Other blocked reasons remain visible terminal waits.
         """
+        if (self._town_blocked_reason in VISIT_CLOSABLE_REASONS
+                and not self._visit_departure_committed):
+            departure = self.force_visit_departure(snapshot, self._town_blocked_reason)
+            if departure is not None:
+                return departure
         self.last_reason = f"town:blocked:{self._town_blocked_reason}"
         if self._town_blocked_reason == "repetition" and snapshot.store is not None:
             store = snapshot.store
@@ -5603,35 +5766,40 @@ class TownMixin:
             clear_traveler = self._town_kill_mob_key(snapshot)
             if clear_traveler is not None:
                 return clear_traveler
-            required_store = self._next_required_store_type(snapshot)
-            if (
-                self._store_visit is not None
-                and not self._store_visit.operation_posted
-                and required_store is not None
-                and self._store_visit.store_type != required_store
-            ):
-                # A captured outside snapshot can resume after the store-page
-                # eject above.  Release the abandoned owner before asking the
-                # approach router to bind the store that is required now.
-                self._close_store_visit("repetition-block-abandoned")
-            shopping_step = self._shopping_approach_step(
-                snapshot, router_plan_stop=True
-            )
-            if shopping_step is not None:
-                self.last_reason = "town:repetition-required-shopping"
-                return self._shopping_approach_key(
-                    snapshot,
-                    shopping_step,
-                    "town:repetition-required-shopping",
+            if not self._visit_departure_committed:
+                required_store = self._next_required_store_type(snapshot)
+                if (
+                    self._store_visit is not None
+                    and not self._store_visit.operation_posted
+                    and required_store is not None
+                    and self._store_visit.store_type != required_store
+                ):
+                    # A captured outside snapshot can resume after the store-page
+                    # eject above.  Release the abandoned owner before asking the
+                    # approach router to bind the store that is required now.
+                    self._close_store_visit("repetition-block-abandoned")
+                shopping_step = self._shopping_approach_step(
+                    snapshot, router_plan_stop=True
                 )
+                if shopping_step is not None:
+                    self.last_reason = "town:repetition-required-shopping"
+                    return self._shopping_approach_key(
+                        snapshot,
+                        shopping_step,
+                        "town:repetition-required-shopping",
+                    )
             here = snapshot.grid_at(snapshot.player.position)
             if (
                 here is not None
                 and self._is_active_dungeon_entrance(here)
                 and not self._descent_is_blocked(snapshot)
+                and (not self._visit_departure_committed or self._departure_minimum(
+                    snapshot, self._dungeon_entry_depth(snapshot,
+                    self._active_dungeon_target(), via_recall=False))["holds"])
                 and self._dungeon_entry_allowed(
                     snapshot,
                     via_recall=False,
+                    minimum=bool(self._visit_departure_committed),
                     destination_depth=self._dungeon_entry_depth(
                         snapshot, self._active_dungeon_target(), via_recall=False
                     ),
@@ -5698,11 +5866,11 @@ class TownMixin:
                             )
                             if gated_dest is None:
                                 return WAIT_KEY
-                            if not all(
-                                self._recall_town_departure_conjuncts(
-                                    snapshot
-                                ).values()
-                            ):
+                            if not (self._departure_minimum(snapshot,
+                                    self._dungeon_entry_depth(snapshot, gated_dungeon,
+                                                              via_recall=True))["holds"]
+                                    if self._visit_departure_committed else all(
+                                        self._recall_town_departure_conjuncts(snapshot).values())):
                                 # The same departure gate as the ordinary
                                 # read point: a pending withdrawal or purchase
                                 # (e.g. the Speed potion that makes the
@@ -5729,9 +5897,14 @@ class TownMixin:
                             )
                             if recall_dest is None:
                                 return WAIT_KEY
+                        if self._visit_departure_committed and not self._departure_minimum(
+                                snapshot, self._dungeon_entry_depth(snapshot,
+                                recall_dungeon_id, via_recall=True))["holds"]:
+                            return WAIT_KEY
                         if not self._dungeon_entry_allowed(
                             snapshot,
                             via_recall=True,
+                            minimum=bool(self._visit_departure_committed),
                             destination_depth=self._dungeon_entry_depth(
                                 snapshot, recall_dungeon_id, via_recall=True
                             ),

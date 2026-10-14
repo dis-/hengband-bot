@@ -430,12 +430,14 @@ class SupplyMixin:
             return True
         return self._light_refill_item(snapshot) is not None
 
-    def _identify_staff_ready(self, snapshot: Snapshot) -> bool:
+    def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_quest_head=True) -> bool:
         # A loot-collecting quest (its reviewed profile opts in with
         # carry_identify_staff) needs a carried Identify staff regardless of the
         # planned depth: it lets the in-quest sweep identify unknown drops and
         # free pack slots instead of abandoning collectible loot on a full pack.
-        strategy = self._carry_procurement_strategy(snapshot)
+        strategy = (self._carry_procurement_strategy(snapshot)
+                    if cache_fixed_quest_head else self._carry_procurement_strategy(
+                        snapshot, cache_fixed_quest_head=False))
         quest_requires_identify = (
             strategy is not None
             and bool(strategy.engagement_plan.get("carry_identify_staff"))

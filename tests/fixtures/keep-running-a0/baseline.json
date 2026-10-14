@@ -1,0 +1,5 @@
+[{"capture": "autorecover-20261014-112103-town-blocked-owner-retired-burst.bot-state-fixed.jsonl.gz", "base": "4afde8ca", "key": "5", "reason": "town:blocked:owner-retired-burst"},
+{"capture": "autorecover-20261014-113017-town-blocked-departure-unsatisfiable.bot-state-fixed.jsonl.gz", "base": "4afde8ca", "key": "5", "reason": "town:blocked:departure-unsatisfiable"},
+{"capture": "autorecover-20261014-114116-town-blocked-departure-unsatisfiable.bot-state-fixed.jsonl.gz", "base": "4afde8ca", "key": "2", "reason": "town:blocked:departure-unsatisfiable"},
+{"capture": "autorecover-20261014-114341-town-blocked-owner-retired-burst.bot-state-fixed.jsonl.gz", "base": "4afde8ca", "key": "5", "reason": "town:blocked:owner-retired-burst"},
+{"capture": "autorecover-20261014-114606-town-blocked-owner-retired-burst.bot-state-fixed.jsonl.gz", "base": "4afde8ca", "key": "5", "reason": "town:blocked:owner-retired-burst"}]

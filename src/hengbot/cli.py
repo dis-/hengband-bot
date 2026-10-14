@@ -582,6 +582,14 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
                 from hengbot.town_work import bind_driver_override
                 bind_driver_override(policy, key, site='cli.py:_handle_owner_retirement')
             return key
+        departure = policy.force_visit_departure(snapshot, "owner-retired-burst")
+        if departure is not None:
+            policy._owner_retired_forgiven_sequence = sequence
+            if arbiter is not None:
+                arbiter.forgive_retirement()
+            from hengbot.town_work import bind_driver_override
+            bind_driver_override(policy, departure, site='cli.py:_handle_owner_retirement')
+            return departure
         policy.last_reason = "town:blocked:owner-retired-burst"
     else:
         policy.last_reason = "town:blocked:owner-retired"

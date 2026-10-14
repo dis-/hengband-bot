@@ -199,6 +199,8 @@ class ObservationMixin:
             self._town_no_progress_count = 0
             self._town_cycle_pending = False
             self._town_cycle_breaks = 0
+            self._visit_departure_committed = None
+            self._visit_departure_recorded.clear()
             self._town_restock_suppressed = False
             self._town_suppression_claim_stores.clear()
             self._town_errand_plan = None
@@ -223,6 +225,8 @@ class ObservationMixin:
             self._town_wander_streak = 0
             self._town_cycle_pending = False
             self._town_cycle_breaks = 0
+            self._visit_departure_committed = None
+            self._visit_departure_recorded.clear()
             self._town_blocked_reason = None
             self._town_visit_unready_recall_cancelled = False
             self._town_restock_suppressed = False

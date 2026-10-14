@@ -1,0 +1,291 @@
+PLAN-STEP: 3 / ISSUE #1 - A0 implementation report (2026-10-14)
+Base: 4afde8ca; branch keep-running-a0-1014.
+Owner decision 2026-10-14 A (keep running) authorizes replacing exhausted
+V0 town-work/burst stops with visit closure and minimum-safe departure.
+No resolver, persistent ledger, outbox, corpus manifest, ceiling rework,
+slices 1-5, game/bot control, push, merge, or other-process control was added.
+
+Changes
+- policy_town.py: pure _departure_minimum, force_visit_departure and append/flush
+  keep-running-events.jsonl writer; V0 hook at _town_blocked_key head.
+- cli.py: call force_visit_departure immediately before owner-retired-burst;
+  use its returned key and forgive retirement; D0 logging is retained.
+- policy_navigation.py: minimum entry mode skips only equipment optimization;
+  existing recall stock, ability, temporary-deposit and digger checks remain.
+  Committed walking/recall re-evaluate the HARD minimum at the actual landing.
+- policy.py: committed visits enter repetition at the head of _decide. This
+  pre-empts optional enchantment, required shopping and supplier-release paths
+  (including the old release at ~11674) before they can reopen closed work.
+  _town_blocked_key also skips its required-shopping branch while committed.
+- policy_observation.py: floor/town changes clear commitment and per-visit event
+  deduplication. policy_state.py supplies missing attributes on old checkpoints.
+- policy_supply.py: optional uncached quest-head evaluation keeps the minimum
+  pure; ordinary callers retain the existing cached default.
+- scripts/bot_autorecover.py: preserve a bounded tail of keep-running events.
+  No live supervisor was changed or restarted.
+- scripts/minimum_table.py: freeze current filenames, stream each gzip separately
+  and evaluate the last town board. Static monster knowledge is read from
+  C:/hengband/lib/edit/MonraceDefinitions.jsonc; no game data is copied.
+- Producer baseline/review, item-sink adapter context, ownership exception and
+  generated town-work manifest/site index updated; no new ladder rung/final reason.
+
+Minimum
+Returns {values, failed, unknown, holds}; None/missing/malformed predicate
+inputs fail closed. It does not invoke the equipment optimizer, normalize a
+policy, write a catalogue/ledger, or change policy/snapshot state.
+HARD leaves: recall_departure_ready (ordinary stock plus outgoing scroll and
+actual landing-depth target); ordinary food_ready; light_ready; cure_critical_ready
+(existing class/supplier exceptions retained); teleport_ready; identify_staff_ready
+(20 charges from 10F); remove_curse_ready; teleport_items_safe;
+temporary_status_clear; hp_full; mp_full; combat_weapon_ready (no digger-streak
+waiver); depth_abilities; inventory_weight_ready (unknown strength limit fails);
+equipment_observed; home_atomic_withdraw_clear (withdraw/deposit);
+store_transfer_clear (posted/unsettled buying/selling/store effect);
+equipment_transfer_clear (session, owned gear, restore, posted catalogue,
+temporary deposits); free_pack_slots_ready (>=1).
+Five slots remain the ordinary preparation target. Organization, optional
+optimization, Home catalogue/candidate/unposted review queues and queued ID
+work cannot fail this minimum. Weight is unchanged. No speed gate was added
+before 81F. Ability requirements use _missing_required_abilities on the actual
+landing, including the existing spell-success and Destruction rules.
+Minimum mode does not waive the recall-entry invariant. Only the existing
+Yeek 1F mining/scavenge walk-in exception remains. Existing supply-stockout
+mining and no-safe-destination fundraising retain their own eligibility/bounds.
+Uncommitted repetition/other nonterminal decisions retain their old behavior;
+new minimum checks apply to the A0 commitment. Entrance refusal retains the
+commitment; it cannot resume the closed town work. Residence fuse stays 1500.
+
+Two stop-boundary insertion points
+1. _town_blocked_key head, exactly V0: departure-unsatisfiable,
+   no-actionable-claim-owner, retired-equipment-transaction-failed,
+   equipment-work-home-route-exhausted, equipment-departure-incomplete,
+   home-known-empty-withdrawal, procurement-home-unavailable,
+   procurement-home-unroutable.
+2. _handle_owner_retirement immediately before the existing burst stop.
+No-key-exhausted, stuck-prompt, overweight-home-unreachable,
+overflow-no-legal-disposal and other H reasons keep their current behavior.
+Home-route-repeat-terminal is deferred to A0.1 as the review specifies.
+
+Event
+One append + flush per cause per visit to jsonlog/keep-running-events.jsonl
+(or the existing HENGBOT_RUNTIME_DIR isolation override). Fields: time,
+process_session_id, build, turn, character_level, visit_epoch, original cause,
+class V/H, outcome forced_departure/fallback/hard_stop, minimum values/failed/
+unknown/holds, free_pack_slots, closed_work_under_five, closed_work (source
+reason, blocked reason and available operation identity), entry_method,
+destination_depth, worn_kit_ids. One flushed stdout <keep-running> marker.
+Subsequent latched route decisions do not append duplicates. No crash outbox
+or cross-visit persistence is claimed. D0 is the pre-existing retirement
+proposal record; keep-running events record the A0 disposition.
+
+Evidence and tests
+- tests/fixtures/keep-running-a0 contains only the last state and decision
+  rows (ten small gzip files) from the five required 2026-10-14 captures.
+  baseline.json records a separate run against git-archived 4afde8ca source.
+  Baseline terminal reasons match each preserved decision, with keys 5,5,2,5,5.
+  The 114116 capture's recorded stop already carried a step-off key, not WAIT.
+- With A0 all five last boards satisfy the HARD minimum and yield keys
+  rha, rfa, 2, reb, reb under repetition, with one forced-departure event each.
+  114116 first steps off a store entrance; the other four read recall.
+- DECLARED CONSTRUCTED: no checkpoint is in these capture tails. Tests seed
+  only terminal cause/burst counter/arbiter boundary and board-derived target
+  depth; they stop at the first changed command. They do not replay invented
+  response histories or consume later historical boards after divergence.
+- tests.test_keep_running_a0 covers HARD-leaf toggles, unknown evidence, pure
+  evaluation, SOFT work/one slot, entry invariants, all V0 hooks and unchanged
+  H hooks, three retirements with/without minimum, record/dedup, real entrance,
+  committed refusal/release/shopping, existing fallback gates, restore defaults,
+  and floor/town transition reset. Constructed states are declared in tests.
+- Existing test edit so far: tests/test_owner_retirement_slice1.py:Policy adds
+  the new driver interface to its boardless double (returns no departure).
+  Class R fixture compatibility; existing assertions and terminal expectations
+  are retained. Real safe/unsafe burst cases live in test_keep_running_a0.
+- Development module runs: keep_running_a0 12 tests OK; owner_retirement_slice1
+  16 OK; ownership_s2a_classification 16 OK; test_test_fakery_lint 13 OK.
+  Initial structure/item-sink failures were bookkeeping omissions, corrected.
+  An exploratory full absorbing module was stopped (only our own test process)
+  before mutation to avoid simultaneous source mutation and test execution;
+  this is not counted as a passed run. Final absorbing verification is required.
+
+Minimum-table summary, guard outputs, final test lines and any subsequent
+existing-test classifications will be appended below after execution.
+
+Minimum table (final evaluator, frozen 367 filenames; 305 town boards)
+reason	holds	fails	unknown
+crash-hengbot-protocol-protocolschemaerror-protocol-3-charac	3	1	0
+cycle-equipment-transaction-equip-equipment-transaction-take	0	1	0
+cycle-home-full-destroy-await-effect-town-entrance-step-off-	0	1	0
+cycle-no-wait-flee-town-kill-mob-approach-town-recover	0	1	0
+cycle-policy-none-store-exit-shop-approach-shop-travel-await	0	1	0
+equipment-transaction-home-route-repeat-terminal	1	26	0
+exit-no-marker	1	9	0
+identify-staged-tail-dropped-executor-barrier	0	3	0
+loop-detected	3	13	0
+no-key-exhausted	4	16	0
+store-leave-key-suppressed	3	3	0
+stuck-prompt-equipment-transaction-abandon-blocked	0	1	0
+stuck-prompt-equipment-transaction-approach-home	0	1	0
+stuck-prompt-equipment-transaction-travel-home-await-entry	0	2	0
+stuck-prompt-home-errand-atomic-withdraw-full-home-sale	1	0	0
+stuck-prompt-home-full-queue-surplus-withdraw	4	0	0
+stuck-prompt-home-request-knowledge-scan	4	2	0
+stuck-prompt-shop-approach	0	2	0
+stuck-prompt-shop-one-shot-buy	0	1	0
+stuck-prompt-shop-one-shot-sale-compose	0	1	0
+stuck-prompt-shop-travel-await-entry	0	1	0
+stuck-prompt-town-blocked-owner-retired	0	1	0
+stuck-prompt-town-progress-invariant-defect-shop-travel-awai	0	1	0
+stuck-prompt-town-recall-to-alt-dungeon	1	0	0
+town-blocked-departure-unsatisfiable	13	11	0
+town-blocked-overflow-no-legal-disposal	0	3	0
+town-blocked-overweight-home-unreachable	1	17	0
+town-blocked-owner-retired	14	49	0
+town-blocked-owner-retired-burst	12	69	0
+town-blocked-shop-required-operation-uncomposable	2	0	0
+town-blocked-survival-mana-no-charges	0	1	0
+total town=305 frozen captures=367
+Totals: {'holds': 67, 'fails': 238, 'unknown': 0}
+This is board-only evidence. A fresh policy supplies empty internal transfer
+state and no supplier history; the board supplies recall target/landing depth.
+It is not proof that an unrecorded historical transfer was settled. Live policy
+checks the actual in-memory debt at the two stop boundaries. H reasons remain H
+even when their board minimum holds. Stuck prompts, no-key and exit:no-marker
+remain candidates for later frequency-driven work; no soak result is claimed.
+
+Initial preflight attempt (invalidated by the final entry-record correction;
+manifest regenerated and check repeated below):
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['generated town work manifest is stale; review then regenerate'] != []
+[preflight] FAIL fakery/sink: 'generated town work manifest is stale; review then regenerate'
+[preflight] FAIL fakery/sink: - ['generated town work manifest is stale; review then regenerate']
+[preflight] FAIL fakery/sink: + []
+[preflight] PREFLIGHT FAIL: 31 changed files, 5 findings (keep-running-a0 vs 4afde8ca)
+
+Entry event correction: when the selected key enters on foot, record the
+actual walk-in depth/minimum rather than the initial recall intent.
+
+First mutation check (all findings resolved before final verification):
+[mutation] 18 source hunks, tests: tests.test_keep_running_a0
+[mutation] caught     src/hengbot/cli.py:582 (departure = policy.force_visit_departure(snapshot, "owner-retired-burs): test_burst_three_retirements_depart_or_retain_hard_stop, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] caught     src/hengbot/policy.py:1731 (self._visit_departure_committed = None): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_existing_ability_gap_fundraising_gate, tes
+[mutation] caught     src/hengbot/policy.py:10288 (# A0 hands this visit to repetition. Pre-empt optional enchants and): test_committed_visit_preempts_release_shopping_and_refused_entrance
+[mutation] caught     src/hengbot/policy_navigation.py:489 (minimum: bool = False,): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_visit_preempts_release_shopping_
+[mutation] caught     src/hengbot/policy_navigation.py:505 (if not self._visit_departure_committed:): test_minimum_entry_mode_keeps_recall_depth_and_digger_invariants
+[mutation] caught     src/hengbot/policy_navigation.py:524 (and not minimum): test_soft_work_and_one_free_slot_do_not_block
+[mutation] NOT CAUGHT src/hengbot/policy_navigation.py:1021 (if self._visit_departure_committed and not self._departure_minimum()
+[mutation] caught     src/hengbot/policy_observation.py:199 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_observation.py:225 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_state.py:173 (restored.__dict__.setdefault("_visit_departure_committed", None)): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_supply.py:430 (def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_que): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_visit_preempts_release_shopping_
+[mutation] caught     src/hengbot/policy_town.py:25 (import json): test_keep_running_a0
+[mutation] caught     src/hengbot/policy_town.py:5545 (def _departure_minimum(self, snapshot: Snapshot, depth: int) -> dict:): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_visit_preempts_release_shopping_
+[mutation] caught     src/hengbot/policy_town.py:5698 (if (self._town_blocked_reason in VISIT_CLOSABLE_REASONS): test_existing_supply_stockout_fallback_and_exhausted_hard_stop, test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_five_last_boards_cross_real_policy_
+[mutation] caught     src/hengbot/policy_town.py:5781 (if not self._visit_departure_committed:): test_committed_visit_preempts_release_shopping_and_refused_entrance, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] NOT CAUGHT src/hengbot/policy_town.py:5860 (or (self._visit_departure_committed and not self._departure_minimum()
+[mutation] NOT CAUGHT src/hengbot/policy_town.py:5884 (if not (self._departure_minimum(snapshot,)
+[mutation] NOT CAUGHT src/hengbot/policy_town.py:5915 (if self._visit_departure_committed and not self._departure_minimum()
+[mutation] MUTATION FAIL: 4 of 18 hunks are not pinned by a test
+Resolution: removed the redundant pre-selection recall minimum; the
+selected actual landing is still checked before posting recall. Added real
+descent-gate coverage with soft work outstanding, and a DECLARED CONSTRUCTED
+guardian switch to a deeper ability-safe landing with insufficient recall
+stock. This pins both the soft-work bypass and the actual-landing minimum.
+Three collaborators are patched in that test, exactly the permitted maximum.
+Also pinned physical transfer debt: it now prevents either income fallback,
+including no-safe-destination fundraising. The transfer remains unsettled
+and the original terminal remains H. Fast A0 module: 15 tests OK.
+
+Final full run (ONCE, before the authorized failed-module repair):
+worker-1: 1171 tests, 5084.099s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-_kcw3yh4\worker-1\home-history
+worker-2: 2738 tests, 7971.926s, exit 1; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-_kcw3yh4\worker-2\home-history
+worker-3: 254 tests, 705.498s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-_kcw3yh4\worker-3\home-history
+Failures: ['tests.test_no_live_state_artifact.NoLiveStateArtifactTest.test_test_modules_do_not_read_mutating_bot_state']
+Errors: ['tests.test_policy_quest.FixedQuestTest.test_loot_quest_requires_identify_staff_even_when_shallow', 'tests.test_policy_quest.FixedQuestTest.test_non_carry_quest_leaves_shallow_identify_staff_optional']
+purity: ran (inputs sha256=235bb1995e2a2148a456db1c1b8f85562e24457a8ea7dbd9182ab3f5d700cc4d)
+weights: source=C:\hengband\bot-client\jsonlog\test-parallel-timings.json; age=7.1d; fallback=191/202; stale=yes
+Total: 4163 tests, 7971.984s; output: C:\hengband\bot-client\.worktrees\keep-running-a0\jsonlog\a0-final-timings.json
+Receipt: C:\hengband\bot-client\.worktrees\keep-running-a0\jsonlog\receipts\test_parallel_runner-full-20261014T142002+0900.json; sha256: 812e9de258529b35aeeccbadbbea36716b306112b1a36376b83932493a093b87
+Selection: affected_tests.py <worktree> 4afde8ca HEAD --with-replays
+(171 modules), union all names containing departure/town/policy_, the explicit
+CLI/retirement/absorbing/hygiene set, and the A0 pins: 205 modules total.
+PYTHONPATH=src; scripts/test_parallel_runner.py --workers 2 --modules <union>.
+Output jsonlog/a0-final-timings.json; full streams jsonlog/a0-final-streams/.
+Run started 2026-10-14T14:20:01+09:00; elapsed 7975.606 seconds (132.93 min),
+within the 150-minute limit. 4,163 tests: one failure and two errors.
+
+Repair classifications (no existing asserted expectation changed):
+R - tests.test_policy_quest.FixedQuestTest.test_loot_quest_requires_identify_staff_even_when_shallow
+R - tests.test_policy_quest.FixedQuestTest.test_non_carry_quest_leaves_shallow_identify_staff_optional
+  Both raised TypeError from a pre-existing keywordless strategy adapter.
+  Fixed src/hengbot/policy_supply.py: ordinary readiness keeps its original no-keyword
+  call; only the A0 pure evaluator requests cache_fixed_quest_head=False.
+  The existing quest tests are untouched.
+R - tests.test_no_live_state_artifact.NoLiveStateArtifactTest.test_test_modules_do_not_read_mutating_bot_state
+  The new tests already read immutable fixtures only, but their captured live
+  filename suffix tripped the existing guard. Renamed the ten copied fixture
+  files to .state/.decision.jsonl.gz and updated only the new module references.
+  Original capture names remain in baseline.json for provenance. No lint or
+  existing assertion was weakened.
+R - additional review pin: the committed _decide guard could bypass the existing
+  active-recall hard-hazard cancellation. A DECLARED CONSTRUCTED real-policy
+  NO_TELE board reproduced WAIT instead of the existing cancellation key rh.
+  The guard now delegates to _town_cancel_unsafe_recall_key first. It keeps
+  the commitment and cannot reopen closed shopping. No new marked call/rung.
+  New default-adapter and cancellation pins were run red before the source fix
+  (17 tests, one failure/two subtest errors), then green (17 tests OK).
+F edits: none. No absorbing catalogue seed, test name or terminal expectation
+was changed; the full absorbing module passed its original assertions.
+Existing-test edit inventory remains only the boardless retirement Policy
+interface addition noted above (bookkeeping compatibility, no assertion edit).
+
+Failed-module rerun round 1 (only the two failed modules; no full-suite repeat):
+PYTHONPATH=src;tests;scripts python -m unittest tests.test_no_live_state_artifact
+Ran 1 test in 0.138s - OK.
+PYTHONPATH=src;tests;scripts python -m unittest tests.test_policy_quest
+Ran 334 tests in 152.914s - OK (skipped=7).
+A0 fast module after source repair: Ran 17 tests in 7.670s - OK.
+No second repair round was needed. The five-board pin also asserts the full
+fixture count, so a missing copied board cannot silently shorten its zip loop.
+
+Final source changes remain within A0. All full-run failures were R fixes;
+no F terminal assertion/seed transfer was needed. Existing test bodies and
+assertions are unchanged (the retirement double interface is the only existing
+file addition). No-key, stuck prompts, overweight and overflow stay H.
+Final preflight/mutation outputs follow after execution.
+
+Final preflight (after last source/test repair and commit):
+[preflight] PREFLIGHT OK: 31 changed files, 0 findings (keep-running-a0 vs 4afde8ca)
+
+Final mutation check (same committed source and test trees):
+[mutation] 17 source hunks, tests: tests.test_keep_running_a0
+[mutation] caught     src/hengbot/cli.py:582 (departure = policy.force_visit_departure(snapshot, "owner-retired-burs): test_burst_three_retirements_depart_or_retain_hard_stop, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] caught     src/hengbot/policy.py:1731 (self._visit_departure_committed = None): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_recall_keeps_existing_hard_hazar
+[mutation] caught     src/hengbot/policy.py:10288 (# A0 hands this visit to repetition. Pre-empt optional enchants and): test_committed_visit_preempts_release_shopping_and_refused_entrance
+[mutation] caught     src/hengbot/policy_navigation.py:489 (minimum: bool = False,): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_recall_keeps_existing_hard_hazar
+[mutation] caught     src/hengbot/policy_navigation.py:505 (if not self._visit_departure_committed:): test_minimum_entry_mode_keeps_recall_depth_and_digger_invariants
+[mutation] caught     src/hengbot/policy_navigation.py:524 (and not minimum): test_soft_work_and_one_free_slot_do_not_block
+[mutation] caught     src/hengbot/policy_navigation.py:1021 (if self._visit_departure_committed and not self._departure_minimum(): test_committed_descent_ignores_soft_preparation_but_keeps_hard_minimum
+[mutation] caught     src/hengbot/policy_observation.py:199 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_observation.py:225 (self._visit_departure_committed = None): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_state.py:173 (restored.__dict__.setdefault("_visit_departure_committed", None)): test_restore_defaults_and_visit_transition_release_commitment
+[mutation] caught     src/hengbot/policy_supply.py:430 (def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_que): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_descent_ignores_soft_preparation
+[mutation] caught     src/hengbot/policy_town.py:25 (import json): test_keep_running_a0
+[mutation] caught     src/hengbot/policy_town.py:5545 (def _departure_minimum(self, snapshot: Snapshot, depth: int) -> dict:): test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_burst_three_retirements_depart_or_retain_hard_stop, test_committed_descent_ignores_soft_preparation
+[mutation] caught     src/hengbot/policy_town.py:5700 (if (self._town_blocked_reason in VISIT_CLOSABLE_REASONS): test_existing_supply_stockout_fallback_and_exhausted_hard_stop, test_all_v0_hooks_and_hard_reasons_keep_their_boundary, test_five_last_boards_cross_real_policy_
+[mutation] caught     src/hengbot/policy_town.py:5783 (if not self._visit_departure_committed:): test_committed_visit_preempts_release_shopping_and_refused_entrance, test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once
+[mutation] caught     src/hengbot/policy_town.py:5883 (if not (self._departure_minimum(snapshot,): test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock
+[mutation] caught     src/hengbot/policy_town.py:5914 (if self._visit_departure_committed and not self._departure_minimum(): test_committed_visit_preempts_release_shopping_and_refused_entrance, test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock
+[mutation] MUTATION OK: 0 of 17 hunks are not pinned by a test
+[mutation] recorded for 02c1ce3c
+
+Final disposition
+A0 implemented. Full run completed once within 150 minutes; its three
+regressions were fixed without changing any existing expected result. Both
+failed modules passed round 1; A0 fast pins passed; final preflight and all
+17 mutation hunks passed. No unresolved FAIL / NOT CAUGHT remains.
+No additional full run was made. No second failed-module round was needed.
+The final report-only commit leaves the source/test tree mutation record valid.
+No live bot/game/supervisor was stopped, restarted or controlled. No push or
+merge was performed. Runtime soak is not claimed; it was not part of this
+implementation task and the live sessions were left running.
+Verification finished: 2026-10-14T16:50:11.246235+09:00

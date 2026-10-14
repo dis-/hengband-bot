@@ -145,7 +145,8 @@ def preserve(tag: str) -> str:
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     base = J / f"autorecover-{stamp}-{re.sub(r'[^a-z0-9]+', '-', tag.lower())[:60]}"
     for name, n in (("bot-decisions.jsonl", 3_000_000), ("bot-posted-characters.jsonl", 1_000_000),
-                    ("bot-state-fixed.jsonl", 3_000_000)):
+                    ("bot-state-fixed.jsonl", 3_000_000),
+                    ("keep-running-events.jsonl", 1_000_000)):
         src = J / name
         if not src.exists():
             continue
