@@ -149,6 +149,7 @@ class DepartureTest(unittest.TestCase):
 
     def test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once(self):
         expected = ["rha", "rfa", "2", "reb", "reb"]
+        self.assertEqual(len(BOARDS), len(expected))
         for path, wanted in zip(BOARDS, expected):
             with self.subTest(capture=path.name), TemporaryDirectory() as root, patch.dict(
                     os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):

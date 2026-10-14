@@ -217,7 +217,7 @@ Repair classifications (no existing asserted expectation changed):
 R - tests.test_policy_quest.FixedQuestTest.test_loot_quest_requires_identify_staff_even_when_shallow
 R - tests.test_policy_quest.FixedQuestTest.test_non_carry_quest_leaves_shallow_identify_staff_optional
   Both raised TypeError from a pre-existing keywordless strategy adapter.
-  Fixed src/policy_supply.py: ordinary readiness keeps its original no-keyword
+  Fixed src/hengbot/policy_supply.py: ordinary readiness keeps its original no-keyword
   call; only the A0 pure evaluator requests cache_fixed_quest_head=False.
   The existing quest tests are untouched.
 R - tests.test_no_live_state_artifact.NoLiveStateArtifactTest.test_test_modules_do_not_read_mutating_bot_state
@@ -237,3 +237,18 @@ F edits: none. No absorbing catalogue seed, test name or terminal expectation
 was changed; the full absorbing module passed its original assertions.
 Existing-test edit inventory remains only the boardless retirement Policy
 interface addition noted above (bookkeeping compatibility, no assertion edit).
+
+Failed-module rerun round 1 (only the two failed modules; no full-suite repeat):
+PYTHONPATH=src;tests;scripts python -m unittest tests.test_no_live_state_artifact
+Ran 1 test in 0.138s - OK.
+PYTHONPATH=src;tests;scripts python -m unittest tests.test_policy_quest
+Ran 334 tests in 152.914s - OK (skipped=7).
+A0 fast module after source repair: Ran 17 tests in 7.670s - OK.
+No second repair round was needed. The five-board pin also asserts the full
+fixture count, so a missing copied board cannot silently shorten its zip loop.
+
+Final source changes remain within A0. All full-run failures were R fixes;
+no F terminal assertion/seed transfer was needed. Existing test bodies and
+assertions are unchanged (the retirement double interface is the only existing
+file addition). No-key, stuck prompts, overweight and overflow stay H.
+Final preflight/mutation outputs follow after execution.
