@@ -16352,20 +16352,58 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, preparation
     ) -> bool:
         return any(
-            owned.origin == "pack"
-            or (
-                owned.origin == "equipped"
-                and owned.equipped_slot in EQUIPMENT_SLOT_KEY
-            )
-            or (
-                owned.origin == "home"
-                and self._home_available(snapshot)
-                and STORE_HOME not in self._town_store_attempted
-                and self._item_signature(owned.item)
-                not in self._deferred_home_items
-            )
+            self._random_teleport_suppression_producer_action(snapshot, owned)
+            is not None
             for owned in self._selected_random_teleport_suppressions(preparation)
         )
+
+    def _random_teleport_suppression_producer_action(
+        self, snapshot: Snapshot, owned
+    ) -> tuple[str, str | tuple[str, int, int]] | None:
+        """Return the action the producer can emit for this selected target.
+
+        Pack and equipped candidates pass through the same ownership-aware
+        command serializer that the producer uses. Home candidates are
+        actionable only when the producer can arm their ordinary withdrawal.
+        """
+        from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, LEAVE_STORE_KEY
+
+        if owned.origin == "pack":
+            prefix = reserved_item_command(
+                self, snapshot, "inscribe", owned.item, "equipment-txn"
+            )
+            if prefix is None:
+                return None
+            return (
+                "key",
+                LEAVE_STORE_KEY if snapshot.store is not None
+                else prefix + ".\r",
+            )
+        if owned.origin == "equipped":
+            slot_key = EQUIPMENT_SLOT_KEY.get(owned.equipped_slot)
+            if slot_key is None:
+                return None
+            prefix = reserved_item_command(
+                self, snapshot, "inscribe-equipped", owned.item,
+                "equipment-txn", address=slot_key,
+            )
+            if prefix is None:
+                return None
+            return (
+                "key",
+                LEAVE_STORE_KEY if snapshot.store is not None
+                else prefix + ".\r",
+            )
+        if owned.origin == "home":
+            signature = self._item_signature(owned.item)
+            if (
+                snapshot.store is None
+                and self._home_pending_item is None
+                and signature not in self._deferred_home_items
+                and self._town_pack_space_ready(snapshot)
+            ):
+                return ("home", signature)
+        return None
 
 
 

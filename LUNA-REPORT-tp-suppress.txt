@@ -1,0 +1,41 @@
+LUNA-REPORT-tp-suppress.txt
+
+Task E1: random-teleport-suppression producer mismatch
+Branch: tp-suppress-1014; base: 4afde8ca
+
+Diagnosis
+
+The two captured terminal rows are pinned from the archived decision logs and corresponding final state rows. At sequence 3261 / turn 676360 the recorded result is key 5, town:blocked:owner-retired-burst; at sequence 636 / turn 683372 it is key 5, town:blocked:departure-unsatisfiable. Both have only equipment_departure_ready failed, blocker pending-random-teleport-suppression, zero transaction actions, and equipment transaction context null / entry blocker no-session.
+
+The state logs do not contain the original private optimizer selection or complete reservation view. Therefore the exact _selected_random_teleport_suppressions result, original actionability return, and original reservation verdict cannot be recovered. The diagnostic file records the decision rows, code locations, and limitations. In the first capture, identification-flow is a preserve reason, not proof of an exclusive reservation. A declared-constructed probe using the exact captured pack item and only _identification_candidate yields reservation owner None and command {p. In the second capture, an earlier successful suppression action at turn 682662 had identification_need=full, *Identify* source current 0 / target 1 / missing 1, and gold 2676; the evidence supports a missing source rather than insufficient gold at that row. Both terminal rows show enough pack space (6 and 9 free slots against minimum 5), and clear Home-pending flags. The terminal rows still do not reveal the complete selected set or original producer refusal reason.
+
+Fix
+
+policy.py now has one shared per-origin producer-action selector. Pack and equipped targets are actionable only when reserved_item_command authorizes the exact inscription; Home targets are actionable only outside a store, with no pending Home item, outside the deferred signatures, and with pack space ready. _random_teleport_suppression_actionable tests whether this selector yields an action. The town producer consumes that same returned action to emit the inscription / leave-store key or arm the Home withdrawal.
+
+When the only optional equipment blocker is pending-random-teleport-suppression and no producer action is currently possible, the existing current-loadout departure path stages the optional equipment failure record once. This fallback now also checks required abilities for the destination; it cannot bypass a mandatory ability gate. It does not change identification flow or take items reserved by another owner.
+
+Pins and controls
+
+- tests/fixtures/tp-suppress-e1-20261014.jsonl.gz contains only the two captured final state rows; the boundaries JSON pins their recorded stop keys, reasons, blocker and transaction facts. The incident tests run the real policy decision methods on those boards. Constructed optimizer/Home catalogue frames are explicitly declared in the test.
+- After the fix, the constructed captured-board scenarios produce actual departure keys rhb and rfb, both with town:recall-to-yeek-cave and no failed departure blocks. The optional failure record uses random-teleport-suppression-unactionable-current-loadout and is settled once; a repeated confirmation does not create a duplicate.
+- Controls in tests/test_policy_equipment.py keep the authorized pack inscription behavior, ordinary non-deferred Home withdrawal, foreign reservation ownership, and missing required-ability block.
+- Existing assertions were not edited.
+
+Development checks (each test module run separately)
+
+- tests.test_policy_equipment: 196 tests, OK.
+- tests.test_absorbing_states: 22 tests, OK.
+- tests.test_tp_suppression_incident: 3 tests, OK.
+- town_structure_lint.py: 0 violations.
+- item_sink_lint.py: 0 violations.
+- town_work_manifest.py --write: 824 candidates, 20682 sites, zero unmapped.
+- git diff --check: clean.
+
+Guard outputs
+
+Preflight and mutation_check outputs will be appended after the required post-commit guard runs.
+
+Final required suite
+
+The exact affected/hygiene module set and final test_parallel_runner output will be appended after the single required final run.

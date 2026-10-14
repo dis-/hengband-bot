@@ -2393,6 +2393,83 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         policy._prepare_equipment_optimization = lambda _snapshot: refused
         self.assertFalse(policy._equipment_departure_ready(self._town()))
 
+    def test_reserved_pack_suppression_is_not_actionable_or_stolen(self):
+        artifact = item(
+            "a", 23, 17, name="Werewindle", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        snapshot = self._town(inventory=(artifact,))
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        owned = policy._equipment_catalog.items[0]
+        blocked = policy_module.WarriorOptimizationPreparation(
+            SimpleNamespace(),
+            SimpleNamespace(
+                best=SimpleNamespace(
+                    loadout=SimpleNamespace(item_ids=frozenset({owned.id}))
+                )
+            ),
+            None,
+            ("pending-random-teleport-suppression",),
+        )
+        signature = policy._item_signature(artifact)
+        policy._home_atomic_withdraw_pending = (signature, 1, 0, 1)
+
+        with patch.object(policy, "_prepare_equipment_optimization", return_value=blocked):
+            self.assertFalse(
+                policy._random_teleport_suppression_actionable(snapshot, blocked)
+            )
+            self.assertIsNone(
+                policy._town_random_teleport_suppression_key(snapshot)
+            )
+
+        self.assertEqual(
+            policy._home_atomic_withdraw_pending,
+            (signature, 1, 0, 1),
+        )
+
+    def test_unactionable_suppression_does_not_bypass_depth_abilities(self):
+        stored = store_item(
+            "b", 23, 17, name="Werewindle", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([stored])
+        worn = (
+            item("main_hand", TVAL_SWORD, 1, is_equipment=True),
+            item("light", TVAL_LITE, SV_LITE_TORCH, is_equipment=True),
+        )
+        snapshot = self._town(equipment=worn)
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        current = current_loadout(policy._equipment_catalog.items)
+        blocked = policy_module.WarriorOptimizationPreparation(
+            current,
+            SimpleNamespace(best=SimpleNamespace(loadout=current)),
+            None,
+            ("pending-random-teleport-suppression",),
+        )
+        policy._equipment_optimizer_input_key = ("confirmed",)
+        policy._confirmed_loadout_path = Path("captured-current-kit")
+        policy._confirmed_loadout = tuple(current.item_ids)
+        policy._equipment_optimization_preparation = blocked
+        policy._deferred_home_items.add(policy._item_signature(stored))
+
+        self.assertTrue(policy._missing_required_abilities(snapshot, 20))
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=blocked
+        ), patch.object(
+            policy, "_current_worn_loadout_confirmed", return_value=True
+        ):
+            self.assertFalse(
+                policy._equipment_departure_ready(snapshot, destination_depth=20)
+            )
+
     def test_blocked_home_refuses_departure_and_names_visible_exit(self):
         policy = HengbotPolicy()
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)

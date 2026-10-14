@@ -2892,9 +2892,19 @@ class EquipmentMixin:
                 ready = True
             elif (
                 "pending-random-teleport-suppression" in preparation.blockers
+                and not self._missing_required_abilities(snapshot, depth)
                 and not self._random_teleport_suppression_actionable(snapshot, preparation)
             ):
                 ready = True
+                if self._equipment_optional_failure_pending is None:
+                    self._stage_optional_equipment_failure_departure(
+                        snapshot,
+                        depth,
+                        reason=(
+                            "random-teleport-suppression-unactionable-"
+                            "current-loadout"
+                        ),
+                    )
             elif (
                 "incomplete-equipment-catalog" in preparation.blockers
                 and self._identification_need_unsatisfiable(snapshot)
@@ -2951,10 +2961,13 @@ class EquipmentMixin:
         carried.refresh_carried(snapshot.inventory, snapshot.equipment)
         return current_loadout(carried.items).item_ids
 
-    def _stage_optional_equipment_failure_departure(self, snapshot, depth):
+    def _stage_optional_equipment_failure_departure(
+        self, snapshot, depth, *,
+        reason="optional-optimization-failure-confirmed-loadout",
+    ):
         """Keep abnormal failure evidence through latch retirement until posting."""
         record = {
-            "reason": "optional-optimization-failure-confirmed-loadout",
+            "reason": reason,
             "posted": False,
             "depth": depth,
             "item_ids": sorted(self._optional_failure_current_loadout(

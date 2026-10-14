@@ -1,0 +1,178 @@
+{
+  "source_capture_sha256": {
+    "autorecover-20261014-112103-town-blocked-owner-retired-burst.bot-decisions.jsonl.gz": "2b1c1b37832b5933ebe0b092bc63d6eeec127730f56ea56d6f57f6ae4ba5c518",
+    "autorecover-20261014-112103-town-blocked-owner-retired-burst.bot-state-fixed.jsonl.gz": "c4d1946d280abec87ef614b13b7b6830a57aeb761d4f3367a66f845c5708aeb7",
+    "autorecover-20261014-113017-town-blocked-departure-unsatisfiable.bot-decisions.jsonl.gz": "74283ee074aff42d7abccf6e7075658de7b0d62f93093cc61c3ac2eedf1aa883",
+    "autorecover-20261014-113017-town-blocked-departure-unsatisfiable.bot-state-fixed.jsonl.gz": "ac99915e557adb7b1c40ddcf4416173b2f57dd0a35eaf68eeea5af3b5dfe8304"
+  },
+  "records": [
+    {
+      "capture": "autorecover-20261014-112103-town-blocked-owner-retired-burst",
+      "sequence": 3261,
+      "turn": 676360,
+      "key": "5",
+      "reason": "town:blocked:owner-retired-burst",
+      "departure_failed": [
+        "equipment_departure_ready"
+      ],
+      "equipment_blockers": [
+        "pending-random-teleport-suppression"
+      ],
+      "transaction_actions": 0,
+      "equipment_transaction": {
+        "context": null,
+        "entry_blocker": "no-session"
+      },
+      "identification_need": null,
+      "gold": 4420,
+      "preserve_pack_items": {
+        "total": 2,
+        "display_cap": 25,
+        "truncated": false,
+        "items": [
+          {
+            "id": "pack:348d45730c4b7143:0",
+            "name": "(混沌)コペシュ (2d4) (+6,+6)",
+            "identity": "348d45730c4b7143",
+            "reasons": [
+              "identification-flow"
+            ]
+          },
+          {
+            "id": "pack:441248f0e6daf1d7:0",
+            "name": "松明(1830ターンの寿命) {明}",
+            "identity": "441248f0e6daf1d7",
+            "reasons": [
+              "retention-reservation"
+            ]
+          }
+        ]
+      },
+      "deferred_home_item_signatures": [
+        [
+          "(混沌)コペシュ (2d4) (+6,+6)",
+          23,
+          14
+        ],
+        [
+          "ドワーフの大鎧 (-2) [30,+16] (+2)",
+          37,
+          16
+        ]
+      ],
+      "departure_values": {
+        "recall_departure_ready": true,
+        "remove_curse_ready": true,
+        "food_ready": true,
+        "light_ready": true,
+        "quest_carry_ready": true,
+        "teleport_ready": true,
+        "cure_critical_ready": true,
+        "identify_staff_ready": true,
+        "teleport_items_safe": true,
+        "free_pack_slots_ready": true,
+        "inventory_weight_ready": true,
+        "hp_full": true,
+        "mp_full": true,
+        "temporary_status_clear": true,
+        "organization_complete": true,
+        "equipment_departure_ready": false,
+        "home_candidate_resolved": true,
+        "home_catalog_ready": true,
+        "home_pending_item_clear": true,
+        "home_pending_batch_clear": true,
+        "home_batch_review_clear": true,
+        "home_atomic_withdraw_clear": true,
+        "digger_withdrawal_resolved": true,
+        "identification_need_clear": true
+      }
+    },
+    {
+      "capture": "autorecover-20261014-113017-town-blocked-departure-unsatisfiable",
+      "sequence": 636,
+      "turn": 683372,
+      "key": "5",
+      "reason": "town:blocked:departure-unsatisfiable",
+      "departure_failed": [
+        "equipment_departure_ready"
+      ],
+      "equipment_blockers": [
+        "pending-random-teleport-suppression"
+      ],
+      "transaction_actions": 0,
+      "equipment_transaction": {
+        "context": null,
+        "entry_blocker": "no-session"
+      },
+      "identification_need": null,
+      "gold": 2686,
+      "preserve_pack_items": {
+        "total": 2,
+        "display_cap": 25,
+        "truncated": false,
+        "items": [
+          {
+            "id": "pack:441248f0e6daf1d7:0",
+            "name": "松明(1830ターンの寿命) {明}",
+            "identity": "441248f0e6daf1d7",
+            "reasons": [
+              "retention-reservation"
+            ]
+          },
+          {
+            "id": "pack:e35d3b7107774db3:0",
+            "name": "シャベル (1d2) (+0,+0) (+1) {+掘}",
+            "identity": "e35d3b7107774db3",
+            "reasons": [
+              "retention-reservation",
+              "digging-tool-in-fundraising"
+            ]
+          }
+        ]
+      },
+      "deferred_home_item_signatures": [
+        [
+          "ドワーフの大鎧 (-2) [30,+16] (+2)",
+          37,
+          16
+        ]
+      ],
+      "departure_values": {
+        "recall_departure_ready": true,
+        "remove_curse_ready": true,
+        "food_ready": true,
+        "light_ready": true,
+        "quest_carry_ready": true,
+        "teleport_ready": true,
+        "cure_critical_ready": true,
+        "identify_staff_ready": true,
+        "teleport_items_safe": true,
+        "free_pack_slots_ready": true,
+        "inventory_weight_ready": true,
+        "hp_full": true,
+        "mp_full": true,
+        "temporary_status_clear": true,
+        "organization_complete": true,
+        "equipment_departure_ready": false,
+        "home_candidate_resolved": true,
+        "home_catalog_ready": true,
+        "home_pending_item_clear": true,
+        "home_pending_batch_clear": true,
+        "home_batch_review_clear": true,
+        "home_atomic_withdraw_clear": true,
+        "digger_withdrawal_resolved": true,
+        "identification_need_clear": true,
+        "combat_weapon_ready": true,
+        "departure_home_pending_item_clear": true,
+        "departure_home_pending_batch_clear": true,
+        "departure_home_batch_review_clear": true,
+        "departure_home_atomic_withdraw_clear": true,
+        "departure_identification_need_clear": true
+      }
+    }
+  ],
+  "fixture_turns": [
+    676360,
+    683372
+  ]
+}

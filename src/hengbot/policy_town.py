@@ -5262,70 +5262,53 @@ class TownMixin:
             for owned in self._equipment_catalog.items
             if self._needs_random_teleport_suppression(owned, selected_ids)
         )
-        pack_owned = next(
-            (owned for owned in pending if owned.origin == "pack"), None
+        targets = (
+            (owned, self._random_teleport_suppression_producer_action(
+                snapshot, owned
+            ))
+            for origin in ("pack", "equipped", "home")
+            for owned in pending
+            if owned.origin == origin
         )
-        equipped_owned = next(
-            (owned for owned in pending if owned.origin == "equipped"), None
+        actionable = next(
+            ((owned, action) for owned, action in targets if action is not None),
+            None,
         )
-        if pack_owned is not None or equipped_owned is not None:
-            if snapshot.store is not None:
-                self.last_reason = "equipment:leave-store-to-suppress-random-teleport"
-                self._offer_execution(
-                    LEAVE_STORE_KEY, producer="equipment-txn",
-                    work_id="suppress-random-teleport",
-                    next_step="store.leave-for-teleport-suppression",
-                    expected_effect="store-exited",
+        if actionable is not None:
+            owned, (action_kind, action_value) = actionable
+            if action_kind == "key":
+                key = action_value
+                if snapshot.store is not None:
+                    self.last_reason = "equipment:leave-store-to-suppress-random-teleport"
+                    self._offer_execution(
+                        key, producer="equipment-txn",
+                        work_id="suppress-random-teleport",
+                        next_step="store.leave-for-teleport-suppression",
+                        expected_effect="store-exited",
+                    )
+                    return key
+                self.last_reason = (
+                    "equipment:suppress-random-teleport"
+                    if owned.origin == "pack"
+                    else "equipment:suppress-equipped-random-teleport"
                 )
-                return LEAVE_STORE_KEY
-            if pack_owned is not None:
-                self.last_reason = "equipment:suppress-random-teleport"
-                prefix = reserved_item_command(self, snapshot, "inscribe", pack_owned.item, "equipment-txn")
-                if prefix is None:
-                    return None
-                key = prefix + ".\r"
                 self._offer_execution(
                     key, producer="equipment-txn",
                     work_id="suppress-random-teleport",
                     next_step="equipment.inscribe-teleport-suppression",
-                    arguments=(equipment_identity(pack_owned.item),),
-                    expected_effect="random-teleport-suppressed",
-                    continuation="equipment.suppression.observe",
-                )
-                return key
-            slot_key = EQUIPMENT_SLOT_KEY.get(equipped_owned.equipped_slot)
-            if slot_key is not None:
-                self.last_reason = "equipment:suppress-equipped-random-teleport"
-                prefix = reserved_item_command(self, snapshot, "inscribe-equipped", equipped_owned.item, "equipment-txn", address=slot_key)
-                if prefix is None:
-                    return None
-                key = prefix + ".\r"
-                self._offer_execution(
-                    key, producer="equipment-txn",
-                    work_id="suppress-random-teleport",
-                    next_step="equipment.inscribe-teleport-suppression",
-                    arguments=(equipment_identity(equipped_owned.item),),
+                    arguments=(equipment_identity(owned.item),),
                     expected_effect="random-teleport-suppressed",
                     continuation="equipment.suppression.observe",
                 )
                 return key
 
-        home_owned = next(
-            (owned for owned in pending if owned.origin == "home"), None
-        )
-        if (
-            home_owned is not None
-            and snapshot.store is None
-            and self._home_pending_item is None
-            and self._item_signature(home_owned.item)
-            not in self._deferred_home_items
-            and self._town_pack_space_ready(snapshot)
-        ):
+            home_owned = owned
+            home_signature = action_value
             # The completed ~9 catalogue owns the identity and shelf ordinal.
             # Arm the ordinary derived-address withdrawal only outside; its
             # entrance path owns visit bounds, posting, page arithmetic, the
             # take command, and the exit.
-            self._home_pending_item = self._item_signature(home_owned.item)
+            self._home_pending_item = home_signature
             self._home_random_teleport_withdrawal = self._home_pending_item
             self._offer_execution(
                 None, producer="equipment-txn",
