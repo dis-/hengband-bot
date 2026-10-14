@@ -368,7 +368,6 @@ def normalize_policy_state(restored, *, restart=False):
         register.__dict__.setdefault("_bars", [])
         register.__dict__.setdefault("_ended", [])
     restored.__dict__.setdefault("_town_turn_arbiter", None)
-    restored.__dict__.setdefault("_departure_dump_enabled", True)
     if restart:
         restored.__dict__["_town_inn_accounting"] = None
     else:

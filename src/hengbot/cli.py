@@ -3442,8 +3442,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         "--dump-interval-seconds",
         type=float,
         default=DUMP_INTERVAL_SECONDS,
-        help="seconds between periodic character dumps and their paired game-save requests "
-             "(0 disables them and the pre-departure dump)",
+        help="seconds between periodic character dumps and their paired game-save requests (0 disables)",
     )
     parser.add_argument(
         "--game-save-path",
