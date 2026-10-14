@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import pickle
+import sys
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -23,6 +24,7 @@ from hengbot.policy import HengbotPolicy, TR_NO_TELE
 from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, WAIT_KEY
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_town import VISIT_CLOSABLE_REASONS
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from minimum_table import board_policy, last_row
 from policy_fixtures import grid, item
 
