@@ -10288,6 +10288,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return WAIT_KEY
 
     def _decide(self, snapshot: Snapshot) -> str:
+        self._evaluate_cross_decision_latches(snapshot)
         # A0 hands this visit to repetition. Pre-empt optional enchants and
         # required-purchase/release branches before they can reopen its work.
         if snapshot.in_town and self._visit_departure_committed:
@@ -10295,7 +10296,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if cancel_unsafe_recall is not None:
                 return cancel_unsafe_recall
             return self._town_blocked_key(snapshot)
-        self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
         if (snapshot.in_town and self._home_errand.needs_knowledge
