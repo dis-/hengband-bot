@@ -14611,14 +14611,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _overflow_disposal_item(self, snapshot: Snapshot) -> InventoryItem | None:
-        # A full pack of items no shop buys and the Home will not take — devices
-        # (wand/staff/rod), ammo, books, chests, identified junk — strands the
-        # bot in town: it cannot re-descend (pack-full blocks descent) and roams
-        # forever below the loop-detector's radar. As a last resort, destroy one
-        # such item so a slot always frees. Only reached after every productive
-        # town action has declined this turn, so it never pre-empts a sale,
-        # deposit, or purchase; survival gear and economically-useful items are
-        # preserved.
+        # This last town rung runs after the productive sale and deposit
+        # producers. Their actual decisions, rather than a hypothetical shop
+        # route, determine whether economic value still protects an item here.
+        # A known curse is an explicit auto-destroy target, ahead of ordinary
+        # disposable items. Reservations, identification, survival, and useful
+        # devices remain protected by the checks below.
+        cursed = self._first_item(
+            snapshot,
+            lambda item: self._entire_stack_is_surplus(snapshot, item)
+            and not self._item_is_procurement_protected(snapshot, item)
+            and item.known
+            and item.is_cursed
+            and not item.is_bounty
+            and self._item_signature(item) not in self._undestroyable_sigs,
+        )
+        if cursed is not None:
+            return cursed
         disposable = self._find_disposable_item(snapshot)
         if disposable is not None:
             return disposable
@@ -14631,7 +14640,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._item_is_procurement_protected(snapshot, item)
             and not self._survival_essential(item)
             and not self._is_useful_device(item)
-            and not self._has_town_economic_path(item)
             and self._item_signature(item) not in self._undestroyable_sigs,
         )
 
