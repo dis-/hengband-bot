@@ -2871,13 +2871,32 @@ class QuestMixin:
             if encounter is not None:
                 return encounter
 
-        # Q34 provides a brass lantern at the end of the safe outer-right
-        # corridor.  Its radius-2 light is part of the approved fixed-target
-        # contract: from a distance-2 throwing point, a torch cannot prove that
-        # the target cell is empty.  Pick up and equip the lantern before any
-        # door, combat, or fixed-target phase, and fail closed if it disappeared.
+        # Q34 provides an oil flask immediately before a brass lantern on the
+        # safe outer-right corridor. Its radius-2 light is part of the approved
+        # fixed-target contract: from a distance-2 throwing point, a torch
+        # cannot prove that the target cell is empty. Recover the flask while
+        # passing it, then pick up and equip the lantern before any door,
+        # combat, or fixed-target phase.
         opening_light = profile.engagement_plan.get("opening_light")
         if isinstance(opening_light, dict):
+            fuel_position = opening_light.get("fuel_position")
+            if fuel_position is not None and not any(
+                item.is_oil and item.fuel > 0 for item in snapshot.inventory
+            ):
+                flask_position = Position(*fuel_position)
+                if snapshot.player.position == flask_position:
+                    flask_grid = snapshot.grid_at(flask_position)
+                    if (
+                        flask_grid is not None
+                        and flask_grid.object_count > 0
+                        and (
+                            not flask_grid.object_tvals
+                            or TVAL_FLASK in flask_grid.object_tvals
+                        )
+                    ):
+                        self.last_reason = "quest-strategy:pickup-opening-oil"
+                        return PICKUP_KEY
+
             equipped_lantern = next(
                 (item for item in snapshot.equipment if item.is_lantern), None
             )
@@ -2886,6 +2905,24 @@ class QuestMixin:
                     snapshot, lambda item: item.is_lantern
                 )
                 if carried_lantern is not None:
+                    worn_light = next(
+                        (item for item in snapshot.equipment if item.is_light), None
+                    )
+                    lantern_position = Position(*opening_light["position"])
+                    if (
+                        snapshot.player.position != lantern_position
+                        and carried_lantern.fuel <= LANTERN_REFILL_FUEL
+                        and worn_light is not None
+                        and self._is_usable_light(worn_light)
+                        and not any(
+                            item.is_oil and item.fuel > 0
+                            for item in snapshot.inventory
+                        )
+                    ):
+                        self.last_reason = (
+                            "quest:blocked:opening-lantern-unfuelled"
+                        )
+                        return WAIT_KEY
                     self.last_reason = "quest-strategy:equip-opening-lantern"
                     return self._equipment_wield(
                         snapshot, "quest-launcher", carried_lantern, "light",

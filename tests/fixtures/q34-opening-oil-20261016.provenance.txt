@@ -1,0 +1,2 @@
+Source (read only): captures-light/life-007/state.jsonl
+Raw JSONL rows at turns 75392, 75402, 75413, and 76552; gzip-compressed without JSON re-encoding.
