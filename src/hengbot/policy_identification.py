@@ -126,15 +126,23 @@ class IdentificationMixin:
                 )
                 self._chest_phase_counts = {}
                 self._chest_drop_origin = None
+                self._chest_drop_chest_count = None
                 self._chest_preopen_objects = None
-            elif any(
-                self._is_processable_chest(item) for item in snapshot.inventory
-            ):
-                # The drop command has not yet reached the next stable snapshot.
-                # Keep ownership so town errands cannot carry the chest away.
-                self.last_reason = "chest:await-drop"
-                return WAIT_KEY
             else:
+                carried_chest_count = sum(
+                    self._is_processable_chest(item)
+                    for item in snapshot.inventory
+                )
+                posted_chest_still_carried = (
+                    carried_chest_count > 0
+                    if self._chest_drop_chest_count is None
+                    else carried_chest_count >= self._chest_drop_chest_count
+                )
+                if posted_chest_still_carried:
+                    # The drop command has not yet reached the next stable snapshot.
+                    # Keep ownership only while the posted chest remains carried.
+                    self.last_reason = "chest:await-drop"
+                    return WAIT_KEY
                 origin = self._chest_drop_origin
                 origin_grid = snapshot.grids.get(origin)
                 if player.position == origin or (
@@ -147,6 +155,7 @@ class IdentificationMixin:
                     self._chest_phase_counts = {}
                     self._chest_preopen_objects = None
                 self._chest_drop_origin = None
+                self._chest_drop_chest_count = None
         if self._chest_position is not None:
             chest_pos = self._chest_position
             distance = player.position.distance_to(chest_pos)
@@ -335,6 +344,10 @@ class IdentificationMixin:
                 # can never change that routing evidence, so process the carried
                 # chest at the current safe, hostile-free position instead.
                 self._chest_drop_origin = player.position
+                self._chest_drop_chest_count = sum(
+                    self._is_processable_chest(item)
+                    for item in snapshot.inventory
+                )
                 self._chest_phase_counts = {}
                 self._chest_collecting = False
                 self._chest_preopen_objects = None
@@ -344,6 +357,9 @@ class IdentificationMixin:
             self._declare_reach(target)
             return self._step_toward(snapshot, step)
         self._chest_drop_origin = player.position
+        self._chest_drop_chest_count = sum(
+            self._is_processable_chest(item) for item in snapshot.inventory
+        )
         self._chest_phase_counts = {}
         self._chest_collecting = False
         self._chest_preopen_objects = None
