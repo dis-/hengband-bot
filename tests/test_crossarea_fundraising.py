@@ -318,6 +318,49 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         self.assertEqual(policy._fundraising_purpose_record.child.state,
                          "complete")
 
+    def test_return_from_below_first_floor_climbs_through_shallower_floors(self):
+        # 2026-10-15 Linux soak c2-a: a scavenge return from Yeek 2F reached 1F
+        # and stopped as wrong-destination.
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        policy._fundraising_run_purpose = self.purpose
+        second = SimpleNamespace(
+            floor_key=(DUNGEON_YEEK_CAVE, 2, 0), in_town=False,
+            dungeon_level=2, player=SimpleNamespace(gold=136),
+        )
+        policy._post_fundraising_transport(second, "return")
+        first = SimpleNamespace(
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), in_town=False,
+            dungeon_level=1, player=SimpleNamespace(gold=136),
+        )
+        self.assertTrue(policy._observe_fundraising_transport(first))
+        record = policy._fundraising_purpose_record
+        self.assertEqual(record.status, "active")
+        self.assertEqual((record.child.direction, record.child.state, record.child.from_floor),
+                         ("return", "posted", (DUNGEON_YEEK_CAVE, 1, 0)))
+        town = SimpleNamespace(
+            floor_key=(0, 0, 0), in_town=True, dungeon_level=0,
+            player=SimpleNamespace(gold=136),
+        )
+        self.assertTrue(policy._observe_fundraising_transport(town))
+        self.assertEqual(policy._fundraising_purpose_record.child.state, "complete")
+
+    def test_return_that_goes_deeper_or_elsewhere_still_fails(self):
+        for landing in ((DUNGEON_YEEK_CAVE, 3, 0), (9, 1, 0)):
+            with self.subTest(landing=landing):
+                policy = HengbotPolicy()
+                policy._crossarea_fundraising_enforced = True
+                policy._fundraising_run_purpose = self.purpose
+                policy._post_fundraising_transport(SimpleNamespace(
+                    floor_key=(DUNGEON_YEEK_CAVE, 2, 0)), "return")
+                wrong = SimpleNamespace(
+                    floor_key=landing, in_town=False, dungeon_level=landing[1],
+                    player=SimpleNamespace(gold=136),
+                )
+                self.assertFalse(policy._observe_fundraising_transport(wrong))
+                self.assertEqual(policy._fundraising_purpose_record.failure,
+                                 "wrong-destination")
+
     def test_wrong_destination_fails_purpose_and_bars_readmission(self):
         policy = HengbotPolicy()
         policy._crossarea_fundraising_enforced = True

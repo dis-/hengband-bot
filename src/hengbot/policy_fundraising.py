@@ -171,6 +171,17 @@ class FundraisingMixin:
         child = record.child
         if child is not None and child.state == "posted":
             if tuple(snapshot.floor_key) != child.from_floor:
+                if (child.direction == "return" and not snapshot.in_town
+                        and snapshot.floor_key[0] == child.from_floor[0]
+                        and 0 < snapshot.dungeon_level < child.from_floor[1]):
+                    # A return that starts below Yeek 1F climbs one floor at a time
+                    # (2026-10-15 soak: 2F -> 1F stopped as wrong-destination). A
+                    # shallower floor of the same dungeon is progress: the return
+                    # stays posted from here.
+                    self._fundraising_purpose_record = replace(
+                        record, child=replace(child, from_floor=tuple(snapshot.floor_key)),
+                    )
+                    return True
                 expected = (snapshot.in_town if child.direction == "return"
                             else snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
                             and snapshot.dungeon_level == 1)
