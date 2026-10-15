@@ -77,6 +77,12 @@ class ObservationMixin:
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
         self.observe_town_visit_epoch(snapshot.in_town, snapshot.turn)
+        if (
+            self._fundraising_mode == "scavenge"
+            and snapshot.floor_key == (DUNGEON_YEEK_CAVE, 1, 0)
+            and getattr(self, "_scavenge_run_start_turn", None) is None
+        ):
+            self._scavenge_run_start_turn = snapshot.turn
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             self._record_observed_home_addresses(snapshot)
         # The threat memo exists only for repeat lookups within ONE decision
