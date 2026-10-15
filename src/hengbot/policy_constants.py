@@ -847,6 +847,11 @@ STUCK_FAMILY_REASONS = frozenset(
         "fundraise:seek-upstairs",
         "fundraise:seek-upstairs-explore",
         "fundraise:seek-upstairs-wander",
+        # A latched general return can exhaust every known exit and fall back
+        # to least-visited wandering. Count that same bounded escape work so a
+        # carried Recall scroll reaches the existing stuck escape before the
+        # broader navigation no-progress detector.
+        "return:wander",
         "fundraise:probe",
         "fundraise:search",
         "paralyzer-guard:approach-range",
