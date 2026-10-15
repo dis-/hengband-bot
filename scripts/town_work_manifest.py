@@ -210,8 +210,10 @@ def check_repository():
 
 
 def runtime_index(data):
+    # No line numbers (owner decision 2026-10-15, merge speed-up 4): nothing reads them at run time, and
+    # they made every source edit rewrite ~770 lines of this index. ast_sha256 still pins each site.
     return {entry['site']: {k: entry[k] for k in
-                           ('classification', 'rows', 'delegation', 'line', 'end_line', 'ast_sha256')}
+                           ('classification', 'rows', 'delegation', 'ast_sha256')}
             for entry in data['entries']}
 
 
