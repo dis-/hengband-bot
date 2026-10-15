@@ -1,0 +1,47 @@
+Q34 opening lantern oil fix ? Issue #47
+Date: 2026-10-16
+Branch: q34-oil-1016
+Base: 32e348b7a4140ad9b1131b7b44ae4f8d779337fc
+Implementation commit: 0be0369a4fe1a320883eb3099a64acc27c8ad219
+
+Diagnosis
+- The read-only captured boards show the oil flask at [9,20]. Turn 75392 records the player on that cell with the flask visible and not in inventory. The bot passed it and reached the brass lantern at [10,20]. Turn 75413 shows the lantern picked up, with no oil carried. The dry-lantern board at turn 76552 has radius 0 and still no flask in inventory. Subsequent loop decisions alternate `wield-light` and `quest-strategy:equip-opening-lantern` (`wd`).
+- The approved strategy requires the lantern's radius-2 light for fixed-target visibility. A torch does not satisfy that contract.
+- `_light_refill_item` already selects carried oil for an equipped lantern at/below `LANTERN_REFILL_FUEL`. Refill is checked in the approved-quest dispatch before quest navigation, and `_darkness_recovery_key` also checks refill before selecting a torch.
+
+Changes
+- Added `opening_light.fuel_position: [9,20]` to the reviewed Q34 strategy. The existing route to [10,20] passes the flask cell; the policy picks it up there before proceeding to the lantern. If no flask is present, the oil step fails open and the lantern step still proceeds.
+- The carried dry lantern is no longer wielded over a usable light when no oil is carried. After darkness recovery equips a working torch, the Q34 opening owner stops visibly with `quest:blocked:opening-lantern-unfuelled`; the fixed-target light contract remains intact and the `wd` alternation ends.
+- No new policy attributes were added; restored-checkpoint defaults required: none.
+- Added raw, gzip-compressed captured JSONL rows for turns 75392, 75402, 75413, and 76552. No game data was copied into the repository.
+
+Regression pins and controls
+- `tests.test_q34_opening_oil_recorded`: 5 tests passed. Pins include pickup at [9,20] (`g`, `quest-strategy:pickup-opening-oil`), fail-open when absent, and the lantern pickup/equip controls (`g` and `wd` with their Q34 reasons).
+- On the captured dry-lantern board with a constructed carried flask, real policy replay returns `\Fo` with reason `refill-light`.
+- Without oil, the constructed dark board returns `wc` with reason `wield-light`; after the torch is worn, the next real policy decision is `5` with reason `quest:blocked:opening-lantern-unfuelled`, not `wd`.
+- A fueled lantern with oil is not refilled. The town empty-lantern/working-torch control still passes, preserving the 2026-10-13 town light rule.
+- Existing assertions were not edited. `test_policy_quest`: 334 passed, 7 skipped. `test_policy_supply`: 208 passed. `test_home_light_alternation`: 36 passed.
+- Structural bookkeeping: `town_work_manifest.py --write` regenerated the stale manifest: 825 candidates, 20,821 call sites, zero unmapped. `town_structure_lint.py` and `item_sink_lint.py` each reported zero violations. Producer/review, item-sink adapter, and item-intent baseline JSON files required no entry changes. Structural census counts: 825 candidates / 20,821 sites.
+
+Required guard outputs (run sequentially after the source commit)
+
+python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\q34-oil 32e348b7
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (q34-oil vs 32e348b7)
+exit_code=0
+
+python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\q34-oil 32e348b7 --tests tests.test_q34_opening_oil_recorded --record
+[mutation] 2 source hunks, tests: tests.test_q34_opening_oil_recorded
+[mutation] caught     src/hengbot/policy_quest.py:2871 (# Q34 provides an oil flask immediately before a brass lantern on the): test_opening_recovers_oil_at_9_20_before_the_lantern
+[mutation] caught     src/hengbot/policy_quest.py:2905 (worn_light = next(): test_dry_lantern_without_oil_does_not_ping_pong
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for 0be0369a
+exit_code=0
+
+python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\q34-oil 32e348b7 --shards 4
+[fast] 33 fast tests (<2.0s in 4777789d) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-c7o96j9j)
+Failures: none
+Errors: none
+Total: 38 tests, 11.2s
+exit_code=0
