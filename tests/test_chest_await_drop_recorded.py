@@ -125,6 +125,28 @@ class ChestAwaitRecordedTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(dropped), "7")
         self.assertEqual(policy.last_reason, "chest:step-off")
 
+    def test_normal_drop_count_fall_settles_while_another_chest_remains(self):
+        # DECLARED CONSTRUCTED: use two carried chests and an unlisted
+        # underfoot object so the normal drop path must use its count baseline.
+        first = item("i", TVAL_CHEST, 1, name="opened chest")
+        second = item("j", TVAL_CHEST, 1, name="opened chest")
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(9, 12) for x in range(9, 12)
+        }
+        before = Snapshot(
+            player(10, 10, hp=50, max_hp=50, class_id=PLAYER_CLASS_WARRIOR),
+            grids, [], floor_key=(DUNGEON_YEEK_CAVE, 2, 0), width=30,
+            height=30, inventory=[first, second],
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(before), "di")
+        self.assertEqual(policy.last_reason, "chest:drop")
+
+        after = replace(before, inventory=[second])
+        self.assertEqual(policy.choose_key(after), "7")
+        self.assertEqual(policy.last_reason, "chest:step-off")
+
 
 if __name__ == "__main__":
     unittest.main()
