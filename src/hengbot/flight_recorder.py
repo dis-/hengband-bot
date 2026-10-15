@@ -200,9 +200,13 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
     )
     # Include every simple mode/latch/counter as cheap insurance against a field
     # omitted from a hand-maintained diagnostic list.
+    # Per-decision caches hold whole Snapshot objects; serialising them made a Level-8 town checkpoint
+    # 48 MB and its encoding exhausted the 1 GB soak machine (2026-10-16 00:09). They are cleared at
+    # every public decision, so the onset capture's exclusion list applies here too.
+    from hengbot.latch_onset_capture import _CAPTURE_STATE_NAMES
     simple = {}
     for name, value in vars(policy).items():
-        if name.startswith("_latch_capture_"):
+        if name.startswith("_latch_capture_") or name in _CAPTURE_STATE_NAMES:
             continue
         if (
             any(token in name for token in ("mode", "latch", "quest", "town", "fundrais", "return"))
