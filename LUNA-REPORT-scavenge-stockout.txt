@@ -35,8 +35,21 @@ Focused development checks (single modules only)
 - PASS `test_supply_stockout_recorded` — 9 tests.
 - `test_policy_town` development run was stopped after its process made no further CPU progress; no failure was observed. It will be included in the mandated final run.
 - No existing test files or existing assertions were edited. `test_observed_empty_shelf_waits_for_existing_restock_route` remains valid and passes: it observes an empty Alchemist shelf without completed Home knowledge, so it does not establish the complete stock-out condition selected by the owner.
-- No existing test has failed so far; final-suite failures will be classified (R) regression or (F) expectation changed by this decision.
+- No existing test had failed during focused development checks. Final-run failures and classifications are recorded below.
 
-Guard checks (must run after source commit; results to be pasted here)
+Guard checks (after the last source edit and commit)
+- Preflight command: `python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\scavenge-stockout 4e68bc66`
+  Output: `[preflight] PREFLIGHT OK: 12 changed files, 0 findings (scavenge-stockout vs 4e68bc66)`
+- Mutation command: `python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\scavenge-stockout 4e68bc66 --tests tests.test_scavenge_stockout_recorded --record`
+  Output: 7 source hunks caught; 0 of 7 hunks unpinned. Mutations at policy.py:2209, policy_fundraising.py:62, :273, :282, :1152, policy_observation.py:77 and policy_state.py:175 were each caught by the new recorded test module. Mutation record was written for ad5e465e.
+- A first post-fix preflight correctly detected that town_work_manifest was stale after adding the fresh-policy constructor field. Regenerated it with `town_work_manifest.py --write`, committed the refreshed generated files, and reran both guards successfully.
 
-Final parallel run (must run once after the guard checks; results to be pasted here)
+Final parallel run (one invocation)
+- Command: `scripts/test_parallel_runner.py --workers 2 --modules <168 modules>` with `PYTHONPATH=src`. The module set was the 160 modules from `affected_tests.py ... 4e68bc66 HEAD --with-replays`, plus 8 unique matching/hygiene modules.
+- Runner summary: worker-1 937 tests, exit 0; worker-2 1,496 tests, exit 1; worker-3 249 tests, exit 0. Total 2,682 tests in 5,094.696 seconds. Two failures, no errors; 7 skipped and 8 expected failures. The runner reported stale weight data and used fallback weights for 166/166 modules.
+- Failures, both classified (R) regression introduced by adding the new checkpoint attribute to restored policies while fresh policies lacked it:
+  - `tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_empty_upgrade_has_exact_fresh_key_set_and_is_idempotent`: upgraded state had `_scavenge_run_start_turn`, fresh state did not.
+  - `tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_v2_upgrade_removes_inactive_strip_fields_and_supplies_new_defaults`: same fresh/restored key-set mismatch.
+- Fix: initialize `_scavenge_run_start_turn` to `None` on fresh `HengbotPolicy` instances in `policy.py`; retain the restored-checkpoint default in `policy_state.py`. Added a pin for the fresh default in `test_scavenge_stockout_recorded.py`. No existing assertions were changed.
+- As authorized after the final run, reran only the failed module: `PYTHONPATH=src;tests;scripts python -m unittest tests.test_calibration_checkpoint` ? PASS, 9 tests. The new recorded module also passed after adding the fresh-default pin: 7 tests.
+- No second full parallel run was made. The two (R) failures are fixed and their module passes; no (F) expectation changes or unresolved test failures remain.
