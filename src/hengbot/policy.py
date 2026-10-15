@@ -2209,6 +2209,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._departure_block: dict[str, object] = {}
         self._loadout_report_path = None
         self._fundraising_mode: str | None = None
+        self._scavenge_run_start_turn: int | None = None
         self._fundraising_run_purpose: FundraisingPurpose | None = None
         self._fundraising_purpose_record: FundraisingPurposeRecord | None = None
         # Unknown on a fresh attachment until save-backed progress proves that
