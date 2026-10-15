@@ -1208,6 +1208,22 @@ class OperationExecutor:
         if screen_value is None:
             return self._terminal(self.active, "screen", "read-only request failed", transport=outcome)
         match = self._classify(screen_value)
+        if self._character_dump_transition_pending(match, screen_value):
+            # The character command is asynchronous on the headless Linux
+            # terminal.  In particular, the first screen read after posting
+            # `f`, Enter, or the closing Escape can still show the character sheet.
+            # Keep ownership while that posted key is pending, but only for a
+            # short bounded interval; an unrelated character sheet never
+            # reaches this path.
+            wait_until = min(deadline, time.monotonic() + 2.0)
+            while match.kind is ScreenKind.CHARACTER \
+                    and wait_until - time.monotonic() > 0.05:
+                time.sleep(min(0.025, wait_until - time.monotonic()))
+                screen_value = self._request("screen", wait_until, term=0, attrs=False)
+                if screen_value is None:
+                    return self._terminal(
+                        self.active, "screen", "read-only request failed", transport=outcome)
+                match = self._classify(screen_value)
         self.state = ExecutorState.CONTINUATION
         if match.kind is ScreenKind.DEATH:
             return self._death(self.active, match)
@@ -1552,6 +1568,31 @@ class OperationExecutor:
             "completed", operation, board, match, outcome,
             timing=operation.timing,
         )
+
+    def _character_dump_transition_pending(
+            self, match: ScreenMatch, screen_value: Mapping[str, object]) -> bool:
+        if match.kind is not ScreenKind.CHARACTER or self.active is None \
+                or self.active.owner not in {
+                    "periodic:character-dump", "town:character-dump",
+                }:
+            return False
+        width, height = screen_value.get("width"), screen_value.get("height")
+        if not isinstance(width, int) or not isinstance(height, int) \
+                or width > 80 or height > 24:
+            return False
+        last_posted = self.active.accepted_segments[-1:] or []
+        if not last_posted:
+            return False
+        last_keys = last_posted[0]
+        if last_keys == "\x1b" and not self.active.continuations:
+            return True
+        next_required = next(
+            (step for step in self.active.continuations if not step.optional), None)
+        if last_keys == "\r" and next_required is not None \
+                and ScreenKind.CHARACTER in next_required.kinds:
+            return True
+        return last_keys == "f" and bool(self.active.continuations) \
+            and ScreenKind.CHARACTER not in self.active.continuations[0].kinds
 
     def _terminal(self, operation, phase, reason, screen=None, transport=None, transport_name=None):
         active = operation or self.active or Operation(None, "bootstrap", "", None)
