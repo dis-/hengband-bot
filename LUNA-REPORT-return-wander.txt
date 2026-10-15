@@ -1,0 +1,106 @@
+ISSUE #47 ? return-wander
+Branch: return-wander-1016
+Implementation commit: 0d8174d3 (base 32e348b7)
+
+Measured diagnosis
+==================
+The three loop-detected decision captures are from Yeek Cave 2F, with Level 8
+characters. Their first paired state/decision rows are state.jsonl.gz row 1 and
+bot-decisions.jsonl.gz rows 116, 118, and 30, respectively. The fixture keeps
+those three raw board rows plus only the decision fields used by the replay
+test.
+
+Capture counts: 20261016-055034 has 314/314 decisions with reason
+return:wander; 20261016-055146 has 314/315; 20261016-055308 has 228/228. Each
+capture's last 200 decisions are return:wander. The recorded keys vary among
+movement directions, as expected for least-visited wandering.
+
+For every paired decision, objective is "Return to town" and
+over_extension.last_return_trigger is escape-kit-empty. The same return
+trigger is selected in src/hengbot/policy_town.py:7077. The general producer is
+TownMixin._return_to_town_key; its return:wander action is emitted at
+src/hengbot/policy_town.py:7502-7505. The recorded map memory
+is known=411, marked=161, visited=253, open_frontiers=250, up_stairs=[], and
+down_stairs=[]. Replaying each captured board through HengbotPolicy.choose_key
+with the captured return latch and explicitly reconstructed exhausted search
+counters produces return:wander. _nearest_goal_step finds no reachable known
+upstairs on these boards.
+
+All three captured boards carry 15 inventory items and no Word of Recall
+scroll (parsed tval=70, sval=11). The player is neither blind nor confused, and
+the policy's _can_read_scrolls check returns true for the captured board.
+Therefore these particular captures cannot demonstrate a
+read of a carried scroll; the Recall-stock case is explicitly constructed in
+the regression pin.
+
+Before the fix, STUCK_ESCAPE_LIMIT is 60 decisions
+(src/hengbot/policy_constants.py:341), but return:wander was not in
+STUCK_FAMILY_REASONS (lines 835-854), so observation did not increment
+_stuck_escape_streak for it (src/hengbot/policy_observation.py:260-265). Also,
+the latched return handler returns from _decide before the ordinary stuck
+escape rung (src/hengbot/policy.py:11474-11486, with the rung at 12070-12111).
+The return handler's immediate Recall rung at
+src/hengbot/policy_town.py:7303-7322 is depth-gated above WALK_OUT_MAX_DEPTH;
+this 2F board does not satisfy that gate. The general navigation no-progress
+limit is 400 decisions (src/hengbot/policy.py:859), and its check precedes the
+return handler (11454-11464). Thus return wandering has no stuck-bound Recall
+fallback before that broader detector. In the supplied captures, no carried
+Recall scroll was available to read even at the later detector.
+
+Change
+======
+Added return:wander to the existing stuck-family reasons so observation counts
+its consecutive decisions. In the general return route, after the current-tile
+and reachable-upstairs checks, the existing 60-decision stuck bound now reads a
+carried Recall scroll if the player is not blind or confused and scrolls are
+readable (src/hengbot/policy_town.py:7411-7424). It records the existing
+stuck:recall-escape reason and uses the existing Recall key builder. 60 is
+below the 400-decision navigation no-progress limit.
+
+Return triggers, fundraising behavior, descent rules, and the recall-entry
+invariant are unchanged. No new policy attributes were added, so there are no
+restored-checkpoint defaults to add. The generated town-work manifest and
+src/hengbot/town_work_sites.json were refreshed (825 candidates, 20,818 sites,
+zero unmapped). town_structure_lint and item_sink_lint each reported zero
+violations; no producer, review, item-sink, or item-intent baseline entry was
+needed. The unchanged return-start census remains 36.
+
+Pins and controls
+=================
+Added tests/fixtures/return-wander-20261016.jsonl.gz (4,845 bytes), containing
+three captured raw boards and their small decision witnesses, and
+ tests/test_return_wander_recall.py. The new module imports tests as required.
+It replays all three captured boards through the real policy and pins
+return:wander without Recall. A DECLARED CONSTRUCTED carried Recall scroll
+causes key ?rp? and reason stuck:recall-escape at the 60-decision bound. A
+DECLARED CONSTRUCTED known stair on the player's tile still returns ?<? with
+return:ascend. The no-Recall captured controls keep wandering. DECLARED
+CONSTRUCTED blind and confused variants do not read Recall.
+
+Focused tests: test_return_wander_recall (4), test_policy_navigation (129),
+test_policy (57), and test_ownership_s2a1_closure (80) passed. The first
+ownership-closure run found an (R) regression: a redundant latch assignment
+changed its structural return-start count from 36 to 37. The assignment was
+removed; the test and assertion were not changed, and the rerun passed at 36.
+
+Required guard outputs
+======================
+
+$ python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\return-wander 32e348b7
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (return-wander vs 32e348b7)
+
+$ python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\return-wander 32e348b7 --tests test_return_wander_recall --record
+[mutation] 3 source hunks, tests: test_return_wander_recall
+[mutation] caught     src/hengbot/policy_constants.py:847 (# A latched general return can exhaust every known exit and fall back): test_stuck_bound_reads_constructed_readable_recall
+[mutation] caught     src/hengbot/policy_town.py:15 (from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME): test_blind_or_confused_return_does_not_read_recall, test_captured_boards_replay_return_wander_without_recall, test_stuck_bound_reads_constructed_readable_recall
+[mutation] caught     src/hengbot/policy_town.py:7407 (# A latched return owns the decision before the ordinary stuck-escape): test_stuck_bound_reads_constructed_readable_recall
+[mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+[mutation] recorded for 0d8174d3
+
+$ python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\return-wander 32e348b7 --shards 4
+[fast] 4083 fast tests (<2.0s in 32e348b7) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-1n0fcnbh)
+Failures: none
+Errors: none
+Total: 4095 tests, 191.4s
