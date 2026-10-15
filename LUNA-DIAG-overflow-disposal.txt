@@ -1,0 +1,40 @@
+# LUNA diagnosis: overflow disposal
+
+Repository HEAD at diagnosis: `a7a054f0b9927a165a68a8bbed30d4363f806367`.
+Capture replay used the recorded state row at the final stop in each life, parsed by `parse_snapshot`, then primed a fresh `HengbotPolicy` and ran the real policy helpers. The representative detailed board is life-003 `20261016-030116` (turn 507408); the corresponding life-002 `20261016-013421` is the same stop class. The 030116 decision records 20 carried items, gold 4007, Home scan count 15, and `town:blocked:overflow-no-legal-disposal`. Its seven reservations are a-f and i exactly; g,h,j-t are not reserved.
+
+## Measured gates and producer results
+
+- `src/hengbot/policy_town.py:2367-2382`: `_town_overflow_destroy_key` calls `_verified_destroy_key` using `_overflow_disposal_item`; when none is returned with fewer than the minimum terminal free slots it emits the captured blocking reason.
+- `src/hengbot/policy.py:14608-14631`: overflow first considers `_find_disposable_item`, then the general fallback requires the stack be wholly surplus, not procurement-protected, not survival-essential, not a useful device, **not** `_has_town_economic_path`, and absent from `_undestroyable_sigs`. It has no exception for an identified cursed item.
+- `src/hengbot/policy.py:14583-14590`: `_has_town_economic_path` is true for every equipment item (and high-value books / unaware potions or scrolls). On this board it is therefore a coarse item classification, not proof that a sale or deposit producer will execute.
+- `src/hengbot/policy_town.py:2193-2234`, `src/hengbot/policy_home.py:3886-3937`: the pack-space Home producer requires `_find_home_deposit`. On this replay `_find_home_deposit` is `None`; `_town_space_deposit_actionable` is false and `_town_space_deposit_key` returns `None`.
+- `src/hengbot/policy_home.py:2434-2479`: recognized spare equipment can be deposited only with a concrete known target loadout (`_target_loadout_known`). The captured `equipment_optimization` says `blockers=["calibration-required"]`, `result_source="calibration-required-return"`, and `home_scan_complete=true`; without calibration/loadout, the recognized armor and weapons are not Home deposit candidates. A shovel is a deposit candidate by shape but is protected as one of the two retained digging tools and `_survival_essential`.
+- `src/hengbot/policy_town.py:4805-4895`: organization sale selection combines specific sale finders with Home-eligible equipment and only returns an item if a reachable sale store or routable Home can actually serve it. On this board all five specific finders return `None`, as does `_find_town_organization_surplus`.
+- The recorded active visit is the Black Market (`requested_store=6`, `requested_owner=shop-one-shot`); the decision reports `shop_selector.winning_rung="shop:leave"` and `rejection_reason="observed-page-nothing-wanted"`. The town plan is exhausted. `src/hengbot/policy_shop.py:4279-4327` and the sale routing in `src/hengbot/policy_town.py:4872-4895` show why a theoretical accepting shop type is not an executed sale on this visit. The route has already declined and the final overflow rung is reached; producers must keep precedence, but their theoretical destinations cannot guard the destruction fallback.
+
+## Per-item evidence (030116 final board)
+
+`ret=0`, `proc=False`, `identify-protected=False`, `rejected=False`, and `undestroyable=False` for each item listed below. Every listed stack is wholly surplus. Economic is the measured `_has_town_economic_path`; sale route is `_town_organization_sale_store` (a potential reachable destination, not a sale operation emitted by the observed Black Market visit). These are direct calls against the parsed captured board.
+
+| Slot/item | Home candidate / reason | Sale route | Overflow exclusion on baseline |
+|---|---|---|---|
+| g Identify staff, 5 charges | false: useful charged device, not equipment Home deposit | Magic store (5) potential; specific device-sale finder returned None | `_is_useful_device=True`; no economy-path bit needed |
+| h Ring of Warning | false: recognized spare equipment, but calibration-required means no concrete target loadout | Magic store (5) potential | equipment makes `_has_town_economic_path=True` |
+| j Soft Leather Armour | false: no concrete target loadout | Armoury (1) potential | economic path |
+| k Cloak +2 | false: no concrete target loadout | Armoury (1) potential | economic path |
+| l two Cloaks +0 | false: no concrete target loadout | Armoury (1) potential | economic path |
+| m Leather Gloves | false: no concrete target loadout | Armoury (1) potential | economic path |
+| n Broken Sword | false: no concrete target loadout | none | economic path, despite no sale route |
+| o Broadsword +0,+0 | false: no concrete target loadout | Weapon Smiths (2) potential | economic path |
+| p Long Sword +2,+4 | false: no concrete target loadout | Weapon Smiths (2) potential | economic path |
+| q Shovel x2 | candidate function true, but retained as one of the two digging tools and survival-essential; not eligible for Home organization or disposal | none | survival-essential; correctly protected |
+| r Sling +5,+4 | false: no concrete target loadout | Weapon Smiths (2) potential | economic path |
+| s Sling +0,+0 | false: no concrete target loadout | Weapon Smiths (2) potential | economic path |
+| t cursed Sling -8,-5 (curse known) | false: no concrete target loadout | none (shops do not accept this cursed item) | economic path, with no producer destination; also lacks the required known-curse destruction override |
+
+The captured producer observation is stronger than the sale-route hints: all specific organization finders returned `None`, organization surplus returned `None`, and the active Black Market shop produced only `shop:leave` / `observed-page-nothing-wanted`. For j-t and g the terminal fallback is thus being kept from legal disposal by the measured predicates above, not by an actual sale/deposit action. h has the same evidence and is included because the recorded reservation list does not reserve it.
+
+## Diagnosis
+
+Two independent gates cause the stop: no identified-cursed-item priority means t remains blocked, and `_has_town_economic_path` mistakes hypothetical equipment/shop eligibility for an action that a producer will really execute on this visit. The Home path also declines because the equipment optimizer has no calibrated target loadout. Productive producers run earlier in the town pipeline and did decline; the final fallback must honor that actual result while retaining procurement, identification, survival, and owner reservations.

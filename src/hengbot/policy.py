@@ -14611,14 +14611,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _overflow_disposal_item(self, snapshot: Snapshot) -> InventoryItem | None:
-        # A full pack of items no shop buys and the Home will not take — devices
-        # (wand/staff/rod), ammo, books, chests, identified junk — strands the
-        # bot in town: it cannot re-descend (pack-full blocks descent) and roams
-        # forever below the loop-detector's radar. As a last resort, destroy one
-        # such item so a slot always frees. Only reached after every productive
-        # town action has declined this turn, so it never pre-empts a sale,
-        # deposit, or purchase; survival gear and economically-useful items are
-        # preserved.
+        # A full pack of items no shop buys and the Home will not take strands
+        # the bot in town. As a last resort, destroy one such item so a slot
+        # always frees; it runs after the productive sale and deposit producers.
+        # A known curse is an explicit auto-destroy target first (owner
+        # 2026-09-18); items a shop could still buy stay protected (owner
+        # 2026-10-04/10: sell first, destroy only what nobody buys).
+        cursed = self._first_item(
+            snapshot,
+            lambda item: self._entire_stack_is_surplus(snapshot, item)
+            and not self._item_is_procurement_protected(snapshot, item)
+            and item.known
+            and item.is_cursed
+            and not item.is_bounty
+            and self._item_signature(item) not in self._undestroyable_sigs,
+        )
+        if cursed is not None:
+            return cursed
         disposable = self._find_disposable_item(snapshot)
         if disposable is not None:
             return disposable

@@ -1,0 +1,59 @@
+# Overflow disposal task report
+
+Branch: `overflow-disposal-1016`
+Base: `a7a054f0`
+Implementation commit: `3b9376db` (`Fix terminal town overflow disposal`)
+
+## Diagnosis
+
+The detailed life-003 stop board (turn 507408, 20 carried items, gold 4007, Home count 15) had reservations only on a-f and i. Every non-reserved row g,h,j-t was wholly surplus, not identification-protected, not procurement-protected, not Home-rejected, and absent from `_undestroyable_sigs`. The full per-item predicate table and source line measurements are in [LUNA-DIAG-overflow-disposal.txt](LUNA-DIAG-overflow-disposal.txt).
+
+The Home route declined because the calibrated equipment target was unavailable (`calibration-required-return`), so `_find_home_deposit` returned `None`. The visit had exhausted its town plan after the Black Market page returned `shop:leave` / `observed-page-nothing-wanted`; the specific organization sale finders and organization surplus finder returned `None`. Other equipment rows had theoretical sale-store classifications, but no sale or deposit producer emitted an action on this visit. Baseline `_overflow_disposal_item` then excluded equipment through `_has_town_economic_path`; it also lacked a known-curse priority for slot t.
+
+## Change and captured pins
+
+`_overflow_disposal_item` now prioritizes a known-cursed stack only when its full quantity is surplus, it has no procurement owner, it is not a bounty, and it has not been marked undestroyable. The ordinary fallback no longer treats a theoretical economic path as an executed sale or deposit. Existing producers still run earlier in the town pipeline. Reservation, identification, survival, useful-device, undestroyable, and verified-superior protections remain active. No policy attributes or producer sites were added.
+
+The tracked JSONL fixture contains the two recorded stop boards from life-002 and life-003. Both retain the recorded stop reason. Replaying the detailed life-003 board through the real verified-disposal producer now selects slot t and returns key `01kt` with reason `town:destroy-overflow`. The existing execution offer records the item signature, count 1, and expected `surplus-stack-removed` effect.
+
+Controls pin that a-f and i each have zero sale quantity and are not selected for destruction; an unidentified replacement is procurement/identification-protected and is not disposed; and a constructed pack whose owner reservation predicate protects every stack still returns `WAIT_KEY` with the visible overflow stop reason. Existing Home-order and shop-sale suites also passed.
+
+Manifest regeneration: 825 candidates, 20,813 sites, zero unmapped. Producer/item-intent/sink censuses did not gain sites or persistent attributes, so `town_producer_baseline.json`, `town_work_review.json`, `item_sink_adapters.json`, and `item_intent_baseline.json` required no edits.
+
+## Focused tests
+
+- `tests.test_town_overflow_disposal_recorded`: 3 tests, OK.
+- `tests.test_town_overflow_recorded`: 8 tests, OK.
+- `tests.test_policy_equipment`: 197 tests, OK.
+- `tests.test_destroy_procurement_guard`: 7 tests, OK.
+- `tests.test_policy_shop`: 275 tests, OK (1 skipped).
+- `tests.test_policy_helpers`: 23 tests, OK.
+
+A separate run of the broad `tests.test_policy_town` module did not complete within 12 minutes and was interrupted with Ctrl-C; no failure appeared before interruption. No existing test assertions were changed. The mandatory fast tier below completed successfully.
+
+## Required guard outputs
+
+Preflight:
+
+```text
+[preflight] PREFLIGHT OK: 5 changed files, 0 findings (overflow-disposal vs a7a054f0)
+```
+
+Mutation check:
+
+```text
+[mutation] 1 source hunks, tests: tests.test_town_overflow_disposal_recorded
+[mutation] caught     src/hengbot/policy.py:14611 (# This last town rung runs after the productive sale and deposit): test_captured_stops_replay_and_known_curse_frees_pack, test_recorded_supply_reservations_and_identify_first_are_preserved
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 3b9376db
+```
+
+Fast tier (4 shards; local temporary log path omitted):
+
+```text
+[fast] excluded 17 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 4185 tests, 316.8s
+```
