@@ -115,6 +115,7 @@ class ScavengeStockoutRecordedTest(unittest.TestCase):
 
     def test_restored_checkpoint_defaults_run_clock(self):
         policy = HengbotPolicy()
+        self.assertIsNone(policy._scavenge_run_start_turn)
         policy.__dict__.pop("_scavenge_run_start_turn", None)
         policy._policy_state_version = 5
         normalize_policy_state(policy)
