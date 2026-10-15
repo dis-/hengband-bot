@@ -1,5 +1,6 @@
 {
   "_calibration_dump_pending": "Character-sheet/dump UI observation flag; not an item selector.",
+  "_chest_drop_chest_count": "Processable chest count captured when a drop key is posted; aggregate confirmation state, not a selected item identity or reservation.",
   "_claim_active_operation_identity": "Claim/operation lifecycle correlation ID, not an independently selected item; concrete item sources retain ownership.",
   "_confirmed_loadout": "Observed equipment evidence used for comparisons; not an operation request.",
   "_decision_cancelled_home_reservation": "Diagnostic record of a cancelled unposted deposit; the operation no longer exists.",

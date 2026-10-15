@@ -1697,6 +1697,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._chest_position: Position | None = None
         self._chest_phase_counts: dict[str, int] = {}
         self._chest_drop_origin: Position | None = None
+        self._chest_drop_chest_count: int | None = None
         self._chest_collecting = False
         self._chest_preopen_objects: dict[Position, tuple[int, int]] | None = None
         self._processed_chest_positions: set[Position] = set()

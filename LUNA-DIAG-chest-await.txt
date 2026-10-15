@@ -1,0 +1,22 @@
+# LUNA diagnosis: quest 34 chest:await-drop
+
+## Measured capture facts
+
+The input is `captures-chest/state.jsonl`, replayed with `hengbot.model.parse_snapshot` and `HengbotPolicy._chest_processing_key` from main `4e68bc66`.
+
+- State row 209 (turn 77068) is quest 34 at floor `(0, 5, 34)`, player `(8, 17)`, with processable chest slots `i, j, k, l, m` (five). Decision row 197 records decision sequence 192, key `di`, reason `chest:drop-unreachable-reserved`, at `(8, 17)`.
+- `policy_identification.py:331-342` posts `CHEST_DROP_KEY + chest.slot` when the reserved route has no step and records the player position as `_chest_drop_origin`. On that board the selected first processable chest is slot `i`, so the posted key is `di`.
+- State row 210 (turn 77073) is still at `(8, 17)`. Its inventory has processable chest slots `i, j, k, l` (four), down from five. Its messages report that chest `(i)` was dropped and that the player no longer carries a chest. The game reports the exact posted slot was dropped and the pack count fell by one.
+- Decision row 198, sequence 193, immediately after that board records key `5` and reason `chest:await-drop`. Later decisions repeat that same key/reason at the same position. This is a successful posted drop that remains unconfirmed in policy state.
+
+## Policy replay and cause
+
+I parsed state rows 209 and 210 with `parse_snapshot`; the processable chest counts are respectively 5 and 4. Replaying `_chest_processing_key(snapshot, [], allowed_positions={Position(8, 10)})` with `_chest_drop_origin = Position(8, 17)` returns `5` / `chest:await-drop` on both rows on main `4e68bc66`. The concrete reserved position is supplied only to keep the captured origin outside the allowed quest-sweep position set; it reproduces the decision path in the capture.
+
+At `policy_identification.py:114-129`, the pending-drop branch first adopts a visible chest only when it is within three squares of the origin and allowed by `allowed_positions`. Otherwise lines 130-136 wait whenever *any* processable chest remains in inventory. Thus the observed reduction from five carried chests to four does not settle the posted operation: the predicate checks only whether the count is nonzero. The underfoot origin fallback at lines 138-149 is below that wait and cannot run while the four other chests remain carried.
+
+The raw turn-77073 grid map does encode a chest tval at `(8, 17)`; the parsed grid has `object_count=1`, `object_tvals=(7,)`. That observation does not cause adoption in this quest replay because the grid is outside the reserved `allowed_positions` set. The board independently establishes the drop through the inventory delta and the two messages, without requiring a hidden game state.
+
+## Conclusion
+
+The wait predicate treats unrelated carried chests as evidence that the posted chest is still carried. It therefore waits on an observation that cannot resolve the already observed drop. The policy must retain the pre-drop processable-chest count and settle once the observed count falls (while preserving the existing nearby-displaced-chest priority); when no displaced chest is adopted, the existing origin fallback can step off and process the dropped chest.

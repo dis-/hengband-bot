@@ -1,0 +1,70 @@
+# LUNA report: quest 34 chest await-drop
+
+Issue #47. Worktree branch: `chest-await-1015`; base: `4e68bc66`.
+
+## Measured diagnosis
+
+`LUNA-DIAG-chest-await.txt` records the replay details. In `captures-chest/state.jsonl`, row 209 / turn 77068 is quest 34 at `(8, 17)` with five processable chests in slots `i-m`. The captured decision row 197 posts `di` with `chest:drop-unreachable-reserved`. Row 210 / turn 77073 has four processable chests in slots `i-l`, remains at `(8, 17)`, and reports that chest `(i)` was dropped and that the player no longer carries a chest. Captured decision row 198 instead posts `5` with `chest:await-drop`; later records repeat this wait.
+
+Replaying both state rows through `parse_snapshot` and the real `_chest_processing_key` on base `4e68bc66`, with the origin outside the reserved quest positions, returned `5` / `chest:await-drop` for both. The old branch waited because it checked whether *any* processable chest remained (4 on the post-drop board), rather than whether the posted chest remained carried. The underfoot fallback was below that check. The captured board also encoded the origin chest in the grid map, but that cell was outside the allowed reserved positions for this quest replay.
+
+## Change and pins
+
+The policy now stores the processable-chest count when it posts either reserved-route or ordinary `chest:drop`. A pending drop keeps waiting while the observed count is unchanged; a count decrease settles the posted operation and lets the existing origin fallback continue. The existing displaced chest search still runs first. Route selection, chest opening, trap handling, and quest sweep behavior were not changed.
+
+`tests/fixtures/chest-await-q34-20261015.jsonl.gz` contains only the two captured state rows, raw UTF-8 JSONL inside a small gzip fixture (3,268 bytes). `tests/test_chest_await_drop_recorded.py` replays them through the actual policy. On the pre-fix base, the post-drop board repeatedly returned `5` / `chest:await-drop`; the baseline run of the new module passed with that behavior pinned before the source fix. After the fix, the same repeated turn-77073 board returns key `7` / `chest:step-off`.
+
+Controls in the new module:
+
+- Unchanged carried count continues to return `5` / `chest:await-drop`.
+- A pending drop with no count baseline remains conservative while a chest is carried.
+- A normal single chest drop returns `di` / `chest:drop`, waits while it remains carried, then proceeds with key `7` / `chest:step-off` after it is dropped.
+- A normal multi-chest drop settles when the carried count falls even though another chest remains.
+- A displaced chest within three squares is adopted and returns `s` / `chest:search`.
+
+Existing assertions were left unchanged. The existing `tests.test_policy_identification` module passed (48 tests); `tests.test_policy_quest` passed (334 tests, 7 skipped).
+
+## Required guard outputs
+
+Preflight, after the final source commit:
+
+```text
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (chest-await vs 4e68bc66)
+```
+
+Mutation check, after preflight:
+
+```text
+[mutation] 4 source hunks, tests: tests.test_chest_await_drop_recorded
+[mutation] caught     src/hengbot/policy.py:1697 (self._chest_drop_chest_count: int | None = None): test_pending_drop_without_count_baseline_waits_when_a_chest_is_carried
+[mutation] caught     src/hengbot/policy_identification.py:126 (self._chest_drop_chest_count = None): test_captured_drop_board_waits_for_posted_item_confirmation, test_normal_drop_count_fall_settles_while_another_chest_remains
+[mutation] caught     src/hengbot/policy_identification.py:343 (self._chest_drop_chest_count = sum(): test_captured_drop_board_waits_for_posted_item_confirmation
+[mutation] caught     src/hengbot/policy_identification.py:356 (self._chest_drop_chest_count = sum(): test_normal_drop_count_fall_settles_while_another_chest_remains
+[mutation] MUTATION OK: 0 of 4 hunks are not pinned by a test
+[mutation] recorded for 4029017c
+```
+
+## Final run
+
+Ran `scripts/test_parallel_runner.py --workers 2` with `PYTHONPATH=src` over the 169-module union: 152 modules from `affected_tests.py ... 4e68bc66 HEAD --with-replays`, all chest/quest/identification test modules, and the required hygiene modules.
+
+```text
+worker-1: 1264 tests, 2899.724s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-7t86lw43\worker-1\home-history
+worker-2: 1756 tests, 6573.637s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-7t86lw43\worker-2\home-history
+worker-3: 249 tests, 496.393s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-7t86lw43\worker-3\home-history
+Failures: none
+Errors: none
+purity: ran (inputs sha256=67cb33d3929e887b426e181d916876e3d9461452e798d8ded72bc9b127eb2f40)
+weights: unavailable; fallback=167/167; stale=yes
+Total: 3269 tests, 6573.699s; output: C:\hengband\bot-client\.worktrees\chest-await\jsonlog\test-parallel-timings.json
+Receipt: C:\hengband\bot-client\.worktrees\chest-await\jsonlog\receipts\test_parallel_runner-full-20261015T105619+0900.json; sha256: bce6287f8b402db12b64343c96b8f7e0512c253f3236138338b75a3f9b031796
+```
+
+The runner completed within the 150-minute limit. No existing test failures required classification or follow-up reruns.
+
+## Commits
+
+- `026ef8c2` Fix quest chest drop confirmation wait
+- `f94bd419` Register chest drop count observation
+- `6495c10e` Pin pending chest drop count controls
+- `4029017c` Pin normal chest drop count confirmation
