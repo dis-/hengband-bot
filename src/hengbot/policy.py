@@ -14611,12 +14611,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _overflow_disposal_item(self, snapshot: Snapshot) -> InventoryItem | None:
-        # This last town rung runs after the productive sale and deposit
-        # producers. Their actual decisions, rather than a hypothetical shop
-        # route, determine whether economic value still protects an item here.
-        # A known curse is an explicit auto-destroy target, ahead of ordinary
-        # disposable items. Reservations, identification, survival, and useful
-        # devices remain protected by the checks below.
+        # A full pack of items no shop buys and the Home will not take strands
+        # the bot in town. As a last resort, destroy one such item so a slot
+        # always frees; it runs after the productive sale and deposit producers.
+        # A known curse is an explicit auto-destroy target first (owner
+        # 2026-09-18); items a shop could still buy stay protected (owner
+        # 2026-10-04/10: sell first, destroy only what nobody buys).
         cursed = self._first_item(
             snapshot,
             lambda item: self._entire_stack_is_surplus(snapshot, item)
@@ -14640,6 +14640,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._item_is_procurement_protected(snapshot, item)
             and not self._survival_essential(item)
             and not self._is_useful_device(item)
+            and not self._has_town_economic_path(item)
             and self._item_signature(item) not in self._undestroyable_sigs,
         )
 
