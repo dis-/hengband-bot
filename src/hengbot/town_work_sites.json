@@ -4656,7 +4656,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "2f809f2f2b12b4fe494e1a5455ae1a65f4f329379a429dc2d4f6c5d1aa1c203b"
+    "ast_sha256": "3440fb4a658ee9068ee45e5d0aaa4b94de018e118b6679c29b4d38e4a5065195"
   },
   "policy_fundraising.py:FundraisingMixin._mining_closure_key": {
     "classification": "producer",

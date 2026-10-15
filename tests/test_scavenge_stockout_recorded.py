@@ -180,6 +180,51 @@ class ScavengeStockoutRecordedTest(unittest.TestCase):
         policy._fundraising_key(next_run, [])
         self.assertEqual(policy._scavenge_run_start_turn, next_run.turn)
 
+    def test_overdue_return_without_found_stairs_reads_recall(self):
+        # Linux soak 2026-10-15 20:41-22:41: after the 10,000-turn run the return
+        # wandered for two hours looking for Yeek 1F's up staircase. DECLARED
+        # CONSTRUCTED: a 1F board with no known staircase and a frontier left.
+        start_turn = self.terminal.turn
+        position = Position(10, 10)
+        floor = replace(
+            self.terminal,
+            player=replace(self.terminal.player, position=position, food_state="normal"),
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), town_flag=False, turn=start_turn,
+            grids={position: grid(10, 10), Position(10, 11): grid(10, 11)},
+            store=None,
+        )
+        self.assertTrue(any(i.is_recall_scroll for i in floor.inventory))
+        policy = self.policy_with_stockout(floor, mode="scavenge")
+        policy._note_return_start(None)
+        policy._returning_to_town = True
+        with patch.object(policy, "_explore_step", return_value=Position(10, 11)):
+            within_grace = replace(floor, turn=start_turn + 11_999)
+            policy._fundraising_key(within_grace, [])
+            self.assertEqual(policy.last_reason, "fundraise:seek-upstairs-explore")
+            overdue = replace(floor, turn=start_turn + 12_000)
+            key = policy._fundraising_key(overdue, [])
+        self.assertEqual(policy.last_reason, "fundraise:recall-stuck")
+        recall = next(i for i in floor.inventory if i.is_recall_scroll)
+        self.assertEqual(key, policy._read_key(overdue, recall))
+
+    def test_overdue_return_without_recall_keeps_searching(self):
+        start_turn = self.terminal.turn
+        position = Position(10, 10)
+        floor = replace(
+            self.terminal,
+            player=replace(self.terminal.player, position=position, food_state="normal"),
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), town_flag=False, turn=start_turn,
+            grids={position: grid(10, 10), Position(10, 11): grid(10, 11)},
+            store=None,
+            inventory=tuple(i for i in self.terminal.inventory if not i.is_recall_scroll),
+        )
+        policy = self.policy_with_stockout(floor, mode="scavenge")
+        policy._note_return_start(None)
+        policy._returning_to_town = True
+        with patch.object(policy, "_explore_step", return_value=Position(10, 11)):
+            policy._fundraising_key(replace(floor, turn=start_turn + 50_000), [])
+        self.assertEqual(policy.last_reason, "fundraise:seek-upstairs-explore")
+
     def test_scavenge_departure_keeps_survival_gates_without_cure_potions(self):
         ready = replace(
             self.terminal,
