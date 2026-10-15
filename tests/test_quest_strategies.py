@@ -92,14 +92,18 @@ class QuestStrategiesTest(unittest.TestCase):
             profiles[34].engagement_plan["opening_light"],
             {
                 "position": [10, 20],
+                # Owner 2026-10-16: the quest's oil flask at [9,20] refuels the lantern.
+                "fuel_position": [9, 20],
                 "item": "brass_lantern",
                 "equip_before_continuing": True,
                 "note": (
-                    "Before opening the lower-left door or engaging anything, "
-                    "follow the safe outer-right corridor to [10,20], pick up "
-                    "the brass lantern, and equip it. Do not begin the fixed-target "
-                    "route until the lantern is confirmed equipped; its radius-2 "
-                    "light makes targets visible from their distance-2 throwing points."
+                    "Follow the safe outer-right corridor through [9,20] to recover "
+                    "its oil flask, then pick up and equip the brass lantern at "
+                    "[10,20] before opening the lower-left door or engaging anything. "
+                    "Do not begin the fixed-target route until the lantern is "
+                    "confirmed equipped; its radius-2 light makes targets visible "
+                    "from their distance-2 throwing points. If the oil flask is "
+                    "absent, continue to the lantern step."
                 ),
             },
         )
