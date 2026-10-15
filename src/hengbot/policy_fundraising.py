@@ -273,13 +273,9 @@ class FundraisingMixin:
         )
 
     def _detectionless_scavenge_allowed(self, snapshot: Snapshot) -> bool:
-        """Allow the poverty exception for dear or proven-unavailable detection.
-
-        Carried or known Home detection vetoes the exception. Stock-out needs
-        current Home knowledge and an observed Alchemist page in this town
-        visit with no detection; an unobserved supplier page is never empty.
-        """
-        if self._has_known_fundraising_detection(snapshot):
+        """Allow scavenge for dear offers or a fully observed stock-out."""
+        has_known_detection = self._has_known_fundraising_detection(snapshot)
+        if has_known_detection:
             return False
         pages = dict(self._town_supplier_stock)
         if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
