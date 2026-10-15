@@ -5983,7 +5983,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "634fd109d6ae7183f166f4302f6b8cd0f42d20b1b4985fafd92ff8e274ac61c1"
+    "ast_sha256": "9de0ae7e59615956199cad0b8476cf7ad40ebe5dd0740b49b252d57a9e352d83"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",

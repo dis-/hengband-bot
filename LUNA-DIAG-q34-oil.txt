@@ -1,0 +1,9 @@
+Q34 opening oil diagnosis (Issue #47)
+
+Captured evidence
+- `captures-light/life-007/state.jsonl` shows the flask named `???` at [9,20] in the known floor-item map (object 348 per the task's map inspection). The captured item is visible before the opening lantern pickup. At turn 75413, the player is at [10,20] with the brass lantern newly equipped; the carried inventory contains no oil flask. The later dry-lantern board at turn 76552 also contains no carried oil. The bot never picked up the flask during the opening route.
+- The same evidence has the lantern equipped and radius 1 at turn 75413, then radius 0 at turn 76552; the last looped decisions alternate `wield-light` and `quest-strategy:equip-opening-lantern` (`wd`).
+
+Existing refill path
+- `HengbotPolicy._light_refill_item` in `src/hengbot/policy_supply.py` returns a carried oil item for an equipped lantern when its fuel is at or below `LANTERN_REFILL_FUEL` (including an unidentified lantern when the current dungeon square is unlit).
+- The approved-quest branch in `src/hengbot/policy.py` checks `_light_refill_item` and returns `refill-light` before entering the quest navigator. `_darkness_recovery_key` also checks refill before selecting a torch for `wield-light`. Therefore, if the opening flask were carried, the existing refill path would fuel the dry lantern before either darkness recovery or the Q34 opening owner could re-equip it.

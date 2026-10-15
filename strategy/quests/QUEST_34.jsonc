@@ -6,14 +6,15 @@
   "engagement_plan": {
     "opening_light": {
       "position": [10, 20],
+      "fuel_position": [9, 20],
       "item": "brass_lantern",
       "equip_before_continuing": true,
-      "note": "Before opening the lower-left door or engaging anything, follow the safe outer-right corridor to [10,20], pick up the brass lantern, and equip it. Do not begin the fixed-target route until the lantern is confirmed equipped; its radius-2 light makes targets visible from their distance-2 throwing points."
+      "note": "Follow the safe outer-right corridor through [9,20] to recover its oil flask, then pick up and equip the brass lantern at [10,20] before opening the lower-left door or engaging anything. Do not begin the fixed-target route until the lantern is confirmed equipped; its radius-2 light makes targets visible from their distance-2 throwing points. If the oil flask is absent, continue to the lantern step."
     },
     "opening_door": [11, 2],
     "opening_corner": [1, 1],
     "opening_approach": [11, 1],
-    "opening_route": "First descend the safe outer-right corridor to [10,20], recover and equip the brass lantern, then return along the outer corridor, cross the top edge, descend to [11,1], and open the ordinary locked door at [11,2] before combat or other item recovery.",
+    "opening_route": "First descend the safe outer-right corridor through [9,20] to recover the oil flask, then continue to [10,20] to recover and equip the brass lantern. Return along the outer corridor, cross the top edge, descend to [11,1], and open the ordinary locked door at [11,2] before combat or other item recovery.",
     "avoid_doors": "Do not route through the hard-locked or locked glass doors on the outer wall; they are deliberately difficult to open.",
     "avoid_door_positions": [
       [2,13], [2,14], [2,15], [2,16], [2,17], [2,18],
@@ -38,7 +39,7 @@
         "note": "After confirmed recovery of the first death sword lane at [9,11], use source-derived orthogonal pathfinding. The x=10 wall forces the route through the east door [9,12], the large room, [8,7], and [9,8]. Throw south only from [9,9], then recover only after positive kill confirmation."
       }
     ],
-    "opening": "[1,20] から右外周を南下して [10,20] の真鍮ランタンを回収・装備する。その後、右外周を北へ戻り、上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を開ける。外周のガラス扉は開けない。",
+    "opening": "[1,20] から右外周を南下し、[9,20] の油つぼを回収してから [10,20] の真鍮ランタンを回収・装備する。油つぼがなければランタンへ進む。その後、右外周を北へ戻り、上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を開ける。外周のガラス扉は開けない。",
     "final_door": [4, 14],
     "final_door_approach": [5, 14],
     "chest_position": [10, 8],
