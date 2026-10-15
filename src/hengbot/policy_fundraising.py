@@ -63,6 +63,10 @@ from hengbot.policy_constants import (
 )
 
 SCAVENGE_RUN_TURN_LIMIT = 10_000
+# Owner decision 2026-10-15: after the 10,000-turn run, return to town promptly. A return that has
+# not found the up staircase this many game turns later reads Recall instead of wandering on
+# (Linux soak 2026-10-15 20:41-22:41: two hours of fundraise:seek-upstairs-wander on Yeek 1F).
+SCAVENGE_RETURN_GRACE_TURNS = 2_000
 
 
 @dataclass(frozen=True)
@@ -639,7 +643,14 @@ class FundraisingMixin:
                 work_id="fundraise:return:escape-blocker",
                 expected_effect="escape-path-cleared",
             )
-        upstairs_search_expired = self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
+        run_start = getattr(self, "_scavenge_run_start_turn", None)
+        scavenge_return_overdue = (
+            self._fundraising_mode == "scavenge" and run_start is not None
+            and snapshot.turn - run_start >= SCAVENGE_RUN_TURN_LIMIT + SCAVENGE_RETURN_GRACE_TURNS
+            and self._find_recall_scroll(snapshot) is not None
+        )
+        upstairs_search_expired = (self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
+                                   or scavenge_return_overdue)
         if upstairs_search_expired and allow_recall:
             recall = self._find_recall_scroll(snapshot)
             if (
