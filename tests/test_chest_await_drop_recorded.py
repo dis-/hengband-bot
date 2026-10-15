@@ -70,6 +70,18 @@ class ChestAwaitRecordedTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "chest:await-drop")
 
+    def test_pending_drop_without_count_baseline_waits_when_a_chest_is_carried(self):
+        # DECLARED CONSTRUCTED: model a pending drop whose count baseline is
+        # unavailable, retaining the conservative carried-chest behavior.
+        before = captured_boards()[77068]
+        policy = HengbotPolicy()
+        policy._build_grid_index(before)
+        policy._chest_drop_origin = ORIGIN
+        self.assertEqual(
+            policy._chest_processing_key(before, [], {RESERVED}), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "chest:await-drop")
+
     def test_displaced_chest_within_three_squares_is_adopted(self):
         after = captured_boards()[77073]
         displaced = Position(8, 16)
@@ -102,6 +114,8 @@ class ChestAwaitRecordedTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(single), "di")
         self.assertEqual(policy.last_reason, "chest:drop")
+        self.assertEqual(policy.choose_key(single), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "chest:await-drop")
 
         grids = dict(grids)
         grids[Position(10, 10)] = grid(

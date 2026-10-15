@@ -890,7 +890,6 @@ class ObservationMixin:
             self._chest_position = None
             self._chest_phase_counts = {}
             self._chest_drop_origin = None
-            self._chest_drop_chest_count = None
             self._chest_collecting = False
             self._chest_preopen_objects = None
             self._processed_chest_positions.clear()

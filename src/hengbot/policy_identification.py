@@ -155,7 +155,6 @@ class IdentificationMixin:
                     self._chest_phase_counts = {}
                     self._chest_preopen_objects = None
                 self._chest_drop_origin = None
-                self._chest_drop_chest_count = None
         if self._chest_position is not None:
             chest_pos = self._chest_position
             distance = player.position.distance_to(chest_pos)

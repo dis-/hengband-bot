@@ -6265,8 +6265,8 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 959,
-    "end_line": 1019,
+    "line": 958,
+    "end_line": 1018,
     "ast_sha256": "a7a81c985d184db313e261737e48dfd42026068ace7d0b0efbd6aed5ee9ce342"
   },
   "policy_identification.py:IdentificationMixin._chest_processing_key": {
@@ -6278,8 +6278,8 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "line": 80,
-    "end_line": 367,
-    "ast_sha256": "1ec426daaad3f51276ea1cd6f1a78568833eb7dbf49a76c7c8e156428a033118"
+    "end_line": 366,
+    "ast_sha256": "a881d27e2a8dee0edaa59299e6be0a6a56bddcc884bb08beaf1be63a7489baaa"
   },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
@@ -6287,8 +6287,8 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 487,
-    "end_line": 525,
+    "line": 486,
+    "end_line": 524,
     "ast_sha256": "863c3789ef7dfdaea4c6cb9255909d7d2a9376951b27a2325523503d0a7fdcaa"
   },
   "policy_identification.py:IdentificationMixin._find_identification_source": {
@@ -6297,8 +6297,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 771,
-    "end_line": 846,
+    "line": 770,
+    "end_line": 845,
     "ast_sha256": "2316b526c23de2f159360c927af24ce03f53d4c7225cc7f6c17c61c0e7ea8a4d"
   },
   "policy_identification.py:IdentificationMixin._find_identification_source.available": {
@@ -6307,8 +6307,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 781,
-    "end_line": 800,
+    "line": 780,
+    "end_line": 799,
     "ast_sha256": "6053011713e98c61dcf69d79e5028dc4d95454ab751f8eb36ed8eb529171ded1"
   },
   "policy_identification.py:IdentificationMixin._full_pack_destroy_key": {
@@ -6317,8 +6317,8 @@
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 527,
-    "end_line": 542,
+    "line": 526,
+    "end_line": 541,
     "ast_sha256": "536d505d43582297f14e2d7a2b401d233a456735229b05586db1e9151998d09e"
   },
   "policy_identification.py:IdentificationMixin._full_pack_loot_triage_key": {
@@ -6328,8 +6328,8 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 545,
-    "end_line": 624,
+    "line": 544,
+    "end_line": 623,
     "ast_sha256": "e09a7e74b3a5d616509087a8aed4a1f3db88869ae0ed0271ca18a6385395dfb9"
   },
   "policy_identification.py:IdentificationMixin._identification_flow_candidate": {
@@ -6338,8 +6338,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 722,
-    "end_line": 739,
+    "line": 721,
+    "end_line": 738,
     "ast_sha256": "02ecd80c671262464e8d780d87936f90d214bf81dfa1df677e24bc1882656e21"
   },
   "policy_identification.py:IdentificationMixin._identification_flow_owns": {
@@ -6348,8 +6348,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 761,
-    "end_line": 769,
+    "line": 760,
+    "end_line": 768,
     "ast_sha256": "8a3a56222c8e2aad9faa1df2ef58c445a28f20c90dda0967345cc2dc98b01d1a"
   },
   "policy_identification.py:IdentificationMixin._identification_source_obtainability": {
@@ -6358,8 +6358,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 921,
-    "end_line": 957,
+    "line": 920,
+    "end_line": 956,
     "ast_sha256": "2de8c328ffd48aeddbd54b02ef0af84fade8acbcf04b6bd4385127484f9e90c4"
   },
   "policy_identification.py:IdentificationMixin._identify_carried_item_key": {
@@ -6368,8 +6368,8 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 402,
-    "end_line": 485,
+    "line": 401,
+    "end_line": 484,
     "ast_sha256": "cc09f801d3b44419f8a9c3e7ebf617f33ea07eb4014612f0655b46a15a272353"
   },
   "policy_identification.py:IdentificationMixin._loot_block_reason": {
@@ -6378,8 +6378,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1310,
-    "end_line": 1327,
+    "line": 1309,
+    "end_line": 1326,
     "ast_sha256": "31fd2923cc93971619fde41acaa14af6f8d5549fa5f0a11416d8fd98ef03cefb"
   },
   "policy_identification.py:IdentificationMixin._loot_step": {
@@ -6388,8 +6388,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1111,
-    "end_line": 1178,
+    "line": 1110,
+    "end_line": 1177,
     "ast_sha256": "8cac2ccb1b985c76cde9bba027949d59df4986f3efa10530a901bd47a28e5c1d"
   },
   "policy_identification.py:IdentificationMixin._normal_loot_key": {
@@ -6398,8 +6398,8 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1211,
-    "end_line": 1308,
+    "line": 1210,
+    "end_line": 1307,
     "ast_sha256": "affb171ed0934619cc69f7d43c013e09fa2e8e09fcc4deafe9cc28080c5a77b0"
   },
   "policy_identification.py:IdentificationMixin._outstanding_identification_count": {
@@ -6408,8 +6408,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1069,
-    "end_line": 1109,
+    "line": 1068,
+    "end_line": 1108,
     "ast_sha256": "dbb66e859b93e71ce54587203e39cd1c0552d22c33c368e4f0b0008cca8f1474"
   },
   "policy_identification.py:IdentificationMixin._pack_pressure_identify_key": {
@@ -6418,8 +6418,8 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 369,
-    "end_line": 400,
+    "line": 368,
+    "end_line": 399,
     "ast_sha256": "09959af7dd92e469a3f43c8394690b3f727af8604de9494e733b5ebdb4c01085"
   },
   "policy_identification.py:IdentificationMixin._probe_unknown_step": {
@@ -6428,8 +6428,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1329,
-    "end_line": 1392,
+    "line": 1328,
+    "end_line": 1391,
     "ast_sha256": "c5284c9c6fa024cad1bd12b1be21b6d9f2308d968ec772a150035dd84de8ec64"
   },
   "policy_instore.py:InStoreMixin._in_store_cached_shop": {
@@ -6734,8 +6734,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1174,
-    "end_line": 1183,
+    "line": 1173,
+    "end_line": 1182,
     "ast_sha256": "b413ef0ab0ce035b0df73a6737840d28bdb70a05b44b2163f5cd60343a966cfb"
   },
   "policy_observation.py:ObservationMixin._missing_required_abilities": {
@@ -6744,8 +6744,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1316,
-    "end_line": 1339,
+    "line": 1315,
+    "end_line": 1338,
     "ast_sha256": "47e52a899253ccdf7ce33335283f6710df7f55af48b17f108c784e7021c8a354"
   },
   "policy_observation.py:ObservationMixin._strategy_force_for_snapshot": {
@@ -6754,8 +6754,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1296,
-    "end_line": 1314,
+    "line": 1295,
+    "end_line": 1313,
     "ast_sha256": "d1cb5055e6db5ef3779c20e2e84eb1fc6d4a77cccfc3fb625c2b2e7b8fa6666f"
   },
   "policy_quest.py:QuestMixin._conquest_loot_key": {
