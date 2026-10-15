@@ -1,0 +1,42 @@
+ISSUE #50 — scavenge stock-out
+
+Repository and baseline
+- Branch: scavenge-stockout-1015.
+- Starting commit: 4e68bc66779f24084f2dfc1abfca2c0ef3701784.
+- Scope is limited to detectionless scavenge admission and the 10,000-game-turn Yeek Cave 1F scavenge limit.
+- No game/bot processes were started or controlled. The development-only `test_policy_town` process I started stopped making progress (CPU time unchanged across checks); I stopped that owned test process. The final runner result below is authoritative.
+
+Measured diagnosis
+- Capture: `captures-supply/20261015-082635-town-blocked-departure-unsatisfiable/` (kept untracked and never copied into the repository). Captured board rows were replayed in timestamp order through the real `HengbotPolicy.choose_key`: 104 player-turn/store boards. There is no serialized policy checkpoint, so the fresh replay diverges at terminal turn 348228: fresh replay gives key `~f\x1b`, reason `periodic:skill-exp-knowledge`, mode `None`; the captured running policy gives key `9`, reason `town:blocked:departure-unsatisfiable`, mode `prepare`.
+- The captured terminal evidence is level 9, Outpost, gold 2,760, CCW 2/4 (`no-actionable-supplier`), Treasure Detection 0/5, mode `prepare`, `kit_secured=false`, `gold_trigger=true`.
+- Store IDs are Temple=3, Alchemist=4, Magic=5, Black Market=6, Home=7 (`model.py:335-339`). The fundraising producer requests stored detection from Home and purchased detection from Alchemist (`policy_town.py:3067-3103`); those are the bot's designated sources for this need. Captured Alchemist pages at turns 346824 and 346840 and repeated Home pages contain no detection item. The captured Magic page at 347368 contains books/devices and no detection. No Temple page was captured.
+- Before the change, `_detectionless_scavenge_allowed` (`policy_fundraising.py:275-318`) returned False for an observed empty Alchemist shelf: it required at least one positive-count priced detection scroll, then checked whether its cheapest price exceeded gold. `_settle_fundraising_detection` (`:320-345`) consequently set `prepare` and selected Alchemist (4). The measured capture key remains `9`; the constructed real-policy transition after the fix is tested below.
+
+Changes
+- An observed Alchemist page in the current town visit with no detection can now prove stock-out when Home knowledge is current and empty and the pack has no detection. A carried or Home-known scroll still vetoes scavenge. A missing or foreign-town Alchemist observation does not prove stock-out. The existing too-expensive path is preserved.
+- A scavenge run clock starts on the first observed board at Yeek Cave 1F and expires at a `turn` difference of 10,000. It sets `_returning_to_town` and uses `_leave_fundraising_floor`; 9,999 elapsed turns continue scavenging. Existing floor-explored, full-pack, and oscillation exits are unchanged.
+- `_fundraising_departure_ready` remains food/light/full HP/full MP/clear status based. It has no Cure potion requirement; `_departure_minimum` was not added as a fundraising gate.
+- New checkpoint attribute: `_scavenge_run_start_turn`, restored default `None` in `policy_state.py:180`. It resets when scavenge is settled in town for a new run.
+- The captured transition pin is `tests/test_scavenge_stockout_recorded.py`, with only three raw captured state rows in `tests/fixtures/scavenge-stockout-20261015.jsonl.gz`. Home scan completion is explicitly constructed from the captured empty Home page because the capture has no policy checkpoint. The real `_town_special_key` path asserts key `5`, reason `town:cycle-break`, mode `scavenge`; the captured pre-fix decision is key `9`, reason `town:blocked:departure-unsatisfiable` (diagnosis above).
+- Constructed clock pin: 9,999 keeps `fundraise:scavenge`; 10,000 returns via key `<`, reason `fundraise:ascend`; settlement in town followed by a new first board records the new start turn.
+- Controls pin carried detection -> mining path; Home-known detection -> Home/buy path; unobserved Alchemist -> no stock-out; too-expensive Alchemist offer -> existing scavenge; no Cure potions still allows a ready scavenge departure, while missing food, light, full HP/MP, or clear status blocks it.
+
+Bookkeeping
+- Refreshed `scripts/town_work_manifest.json.gz` and `src/hengbot/town_work_sites.json` with `town_work_manifest.py --write` (825 candidates, 20,799 sites, zero unmapped).
+- Added the timed-return call site to `scripts/item_sink_adapters.json`; updated the `_fundraising_key` review evidence in `scripts/town_work_review.json` using UTF-8 JSON, indent 2, and a trailing newline.
+- `scripts/town_producer_baseline.json` and `scripts/item_intent_baseline.json` required no additions: no new independent key producer or item-selection intent was introduced. Both corresponding structural checks passed.
+
+Focused development checks (single modules only)
+- PASS `test_scavenge_stockout_recorded` — 7 tests.
+- PASS `test_goldburn_detection_constructed` — 12 tests.
+- PASS `test_policy_fundraising` — 51 tests.
+- PASS `test_town_unaffordable_supplies` — 6 tests.
+- PASS `test_policy_shop` — 275 tests, 1 skipped.
+- PASS `test_supply_stockout_recorded` — 9 tests.
+- `test_policy_town` development run was stopped after its process made no further CPU progress; no failure was observed. It will be included in the mandated final run.
+- No existing test files or existing assertions were edited. `test_observed_empty_shelf_waits_for_existing_restock_route` remains valid and passes: it observes an empty Alchemist shelf without completed Home knowledge, so it does not establish the complete stock-out condition selected by the owner.
+- No existing test has failed so far; final-suite failures will be classified (R) regression or (F) expectation changed by this decision.
+
+Guard checks (must run after source commit; results to be pasted here)
+
+Final parallel run (must run once after the guard checks; results to be pasted here)

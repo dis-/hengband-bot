@@ -1,0 +1,20 @@
+ISSUE #50 — scavenge stock-out diagnosis
+
+Baseline: branch scavenge-stockout-1015, HEAD 4e68bc66779f24084f2dfc1abfca2c0ef3701784.
+Capture: captures-supply/20261015-082635-town-blocked-departure-unsatisfiable/.
+No capture or game data was copied into the repository.
+
+Recorded facts (bot-decisions.jsonl.gz):
+- The capture is the level-9 Outpost case. At turn 346851 the player had 2,760 gold; fundraising was {mode: prepare, kit_secured: false, gold_trigger: true}. The terminal row at turn 348228 records key "9", reason town:blocked:departure-unsatisfiable, Cure Critical Wounds 2/4 blocked by no-actionable-supplier, and Treasure Detection 0/5. These are the reported captured values.
+
+Supplier facts and captured pages:
+- Store IDs from src/hengbot/model.py:335-339: Temple=3, Alchemist=4, Magic=5, Black Market=6, Home=7. `policy_town.py:3067-3103` requests stored detection from Home and purchasable detection from Alchemist. The producer does not designate Temple, Magic, or Black Market as detection suppliers. Thus the seller whose shelf must be observed for this policy path is Alchemist; Home knowledge must also establish no stored detection.
+- Replayed the captured player-turn/store boards in timestamp order through `HengbotPolicy.choose_key` (104 boards; the stream has no serialized policy checkpoint). Alchemist pages (store 4) at turns 346824 and 346840 contain no item whose real parsed `is_treasure_detection_scroll` is true. Repeated Home pages (store 7) contain no such item. The Magic page at turn 347368 has books/devices, no detection; no Temple (store 3) page occurs in the capture. This shows observed Alchemist stock-out and observed Home absence, without asserting anything about the unobserved Temple page.
+
+Baseline policy results:
+- `src/hengbot/policy_fundraising.py:273-288` `_detectionless_scavenge_allowed`: rejects carried or known-Home detection; collects prices only from positive-count detection items in observed supplier pages; returns `bool(prices) and min(prices) > gold`. An observed empty Alchemist shelf contributes no price, so the captured stock-out case evaluates False. No unobserved shelf is inferred empty.
+- `src/hengbot/policy_fundraising.py:290-316` `_settle_fundraising_detection`: with no carried/known detection and no observed priced offer, sets mode prepare, clears planned mining runs, and returns STORE_ALCHEMIST (4).
+- Running all captured boards through a fresh real policy does not reproduce the live terminal decision because no policy checkpoint is present. At the terminal turn 348228, the fresh replay chooses `~f\x1b` (`periodic:skill-exp-knowledge`, mode None); the captured running policy chose `9` (`town:blocked:departure-unsatisfiable`, mode prepare). This records both outcomes and the checkpoint limitation; the captured decision is the evidence for the live key.
+
+Diagnosis:
+The stock-out is the missing transition: the live policy had observed Alchemist empty and Home contained no detection, but the helper treated stock-out as insufficient proof and retained prepare. Once the authoritative Home/Alchemist observations establish no detection and no carried/known Home scroll exists, the owner decision requires allowing the existing Yeek Cave 1F scavenge route. Cure potions remain outside `_fundraising_departure_ready` and are not a fundraising departure gate.

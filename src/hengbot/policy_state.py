@@ -175,6 +175,9 @@ def normalize_policy_state(restored, *, restart=False):
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     restored.__dict__.setdefault("_visit_departure_committed", None)
     restored.__dict__.setdefault("_visit_departure_recorded", set())
+    # A scavenge run's 10,000-turn clock begins on its first Yeek Cave 1F
+    # board; old checkpoints have not recorded that boundary yet.
+    restored.__dict__.setdefault("_scavenge_run_start_turn", None)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(

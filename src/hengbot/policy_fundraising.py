@@ -62,6 +62,8 @@ from hengbot.policy_constants import (
     WAIT_KEY,
 )
 
+SCAVENGE_RUN_TURN_LIMIT = 10_000
+
 
 @dataclass(frozen=True)
 class FundraisingPurpose:
@@ -271,10 +273,11 @@ class FundraisingMixin:
         )
 
     def _detectionless_scavenge_allowed(self, snapshot: Snapshot) -> bool:
-        """The sole poverty exception: even one observed scroll is too dear.
+        """Allow the poverty exception for dear or proven-unavailable detection.
 
-        Unknown prices and observed stock-out are not proof of unaffordability.
-        Carried or known Home detection always vetoes this exception.
+        Carried or known Home detection vetoes the exception. Stock-out needs
+        current Home knowledge and an observed Alchemist page in this town
+        visit with no detection; an unobserved supplier page is never empty.
         """
         if self._has_known_fundraising_detection(snapshot):
             return False
@@ -285,11 +288,40 @@ class FundraisingMixin:
             item.price for page in pages.values() for item in page.items
             if item.is_treasure_detection_scroll and item.count > 0
         ]
-        return bool(prices) and min(prices) > snapshot.player.gold
+        if prices:
+            return min(prices) > snapshot.player.gold
+        page = (
+            snapshot.store
+            if snapshot.store is not None
+            and snapshot.store.store_type == STORE_ALCHEMIST
+            else self._town_supplier_stock.get(STORE_ALCHEMIST)
+        )
+        observation = self._town_supplier_stock_observations.get(
+            STORE_ALCHEMIST
+        )
+        supplier_observed = bool(
+            (
+                snapshot.store is not None
+                and snapshot.store.store_type == STORE_ALCHEMIST
+            )
+            or (
+                observation is not None
+                and observation[0] == self._effective_town_id(snapshot)
+                and observation[1] <= snapshot.turn
+            )
+        )
+        return bool(
+            supplier_observed
+            and page is not None
+            and self._home_knowledge_current
+            and not self._home_knowledge_invalidated
+        )
 
     def _settle_fundraising_detection(self, snapshot: Snapshot) -> int | None:
         """Select the poverty exception or retain the existing kit supplier."""
         if self._detectionless_scavenge_allowed(snapshot):
+            if self._fundraising_mode != "scavenge" or snapshot.in_town:
+                self._scavenge_run_start_turn = None
             self._fundraising_mode = "scavenge"
             self._scavenge_entry_gold = snapshot.player.gold
             return None
@@ -1122,6 +1154,17 @@ class FundraisingMixin:
                 cause="outside-mining-floor",
             )
             return None
+        if self._fundraising_mode == "scavenge":
+            run_start_turn = getattr(self, "_scavenge_run_start_turn", None)
+            if run_start_turn is None:
+                self._scavenge_run_start_turn = snapshot.turn
+            elif (
+                snapshot.turn - run_start_turn
+                >= SCAVENGE_RUN_TURN_LIMIT
+            ):
+                self._note_return_start(None)
+                self._returning_to_town = True
+                return self._leave_fundraising_floor(snapshot)
         if getattr(self, "_crossarea_fundraising_enforced", False):
             purpose = getattr(self, "_fundraising_run_purpose", None)
             record = getattr(self, "_fundraising_purpose_record", None)

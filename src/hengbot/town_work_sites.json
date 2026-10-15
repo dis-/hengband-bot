@@ -5423,8 +5423,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 375,
-    "end_line": 403,
+    "line": 407,
+    "end_line": 435,
     "ast_sha256": "83144ba6085294bad543f338e4ba95bd8f6a141198943396a92471ebb240bdd8"
   },
   "policy_fundraising.py:FundraisingMixin._dig_to_known_downstairs_key": {
@@ -5434,8 +5434,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 773,
-    "end_line": 821,
+    "line": 805,
+    "end_line": 853,
     "ast_sha256": "4a6cbcc6ed159fae9b03045522b6ae795ae50537824dfb02b9005935704078e3"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_combat_equipment_key": {
@@ -5444,8 +5444,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 446,
-    "end_line": 473,
+    "line": 478,
+    "end_line": 505,
     "ast_sha256": "cc38d916537a68af46de683fbee3959bc447d8ded2708c5584457dd47529d969"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_food_ready": {
@@ -5454,8 +5454,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 315,
-    "end_line": 321,
+    "line": 347,
+    "end_line": 353,
     "ast_sha256": "0ce9b00517c451d9901268636e9e7a34d29ac183fd9660aa1ca0307b8cf11a45"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_key": {
@@ -5464,9 +5464,9 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1090,
-    "end_line": 1690,
-    "ast_sha256": "8e9cb4524e695ff5bed43d6b48404343b0ba24a97073c54f0e75538d1a289b10"
+    "line": 1122,
+    "end_line": 1733,
+    "ast_sha256": "fa4aecb8bc6f13e8bedef384bb13c044ac91bfea7641d5c9b12712ee0c633ca6"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": {
     "classification": "producer",
@@ -5475,8 +5475,8 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 501,
-    "end_line": 518,
+    "line": 533,
+    "end_line": 550,
     "ast_sha256": "2fc4defdb6f1ce95a552d55795584e118c384b01db6e71dac816b0c7a10ad00b"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_wieldable_light": {
@@ -5485,8 +5485,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 349,
-    "end_line": 365,
+    "line": 381,
+    "end_line": 397,
     "ast_sha256": "d7a2e8a703d6684971877ada3f813783bc47dde72b3629fc9e1595c556ee3fc0"
   },
   "policy_fundraising.py:FundraisingMixin._leave_fundraising_floor": {
@@ -5496,8 +5496,8 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 521,
-    "end_line": 685,
+    "line": 553,
+    "end_line": 717,
     "ast_sha256": "2f809f2f2b12b4fe494e1a5455ae1a65f4f329379a429dc2d4f6c5d1aa1c203b"
   },
   "policy_fundraising.py:FundraisingMixin._mining_closure_key": {
@@ -5506,8 +5506,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 882,
-    "end_line": 977,
+    "line": 914,
+    "end_line": 1009,
     "ast_sha256": "6699c4be2b6748d9d23355a9d1a0d3d84f8e777cdd53ff191f3efeca6f25d828"
   },
   "policy_fundraising.py:FundraisingMixin._mining_detection_scroll_target": {
@@ -5516,8 +5516,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 332,
-    "end_line": 337,
+    "line": 364,
+    "end_line": 369,
     "ast_sha256": "42e123f6416613f11696f2ed69affe2b7344fb673b1fbcf895518f44edde9467"
   },
   "policy_fundraising.py:FundraisingMixin._mining_detection_stock_target": {
@@ -5526,8 +5526,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 339,
-    "end_line": 341,
+    "line": 371,
+    "end_line": 373,
     "ast_sha256": "a3750d1d3cf9ade179454b021c83c7b387eaa82d83bf8631cb17827ec131af70"
   },
   "policy_fundraising.py:FundraisingMixin._mining_sweep_step": {
@@ -5536,8 +5536,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 979,
-    "end_line": 1006,
+    "line": 1011,
+    "end_line": 1038,
     "ast_sha256": "b9d6e027e4c8c19d22cf2da039b4047df3342f23b73d62dcd5c7f3aea6ed89a2"
   },
   "policy_fundraising.py:FundraisingMixin._mining_tapped_out_key": {
@@ -5546,8 +5546,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 1039,
-    "end_line": 1087,
+    "line": 1071,
+    "end_line": 1119,
     "ast_sha256": "7ed0f24884a79378a44a1089f06d07e934a8a02da61ea9368b6e5f3fede10de0"
   },
   "policy_fundraising.py:FundraisingMixin._mining_tunnel_key": {
@@ -5556,8 +5556,8 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "line": 717,
-    "end_line": 771,
+    "line": 749,
+    "end_line": 803,
     "ast_sha256": "07c6687877c8cab9caf0e073e347582c189cd7d53945546c25f178e7cb0a6ecc"
   },
   "policy_fundraising.py:FundraisingMixin._secret_wall_search_step": {
@@ -5566,8 +5566,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1703,
-    "end_line": 1747,
+    "line": 1746,
+    "end_line": 1790,
     "ast_sha256": "97c5d05c532b34ceb7cfa9d8ea598f7f609684446acbf59e11d3db2e09e5e331"
   },
   "policy_fundraising.py:FundraisingMixin._tunnel_step_toward": {
@@ -5576,8 +5576,8 @@
       "fundraising"
     ],
     "delegation": "selected child; no independent success",
-    "line": 687,
-    "end_line": 714,
+    "line": 719,
+    "end_line": 746,
     "ast_sha256": "bdf7cab39b98ad67d062a65ea5da0164d8dde47f4199302cb4c20325ccb6fa06"
   },
   "policy_helpers.py:PolicyHelpersMixin._carried_destruction_uses": {
@@ -6734,8 +6734,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1173,
-    "end_line": 1182,
+    "line": 1179,
+    "end_line": 1188,
     "ast_sha256": "b413ef0ab0ce035b0df73a6737840d28bdb70a05b44b2163f5cd60343a966cfb"
   },
   "policy_observation.py:ObservationMixin._missing_required_abilities": {
@@ -6744,8 +6744,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1315,
-    "end_line": 1338,
+    "line": 1321,
+    "end_line": 1344,
     "ast_sha256": "47e52a899253ccdf7ce33335283f6710df7f55af48b17f108c784e7021c8a354"
   },
   "policy_observation.py:ObservationMixin._strategy_force_for_snapshot": {
@@ -6754,8 +6754,8 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "line": 1295,
-    "end_line": 1313,
+    "line": 1301,
+    "end_line": 1319,
     "ast_sha256": "d1cb5055e6db5ef3779c20e2e84eb1fc6d4a77cccfc3fb625c2b2e7b8fa6666f"
   },
   "policy_quest.py:QuestMixin._conquest_loot_key": {
