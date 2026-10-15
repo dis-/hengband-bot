@@ -275,8 +275,6 @@ class FundraisingMixin:
     def _detectionless_scavenge_allowed(self, snapshot: Snapshot) -> bool:
         """Allow scavenge for dear offers or a fully observed stock-out."""
         has_known_detection = self._has_known_fundraising_detection(snapshot)
-        if has_known_detection:
-            return False
         pages = dict(self._town_supplier_stock)
         if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
             pages[snapshot.store.store_type] = snapshot.store
@@ -285,7 +283,10 @@ class FundraisingMixin:
             if item.is_treasure_detection_scroll and item.count > 0
         ]
         if prices:
-            return min(prices) > snapshot.player.gold
+            return (
+                not has_known_detection
+                and min(prices) > snapshot.player.gold
+            )
         page = (
             snapshot.store
             if snapshot.store is not None
@@ -307,7 +308,8 @@ class FundraisingMixin:
             )
         )
         return bool(
-            supplier_observed
+            not has_known_detection
+            and supplier_observed
             and page is not None
             and self._home_knowledge_current
             and not self._home_knowledge_invalidated
