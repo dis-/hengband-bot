@@ -1321,7 +1321,9 @@ class SurvivalTriggerTest(unittest.TestCase):
         # synchronized with that inventory; the pairing assertions above stay.
         # Curse priority adds the preemptive cursed-weapon return and both
         # unwieldable-digger exits, each with its record-only None note.
-        self.assertEqual(len(triggers), 35)
+        # 36: + policy_fundraising.py:_fundraising_key, the 10,000-turn end of a
+        # scavenge run (owner 2026-10-15), also a record-only None start.
+        self.assertEqual(len(triggers), 36)
         for where, trigger in triggers.items():
             if (
                 where.startswith("policy_fundraising.py:")
