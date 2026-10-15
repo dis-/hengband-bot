@@ -553,6 +553,17 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertNotIn("_latch_capture_", encoded)
         self.assertLess(len(encoded), 50_000)
 
+    def test_policy_state_excludes_per_decision_snapshot_caches(self):
+        # 2026-10-16 soak: six cached Snapshots made the checkpoint 48 MB.
+        policy = self.policy()
+        snapshot = self.snapshot()
+        policy._fixed_quest_head_cache = {1: (snapshot, None), 2: (snapshot, None)}
+        policy._fixed_quest_offer_cache = {3: (snapshot, frozenset())}
+        state = policy_state(policy, snapshot)
+        self.assertNotIn("_fixed_quest_head_cache", state["modes_and_latches"])
+        self.assertNotIn("_fixed_quest_offer_cache", state["modes_and_latches"])
+        self.assertIn("_fundraising_mode", state["modes_and_latches"])
+
     def test_budget_prunes_oldest_snapshot_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
