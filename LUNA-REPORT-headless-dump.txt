@@ -1,0 +1,85 @@
+ISSUE #48 — headless character dump
+Branch: headless-dump-check-1016
+Implementation commit: 77ab09de (base 4777789d)
+
+Diagnosis
+---------
+See LUNA-DIAG-headless-dump.txt for the capture/code trace and its limits.
+Measured: each failure ends on a CHARACTER match with the character-sheet
+footer; the captured posts arrive as separate C, f, CR, and Escape keys 14–31
+ms apart; the dump file is 0 bytes. The captures do not timestamp the game's
+internal consumption of each key. The supplied probe's success with 2-second
+key spacing supports, but does not directly prove, the stale-screen timing
+inference.
+
+Changes
+-------
+src/hengbot/input_executor.py keeps the periodic and town character-dump owner
+while a posted key may still be reflected by the old CHARACTER screen. On
+screens no larger than 80x24, it polls every 25 ms for up to 2 seconds after
+the relevant f, Enter, or closing Escape post. It then uses the existing
+continuation classifier. The wait is limited to those dump owners and an
+accepted dump segment. No policy/checkpoint attributes were added, so there
+are no restored-checkpoint defaults to supply. Larger Windows screens retain
+the immediate path.
+
+Pins and controls
+-----------------
+tests/fixtures/headless-character-dump-20261016.jsonl.gz is a 197-byte gzip
+fixture containing only the prompt rows needed by the pin. It marks constructed
+rows explicitly; the captures do not contain raw control-screen frames.
+tests/test_headless_character_dump.py replays the delayed sheet through the
+real OperationExecutor and verifies completion at the COMMAND barrier after
+the sheet closes. The fixture does not establish live file bytes; no game was
+run, as required.
+
+Three controls pass: an unowned character sheet remains a stuck prompt; the
+large-terminal dump path completes without stale-screen polling; and the
+headless dump sequence completes after its delayed screens advance. Existing
+assertions were not edited, renamed, weakened, or made conditional.
+
+The first fast-tier run exposed (R) test integration regression:
+tests.test_policy_structure.PolicyStructureTest.test_test_modules_do_not_bind_foreign_test_cases
+failed because the new module inherited another test module's TestCase. The
+new module now has its own small scripted control peer; the existing test and
+its assertions are unchanged and pass. A subsequent fast-tier attempt selected
+a newly written 59-test timing state and reported an empty shard; rerunning
+against the baseline's full green timing state completed all four shards.
+
+Bookkeeping and checks
+---------------------
+The town-work manifest refresh reports 825 candidates, 20,835 sites, and zero
+unmapped sites. town_structure_lint and item_sink_lint each report zero
+violations. No producer/review or item adapter/intent baseline entries needed
+changing. The generated town-work manifest and source-site fingerprint were
+updated. Single-module checks passed:
+
+- tests.test_headless_character_dump: 3 tests
+- tests.test_input_executor: 72 tests
+- tests.test_home_knowledge_scan: 38 tests, 1 skipped
+- tests.test_town_structure_lint: 19 tests
+- tests.test_item_sink_lint: 18 tests
+- tests.test_policy_structure: 7 tests
+
+Post-commit guards, run in the required order against base 4777789d:
+
+```text
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (headless-dump-check vs 4777789d)
+```
+
+```text
+[mutation] 2 source hunks, tests: tests.test_headless_character_dump
+[mutation] caught     src/hengbot/input_executor.py:1208 (if self._character_dump_transition_pending(match, screen_value):): test_captured_sheet_waits_for_posted_dump_keys_then_closes
+[mutation] caught     src/hengbot/input_executor.py:1569 (def _character_dump_transition_pending(): test_captured_sheet_waits_for_posted_dump_keys_then_closes, test_character_sheet_without_dump_owner_remains_stuck, test_large_terminal_dump_has_no_stale_sheet_w
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for 77ab09de
+```
+
+```text
+[fast] 4143 fast tests (<2.0s in 4777789d) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 4161 tests, 301.5s
+```

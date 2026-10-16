@@ -1,0 +1,55 @@
+ISSUE #48 — measured opening diagnosis
+Baseline: branch headless-dump-check-1016 at 4777789d. This file was not
+present when the task was opened; diagnosis below uses only captures-dump and
+the checked-out bot code. No game was run.
+
+Captured observation
+--------------------
+The three life-010/011/012 failures report owner=periodic:character-dump,
+phase=continuation, transport=accepted, then reason=unowned character with the
+character-sheet footer. The match is ScreenKind.CHARACTER. The executor's
+classifier recognizes that footer at any row (input_executor.py:341-343); it
+is not a command screen. For an 80x24 headless screen the relevant feature is
+the visible character sheet, not a generic unknown prompt.
+
+Why it is called unowned
+-----------------------
+The dump continuation compiled in cli.py:2782-2795 is C, then a CHARACTER
+continuation answered with f, a FILE_NAME continuation answered with CR, an
+optional overwrite CONFIRM answered with y, and a final CHARACTER continuation
+answered with Escape. At input_executor.py:1227-1424 (baseline), each post is
+followed by one screen read. The continuation loop accepts only the current
+step's kind. A sheet still visible after a posted key is therefore rejected
+when the next step expects FILE_NAME, or after the final Escape when there is
+no remaining step and the executor is not back at COMMAND/STORE. It has no
+bounded wait for an already accepted character-dump key to take effect.
+
+Posting and file evidence
+-------------------------
+The policy decision row records the logical macro `Cf\ry\x1b\x1b`, but the
+executor does not post it atomically. Its _post_and_barrier method calls
+ControlClient.post_keys once per prefix/continuation segment
+(input_executor.py:1125-1183); cli.py:2783-2795 defines those segments. In
+life-010, the per-character capture records C at 08:28:40.844289, f at
+08:28:40.875521, CR at 08:28:40.889713, and Escape at 08:28:40.904347. These
+are separate accepted posts spaced about 14-31 ms apart. The stuck-prompt log
+then records the character-sheet footer. life-010/user/bot-test.txt is 0 bytes.
+The captured state stream ends with a character record at turn 375691, with no
+dump-file confirmation in the evidence provided.
+
+Cause assessment: the captures establish that the executor read the character
+sheet after its accepted posts, stopped before it observed COMMAND, and the
+file remained empty. They do not timestamp the game's internal consumption of
+each queued key, so the exact key at which the screen became stale is not
+directly measured. The 14-31 ms post spacing, empty file, and the supplied probe
+(which succeeds when keys are separated by 2 seconds) support the inference
+that the bot advanced/cancelled the sheet sequence before the slower headless
+game processed the corresponding queued key. The executor's immediate
+continuation check is the code condition that turns this lag into a terminal
+unowned-character result.
+
+The fix is scoped to periodic/town character-dump ownership on screens no
+larger than 80x24. It polls the screen for up to 2 seconds after a posted dump
+key while the sheet remains visible, then resumes the existing continuation
+classification. An unrelated character sheet has no dump owner and remains a
+stuck prompt. Larger Windows screens take the existing immediate path.
