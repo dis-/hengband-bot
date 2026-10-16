@@ -1,0 +1,18 @@
+Diagnosis: eqtxn-newchar-route
+
+Capture and replay
+
+Source: `C:\hengband-backups\state-logs\c4a-loops-20261016\20261017-033618-equipment-transaction-home-route-repeat-terminal\state.jsonl.gz` and `bot-decisions.jsonl.gz`. I selected decision rows by `decision_sequence` before joining the matching state frame by turn. The relevant captured rows are sequences 4-8 at position `(y=45, x=124)`, with Home at `(45,123)`: `home-route-unavailable`, `abandon-blocked`, `home-route-unavailable`, `abandon-blocked`, `home-route-repeat-terminal`; each key is `5`.
+
+Measured route and request facts
+
+- Captured turn 94993 parses as `in_town=True`, town id `0`, board `198x66`. The repository Outpost map is active and has Home at `(45,123)`; the captured live Home grid is `store_number=7`, `passable=True`, `is_door=True`. The six captured walkable neighbors of `(45,124)` include `(45,123)`. On the actual parsed board and Outpost map, `_town_map_goal_route(snapshot, (45,123))` returns `TownMapRoute(target=(45,123), first_step=(45,123), remaining_edges=1)`. Route construction is in `policy_town.py:7593-7624`; neighbor selection uses the populated floor/door sets at `policy.py:19233-19269`. The map, town map, and walkable set provide a one-edge route.
+- The active reconstructed plan target is the captured lit torch stack `ec2e53c16a3761bb`, count 5. On the captured board `_retention_reservation(snapshot, target) == 5`; its item signature is in `_home_visit_keep_set`, which has 6 entries. With the actual `EquipmentTransactionSession` and Home deposit action installed, `_derived_home_visit_request(snapshot) is None`, and `_shopping_approach_step(snapshot, STORE_HOME, requester="equipment-txn") is None`. `policy_quest.py:436-449` builds the keep set and returns no Home request when the deposit target signature is retained. `policy_home.py:1431-1440` records `derived=None`, `filing=None`, `rejection=None`, `begin_approach=None` with executor state `IDLE`, then returns false. This refusal occurs before route selection or entrance claim acquisition; it is not a route-claim refusal. `policy_equipment.py:2672-2682` folds that missing Home request into the generic `home-route-unavailable` blocker.
+
+Why abandonment repeats
+
+`policy_equipment.py:1672-1690` treats the generic blocker as a physical route failure and remembers an unchanged route-abandonment signature. `policy_equipment.py:1856-1863` and `1880-1886` emit `equipment-transaction:home-route-repeat-terminal` when the signature repeats and no restoration action remains. The retained deposit is reconsidered after the attempt is cleared, so the next attempt reaches the same keep-set refusal. The ?unavailable? reason loses the actual request refusal even though the adjacent Home door is reachable.
+
+Fix direction
+
+At the town route seam, recognize when the pending equipment deposit target is currently retained. Abandon that optional transaction and record the existing visit-local `retain-reserved` closure before the generic route-failure path. Keep the current equipment and preserve any separately reconstructed restoration work. This follows the existing retained-deposit refusal behavior without a store/floor/capture special case or retry threshold.

@@ -4428,7 +4428,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "4991278468023add130b4338719073d38cf9145818c2dcdf3305a4c8ef24438f"
+    "ast_sha256": "3e3ae06107a37458cac8f3630c099c5cacd5854bf35b2171dce8c30f2e252b6e"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_owner_key": {
     "classification": "producer",
