@@ -2642,6 +2642,33 @@ class EquipmentMixin:
                 and not self._equipment_transaction_restoring
                 and any(a.kind == "deposit" for a in session.plan.actions[session.index:])
             )
+            action = session.current_action
+            if not home_route_blocked and action is not None and action.kind == "deposit":
+                retained_target = next((
+                    item for item in snapshot.inventory
+                    if item.is_equipment
+                    and equipment_identity(item) == action.item_identity
+                    and (not action.move_identity
+                         or equipment_move_identity(item) == action.move_identity)
+                ), None)
+                if (retained_target is not None
+                        and self._retention_reservation(snapshot, retained_target) > 0):
+                    # The Home executor deliberately refuses a deposit that
+                    # conflicts with the current keep set. Close this optional
+                    # plan at the refusal seam instead of treating the missing
+                    # visit request as a failed physical route and retrying it.
+                    self._abandon_blocked_equipment_transaction(snapshot)
+                    self._equipment_transaction_visit_closure = {
+                        "epoch": self._town_visit_epoch,
+                        "reason": "retain-reserved",
+                        "target_loadout_id": session.target_loadout_id,
+                        "item_identity": equipment_identity(retained_target),
+                        "turn": snapshot.turn,
+                    }
+                    self.last_reason = "equipment-transaction:retain-reserved"
+                    return self._equipment_town_outcome(
+                        WAIT_KEY, label="retain-reserved",
+                    )
             step = (
                 self._shopping_approach_step(
                     snapshot, STORE_HOME, requester='equipment-txn'
