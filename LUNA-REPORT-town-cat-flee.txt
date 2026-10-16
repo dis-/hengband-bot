@@ -47,4 +47,4 @@ Commits on `town-cat-flee-1017`
 - `028debcb` Pin town no-wait melee producer
 - `ff6841d9` Keep town no-wait melee sink pinned
 
-The report is the only file remaining to commit; the supplied task file is left untouched.
+The supplied task file remains untracked and untouched.
