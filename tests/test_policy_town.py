@@ -65,6 +65,7 @@ from hengbot.cli import (
     _send_new_decision_key,
     _send_stall_recovery_nudge,
     _decision_record,
+    _town_stall_report_terminates_named_block,
 )
 
 from hengbot.town_maps import TownMap, parse_town_map
@@ -11369,6 +11370,39 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
         self.assertTrue(pol._emergency_recall_sanctioned)
+
+    def test_blocked_repetition_waits_out_active_recall_as_departure(self):
+        # c4-a life-003 20261016-203641: the repetition rung read recall
+        # ("rea"), then posted 24 WAITs labelled town:blocked:repetition while
+        # the recall counted down; the named-block report stopped the bot
+        # (loop-detected) before the recall fired.
+        pol = HengbotPolicy()
+        set_completed_equipment_optimization(pol)
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        town = self._town_snap()
+        snap = replace(
+            town,
+            player=replace(town.player, recalling=True),
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=8),
+                item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15),
+            ],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE, DUNGEON_ANGBAND),
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            angband_recall_unlocked=True,
+        )
+
+        with patch.object(
+            pol, "_recall_destination_safe", return_value=True
+        ), patch.object(pol, "_descent_step", return_value=None):
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+
+        self.assertEqual(pol.last_reason, "town:wait-recall")
+        self.assertFalse(
+            _town_stall_report_terminates_named_block({}, pol.last_reason)
+        )
 
     def test_yeek_recall_destination_and_repetition_departure_are_restored(self):
         pol = HengbotPolicy()

@@ -5927,6 +5927,20 @@ class TownMixin:
                         continuation="recall.observe-arrival",
                     )
                     return key
+            else:
+                # The recall this rung (or an earlier departure) read is
+                # counting down.  That wait is the departure in progress, not
+                # a repetition: under the blocked label the stall report's
+                # terminal stopped the bot before the recall could fire.  A
+                # store door was already stepped off above.
+                self.last_reason = "town:wait-recall"
+                self._offer_execution(
+                    WAIT_KEY, producer="departure",
+                    work_id="town:recall-countdown",
+                    next_step="recall.observe-arrival",
+                    expected_effect="floor-change",
+                )
+                return WAIT_KEY
         return WAIT_KEY
 
     def _town_recall_destination(
