@@ -1,0 +1,31 @@
+Measured diagnosis (capture 2026-10-16; raw boards from the supplied state log)
+
+- Decision 331 reads turn 973587 at (45,123), outside store 7 (Home); the
+  recorded decision is `town:blocked:repetition`, key `9`. Replaying that raw
+  board through `HengbotPolicy._town_blocked_key` with the captured passable
+  map cells declared on the policy's map cache returns `9` and reason
+  `town:blocked:repetition`.
+- The early branch in `src/hengbot/policy_town.py:5748-5760` handles every
+  outside store door before the repetition block at `:5764-5788`. On the
+  door board it selects a walkable neighbor and returns, so it cannot reach
+  `_shopping_approach_step` / `_shopping_approach_key` and the ordinary Home
+  withdrawal composer.
+- Decision 330 is `home:queue-catalogue-shortage`; decision 333 is
+  `home:leave-for-pending-withdraw`. The latter branch at
+  `src/hengbot/policy.py:9229-9237` requires a pending signature present in
+  the Home catalogue. The queue helper's binding point is
+  `src/hengbot/policy_home.py:4818-4835`: it assigns the selected
+  `primary_signature` to `_home_pending_item` at line 4823, then appends
+  remaining signatures to `_home_pending_batch`. The decision log does not
+  serialize that in-memory signature, so its exact value cannot be read from
+  the supplied logs.
+- DECLARED CONSTRUCTED composer probe: use the captured Home page 0 (turn
+  973613, stock 90, page size 52) and captured outside door board (turn
+  973624), with its first catalogue item `水の薬`, signature
+  `('水の薬', 75, 0)`, bound as `_home_pending_item`. The real
+  `_atomic_home_withdraw_key` returns `5pa\x1b`, reason
+  `home:atomic-withdraw`.
+
+The reproduced branch order and composer result establish the missing
+handoff. The exact captured pending signature remains unobservable in these
+logs; it will not be represented as a measured capture value in the report.
