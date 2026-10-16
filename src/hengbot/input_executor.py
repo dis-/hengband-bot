@@ -678,6 +678,39 @@ def _expected_prompt_absence_is_complete(
     if any(message in endings for message in _operation_messages(screen, board)):
         return True
 
+    # Passive item sensing calls disturb() before printing its feeling
+    # (perception/simple-perception.cpp:91-112).  That can cancel an identify
+    # chooser after the device command has run.  Treat only a fresh feeling
+    # transition on this operation's still-unknown target as completion; the
+    # staged target answer remains unposted.
+    if operation.owner.startswith("identify:"):
+        before = operation.observation if isinstance(operation.observation, Mapping) else {}
+        before_items = {
+            str(item.get("slot")): item for item in before.get("inventory", ())
+            if isinstance(item, Mapping)
+        }
+        after_items = {
+            str(item.get("slot")): item for item in board.get("inventory", ())
+            if isinstance(item, Mapping)
+        }
+        pending = operation.continuations[0] if operation.continuations else None
+        if pending is not None and ScreenKind.ITEM_TARGET in pending.kinds:
+            slot = pending.keys[:1]
+            old_target = before_items.get(slot)
+            target = after_items.get(slot)
+            same_item = old_target is not None and target is not None and all(
+                old_target.get(key) == target.get(key)
+                for key in ("tval", "sval", "name")
+            )
+            if (
+                same_item
+                and not bool(old_target.get("known"))
+                and not bool(target.get("known"))
+                and not old_target.get("pseudo_feeling")
+                and bool(target.get("pseudo_feeling"))
+            ):
+                return True
+
     # Full-identify may legitimately omit the target prompt when the bound
     # target is already known, or after its selected one-shot source vanishes.
     # Compare the operation's originating board with this barrier state; a
