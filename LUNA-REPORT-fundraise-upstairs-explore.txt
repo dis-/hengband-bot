@@ -1,0 +1,65 @@
+Fundraising upstairs exploration — implementation report
+=========================================================
+
+Diagnosis
+---------
+
+The final decision witness in the supplied capture is decision 39, turn 211771, at Yeek cave 1F, player (19,4). It records key `5` / `fundraise:upstairs-not-found`. The map witness records 315 open frontiers and one known up staircase at (19,81); replaying `_nearest_goal_step` against the raw frame finds no reachable staircase. The ordinary `_explore_step` on the same frame selects `Position(y=18, x=5)`, and `_step_toward` returns key `9`.
+
+The raw frame does not match the task's stated pack contents. `state.jsonl.gz`, turn 211771, contains 13 inventory slots, including 8 readable Recall scrolls and 14 Teleport scrolls; the player is not blind or confused. With the expired-search state (`STUCK_ESCAPE_LIMIT=60`), the current base's real `_leave_fundraising_floor` returns `rc`, reason `fundraise:recall-stuck` on that raw frame. With those stacks removed as a DECLARED CONSTRUCTED variant, the base returns key `5`, reason `fundraise:upstairs-not-found`, despite 315 open frontiers. This discrepancy is recorded in `LUNA-DIAG-fundraise-upstairs-explore.txt` and the replay test.
+
+`policy.py:11388` places `_fundraising_key#1` in the active ladder. `_fundraising_key` delegates an active return-to-town run to `_leave_fundraising_floor` (`policy_fundraising.py:1152-1165`). Before the fix, when the upstairs search had expired and `allow_recall` was true, the exploration and fallback ladder was an `else` of the expiry condition. If no readable Recall was found, that whole ladder was skipped and the code reached the terminal WAIT. Issue #47's ordinary exploration step is in the separate return owner at `policy_town.py:7489-7496`; fundraising exits do not invoke that method.
+
+Change
+------
+
+`policy_fundraising.py` now finds a Recall scroll only for an expired search where Recall is allowed, then returns with the existing Recall action if the scroll is readable. Otherwise it reaches the existing `_explore_step` call, `_step_toward`, and fundraising route offer. That is the same exploration producer and movement/safety path used by issue #47. A known reachable upstairs route is still handled earlier. No HP, exploration, or search thresholds changed; no new policy attributes, helper, or reason were added. No restored-checkpoint defaults or `STUCK_FAMILY_REASONS` changes were needed.
+
+The item sink adapter entry was updated to record the exploration call under the readable-Recall guard. `town_work_manifest.py --write` refreshed `town_work_manifest.json.gz` and `town_work_sites.json` (826 candidates, 20,904 sites, zero unmapped). No town producer baseline, town work review helper entry, or fixed structural census count needed changing. Three tests were added in `test_fundraise_upstairs_explore_recorded.py`; existing tests and assertions were not edited.
+
+Pins and controls
+-----------------
+
+| Replay | Before fix | After fix |
+| --- | --- | --- |
+| Captured raw frame, which carries Recall | `rc`, `fundraise:recall-stuck` on base policy | Same; Recall remains first when readable |
+| Captured map with Recall and Teleport removed (DECLARED CONSTRUCTED) | key `5`, `fundraise:upstairs-not-found` | key `9`, `fundraise:seek-upstairs-explore`, toward the open frontier |
+| Current tile marked as the known up staircase (DECLARED CONSTRUCTED) | Stair path is selected before exploration | `UP_STAIRS_KEY`, `fundraise:ascend` |
+
+Focused single-module checks after the final source edit:
+
+- `test_fundraise_upstairs_explore_recorded`: 3 tests, OK.
+- `test_policy_fundraising`: 53 tests, OK.
+- `test_fundraising_restart_purpose_recorded`: 2 tests, OK.
+- `test_item_sink_lint`: 18 tests, OK.
+
+An earlier `test_item_sink_lint` run failed in `test_every_pinned_adapter_call_still_exists` and `test_repository_item_sinks` because the source guard had changed while its adapter record still named the old condition. I updated the exact adapter expression and reran the module successfully; this was bookkeeping, not a remaining source regression.
+
+Required guard outputs
+----------------------
+
+```text
+[preflight] PREFLIGHT OK: 7 changed files, 0 findings (fundraise-upstairs-explore-1017 vs a6672ef9)
+```
+
+```text
+[mutation] 1 source hunks, tests: test_fundraise_upstairs_explore_recorded
+[mutation] caught     src/hengbot/policy_fundraising.py:651 (recall = (): test_captured_board_explores_when_escape_scrolls_are_absent
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for d2b2136c
+```
+
+```text
+[fast] 4162 fast tests (<2.0s in a6672ef9) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-cb267gts)
+Failures: none
+Errors: none
+Total: 4213 tests, 400.4s
+```
+
+Commits
+-------
+
+- `d2b2136c` Explore frontiers during fundraising return
+- Report commit follows this implementation commit.
