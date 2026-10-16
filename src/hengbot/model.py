@@ -123,7 +123,9 @@ def _decode_grid_map(
     return grids
 
 
-@dataclass(frozen=True)
+# order=True: positions sort by row, then column. Without it, sorted() on two or more quest building /
+# entrance / reward positions raised TypeError and crashed the bot (Linux soak 2026-10-16 14:06).
+@dataclass(frozen=True, order=True)
 class Position:
     y: int
     x: int
