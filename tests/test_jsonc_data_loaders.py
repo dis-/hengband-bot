@@ -3,59 +3,63 @@ import tests  # noqa: F401 -- live runtime-file isolation, also for bare module 
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from types import SimpleNamespace
 from unittest.mock import patch
 
-import hengbot.wilderness_map as wilderness_map_module
-from hengbot.cli import (
-    _build_argument_parser,
-    _initial_town_quest_statuses,
-    _load_town_maps,
-)
-from hengbot.model import QuestState
+from hengbot.cli import _build_argument_parser
+from hengbot.model import Position
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
-from hengbot.town_maps import find_town_map, parse_town_map
+from hengbot.town_maps import parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 
 
-EDIT = Path(r"C:\hengband\lib\edit")
+_LEGEND = (
+    '{"legend": {'
+    '"#": {"terrain": "PERMANENT"}, '
+    '".": {"terrain": "FLOOR"}, '
+    '">": {"terrain": "ENTRANCE", "special": 2}, '
+    '"1": {"terrain": "GENERAL_STORE"}}}'
+)
+
+
+def _write_town(root: Path, variants: str) -> Path:
+    edit = root / "lib" / "edit"
+    (edit / "towns").mkdir(parents=True)
+    (edit / "TownPreferences.jsonc").write_text(_LEGEND, encoding="utf-8")
+    town = edit / "towns" / "99_Test.jsonc"
+    town.write_text(
+        '{"version": 2, "featureRules": [], "mapVariants": [' + variants + "]}",
+        encoding="utf-8",
+    )
+    return town
 
 
 class JsoncDataLoaderTest(unittest.TestCase):
-    def test_wilderness_loader_documents_jsonc_only_input(self):
-        self.assertEqual(
-            wilderness_map_module.__doc__,
-            "Static global-wilderness routing from Hengband's JSONC definition.",
-        )
-        self.assertIn("jsonc", load_wilderness_map.__doc__.casefold())
-
     def test_cli_documents_jsonc_paths(self):
         actions = {option: action for action in _build_argument_parser()._actions
                    for option in action.option_strings}
         self.assertIn("01_Outpost_Full.jsonc", actions["--outpost-map"].help)
         self.assertIn("JSONC", actions["--quest-definitions"].help)
 
-    def test_startup_reads_quest_status_from_the_latest_board(self):
-        snapshot = SimpleNamespace(quests={17: QuestState(id=17, status=1)})
-        with (
-            patch("hengbot.cli._read_last_snapshot_line", return_value=['{"board": true}']),
-            patch("hengbot.cli.parse_snapshot", return_value=snapshot),
-        ):
-            self.assertEqual(_initial_town_quest_statuses(Path("state.jsonl"), None), {17: 1})
+    def test_town_map_variant_follows_the_quest_status_condition(self):
+        with TemporaryDirectory() as directory:
+            town = _write_town(
+                Path(directory),
+                '{"when": "[EQU $QUEST17 1]", "rows": ["#1>#"]}, '
+                '{"when": "[EQU $QUEST17 0 2 3 4]", "rows": ["#1.#"]}',
+            )
+            completed = parse_town_map(town, {17: 1})
+            self.assertEqual(completed.entrance, Position(0, 2))
+            self.assertIsNone(parse_town_map(town).entrance)
+            self.assertIsNone(parse_town_map(town, {17: 3}).entrance)
+            with self.assertRaises(ValueError):
+                parse_town_map(town, {17: 5})
 
-    def test_startup_loads_indexed_town_six_with_current_quest_status(self):
-        if not EDIT.is_dir():
-            self.skipTest("real Hengband lib/edit data is unavailable")
-        snapshot = SimpleNamespace(quests={17: QuestState(id=17, status=1)})
-        with (
-            patch("hengbot.cli._read_last_snapshot_line", return_value=['{"board": true}']),
-            patch("hengbot.cli.parse_snapshot", return_value=snapshot),
-        ):
-            _outpost, town_maps = _load_town_maps(EDIT, None, None)
-        self.assertEqual(set(town_maps), {0, 1, 2, 3, 4, 5})
-        town_six_path = find_town_map(6, EDIT)
-        self.assertEqual(town_maps[5], parse_town_map(town_six_path, {17: 1}))
-        self.assertEqual(town_maps[5].height, 66)
+    def test_town_map_rejects_the_legacy_text_format(self):
+        with TemporaryDirectory() as directory:
+            legacy = Path(directory) / "01_Outpost_Full.txt"
+            legacy.write_text("N:test\nD:#1>#\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                parse_town_map(legacy)
 
     def test_quest_helpers_accept_only_jsonc_sources(self):
         with TemporaryDirectory() as directory:

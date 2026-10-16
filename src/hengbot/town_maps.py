@@ -1,4 +1,17 @@
-"""Static town maps loaded from Hengband's JSONC town definitions."""
+"""Static town maps loaded from Hengband's ``lib/edit/towns/*.jsonc``.
+
+A Hengband town is a FIXED map (the Outpost is always the same layout), so — like
+a human who has walked it many times — the bot may know the whole town in advance
+without the game revealing anything. This is prior knowledge the bot brings to the
+table, NOT extra information injected into the game's per-snapshot output: the
+emitter still only reports what the player can currently see. We use the static
+map to route to stores across the town even at night, when unlit tiles the player
+has not walked past are (correctly) dark in the snapshot.
+
+Only the coarse "can I walk here" layout and the store locations are extracted —
+exactly what a returning player remembers. The glyph legend is the shared
+``TownPreferences.jsonc`` plus each town's own ``featureRules``.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +25,14 @@ from hengbot.model import Position
 from hengbot.monrace_knowledge import _strip_jsonc
 
 
+# Map glyphs that a player can walk onto. Conservative on purpose: plain
+# floor, grass and the stairs. Trees, water, walls, rubble, building facades and
+# quest entrances are treated as blocked so a route never cuts through the forest
+# ring toward the town border. (Over-blocking at worst makes a tile unreachable;
+# it never routes the bot somewhere unsafe.)
 _WALKABLE_CHARS = frozenset(".,<>")
+# Store terrains map to the bot's store_type (General Store -> STORE_GENERAL 0,
+# Home -> STORE_HOME 7), matching the store-sale-type enum order.
 _STORE_TERRAINS = {
     "GENERAL_STORE": 0, "ARMOURY": 1, "WEAPON_SMITHS": 2,
     "TEMPLE": 3, "ALCHEMY_SHOP": 4, "MAGIC_SHOP": 5,

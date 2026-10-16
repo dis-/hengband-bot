@@ -1,4 +1,8 @@
-"""Static global-wilderness routing from Hengband's JSONC definition."""
+"""Static global-wilderness routing from Hengband's WildernessDefinition data.
+
+The upstream sync (hengband b262fcf3bc) replaced lib/edit/WildernessDefinition.txt
+with WildernessDefinition.jsonc; only the .jsonc is read.
+"""
 
 from __future__ import annotations
 
