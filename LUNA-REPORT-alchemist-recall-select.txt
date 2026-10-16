@@ -1,0 +1,50 @@
+Alchemist Recall selection fix
+
+Base: 67dac9bc8ba0305a841033de4dba9b81b70b3350
+Code commit: 571a837e81ff85ed15f8d502a2a1481c2b6df677
+
+Measured diagnosis
+
+The retained Alchemist board at turn 667854 was replayed through `parse_snapshot` and `HengbotPolicy`, with the recorded policy context restored: optimization/planned depth 19 and fundraising mode `prepare`. The board had 1,671 gold; one Word of Recall scroll on the shelf for 250 gold; eight in inventory; and fundraising kit reserve 0. The existing ledger and procurement target were both 9, so the single scroll was wanted and affordable.
+
+On base 67dac9bc, `ShopMixin._legacy_next_purchase_unreserved` returned `None`. In `src/hengbot/policy_shop.py:3229-3383`, the fundraising branch handles kit purchases and Identify work, then returns `None` without reaching `_mandatory_purchase` at lines 3385-3392. The real policy chose Escape / `shop:observe-and-leave`; selector diagnostics were `wanted_purchase: null`, `considered_candidate: null`, `rejection_reason: observed-page-nothing-wanted`.
+
+The procurement predicate is `ledger["recall"].count < ledger["recall"].required_departure` in `src/hengbot/policy_supply.py:501-516`. Replay values were `8 < 9`, producing `Word of Recall scrolls` current 8, target 9, missing 1. Captured decision 11,606 also recorded `town_plan.stops == ["Alchemist"]`, index 1. `src/hengbot/policy_town.py:4086-4116` builds stops from live needs. Full measurements are in `LUNA-DIAG-alchemist-recall-select.txt`.
+
+Change and pins
+
+Added an affordable Recall check at the end of the existing fundraising selector branch. It uses the existing `_recall_departure_shortage` predicate and current shelf items. No quantity, target, threshold, or store-pair special case changed. `_next_purchase` still applies `_fundraising_kit_reserve` and refuses a purchase that would break the reserve.
+
+Added `tests/fixtures/alchemist-home-cycle-20261017.jsonl.gz` (8,417 bytes) and `tests/test_alchemist_recall_selection_recorded.py`. The real-policy replay now identifies Recall as the considered candidate on the retained Alchemist page, then emits key `5` with reason `shop:one-shot-buy` on the retained outside page. After a constructed inventory frame observes that purchase, the ledger is 9/9 and procurement no longer lists Recall. The live Alchemist plan has no Recall category; its Alchemist stop remains for its other live need.
+
+Controls pass: a shelf without Recall still emits Escape / `shop:observe-and-leave`; when the existing reserve is represented as 1,500 gold, the 250 gold Recall is refused because it would leave only 1,421. No policy attributes or helpers were added.
+
+Verification
+
+- `tests.test_alchemist_recall_selection_recorded`: 3 tests, OK.
+- `tests.test_town_structure_lint`: 19 tests, OK.
+- Town-work manifest: 826 candidates, 20,892 call sites, zero unmapped. This is +2 call sites over the prior 20,890 census. No helper was added, so producer/review helper baselines did not need entries.
+
+Required guards, sequentially run against code commit 571a837e and base 67dac9bc:
+
+```text
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (alchemist-recall-select-1017 vs 67dac9bc)
+```
+
+```text
+[mutation] 1 source hunks, tests: tests.test_alchemist_recall_selection_recorded
+[mutation] caught     src/hengbot/policy_shop.py:3380 (if self._recall_departure_shortage(snapshot):): test_recall_that_breaks_existing_reserve_is_refused, test_replay_selects_recall_and_clears_procurement_shortage
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 571a837e
+```
+
+```text
+[fast] 134 fast tests (<2.0s in 67dac9bc) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-3cb5dg48)
+Failures: none
+Errors: none
+Total: 137 tests, 15.5s
+```
+
+No game or bot process was controlled. No push or merge was performed.
