@@ -1,0 +1,60 @@
+ISSUE #47 ? explore-for-stairs
+Branch: explore-for-stairs-1016
+Base: 2ee63841deac71f4b6698a80afa62192a7db134a
+Implementation and guard-tested HEAD: 8a2b815846758faae9647e229245fb0a946cabcc
+
+Measured diagnosis
+==================
+
+See LUNA-DIAG-explore-for-stairs.txt for the board-by-board replay and source references. The return owner handled an oscillating loop by probing adjacent unknown ground and spending its local wall-search rungs. When those rungs had no work, it skipped the ordinary exploration producer because that producer was only inside the non-oscillating `else`. It then selected a least-visited known neighbor as return:wander even though 250 open frontiers were remembered and no up stair was known.
+
+On the reconstructed captured loop state, the pre-change real-policy decisions were:
+
+- 055034: key 7, return:wander.
+- 055146: key 4, return:wander.
+- 055308: key 7, return:wander.
+
+The same boards passed to ordinary `_explore_step` chose frontier targets Position(10, 10), Position(8, 22), and Position(11, 25), with movement keys 9, 4, and 7 respectively.
+
+Change
+======
+
+The return owner now calls `_explore_step` after its existing local probe and wall-search rungs, including when the loop detector says it is oscillating. The returned step still goes through `_step_toward` and the existing return execution offer. Ordinary exploration therefore supplies the remembered-frontier route, while the same hazard, movement, low-HP, and combat handling remains in place. A known reachable up stair is still checked and routed before exploration. Recall reading, return triggers, and descent rules were not changed.
+
+No new policy attributes or return reasons were added, so no restored-checkpoint defaults or STUCK_FAMILY_REASONS update was needed. The town-work manifest and `src/hengbot/town_work_sites.json` were regenerated for the changed method fingerprint. `scripts/item_sink_adapters.json` now records the existing exploration producer call as unconditional in the return method. No producer baseline, item-intent baseline, or town census assertion needed an update; the ownership closure census passed with its existing count.
+
+Pins and controls
+=================
+
+Added `tests/test_return_explore_for_stairs.py`, importing the existing tracked raw gzip fixture `tests/fixtures/return-wander-20261016.jsonl.gz` (4,845 bytes). The three captured boards replay through `HengbotPolicy.choose_key` with process-local oscillation and exhausted-search state reconstructed; the missing skill-list viewer state is declared constructed. After the change, assertions pin (key, reason) to (9, return:explore), (4, return:explore), and (7, return:explore).
+
+The new module also pins a constructed, known, reachable stair route and a low-HP board that remains governed by the existing walk gate. The unchanged `test_return_wander_recall` module passed: its carried-Recall `stuck:recall-escape` and immediate known-stair controls remain intact. The old return-wander replay assertion remains unchanged.
+
+Single-module checks passed:
+- `test_return_explore_for_stairs`: 3 tests.
+- `test_return_wander_recall`: 4 tests.
+- `test_policy_navigation`: 129 tests.
+- `test_policy`: 57 tests.
+- `test_ownership_s2a1_closure`: 80 tests.
+- `tests.test_test_fakery_lint`: 13 tests.
+- `tests.test_item_sink_lint`: 18 tests.
+
+Required guard outputs
+======================
+
+$ python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\explore-for-stairs 2ee63841
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (explore-for-stairs vs 2ee63841)
+
+$ python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\explore-for-stairs 2ee63841 --tests test_return_explore_for_stairs --record
+[mutation] 1 source hunks, tests: test_return_explore_for_stairs
+[mutation] caught     src/hengbot/policy_town.py:7452 (step = self._explore_step(snapshot)): test_captured_boards_use_ordinary_frontier_route_during_return
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 8a2b8158
+
+$ python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\explore-for-stairs 2ee63841 --shards 4
+[fast] 4152 fast tests (<2.0s in 2ee63841) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-npxxvv51)
+Failures: none
+Errors: none
+Total: 4160 tests, 197.3s
