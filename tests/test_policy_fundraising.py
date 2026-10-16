@@ -257,6 +257,7 @@ from hengbot.policy import (
     StoreVisitPhase,
     SHOP_APPROACH_STUCK_LIMIT,
     TUNNEL_KEY,
+    OPEN_KEY,
     TR_NO_TELE,
     TOWN_CYCLE_WINDOW,
     TOWN_CYCLE_BREAK_LIMIT,
@@ -528,6 +529,61 @@ class MiningReachableTreasureClosureTest(unittest.TestCase):
 
         self.assertEqual(policy._mining_closure_key(snap), TUNNEL_KEY + "6")
         self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
+        self.assertNotIn(target, policy._mining_dropped_veins)
+
+    def _door_sweep(self, messages=()):
+        door = Position(3, 4)
+        target = Position(3, 5)
+        grids = {
+            Position(y, x): grid(y, x, passable=False)
+            for y in range(7)
+            for x in range(7)
+        }
+        grids.update(
+            {
+                Position(3, 3): grid(3, 3),
+                door: grid(3, 4, closed_door=True),
+                target: grid(
+                    3, 5, passable=False, gold=True, can_dig=False, tunnel=True
+                ),
+            }
+        )
+        return target, Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=7,
+            height=7,
+            messages=tuple(messages),
+        )
+
+    def test_sweep_stops_routing_through_a_stuck_door(self):
+        # c4-a life-003 20261016-193532 (dungeon 2, 1F): the only route to a
+        # vein crossed a door that answered every 'o7' with
+        # "ドアはがっちりと閉じられているようだ。"; the sweep re-posted it 30 times
+        # until the position guard stopped the bot.
+        target, first = self._door_sweep()
+        _, answered = self._door_sweep(
+            ("ドアはがっちりと閉じられているようだ。",)
+        )
+        policy = self._policy(target)
+
+        with patch.object(policy, "_finish_mining_floor", return_value="FINISH"):
+            self.assertEqual(policy._mining_closure_key(first), OPEN_KEY + "6")
+            self.assertEqual(policy._mining_closure_key(answered), OPEN_KEY + "6")
+            self.assertEqual(policy._mining_closure_key(answered), "FINISH")
+
+        self.assertIn(target, policy._mining_dropped_veins)
+
+    def test_sweep_keeps_trying_a_locked_door(self):
+        # Recorded 2026-09-25 (test_town_approach_retired_recorded 835-838): a
+        # locked door on the sweep route opened on the fourth 'o9'.
+        target, snap = self._door_sweep(("鍵をはずせなかった。",))
+        policy = self._policy(target)
+
+        for _ in range(DOOR_OPEN_LIMIT + 1):
+            self.assertEqual(policy._mining_closure_key(snap), OPEN_KEY + "6")
         self.assertNotIn(target, policy._mining_dropped_veins)
 
     def test_live_unmarked_southwest_vein_is_bumped_before_tunnelling(self):

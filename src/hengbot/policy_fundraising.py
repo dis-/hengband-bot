@@ -920,6 +920,14 @@ class FundraisingMixin:
                         continue
                     if not (grid.enterable or grid.tunnel):
                         continue
+                    if grid.is_closed_door and (
+                        snapshot.floor_key, (neighbor.y, neighbor.x)
+                    ) in getattr(self, "_stuck_doors", ()):
+                        # A closed door counts as enterable and a locked one
+                        # may open on a later try, but a stuck door never
+                        # does: routing the sweep through it re-posted the
+                        # refused open forever (c4-a 20261016-193532).
+                        continue
                 seen.add(neighbor)
                 queue.append(
                     (
