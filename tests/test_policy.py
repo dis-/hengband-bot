@@ -284,7 +284,10 @@ def _is_forbidden_uppercase_call(path, node):
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "upper"
         # Quest knowledge normalizes display names, not input selectors.
-        and not (path.name == "quest_knowledge.py" and node.lineno in {217, 251})
+        and not (
+            path.name == "quest_knowledge.py"
+            and ast.unparse(node) in {"feature.upper()", "features.get(ch, '').upper()"}
+        )
     )
 
 

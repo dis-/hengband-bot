@@ -58,8 +58,8 @@ class QuestTravelFixtureMixin:
         town_maps = {}
         if maps:
             names = (
-                "01_Outpost_Full.txt", "02_Telmora.txt", "03_Morivant.txt",
-                "04_Angwil.txt", "05_Zul.txt",
+                "01_Outpost_Full.jsonc", "02_Telmora.jsonc", "03_Morivant.jsonc",
+                "04_Angwil.jsonc", "05_Zul.jsonc",
             )
             town_maps = {
                 town_id: parse_town_map(EDIT / "towns" / name)

@@ -2756,23 +2756,24 @@ class TownNightNavigationTest(unittest.TestCase):
     def test_parse_records_dungeon_entrance(self):
         import tempfile
 
-        text = "\n".join(
-            [
-                "N:test",
-                "D:#####",
-                "D:#1.>#",  # store '1' at (1,1), floor, entrance '>' at (1,3)
-                "D:#####",
-            ]
-        )
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".txt", delete=False, encoding="utf-8"
-        ) as fh:
-            fh.write(text)
-            path = Path(fh.name)
-        try:
+        with tempfile.TemporaryDirectory() as directory:
+            edit = Path(directory) / "lib" / "edit"
+            (edit / "towns").mkdir(parents=True)
+            (edit / "TownPreferences.jsonc").write_text(
+                '{"legend": {"#": {"terrain": "PERMANENT"}, '
+                '".": {"terrain": "FLOOR"}, '
+                '">": {"terrain": "ENTRANCE", "special": 2}, '
+                '"1": {"terrain": "GENERAL_STORE"}}}',
+                encoding="utf-8",
+            )
+            path = edit / "towns" / "99_Test.jsonc"
+            # store '1' at (1,1), floor, entrance '>' at (1,3)
+            path.write_text(
+                '{"version": 2, "featureRules": [], "mapVariants": '
+                '[{"rows": ["#####", "#1.>#", "#####"]}]}',
+                encoding="utf-8",
+            )
             tm = parse_town_map(path)
-        finally:
-            path.unlink()
         self.assertEqual(tm.entrance, Position(1, 3))
         self.assertIn(Position(1, 3), tm.walkable)  # '>' is walkable too
         self.assertEqual(tm.stores[STORE_GENERAL], Position(1, 1))

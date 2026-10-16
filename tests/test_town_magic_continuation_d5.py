@@ -23,7 +23,7 @@ from policy_fixtures import grid, player, store_item, item
 
 class MagicContinuationTest(unittest.TestCase):
     def scene(self, *, verified=False, price=888, stock=True):
-        town_map = parse_town_map(Path('C:/hengband/lib/edit/towns/01_Outpost_Full.txt'))
+        town_map = parse_town_map(Path('C:/hengband/lib/edit/towns/01_Outpost_Full.jsonc'))
         magic = town_map.store_position(STORE_MAGIC)
         self.assertEqual(magic, Position(38, 106))
         self.assertEqual(town_map.store_position(STORE_ALCHEMIST), Position(37, 91))

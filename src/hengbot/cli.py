@@ -3505,7 +3505,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--outpost-map",
         type=Path,
-        help="path to Hengband's lib/edit/towns/01_Outpost_Full.txt "
+        help="path to Hengband's lib/edit/towns/01_Outpost_Full.jsonc "
         "(auto-located near the state file if omitted)",
     )
     parser.add_argument(
@@ -3517,7 +3517,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--quest-definitions",
         type=Path,
-        help="path to QuestDefinitionList.txt or the migrated quests directory",
+        help="path to the migrated JSONC quests directory",
     )
     parser.add_argument(
         "--quest-strategies",
