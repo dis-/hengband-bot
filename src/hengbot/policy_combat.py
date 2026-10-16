@@ -460,7 +460,7 @@ class CombatMixin:
                 self._predicted_damage(snapshot, hostiles, turns=3),
             ),
         )
-        adjacent = [
+        strategic_adjacent = [
             monster
             for monster in strategic_hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
@@ -472,13 +472,13 @@ class CombatMixin:
         if (
             snapshot.in_town
             and not self._took_damage
-            and adjacent
+            and strategic_adjacent
             and not snapshot.player.afraid
             and not material_threat
         ):
             self.last_reason = "no-wait:melee"
             return self._direction_key(
-                snapshot.player.position, self._weakest(adjacent).position
+                snapshot.player.position, self._weakest(strategic_adjacent).position
             )
         if not only_suppressed_weak_breeders:
             # Rejecting an idle turn is not permission to spend a teleport.
@@ -503,15 +503,15 @@ class CombatMixin:
             self.last_reason = "no-wait:least-visited"
             return self._direction_key(snapshot.player.position, step)
 
-        physical_adjacent = [
+        adjacent = [
             monster
             for monster in hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
         ]
-        if physical_adjacent and not snapshot.player.afraid:
+        if adjacent and not snapshot.player.afraid:
             self.last_reason = "no-wait:melee"
             return self._direction_key(
-                snapshot.player.position, self._weakest(physical_adjacent).position
+                snapshot.player.position, self._weakest(adjacent).position
             )
 
         # A completely boxed player has no legal movement alternative.  Keep
