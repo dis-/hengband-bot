@@ -53,11 +53,30 @@ def printed_stat(text: str) -> tuple[int, bool]:
     raise CharacterSheetUnavailable("invalid-visible-stat")
 
 
-def parse_character_sheet(raw: bytes, *, encoding: str = "cp932") -> CharacterSheet:
-    try:
-        text = raw.decode(encoding, errors="strict")
-    except UnicodeError as exc:
-        raise CharacterSheetUnavailable("dump-encoding") from exc
+SHEET_ENCODINGS = ("cp932", "euc_jp")
+
+
+def _decode_sheet(raw: bytes, encodings: tuple[str, ...]) -> str:
+    """The Windows build writes the dump in Shift-JIS (cp932); the Linux build writes EUC-JP
+    (2026-10-16 soak: every Linux dump was "dump-encoding", so the equipment optimizer never
+    calibrated). Some EUC-JP bytes also decode as cp932, so take the first decoding whose text
+    carries the sheet's own header line."""
+    decoded = []
+    for encoding in encodings:
+        try:
+            decoded.append(raw.decode(encoding, errors="strict"))
+        except UnicodeError:
+            continue
+    for text in decoded:
+        if "abcdefghijkl@" in text and ("基本" in text or "Base" in text):
+            return text
+    if decoded:
+        return decoded[0]
+    raise CharacterSheetUnavailable("dump-encoding")
+
+
+def parse_character_sheet(raw: bytes, *, encoding: str | None = None) -> CharacterSheet:
+    text = _decode_sheet(raw, (encoding,) if encoding else SHEET_ENCODINGS)
     lines = text.splitlines()
     ja = [i for i, line in enumerate(lines)
           if all(word in line for word in ("基本", "合計", "現在", "abcdefghijkl@"))]
