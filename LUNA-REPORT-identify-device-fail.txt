@@ -1,0 +1,56 @@
+# Identify device failure repair report
+
+## Measured diagnosis
+
+The 2026-10-17 06:24 capture records decision 4412 choosing key `uim` with reason `identify:dungeon-equipment`. At turn 855720 its incoming board reports the prior staff-use failure; the Identify staff at slot `i` has 14 charges and the short sword at `m` is unknown. At turn 855731 the new board reports only the short sword's average feeling; the sword remains unknown with `pseudo_feeling=average`, and the staff still has 14 charges. The full evidence and source trace are in [LUNA-DIAG-identify-device-fail.txt](LUNA-DIAG-identify-device-fail.txt).
+
+The exact failed-device path remains source-proven in Hengband `src/object-use/use-execution.cpp:75-79,98` and `src/cmd-item/cmd-usestaff.cpp:107-115`. The changed board instead matches passive sensing in `src/perception/simple-perception.cpp:91-112`, where sensing calls `disturb()` before emitting the feeling. The capture retained the command-barrier classification and messages, but no terminal screen frame; it supports an identify chooser interrupted by sensing, not a second failed use or a completed identification. There is no retained `-more-` screen evidence.
+
+At `src/hengbot/input_executor.py:1510-1518`, a missing staged prompt completes only with source-proven current evidence. Before this change, the passive feeling was not recognized, so this was `stuck-prompt: expected prompt absent`. `src/hengbot/cli.py:3168-3180` then marked the chain dropped with `executor-barrier`; `src/hengbot/policy.py:14167-14183` released the Observe claim as `staged-tail-dropped`, and `cli.py:3302-3311` emitted the dropped-tail marker seen immediately before the soak restart. That converted a safe dropped tail into a stop instead of returning to the next bounded policy decision.
+
+## Change and pins
+
+`input_executor.py:681-711` now treats only a fresh pseudo-feeling transition on the still-unknown, identity-matching target of an `identify:` operation as positive completion evidence. The terminal tail is dropped at the command barrier and never sent without its target prompt. No message was added to the closed table and no new policy attribute, reason, threshold, or structural test census count was introduced. The town work manifest was regenerated and committed.
+
+The compact gzip fixture retains the two captured board rows and the captured terminal result. The intermediate staff/target chooser frames in the executor test are DECLARED CONSTRUCTED from the production prompt literals because the capture did not retain terminal pixels. On the captured sequence, the pre-fix pin is `outcome=stuck-prompt`, `reason=expected prompt absent`, marker `<identify:staged-tail-dropped:executor-barrier>`. After the fix, the executor pin is `outcome=completed`, `reason=None`, accepted keys `u,i`, dropped continuation `m`; the target key is not posted. The policy control retries the still-unknown sensed item as `umg` with the existing failure streak at 1 (existing `IDENTIFY_FAIL_LIMIT=3`).
+
+Controls: the exact staff device-failure message still completes with the target key dropped; an unrelated absent target prompt remains a visible `stuck-prompt`. Existing test assertions were not edited. No new reason was added, so `STUCK_FAMILY_REASONS` is unchanged. No new policy attributes require restored-checkpoint defaults. No structural census count changed.
+
+Development test results:
+
+- `tests.test_identify_device_fail_20261017`: 4 passed.
+- `tests.test_input_executor`: 73 passed.
+- `tests.test_policy_identification`: 48 passed.
+
+## Required guard outputs
+
+Preflight:
+
+```text
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (identify-device-fail-1017 vs a6672ef9)
+```
+
+Mutation check (the successful rerun after restoring the CRLF-only generated `town_work_sites.json` rewrite made by preflight):
+
+```text
+[mutation] 1 source hunks, tests: tests.test_identify_device_fail_20261017
+[mutation] caught     src/hengbot/input_executor.py:678 (# Passive item sensing calls disturb() before printing its feeling): test_captured_disturbance_completes_operation_and_drops_target_tail
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for ae9f81a8
+```
+
+Fast tier:
+
+```text
+[fast] 3876 fast tests (<2.0s in a6672ef9) + 1 changed modules, 4 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3880 tests, 225.7s
+```
+
+## Commits
+
+- `ae9f81a8` ? Handle identify chooser disturbance cleanly.
+- Report commit follows this verification record.
