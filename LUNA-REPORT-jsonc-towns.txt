@@ -1,0 +1,27 @@
+ISSUE: #47 ? JSONC town data migration
+
+Parity gate result: STOPPED before implementation, as required by the task's no-guessing rule.
+
+Comparison
+- Compared all eight town JSONC files that have same-basename .txt counterparts in C:/hengband/lib/edit/towns.
+- Compared TownMap values: width, height, walkable, stores, buildings, quest_buildings, quest_entrances, reward_positions, and entrance. TownMap name also matched for all pairs.
+- Read shared glyph definitions from TownPreferences.jsonc and town-local featureRules. The comparison accumulated floor, quest-building, and reward glyph properties as the existing text parser does, and used the JSONC map variant rows.
+
+Results
+- 01_Outpost_Full.jsonc / 01_Outpost_Full.txt: parity; 66 rows.
+- 01_Outpost_Lite.jsonc / 01_Outpost_Lite.txt: parity; 66 rows.
+- 01_Outpost_OnlyAngband.jsonc / 01_Outpost_OnlyAngband.txt: parity; 22 rows.
+- 02_Telmora.jsonc / 02_Telmora.txt: parity; 66 rows.
+- 03_Morivant.jsonc / 03_Morivant.txt: parity; 66 rows.
+- 04_Angwil.jsonc / 04_Angwil.txt: parity; 66 rows.
+- 05_Zul.jsonc / 05_Zul.txt: parity; 66 rows.
+- 06_Rlyeh_Obsoleted.jsonc / 06_Rlyeh_Obsoleted.txt: DIFFERENCE in height, walkable, buildings. The JSONC contains two conditional map variants, each 66 rows. The existing .txt parser collects both D: sections into one 132-row TownMap. A JSONC loader must select a runtime variant, so the field-by-field parity requirement cannot be met by selecting either JSONC map as currently defined.
+
+Changes made
+- Added this parity report only. No source files or tests were changed because the task requires stopping and reporting on any parity difference.
+- Changed/deleted existing tests: none; no old/new test paths.
+- Legacy .txt paths removed: none; implementation halted at the mandated parity gate.
+- Guard outputs: preflight.py, mutation_check.py, and fast_tier.py were not run. The task requires them after source edits and commit; there were no source edits to validate.
+
+Next step
+Resolve the intended compatibility behavior for 06_Rlyeh_Obsoleted (especially its two conditional variants versus the legacy parser's concatenated 132-row map), then rerun parity before implementing the JSONC-only loader.
