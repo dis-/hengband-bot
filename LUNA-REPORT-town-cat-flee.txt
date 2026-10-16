@@ -1,0 +1,50 @@
+Town cat flee — implementation report
+
+Diagnosis
+
+Captured evidence: turn 228022 / decision 1488 on the town board at player (2,11), cat (3,10). The recorded action was key `6`, reason `no-wait:flee`; the decision log shows one visible hostile and predicted damage 12 over three turns. Across the 132 captured decisions, 121 were `no-wait:flee`, with key counts `5`=47, `4`=38, `6`=35.
+
+The board parsed with race 2 speed 110 and max melee damage 3 gives one physical hostile and one strategic hostile at distance 1. `_took_damage=False`; line of fire is true; predicted damage is 6 for one turn and 12 for three. At 200/200 HP, `_unseen_loss_is_material(player, 12)` is false. The rewrite therefore saw `under_fire=True`, had no material escape, and `_flee_step` returned (1,10), key `7`. The town clear handler delegates an adjacent hostile to ordinary melee (`policy_town.py:5020-5026`); the final no-wait rewrite was applying its flee step before its attack fallback. The recorded claim attributes the no-wait terminal to survival / `_survival_gate_key#2`; the normal-food survival gate returns `None`, allowing lower-priority selection to reach a bare WAIT. The raw capture has no pre-decision policy checkpoint or pre-rewrite reason, so the more specific lower-priority WAIT producer is not available in the evidence.
+
+Change
+
+`src/hengbot/policy_combat.py`: before the flee step, when an unsanctioned WAIT is under fire in town, an adjacent strategic hostile is attackable, no damage was observed, and the existing material-threat predicate is false, choose the existing adjacent melee action. The material predicate remains authoritative, including the low-HP rule. No new policy state, constants, or thresholds were added; unseen/observed damage and weak-breeder suppression remain on their existing paths.
+
+The captured raw board is preserved in `tests/fixtures/town-cat-no-wait-board.jsonl.gz`; `tests/test_town_cat_no_wait_recorded.py` replays it through the real final WAIT guard. The test asserts after-fix key `1`, reason `no-wait:melee` (toward the cat). Controls assert a material town hostile still flees, dungeon fire still flees, low HP still flees, and observed damage retains the flee route. Five tests were added in one module. The original captured decision remains pinned in its raw decision log evidence as key `6` / `no-wait:flee`.
+
+Generated bookkeeping: `town_work_manifest.py --write` updated the town work manifest. The producer call is pinned in `scripts/item_sink_adapters.json`. No helper, claim reason, or new policy attribute was introduced, so no review helper entry, stuck-family reason, or restored-checkpoint default was needed. Structural module census is dynamic; it now sees one additional test module (five additional tests), with no fixed count assertion to edit.
+
+Focused tests before final guards
+
+- `PYTHONPATH="src;tests;scripts" python -m unittest test_town_cat_no_wait_recorded` — 5 tests, OK.
+- `PYTHONPATH="src;tests;scripts" python -m unittest test_item_sink_lint` — 18 tests, OK.
+
+Final guard outputs (run serially, after the final source commit)
+
+```text
+[preflight] PREFLIGHT OK: 7 changed files, 0 findings (town-cat-flee-1017 vs 67dac9bc)
+```
+
+```text
+[mutation] 1 source hunks, tests: test_town_cat_no_wait_recorded
+[mutation] caught     src/hengbot/policy_combat.py:453 (material_threat = self._unseen_loss_is_material(): test_captured_town_cat_is_meleed_instead_of_fled_from
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for ff6841d9
+```
+
+```text
+[fast] 134 fast tests (<2.0s in 67dac9bc) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-oinb77fu)
+Failures: none
+Errors: none
+Total: 139 tests, 25.8s
+```
+
+Commits on `town-cat-flee-1017`
+
+- `1c48f537` Fix fleeing from weak town contacts
+- `028debcb` Pin town no-wait melee producer
+- `ff6841d9` Keep town no-wait melee sink pinned
+
+The report is the only file remaining to commit; the supplied task file is left untouched.
