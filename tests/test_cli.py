@@ -5077,13 +5077,51 @@ class TownBlockedStreakTest(unittest.TestCase):
         )
 
         streak = _advance_town_blocked_streak(0, "town:blocked:repetition")
+        previous = "town:blocked:repetition"
         for reason in (
             ["town:repetition-depart"] * TOWN_BLOCKED_STOP_LIMIT
             + ["town:repetition-depart:recall"]
             + ["town:wait-recall"] * TOWN_BLOCKED_STOP_LIMIT
         ):
-            streak = _advance_town_blocked_streak(streak, reason)
-        self.assertEqual(streak, 1)
+            streak = _advance_town_blocked_streak(
+                streak, reason, consecutive=reason == previous
+            )
+            previous = reason
+        # The first walk step, the read and the first countdown wait count.
+        self.assertEqual(streak, 4)
+
+    def test_live_wiring_holds_a_sustained_latched_departure(self):
+        from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
+        from hengbot.model import PlayerState, Snapshot
+        from hengbot.policy import HengbotPolicy
+
+        policy = HengbotPolicy()
+        town = Snapshot(
+            player=PlayerState(
+                position=Position(46, 83), hp=10, max_hp=10,
+                mp=0, max_mp=0, level=1,
+            ),
+            grids={},
+            visible_monsters=[],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        streak, state = 0, None
+        policy.last_reason = "town:blocked:repetition"
+        streak, state = _advance_town_blocked_iteration(
+            policy, town, streak, state, key="1"
+        )
+        policy.last_reason = "town:repetition-depart"
+        for step in range(TOWN_BLOCKED_STOP_LIMIT):
+            streak, state = _advance_town_blocked_iteration(
+                policy, replace(
+                    town, player=replace(
+                        town.player, position=Position(46, 84 + step)
+                    ),
+                ),
+                streak, state, key="6",
+            )
+        self.assertEqual(streak, 2)
 
     def test_no_progress_filler_preserves_the_streak(self):
         from hengbot.cli import _advance_town_blocked_streak
