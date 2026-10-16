@@ -135,7 +135,8 @@
     "self._direction_key(snapshot.player.position, step) @ If:body:not only_suppressed_weak_breeders / If:body:step is not None and (not (self._escape_state.owner in {'disengage', 'emergency'} and self._is_oscillating() and (step in set(self._recent))))": 1,
     "self._direction_key(snapshot.player.position, step) @ If:body:step is not None": 1,
     "self._direction_key(snapshot.player.position, target.position) @ If:body:self._took_damage and hostiles and (not snapshot.player.afraid)": 1,
-    "self._flee_step(snapshot, hostiles) @ If:body:not only_suppressed_weak_breeders": 1
+    "self._flee_step(snapshot, hostiles) @ If:body:not only_suppressed_weak_breeders": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:snapshot.in_town and (not self._took_damage) and adjacent and (not snapshot.player.afraid) and (not material_threat)": 1
   },
   "policy_combat.py:_melee_swarm_combat_key": {
     "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:openness <= SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:adjacent and (not snapshot.player.afraid)": 1,
