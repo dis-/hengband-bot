@@ -191,6 +191,7 @@ from hengbot.model import (
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
+    STUCK_DOOR_MESSAGE_FRAGMENTS,
     NAV_ESCAPE_STEP_LIMIT, OPEN_KEY, RUBBLE_DIG_LIMIT, RUBBLE_REJECT_LIMIT,
     STAIR_OBSERVATION_WAIT_LIMIT, STUCK_WINDOW, VISIT_PENALTY,
 )
@@ -1814,6 +1815,18 @@ class NavigationMixin:
             self._floor_trap_disarm_attempts.pop((step.y, step.x), None)
         if grid is not None and grid.is_closed_door:
             yx = (step.y, step.x)
+            if self._door_attempts[yx] and any(
+                fragment in message
+                for message in snapshot.messages
+                for fragment in STUCK_DOOR_MESSAGE_FRAGMENTS
+            ):
+                # The previous 'o' on this door was answered "appears to be
+                # stuck".  Routers that keep retrying locked doors past
+                # DOOR_OPEN_LIMIT (the mining sweep) must not retry this one.
+                stuck = getattr(self, "_stuck_doors", None)
+                if stuck is None:
+                    stuck = self._stuck_doors = set()
+                stuck.add((snapshot.floor_key, yx))
             self._door_attempts[yx] += 1
             if self._door_attempts[yx] >= DOOR_OPEN_LIMIT:
                 self._blocked_doors.add(yx)

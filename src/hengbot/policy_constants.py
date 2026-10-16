@@ -284,6 +284,9 @@ ALTER_KEY = "+"
 VISIT_PENALTY = 4
 BACKTRACK_PENALTY = 30
 DOOR_OPEN_LIMIT = 3
+# exe_open's answer for a door terrain without the OPEN flag ("%sはがっちりと
+# 閉じられているようだ。"): unlike a lock, no later 'o' can open it.
+STUCK_DOOR_MESSAGE_FRAGMENTS = ("がっちりと閉じられている", "appears to be stuck")
 # 2026-10-11 live Lv1 opening: the Q34 lock was picked after about 20 tries.
 Q34_OPENING_DOOR_ATTEMPT_LIMIT = 200
 # Japanese monster-death messages (living, undead/nonliving, destroyed).
