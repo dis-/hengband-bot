@@ -1,0 +1,74 @@
+Breeder refill fix report
+Branch: breeder-refill-1017
+Base: 67dac9bc8ba0305a841033de4dba9b81b70b3350
+Implementation commit: 6b2d127a
+
+Diagnosis
+---------
+Captured decision 6777, turn 932028, is on floor (2, 13, 0) at (18, 7).
+It recorded key '9', reason breeder-breakthrough:clear-escape-path. Its board
+has 31 visible monsters, including the giant-rat breeder population.
+
+Measured Recall facts:
+- policy_combat.py:3598-3612 has the floor latch and Recall gate. The decision
+  row records fundraising_mode=null and active_quest_id=null. Parsed player
+  state has blind=False and confused=False.
+- policy.py:17458 finds the 9-count Recall stack. policy.py:13418-13426 returns
+  _can_read_scrolls=True (light radius 3).
+- policy_town.py:6967-7006 returns no pending recall-confirmation key.
+- Real-policy replay of this board with the latch restored and
+  _emergency_return_active=True, _returning_to_town=False returns key '9' with
+  breeder-breakthrough:clear-escape-path. With an already active town-return
+  intent, the fixed policy returns the Recall macro 'rf' with
+  breeder-breakthrough:recall.
+
+The capture has no policy checkpoint, so _emergency_return_active and
+_returning_to_town cannot be read directly from it. The captured behaviour is
+reproduced by the emergency gate; the replay shows why allowing an already
+active town return to use Recall clears the refill loop while preserving the
+one-off emergency-relocation guard.
+
+Changes and pins
+----------------
+- policy_combat.py: a latched, unquested, non-mining floor can use Recall when
+  the policy already intends to return to town, even if the emergency flag is
+  still set. A one-off emergency relocation with no return intent remains
+  suppressed. No new thresholds, constants, attributes, or exit types added.
+- Added tests/test_breeder_refill_escape_recorded.py and a 5,373-byte gzip
+  fixture containing only the captured board. The policy parses the recorded
+  JSONL row. The missing startup skill exchange, latch, emergency flag, and
+  return intent are explicitly DECLARED CONSTRUCTED in the test.
+- Before pin: recorded decision 6777 = ('9',
+  'breeder-breakthrough:clear-escape-path'). After fix: ('rf',
+  'breeder-breakthrough:recall').
+- Controls: active quest keeps ('9',
+  'breeder-breakthrough:clear-escape-path'); fundraising mine mode still emits
+  no Recall; with no breeder latch, choose_key still fights ('6', 'melee').
+- Regenerated town-work manifest and refreshed the reviewed item-sink adapter
+  guard expression. No existing test assertions were edited.
+
+Verification
+------------
+- test_breeder_refill_escape_recorded: 4 tests, OK.
+- test_policy_combat: 303 tests, OK (5 skipped).
+- test_item_sink_lint: 18 tests, OK.
+- Existing failure classification: test_weak_breeder_after_teleport_does_not_start_return
+  was (R), caused by allowing Recall after a one-off teleport. Fixed in src by
+  requiring an existing town-return intent when the emergency flag is active;
+  the full combat module then passed.
+
+Final required guard outputs, run in order after the source commit:
+
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (breeder-refill-1017 vs 67dac9bc)
+
+[mutation] 1 source hunks, tests: test_breeder_refill_escape_recorded
+[mutation] caught     src/hengbot/policy_combat.py:3606 (# A one-off emergency relocation does not start a town return, but an): test_recorded_refill_board_exits_by_recall
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 6b2d127a
+
+[fast] 134 fast tests (<2.0s in 67dac9bc) + 1 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-lsc8z5k3)
+Failures: none
+Errors: none
+Total: 138 tests, 25.9s
