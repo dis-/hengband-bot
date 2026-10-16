@@ -1,0 +1,24 @@
+{
+  "source_capture": "c4a-loops-20261016/20261016-202326-loop-detected",
+  "decision_sequence": 6777,
+  "turn": 932028,
+  "recorded_key": "9",
+  "recorded_reason": "breeder-breakthrough:clear-escape-path",
+  "position": [
+    18,
+    7
+  ],
+  "floor": [
+    2,
+    13,
+    0
+  ],
+  "recorded_fundraising_mode": null,
+  "recorded_active_quest_id": null,
+  "source_sha256": {
+    "board_capture": "3ef818057533bc560568e2cb8285fb3583d374b9e97803c3b5d2f15efe9d6dd8",
+    "decision_capture": "58ba61f9e305899e18290b3bbbdc9ad1a7d36e7c86c08400275532082c5103ec"
+  },
+  "board_sha256": "2601ede8628a8d130625c701bf9064fb674686777ab92b258ed0ede6fa87e53d",
+  "notes": "The captured decision records the prior behavior. The state row is parsed as-is; the policy latch and emergency-return flag are restored as declared constructed runtime state because policy checkpoints were not captured."
+}

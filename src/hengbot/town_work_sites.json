@@ -3979,7 +3979,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "126de673f92ad4629db088633f1e53473222445311f3098dfc2b6cbd7a96aaaa"
+    "ast_sha256": "dd392182fcf8ec16ebbc2e73857075c9b55b18054e65618dc9b34cc09fac5f84"
   },
   "policy_combat.py:CombatMixin._breeder_breakthrough_step": {
     "classification": "data",

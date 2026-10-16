@@ -1,0 +1,26 @@
+Diagnosis: captured board at decision 6777 (turn 932028), floor (2, 13, 0),
+position (18, 7). Replayed with the real policy from the captured JSONL board.
+
+Measured board values:
+- policy_combat.py:3598-3612: latch matches (2, 13, 0); the Recall gate tests
+  fundraising mode, active quest, emergency-return state, blindness and
+  confusion. The recorded decision has fundraising_mode=null and
+  active_quest_id=null; the parsed board has blind=False and confused=False.
+- policy.py:17453-17454 finds the captured 9-count Recall scroll.
+- policy.py:13413-13426 allows reading (light radius 3; _can_read_scrolls=True).
+- policy_town.py:6967-7006 returns no pending confirmation key.
+- With the captured board and latch restored, real-policy replay with
+  _emergency_return_active=False returns Recall (reason
+  breeder-breakthrough:recall). Setting it True while _returning_to_town=False
+  returns key '9' (reason breeder-breakthrough:clear-escape-path), matching the
+  capture. With an existing _returning_to_town=True intent, the revised gate
+  permits Recall.
+
+The decision/state capture does not serialize _emergency_return_active or
+_returning_to_town, so their live values are not directly observable. The other
+branch conditions are measured and pass; the emergency flag is the only
+serialized-state-compatible gate that can explain the skip. The capture cannot
+distinguish a legitimate one-off emergency relocation from an already active
+town return. Preserve suppression after a one-off relocation, but allow a
+latched breeder exit to use Recall once a town-return intent is already active;
+otherwise the route cell can refill indefinitely.
