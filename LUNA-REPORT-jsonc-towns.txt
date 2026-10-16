@@ -43,10 +43,53 @@ Module checks completed
 - tests.test_quest_travel_progress: 3 tests, OK.
 - tests.test_town_magic_continuation_d5: 15 tests, OK.
 - tests.test_town_stall: 0 run, 1 skipped (configured game edit directory absent).
+- tests.test_policy_navigation.TownNightNavigationTest.test_parse_records_dungeon_entrance: fast-tier ERROR; it still passes 01_Outpost_Full.txt to the JSONC-only parser. Reported as a missed existing test input migration (expected path: 01_Outpost_Full.jsonc), not a source regression. The two-repair-round limit was reached, so this remains unresolved.
 - scripts/town_work_manifest.py --write: 826 candidates, 20,892 sites, zero unmapped.
 - scripts/town_structure_lint.py: 0 violations.
 
-Required guard outputs (to be recorded after commit)
-[preflight.py output pending]
-[mutation_check.py output pending]
-[fast_tier.py output pending]
+Final required guard outputs
+
+preflight.py C:\hengband\bot-client\.worktrees\jsonc-towns cdc2e44b:
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_quest_knowledge.py::QuestKnowledgeTest.test_kill_number_q_line_builds_threat_roster
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_quest_knowledge.py::QuestKnowledgeTest.test_legacy_map_roster_and_battlefield_still_parse
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_quest_knowledge.py::QuestKnowledgeTest.test_legacy_random_quest_file_loads_each_quest_id
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_quest_knowledge.py::QuestKnowledgeTest.test_legacy_short_q_line_defaults_flags_to_zero
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_quest_knowledge.py::QuestKnowledgeTest.test_loads_legacy_quest_one_exact_values
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_quest_knowledge.py::QuestKnowledgeTest.test_locator_prefers_legacy_then_falls_back_to_jsonc
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_maps.py::RealOutpostMapTest.test_a_floor_route_exists_from_the_dungeon_entrance_to_a_store
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_maps.py::RealOutpostMapTest.test_outpost_dims_and_general_store
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_maps.py::RealTelmoraMapTest.test_q2_locations_and_inn_come_from_real_map
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_maps.py::TownMapParseTest.test_all_eight_store_digits_map_to_store_types
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_maps.py::TownMapParseTest.test_parses_dims_stores_and_walkability
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_maps.py::TownMapParseTest.test_rejects_a_file_with_no_map
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_wilderness_map.py::WildernessDefinitionFormatTest.test_jsonc_layout_with_wrong_width_is_rejected
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_wilderness_map.py::WildernessDefinitionFormatTest.test_p4_current_jsonc_equals_txt
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_wilderness_map.py::WildernessDefinitionFormatTest.test_p4_finder_prefers_jsonc_and_falls_back_to_txt
+[preflight] NOTE existing-test MODIFIED: tests/test_wilderness_map.py::WildernessMapTest.test_real_map_routes_angband_to_a_town
+[preflight] PREFLIGHT OK: 16 changed files, 0 findings (jsonc-towns vs cdc2e44b)
+
+mutation_check.py C:\hengband\bot-client\.worktrees\jsonc-towns cdc2e44b --tests tests.test_town_jsonc_parity tests.test_jsonc_data_loaders --record:
+[mutation] 13 source hunks, tests: tests.test_town_jsonc_parity tests.test_jsonc_data_loaders
+[mutation] caught     src/hengbot/cli.py:3505 (help="path to Hengband's lib/edit/towns/01_Outpost_Full.jsonc "): test_cli_documents_jsonc_paths
+[mutation] caught     src/hengbot/cli.py:3517 (help="path to the migrated JSONC quests directory",): test_cli_documents_jsonc_paths
+[mutation] caught     src/hengbot/cli.py:3769 (def _initial_town_quest_statuses(): test_jsonc_data_loaders
+[mutation] NOT CAUGHT src/hengbot/cli.py:3947 (outpost_map, town_maps = _load_town_maps())
+[mutation] caught     src/hengbot/quest_knowledge.py:310 ("""Load per-quest JSONC files from the migrated quests directory."""): test_quest_helpers_accept_only_jsonc_sources
+[mutation] caught     src/hengbot/quest_knowledge.py:322 (def is_jsonc_source(path: Path) -> bool:): test_quest_helpers_accept_only_jsonc_sources
+[mutation] caught     src/hengbot/town_maps.py:1 ("""Static town maps loaded from Hengband's JSONC town definitions."""): test_every_legacy_pair_matches_and_rlyeh_variants_match_each_half, test_startup_loads_indexed_town_six_with_current_quest_status
+[mutation] caught     src/hengbot/town_maps.py:50 (def _jsonc(path: Path) -> dict:): test_every_legacy_pair_matches_and_rlyeh_variants_match_each_half, test_startup_loads_indexed_town_six_with_current_quest_status
+[mutation] caught     src/hengbot/town_maps.py:187 (for x, symbol in enumerate(row):): test_every_legacy_pair_matches_and_rlyeh_variants_match_each_half, test_startup_loads_indexed_town_six_with_current_quest_status
+[mutation] caught     src/hengbot/town_maps.py:243 (edit = directory / "lib" / "edit"): test_startup_loads_indexed_town_six_with_current_quest_status
+[mutation] NOT CAUGHT src/hengbot/town_maps.py:32 (entrance: Position | None = None)
+[mutation] NOT CAUGHT src/hengbot/wilderness_map.py:1 ("""Static global-wilderness routing from Hengband's JSONC definition.")
+[mutation] caught     src/hengbot/wilderness_map.py:89 ("""Load the normal-game wilderness layout from WildernessDefinition.js): test_wilderness_helpers_discover_and_load_only_jsonc
+[mutation] caught     src/hengbot/wilderness_map.py:117 (WILDERNESS_DEFINITION_NAMES = ("WildernessDefinition.jsonc",)): test_wilderness_helpers_discover_and_load_only_jsonc
+[mutation] MUTATION FAIL: 3 of 14 hunks are not pinned by a test
+
+fast_tier.py C:\hengband\bot-client\.worktrees\jsonc-towns cdc2e44b --shards 4:
+[fast] 4135 fast tests (<2.0s in cdc2e44b) + 9 changed modules, 4 shards
+[fast] excluded 19 modules measured over 60s (module timing cache)
+Crashed shards: none
+Failures: none
+Errors: ['tests.test_policy_navigation.TownNightNavigationTest.test_parse_records_dungeon_entrance']
+Total: 4199 tests, 457.0s
