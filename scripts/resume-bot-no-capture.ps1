@@ -41,7 +41,7 @@ $stateFile = Join-Path $logRoot 'bot-state-fixed.jsonl'
 $decisionLog = Join-Path $logRoot 'bot-decisions.jsonl'
 $root = Split-Path -Parent $game.Path
 $monrace = Join-Path $root 'lib\edit\MonraceDefinitions.jsonc'
-$outpost = Join-Path $root 'lib\edit\towns\01_Outpost_Full.txt'
+$outpost = Join-Path $root 'lib\edit\towns\01_Outpost_Full.jsonc'
 $dungeon = Join-Path $root 'lib\edit\DungeonDefinitions.jsonc'
 foreach ($p in @($stateFile, $monrace, $outpost, $dungeon)) {
     if (-not (Test-Path -LiteralPath $p)) { throw "missing: $p" }

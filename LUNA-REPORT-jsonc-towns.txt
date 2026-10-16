@@ -93,3 +93,16 @@ Crashed shards: none
 Failures: none
 Errors: ['tests.test_policy_navigation.TownNightNavigationTest.test_parse_records_dungeon_entrance']
 Total: 4199 tests, 457.0s
+
+OPERATOR FOLLOW-UP (2026-10-16, after this report)
+- Startup town loading is unchanged from cdc2e44b: towns 1-5 load with the default (condition-false) variant;
+  the startup quest-status plumbing (_initial_town_quest_statuses / _load_town_maps) and the town-6 load were
+  dropped as out of scope. parse_town_map keeps the quest_statuses argument for conditional variants.
+- The fair-play rationale docstrings/comments of town_maps.py and wilderness_map.py were restored (JSONC wording).
+- tests/test_town_jsonc_parity.py was removed after its last green run (parity above): the legacy .txt copies
+  leave C:/hengband/lib/edit, so it could only fail or skip afterwards. Synthetic JSONC tests replace it:
+  test_jsonc_data_loaders (variant selection, entrance None, .txt rejected) and test_town_maps.TownMapParseTest
+  (the three deleted synthetic parser tests rewritten in JSONC with the same expected values).
+- test_policy_navigation.test_parse_records_dungeon_entrance now writes a JSONC town (same expectations).
+- mutation_check.py now reports docstring/comment-only hunks as TEXT ONLY (AST without docstrings is unchanged).
+- scripts/resume-bot-no-capture.ps1 points at 01_Outpost_Full.jsonc.
