@@ -760,6 +760,7 @@ def _advance_town_blocked_streak(
     in_town: bool = True,
     floor_changed: bool = False,
     durable_progress: bool = False,
+    consecutive: bool = False,
 ) -> int:
     """Count unproductive decisions during one uninterrupted town visit."""
     if floor_changed or not in_town:
@@ -773,6 +774,16 @@ def _advance_town_blocked_streak(
         key == WAIT_KEY
         and reason == "town:blocked:repetition"
         and reason in ESCAPE_BUDGETED_WAIT_LIMITS
+    ):
+        return streak
+    # A sustained run of the repetition latch's own departure -- the walk to
+    # the entrance, the recall countdown -- is the remedy the block hands over
+    # to, not another unproductive decision.  Counting every step stopped a
+    # latched visit 29 steps into a long Outpost walk to the entrance (c4-a
+    # life-004 20261017-033140).  The first departure decision still counts,
+    # so a cycle that only touches the departure once per lap keeps its fuse.
+    if consecutive and reason.startswith(
+        ("town:repetition-depart", "town:wait-recall")
     ):
         return streak
     if reason.startswith("town:blocked:"):
@@ -797,6 +808,8 @@ def _advance_town_blocked_iteration(
         previous_durable_state is not None
         and current_durable_state != previous_durable_state
     )
+    previous_reason = getattr(policy, "_town_fuse_previous_reason", None)
+    policy._town_fuse_previous_reason = policy.last_reason
     streak = _advance_town_blocked_streak(
         streak,
         policy.last_reason,
@@ -804,6 +817,7 @@ def _advance_town_blocked_iteration(
         in_town=snapshot.in_town,
         floor_changed=floor_changed,
         durable_progress=durable_progress,
+        consecutive=previous_reason == policy.last_reason,
     )
     return streak, current_durable_state
 
