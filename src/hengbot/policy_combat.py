@@ -3606,10 +3606,15 @@ class CombatMixin:
         if self._breeder_breakthrough_floor != snapshot.floor_key:
             return None
         active_quest = self._active_quest_id(snapshot)
+        # A one-off emergency relocation does not start a town return, but an
+        # already active return still needs an exit from this latched floor.
         if (
             self._fundraising_mode != "mine"
             and active_quest is None
-            and not self._emergency_return_active
+            and (
+                not self._emergency_return_active
+                or self._returning_to_town
+            )
             and not snapshot.player.blind
             and not snapshot.player.confused
         ):
