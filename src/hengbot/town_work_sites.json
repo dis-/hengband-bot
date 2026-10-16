@@ -47,6 +47,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "cbd745d6e2a7515856f45cdfd7ec15d2c6e18f14bb3ecce5da6f44abaa71043b"
   },
+  "character_sheet.py:_decode_sheet": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "69523b4c60cc24aeab45f01526fee9a2f0c716afb1212d1e0400f2339aad496b"
+  },
   "character_sheet.py:name_line_title_prefix": {
     "classification": "data",
     "rows": [
