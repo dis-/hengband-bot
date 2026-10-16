@@ -1,0 +1,44 @@
+Task report: eqtxn-newchar-route-1017
+
+Result
+
+Committed the single defect fix on branch `eqtxn-newchar-route-1017`.
+- Fix commit: `04ebed7c` — `Fix retained equipment Home route retry`
+- Report commit: recorded after this file is added.
+
+Measured diagnosis
+
+The captured decision rows 4-8 are pinned in `tests/fixtures/eqtxn-newchar-route-20261017.jsonl.gz`, joined by turn to the captured state frame. Baseline sequence: `home-route-unavailable` / key `5`, `abandon-blocked` / key `5`, `home-route-unavailable` / key `5`, `abandon-blocked` / key `5`, then `home-route-repeat-terminal` / key `5`.
+
+The captured character is at `(45,124)` with Home at `(45,123)`. The board is in town id 0 and is 198x66; the loaded Outpost map is active. The captured Home grid is store number 7, passable, and a door. The Home door is among the six walkable neighbors. The real town-map planner returns first step `(45,123)` with one remaining edge. See `policy_town.py:7593-7624` and `policy.py:19233-19269`.
+
+The active reconstructed plan deposits captured torch identity `ec2e53c16a3761bb`, count 5. Its measured reservation is 5, and its item signature is in the six-entry Home keep set. With the actual session and action installed, `_derived_home_visit_request` returns `None`; `_shopping_approach_step` also returns `None`. `policy_quest.py:436-449` refuses a Home request when the deposit target is retained. `policy_home.py:1431-1440` records derived/filing/rejection/begin_approach as null with executor `IDLE` and returns false. The refusal occurs before route selection and entrance claim acquisition. `policy_equipment.py:2672-2682` had collapsed it into the generic route-unavailable blocker, which abandonment then treated as a repeated physical route failure at `policy_equipment.py:1672-1690`, terminalizing at `1856-1863` / `1880-1886`.
+
+Change and pins
+
+At `policy_equipment.py:2645-2671`, the town transaction path now recognizes a retained current deposit target before asking the Home visit executor to file a request. It abandons the optional transaction, stores the existing visit-local `retain-reserved` closure, emits key `5` with reason `equipment-transaction:retain-reserved`, and allows ordinary town work to resume. Existing reconstruction of restoration actions remains in the shared abandonment path. No new policy attributes or constants were added, so no checkpoint defaults were needed.
+
+The new test module replays the captured board and reconstructs the two-action Home deposit session. It asserts the frozen baseline decisions, then asserts the fixed key/reason, cleared session, `retain-reserved` closure, no repeat terminal, and that optimization does not recreate the plan during the same visit. Controls assert that an actually unavailable Home route still reaches the visible `home-route-repeat-terminal`, and a reachable Home withdrawal still routes to `(45,123)`.
+
+Focused test results: the new module passed 3 tests; `test_equipment_home_full_incident_recorded` passed 2; `test_home_route_stall_recorded` passed 1; `test_policy_equipment` passed 197. Existing assertions were not changed. The town manifest refresh reported 826 candidates and 20,915 sites; the site census count stayed 20,915, with the existing modified producer's AST digest refreshed. No new helper entries were needed in `town_producer_baseline.json` or `town_work_review.json`; no new stuck-family reason was added.
+
+Required post-commit guard outputs
+
+Preflight:
+`[preflight] PREFLIGHT OK: 6 changed files, 0 findings (eqtxn-newchar-route-1017 vs a6672ef9)`
+
+Mutation check:
+`[mutation] 1 source hunks, tests: tests.test_equipment_transaction_newchar_route_recorded`
+`[mutation] caught     src/hengbot/policy_equipment.py:2642 (action = session.current_action): test_captured_reserved_deposit_is_closed_before_route_retry`
+`[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test`
+`[mutation] recorded for 04ebed7c`
+
+Fast tier:
+`[fast] 4162 fast tests (<2.0s in a6672ef9) + 1 changed modules, 4 shards`
+`[fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)`
+`Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-zfyx5e3z)`
+`Failures: none`
+`Errors: none`
+`Total: 4213 tests, 409.2s`
+
+No repair rounds were needed. The supplied task file remains untouched.
