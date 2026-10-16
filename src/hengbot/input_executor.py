@@ -952,8 +952,17 @@ class OperationExecutor:
     def _is_recall_depth_confirm(owner: str, feature: str) -> bool:
         from hengbot.policy import RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
 
+        # Every dungeon-side Word of Recall reader: the question follows the
+        # read on any floor shallower than the saved depth, whichever rung
+        # read it (breeder-breakthrough:recall stopped unowned on c4-a
+        # 2026-10-16 20:40).
         return owner in {"return:recall", "stuck:recall-escape",
-                         "fundraise:recall", "fundraise:recall-stuck"} and feature.startswith(
+                         "fundraise:recall", "fundraise:recall-stuck",
+                         "breeder-breakthrough:recall",
+                         "breeder-item-damage:recall",
+                         "livelock:recall-escape", "combat:disengage-recall",
+                         "emergency:recall",
+                         "emergency:recall-quest-fail"} and feature.startswith(
             RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
         )
 

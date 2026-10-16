@@ -1805,6 +1805,35 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual(result.outcome, "stuck-prompt")
         self.assertEqual(game.accepted, ["x"])
 
+    def test_recall_depth_confirm_is_refused_for_every_dungeon_recall_reader(self):
+        # c4-a life-003 20261016-204039: breeder-breakthrough:recall read 're'
+        # on a floor shallower than the saved depth and the depth question
+        # stopped the bot as an unowned confirm.
+        owners = (
+            "breeder-breakthrough:recall",
+            "breeder-item-damage:recall",
+            "livelock:recall-escape",
+            "combat:disengage-recall",
+            "emergency:recall",
+            "emergency:recall-quest-fail",
+        )
+        for owner in owners:
+            with self.subTest(owner=owner):
+                game, _client, executor = self.make()
+                game.screens = [
+                    prompt_screen(
+                        "ここは最深到達階より浅い階です。この階に戻って来ますか？ [y/n]"
+                    ),
+                    command_screen(3),
+                ]
+                executor.observe_boundary(deadline=9999999999)
+                result = executor.submit(
+                    Operation(4558, owner, "re", executor.ready_board),
+                    deadline=9999999999,
+                )
+                self.assertEqual(result.outcome, "completed", result.reason)
+                self.assertEqual(game.accepted, ["re", "n"])
+
     def test_recorded_recall_depth_shape_completes_through_sender_path(self):
         fixture = (
             Path(__file__).parent / "fixtures" / "classA-recall-depth-board.jsonl"
