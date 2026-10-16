@@ -1,34 +1,24 @@
-"""Static town maps loaded from Hengband's ``lib/edit/towns/*.txt``.
-
-A Hengband town is a FIXED map (the Outpost is always the same layout), so — like
-a human who has walked it many times — the bot may know the whole town in advance
-without the game revealing anything. This is prior knowledge the bot brings to the
-table, NOT extra information injected into the game's per-snapshot output: the
-emitter still only reports what the player can currently see. We use the static
-map to route to stores across the town even at night, when unlit tiles the player
-has not walked past are (correctly) dark in the snapshot.
-
-Only the coarse "can I walk here" layout and the store locations are extracted —
-exactly what a returning player remembers.
-"""
+"""Static town maps loaded from Hengband's JSONC town definitions."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
+import re
+from typing import Mapping
 
 from hengbot.model import Position
+from hengbot.monrace_knowledge import _strip_jsonc
 
-# D-grid characters that a player can walk onto. Conservative on purpose: plain
-# floor, grass and the numbered store entrances / stairs. Trees, water, walls,
-# rubble, building facades and quest entrances are treated as blocked so a route
-# never cuts through the forest ring toward the town border. (Over-blocking at
-# worst makes a tile unreachable; it never routes the bot somewhere unsafe.)
+
 _WALKABLE_CHARS = frozenset(".,<>")
-# Digits 1-8 in a town grid are the store entrances; digit d is store index d, and
-# the bot's store_type is d - 1 (General Store '1' -> STORE_GENERAL 0, Home '8' ->
-# STORE_HOME 7), matching the store-sale-type enum order.
-_STORE_DIGITS = frozenset("12345678")
+_STORE_TERRAINS = {
+    "GENERAL_STORE": 0, "ARMOURY": 1, "WEAPON_SMITHS": 2,
+    "TEMPLE": 3, "ALCHEMY_SHOP": 4, "MAGIC_SHOP": 5,
+    "BLACK_MARKET": 6, "HOME": 7,
+}
+_EQU_CONDITION = re.compile(r"^\[EQU\s+\$([A-Z_0-9]+)\s+([0-9 ]+)\]$")
 
 
 @dataclass(frozen=True)
@@ -37,12 +27,12 @@ class TownMap:
     width: int
     height: int
     walkable: frozenset[Position]
-    stores: dict[int, Position] = field(default_factory=dict)  # store_type -> entrance
+    stores: dict[int, Position] = field(default_factory=dict)
     buildings: dict[int, Position] = field(default_factory=dict)
     quest_buildings: dict[int, frozenset[Position]] = field(default_factory=dict)
     quest_entrances: dict[int, frozenset[Position]] = field(default_factory=dict)
     reward_positions: frozenset[Position] = frozenset()
-    entrance: Position | None = None  # the '>' dungeon entrance the town wraps
+    entrance: Position | None = None
 
     def is_walkable(self, position: Position) -> bool:
         return position in self.walkable
@@ -60,114 +50,135 @@ class TownMap:
         return self.quest_entrances.get(quest_id, frozenset())
 
 
-def _floor_flag_chars(lines: list[str]) -> frozenset[str]:
-    """Characters an ``F:<char>:FLOOR:...`` directive maps to walkable floor."""
-    chars = set()
-    for line in lines:
-        if not line.startswith("F:"):
-            continue
-        parts = line.split(":")
-        if len(parts) >= 3 and parts[2] == "FLOOR":
-            chars.add(parts[1])
-    return frozenset(chars)
+def _jsonc(path: Path) -> dict:
+    data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8-sig")))
+    if not isinstance(data, dict):
+        raise ValueError(f"invalid JSONC town definition: {path}")
+    return data
 
 
-def _building_flag_chars(lines: list[str]) -> dict[str, int]:
-    """Map fixed-map glyphs declared as ``BUILDING_n`` to building ids."""
-    result: dict[str, int] = {}
-    for line in lines:
-        if not line.startswith("F:"):
-            continue
-        parts = line.split(":")
-        if len(parts) < 3 or not parts[2].startswith("BUILDING_"):
-            continue
-        try:
-            result[parts[1]] = int(parts[2].removeprefix("BUILDING_"))
-        except ValueError:
-            continue
-    return result
-
-
-def _flag_special(parts: list[str]) -> int | None:
-    """Return the terrain special field when an F: line carries one."""
-    if len(parts) < 10:
-        return None
+def _condition_matches(condition: str | None, quest_statuses: Mapping[int, int]) -> bool:
+    if condition is None:
+        return True
+    match = _EQU_CONDITION.fullmatch(condition.strip())
+    if match is None:
+        # Hengband treats malformed non-variable expressions as false. The
+        # current town definitions use EQU over quest status values.
+        return False
+    variable, raw_values = match.groups()
+    if not variable.startswith("QUEST"):
+        return False
     try:
-        return int(parts[9])
+        quest_id = int(variable.removeprefix("QUEST"))
+        status = int(quest_statuses.get(quest_id, 0))
+        expected = {int(value) for value in raw_values.split()}
     except ValueError:
-        return None
+        return False
+    return status in expected
 
 
-def _quest_entrance_flag_chars(lines: list[str]) -> dict[str, int]:
-    result: dict[str, int] = {}
-    for line in lines:
-        if not line.startswith("F:"):
+def _town_map_path(path: Path) -> Path:
+    if path.suffix.lower() != ".jsonc":
+        raise ValueError(f"town map must use JSONC: {path}")
+    return path
+
+
+def parse_town_map(
+    path: Path, quest_statuses: Mapping[int, int] | None = None
+) -> TownMap:
+    """Load the active map and glyph rules from the game's JSONC definitions.
+
+    Missing quest statuses default to zero, matching the game's initial quest
+    status and selecting the false-condition town map variant.
+    """
+    path = _town_map_path(path)
+    statuses = quest_statuses or {}
+    data = _jsonc(path)
+    preferences = _jsonc(path.parent.parent / "TownPreferences.jsonc")
+    legend = preferences.get("legend", {})
+    if not isinstance(legend, dict):
+        raise ValueError(f"invalid town preference legend: {path.parent.parent / 'TownPreferences.jsonc'}")
+
+    definitions: dict[str, dict] = {}
+    floor_symbols: set[str] = set()
+    building_symbols: dict[str, int] = {}
+    quest_building_symbols: dict[str, set[int]] = {}
+    quest_entrance_symbols: dict[str, int] = {}
+    reward_symbols: set[str] = set()
+    for symbol, definition in legend.items():
+        if isinstance(symbol, str) and len(symbol) == 1 and isinstance(definition, dict):
+            definitions[symbol] = definition
+            building_match = re.fullmatch(
+                r"BUILDING_(\d+)", str(definition.get("terrain", ""))
+            )
+            if building_match:
+                building_symbols[symbol] = int(building_match.group(1))
+    for rule in data.get("featureRules", []):
+        if not isinstance(rule, dict):
             continue
-        parts = line.split(":")
-        if len(parts) < 3 or parts[2] != "QUEST_ENTER":
-            continue
-        quest_id = _flag_special(parts)
-        if quest_id is not None and quest_id > 0:
-            result[parts[1]] = quest_id
-    return result
+        symbol, definition = rule.get("symbol"), rule.get("definition")
+        if isinstance(symbol, str) and len(symbol) == 1 and isinstance(definition, dict):
+            definitions[symbol] = definition
+            terrain = str(definition.get("terrain", ""))
+            try:
+                special_id = int(definition.get("special", 0))
+            except (TypeError, ValueError):
+                special_id = 0
+            if terrain == "FLOOR":
+                floor_symbols.add(symbol)
+                try:
+                    if int(definition.get("object", 0)) > 0:
+                        reward_symbols.add(symbol)
+                except (TypeError, ValueError):
+                    pass
+            building_match = re.fullmatch(r"BUILDING_(\d+)", terrain)
+            if building_match:
+                building_symbols[symbol] = int(building_match.group(1))
+                if special_id > 0:
+                    quest_building_symbols.setdefault(symbol, set()).add(special_id)
+            if terrain == "QUEST_ENTER" and special_id > 0:
+                quest_entrance_symbols[symbol] = special_id
 
+    # TownPreferences definitions are shared defaults. Treat their terrain
+    # properties the same way as the legacy parser's combined F directives.
+    for symbol, definition in definitions.items():
+        terrain = str(definition.get("terrain", ""))
+        if terrain == "FLOOR":
+            floor_symbols.add(symbol)
+            try:
+                if int(definition.get("object", 0)) > 0:
+                    reward_symbols.add(symbol)
+            except (TypeError, ValueError):
+                pass
+        building_match = re.fullmatch(r"BUILDING_(\d+)", terrain)
+        if building_match:
+            building_symbols.setdefault(symbol, int(building_match.group(1)))
+            try:
+                special_id = int(definition.get("special", 0))
+            except (TypeError, ValueError):
+                special_id = 0
+            if special_id > 0:
+                quest_building_symbols.setdefault(symbol, set()).add(special_id)
+        if terrain == "QUEST_ENTER":
+            try:
+                special_id = int(definition.get("special", 0))
+            except (TypeError, ValueError):
+                special_id = 0
+            if special_id > 0:
+                quest_entrance_symbols.setdefault(symbol, special_id)
 
-def _quest_building_flag_chars(lines: list[str]) -> dict[str, set[int]]:
-    result: dict[str, set[int]] = {}
-    for line in lines:
-        if not line.startswith("F:"):
-            continue
-        parts = line.split(":")
-        if len(parts) < 3 or not parts[2].startswith("BUILDING_"):
-            continue
-        quest_id = _flag_special(parts)
-        if quest_id is not None and quest_id > 0:
-            result.setdefault(parts[1], set()).add(quest_id)
-    return result
-
-
-def _reward_flag_chars(lines: list[str]) -> frozenset[str]:
-    """Map floor glyphs that can materialize a quest reward object."""
-    chars = set()
-    for line in lines:
-        if not line.startswith("F:"):
-            continue
-        parts = line.split(":")
-        if len(parts) < 6 or parts[2] != "FLOOR":
-            continue
-        try:
-            reward_object_id = int(parts[5])
-        except ValueError:
-            continue
-        if reward_object_id > 0:
-            chars.add(parts[1])
-    return frozenset(chars)
-
-
-def parse_town_map(path: Path) -> TownMap:
-    text = path.read_text(encoding="utf-8", errors="replace")
-    lines = text.splitlines()
-    # TownPreferences supplies the common glyph definitions used by the full
-    # Outpost map (including the Hunter's Office). Town-local F directives come
-    # afterwards and therefore override the shared defaults, as in Hengband.
-    preferences = path.parent.parent / "TownPreferences.txt"
-    definition_lines = []
-    if preferences.is_file():
-        definition_lines.extend(
-            preferences.read_text(encoding="utf-8", errors="replace").splitlines()
-        )
-    definition_lines.extend(lines)
-    rows = [line[2:] for line in lines if line.startswith("D:")]
-    if not rows:
-        raise ValueError(f"no D: map rows in {path}")
-    height = len(rows)
-    width = max(len(r) for r in rows)
-    floor_chars = _floor_flag_chars(definition_lines)
-    building_chars = _building_flag_chars(definition_lines)
-    quest_entrance_chars = _quest_entrance_flag_chars(definition_lines)
-    quest_building_chars = _quest_building_flag_chars(definition_lines)
-    reward_chars = _reward_flag_chars(definition_lines)
-    walkable_here = _WALKABLE_CHARS | floor_chars
+    variants = data.get("mapVariants", [])
+    if not isinstance(variants, list):
+        raise ValueError(f"invalid town map variants: {path}")
+    selected = [
+        variant for variant in variants
+        if isinstance(variant, dict) and _condition_matches(variant.get("when"), statuses)
+    ]
+    if len(selected) != 1:
+        raise ValueError(f"expected one active town map variant in {path}, found {len(selected)}")
+    rows = selected[0].get("rows")
+    if not isinstance(rows, list) or not rows or not all(isinstance(row, str) for row in rows):
+        raise ValueError(f"invalid town map rows: {path}")
 
     walkable: set[Position] = set()
     stores: dict[int, Position] = {}
@@ -176,35 +187,36 @@ def parse_town_map(path: Path) -> TownMap:
     quest_entrances: dict[int, set[Position]] = {}
     reward_positions: set[Position] = set()
     entrance: Position | None = None
+
     for y, row in enumerate(rows):
-        for x, ch in enumerate(row):
+        for x, symbol in enumerate(row):
             pos = Position(y, x)
-            if ch in _STORE_DIGITS:
-                stores[int(ch) - 1] = pos
-                walkable.add(pos)  # you walk onto the entrance
-            elif ch in building_chars:
-                buildings[building_chars[ch]] = pos
+            definition = definitions.get(symbol, {})
+            terrain = str(definition.get("terrain", ""))
+            if symbol in _WALKABLE_CHARS or symbol in floor_symbols:
                 walkable.add(pos)
-            elif ch in walkable_here:
+            if terrain in _STORE_TERRAINS:
+                stores[_STORE_TERRAINS[terrain]] = pos
                 walkable.add(pos)
-            if ch in quest_entrance_chars:
-                quest_entrances.setdefault(quest_entrance_chars[ch], set()).add(pos)
+            if symbol in building_symbols:
+                building_id = building_symbols[symbol]
+                buildings[building_id] = pos
                 walkable.add(pos)
-            for quest_id in quest_building_chars.get(ch, set()):
+            for quest_id in quest_building_symbols.get(symbol, set()):
                 quest_buildings.setdefault(quest_id, set()).add(pos)
-            if ch in reward_chars:
+            quest_id = quest_entrance_symbols.get(symbol)
+            if quest_id is not None:
+                quest_entrances.setdefault(quest_id, set()).add(pos)
+                walkable.add(pos)
+            if symbol in reward_symbols:
                 reward_positions.add(pos)
-            if ch == ">":
-                # The dungeon entrance the player descends from. Recorded as a
-                # first-class goal so the bot can route to it at night, when the
-                # unlit '>' tile is absent from the emitted snapshot.
+            if symbol == ">":
                 entrance = pos
 
-    name = path.stem
     return TownMap(
-        name=name,
-        width=width,
-        height=height,
+        name=path.stem,
+        width=max(map(len, rows)),
+        height=len(rows),
         walkable=frozenset(walkable),
         stores=stores,
         buildings=buildings,
@@ -216,11 +228,7 @@ def parse_town_map(path: Path) -> TownMap:
 
 
 def find_town_map(town_index: int, start: Path | None = None) -> Path | None:
-    """Locate a numbered ``lib/edit/towns`` map by walking up from ``start``.
-
-    Mirrors monrace_knowledge.find_monrace_definitions: the town files live beside
-    the game data the bot already reads.
-    """
+    """Find a town's normal JSONC map using TownDefinitionList.jsonc."""
     bases: list[Path] = []
     if start is not None:
         bases.append(start)
@@ -231,13 +239,27 @@ def find_town_map(town_index: int, start: Path | None = None) -> Path | None:
             if directory in seen:
                 continue
             seen.add(directory)
-            towns = directory / "lib" / "edit" / "towns"
-            for candidate in sorted(towns.glob(f"{town_index:02d}_*.txt")):
-                if candidate.is_file():
+            edit = directory / "lib" / "edit"
+            index = edit / "TownDefinitionList.jsonc"
+            if not index.is_file():
+                continue
+            try:
+                towns = _jsonc(index).get("towns", {})
+                entry = towns.get(str(town_index))
+                if isinstance(entry, dict):
+                    relative = entry.get("normal")
+                else:
+                    relative = entry
+                if not isinstance(relative, str) or not relative.startswith("towns/") or ".." in relative:
+                    continue
+                candidate = edit / relative
+                if candidate.is_file() and candidate.suffix.lower() == ".jsonc":
                     return candidate
+            except (OSError, ValueError, TypeError):
+                continue
     return None
 
 
 def find_outpost_map(start: Path | None = None) -> Path | None:
-    """Backward-compatible locator for town index 1 (Outpost)."""
+    """Locate the normal Outpost map through TownDefinitionList.jsonc."""
     return find_town_map(1, start)

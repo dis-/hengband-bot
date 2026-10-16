@@ -102,117 +102,6 @@ def _localized_names(value: Any) -> tuple[str, str]:
     return str(value or ""), ""
 
 
-def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
-    names: dict[int, str] = {}
-    names_en: dict[int, str] = {}
-    definitions: dict[int, QuestInfo] = {}
-    lines = path.read_text(encoding="utf-8-sig").splitlines()
-    glyph_monsters: dict[str, int] = {}
-    glyph_features: dict[str, str] = {
-        "X": "PERMANENT", ".": "FLOOR", "D": "CLOSED_DOOR",
-        "<": "UP_STAIR", "%": "GRANITE",
-    }
-    reward_glyphs: set[str] = set()
-    explicit_monsters: list[int] = []
-    map_rows: list[str] = []
-    player_start: tuple[int, int] | None = None
-    for raw_line in lines:
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = line.split(":")
-        # QuestPreferences.txt defines F as
-        # F:glyph:terrain:cave_info:monster:object:ego:artifact:trap:special.
-        # The roster count comes from occurrences of that glyph in D map rows.
-        if parts[0] == "F" and len(parts) >= 5:
-            glyph_features[parts[1]] = parts[2]
-            try:
-                r_idx = int(parts[4], 0)
-            except ValueError:  # random-depth forms such as *10 are not placed races
-                r_idx = 0
-            if r_idx > 0:
-                glyph_monsters[parts[1]] = r_idx
-            if len(parts) >= 6:
-                try:
-                    if int(parts[5], 0) > 0:
-                        reward_glyphs.add(parts[1])
-                except ValueError:
-                    pass
-            continue
-        if parts[0] == "F" and len(parts) >= 3:
-            glyph_features[parts[1]] = parts[2]
-            continue
-        if parts[0] == "M" and len(parts) >= 2:
-            # Some quest-map revisions use an explicit M:r_idx[:count] roster.
-            try:
-                r_idx = int(parts[1], 0)
-                count = int(parts[2], 0) if len(parts) >= 3 else 1
-            except ValueError:
-                continue
-            if r_idx > 0 and count > 0:
-                explicit_monsters.extend([r_idx] * count)
-            continue
-        if parts[0] == "D" and len(parts) >= 2:
-            map_rows.append(":".join(parts[1:]))
-            continue
-        if parts[0] == "P" and len(parts) >= 3:
-            try:
-                player_start = (int(parts[1], 0), int(parts[2], 0))
-            except ValueError:
-                pass
-            continue
-        if len(parts) < 3 or parts[0] != "Q":
-            continue
-        english = parts[1].startswith("$")
-        try:
-            quest_id = int(parts[1].removeprefix("$"))
-        except ValueError:
-            continue
-        if len(parts) >= 4 and parts[2] == "N":
-            (names_en if english else names)[quest_id] = ":".join(parts[3:])
-        elif len(parts) >= 11 and parts[2] == "Q":
-            values = [int(value, 0) for value in parts[3:11]]
-            flags = int(parts[11], 0) if len(parts) >= 12 else 0
-            definitions[quest_id] = QuestInfo(
-                id=quest_id,
-                name=names.get(quest_id, ""),
-                type=values[0],
-                num_mon=values[1],
-                cur_num=values[2],
-                max_num=values[3],
-                level=values[4],
-                monrace_id=values[5],
-                reward_artifact_id=values[6] or None,
-                dungeon=values[7],
-                flags=flags,
-            )
-    placements = [
-        ((y, x), glyph_monsters[ch])
-        for y, row in enumerate(map_rows)
-        for x, ch in enumerate(row)
-        if ch in glyph_monsters
-    ]
-    # M records have no map coordinate. Preserve every placement using a stable
-    # negative-y sentinel rather than inventing an in-map location.
-    placements.extend(((-1, index), r_idx) for index, r_idx in enumerate(explicit_monsters))
-    roster = Counter(r_idx for _, r_idx in placements)
-    battlefield = _legacy_battlefield(
-        map_rows, glyph_features, placements, player_start, reward_glyphs
-    ) if map_rows else None
-    return {
-        quest_id: QuestInfo(
-            **{
-                **info.__dict__,
-                "name": names.get(quest_id, info.name),
-                "name_en": names_en.get(quest_id, ""),
-                "placed_monsters": tuple(sorted(roster.items())),
-                "battlefield": battlefield,
-            }
-        )
-        for quest_id, info in definitions.items()
-    }
-
-
 def _terrain_class(feature: str) -> str:
     upper = feature.upper()
     if "QUEST_EXIT" in upper:
@@ -236,7 +125,7 @@ def _terrain_class(feature: str) -> str:
     return "wall"
 
 
-def _legacy_battlefield(
+def _build_battlefield(
     rows: list[str], features: dict[str, str],
     placements: list[tuple[tuple[int, int], int]],
     player_start: tuple[int, int] | None, reward_glyphs: set[str],
@@ -282,13 +171,6 @@ def _legacy_battlefield(
         reward_tile=reward,
         chokepoints=tuple(chokepoints),
     )
-
-
-def _legacy_quests(path: Path) -> dict[int, QuestInfo]:
-    result: dict[int, QuestInfo] = {}
-    for quest_path in sorted((path.parent / "quests").glob("[0-9][0-9][0-9]*.txt")):
-        result.update(_legacy_quest_file(quest_path))
-    return result
 
 
 def _json_quest(path: Path) -> QuestInfo:
@@ -422,15 +304,15 @@ def _json_battlefield(data: dict[str, Any]) -> QuestBattlefield | None:
             player_start = (int(raw_start["y"]), int(raw_start["x"]))
         except (KeyError, TypeError, ValueError):
             pass
-    return _legacy_battlefield(
+    return _build_battlefield(
         rows, features, placements, player_start, reward_glyphs
     )
 
 
 def load_quest_knowledge(path: Path) -> dict[int, QuestInfo]:
-    """Load the legacy list or a directory of migrated per-quest JSONC files."""
-    if path.is_file() and path.name == "QuestDefinitionList.txt":
-        return _legacy_quests(path)
+    """Load per-quest JSONC files from the migrated quests directory."""
+    if path.is_file() and path.suffix.lower() != ".jsonc":
+        raise ValueError(f"quest definitions must use JSONC: {path}")
     directory = path if path.is_dir() else path.parent
     result: dict[int, QuestInfo] = {}
     for quest_path in sorted(directory.glob("*.jsonc")):
@@ -440,18 +322,21 @@ def load_quest_knowledge(path: Path) -> dict[int, QuestInfo]:
 
 
 def find_quest_definitions(state_file: Path, override: Path | None = None) -> Path | None:
+    def is_jsonc_source(path: Path) -> bool:
+        if path.is_dir():
+            return any(path.glob("*.jsonc"))
+        return path.is_file() and path.suffix.lower() == ".jsonc"
+
     if override is not None:
-        return override
+        return override if is_jsonc_source(override) else None
     configured = os.environ.get("HENGBAND_QUEST_DEFINITIONS")
     if configured:
-        return Path(configured)
+        candidate = Path(configured)
+        return candidate if is_jsonc_source(candidate) else None
     roots = [Path.cwd(), *state_file.resolve().parents]
     for root in roots:
         edit = root / "lib" / "edit"
-        legacy = edit / "QuestDefinitionList.txt"
-        if legacy.is_file():
-            return legacy
         migrated = edit / "quests"
-        if migrated.is_dir() and any(migrated.glob("*.jsonc")):
+        if is_jsonc_source(migrated):
             return migrated
     return None

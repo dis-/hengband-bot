@@ -3505,7 +3505,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--outpost-map",
         type=Path,
-        help="path to Hengband's lib/edit/towns/01_Outpost_Full.txt "
+        help="path to Hengband's lib/edit/towns/01_Outpost_Full.jsonc "
         "(auto-located near the state file if omitted)",
     )
     parser.add_argument(
@@ -3517,7 +3517,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--quest-definitions",
         type=Path,
-        help="path to QuestDefinitionList.txt or the migrated quests directory",
+        help="path to the migrated JSONC quests directory",
     )
     parser.add_argument(
         "--quest-strategies",
@@ -3906,10 +3906,22 @@ def main(argv: list[str] | None = None) -> int:
     # bot still plays, just without night-town routing help.
     outpost_map: TownMap | None = None
     town_maps: dict[int, TownMap] = {}
+    town_quest_statuses: dict[int, int] = {}
+    try:
+        initial_lines = _read_last_snapshot_line(args.state_file)
+        initial_line = next(iter(initial_lines), None)
+        if initial_line is not None:
+            initial_snapshot = parse_snapshot(json.loads(initial_line), monrace_knowledge)
+            town_quest_statuses = {
+                quest_id: quest.status
+                for quest_id, quest in initial_snapshot.quests.items()
+            }
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        pass
     outpost_path = args.outpost_map or find_outpost_map(args.state_file)
     if outpost_path is not None:
         try:
-            outpost_map = parse_town_map(outpost_path)
+            outpost_map = parse_town_map(outpost_path, town_quest_statuses)
             town_maps[0] = outpost_map
         except (OSError, ValueError) as exc:
             print(f"could not load Outpost map ({outpost_path}): {exc}", file=sys.stderr)
@@ -3917,12 +3929,14 @@ def main(argv: list[str] | None = None) -> int:
     # Load every active normal town.  Cross-town errands use the inn in
     # Telmora, Morivant, and Angwil; the static maps keep those routes working
     # at night when the destination building is not currently lit.
-    for town_index in range(2, 6):
+    for town_index in range(2, 7):
         town_path = find_town_map(town_index, args.state_file)
         if town_path is None:
             continue
         try:
-            town_maps[town_index - 1] = parse_town_map(town_path)
+            town_maps[town_index - 1] = parse_town_map(
+                town_path, town_quest_statuses
+            )
         except (OSError, ValueError) as exc:
             print(f"could not load town map ({town_path}): {exc}", file=sys.stderr)
 

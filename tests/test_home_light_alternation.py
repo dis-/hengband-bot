@@ -76,11 +76,11 @@ def _fresh_policy(sandbox: Path) -> ConservativePolicy:
         raise AssertionError("required Hengband edit definitions are unavailable")
     edit = monrace_path.parent
     town_files = {
-        0: "01_Outpost_Full.txt",
-        1: "02_Telmora.txt",
-        2: "03_Morivant.txt",
-        3: "04_Angwil.txt",
-        4: "05_Zul.txt",
+        0: "01_Outpost_Full.jsonc",
+        1: "02_Telmora.jsonc",
+        2: "03_Morivant.jsonc",
+        3: "04_Angwil.jsonc",
+        4: "05_Zul.jsonc",
     }
     town_maps = {
         town_id: parse_town_map(edit / "towns" / filename)
@@ -95,7 +95,7 @@ def _fresh_policy(sandbox: Path) -> ConservativePolicy:
     policy = ConservativePolicy(
         town_map=town_maps[0],
         town_maps=town_maps,
-        wilderness_map=load_wilderness_map(edit / "WildernessDefinition.txt"),
+        wilderness_map=load_wilderness_map(edit / "WildernessDefinition.jsonc"),
         dungeon_knowledge=load_dungeon_knowledge(edit / "DungeonDefinitions.jsonc"),
         monrace_knowledge=load_monrace_knowledge(monrace_path),
         damaging_terrain_ids=load_damaging_terrain_ids(
