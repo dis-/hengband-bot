@@ -651,24 +651,26 @@ class FundraisingMixin:
         )
         upstairs_search_expired = (self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
                                    or scavenge_return_overdue)
-        if upstairs_search_expired and allow_recall:
-            recall = self._find_recall_scroll(snapshot)
-            if (
-                recall is not None
-                and not player.blind
-                and not player.confused
-                and self._can_read_scrolls(snapshot)
-            ):
-                self._stuck_escape_streak = 0
-                self._note_return_start(None)
-                self._returning_to_town = True
-                self.last_reason = "fundraise:recall-stuck"
-                return self._fundraising_return_route_key(
-                    self._read_key(snapshot, recall),
-                    step="fundraising.recall-stuck.send",
-                    work_id="fundraise:return:recall-stuck",
-                    expected_effect="recall-activated",
-                )
+        recall = (
+            self._find_recall_scroll(snapshot)
+            if upstairs_search_expired and allow_recall else None
+        )
+        if (
+            recall is not None
+            and not player.blind
+            and not player.confused
+            and self._can_read_scrolls(snapshot)
+        ):
+            self._stuck_escape_streak = 0
+            self._note_return_start(None)
+            self._returning_to_town = True
+            self.last_reason = "fundraise:recall-stuck"
+            return self._fundraising_return_route_key(
+                self._read_key(snapshot, recall),
+                step="fundraising.recall-stuck.send",
+                work_id="fundraise:return:recall-stuck",
+                expected_effect="recall-activated",
+            )
         else:
             step = self._explore_step(snapshot)
             if step is not None:
