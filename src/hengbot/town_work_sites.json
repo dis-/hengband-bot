@@ -5640,7 +5640,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "999d9c58d6e86274fc8a1996ff7c290571bbdc8d17cdee49521429e19be0903a"
+    "ast_sha256": "810d7f4047eda6eb70e4671e7a4d15b9e25fb3b8ce576d01f22f91835fda7cb5"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
     "classification": "adapter",
