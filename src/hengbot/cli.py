@@ -3788,10 +3788,11 @@ def _initial_town_quest_statuses(
 def _load_town_maps(
     state_file: Path,
     outpost_override: Path | None,
-    quest_statuses: Mapping[int, int],
+    monrace_knowledge: Mapping[int, object] | None,
 ) -> tuple[TownMap | None, dict[int, TownMap]]:
     outpost_map: TownMap | None = None
     town_maps: dict[int, TownMap] = {}
+    quest_statuses = _initial_town_quest_statuses(state_file, monrace_knowledge)
     outpost_path = outpost_override or find_outpost_map(state_file)
     if outpost_path is not None:
         try:
@@ -3946,11 +3947,8 @@ def main(argv: list[str] | None = None) -> int:
     # The static Outpost layout lets the bot route across a dark town to a store
     # (prior knowledge a returning player has). Optional: if it is not found the
     # bot still plays, just without night-town routing help.
-    town_quest_statuses = _initial_town_quest_statuses(
-        args.state_file, monrace_knowledge
-    )
     outpost_map, town_maps = _load_town_maps(
-        args.state_file, args.outpost_map, town_quest_statuses
+        args.state_file, args.outpost_map, monrace_knowledge
     )
 
     wilderness_map = None

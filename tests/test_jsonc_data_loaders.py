@@ -23,7 +23,10 @@ EDIT = Path(r"C:\hengband\lib\edit")
 
 class JsoncDataLoaderTest(unittest.TestCase):
     def test_wilderness_loader_documents_jsonc_only_input(self):
-        self.assertIn("jsonc", wilderness_map_module.__doc__.casefold())
+        self.assertEqual(
+            wilderness_map_module.__doc__,
+            "Static global-wilderness routing from Hengband's JSONC definition.",
+        )
         self.assertIn("jsonc", load_wilderness_map.__doc__.casefold())
 
     def test_cli_documents_jsonc_paths(self):
@@ -43,7 +46,12 @@ class JsoncDataLoaderTest(unittest.TestCase):
     def test_startup_loads_indexed_town_six_with_current_quest_status(self):
         if not EDIT.is_dir():
             self.skipTest("real Hengband lib/edit data is unavailable")
-        _outpost, town_maps = _load_town_maps(EDIT, None, {17: 1})
+        snapshot = SimpleNamespace(quests={17: QuestState(id=17, status=1)})
+        with (
+            patch("hengbot.cli._read_last_snapshot_line", return_value=['{"board": true}']),
+            patch("hengbot.cli.parse_snapshot", return_value=snapshot),
+        ):
+            _outpost, town_maps = _load_town_maps(EDIT, None, None)
         self.assertEqual(set(town_maps), {0, 1, 2, 3, 4, 5})
         town_six_path = find_town_map(6, EDIT)
         self.assertEqual(town_maps[5], parse_town_map(town_six_path, {17: 1}))

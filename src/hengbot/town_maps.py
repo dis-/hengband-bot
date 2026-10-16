@@ -32,7 +32,7 @@ class TownMap:
     quest_buildings: dict[int, frozenset[Position]] = field(default_factory=dict)
     quest_entrances: dict[int, frozenset[Position]] = field(default_factory=dict)
     reward_positions: frozenset[Position] = frozenset()
-    entrance: Position | None = None
+    entrance: Position | None = None  # the '>' dungeon entrance the town wraps
 
     def is_walkable(self, position: Position) -> bool:
         return position in self.walkable
