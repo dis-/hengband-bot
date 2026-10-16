@@ -31,10 +31,12 @@ Existing tests changed or deleted
 - tests/test_town_maps.py: deleted test_parses_dims_stores_and_walkability, test_all_eight_store_digits_map_to_store_types, and test_rejects_a_file_with_no_map because they tested the removed text parser. Real map checks now discover JSONC through TownDefinitionList.jsonc (Outpost and Telmora paths changed from .txt to .jsonc).
 - tests/test_wilderness_map.py: test_p4_current_jsonc_equals_txt and the text-loader/fallback expectation in test_p4_finder_prefers_jsonc_and_falls_back_to_txt were replaced with JSONC-only finder/loader checks. The real wilderness input changed from WildernessDefinition.txt to WildernessDefinition.jsonc.
 - Added tests/test_town_jsonc_parity.py for all eight town file pairs and the two R'lyeh halves.
+- Added tests/test_jsonc_data_loaders.py for JSONC-only finder/loading behavior, CLI help, startup quest statuses, and indexed Town 6 loading.
 
 Module checks completed
 - tests.test_town_maps: 5 tests, OK.
 - tests.test_town_jsonc_parity: 1 test, OK.
+- tests.test_jsonc_data_loaders: 6 tests, OK.
 - tests.test_quest_knowledge: 7 tests, OK.
 - tests.test_wilderness_map: 4 tests, OK.
 - tests.test_home_light_alternation: 36 tests, OK.

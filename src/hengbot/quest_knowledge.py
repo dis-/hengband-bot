@@ -125,7 +125,7 @@ def _terrain_class(feature: str) -> str:
     return "wall"
 
 
-def _build_battlefield(
+def _legacy_battlefield(
     rows: list[str], features: dict[str, str],
     placements: list[tuple[tuple[int, int], int]],
     player_start: tuple[int, int] | None, reward_glyphs: set[str],
@@ -304,7 +304,7 @@ def _json_battlefield(data: dict[str, Any]) -> QuestBattlefield | None:
             player_start = (int(raw_start["y"]), int(raw_start["x"]))
         except (KeyError, TypeError, ValueError):
             pass
-    return _build_battlefield(
+    return _legacy_battlefield(
         rows, features, placements, player_start, reward_glyphs
     )
 

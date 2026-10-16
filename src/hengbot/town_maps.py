@@ -27,7 +27,7 @@ class TownMap:
     width: int
     height: int
     walkable: frozenset[Position]
-    stores: dict[int, Position] = field(default_factory=dict)
+    stores: dict[int, Position] = field(default_factory=dict)  # store_type -> entrance
     buildings: dict[int, Position] = field(default_factory=dict)
     quest_buildings: dict[int, frozenset[Position]] = field(default_factory=dict)
     quest_entrances: dict[int, frozenset[Position]] = field(default_factory=dict)
@@ -228,7 +228,11 @@ def parse_town_map(
 
 
 def find_town_map(town_index: int, start: Path | None = None) -> Path | None:
-    """Find a town's normal JSONC map using TownDefinitionList.jsonc."""
+    """Locate a numbered ``lib/edit/towns`` map by walking up from ``start``.
+
+    Mirrors monrace_knowledge.find_monrace_definitions: the town files live beside
+    the game data the bot already reads.
+    """
     bases: list[Path] = []
     if start is not None:
         bases.append(start)

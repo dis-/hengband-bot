@@ -776,7 +776,7 @@ RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES = (
 # The static town maps 01-04 each contain exactly one Home (`8`).  Zul's
 # 05_Zul map contains none.  A negative runtime route is not evidence that a
 # Home-bearing town lacks a Home; it is a visible bot defect instead.
-# lib/edit/towns/03_Morivant.jsonc advertises building action 1 for 1300 gold;
+# lib/edit/towns/03_Morivant.txt advertises building action 1 for 1300 gold;
 # every eligible Inn advertises action 42 for 500.  Building service prices are
 # not present in bot JSON, so these factual data-file values cannot be learned
 # from a runtime snapshot.

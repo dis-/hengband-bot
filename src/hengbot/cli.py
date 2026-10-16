@@ -3769,6 +3769,48 @@ def _acquire_control_owner(port: int):
     return handle
 
 
+def _initial_town_quest_statuses(
+    state_file: Path, monrace_knowledge: Mapping[int, object] | None
+) -> dict[int, int]:
+    try:
+        initial_line = next(iter(_read_last_snapshot_line(state_file)), None)
+        if initial_line is None:
+            return {}
+        initial_snapshot = parse_snapshot(json.loads(initial_line), monrace_knowledge)
+    except (OSError, TypeError, ValueError, MissingMonraceKnowledgeError):
+        return {}
+    return {
+        quest_id: quest.status
+        for quest_id, quest in initial_snapshot.quests.items()
+    }
+
+
+def _load_town_maps(
+    state_file: Path,
+    outpost_override: Path | None,
+    quest_statuses: Mapping[int, int],
+) -> tuple[TownMap | None, dict[int, TownMap]]:
+    outpost_map: TownMap | None = None
+    town_maps: dict[int, TownMap] = {}
+    outpost_path = outpost_override or find_outpost_map(state_file)
+    if outpost_path is not None:
+        try:
+            outpost_map = parse_town_map(outpost_path, quest_statuses)
+            town_maps[0] = outpost_map
+        except (OSError, ValueError) as exc:
+            print(f"could not load Outpost map ({outpost_path}): {exc}", file=sys.stderr)
+
+    for town_index in range(2, 7):
+        town_path = find_town_map(town_index, state_file)
+        if town_path is None:
+            continue
+        try:
+            town_maps[town_index - 1] = parse_town_map(town_path, quest_statuses)
+        except (OSError, ValueError) as exc:
+            print(f"could not load town map ({town_path}): {exc}", file=sys.stderr)
+    return outpost_map, town_maps
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_argument_parser()
     args = parser.parse_args(argv)
@@ -3904,41 +3946,12 @@ def main(argv: list[str] | None = None) -> int:
     # The static Outpost layout lets the bot route across a dark town to a store
     # (prior knowledge a returning player has). Optional: if it is not found the
     # bot still plays, just without night-town routing help.
-    outpost_map: TownMap | None = None
-    town_maps: dict[int, TownMap] = {}
-    town_quest_statuses: dict[int, int] = {}
-    try:
-        initial_lines = _read_last_snapshot_line(args.state_file)
-        initial_line = next(iter(initial_lines), None)
-        if initial_line is not None:
-            initial_snapshot = parse_snapshot(json.loads(initial_line), monrace_knowledge)
-            town_quest_statuses = {
-                quest_id: quest.status
-                for quest_id, quest in initial_snapshot.quests.items()
-            }
-    except (OSError, TypeError, ValueError, json.JSONDecodeError):
-        pass
-    outpost_path = args.outpost_map or find_outpost_map(args.state_file)
-    if outpost_path is not None:
-        try:
-            outpost_map = parse_town_map(outpost_path, town_quest_statuses)
-            town_maps[0] = outpost_map
-        except (OSError, ValueError) as exc:
-            print(f"could not load Outpost map ({outpost_path}): {exc}", file=sys.stderr)
-
-    # Load every active normal town.  Cross-town errands use the inn in
-    # Telmora, Morivant, and Angwil; the static maps keep those routes working
-    # at night when the destination building is not currently lit.
-    for town_index in range(2, 7):
-        town_path = find_town_map(town_index, args.state_file)
-        if town_path is None:
-            continue
-        try:
-            town_maps[town_index - 1] = parse_town_map(
-                town_path, town_quest_statuses
-            )
-        except (OSError, ValueError) as exc:
-            print(f"could not load town map ({town_path}): {exc}", file=sys.stderr)
+    town_quest_statuses = _initial_town_quest_statuses(
+        args.state_file, monrace_knowledge
+    )
+    outpost_map, town_maps = _load_town_maps(
+        args.state_file, args.outpost_map, town_quest_statuses
+    )
 
     wilderness_map = None
     wilderness_path = find_wilderness_definition(args.state_file)
