@@ -3638,12 +3638,26 @@ class ShopMixin(InStoreMixin):
         return max(0, STAFF_IDENTIFY_MAX_COUNT - carried)
 
     def _identify_staff_purchase_room(self, snapshot: Snapshot) -> bool:
-        """User 2026-10-03: buy an Identify staff only below the four-staff cap.
+        """Permit buying below the cap or swapping in a worthwhile fuller staff.
 
         At the cap the emptiest staff is released first (see
         ``_identify_staff_release_plan``); the purchase follows the release.
         """
-        return self._identify_staff_purchase_room_count(snapshot) > 0
+        if self._identify_staff_purchase_room_count(snapshot) > 0:
+            return True
+        store = snapshot.store
+        return bool(
+            store is not None
+            and any(
+                item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+                and item.price <= snapshot.player.gold
+                and self._identify_staff_acquisition_worthwhile(
+                    snapshot, max(item.charges, item.pval)
+                )
+                for item in store.items
+            )
+        )
 
     def _purchase_quantity(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Buy this ware's complete shortage in one transaction."""
