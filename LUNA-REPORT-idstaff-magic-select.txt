@@ -1,0 +1,59 @@
+# Identify staff Magic Shop selector report
+
+## Diagnosis
+
+Baseline commit: `a6672ef9`. The captured Magic Shop page (`state.jsonl.gz`, row 1 / zero-based 0, turn 1,038,032) has 5 carried Identify staffs: one at 4 charges and four at 3 charges, totaling 16 charges. The target is 20. Gold is 5,772; the shelf has a 13-charge staff for 794 gold and a 12-charge staff for 779 gold. The existing worthwhile calculation accepts both, but the baseline purchase-room check returns false because the carried staff count is already above the cap of four. The town need planner (`_town_need_candidates`, `policy_town.py:2779-2816`) still routes `identify-staff` to Magic Shop based on the affordable, worthwhile observed shelf.
+
+The captured decision 4304 says `shop:observe-and-leave`, with `wanted_purchase: null` and `observed-page-nothing-wanted`. The same result appears in decisions 4292, 4297, 4300, 4308, and 4314; decision 4295 sells another item. The Home board (row 53 / zero-based 52, turn 1,038,992) contains two 3-charge Identify staffs. Home-scan telemetry on the captured decision says current, source `~9`, 95 items. Under a declared constructed catalogue from that Home board, a 3-charge Home staff does not improve retained charges, so the Magic offer remains the worthwhile supplier.
+
+## Change and pins
+
+`policy_shop.py:3640-3656` now treats the page as having Identify staff purchase room at/above the four-staff cap only when the current store offers an affordable staff that passes the existing `_identify_staff_acquisition_worthwhile` check. The existing purchase rung continues to enforce the worthwhile check. The 4-staff cap, 20-charge target, release ordering, and reserve are unchanged. No new policy attributes or checkpoint defaults were added; no structural census counts changed.
+
+The compact tracked gzip fixture contains the captured Magic page, Home board, and decision 4304. The recorded baseline decision is pinned as `shop:observe-and-leave` / `observed-page-nothing-wanted`. Replaying the captured page through the real policy selector after the fix selects the 13-charge staff for 794 gold. The existing release plan selects one 3-charge staff from slot `l`, beginning the cap-preserving swap. Two controls replay the selector: a 2-charge staff that does not improve retained charges remains unwanted, and the 13/12-charge staffs priced at 6,000 gold remain unaffordable and unselected.
+
+Focused test module: `tests.test_idstaff_magic_select_recorded` ? 3 tests passed. Manifest regeneration reported 826 candidates, 20,907 sites, zero unmapped; the generated town-work manifest was committed. No game or bot process was controlled.
+
+## Required guard outputs
+
+Preflight:
+
+```text
+[preflight] PREFLIGHT OK: 5 changed files, 0 findings (idstaff-magic-select-1017 vs a6672ef9)
+```
+
+Mutation check:
+
+```text
+[mutation] 1 source hunks, tests: tests.test_idstaff_magic_select_recorded
+[mutation] caught     src/hengbot/policy_shop.py:3638 ("""Permit buying below the cap or swapping in a worthwhile fuller staf): test_captured_magic_page_offers_worthwhile_swap_after_fix
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 0168b436
+```
+
+Fast tier, required four-shard invocation:
+
+```text
+[fast] 8 fast tests (<2.0s in ad27f741) + 1 changed modules, 4 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: [3] (logs C:\Users\user\AppData\Local\Temp\fast-tier-n_rsngro)
+Failures: none
+Errors: none
+Total: 11 tests, 3.8s
+```
+
+All 11 tests ran without failures or errors; shard 3 received an empty test list because this fast corpus plus the changed module has three distinct modules. The guard classifies that unused shard as crashed. Re-running the same selected tests with three shards completed cleanly:
+
+```text
+[fast] 8 fast tests (<2.0s in ad27f741) + 1 changed modules, 3 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-6l94yglg)
+Failures: none
+Errors: none
+Total: 11 tests, 3.7s
+```
+
+## Commits
+
+- `72a152ad` Allow worthwhile Identify staff swaps at cap
+- `0168b436` Refresh town work manifest
