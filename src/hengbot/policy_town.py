@@ -7452,16 +7452,15 @@ class TownMixin:
                     work_id="return:wall-search",
                     expected_effect="wall-observation",
                 )
-        else:
-            step = self._explore_step(snapshot)
-            if step is not None:
-                self.last_reason = "return:explore"
-                self._declare_explore_goal()
-                return self._return_route_key(
-                    self._step_toward(snapshot, step),
-                    step="return.explore-for-exit",
-                    work_id="return:explore",
-                )
+        step = self._explore_step(snapshot)
+        if step is not None:
+            self.last_reason = "return:explore"
+            self._declare_explore_goal()
+            return self._return_route_key(
+                self._step_toward(snapshot, step),
+                step="return.explore-for-exit",
+                work_id="return:explore",
+            )
 
         # Returning without a recall scroll requires an up-stair, which may be
         # hidden behind a secret door. This cannot use the ordinary secret-wall

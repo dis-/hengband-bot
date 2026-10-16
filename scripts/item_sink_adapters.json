@@ -406,8 +406,8 @@
   "policy_town.py:_return_to_town_key": {
     "self._dark_locomotion_key(snapshot) @ ": 1,
     "self._dungeon_recall_confirmation_key(snapshot) @ ": 1,
-    "self._explore_step(snapshot) @ If:orelse:self._is_oscillating()": 1,
-    "self._normal_loot_key(snapshot, self._strategic_hostiles(snapshot), seek_reason='return:seek-loot') @ If:body:player.recalling / If:body:self._loot_before_recall_calm(snapshot)": 1
+    "self._normal_loot_key(snapshot, self._strategic_hostiles(snapshot), seek_reason='return:seek-loot') @ If:body:player.recalling / If:body:self._loot_before_recall_calm(snapshot)": 1,
+    "self._explore_step(snapshot) @ ": 1
   },
   "policy_town.py:_town_blocked_key": {
     "self._town_kill_mob_key(snapshot) @ If:body:self._town_blocked_reason == 'repetition'": 1,
