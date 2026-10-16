@@ -775,6 +775,13 @@ def _advance_town_blocked_streak(
         and reason in ESCAPE_BUDGETED_WAIT_LIMITS
     ):
         return streak
+    # The repetition latch's own departure -- the walk to the entrance, the
+    # recall read and its countdown -- is the remedy the block hands over to,
+    # not another unproductive decision.  Counting it stopped a latched
+    # visit 29 steps into a long Outpost walk to the entrance (c4-a life-004
+    # 20261017-033140); the residence and cycle bounds still cover it.
+    if reason.startswith(("town:repetition-depart", "town:wait-recall")):
+        return streak
     if reason.startswith("town:blocked:"):
         return streak + 1
     if streak and reason != "shop:leave":

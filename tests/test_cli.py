@@ -5067,6 +5067,24 @@ class TownBlockedStreakTest(unittest.TestCase):
             streak = _advance_town_blocked_streak(streak, reason)
         self.assertEqual(streak, 3)
 
+    def test_latched_departure_holds_the_streak(self):
+        # c4-a life-004 20261017-033140: one town:blocked:repetition step-off,
+        # then 29 town:repetition-depart walk steps toward a distant entrance
+        # reached TOWN_BLOCKED_STOP_LIMIT and stopped the bot mid-walk.
+        from hengbot.cli import (
+            TOWN_BLOCKED_STOP_LIMIT,
+            _advance_town_blocked_streak,
+        )
+
+        streak = _advance_town_blocked_streak(0, "town:blocked:repetition")
+        for reason in (
+            ["town:repetition-depart"] * TOWN_BLOCKED_STOP_LIMIT
+            + ["town:repetition-depart:recall"]
+            + ["town:wait-recall"] * TOWN_BLOCKED_STOP_LIMIT
+        ):
+            streak = _advance_town_blocked_streak(streak, reason)
+        self.assertEqual(streak, 1)
+
     def test_no_progress_filler_preserves_the_streak(self):
         from hengbot.cli import _advance_town_blocked_streak
 
