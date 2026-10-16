@@ -107,7 +107,7 @@
   },
   "policy_combat.py:_breeder_breakthrough_key": {
     "self._breeder_breakthrough_escape_key(snapshot) @ ": 1,
-    "self._dungeon_recall_confirmation_key(snapshot) @ If:body:self._fundraising_mode != 'mine' and active_quest is None and (not self._emergency_return_active) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
+    "self._dungeon_recall_confirmation_key(snapshot) @ If:body:self._fundraising_mode != 'mine' and active_quest is None and (not self._emergency_return_active or self._returning_to_town) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
   },
   "policy_combat.py:_choke_engagement_key": {
     "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid)": 1,
