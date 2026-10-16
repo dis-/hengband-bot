@@ -27,6 +27,12 @@ def captured_rows():
 
 def returning_policy(record, snapshot=None):
     snapshot = snapshot or parse_snapshot(record["board"], {})
+    # DECLARED CONSTRUCTED REPLAY STATE: the captured process had already
+    # observed the skill list; that bookkeeping viewer state is not in a board.
+    snapshot = replace(
+        snapshot,
+        player=replace(snapshot.player, two_weapon_skill=0, shield_skill=0),
+    )
     policy = HengbotPolicy()
     policy.prime(snapshot)
     policy._returning_to_town = True
@@ -50,9 +56,6 @@ class ReturnExploreForStairsTest(unittest.TestCase):
                 with (
                     patch.object(policy, "_is_oscillating", return_value=True),
                     patch.object(policy, "_probe_unknown_step", return_value=None),
-                    patch.object(policy, "_undersearched_walls", return_value=False),
-                    patch.object(policy, "_secret_wall_search_step", return_value=None),
-                    patch.object(policy, "_skill_exp_request_key", return_value=None),
                 ):
                     key = policy.choose_key(snapshot)
                 expected_key, _target = EXPECTED[record["capture"]]
@@ -70,8 +73,7 @@ class ReturnExploreForStairsTest(unittest.TestCase):
         policy.prime(snapshot)
         policy._returning_to_town = True
         policy._last_return_trigger = "escape-kit-empty"
-        with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(snapshot)
+        key = policy.choose_key(snapshot)
         self.assertEqual(key, DIRECTION_KEYS[(neighbor.y - snapshot.player.position.y,
                                              neighbor.x - snapshot.player.position.x)])
         self.assertEqual(policy.last_reason, "return:seek-upstairs")
@@ -87,9 +89,6 @@ class ReturnExploreForStairsTest(unittest.TestCase):
         with (
             patch.object(policy, "_is_oscillating", return_value=True),
             patch.object(policy, "_probe_unknown_step", return_value=None),
-            patch.object(policy, "_undersearched_walls", return_value=False),
-            patch.object(policy, "_secret_wall_search_step", return_value=None),
-            patch.object(policy, "_skill_exp_request_key", return_value=None),
         ):
             key = policy.choose_key(snapshot)
         self.assertNotIn(key, DIRECTION_KEYS.values())
