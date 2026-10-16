@@ -453,17 +453,37 @@ class CombatMixin:
         # the earlier danger and emergency paths; this function only rewrites
         # an already-selected unsanctioned WAIT.
         only_suppressed_weak_breeders = bool(hostiles) and not strategic_hostiles
+        material_threat = self._unseen_loss_is_material(
+            snapshot.player,
+            max(
+                self._attributable_observed_loss(snapshot),
+                self._predicted_damage(snapshot, hostiles, turns=3),
+            ),
+        )
+        adjacent = [
+            monster
+            for monster in strategic_hostiles
+            if snapshot.player.position.distance_to(monster.position) <= 1
+        ]
+        # A low-damage town contact should reach the existing melee action,
+        # rather than making the town's persistent pursuer chase the player
+        # around indefinitely. Keep observed-damage and material-threat
+        # handling on the normal escape path, including its low-HP behavior.
+        if (
+            snapshot.in_town
+            and not self._took_damage
+            and adjacent
+            and not snapshot.player.afraid
+            and not material_threat
+        ):
+            self.last_reason = "no-wait:melee"
+            return self._direction_key(
+                snapshot.player.position, self._weakest(adjacent).position
+            )
         if not only_suppressed_weak_breeders:
             # Rejecting an idle turn is not permission to spend a teleport.
             # The same material-loss / low-HP rule as unseen fire applies;
             # below it, use the movement/attack alternatives in this ladder.
-            material_threat = self._unseen_loss_is_material(
-                snapshot.player,
-                max(
-                    self._attributable_observed_loss(snapshot),
-                    self._predicted_damage(snapshot, hostiles, turns=3),
-                ),
-            )
             scroll = self._escape_scroll(snapshot) if material_threat else None
             if scroll is not None:
                 self.last_reason = "no-wait:escape-scroll"
@@ -483,15 +503,15 @@ class CombatMixin:
             self.last_reason = "no-wait:least-visited"
             return self._direction_key(snapshot.player.position, step)
 
-        adjacent = [
+        physical_adjacent = [
             monster
             for monster in hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
         ]
-        if adjacent and not snapshot.player.afraid:
+        if physical_adjacent and not snapshot.player.afraid:
             self.last_reason = "no-wait:melee"
             return self._direction_key(
-                snapshot.player.position, self._weakest(adjacent).position
+                snapshot.player.position, self._weakest(physical_adjacent).position
             )
 
         # A completely boxed player has no legal movement alternative.  Keep
