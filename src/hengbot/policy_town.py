@@ -5751,15 +5751,35 @@ class TownMixin:
         if snapshot.store is None:
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.is_store:
-                neighbors = self._walkable_neighbors(
-                    snapshot, snapshot.player.position
+                pending_withdrawals = {
+                    signature
+                    for signature in (
+                        self._home_pending_item,
+                        *self._home_pending_batch,
+                    )
+                    if signature is not None
+                }
+                home_withdrawal_ready = (
+                    self._town_blocked_reason == "repetition"
+                    and not self._visit_departure_committed
+                    and here.store_number == STORE_HOME
+                    and self._home_atomic_withdraw_pending is None
+                    and self._home_knowledge_current
+                    and bool(pending_withdrawals.intersection(
+                        self._item_signature(item)
+                        for item in self._home_knowledge_items
+                    ))
                 )
-                if neighbors:
-                    return self._step_toward(snapshot, neighbors[0])
-                # Interleaved main-loop snapshots can omit surrounding town
-                # cells immediately after leaving a store. Still step off the
-                # door instead of sending another ESC into the town command loop.
-                return "2"
+                if not home_withdrawal_ready:
+                    neighbors = self._walkable_neighbors(
+                        snapshot, snapshot.player.position
+                    )
+                    if neighbors:
+                        return self._step_toward(snapshot, neighbors[0])
+                    # Interleaved main-loop snapshots can omit surrounding town
+                    # cells immediately after leaving a store. Still step off the
+                    # door instead of sending another ESC into the town command loop.
+                    return "2"
         if self._town_blocked_store_context(snapshot):
             return LEAVE_STORE_KEY
         if self._town_blocked_reason == "repetition":

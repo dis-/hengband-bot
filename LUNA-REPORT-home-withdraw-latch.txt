@@ -1,0 +1,78 @@
+Home withdrawal repetition latch report
+
+Diagnosis
+
+- Captured decision 331 (turn 973587, position 45,123, outside Home/store 7)
+  recorded `town:blocked:repetition` with key `9`. Replaying its board through
+  `_town_blocked_key` with the board's passable town cells declared on the
+  policy map cache returns key `9` and reason `town:blocked:repetition`.
+- In `src/hengbot/policy_town.py:5751-5777`, the outside-store-door handling
+  preceded the repetition branch. The step-off return therefore prevented the
+  latch from reaching `_shopping_approach_step` / `_shopping_approach_key` and
+  the ordinary Home withdrawal composer.
+- Captured decisions 330 and 333 record `home:queue-catalogue-shortage` and
+  `home:leave-for-pending-withdraw`. The queue helper binds the primary
+  signature to `_home_pending_item` at `src/hengbot/policy_home.py:4822-4823`
+  (`primary_signature = self._item_signature(primary)` followed by the
+  assignment); remaining batch signatures are appended at `:4830-4835`.
+  The Home leave branch in `src/hengbot/policy.py:9229-9237` requires a pending
+  signature present in the Home catalogue. The supplied decision and state
+  logs do not serialize the policy's private pending signature. The replay
+  therefore declares its constructed item and signature instead of claiming
+  it is the captured pending value.
+- DECLARED CONSTRUCTED composer probe: use captured Home page 0 (turn 973613,
+  stock 90, page size 52) and the captured outside Home door board (turn
+  973624). Bind the first catalogue item, `水の薬`, signature
+  `('水の薬', 75, 0)`, as `_home_pending_item`. The real
+  `_atomic_home_withdraw_key` returns `5pa\x1b`, reason
+  `home:atomic-withdraw`.
+
+Change and pins
+
+- Under the repetition latch, bypass the generic step-off only at a Home door
+  when departure is not committed, Home knowledge is current, an ordinary
+  pending signature is present in that catalogue, and no atomic withdrawal is
+  already pending. The existing latch then routes through the regular shopping
+  approach key, which invokes the same Home composer used when unlatched.
+- All other latched door cases keep the step-off: no bound withdrawal, a
+  different store door, or departure already committed. No policy attribute,
+  constant, or threshold was added.
+- New fixture contains the two captured raw JSONL rows needed by the test. The
+  test declares its constructed pending signature and map cache, then exercises
+  the real policy methods. Before the fix the captured door key/reason pin was
+  `('9', 'town:blocked:repetition')`; after the fix with the declared
+  constructed pending withdrawal it is
+  `('5pa\x1b', 'home:atomic-withdraw')`.
+- Controls pass: no pending withdrawal, a different store door, and committed
+  departure each return `9` / `town:blocked:repetition`; the unlatched Home
+  composer remains byte-for-byte `b'5pa\x1b'` with reason
+  `home:atomic-withdraw`.
+- Added one regression test module with four test methods. The structural
+  census checks needed no expectation edits; preflight passed. The fast tier
+  reported 134 baseline fast tests plus the one changed module (138 tests in
+  total). No new helper was added, so producer/review baseline entries were
+  unchanged. The town manifest was regenerated: 826 candidates, 20,892 sites.
+
+Verification outputs (required order)
+
+1. `python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\home-withdraw-latch-1017 67dac9bc`
+
+   [preflight] PREFLIGHT OK: 6 changed files, 0 findings (home-withdraw-latch-1017 vs 67dac9bc)
+
+2. `python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\home-withdraw-latch-1017 67dac9bc --tests tests.test_home_withdraw_repetition_door_recorded --record`
+
+   [mutation] 1 source hunks, tests: tests.test_home_withdraw_repetition_door_recorded
+   [mutation] caught     src/hengbot/policy_town.py:5751 (pending_withdrawals = {): test_captured_latched_door_composes_the_bound_home_withdrawal
+   [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+   [mutation] recorded for 72086907
+
+3. `python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\home-withdraw-latch-1017 67dac9bc --shards 4`
+
+   [fast] 134 fast tests (<2.0s in 67dac9bc) + 1 changed modules, 4 shards
+   [fast] excluded 19 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+   Crashed shards: none
+   Failures: none
+   Errors: none
+   Total: 138 tests, 21.0s
+
+Commit: 72086907 Fix latched Home withdrawal door handoff
