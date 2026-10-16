@@ -3380,6 +3380,14 @@ class ShopMixin(InStoreMixin):
                     )
                     if identify is not None:
                         return identify
+            if self._recall_departure_shortage(snapshot):
+                recall = next(
+                    (item for item in items
+                     if item.is_recall_scroll and item.price <= gold),
+                    None,
+                )
+                if recall is not None:
+                    return recall
             return None
 
         mandatory = (

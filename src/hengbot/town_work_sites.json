@@ -6399,7 +6399,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d63d404384c4652d35d1b65e97c66704313c6cae7b877826511786f490244a08"
+    "ast_sha256": "28f47258dd02aad302058318971cbbf73ec30ca8e3e75de94838dd878084ab76"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
     "classification": "data",
