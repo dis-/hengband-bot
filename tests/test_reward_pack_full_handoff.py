@@ -14,13 +14,28 @@ from hengbot.policy import HengbotPolicy
 FIXTURE = Path(__file__).parent / "fixtures" / "reward-pack-full-20261017.jsonl.gz"
 
 
-def captured_reward_board():
+def captured_rows():
     with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-        return parse_snapshot(json.loads(next(stream)))
+        return [json.loads(line) for line in stream if line.strip()]
+
+
+def captured_reward_board():
+    board = next(row for row in captured_rows() if row.get("type") == "player_turn")
+    return parse_snapshot(board)
 
 
 class RewardPackFullHandoffTest(unittest.TestCase):
     def test_captured_board_releases_reward_to_existing_overflow_owner(self):
+        rows = captured_rows()
+        evidence = next(row for row in rows if "decision_sequence" in row)
+        self.assertEqual(evidence["policy_commit"], "9ec39c05")
+        self.assertEqual(evidence["decision_sequence"], 8436)
+        self.assertEqual(evidence["reason"], "fixedquest:reward-pack-full")
+        self.assertEqual(evidence["key"], "5")
+        self.assertEqual(evidence["claim"], {
+            "owner": "quest-request", "rung": "_fixed_quest_key#2"
+        })
+
         snapshot = captured_reward_board()
         self.assertEqual(snapshot.turn, 961478)
         self.assertEqual((snapshot.player.position.y, snapshot.player.position.x), (31, 99))
