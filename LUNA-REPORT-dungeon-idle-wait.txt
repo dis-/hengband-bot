@@ -1,0 +1,87 @@
+Dungeon idle WAIT fix — issue #56
+
+Commits
+- `c65b7757` Escape dungeon idle waits after navigation exhaustion.
+- `697968ba` Assert the exact dungeon Recall escape command.
+- Base: `90bb8e3f`; branch: `fundraise-idle-wait-1017`.
+
+Diagnosis
+- In capture `20261017-190010-loop-detected`, decision rows were filtered on
+  `decision_sequence`. Searches 7073 and 7080-7086 are eight total searches at
+  (38,4); 7080-7086 are the seven after the fight, loot, and rest. The search
+  counter reaches `SEARCH_LIMIT=8` (`policy_constants.py:342`). Decisions
+  7087-7126 then issue 40 `wait` actions at (38,4), all with idle ownership and
+  zero visible hostiles, before the position loop detector stops the run.
+- Decision telemetry reports 273 known cells, 31 marked, 43 visited,
+  242 open-frontier boundary cells, and no known up/down stairs. The final raw
+  frame (turn 973783; floor (2,13,0); position (38,4)) has only 40 decoded map
+  grids: 9 passable cells and 31 walls. The policy checkpoint and its full map
+  index are not present in the capture.
+- Replaying all 156 captured states through the base policy rebuilt 241 floor
+  cells and 31 marked cells, but did not reproduce the live wait: its final
+  reconstructed state retained a reverse-choke retreat latch. Clearing that
+  replay-only latch made `_explore_step` find a 32-step route to (12,19).
+  Reconstructed decision positions contained 47 distinct cells. The capture
+  does not serialize the incident's exact visit counts, probed-frontier set,
+  or engagement avoidance set, so the live telemetry's 242 raw boundaries
+  cannot be treated as 242 reachable goals.
+- The tracked captured-board pin therefore declares the omitted runtime
+  context. It models the exhausted search/probe state and retreat vetoes on
+  the recorded final frame: 9 remembered floor candidates, all probed (visit
+  count 1 each, so none visit-exhausted at 8 and none unenterable); no known
+  stairs or undersearched walls; and three local walkable neighbors
+  ((37,4), (37,5), (38,5)) in the engagement avoid set. `_probe_unknown_step`,
+  `_explore_step`, and `_least_visited_neighbor` each return `None`; local
+  exploration is rejected by the probed set and local movement by the avoid
+  set. This is DECLARED CONSTRUCTED policy state because the checkpoint was
+  absent from the capture.
+- The previous action is constructed as `search`, yielding a stuck streak of
+  8 after observation. The existing `STUCK_ESCAPE_LIMIT=60`
+  (`policy_constants.py:344`; gate in `policy.py:12062-12075`) is not met.
+  `wait` is neutral to that streak (`policy_observation.py:255-266`), so the
+  40 waits cannot trigger the existing stuck escape.
+
+Change
+- In `HengbotPolicy._town_idle_key` (`policy.py:12280`), when local movement is
+  exhausted on a non-quest dungeon floor, it now uses the existing guarded
+  `stuck:recall-escape` if a readable Recall scroll is present. It applies the
+  same blindness, confusion, active-recall, and forgetting-maze checks as the
+  existing stuck escape. No new constant, reason, or policy attribute was
+  added. The fallback only runs after exploration, secret-wall search,
+  known-stair routing, and local movement have failed.
+- The stale work manifest was refreshed. `town_work_sites.json`'s AST hash for
+  `_town_idle_key` changed; manifest generation reported 831 candidates,
+  21,037 sites, and zero unmapped. No structural census count changed, and no
+  existing test was edited.
+
+Pins and controls
+- Before the source change, the recorded-board test returned `('5','wait')`.
+- After the fix, the same constructed state returns `('rh',
+  'stuck:recall-escape')`.
+- A constructed visible adjacent threat still returns key `8`, reason `melee`.
+- A constructed fully explored floor with an adjacent known up stair returns
+  key `6`, reason `stuck:seek-stairs`.
+- The single new test module passes 3 tests. The existing tests keep their
+  assertions; the fast-tier run had no failures or errors.
+
+Required guard outputs on final source/test commit `697968ba`
+
+```text
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (fundraise-idle-wait-1017 vs 90bb8e3f)
+```
+
+```text
+[mutation] 1 source hunks, tests: test_dungeon_idle_wait_recorded
+[mutation] caught     src/hengbot/policy.py:12283 (# This fallback is reached only after exploration, secret-wall search,): test_captured_dead_end_does_not_idle_after_searches_are_exhausted
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 697968ba
+```
+
+```text
+[fast] 3927 fast tests (<2.0s in 90bb8e3f) + 1 changed modules, 4 shards
+[fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-nr7mgk4o)
+Failures: none
+Errors: none
+Total: 3933 tests, 208.5s
+```
