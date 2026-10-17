@@ -457,7 +457,6 @@
   "policy_quest.py:QuestMixin._retain_return_1_unavailable": "pure helper: Return-1's independently revertable route-failure retention.",
   "policy_quest.py:QuestMixin._retain_return_3_unavailable": "pure helper: Return-3's independently revertable route-failure retention.",
   "policy_quest.py:QuestMixin._uncached_fixed_quest_head": "pure helper: _uncached_fixed_quest_head returns QuestState | None used as input/observation, not an independently selected game action",
-  "policy_quest.py:QuestMixin._uncached_fixed_quest_head.supported": "pure helper: supported returns bool used as input/observation, not an independently selected game action",
   "policy_quest.py:QuestMixin._unique_combat_consumable": "town producer to migrate: _unique_combat_consumable emits legacy action keys; requires explicit ownership migration",
   "policy_quest.py:QuestMixin._unique_fight_projection": "pure helper: _unique_fight_projection returns dict[str, int] | None used as input/observation, not an independently selected game action",
   "policy_quest.py:QuestMixin._unique_sale_tag": "pure helper: Reuse an unambiguous numeric tag, or allocate a fresh one.",
@@ -672,5 +671,11 @@
   "policy_town.py:TownMixin._town_equipment_home_route": "pure helper: identifies existing physical Home action and fixed goal; emits no command.",
   "policy.py:HengbotPolicy._random_teleport_suppression_producer_action": "pure helper: Select the exact checked suppression key or eligible Home withdrawal that the shared predicate and town producer can emit",
   "policy_town.py:TownMixin.force_visit_departure": "delegated adapter: owner decision 2026-10-14 A (keep running); evaluates the HARD minimum at an existing stop and delegates to repetition or the existing bounded fundraising owner.",
-  "character_sheet.py:_decode_sheet": "pure helper: decodes the character dump text (cp932, then EUC-JP); no selected action"
+  "character_sheet.py:_decode_sheet": "pure helper: decodes the character dump text (cp932, then EUC-JP); no selected action",
+  "policy.py:HengbotPolicy._build_known_fixed_quests": "pure helper: Build known fixed quests from the exact snapshot and static knowledge.",
+  "policy_quest.py:QuestMixin._build_fixed_quest_head": "pure helper: Select the fixed-quest head from snapshot state and static quest tables.",
+  "policy_home.py:HomeMixin._compute_retention_surplus": "pure helper: Compute carried surplus after the active transaction reservation.",
+  "item_reservation.py:decision_memo": "pure helper: Return an immutable value memoized only inside the current public decision.",
+  "item_reservation.py:reservation_query_memo": "pure helper: Return a value memoized only inside the current read-only query.",
+  "policy_quest.py:QuestMixin._build_fixed_quest_head.supported": "pure helper: supported returns bool used as input/observation, not an independently selected game action"
 }

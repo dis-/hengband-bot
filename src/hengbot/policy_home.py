@@ -1,5 +1,9 @@
 from __future__ import annotations
-from hengbot.item_reservation import item_available, reserved_item_command
+from hengbot.item_reservation import (
+    item_available,
+    reservation_query_memo,
+    reserved_item_command,
+)
 
 from hengbot.claim_register import ClaimOwner, claims, terminal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
@@ -1867,7 +1871,13 @@ class HomeMixin:
         Every stash, sale, and destruction path asks this view.  Quantities are
         allocated in pack order so duplicate stacks share one aggregate target.
         """
-        return self._retention_reservation_detail(snapshot, item)[0]
+        return reservation_query_memo(
+            self,
+            "retention-reservation",
+            snapshot,
+            item,
+            lambda: self._retention_reservation_detail(snapshot, item)[0],
+        )
 
     def _retention_reservation_detail(
         self, snapshot: Snapshot, item: InventoryItem
@@ -2204,6 +2214,18 @@ class HomeMixin:
         }
 
     def _retention_surplus(self, snapshot: Snapshot, item: InventoryItem) -> int:
+        return reservation_query_memo(
+            self,
+            "retention-surplus",
+            snapshot,
+            item,
+            lambda: self._compute_retention_surplus(snapshot, item),
+        )
+
+    def _compute_retention_surplus(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> int:
+        """Compute the live surplus on a miss in the current need query."""
         if self._equipment_transaction_owns_item(item):
             return 0
         return max(0, item.count - self._retention_reservation(snapshot, item))

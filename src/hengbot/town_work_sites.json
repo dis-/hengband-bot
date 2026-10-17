@@ -1318,6 +1318,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "f4a8beb8c33ddc42d82b3741ffd889021ef92cc7c0890c264016d00dcb30ae60"
   },
+  "item_reservation.py:decision_memo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "55f44ddec2c5bd2cce0ee7bfa10ef56e20efb09a86a1f5e794dd0f5611867da6"
+  },
   "item_reservation.py:item_available": {
     "classification": "data",
     "rows": [
@@ -1374,6 +1382,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "7c55858a5d461ef6a3a5c74f4d4007c1b3cb28718cb085ea7e7c27f45061edfe"
+  },
+  "item_reservation.py:reservation_query_memo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "4ffeeef389f803ec4b872f666cb8bb74d2a497a96a471c2e8f9294080d0aca60"
   },
   "item_reservation.py:reservation_shadow": {
     "classification": "data",
@@ -1719,6 +1735,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "419def84b1d95298d847aec3c53ff115eb0bb391133e0ab944c0109f396fec1b"
+  },
+  "policy.py:HengbotPolicy._build_known_fixed_quests": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "2e1ac16837eb0ec4d6dfa48172257e9dd445c2bd0eb8d4770719db284c55c3c7"
   },
   "policy.py:HengbotPolicy._carried_full_identify_targets": {
     "classification": "data",
@@ -2503,7 +2527,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8cc662c642823f1899de7c8797ccd24d2f3d9ab62cefe78d86d9547d34f661b5"
+    "ast_sha256": "b336bf6eeb9bff23a3bc2e9856bb6393d3f28562ae0070cf67fa7e7889cb59cc"
   },
   "policy.py:HengbotPolicy._least_visited_neighbor": {
     "classification": "data",
@@ -4882,6 +4906,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "7cd13c6cfd6ae5ca6f51d3e191c28638ce9e6df4d0ca1b44b4fd498dab14edca"
   },
+  "policy_home.py:HomeMixin._compute_retention_surplus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "db459092cab1b45267ad240916d0e281d507f0930dd5122fed714098e23f7bec"
+  },
   "policy_home.py:HomeMixin._confirm_home_withdrawal_address": {
     "classification": "producer",
     "rows": [
@@ -5217,7 +5249,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f734eae6df861655b750772d63495a5b367c8277c096b043e87fda1bc8ba8452"
+    "ast_sha256": "491eefd4f80fc4db87e47caf009e6bdfd72f8abd311216780cf7dd11d84aa796"
   },
   "policy_home.py:HomeMixin._retention_reservation_baseline_detail": {
     "classification": "data",
@@ -5241,7 +5273,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "46ca6534064ef685fe85766583b5e4f6ba8b92f4b1c13eb75676f55c04fc6921"
+    "ast_sha256": "488d605cdf67efa18b299b454386f1276219b4752f37e5fe1d01c067cae846c6"
   },
   "policy_home.py:HomeMixin._spare_equipment_deposit_shape": {
     "classification": "data",
@@ -5682,6 +5714,22 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "d1cb5055e6db5ef3779c20e2e84eb1fc6d4a77cccfc3fb625c2b2e7b8fa6666f"
   },
+  "policy_quest.py:QuestMixin._build_fixed_quest_head": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "abf7dedc80eed38390cc44fb4ca729abb701e35bd5e161c3f2ba590ba9ce11e4"
+  },
+  "policy_quest.py:QuestMixin._build_fixed_quest_head.supported": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e24d5883bd27acbfad4a6164ee46e8aefb5d987e4835b5b71e1450d834bee683"
+  },
   "policy_quest.py:QuestMixin._conquest_loot_key": {
     "classification": "producer",
     "rows": [
@@ -6111,15 +6159,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "cc312f63f65e51bfe3dff7d86eedf1947ab5cc2619d75f26f97a35d6396f473f"
-  },
-  "policy_quest.py:QuestMixin._uncached_fixed_quest_head.supported": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "e24d5883bd27acbfad4a6164ee46e8aefb5d987e4835b5b71e1450d834bee683"
+    "ast_sha256": "84dcbdebbeb4be98baaaa84004c1355be21cf5eb6658737e210b895bca8dea5b"
   },
   "policy_quest.py:QuestMixin._unique_combat_consumable": {
     "classification": "producer",

@@ -1,0 +1,112 @@
+Town decision speed change report
+
+Branch: town-decision-speed-1017
+Base: 9ec39c05bd289930019725dfc6e8a23a65269430
+
+Diagnosis
+
+The baseline profiler confirmed that town need evaluation repeatedly rebuilt the
+same fixed-quest join and repeated retention calculations. Across capture A,
+_town_need_candidates ran 2,736 times, _retention_reservation_baseline_detail
+ran 405,226 times, _uncached_fixed_quest_head ran 406,258 times, and
+_known_fixed_quests ran 1,227,052 times. Across capture B, the corresponding
+counts were 1,828, 534,418, 534,516, and 536,442.
+
+The dependency audit and cache boundaries are recorded in
+LUNA-DIAG-town-decision-speed.txt. Retention reservation and surplus values
+are reused only during one read-only town-need query. Fixed quest joins and
+heads are memoized only for the current choose_key decision, keyed by the exact
+quest values, snapshot identity, relevant town/player fields, offer set, and
+static quest table identities. The cache storage uses ContextVars with
+try/finally resets; no cache attribute is added to policy state or checkpoints.
+
+Changes
+
+* Memoized retention reservation and surplus computations inside one
+  _town_need_candidates query.
+* Memoized the known fixed-quest join and fixed-quest head within one decision.
+* Added 134 recorded decision-board rows as raw UTF-8 gzip fixtures: 85 boards
+  for A and 49 for B. The source captures have no decision_sequence field;
+  extraction retained their store/player_turn board rows and omitted setup
+  rows.
+* Added a cache-disabled replay oracle that compares (key, last_reason) and
+  restorable policy state after every decision. It removes only elapsed-time
+  fields (ms, shelf_observe_ms, dry_run_ms) from in-store telemetry before the
+  state comparison.
+* Added recorded-board call-count pins for retention computations and fixed
+  quest computations. No existing test assertions were changed.
+* Updated the generated town work inventory and helper review entries. The
+  census changed from 826 to 831 candidates, from 20,957 to 21,000 call sites,
+  with 112 registry sites and 102 ladder sites unchanged. The structural test
+  module passed without edits.
+
+Call-count pins
+
+On a recorded high-inventory A board, uncached/cached counts were 3,075/656 for
+retention baseline computations and 2,952/656 for surplus computations. On a
+recorded B board, fixed quest join computations were 86/2 and fixed quest head
+computations were 84/2. The test asserts the cached counts are less than half
+for retention and lower for both fixed-quest computations.
+
+Profiler timings
+
+The same profiler and board limits were used before and after:
+
+| Capture | Boards | Before median / p90 / total | After median / p90 / total | Median speedup |
+| --- | ---: | ---: | ---: | ---: |
+| A | 85 | 4.549 s / 8.389 s / 395.2 s | 1.862 s / 2.835 s / 157.1 s | 2.44x |
+| B | 49 | 6.024 s / 6.901 s / 292.9 s | 1.811 s / 2.030 s / 87.4 s | 3.33x |
+
+The 3x median target was met on B. A improved by 2.44x; the remaining measured
+time is concentrated in town candidate and town-fact evaluation.
+
+Verification
+
+Development runs:
+
+* tests.test_town_decision_speed_caches: 3 tests passed; all 134 decisions
+  matched keys, reasons, and checkpoint state after elapsed telemetry removal.
+* tests.test_policy_structure: 7 tests passed unchanged.
+* scripts/town_work_manifest.py --write: 831 candidates, 21,000 sites, zero
+  unmapped.
+
+Final required guard outputs, in required order:
+
+Preflight:
+
+```text
+[preflight] PREFLIGHT OK: 13 changed files, 0 findings (town-decision-speed-1017 vs 9ec39c05)
+```
+
+Mutation check:
+
+```text
+[mutation] 9 source hunks, tests: tests.test_town_decision_speed_caches
+[mutation] caught: 9 of 9 source hunks (0 NOT CAUGHT; two cache removals reached the 900 s test timeout and were classified caught)
+[mutation] MUTATION OK: 0 of 9 hunks are not pinned by a test
+[mutation] recorded for e58c02eb
+```
+
+Fast tier:
+
+```text
+[fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3876 tests, 1092.1s
+```
+
+The initial fast-tier invocation used the latest global timing batch and found
+two import errors for modules absent from both this worktree and base
+9ec39c05: tests.test_reward_pack_full_handoff and
+tests.test_identify_wake_interrupt_20261017. A green timing batch for base
+9ec39c05 contained no missing modules; the fast-tier output above is from that
+matching batch.
+
+Controls
+
+No game or bot process was controlled. No commit was pushed or merged. No
+existing test was edited, renamed, weakened, or made conditional. The supplied
+task file remains untracked. The only added capture data is the requested
+small board-only fixture set.
