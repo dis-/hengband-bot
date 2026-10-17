@@ -1,0 +1,86 @@
+LUNA-REPORT supply-shortfall-owner (ISSUE #50) - branch supply-shortfall-owner-1018, base eb5db45f
+
+MEASURED DIAGNOSIS (details: LUNA-DIAG-supply-shortfall-owner.txt)
+None of the three captures is a stock-out; each shortfall was on a visited shelf
+and affordable. The burst comes from the progress invariant
+(policy_town.py:1775-1808: progress=None, claims_active=True ->
+town:blocked:no-actionable-claim-owner). Every stock-out / counterfactual /
+A0 departure owner (policy_town.py ~6686 and ~6815) requires
+`not _town_claims_active`, so none of them is reached; no requirement row
+carries blocked_reason (teleport ledger obtainable=True stores=(4,); identify
+staff has no supply label).
+- 031620 teleport 14/15: Alchemist page (row 123) Teleport x60 @68, gold 10,235,
+  pack full (23). _departure_blocking_page_purchase = Teleport x1, but
+  _next_purchase -> None ("full-pack-nonstacking") because the first wanted ware
+  was a non-stacking Light scroll; the whole page was dropped.
+- 035319 identify staff 14/20: Magic shop (row 128) closed into
+  plan.blocked_this_visit while 4 staves were carried (cap); the release sale
+  (rows 129-130) left 3 staves/14 charges; at the terminal (row 147) the
+  remembered page's 13-charge staff is a legal required buy
+  (_departure_blocking_page_purchase non-None, supplier counterfactual = 5), yet
+  _town_procurement_progress_key skipped every blocked_this_visit stop.
+- 031228 identify staff 19/20: state capture starts after the Magic shop visit;
+  suffix replay does not reproduce. Decision log shows the same pattern
+  (staff wanted row 35, sale row 38, no purchase). Not pinned.
+
+CHANGES (2 source hunks, no new constant/threshold/attribute)
+- src/hengbot/policy_shop.py _next_purchase: when the selected ware does not fit a
+  full pack, exclude only that class and reselect; the pack refusal (and its
+  diagnostic) remains when nothing that fits is wanted.
+- src/hengbot/policy_town.py _town_procurement_progress_key: a stop in
+  blocked_this_visit is skipped only when its remembered page offers no
+  departure-blocking purchase (_departure_blocking_page_purchase).
+- Bookkeeping: town_work_manifest.json.gz + town_work_sites.json refreshed.
+- No new policy attributes (no restored-checkpoint defaults needed).
+
+PINS tests/test_supply_shortfall_owner_recorded.py (fixture
+tests/fixtures/supply-shortfall-owner-20261018.json.gz, 260 KB, raw lines;
+extractor tests/extract_supply_shortfall_owner_fixture.py). Recorded replay
+through the real policy; declared walls: ~f skill list, the capture's own Home
+knowledge row via public consume_home_knowledge on the first town board,
+completed-operation binding, live argv flags.
+- teleport-0316: decisions 103-123 reproduce; pin row 124:
+  before (eb5db45f) '\x1b`n#.' shop:travel (= recorded; visit then ends in the burst)
+  after  '5' shop:one-shot-buy, pending transaction at the Alchemist,
+         _next_purchase = Teleport scroll @68.
+- idstaff-0353: rows 127-140 reproduce (and pre-fix 141-150 reproduce up to the
+  recorded no-actionable-claim-owner WAITs); pin row 141:
+  before '\x1b`n%.' shop:travel (= recorded; then destroy/probe/burst)
+  after  '\x1b`n&.' reason ...=>town-progress-invariant:approach (back to the
+         Magic shop; remembered required buy = 13-charge staff, 14 charges carried).
+CONTROLS
+- Full pack with only non-stacking wanted wares (Teleport removed) still returns
+  None with pack_refusal "full-pack-nonstacking".
+- A blocked stop whose remembered page has no required offer (staves removed)
+  is still not re-routed (_town_procurement_progress_key None).
+- Stock-out mining path untouched: test_supply_stockout_recorded (incl. the
+  3-round visible stop and the non-supply failed-leaf control),
+  test_identify_staff_stockout_recorded, test_tpstockout_recorded all OK.
+
+LEFT OPEN
+- Not implemented: classifying the no-actionable-claim-owner terminal as a
+  stock-out when every supplier was observed without a usable offer. No capture
+  shows that case (all three were buyable), so it would be unpinned by evidence.
+- 031228 not replayable from its capture (state window starts mid-visit).
+- Fast tier run 1 had 5 tests.test_control_client failures (sockets; module
+  untouched; 34/34 OK alone); run 2 fully clean.
+
+GUARD OUTPUTS
+--- preflight
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (supply-shortfall-owner-1018 vs eb5db45f)
+--- mutation_check
+[mutation] 2 source hunks, tests: tests.test_supply_shortfall_owner_recorded
+[mutation] caught     src/hengbot/policy_shop.py:2359 (refused = set(exclusions)): test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page
+[mutation] caught     src/hengbot/policy_town.py:1441 (# A stop blocked earlier in this visit stays a supplier while its): test_identify_staff_swap_returns_to_the_blocked_magic_shop
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for 39d198d4
+--- fast_tier (run 2)
+[fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-eoxdxcyk)
+Failures: none
+Errors: none
+Total: 3939 tests, 337.1s
+--- fast_tier (run 1)
+Failures: ['tests.test_control_client.ControlClientTest.test_disconnected_post_keys_uses_exactly_one_connection', 'tests.test_control_client.ControlClientTest.test_id_mismatch_reconnects_and_retries', 'tests.test_control_client.ControlClientTest.test_idle_connection_is_replaced_before_posting_keys', 'tests.test_control_client.ControlClientTest.test_mutating_ack_loss_is_not_retried', 'tests.test_control_client.ControlClientTest.test_pin_d6_9_slow_screen_releases_gate_without_key_backoff']
+Errors: none
+Total: 3939 tests, 430.7s
