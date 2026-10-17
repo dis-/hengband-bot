@@ -2430,7 +2430,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3344724702499c9ecebc8ade0fea255a7cbd0363e0e69bce61883ae2b637f473"
+    "ast_sha256": "2c851046832039996894a706ee3047bf1f87dc03494888f4ea6f96de7974e152"
   },
   "policy.py:HengbotPolicy._is_unseen_spell_message": {
     "classification": "data",
