@@ -12,13 +12,14 @@ The decision fixture retains all ten recorded `home:weight-overload-deposit` pos
 
 - When overweight, Home is available, no Home deposit candidate remains, and legal unreserved surplus can cover the excess, activate the existing `overweight-surplus` sale/destroy owner. The existing deposit still leads whenever it can lower weight.
 - Keep a pending surplus disposal while Home has capacity; free space only resumes Home deposits when an actual deposit candidate exists. Existing item reservation checks still exclude reserved supplies.
-- Added a three-board, eleven-decision replay fixture and six tests in `test_weight_deposit_loop_20261018.py`: baseline decision history and terminal, deposit-first control, next sale-route decision (`\x1b`n%.`, `shop:travel`), reserved Recall scroll exclusion, and posted-sale retention controls.
+- Round 2 traced the full-Home regression to arming the separate overweight town-disposal owner during an active full-Home relief transaction. Town-disposal activation now waits until that transaction ends. Restored the Home stop fallback when an active surplus disposal has no sale-store candidate, preserving the route needed by the full-Home relief flow.
+- Added a three-board, eleven-decision replay fixture and seven tests in `test_weight_deposit_loop_20261018.py`: baseline decision history and terminal, deposit-first control, next sale-route decision (`\x1b`n%.`, `shop:travel`), reserved Recall scroll exclusion, posted-sale retention controls, and a free-capacity/no-deposit case that pins the `policy_home.py:153` condition.
 - No new policy attributes, constants, thresholds, or reasons. No existing test assertion changed. No new helper was added, so `town_producer_baseline.json` and `town_work_review.json` needed no entry changes.
-- Regenerated town work manifest. Counts changed from 831 candidates / 21071 sites to 831 / 21073; no unmapped sites. No structural test had a hard-coded site count requiring an assertion change.
+- Regenerated town work manifest. Counts are 831 candidates / 21073 sites; no unmapped sites. No structural test had a hard-coded site count requiring an assertion change.
 
 ## Tests
 
-Passing single-module runs:
+Passing runs before round 2:
 
 - `test_weight_deposit_loop_20261018`: 6 tests
 - `test_departure_unsatisfiable_weight_recorded`: 8 tests
@@ -27,42 +28,54 @@ Passing single-module runs:
 - `test_live36_weight`: 8 tests
 - `test_town_work_contract`: 9 tests
 
-The first mutation run did not catch the Home capacity hunk. Two pin-only repair rounds were made; the latest mutation run still does not catch that hunk. Per the task's two-round limit, I stopped without further changes.
+After round 2, `test_weight_deposit_loop_20261018` passes with 7 tests and `test_home_full_relief_recorded` passes with 6 tests. The previously failing `test_refusal_withdraws_sells_two_slots_then_retries_original_deposit` passes both `enforced=False` and `enforced=True` subtests. The focused free-capacity/no-deposit pin also passes independently. No existing test assertions were changed.
 
 ## Required guard outputs
 
-Preflight (final run):
+Preflight (after code commit `cb4a34ea`):
 
 ```text
-[preflight] PREFLIGHT OK: 8 changed files, 0 findings (weight-deposit-loop-1018 vs d667f466)
+[preflight] PREFLIGHT OK: 9 changed files, 0 findings (weight-deposit-loop-1018 vs d667f466)
 ```
 
-Mutation check (final run):
+Mutation check (default test selection, after code commit `cb4a34ea`):
 
 ```text
 [mutation] 2 source hunks, tests: test_weight_deposit_loop_20261018
-[mutation] NOT CAUGHT src/hengbot/policy_home.py:153 (and not state.get("pending", {}).get("posted"))
-[mutation] caught     src/hengbot/policy_town.py:2992 (if (self._overweight_surplus_disposal is None): test_no_deposit_candidate_admits_existing_surplus_sale_route
-[mutation] MUTATION FAIL: 1 of 2 hunks are not pinned by a test
+[mutation] caught     src/hengbot/policy_home.py:153 (and not state.get("pending", {}).get("posted")): test_free_home_capacity_without_deposit_keeps_surplus_sale
+[mutation] caught     src/hengbot/policy_town.py:2992 (if (self._overweight_surplus_disposal is None): test_free_home_capacity_without_deposit_keeps_surplus_sale, test_no_deposit_candidate_admits_existing_surplus_sale_route
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for cb4a34ea
 ```
 
-Fast-tier:
+Fast-tier (after code commit `cb4a34ea`):
 
 ```text
 [fast] 3948 fast tests (<2.0s in d667f466) + 1 changed modules, 4 shards
 [fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
-Crashed shards: none
-Failures: ['test_home_full_relief_recorded.HomeFullReliefTest.test_refusal_withdraws_sells_two_slots_then_retries_original_deposit (enforced=False)', 'test_home_full_relief_recorded.HomeFullReliefTest.test_refusal_withdraws_sells_two_slots_then_retries_original_deposit (enforced=True)']
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-wdchhjqr)
+Failures: none
 Errors: none
-Total: 3956 tests, 224.2s
+Total: 3957 tests, 224.2s
 ```
 
-The two unchanged existing test cases are **(R) regressions**: both expected key `5pa\x1b` at `tests/test_home_full_relief_recorded.py:129` and received `4`. They remain unresolved under the repair-round limit.
+Explicit post-commit tests:
+
+```text
+test_home_full_relief_recorded.HomeFullReliefTest.test_refusal_withdraws_sells_two_slots_then_retries_original_deposit
+Ran 1 test in 3.328s
+OK
+
+test_weight_deposit_loop_20261018.WeightDepositLoopRecordedTest.test_free_home_capacity_without_deposit_keeps_surplus_sale
+Ran 1 test in 4.332s
+OK
+```
 
 ## Commits
 
 - `7d9a3588` Fix overweight town disposal fallback
 - `c5351932` Pin posted overweight sale fallback
 - `0a343fa4` Pin pending overweight sale state
+- `cb4a34ea` Restore Home relief during overweight disposal
 
-Final code HEAD at guard time: `0a343fa472cb7640c421ac1c105c4f4c31a7e3b0`.
+Code HEAD at guard time: `cb4a34eaa89752cfd1f08198bf970cb4ffdda44b`.
