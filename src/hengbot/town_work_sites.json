@@ -2043,7 +2043,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "07babe03cd6b03beac8aa08f17637345cad1ef9a2b38996e61cdc94a5c2ed67f"
+    "ast_sha256": "e59af39ecba427151800fba55e97506abc5fcafbb199bd12494081072015c255"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",

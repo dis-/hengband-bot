@@ -11033,7 +11033,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._material_melee_engagement(snapshot, monster)
         ]
         if material_exploders:
-            escape = self._escape_by_stairs(snapshot)
+            escape = self._town_producer_entry(
+                "_escape_by_stairs", lambda: self._escape_by_stairs(snapshot)
+            )
             if escape is not None:
                 self.last_reason = "threat:avoid-engagement"
                 return escape
