@@ -84,3 +84,48 @@ Total: 3939 tests, 337.1s
 Failures: ['tests.test_control_client.ControlClientTest.test_disconnected_post_keys_uses_exactly_one_connection', 'tests.test_control_client.ControlClientTest.test_id_mismatch_reconnects_and_retries', 'tests.test_control_client.ControlClientTest.test_idle_connection_is_replaced_before_posting_keys', 'tests.test_control_client.ControlClientTest.test_mutating_ack_loss_is_not_retried', 'tests.test_control_client.ControlClientTest.test_pin_d6_9_slow_screen_releases_gate_without_key_backoff']
 Errors: none
 Total: 3939 tests, 430.7s
+
+ROUND 2 (gate regression: tests.test_guardian_recall_pingpong_recorded
+test_g1_fallback_does_not_choose_a_blocked_guardian_landing,
+test_live_replay_only_changes_the_guardian_safe_fallback) - commit 7b411fa6
+Cause (measured, LUNA-DIAG ROUND 2): at guardian decision 8 the re-opened stop
+is the Alchemist (4), blocked at decision 3 ("plan-stop-satisfied"); the plan had
+moved past it (stops=[6], index=1) when the unsafe-recall fallback raised the
+departure recall count (mandatory:recall 10/11 on the remembered shelf). Round 1
+re-treated it as a supplier and the progress invariant replaced the fallback's
+step-off '1' with an approach. Classification: (R) regression, fixed in src.
+Change: _town_procurement_progress_key re-opens a blocked stop only while it is
+still a pending plan stop (plan.stops[plan.index:]) AND its remembered page has a
+departure-blocking purchase. No new constant/threshold/attribute.
+Pins unchanged: 031620 row 124 '5' shop:one-shot-buy (Teleport); 035319 row 141
+'\x1b`n&.' ...=>town-progress-invariant:approach (13-charge staff; plan.stops=[5],
+index 0 there). New control test_blocked_stop_the_plan_moved_past_stays_closed
+(constructed: plan cursor moved past the Magic stop -> progress key None).
+Existing tests unchanged.
+--- preflight
+[preflight] PREFLIGHT OK: 9 changed files, 0 findings (supply-shortfall-owner-1018 vs eb5db45f)
+--- mutation_check (--tests tests.test_supply_shortfall_owner_recorded tests.test_guardian_recall_pingpong_recorded --record)
+[mutation] 2 source hunks, tests: tests.test_supply_shortfall_owner_recorded tests.test_guardian_recall_pingpong_recorded
+[mutation] caught     src/hengbot/policy_shop.py:2359 (refused = set(exclusions)): test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page
+[mutation] caught     src/hengbot/policy_town.py:1437 (plan = getattr(self, "_town_errand_plan", None)): test_identify_staff_swap_returns_to_the_blocked_magic_shop
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for 7b411fa6
+
+[exited with code 0]
+--- fast_tier
+[fast] 3932 fast tests (<2.0s in eb5db45f) + 1 changed modules, 4 shards
+[fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-tbga249i)
+Failures: none
+Errors: none
+Total: 3940 tests, 505.3s
+
+[exited with code 0]
+--- tests.test_guardian_recall_pingpong_recorded
+Ran 8 tests in 247.626s
+
+OK
+--- tests.test_supply_shortfall_owner_recorded
+Ran 5 tests in 193.063s
+
+OK
