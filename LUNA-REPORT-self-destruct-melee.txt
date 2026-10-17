@@ -1,0 +1,169 @@
+# Self-destructing melee report
+
+Branch: `self-destruct-melee-1018`
+Final source commit: `dbf36634` (based on `d667f466`)
+
+## Measured diagnosis
+
+The captured decision is sequence 1995, turn 159544, on Yeek Cave 1F. The board has a level-7 player at 177/177 HP, position (30,19), with one adjacent visible race 1090 ??????? at (29,18). The recorded action was key `7`, reason `melee`, rung `_direction_key#2`, rank 32.
+
+`MonraceDefinitions.jsonc:66711-66715` defines the race blow as `EXPLODE` / `SHATTER` / `15d8`. The loaded knowledge has `EXPLODE` in its blow method and the flags `UNIQUE`, `SPEAK_ALL`, `NONLIVING`, `DROP_GREAT`, `WILD_TOWN`, `BASH_DOOR`, `ONLY_ITEM`, `FORCE_MAXHP`, `EMPTY_MIND`, `RES_TELE`, `GOOD`, `DROP_90`, and `OPEN_DOOR`. The game melee switcher marks this blow as explosive (`melee-switcher.cpp:125-132`); the monster-on-player melee handler processes the blow and then detonates and kills the attacker (`monster-attack-player.cpp:229-251, 384-395`).
+
+Replaying the captured board through `parse_snapshot`, `_consume_response_sequence`, and the public `HengbotPolicy.choose_key` path reproduced key `7`, reason `melee`. The production three-turn threat prediction reports `self_destructs_on_melee=true`, maximum melee damage 120, 3 monster actions capped to one melee attack, maximum-total prediction 118, operational prediction 81, expected prediction 59.1546305, and 0.89 probability of any damage. The existing material engagement predicate returns true for this monster: `120 * 3 >= 177 * 0.50`.
+
+The ordinary projected-damage gate uses `ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50` (`policy_constants.py:470`), so 81 is below its 88.5 trigger. The adjacent melee rung returned before the later projected-threat gate and did not check the self-destruct blow. The captured position has no known walkable neighboring tile, no usable upstairs exit, and no escape scroll, so after the fix the recorded board takes the existing `threat:wait` fallback rather than attacking.
+
+## Change and pins
+
+The adjacent-threat selection now recognizes an adjacent `EXPLODE` monster when the existing material-melee predicate says its damage is material. It tries the existing stair escape, retreat, and scroll alternatives; if the board is boxed in, it waits. The no-wait rewrite also filters material explosive monsters from its melee fallback, so it cannot undo that choice. Missing race knowledge is treated as unknown, preserving synthetic and incomplete-board behavior. No new constants, damage thresholds, or policy attributes were added.
+
+The raw UTF-8 state board is pinned in `tests/fixtures/self-destruct-melee-20261018.jsonl.gz` (one row, 3,738 compressed bytes). The test declares the protocol-3 skill cache constructed at the captured level because the policy checkpoint is not in the board fixture.
+
+- Captured material exploder before fix: `7` / `melee`.
+- Captured material exploder after fix: `5` / `threat:wait`.
+- Ordinary monster control: `7` / `emergency:cornered-attack` (a melee direction action).
+- Harmless `EXPLODE` control (1 damage): `7` / `melee`.
+
+`test_self_destruct_melee_recorded`: 3 tests passed. Existing `test_policy_combat`: 303 tests passed, 5 skipped. An earlier run exposed 41 (R) errors from unknown synthetic race IDs; both checks were changed to use missing-safe knowledge lookups, and the complete module then passed.
+
+The town-work census now has 832 candidates, up from 831 at the base, and 21,091 generated sites after adding the existing material-melee helper to the reviewed manifest. No source-text or AST assertion was added.
+
+## Required guard outputs
+
+Final `preflight.py` output (after the second repair commit):
+
+```text
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy.py: line 11042: _decide calls a claims producer outside its producer-entry adapter'] != []
+[preflight] PREFLIGHT FAIL: 9 changed files, 4 findings (self-destruct-melee-1018 vs d667f466)
+```
+
+`mutation_check.py` output:
+
+```text
+[mutation] 4 source hunks, tests: test_self_destruct_melee_recorded
+[mutation] caught     src/hengbot/policy.py:11020 (material_exploders = [): test_recorded_material_exploder_is_not_meleed
+[mutation] caught     src/hengbot/policy_combat.py:398 (material_exploders = {): test_recorded_material_exploder_is_not_meleed
+[mutation] NOT CAUGHT src/hengbot/policy_combat.py:476 (and (monster.index, monster.race_id) not in material_exploders)
+[mutation] caught     src/hengbot/policy_combat.py:520 (and (monster.index, monster.race_id) not in material_exploders): test_recorded_material_exploder_is_not_meleed
+[mutation] MUTATION FAIL: 1 of 4 hunks are not pinned by a test
+```
+
+`fast_tier.py` was started with `--shards 4`; it selected 3,948 fast tests plus the changed test module. It remained active at the task's 150-minute wall-time limit and had not emitted a final summary. I stopped only the fast-tier coordinator and worker started for this task. Partial output:
+
+```text
+[fast] 3948 fast tests (<2.0s in [latest green suite-batches state]) + 1 changed modules, 4 shards
+```
+
+The task allowed at most two repair rounds. After two repair commits, preflight still identified the direct `_flee_step` producer call, and mutation check still reported one uncaught hunk. Work stopped at the required repair limit; these guard findings remain unresolved.
+
+# Round 2 (ISSUE #60)
+
+## Why 177/177 HP died while the estimate was 118
+
+Measured on the board (fixture row, decision 1995, turn 159544): race 1090 『ボルガ博士』 is awake, unhurt and
+adjacent at (29,18); the player at (30,19) has AC 6, speed +0, and every other neighbour is a non-passable grid
+(the mining pocket), so the monster's cell is the only passable neighbour. Inventory a..m has no teleport, phase or
+recall scroll (one unknown scroll). The capture has no message after the melee key, so the cause of death is read from
+the game source, not observed.
+
+Hengband source (C:\hengband\src):
+- The EXPLODE blow is the monster's own melee blow against the player. `monster-attack-describer.cpp:171-177` sets
+  `explode`, and `monster-attack-player.cpp:240-244` then sets the blow's own damage to 0.
+- SHATTER (`monster-attack-switcher.cpp:487-495`) calls `earthquake(monster position, radius 8)` when
+  `damage > 23 || explode`, so an exploding SHATTER blow always starts it (underground, outside fixed quests:
+  `earthquake.cpp:329-334`).
+- `earthquake.cpp`: every grid except the centre collapses with 15% (`decide_collapse_positions`). If the player's grid
+  collapses, the player dodges to an empty, uncollapsed neighbour (`decide_player_dodge_posistion`). If one exists,
+  1 of 3 outcomes does no damage and 2 of 3 deal 10d4. If none exists, the player takes a fixed **200** direct hit
+  (`process_player_damage_undodged`).
+- After the blow, `monster_explode` kills the monster, and `monster-death.cpp:52-65 on_dead_explosion` projects a
+  radius-3 ball of the blow dice (15d8, SHATTER -> ROCKET). At distance 1 the player gets (roll+1)/2, at most 60
+  (`effect-player.cpp:208`). Killing it in melee triggers only this ball, at most 60 at distance 1.
+
+On this board the only empty neighbour is the monster's own cell, so a collapse of the player's grid (15% of the
+explosions that hit) is the 200 direct hit, and 200 >= 177. This is the only damage path in the source that can take
+177 HP in one monster turn here. The bot's estimate was the 15d8 dice less AC, as ordinary melee: max 118, operational
+81. It had no earthquake term, so the estimate was low by the 200 direct hit. Meleeing did not trigger the explosion.
+The monster's own next blow did, and waiting adjacent gives that blow just the same.
+
+## Change (replaces the round-1 change)
+
+The round-1 `_decide` block and the no-wait filter are removed. They added a direct `_flee_step` call site, which
+failed the item-sink lint and also the existing ladder-order test `test_the_decide_rungs_are_the_marked_calls_in_order`
+(it asserts 81 decide rungs). The NOT CAUGHT no-wait hunk is gone with them. The town-work bookkeeping that round 1
+regenerated is back at base, unchanged.
+
+The estimate now uses the correct value, in the one shared place where all avoidance gates read it:
+- `monster_melee_evaluator.add_earthquake_damage(distribution, dodge_cells)` adds one earthquake to a blow's
+  distribution: P(direct hit 200) = 0.15 * 0.15^dodge_cells, P(10d4) = (0.15 - that) * 2/3. The game constants
+  (15%, 200, 10d4, 2 of 3) are mirrored from `earthquake.cpp`, with a source comment. They are game facts, not tuning
+  thresholds.
+- `CombatMixin._melee_blow_distributions`: an EXPLODE+SHATTER blow, when `dungeon_level > 0`, gets the earthquake
+  added to its reduced-dice distribution. Dodge cells are the player's passable neighbours without a monster.
+- `threat_prediction`: the per-action maximum is the maximum of the same distributions. For every other blow this is
+  identical to before, because the reduction is monotone.
+- The existing dice term is kept for the explosion (pinned by the existing
+  `test_exploding_monster_contributes_at_most_one_melee_attack`, EXPLODE/FIRE 8d8 = 64). It over-states the death ball
+  (at most 60 at distance 1), so the corrected value is conservative.
+
+No new rung, call site, policy attribute or threshold. The existing emergency rule (`predicted >= hp` -> stairs ->
+escape scroll -> recall -> heal -> upstairs -> retreat step -> cornered attack -> wait) now handles the board.
+
+## Pins (tests/test_self_destruct_melee_recorded.py, fixture unchanged)
+
+Before = d667f466, after = this branch, both through `_consume_response_sequence` + `choose_key`:
+- Captured board: before `7`/`melee` (total 118, operational 81). After: total 318, operational 269 >= 177, and
+  `7`/`emergency:cornered-attack` with `_emergency_escape_pending`. No stair, scroll, recall or open cell exists;
+  attacking is the only action that can stop the explosion, and waiting cannot.
+- Captured board + one Phase Door scroll (CONSTRUCTED): before `7`/`melee`; after `rn`/`emergency:phase`.
+- Ordinary HIT/SHATTER 15d8 control: `7`/`emergency:cornered-attack` (as before).
+- Harmless EXPLODE/HURT 1d1 control: total 1, operational 1, `7`/`melee` (as before).
+- Surface control (same board moved to level 0, CONSTRUCTED): total 118, no earthquake.
+- `add_earthquake_damage` unit pin: boxed P(200)=0.15; one exit P(200)=0.0225, P(10..40)=(0.15-0.0225)*2/3.
+
+Module runs: test_self_destruct_melee_recorded 6 OK; test_policy_combat 303 OK (5 skipped); test_item_sink_lint +
+LadderOrderTest + test_town_work_contract + test_warrior_defense_evaluator 53 OK (after regenerating the town-work
+manifest: 831 candidates, 21072 sites; only the threat_prediction AST hash changed in town_work_sites.json).
+
+## Open
+
+- A non-exploding SHATTER blow whose reduced damage is > 23 also starts the same earthquake. The bot still does not
+  model that (out of scope; changing it would move predictions for every SHATTER race).
+- With an open neighbour the direct-hit chance falls to 2.25% of hits, below the approved p95 model, so an adjacent
+  exploder with an exit is still meleed. That follows the user-confirmed p95 rule.
+
+## Round-2 guard outputs (source commit 5836d099)
+
+preflight.py:
+
+```text
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (self-destruct-melee-1018 vs d667f466)
+```
+
+mutation_check.py (default selection, --record):
+
+```text
+[mutation] 4 source hunks, tests: tests.test_self_destruct_melee_recorded
+[mutation] caught     src/hengbot/monster_melee_evaluator.py:49 (# Hengband earthquake() (src/spell-kind/earthquake.cpp), started at th): test_self_destruct_melee_recorded
+[mutation] caught     src/hengbot/policy_combat.py:17 (add_earthquake_damage,): test_recorded_board_with_phase_door_reads_it_instead_of_melee, test_recorded_earthquake_explosion_is_lethal_not_plain_melee, test_surface_explosion_has_no_earth
+[mutation] caught     src/hengbot/policy_combat.py:2936 (blow_distributions = self._melee_blow_distributions(): test_recorded_earthquake_explosion_is_lethal_not_plain_melee
+[mutation] caught     src/hengbot/policy_combat.py:3167 (An exploding SHATTER blow also quakes the dungeon around the player): test_harmless_self_destructing_monster_keeps_melee_behavior, test_ordinary_monster_is_still_meleed, test_recorded_board_with_phase_door_reads_it_instead_of_mele
+[mutation] MUTATION OK: 0 of 4 hunks are not pinned by a test
+[mutation] recorded for 5836d099
+```
+
+fast_tier.py --shards 4:
+
+```text
+[fast] 3932 fast tests (<2.0s in eb5db45f) + 1 changed modules, 4 shards
+[fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-zncuf3dw)
+Failures: none
+Errors: ['tests.test_weight_deposit_loop_20261018 (import) ModuleNotFoundError("No module named \'tests.test_weight_deposit_loop_20261018\'")', 'tests.test_q2_residual_sweep_recorded (import) ModuleNotFoundError("No module named \'tests.test_q2_residual_sweep_recorded\'")']
+Total: 3939 tests, 266.0s
+```
+
+The two fast-tier import errors are test modules that exist only in the newer green state eb5db45f, which is not an
+ancestor of d667f466. Neither file exists on this branch, so they are not regressions. Fast tier had no failures and no
+crashed shards.

@@ -17,6 +17,7 @@ from hengbot.monster_ranged_evaluator import (
     maximum_ability_hp_damage,
 )
 from hengbot.monster_melee_evaluator import (
+    add_earthquake_damage,
     melee_damage_percentile,
     reduced_dice_distribution,
 )
@@ -2935,15 +2936,19 @@ class CombatMixin:
                     expected_attacks = min(expected_attacks, 1.0)
                 melee_attacks = attacks
                 if knowledge is not None and knowledge.blows:
+                    blow_distributions = self._melee_blow_distributions(
+                        snapshot, knowledge, monster.stunned
+                    )
+                    # Each blow's largest reduced value: the maximum dice roll
+                    # through the same reduction, plus the earthquake of an
+                    # exploding SHATTER blow.
                     melee_per_action = sum(
-                        self._maximum_melee_blow_damage(snapshot, blow.effect, blow.dice_num * blow.dice_sides)
-                        for blow in knowledge.blows
+                        max(damage for damage, _ in distribution)
+                        for _, distribution in blow_distributions
                     )
                     melee = attacks * melee_per_action
                     melee_percentile = melee_damage_percentile(
-                        self._melee_blow_distributions(
-                            snapshot, knowledge, monster.stunned
-                        ),
+                        blow_distributions,
                         attacks,
                     )
                     operational_melee = melee_percentile.total_damage
@@ -3162,12 +3167,38 @@ class CombatMixin:
         The rolled dice value goes through the same per-blow reduction the
         theoretical maximum uses (_maximum_melee_blow_damage: AC for HURT /
         SHATTER / SUPERHURT, elemental and poison resistances).
+
+        An exploding SHATTER blow also quakes the dungeon around the player
+        (the earthquake is a no-op above ground); the player's empty
+        neighbours are the dodge cells that decide whether a collapse is the
+        direct hit.
         """
+        origin = snapshot.player.position
+        dodge_cells = sum(
+            1
+            for dy, dx in NEIGHBOR_OFFSETS
+            if (
+                grid := snapshot.grid_at(
+                    Position(origin.y + dy, origin.x + dx)
+                )
+            )
+            is not None
+            and grid.passable
+            and not grid.has_monster
+        )
         return tuple(
             (
                 self._melee_hit_probability(
                     blow.effect, knowledge.level, snapshot.player.ac, stunned
                 ),
+                add_earthquake_damage(distribution, dodge_cells)
+                if blow.method == "EXPLODE"
+                and blow.effect == "SHATTER"
+                and snapshot.dungeon_level > 0
+                else distribution,
+            )
+            for blow in knowledge.blows
+            for distribution in (
                 reduced_dice_distribution(
                     blow.dice_num,
                     blow.dice_sides,
@@ -3176,7 +3207,6 @@ class CombatMixin:
                     ),
                 ),
             )
-            for blow in knowledge.blows
         )
 
     def _melee_adjacency_slots(

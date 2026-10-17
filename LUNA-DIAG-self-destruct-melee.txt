@@ -1,0 +1,15 @@
+# Diagnosis: self-destructing melee death
+
+Branch/head: `self-destruct-melee-1018` at `d667f466`.
+
+## Measured replay
+
+The original gzip capture at `C:\hengband-backups\state-logs\c4a-loops-20261016\20261018-010020-stuck-prompt-melee\state.jsonl.gz` contains the board for turn 159544. Parsing it with `parse_snapshot` and `MonraceDefinitions.jsonc`, then passing it through `_consume_response_sequence` and a fresh production `HengbotPolicy` (with the recorded protocol-3 skill values supplied), gives key `7`, reason `melee`.
+
+Measured board values: player HP `177/177`; one visible adjacent monster, race `1090` ???????, distance `1`, position `(29,18)`, player position `(30,19)`. The loaded race knowledge has flags `{UNIQUE, SPEAK_ALL, NONLIVING, DROP_GREAT, WILD_TOWN, BASH_DOOR, ONLY_ITEM, FORCE_MAXHP, EMPTY_MIND, RES_TELE, GOOD, DROP_90, OPEN_DOOR}` and one blow: `EXPLODE` / `SHATTER` / `15d8`. The definition is `C:\hengband\lib\edit\MonraceDefinitions.jsonc:66711-66715`. The melee switcher marks the `EXPLODE` blow at `C:\hengband\src\melee\melee-switcher.cpp:125-132`. The monster-on-player melee handler processes the blow and then detonates/kills the attacker at `C:\hengband\src\monster-attack\monster-attack-player.cpp:229-251` and `:384-395`.
+
+Production `threat_prediction(snapshot, [monster], 3)` reports `self_destructs_on_melee=true`, `max_melee_damage=120`, `actions=3`, one capped melee attack, total damage `118`, operational damage `81`, expected damage `59.1546305`, and 89% probability of any damage. The recorded decision row reports the same threat values and then records `reason=melee`, `key=7`, rung `_direction_key#2`, rank `32`.
+
+## Why the risk was missed
+
+The ordinary avoid predicate uses `ENGAGEMENT_AVOID_DAMAGE_RATIO=0.50` (`src/hengbot/policy_constants.py:470`), so the operational prediction is compared as `81 < 177 * 0.50 = 88.5` and does not trigger the material-damage retreat. The generic adjacent melee branch at `src/hengbot/policy.py:11157-11176` runs before the later projected-threat check at `src/hengbot/policy.py:11216-11224`; it chooses the adjacent target without consulting `self_destructs_on_melee`. The existing `_material_melee_engagement` predicate (`src/hengbot/policy.py:19296-19323`) returns true for this board using its existing maximum-damage rule (`120 * 3 >= 88.5`), but that later predicate is not reached before the adjacent melee return.

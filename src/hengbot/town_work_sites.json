@@ -4300,7 +4300,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "66f557b45fe8e805964aec57dbe722639ce4817a1aff3d0c2ab7af81f6f7f1c8"
+    "ast_sha256": "295215b4dabdb6c558c47dde6ebfe6f0815e5c3f8a63a5960e8e80a2e18a1574"
   },
   "policy_constants.py:_required_abilities_for_depth": {
     "classification": "data",
