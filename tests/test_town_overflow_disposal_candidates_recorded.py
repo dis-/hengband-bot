@@ -43,6 +43,7 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
         empty_lantern = next(item for item in board.inventory if item.slot == "p")
         broken_weapon = next(item for item in board.inventory if item.slot == "q")
         self.assertTrue(policy._is_disposable_item(empty_lantern))
+        self.assertFalse(policy._survival_essential(empty_lantern))
         self.assertTrue(policy._is_disposable_item(broken_weapon))
         self.assertEqual(policy._retention_reservation(board, candidate), 0)
         self.assertEqual(
@@ -51,9 +52,11 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
             ),
             1,
         )
-        self.assertTrue(policy._is_surplus_digging_tool(
-            board, next(item for item in board.inventory if item.slot == "r")
-        ))
+        duplicate_shovels = next(
+            item for item in board.inventory if item.slot == "r"
+        )
+        self.assertEqual(policy._retention_reservation(board, duplicate_shovels), 0)
+        self.assertTrue(policy._is_surplus_digging_tool(board, duplicate_shovels))
         key = policy._town_overflow_destroy_key(board)
         self.assertEqual((key, policy.last_reason), ("01kp", "town:destroy-overflow"))
 
