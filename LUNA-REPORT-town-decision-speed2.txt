@@ -88,10 +88,42 @@ Verification
 * `tests.test_town_decision_speed_caches`: 6 tests passed in 629.839 s,
   including key/reason/checkpoint equivalence for all 134 recorded boards and
   the retention, fixed-quest, claims, map-offer, and town-fact index pins.
+* `tests.test_town_decision_speed2_caches`: 4 tests passed in 38.751 s,
+  including the region-change index invalidation pin.
 * `tests.test_policy_structure`: 7 tests passed unchanged.
 * `git diff --check`: clean.
-* Required guard outputs will be recorded here after the commit, in required
-  order: preflight, mutation check, fast tier.
+
+Required guards, final repair round, in required order:
+
+```text
+[preflight] PREFLIGHT OK: 9 changed files, 0 findings (town-decision-speed2-1017 vs 90bb8e3f)
+
+[mutation] 11 source hunks, tests: tests.test_town_decision_speed2_caches
+[mutation] caught     src/hengbot/item_reservation.py:86 (_claim_candidate_memo = ContextVar("town_claim_candidate_memo", defaul): test_claim_candidate_cache_pin
+[mutation] caught     src/hengbot/item_reservation.py:99 (def decision_caches_enabled():): test_town_decision_speed2_caches
+[mutation] caught     src/hengbot/policy.py:1 (from hengbot.item_reservation import (): test_claim_candidate_cache_pin, test_map_offer_cache_pin, test_store_position_index_cache_pin
+[mutation] caught     src/hengbot/policy.py:36 (_map_offer_cache: WeakKeyDictionary = WeakKeyDictionary()): test_claim_candidate_cache_pin, test_map_offer_cache_pin, test_store_position_index_cache_pin
+[mutation] caught     src/hengbot/policy.py:2601 (map_key = tuple(): test_map_offer_cache_pin
+[mutation] caught     src/hengbot/policy.py:15480 (else claim_candidate_memo(): test_claim_candidate_cache_pin
+[mutation] caught     src/hengbot/policy_town.py:1 (from functools import wraps): non-zero exit
+[mutation] caught     src/hengbot/policy_town.py:17 (_town_store_position_indices = WeakKeyDictionary()): non-zero exit
+[mutation] caught     src/hengbot/policy_town.py:107 (if decision_caches_enabled():): test_region_change_discards_store_position_index
+[mutation] caught     src/hengbot/policy_town.py:118 (position_index = (): test_store_position_index_cache_pin
+[mutation] caught     src/hengbot/policy_town.py:3631 (@_cache_claim_need_candidates): test_claim_candidate_cache_pin
+[mutation] MUTATION OK: 0 of 11 hunks are not pinned by a test
+[mutation] recorded for 8165e778
+
+[fast] 3927 fast tests (<2.0s in 90bb8e3f) + 2 changed modules, 4 shards
+[fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-_1d78rlg)
+Failures: none
+Errors: none
+Total: 3940 tests, 989.7s
+```
+
+The first mutation pass had one uncovered town-region reset hunk. The repair
+added the focused index invalidation pin; the final required mutation pass
+then caught all 11 source hunks.
 
 Controls
 
