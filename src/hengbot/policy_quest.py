@@ -3656,7 +3656,40 @@ class QuestMixin:
             )
             if survey_plan is not None:
                 stand = Position(*survey_plan["stand"])
-                if snapshot.player.position != stand:
+                # The stand only exists to observe the target. On a dark floor
+                # the reviewed stand can lie beyond the light radius while the
+                # cell is certified empty on the way (2026-10-18 Q31: target
+                # (6,4) seen empty from (8,4), stand (10,4) four cells away),
+                # and walking on loses the certificate that selected the plan.
+                # Outside Q34, where the survey would otherwise walk on toward
+                # its stand, accept the stand's own clearing evidence wherever
+                # it is observed. Q34 still clears only at its reviewed stand,
+                # and an unreachable stand keeps its existing reason.
+                survey_target_grid = snapshot.grid_at(
+                    Position(*survey_plan["target"])
+                )
+                if snapshot.player.position != stand and (
+                    profile.quest_id == 34
+                    or survey_target_grid is None
+                    or survey_target_grid.has_monster
+                    or not (
+                        fixed_target_cell_visible(
+                            Position(*survey_plan["target"]),
+                            survey_target_grid,
+                            int(survey_plan.get("race_id", 0)),
+                        )
+                        or defeated_by_message(
+                            (
+                                int(survey_plan.get("race_id", 0)),
+                                int(survey_plan["target"][0]),
+                                int(survey_plan["target"][1]),
+                            )
+                        )
+                    )
+                    or self._quest_strategy_route_step(
+                        snapshot, profile, stand
+                    ) is None
+                ):
                     step = self._quest_strategy_route_step(
                         snapshot, profile, stand
                     )
