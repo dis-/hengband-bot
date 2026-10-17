@@ -6,7 +6,7 @@ The Linux soak capture ends at decision 2529, turn 712175. Its decision is `iden
 
 The executor reached an accepted command barrier and reported `phase=continuation reason=expected prompt absent`; the subsequent stop marker was `<identify:staged-tail-dropped:executor-barrier>`. This was a visibly absent target prompt, with the staged key withheld.
 
-The preceding state reports the dark elf priest asleep. Hengband's sleep-counter path in `src/monster/monster-status.cpp:111-176`, `process_monsters_mtimed_aux()`, emits the Japanese equivalent of “wakes up” at lines 174-176 as the sleep timer expires. The message template also has other source-defined wake-up emitters, including `src/monster/monster-processor.cpp:376-380`. The sleep-counter emitter does not call `disturb()` itself. Hengband's `disturb()` behavior is documented in `src/core/disturbance.cpp:45-68`; monster update paths can call it when visible-monster state changes (`src/monster/monster-update.cpp:518-591`). The capture does not retain a call trace or terminal frame, so it does not prove which disturbance call cancelled the chooser. The implementation therefore requires the exact source-defined wake-up suffix plus an unchanged charged staff and the same unchanged, still-unknown target. A generic message or absent prompt remains insufficient.
+The preceding state reports the dark elf priest asleep. Hengband's sleep-counter path in `src/monster/monster-status.cpp:111-176`, `process_monsters_mtimed_aux()`, emits the source-defined wake-up message at lines 174-176 as the sleep timer expires. The message template also has other source-defined wake-up emitters, including `src/monster/monster-processor.cpp:376-380`. The sleep-counter emitter does not call `disturb()` itself. Hengband's `disturb()` behavior is documented in `src/core/disturbance.cpp:45-68`; monster update paths can call it when visible-monster state changes (`src/monster/monster-update.cpp:518-591`). The capture does not retain a call trace or terminal frame, so it does not prove which disturbance call cancelled the chooser. The implementation therefore requires the exact source-defined wake-up suffix plus an unchanged charged staff and the same unchanged, still-unknown target. A generic message or absent prompt remains insufficient.
 
 ## Change and pins
 
@@ -49,4 +49,4 @@ Total: 3876 tests, 248.7s
 
 ## Commit
 
-`f93437bf` — Handle identify staff wake interruption.
+`f93437bf` - Handle identify staff wake interruption.
