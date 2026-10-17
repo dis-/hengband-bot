@@ -1,0 +1,127 @@
+# Identify staff Magic Shop selector report
+
+## Diagnosis
+
+Baseline commit: `a6672ef9`. The captured Magic Shop page (`state.jsonl.gz`, row 1 / zero-based 0, turn 1,038,032) has 5 carried Identify staffs: one at 4 charges and four at 3 charges, totaling 16 charges. The target is 20. Gold is 5,772; the shelf has a 13-charge staff for 794 gold and a 12-charge staff for 779 gold. The existing worthwhile calculation accepts both, but the baseline purchase-room check returns false because the carried staff count is already above the cap of four. The town need planner (`_town_need_candidates`, `policy_town.py:2779-2816`) still routes `identify-staff` to Magic Shop based on the affordable, worthwhile observed shelf.
+
+The captured decision 4304 says `shop:observe-and-leave`, with `wanted_purchase: null` and `observed-page-nothing-wanted`. The same result appears in decisions 4292, 4297, 4300, 4308, and 4314; decision 4295 sells another item. The Home board (row 53 / zero-based 52, turn 1,038,992) contains two 3-charge Identify staffs. Home-scan telemetry on the captured decision says current, source `~9`, 95 items. Under a declared constructed catalogue from that Home board, a 3-charge Home staff does not improve retained charges, so the Magic offer remains the worthwhile supplier.
+
+## Change and pins
+
+`policy_shop.py:3640-3656` now treats the page as having Identify staff purchase room at/above the four-staff cap only when the current store offers an affordable staff that passes the existing `_identify_staff_acquisition_worthwhile` check. The existing purchase rung continues to enforce the worthwhile check. The 4-staff cap, 20-charge target, release ordering, and reserve are unchanged. No new policy attributes or checkpoint defaults were added; no structural census counts changed.
+
+The compact tracked gzip fixture contains the captured Magic page, Home board, and decision 4304. The recorded baseline decision is pinned as `shop:observe-and-leave` / `observed-page-nothing-wanted`. Replaying the captured page through the real policy selector after the fix selects the 13-charge staff for 794 gold. The existing release plan selects one 3-charge staff from slot `l`, beginning the cap-preserving swap. Two controls replay the selector: a 2-charge staff that does not improve retained charges remains unwanted, and the 13/12-charge staffs priced at 6,000 gold remain unaffordable and unselected.
+
+Focused test module: `tests.test_idstaff_magic_select_recorded` ? 3 tests passed. Manifest regeneration reported 826 candidates, 20,907 sites, zero unmapped; the generated town-work manifest was committed. No game or bot process was controlled.
+
+## Required guard outputs
+
+Preflight:
+
+```text
+[preflight] PREFLIGHT OK: 5 changed files, 0 findings (idstaff-magic-select-1017 vs a6672ef9)
+```
+
+Mutation check:
+
+```text
+[mutation] 1 source hunks, tests: tests.test_idstaff_magic_select_recorded
+[mutation] caught     src/hengbot/policy_shop.py:3638 ("""Permit buying below the cap or swapping in a worthwhile fuller staf): test_captured_magic_page_offers_worthwhile_swap_after_fix
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 0168b436
+```
+
+Fast tier, required four-shard invocation:
+
+```text
+[fast] 8 fast tests (<2.0s in ad27f741) + 1 changed modules, 4 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: [3] (logs C:\Users\user\AppData\Local\Temp\fast-tier-n_rsngro)
+Failures: none
+Errors: none
+Total: 11 tests, 3.8s
+```
+
+All 11 tests ran without failures or errors; shard 3 received an empty test list because this fast corpus plus the changed module has three distinct modules. The guard classifies that unused shard as crashed. Re-running the same selected tests with three shards completed cleanly:
+
+```text
+[fast] 8 fast tests (<2.0s in ad27f741) + 1 changed modules, 3 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-6l94yglg)
+Failures: none
+Errors: none
+Total: 11 tests, 3.7s
+```
+
+## Commits
+
+- `72a152ad` Allow worthwhile Identify staff swaps at cap
+- `0168b436` Refresh town work manifest
+
+## Round 2: over-cap release before the swap buy
+
+### Diagnosis and change
+
+The captured board at decision 4304 has five Identify staffs (16 charges). The recorded one-item sale at decision 4295 is key bytes `d0y\u001b`; the state capture does not include that turn's board, so the exact sold item and immediate staff count cannot be measured. The next captured Magic page still has five staffs. On it the ordinary over-cap release plan is `{"l": 1}`: selling one 3-charge staff leaves four, where the restored purchase-room check is zero. The page-operation planner now releases `carried_count - cap + 1` from the emptiest stack when over cap, then evaluates the fuller buy against the resulting three-staff probe. It emits a single `release-sale` operation for two units from slot `l`, followed by the 13-charge, 794-gold shelf staff. The four-staff cap and 20-charge target are unchanged; the unconditional room change from `72a152ad` is reverted.
+
+The recorded replay pins the operation and emitted selection bytes/reasons: `release-sale`, slot `l`, quantity 2, purchase 13 charges for 794 gold; release selection `{l@0\r` / `shop:batch-inscribe`; post-release purchase `pi\r` / `shop:buy-device-food`. The round-one no-worthwhile and unaffordable controls still refuse purchase. The two existing cap-order tests are unchanged and pass.
+
+### Focused and explicit test results
+
+```text
+$env:PYTHONPATH='src;tests;scripts'; python -m unittest tests.test_idstaff_magic_select_recorded
+...
+Ran 3 tests in 0.072s
+OK
+```
+
+```text
+python -m unittest tests.test_step15d2_f3.Step15d2F3Test.test_cap_page_operation_is_release_sale_then_strictly_fuller_buy
+.
+Ran 1 test in 0.019s
+OK
+```
+
+```text
+python -m unittest tests.test_policy_supply.IdentifyStaffTest.test_four_staves_below_twenty_swap_emptiest_for_fuller_store_staff
+.
+Ran 1 test in 0.011s
+OK
+```
+
+### Required guard results
+
+Preflight first found only the stale generated town-work manifest. Regeneration reported 826 candidates, 20,919 sites, zero unmapped. After committing that generated update, preflight passed:
+
+```text
+[preflight] PREFLIGHT OK: 7 changed files, 0 findings (idstaff-magic-select-1017 vs a6672ef9)
+EXIT_CODE=0
+```
+
+Mutation check:
+
+```text
+[mutation] 2 source hunks, tests: tests.test_idstaff_magic_select_recorded
+[mutation] caught     src/hengbot/policy_shop.py:3052 (from hengbot.policy_constants import STAFF_IDENTIFY_MAX_COUNT): test_captured_magic_page_offers_worthwhile_swap_after_fix
+[mutation] TEXT ONLY  src/hengbot/policy_shop.py:3691 ("""Permit buying Identify staffs only below the four-staff cap.): docstring/comment change, nothing to pin
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for 5777d5e2
+EXIT_CODE=0
+```
+
+Fast tier ran the required four-shard command. It had no crashed shards and no ordinary test failures, but exited 1 with two import errors because its `ad27f741` fast-test corpus selected modules absent from this worktree's `a6672ef9` tree (`tests.test_fundraise_upstairs_explore_recorded` and `tests.test_equipment_transaction_newchar_route_recorded`). Those files exist at `ad27f741` but not at HEAD; I left unrelated existing tests and branch history unchanged.
+
+```text
+[fast] 3850 fast tests (<2.0s in ad27f741) + 1 changed modules, 4 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-4nl32d5c)
+Failures: none
+Errors: ['tests.test_fundraise_upstairs_explore_recorded (import) ModuleNotFoundError("No module named \'tests.test_fundraise_upstairs_explore_recorded\'")', 'tests.test_equipment_transaction_newchar_route_recorded (import) ModuleNotFoundError("No module named \'tests.test_equipment_transaction_newchar_route_recorded\'")']
+Total: 3859 tests, 313.2s
+EXIT_CODE=1
+```
+
+### Round 2 commits
+
+- `92153514` Release over-cap Identify staffs before buying
+- `5777d5e2` Refresh town work manifest

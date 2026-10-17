@@ -6279,7 +6279,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6a1f311610136c1cc943bf58ac1400ec8fb2ad4754a3f069b624868c407002a7"
+    "ast_sha256": "f8334983561e8a06c609c7f807d95f877e6e2fa846b165d1b253d2791439ad10"
   },
   "policy_shop.py:ShopMixin._departure_blocking_page_purchase": {
     "classification": "data",
