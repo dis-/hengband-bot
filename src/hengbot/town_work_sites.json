@@ -2043,7 +2043,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3c3f968e29ffe0223f9a0dc82ee44133d3288c87d7a4f1ae4ec6cf1902d344ba"
+    "ast_sha256": "07babe03cd6b03beac8aa08f17637345cad1ef9a2b38996e61cdc94a5c2ed67f"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4140,7 +4140,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e230b4d7911632afc5fa7ee265a88f7649335d49b2607e5a4517cf5f36d40516"
+    "ast_sha256": "b21eca91f9b5e9b576bb535f21034eeef9082d1528b6e58af53fc0d266270e89"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",

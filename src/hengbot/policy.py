@@ -11033,11 +11033,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._material_melee_engagement(snapshot, monster)
         ]
         if material_exploders:
-            ranged = self._ranged_attack_key(
-                snapshot, strategic_hostiles, strategic_adjacent
-            )
-            if ranged is not None:
-                return ranged
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
                 self.last_reason = "threat:avoid-engagement"
