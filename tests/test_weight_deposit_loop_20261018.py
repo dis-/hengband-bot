@@ -112,6 +112,19 @@ class WeightDepositLoopRecordedTest(unittest.TestCase):
         key = policy.choose_key(snapshot)
         self.assertEqual((str(key), policy.last_reason), ("\x1b`n%.", "shop:travel"))
 
+    def test_free_home_capacity_without_deposit_keeps_surplus_sale(self):
+        policy, snapshot = self._policy_for(self.boards[2])
+        policy._home_capacity_observation = (
+            156, 240, policy._effective_town_id(snapshot)
+        )
+        policy._town_need_candidates(snapshot)
+
+        key = policy._overweight_surplus_sale_key(snapshot)
+
+        self.assertEqual((str(key), policy.last_reason), ("\x1b`n%.", "shop:travel"))
+        self.assertIsNotNone(policy._overweight_surplus_disposal)
+        self.assertFalse(policy._overweight_surplus_disposal["pending"]["posted"])
+
     def test_posted_surplus_sale_survives_available_home_capacity(self):
         policy, snapshot = self._policy_for(self.boards[2])
         policy._home_capacity_observation = (

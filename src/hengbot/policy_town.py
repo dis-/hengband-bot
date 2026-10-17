@@ -2993,6 +2993,7 @@ class TownMixin:
         if book_sale is not None:
             add(self._book_sale_store_type(book_sale), "book-sale")
         if (self._overweight_surplus_disposal is None
+                and self._home_full_relief is None
                 and self._inventory_overweight(snapshot)
                 and self._home_available(snapshot)
                 and self._find_home_deposit(snapshot) is None):
@@ -3005,8 +3006,8 @@ class TownMixin:
                 }
         if self._overweight_surplus_disposal is not None and self._inventory_overweight(snapshot):
             candidates = self._overweight_surplus_candidates(snapshot)
-            if candidates and candidates[0][4]:
-                add(candidates[0][4][0], "overweight-surplus")
+            store = candidates[0][4][0] if candidates and candidates[0][4] else STORE_HOME
+            add(store, "overweight-surplus")
         organization = self._find_town_organization_surplus(snapshot)
         organization_store = (
             self._town_organization_sale_store(snapshot, organization)
