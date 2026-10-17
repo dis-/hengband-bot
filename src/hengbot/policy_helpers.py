@@ -225,7 +225,11 @@ class PolicyHelpersMixin:
                 return item
         return None
     def _is_disposable_item(
-        self, item: InventoryItem, *, food_type: int = 0
+        self,
+        item: InventoryItem,
+        *,
+        food_type: int = 0,
+        overflow_pressure: bool = False,
     ) -> bool:
         # A bounty target (wanted monster's corpse) is worth gold at the Hunter's
         # Office, and an item the game already refused to destroy this expedition
@@ -249,9 +253,15 @@ class PolicyHelpersMixin:
                 and item.known
                 and item.fuel == 0
             )
-            or (item.is_light and item.known and item.fuel <= 0)
             or (
-                item.is_melee_weapon
+                overflow_pressure
+                and item.is_light
+                and item.known
+                and item.fuel <= 0
+            )
+            or (
+                overflow_pressure
+                and item.is_melee_weapon
                 and (
                     item.is_broken
                     or item.name.startswith(("Broken ", "\u6298\u308c\u305f"))
@@ -273,15 +283,23 @@ class PolicyHelpersMixin:
             or (item.is_food and not item.aware)
         )
     def _find_disposable_item(self, snapshot: Snapshot) -> InventoryItem | None:
+        overflow_pressure = (
+            snapshot.in_town and self._town_pack_space_shortage(snapshot)
+        )
         return self._first_item(
             snapshot,
             lambda it: self._entire_stack_is_surplus(snapshot, it)
             and not self._item_is_procurement_protected(snapshot, it)
             and (
-                self._is_disposable_item(it, food_type=snapshot.player.food_type)
+                self._is_disposable_item(
+                    it,
+                    food_type=snapshot.player.food_type,
+                    overflow_pressure=overflow_pressure,
+                )
                 or self._is_spare_lantern(snapshot, it)
                 or (
-                    it.is_torch
+                    overflow_pressure
+                    and it.is_torch
                     and it.known
                     and it.fuel > 0
                     and self._retention_reservation(snapshot, it) == 0

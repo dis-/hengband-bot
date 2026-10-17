@@ -12863,7 +12863,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             known_peer_qualities = [value for value in peer_qualities if value is not None]
             if quality is None:
                 return not self._is_disposable_item(
-                    item, food_type=snapshot.player.food_type
+                    item,
+                    food_type=snapshot.player.food_type,
+                    overflow_pressure=(
+                        snapshot.in_town and self._town_pack_space_shortage(snapshot)
+                    ),
                 )
             return bool(known_peer_qualities) and quality > max(known_peer_qualities)
         if item.is_equipment and (
@@ -12872,7 +12876,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or item.tval == TVAL_RING
         ):
             if self._is_disposable_item(
-                item, food_type=snapshot.player.food_type
+                item,
+                food_type=snapshot.player.food_type,
+                overflow_pressure=(
+                    snapshot.in_town and self._town_pack_space_shortage(snapshot)
+                ),
             ) or self._is_spare_lantern(snapshot, item) or (
                 item.is_torch
                 and item.known
@@ -14631,7 +14639,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 }
             )
             or (item.is_food and item.aware and item.sval >= FOOD_MIN_SVAL)
-            or (item.is_light and item.fuel > 0)
+            or item.is_light
             or item.is_oil
             or item.is_digging_tool
         )

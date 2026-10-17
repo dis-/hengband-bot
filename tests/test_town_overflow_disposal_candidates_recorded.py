@@ -37,14 +37,18 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
 
         policy = HengbotPolicy()
         policy.prime(board)
+        self.assertTrue(policy._town_pack_space_shortage(board))
         candidate = policy._overflow_disposal_item(board)
         self.assertIsNotNone(candidate)
         self.assertEqual(candidate.slot, "p")
         empty_lantern = next(item for item in board.inventory if item.slot == "p")
         broken_weapon = next(item for item in board.inventory if item.slot == "q")
-        self.assertTrue(policy._is_disposable_item(empty_lantern))
-        self.assertFalse(policy._survival_essential(empty_lantern))
-        self.assertTrue(policy._is_disposable_item(broken_weapon))
+        self.assertTrue(policy._is_disposable_item(
+            empty_lantern, overflow_pressure=policy._town_pack_space_shortage(board)
+        ))
+        self.assertTrue(policy._is_disposable_item(
+            broken_weapon, overflow_pressure=policy._town_pack_space_shortage(board)
+        ))
         self.assertEqual(policy._retention_reservation(board, candidate), 0)
         self.assertEqual(
             policy._retention_reservation(
