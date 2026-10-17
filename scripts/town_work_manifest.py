@@ -224,7 +224,10 @@ def main():
     if args.write:
         data = generate(sources(), json.loads(REVIEW.read_text(encoding='utf8')))
         OUTPUT.write_bytes(gzip.compress((json.dumps(data, ensure_ascii=False, indent=2) + '\n').encode(), mtime=0))
-        INDEX.write_text(json.dumps(runtime_index(data), ensure_ascii=False, indent=2) + '\n', encoding='utf8')
+        # LF like the committed file: a Windows text write produced CRLF, so every regeneration on an
+        # unchanged tree showed town_work_sites.json as modified and preflight asked for a commit.
+        INDEX.write_text(json.dumps(runtime_index(data), ensure_ascii=False, indent=2) + '\n', encoding='utf8',
+                         newline='\n')
         print(f'town-work-manifest: {data["candidates"]} candidates, {len(data["call_sites"])} sites, zero unmapped')
         return 0
     findings = check_repository()
