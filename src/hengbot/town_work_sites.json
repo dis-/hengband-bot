@@ -2043,7 +2043,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e59af39ecba427151800fba55e97506abc5fcafbb199bd12494081072015c255"
+    "ast_sha256": "8047172fa0111970cad1ab0519579c99f0440a8895bc2641b5f189bf3fb1f380"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -2592,14 +2592,6 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "7ea9826e475bfc36f3152f33d37e1c8a4a7655ec2a73fe5481cd2d96b239d3e9"
-  },
-  "policy.py:HengbotPolicy._material_melee_engagement": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "eaec0cde257dcab66f8bac2d065cfe1b076f96bea683122545fd4b461fc7de45"
   },
   "policy.py:HengbotPolicy._monster_can_approach": {
     "classification": "data",
@@ -4140,7 +4132,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b21eca91f9b5e9b576bb535f21034eeef9082d1528b6e58af53fc0d266270e89"
+    "ast_sha256": "c16937a5d4c9ae3afe6061612b63c67ec8d208a15004323de8324b455e604a5b"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",
@@ -4308,7 +4300,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "66f557b45fe8e805964aec57dbe722639ce4817a1aff3d0c2ab7af81f6f7f1c8"
+    "ast_sha256": "295215b4dabdb6c558c47dde6ebfe6f0815e5c3f8a63a5960e8e80a2e18a1574"
   },
   "policy_constants.py:_required_abilities_for_depth": {
     "classification": "data",

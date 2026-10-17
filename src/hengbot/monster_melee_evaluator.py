@@ -49,6 +49,50 @@ def reduced_dice_distribution(
     return tuple(sorted(result.items()))
 
 
+# Hengband earthquake() (src/spell-kind/earthquake.cpp), started at the
+# monster by every hitting SHATTER blow that explodes
+# (monster-attack-switcher.cpp: ``damage > 23 || explode``).  Every grid of the
+# area except the centre collapses with this percent chance.  A collapsed
+# player grid takes the direct hit when no empty, uncollapsed neighbour is left
+# to dodge to; otherwise one of the three dodge outcomes is drawn, two of which
+# roll the dodged dice.
+EARTHQUAKE_COLLAPSE_PERCENT = 15
+EARTHQUAKE_DIRECT_HIT_DAMAGE = 200
+EARTHQUAKE_DODGED_DICE = (10, 4)
+EARTHQUAKE_DODGE_OUTCOMES = 3
+EARTHQUAKE_DODGE_DAMAGING_OUTCOMES = 2
+
+
+def add_earthquake_damage(
+    distribution: tuple[tuple[int, float], ...], dodge_cells: int
+) -> tuple[tuple[int, float], ...]:
+    """``distribution`` plus one earthquake next to the player.
+
+    ``dodge_cells`` counts the player's empty neighbours; each must collapse
+    too before the direct hit lands.
+    """
+    collapse = EARTHQUAKE_COLLAPSE_PERCENT / 100.0
+    crushed = collapse * collapse ** dodge_cells
+    dodged = (
+        (collapse - crushed)
+        * EARTHQUAKE_DODGE_DAMAGING_OUTCOMES
+        / EARTHQUAKE_DODGE_OUTCOMES
+    )
+    quake = {0: 1.0 - crushed - dodged, EARTHQUAKE_DIRECT_HIT_DAMAGE: crushed}
+    if dodged > 0.0:
+        for damage, probability in reduced_dice_distribution(
+            *EARTHQUAKE_DODGED_DICE, lambda roll: roll
+        ):
+            quake[damage] = quake.get(damage, 0.0) + dodged * probability
+    result: dict[int, float] = {}
+    for damage, probability in distribution:
+        for extra, chance in quake.items():
+            result[damage + extra] = (
+                result.get(damage + extra, 0.0) + probability * chance
+            )
+    return tuple(sorted(result.items()))
+
+
 @lru_cache(maxsize=4096)
 def melee_damage_percentile(
     blows: tuple[MeleeBlowDistribution, ...],

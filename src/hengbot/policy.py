@@ -11020,40 +11020,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "status-threat:wait"
             return WAIT_KEY
 
-        material_exploders = [
-            monster
-            for monster in strategic_adjacent
-            if (
-                (knowledge := self._monrace_knowledge.get(monster.race_id))
-                is not None
-                and any(
-                    blow.method == "EXPLODE" for blow in knowledge.blows
-                )
-            )
-            and self._material_melee_engagement(snapshot, monster)
-        ]
-        if material_exploders:
-            escape = self._town_producer_entry(
-                "_escape_by_stairs", lambda: self._escape_by_stairs(snapshot)
-            )
-            if escape is not None:
-                self.last_reason = "threat:avoid-engagement"
-                return escape
-            step = self._flee_step(snapshot, material_exploders)
-            if step is not None:
-                self._claim_engagement_avoid_cells((snapshot.player.position,))
-                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
-                self.last_reason = "threat:avoid-engagement"
-                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
-                self._declare_triggers(material_exploders)
-                return self._step_toward(snapshot, step)
-            scroll = self._escape_scroll(snapshot)
-            if scroll is not None:
-                self.last_reason = "threat:scroll"
-                return self._read_key(snapshot, scroll)
-            self.last_reason = "threat:wait"
-            return WAIT_KEY
-
         # Ordinary flee deliberately stays strategic: once weak-breeder
         # extermination is impossible, their mere presence must not turn the
         # approved walk-out into flight. Physical status and escape hazards are
