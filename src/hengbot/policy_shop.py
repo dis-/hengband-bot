@@ -2359,7 +2359,22 @@ class ShopMixin(InStoreMixin):
             item = self._next_purchase_unreserved(
                 snapshot, commit_state=commit_churn
             )
-        if item is not None and not self._store_purchase_fits_pack(snapshot, item):
+        refused = set(exclusions)
+        while (
+            item is not None
+            and not self._store_purchase_fits_pack(snapshot, item)
+            and (item.tval, item.sval) not in refused
+        ):
+            # A full pack refuses only this non-stacking ware. A later wanted
+            # ware that stacks onto a carried one (e.g. a departure supply)
+            # still fits and must not be hidden behind it.
+            refused.add((item.tval, item.sval))
+            item = self._legacy_next_purchase_unreserved(
+                snapshot, excluded_classes=refused, commit_state=commit_churn,
+            )
+        if (item is None and refused != exclusions) or (
+            item is not None and not self._store_purchase_fits_pack(snapshot, item)
+        ):
             self._shop_selector_diagnostics["pack_refusal"] = "full-pack-nonstacking"
             return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
