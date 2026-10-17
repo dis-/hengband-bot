@@ -86,6 +86,7 @@ _decision = ContextVar("item_reservation_decision", default=None)
 _query = ContextVar("item_reservation_query", default=False)
 _query_memo = ContextVar("item_reservation_query_memo", default=None)
 _caches_enabled = ContextVar("item_reservation_caches_enabled", default=True)
+_claim_candidate_memo = ContextVar("town_claim_candidate_memo", default=None)
 
 
 @contextmanager
@@ -96,6 +97,40 @@ def decision_caches_disabled():
         yield
     finally:
         _caches_enabled.reset(token)
+
+
+def decision_caches_enabled():
+    """Whether decision-local performance caches are enabled in this context."""
+    return _caches_enabled.get()
+
+
+@contextmanager
+def claim_candidate_cache(policy, snapshot):
+    """Memoize town candidates only during one claims evaluation."""
+    if not _caches_enabled.get():
+        yield
+        return
+    token = _claim_candidate_memo.set(
+        {"policy": policy, "snapshot": snapshot, "candidates": None}
+    )
+    try:
+        yield
+    finally:
+        _claim_candidate_memo.reset(token)
+
+
+def claim_candidate_memo(policy, snapshot, compute):
+    state = _claim_candidate_memo.get()
+    if (
+        not _caches_enabled.get()
+        or state is None
+        or state["policy"] is not policy
+        or state["snapshot"] is not snapshot
+    ):
+        return compute()
+    if state["candidates"] is None:
+        state["candidates"] = compute()
+    return state["candidates"]
 
 
 def reservation_query(function):

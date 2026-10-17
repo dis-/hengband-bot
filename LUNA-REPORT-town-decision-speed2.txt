@@ -1,0 +1,100 @@
+Town decision speed round 2 report
+
+Branch: town-decision-speed2-1017
+Base: 90bb8e3f
+
+Diagnosis
+
+The round 2 profile on capture A (85 town boards) confirmed 1,471 actual
+`_town_need_candidates` evaluations from 2,736 calls, with 88
+`_town_claims_active` calls. Each registry `NeedSpec` calls `produces` and
+`resolve_store_type`, which reach `_candidate_need`; outside the explicit
+candidate list scopes in `_enumerate_town_needs` and
+`_departure_blocking_town_needs`, each lookup rebuilt the entire need list.
+Claims also retire actionless equipment failures and refresh non-Home refusals
+before evaluation. Claim enumeration is read-only after these entry updates,
+so one candidate list can be shared inside that evaluation only. The exact
+dependencies and mutation points are in LUNA-DIAG-town-decision-speed2.txt.
+
+`_refresh_town_facts` repeatedly removed each emitted coordinate by scanning
+every store-position set. Its state is the per-visit store-position mapping;
+region transitions clear and rebuild it. The acceleration uses a weak policy
+index derived from that mapping and performs the same set membership,
+discard, and add operations in the existing order. The index is discarded on
+region changes and is never checkpointed.
+
+`_begin_map_predicate_cache` rebuilt fixed-quest building offers from every
+grid at each public decision. The reusable result depends on the exact ordered
+grid positions and each grid's `building_special` value. A weak policy cache
+uses that exact content tuple and keeps no data on the policy checkpoint.
+Hazard/border caches and town-fact refresh still run at the original boundary.
+
+Changes
+
+* Added a ContextVar cache for town need candidates, scoped to one
+  `_town_claims_active` call. It is reset in `finally` and honors
+  `decision_caches_disabled()` for the replay oracle.
+* Added an external weak-keyed reverse index for `_town_store_positions` to
+  avoid scanning unrelated stores during refresh. It is rebuilt from restored
+  policy state on the first use and has no policy-attribute default because it
+  is not stored on the policy.
+* Cached fixed-quest offer sets across decisions by the exact grid content
+  read. The weak-keyed cache is outside serialized policy state.
+* No new policy attributes, checkpoint defaults, thresholds, constants,
+  reasons, or decision-order changes. No game data was added to the repository.
+* Regenerated the town work manifest: 831 candidates unchanged; call-site
+  count rose from 21,000 to 21,050; 112 registry sites and 102 ladder sites
+  are unchanged; zero unmapped entries.
+
+Pins and equivalence
+
+* The recorded replay compares `(key, last_reason)` and checkpoint state after
+  each of 85 A boards and 49 B boards. It passed on all 134 boards with the
+  elapsed in-store fields removed, using caches disabled versus enabled.
+* On the high-inventory A board, `_town_need_candidates` calls were 41 with
+  caches disabled and 11 enabled. The test pins a greater-than-twofold
+  reduction.
+* On two equal-content snapshots, fixed-quest offer construction ran once
+  with the cache. The test pins this count.
+* On two refreshes in one region, store-position index construction ran once.
+  The test pins this count.
+* Round-one retention and fixed-quest call-count pins remain in the same test
+  module and passed. The new store-index pin passed after fixing its setup to
+  avoid the existing same-snapshot early return.
+
+Profiler results
+
+The same `profile_town.py` runner and supplied captures were used. Baseline A
+and B were measured at 90bb8e3f; after measurements used the completed changes.
+
+| Capture | Boards | Before median / p90 / total | After median / p90 / total | Median speedup |
+| --- | ---: | ---: | ---: | ---: |
+| A | 85 | 1.270 s / 2.041 s / 111.9 s | 0.796 s / 1.073 s / 63.5 s | 1.59x |
+| B | 49 | 1.434 s / 1.541 s / 70.1 s | 0.604 s / 0.647 s / 29.7 s | 2.37x |
+
+Selected cumulative profile counts:
+
+| Capture | Item | Before calls / time | After calls / time |
+| --- | --- | ---: | ---: |
+| A | `_town_need_candidates` | 1,471 / 54.5 s | 505 / 17.3 s |
+| A | `_refresh_town_facts` | 13,681 / 31.1 s | 4,133 / 18.4 s |
+| A | `_begin_map_predicate_cache` | 80 / 25.1 s | 80 / 15.4 s |
+| B | `_town_need_candidates` | 914 / 48.7 s | 144 / 12.9 s |
+| B | `_refresh_town_facts` | 9,432 / 23.5 s | 1,732 / 14.2 s |
+| B | `_begin_map_predicate_cache` | 49 / 12.1 s | 49 / 7.6 s |
+
+Verification
+
+* `tests.test_town_decision_speed_caches`: 6 tests passed in 629.839 s,
+  including key/reason/checkpoint equivalence for all 134 recorded boards and
+  the retention, fixed-quest, claims, map-offer, and town-fact index pins.
+* `tests.test_policy_structure`: 7 tests passed unchanged.
+* `git diff --check`: clean.
+* Required guard outputs will be recorded here after the commit, in required
+  order: preflight, mutation check, fast tier.
+
+Controls
+
+No game or bot process was controlled, stopped, restarted, or killed. No
+existing test assertion was changed. No push or merge was performed. The
+untracked task instructions file is not part of the change.

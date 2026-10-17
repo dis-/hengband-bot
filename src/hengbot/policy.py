@@ -1,7 +1,9 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, reservation_shadow, item_available
-from hengbot.item_reservation import decision_memo
+from hengbot.item_reservation import (
+    claim_candidate_memo, decision_memo, decision_caches_enabled,
+)
 from hengbot.town_work import town_work_decision
 
 from collections import Counter, deque
@@ -34,6 +36,15 @@ class _DecisionOffers:
 
 
 _decision_offers: WeakKeyDictionary = WeakKeyDictionary()
+_map_offer_cache: WeakKeyDictionary = WeakKeyDictionary()
+
+
+def _fixed_quest_offers_from_grids(grids):
+    return frozenset(
+        grid.building_special
+        for grid in grids.values()
+        if grid.building_special
+    )
 
 
 @dataclass
@@ -2590,11 +2601,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _begin_map_predicate_cache(self, snapshot: Snapshot) -> None:
         self._map_predicate_snapshot = snapshot
-        self._fixed_quest_offers = frozenset(
-            grid.building_special
-            for grid in snapshot.grids.values()
-            if grid.building_special
+        map_key = tuple(
+            (position.y, position.x, grid.building_special)
+            for position, grid in snapshot.grids.items()
         )
+        cached = _map_offer_cache.get(self) if decision_caches_enabled() else None
+        if cached is not None and cached[0] == map_key:
+            self._fixed_quest_offers = cached[1]
+        else:
+            self._fixed_quest_offers = _fixed_quest_offers_from_grids(
+                snapshot.grids
+            )
+            _map_offer_cache[self] = (map_key, self._fixed_quest_offers)
         self._hazard_cache.clear()
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
@@ -15462,7 +15480,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         candidates = (
             evaluated_candidates
             if evaluated_snapshot is snapshot and evaluated_candidates is not None
-            else self._town_need_candidates(snapshot)
+            else claim_candidate_memo(
+                self, snapshot,
+                lambda: self._town_need_candidates(snapshot),
+            )
         )
         matches = [
             need
