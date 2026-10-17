@@ -1,0 +1,52 @@
+Q31 survey-throw-point / placement-sweep diagnosis (eb5db45f)
+
+Evidence: c4-a life-012, floor (0, 22, 31), three loop-detected captures
+20261018-045246 / -045328 / -045411. All three end with the same pair:
+(8,4) -> '2' quest-strategy:survey-throw-point, (9,4) -> '8'
+quest-strategy:placement-sweep (045246: 1738-1774, 045328: 105-141,
+045411: 94-117), interrupted once by nav:break-oscillation.
+
+Replay: capture 045328 contains the whole restarted run (decision 0-141,
+fresh bot, retake-hold first). Its knowledge row was fed to
+consume_skill_knowledge, then every player_turn board (matched by turn) went
+through a fresh HengbotPolicy(quest_knowledge, quest_strategies,
+monrace_knowledge).prime + choose_key. 139 of 141 decisions reproduce the
+recorded key and reason; the two differences are the timing of the single
+nav:break-oscillation (replay 124, recorded 126). Policy state at the loop:
+cleared targets {(329,16,3)}; light_radius 2.
+
+What each producer targets (measured on the replayed boards):
+- survey-throw-point (policy_quest.py:3615-3665) picks the first uncleared
+  throwing point whose target cell is certified now. At (8,3) and (8,4) that is
+  plan race 329 target (6,4) stand (10,4): _player_can_see_empty_cell(6,4) is
+  True (distance 2 <= light_radius 2, LOS clear; policy.py:13189-13197). Every
+  other plan's target is False. The survey then routes to the stand (10,4):
+  step (9,4), key '2'.
+- At (9,4) the same target is distance 3 > light_radius 2, so
+  fixed_target_cell_visible is False and has_monster is False: no plan is
+  selected and the survey yields. placement-sweep (battlefield scope,
+  policy_quest.py:3734-3809) marks surveyed only cells in_view or within
+  distance 1 (protocol-3 boards report in_view False everywhere); with 485
+  unsurveyed cells its shortest route is (9,4)->(8,4)->(7,4), key '8'.
+- Back at (8,4) the target is certified again, so the survey takes the board
+  before the sweep runs (the sweep and its surveyed-cell update are never
+  reached at (8,4)).
+
+Why each goal is satisfied only on the other cell: the survey's clearing check
+(policy_quest.py:3667-3697: certified empty or defeat message, no monster)
+runs only when player.position == stand. On this dark floor the stand (10,4)
+is distance 4 from the target, beyond light radius 2, so the check can never
+succeed there, and the survey's selection gate itself already needs the
+certificate that only exists within distance 2 of (6,4). The certificate is
+present at (8,4), but the survey ignores it because (8,4) is not the stand;
+the sweep's next unsurveyed cell is reached only through (8,4).
+
+Why the breaker does not end it: policy_navigation.py:647-693 steps once to an
+unconfined neighbour and clears its window but changes no producer state. In
+the replay/record: 126 '4' to (9,3), 127 sweep '8' to (8,3), 128 survey '6' to
+(8,4), 129 survey '2' to (9,4): back in the pair; loop-detected at 141.
+
+Fix direction: the survey's goal is the certificate, not the cell. For a
+non-Q34 profile, when the selected plan's target is already certified empty
+(the same condition used at the stand), record it cleared where it is seen.
+Q34 keeps requiring its reviewed stand.
