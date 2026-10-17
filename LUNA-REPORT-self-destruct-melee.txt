@@ -1,0 +1,58 @@
+# Self-destructing melee report
+
+Branch: `self-destruct-melee-1018`
+Final source commit: `dbf36634` (based on `d667f466`)
+
+## Measured diagnosis
+
+The captured decision is sequence 1995, turn 159544, on Yeek Cave 1F. The board has a level-7 player at 177/177 HP, position (30,19), with one adjacent visible race 1090 ??????? at (29,18). The recorded action was key `7`, reason `melee`, rung `_direction_key#2`, rank 32.
+
+`MonraceDefinitions.jsonc:66711-66715` defines the race blow as `EXPLODE` / `SHATTER` / `15d8`. The loaded knowledge has `EXPLODE` in its blow method and the flags `UNIQUE`, `SPEAK_ALL`, `NONLIVING`, `DROP_GREAT`, `WILD_TOWN`, `BASH_DOOR`, `ONLY_ITEM`, `FORCE_MAXHP`, `EMPTY_MIND`, `RES_TELE`, `GOOD`, `DROP_90`, and `OPEN_DOOR`. The game melee switcher marks this blow as explosive (`melee-switcher.cpp:125-132`); the monster-on-player melee handler processes the blow and then detonates and kills the attacker (`monster-attack-player.cpp:229-251, 384-395`).
+
+Replaying the captured board through `parse_snapshot`, `_consume_response_sequence`, and the public `HengbotPolicy.choose_key` path reproduced key `7`, reason `melee`. The production three-turn threat prediction reports `self_destructs_on_melee=true`, maximum melee damage 120, 3 monster actions capped to one melee attack, maximum-total prediction 118, operational prediction 81, expected prediction 59.1546305, and 0.89 probability of any damage. The existing material engagement predicate returns true for this monster: `120 * 3 >= 177 * 0.50`.
+
+The ordinary projected-damage gate uses `ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50` (`policy_constants.py:470`), so 81 is below its 88.5 trigger. The adjacent melee rung returned before the later projected-threat gate and did not check the self-destruct blow. The captured position has no known walkable neighboring tile, no usable upstairs exit, and no escape scroll, so after the fix the recorded board takes the existing `threat:wait` fallback rather than attacking.
+
+## Change and pins
+
+The adjacent-threat selection now recognizes an adjacent `EXPLODE` monster when the existing material-melee predicate says its damage is material. It tries the existing stair escape, retreat, and scroll alternatives; if the board is boxed in, it waits. The no-wait rewrite also filters material explosive monsters from its melee fallback, so it cannot undo that choice. Missing race knowledge is treated as unknown, preserving synthetic and incomplete-board behavior. No new constants, damage thresholds, or policy attributes were added.
+
+The raw UTF-8 state board is pinned in `tests/fixtures/self-destruct-melee-20261018.jsonl.gz` (one row, 3,738 compressed bytes). The test declares the protocol-3 skill cache constructed at the captured level because the policy checkpoint is not in the board fixture.
+
+- Captured material exploder before fix: `7` / `melee`.
+- Captured material exploder after fix: `5` / `threat:wait`.
+- Ordinary monster control: `7` / `emergency:cornered-attack` (a melee direction action).
+- Harmless `EXPLODE` control (1 damage): `7` / `melee`.
+
+`test_self_destruct_melee_recorded`: 3 tests passed. Existing `test_policy_combat`: 303 tests passed, 5 skipped. An earlier run exposed 41 (R) errors from unknown synthetic race IDs; both checks were changed to use missing-safe knowledge lookups, and the complete module then passed.
+
+The town-work census now has 832 candidates, up from 831 at the base, and 21,091 generated sites after adding the existing material-melee helper to the reviewed manifest. No source-text or AST assertion was added.
+
+## Required guard outputs
+
+Final `preflight.py` output (after the second repair commit):
+
+```text
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy.py: line 11042: _decide calls a claims producer outside its producer-entry adapter'] != []
+[preflight] PREFLIGHT FAIL: 9 changed files, 4 findings (self-destruct-melee-1018 vs d667f466)
+```
+
+`mutation_check.py` output:
+
+```text
+[mutation] 4 source hunks, tests: test_self_destruct_melee_recorded
+[mutation] caught     src/hengbot/policy.py:11020 (material_exploders = [): test_recorded_material_exploder_is_not_meleed
+[mutation] caught     src/hengbot/policy_combat.py:398 (material_exploders = {): test_recorded_material_exploder_is_not_meleed
+[mutation] NOT CAUGHT src/hengbot/policy_combat.py:476 (and (monster.index, monster.race_id) not in material_exploders)
+[mutation] caught     src/hengbot/policy_combat.py:520 (and (monster.index, monster.race_id) not in material_exploders): test_recorded_material_exploder_is_not_meleed
+[mutation] MUTATION FAIL: 1 of 4 hunks are not pinned by a test
+```
+
+`fast_tier.py` was started with `--shards 4`; it selected 3,948 fast tests plus the changed test module. It remained active at the task's 150-minute wall-time limit and had not emitted a final summary. I stopped only the fast-tier coordinator and worker started for this task. Partial output:
+
+```text
+[fast] 3948 fast tests (<2.0s in [latest green suite-batches state]) + 1 changed modules, 4 shards
+```
+
+The task allowed at most two repair rounds. After two repair commits, preflight still identified the direct `_flee_step` producer call, and mutation check still reported one uncaught hunk. Work stopped at the required repair limit; these guard findings remain unresolved.
