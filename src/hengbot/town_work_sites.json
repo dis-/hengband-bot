@@ -3575,7 +3575,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d2a10d2c8db98951bc819f116be519db0ca4e471a35c4ccf236bbb7c2eae7c15"
+    "ast_sha256": "3493b4cf1fb4287dbdbf7a3c57e7a81c079477580edafad317c3f5dee109871f"
   },
   "policy.py:HengbotPolicy._town_producer_entry": {
     "classification": "adapter",

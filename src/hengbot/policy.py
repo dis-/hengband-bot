@@ -12283,6 +12283,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "stuck:wander"
             return self._step_toward(snapshot, step)
 
+        # This fallback is reached only after exploration, secret-wall search,
+        # known-stair routing, and local movement have all failed.  On a dungeon
+        # floor the wait below cannot build the stuck counter, so a stale
+        # engagement avoidance ring can otherwise trap the bot at this exact
+        # point forever.  Use the same guarded Recall escape as the ordinary
+        # stuck-floor path when no safe step remains.
+        forgetting_maze = self._is_forgetting_maze(snapshot)
+        completed_forgetting_maze = self._is_completed_forgetting_maze(snapshot)
+        if (
+            not snapshot.in_town
+            and snapshot.floor_key[2] == 0
+            and (not forgetting_maze or completed_forgetting_maze)
+            and not snapshot.player.recalling
+            and not snapshot.player.blind
+            and not snapshot.player.confused
+        ):
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None and self._can_read_scrolls(snapshot):
+                self._stuck_escape_streak = 0
+                self._note_return_start(None)
+                self._returning_to_town = True
+                self.last_reason = "stuck:recall-escape"
+                return self._read_dungeon_recall_scroll_key(snapshot, recall)
+
         self.last_reason = "wait"
         return WAIT_KEY
 
