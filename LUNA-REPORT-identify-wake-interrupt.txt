@@ -1,0 +1,52 @@
+# Identify wake-interrupt report
+
+## Diagnosis
+
+The Linux soak capture ends at decision 2529, turn 712175. Its decision is `identify:pack-pressure`, key `ugl`; the input log records only `u` and staff slot `g`, and no target key `l`. The next retained state is turn 712184 and contains only the dark elf priest wake-up message. The Identify staff in slot `g` is a staff (`tval=55`) and remains at 18 charges in both boards. Armor in slot `l` remains the same item (`tval=36`, `sval=9`, count 1) and remains `known=false`, `fully_known=false`. No identification or charge use occurred.
+
+The executor reached an accepted command barrier and reported `phase=continuation reason=expected prompt absent`; the subsequent stop marker was `<identify:staged-tail-dropped:executor-barrier>`. This was a visibly absent target prompt, with the staged key withheld.
+
+The preceding state reports the dark elf priest asleep. Hengband's sleep-counter path in `src/monster/monster-status.cpp:111-176`, `process_monsters_mtimed_aux()`, emits the Japanese equivalent of “wakes up” at lines 174-176 as the sleep timer expires. The message template also has other source-defined wake-up emitters, including `src/monster/monster-processor.cpp:376-380`. The sleep-counter emitter does not call `disturb()` itself. Hengband's `disturb()` behavior is documented in `src/core/disturbance.cpp:45-68`; monster update paths can call it when visible-monster state changes (`src/monster/monster-update.cpp:518-591`). The capture does not retain a call trace or terminal frame, so it does not prove which disturbance call cancelled the chooser. The implementation therefore requires the exact source-defined wake-up suffix plus an unchanged charged staff and the same unchanged, still-unknown target. A generic message or absent prompt remains insufficient.
+
+## Change and pins
+
+`src/hengbot/input_executor.py` now completes this identify-staff interruption only when the command barrier has a wake-up message ending in the known Japanese or English source form, the accepted source is the same charged staff with unchanged identity and charges, and the pending target has the same identity and state and remains unidentified. The continuation is dropped at the barrier. No arbitrary message was accepted; no new threshold, policy attribute, or stuck-family reason was added.
+
+The new 786-byte gzip JSONL fixture contains the captured decision, only the two relevant board rows and item records, the posted keys, the captured terminal result and marker, and a `DECLARED CONSTRUCTED` annotation for the test's prompt/barrier frames. On base `9ec39c05`, the captured terminal pin is `stuck-prompt` / `expected prompt absent`; posted source keys are `u,g`, with `l` withheld. After the change, the new test asserts `completed` / `None`, accepted keys `u,g`, and dropped continuation `l`. It also confirms the staff remains at 18 charges and the target remains unknown.
+
+Controls: an unrelated missing-prompt message still returns visible `stuck-prompt`; a wake message paired with a changed staff charge is not accepted. The existing `tests.test_identify_device_fail_20261017` module passed unchanged (4 tests), covering both the prior passive-feeling fix and exact device-failure message behavior, plus the existing bounded retry assertion. `tests.test_input_executor` passed unchanged (73 tests). The new module passed (3 tests). No existing assertion or structural census count changed; no producer baseline/review helper entry or restored-checkpoint default was needed.
+
+The generated town work manifest was updated (`826 candidates, 20985 sites, zero unmapped`). Preflight's generated CRLF-only rewrite of `src/hengbot/town_work_sites.json` was restored; it is not part of the commit.
+
+## Required post-commit guard outputs
+
+Preflight:
+
+```text
+[preflight] PREFLIGHT OK: 5 changed files, 0 findings (identify-wake-interrupt-1017 vs 9ec39c05)
+```
+
+Mutation check:
+
+```text
+[mutation] 2 source hunks, tests: tests.test_identify_wake_interrupt_20261017
+[mutation] caught     src/hengbot/input_executor.py:13 (from hengbot.model import TVAL_STAFF): test_captured_wake_interruption_completes_and_drops_target_tail, test_wake_message_with_consumed_staff_charge_is_not_completion_evidence
+[mutation] caught     src/hengbot/input_executor.py:712 (# Waking a monster can interrupt an identify staff's target chooser.): test_captured_wake_interruption_completes_and_drops_target_tail
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for f93437bf
+```
+
+Fast tier:
+
+```text
+[fast] 3870 fast tests (<2.0s in 9ec39c05) + 1 changed modules, 4 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-mhjldyd3)
+Failures: none
+Errors: none
+Total: 3876 tests, 248.7s
+```
+
+## Commit
+
+`f93437bf` — Handle identify staff wake interruption.
