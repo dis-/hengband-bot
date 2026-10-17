@@ -7513,7 +7513,7 @@
       "device"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9db1fdba3a81157a373e2a59d14586fec55648d8a10257b33344595f08a79668"
+    "ast_sha256": "acf5b7d16f12bd1f7b7edd98af36377638e1898f0334b8339a8d178e764e9aac"
   },
   "policy_town.py:TownMixin._town_progress_allow_members": {
     "classification": "data",

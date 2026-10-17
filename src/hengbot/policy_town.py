@@ -1437,6 +1437,8 @@ class TownMixin:
 
         supplier = None
         blocked_stops = getattr(self._town_errand_plan, "blocked_this_visit", ()) or ()
+        plan = getattr(self, "_town_errand_plan", None)
+        pending_stops = plan.stops[plan.index:] if plan is not None else ()
         for store_type, known_stock in getattr(
             self, "_town_supplier_stock", {}
         ).items():
@@ -1444,12 +1446,15 @@ class TownMixin:
                     or store_type in self._town_visit_ledger.nonhome_attempted_without_effect):
                 continue
             stock_snapshot = replace(snapshot, store=known_stock)
-            # A stop blocked earlier in this visit stays a supplier while its
-            # remembered page now offers a departure-blocking purchase: a
-            # release sale elsewhere in the visit (e.g. an Identify-staff
-            # swap) can make that page usable after the stop was closed.
+            # A stop blocked earlier in this visit stays a supplier while the
+            # plan still routes to it and its remembered page now offers a
+            # departure-blocking purchase: a release sale elsewhere in the
+            # visit (e.g. an Identify-staff swap) can make that page usable
+            # after the stop was closed.  A need raised after the plan moved
+            # past the stop belongs to the planner's own route instead.
             if store_type in blocked_stops and (
-                self._departure_blocking_page_purchase(stock_snapshot) is None
+                store_type not in pending_stops
+                or self._departure_blocking_page_purchase(stock_snapshot) is None
             ):
                 continue
             wanted = self._next_purchase_unreserved(stock_snapshot)

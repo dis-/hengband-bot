@@ -55,3 +55,35 @@ The A0 forced departure is not consulted on that branch.
      row 35 (seq 569) Magic shop wanted 鑑定の杖 3x17ch @851, row 38 (seq 572)
      sale 'd0y', no staff purchase afterwards; Black market row 90 nothing wanted.
      Same pattern as (2) by the decision log; not replayable, so not pinned.
+
+ROUND 2 - gate regression in tests.test_guardian_recall_pingpong_recorded
+(test_g1_fallback_does_not_choose_a_blocked_guardian_landing,
+ test_live_replay_only_changes_the_guardian_safe_fallback), decision 8.
+Replay of decisions 0..8 (scratch script, same walls as the test):
+- The store re-opened is STORE_ALCHEMIST (4), not the Magic shop: travel key
+  '\x1b`n%.' at decision 2 and 8 is the Alchemist (recall scroll 'h' bought there
+  at decision 5, 'ph1').
+- Store 4 entered plan.blocked_this_visit at decision 3 (_set_town_store_attempted
+  site "plan-stop-satisfied", policy_town.py ~4402); the purchase at 5 still went
+  through. Store 6 (Black market) blocked at 7. At decision 8:
+  plan.stops=[6], index=1 (past the end), blocked_this_visit=[4,6],
+  need_categories={6:('black-market',)}, _town_claim_categories=[],
+  satisfied_needs=set(), nonhome_attempted_without_effect={}, gold 8,971.
+- The remembered Alchemist shelf (帰還の詔 x17 @233, テレポート x98 @61, ...)
+  gives _departure_blocking_page_purchase = mandatory:recall current=10 target=11
+  shortage=1: the unsafe-recall fallback at decision 8 switches the landing and
+  raises the departure recall count by one AFTER the plan had moved past store 4.
+  _next_purchase_unreserved = 帰還の詔 @233, composable, reserve 0, qty 1.
+- Base: store 4 is skipped (blocked) -> progress None -> the proposed
+  'town:entrance-step-off:town:unsafe-recall-fallback' ('1') stands, and the
+  fallback's own route buys the scroll at decision 11.
+  Round 1 branch: the blocked stop is re-treated because its page has a
+  departure-blocking purchase -> progress-invariant approach to store 4,
+  replacing the step-off (= the old live key, so the live replay shows no
+  divergence at 8).
+- Contrast 035319 pin board (row 141): plan.stops=[5], index=0 (the plan still
+  routes to the blocked Magic shop), need_categories={5:('identify-staff',)},
+  _town_claim_categories=['identify-staff'].
+Narrowing: a blocked stop is re-treated only while it is still a pending plan
+stop (plan.stops[plan.index:]); a need raised after the plan moved past it
+belongs to the planner's own route.

@@ -202,6 +202,19 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
         self.assertIn(STORE_MAGIC, policy._town_errand_plan.blocked_this_visit)
         self.assertIsNone(policy._town_procurement_progress_key(board))
 
+    def test_blocked_stop_the_plan_moved_past_stays_closed(self):
+        # Control (constructed plan): the remembered Magic page still offers
+        # the required 13-charge staff, but the plan no longer routes to the
+        # blocked stop (cursor past its end); the stop is not re-routed, as in
+        # the guardian-recall fallback board where a later need arose.
+        policy, board, _key, _prefix, _recorded = self.replay("idstaff-0353")
+        plan = policy._town_errand_plan
+        self.assertEqual(plan.stops[plan.index:], [STORE_MAGIC])
+        page_board = replace(board, store=policy._town_supplier_stock[STORE_MAGIC])
+        self.assertIsNotNone(policy._departure_blocking_page_purchase(page_board))
+        plan.index = len(plan.stops)
+        self.assertIsNone(policy._town_procurement_progress_key(board))
+
 
 if __name__ == "__main__":
     unittest.main()
