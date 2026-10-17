@@ -5777,7 +5777,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "02cf0b39cb83b5d7ffe71fad88f95e4af7ed0f356c6c1198c887a4cfdb1cc8a1"
+    "ast_sha256": "8043307f53edb32072d7a828097efd8fcd64e75ab12fa3ae9b0d4f7fd25e0264"
   },
   "policy_quest.py:QuestMixin._fixed_quest_reward_key": {
     "classification": "producer",
@@ -5785,7 +5785,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0cf9bbf32733a8338048f4c8de87b287d1f47eae33e2da20a44bf73db884b5c4"
+    "ast_sha256": "45d1e527e4609aa85b47e09bef923de29a2a4325d4f6a863d5dc91db56cde4f7"
   },
   "policy_quest.py:QuestMixin._fixed_quest_reward_positions": {
     "classification": "data",

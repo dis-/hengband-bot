@@ -4040,6 +4040,11 @@ class QuestMixin:
                 if reward_key is not None:
                     return reward_key
                 if self._fixed_quest_reward_pending is not None:
+                    if self.last_reason == "fixedquest:reward-pack-full":
+                        # The reward owner has no safe quest-local disposal.
+                        # Release this rung so the town owners can deposit,
+                        # sell, or dispose of surplus and make room for it.
+                        return None
                     self.last_reason = "fixedquest:reward-wait"
                     return WAIT_KEY
 
@@ -5213,7 +5218,7 @@ class QuestMixin:
             if destroy is not None:
                 return destroy
             self.last_reason = "fixedquest:reward-pack-full"
-            return WAIT_KEY
+            return None
         here = snapshot.grid_at(snapshot.player.position)
         if (
             snapshot.player.position in positions
