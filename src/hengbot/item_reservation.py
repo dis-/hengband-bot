@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
 import logging
@@ -83,24 +84,75 @@ class ReservationVerdict:
 
 _decision = ContextVar("item_reservation_decision", default=None)
 _query = ContextVar("item_reservation_query", default=False)
+_query_memo = ContextVar("item_reservation_query_memo", default=None)
+_caches_enabled = ContextVar("item_reservation_caches_enabled", default=True)
+
+
+@contextmanager
+def decision_caches_disabled():
+    """Provide a cache-free decision oracle without adding policy state."""
+    token = _caches_enabled.set(False)
+    try:
+        yield
+    finally:
+        _caches_enabled.reset(token)
 
 
 def reservation_query(function):
     """Need enumeration filters candidates without issuing an item operation."""
     @wraps(function)
     def run(*args, **kwargs):
+        policy = args[0] if args else None
+        token_memo = _query_memo.set({"policy": policy, "values": {}})
         token = _query.set(True)
         try:
             return function(*args, **kwargs)
         finally:
             _query.reset(token)
+            _query_memo.reset(token_memo)
     return run
+
+
+def reservation_query_memo(policy, name, snapshot, key, compute):
+    """Reuse a query result only while one read-only need enumeration is live."""
+    if not _caches_enabled.get():
+        return compute()
+    state = _query_memo.get()
+    if state is None or state["policy"] is not policy:
+        return compute()
+    cache = state["values"].setdefault(name, {})
+    cache_key = (id(snapshot), key)
+    hit = cache.get(cache_key)
+    if hit is not None and hit[0] is snapshot:
+        return hit[1]
+    value = compute()
+    cache[cache_key] = (snapshot, value)
+    return value
+
+
+def decision_memo(policy, name, snapshot, key, compute):
+    """Memoize an immutable snapshot-derived value for the current decision."""
+    if not _caches_enabled.get():
+        return compute()
+    state = _decision.get()
+    if state is None or state["policy"] is not policy:
+        return compute()
+    cache = state.setdefault("memo", {}).setdefault(name, {})
+    cache_key = (id(snapshot), key)
+    hit = cache.get(cache_key)
+    if hit is not None and hit[0] is snapshot:
+        return hit[1]
+    value = compute()
+    cache[cache_key] = (snapshot, value)
+    return value
 
 
 def reservation_decision(function):
     @wraps(function)
     def run(policy, snapshot):
-        token = _decision.set({"policy": policy, "view": None, "shadow": [], "skips": {}})
+        token = _decision.set({
+            "policy": policy, "view": None, "shadow": [], "skips": {}, "memo": {},
+        })
         try:
             return function(policy, snapshot)
         finally:

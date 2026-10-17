@@ -1,0 +1,74 @@
+Town decision speed diagnosis
+
+Baseline was measured with C:\hengband-backups\guard-tools\profile_town.py on
+the supplied gzip captures, from this worktree at 9ec39c05. The profiler keeps
+the 85 A boards and 49 B boards after setup rows are parsed. Neither source file
+has a decision_sequence field; the board rows are type=store or
+type=player_turn, so fixture extraction will retain those rows and omit setup
+rows.
+
+Capture A: 85 town decisions, median 4.549 s, p90 8.389 s, total 395.2 s.
+Capture B: 49 town decisions, median 6.024 s, p90 6.901 s, total 292.9 s.
+
+The hot path is confirmed on both captures:
+
+* A: _town_need_candidates ran 2,736 times and consumed 313.0 s. Its calls
+  performed 404,140 _retention_surplus checks, 405,226 retention baseline
+  evaluations, 406,258 uncached fixed quest head scans, and 1,227,052 joins in
+  _known_fixed_quests.
+* B: _town_need_candidates ran 1,828 times and consumed 261.7 s. Its calls
+  performed 534,418 _retention_surplus checks, 534,418 retention baseline
+  evaluations, 534,516 uncached fixed quest head scans, and 536,442 joins in
+  _known_fixed_quests.
+
+Values selected for reuse and their validity:
+
+1. A retention reservation and surplus for one item are reused only inside a
+   single _town_need_candidates enumeration (policy_town.py:2752, wrapped by
+   item_reservation.py:90). Their inputs are the current Snapshot contents,
+   the full frozen InventoryItem, and the policy's live retention/transaction,
+   supply, quest, purchase, and fundraising state. The need enumeration is a
+   read-only query: it does not update those policy inputs. The cache is thrown
+   away as the query returns, before another claim or candidate enumeration can
+   reuse it. In particular, _town_claims_active refreshes actionless equipment
+   failures and non-Home refusals at policy_town.py:3589-3590 before evaluating
+   its needs; later enumerations are separate calls and receive empty caches.
+   Other candidate-evaluation seams are policy_town.py:3772, 3805, and 4290.
+   This deliberately avoids caching a retention answer across any policy
+   mutation point.
+
+2. The _known_fixed_quests join depends on the exact sorted contents of
+   snapshot.quests and the identity of _quest_knowledge. QuestState values are
+   frozen. The mapping is populated at policy construction and is not changed
+   while a decision runs. The quest contents are part of the key, so an
+   in-place snapshot quest update misses. The decision context created by
+   item_reservation.reservation_decision clears the memo after choose_key; it
+   is not stored on the policy.
+
+3. The fixed quest head depends on the exact quest contents, town state, player
+   class and level, _fixed_quest_offers, and the identities of the static quest
+   knowledge and strategy tables. _fixed_quest_offers is rebuilt by
+   _begin_map_predicate_cache at policy.py:2590, called once for each public
+   decision at policy.py:8071. The memo is keyed by those values and the exact
+   Snapshot identity and is cleared when the decision context exits. It does
+   not cross a later decision or enter a checkpoint.
+
+No retention, sale, or deposit result is reused across separate need queries.
+All speed caches are ContextVar data with try/finally reset boundaries, not
+policy attributes, so they are absent from checkpoints and cannot leak into a
+restored decision.
+
+Post-change profiler result (after both retention caches were enabled):
+
+* A: median 1.862 s, p90 2.835 s, total 157.1 s. Median speedup 2.44x.
+* B: median 1.811 s, p90 2.030 s, total 87.4 s. Median speedup 3.33x.
+
+The target was met for B. A improved substantially but remained below 3x; its
+remaining time is concentrated in repeated candidate and town-fact evaluation,
+not fixed-quest joins or retention baseline calculations.
+
+The replay compares the complete restorable policy checkpoint after every
+board as well as (key, last_reason). It removes only the in-store elapsed-time
+fields ``ms``, ``shelf_observe_ms``, and ``dry_run_ms`` before comparison; these
+are timing observations expected to change when the decision becomes faster.
+All remaining serialized policy state matched on both captures.

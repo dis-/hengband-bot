@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.item_reservation import reserved_item_command
+from hengbot.item_reservation import reserved_item_command, decision_memo
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -4565,6 +4565,28 @@ class QuestMixin:
     def _uncached_fixed_quest_head(
         self, snapshot: Snapshot
     ) -> QuestState | None:
+        key = (
+            tuple(sorted(snapshot.quests.items())),
+            snapshot.in_town,
+            snapshot.town_id,
+            snapshot.player.class_id,
+            snapshot.player.level,
+            self._fixed_quest_offers,
+            id(self._quest_knowledge),
+            id(self._quest_strategies),
+        )
+        return decision_memo(
+            self,
+            "uncached-fixed-quest-head",
+            snapshot,
+            key,
+            lambda: self._build_fixed_quest_head(snapshot),
+        )
+
+    def _build_fixed_quest_head(
+        self, snapshot: Snapshot
+    ) -> QuestState | None:
+        """Compute a head from the exact snapshot and immutable quest tables."""
         def supported(quest: QuestState) -> bool:
             return quest.id in FIXED_QUEST_ALLOWLIST
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, reservation_shadow, item_available
+from hengbot.item_reservation import decision_memo
 from hengbot.town_work import town_work_decision
 
 from collections import Counter, deque
@@ -17145,6 +17146,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _known_fixed_quests(self, snapshot: Snapshot) -> dict[int, QuestState]:
         """Join disclosed fixed-quest state with sanctioned static knowledge."""
+        key = (
+            tuple(sorted(snapshot.quests.items())),
+            id(self._quest_knowledge),
+        )
+        known = decision_memo(
+            self,
+            "known-fixed-quests",
+            snapshot,
+            key,
+            lambda: self._build_known_fixed_quests(snapshot),
+        )
+        # Preserve the historical fresh-dictionary result for every caller.
+        return dict(known)
+
+    def _build_known_fixed_quests(
+        self, snapshot: Snapshot
+    ) -> dict[int, QuestState]:
+        """Build the snapshot join; decision memoization wraps this pure step."""
         known = dict(snapshot.quests)
         for quest_id in FIXED_QUEST_ALLOWLIST:
             if quest_id in known:
