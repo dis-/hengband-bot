@@ -3052,6 +3052,59 @@ class ShopMixin(InStoreMixin):
             release = self._identify_staff_release_plan(snapshot)
             if not release:
                 return None
+            from hengbot.policy_constants import STAFF_IDENTIFY_MAX_COUNT
+
+            carried_staves = self._carried_identify_staves(snapshot)
+            carried_count = sum(item.count for item in carried_staves)
+            if carried_count > STAFF_IDENTIFY_MAX_COUNT:
+                # The ordinary over-cap release reaches four first. A same-page
+                # swap needs one more of the emptiest staff released so the
+                # purchase can fill the fourth slot after the sale.
+                needed = carried_count - STAFF_IDENTIFY_MAX_COUNT + 1
+                reserve_slot = self._device_food_reserve_slot(snapshot)
+                release = {}
+                for item in sorted(
+                    carried_staves,
+                    key=lambda candidate: (
+                        candidate.charges,
+                        candidate.slot == reserve_slot,
+                        candidate.slot,
+                    ),
+                ):
+                    quantity = min(item.count, needed)
+                    if quantity:
+                        release[item.slot] = quantity
+                        needed -= quantity
+                    if needed == 0:
+                        break
+                # A page operation is one sale followed by one buy. It can
+                # release a stack in one sale, but cannot combine distinct
+                # inventory slots into that transaction.
+                if needed or len(release) != 1:
+                    return None
+                slot, quantity = next(iter(release.items()))
+                released = next(
+                    (item for item in snapshot.inventory if item.slot == slot),
+                    None,
+                )
+                if (released is None
+                        or not self._store_accepts_sale(store.store_type, released)
+                        or store.store_type in self._store_sale_refused):
+                    return None
+                probe = replace(snapshot, inventory=tuple(
+                    replace(item, count=item.count - quantity)
+                    if item.slot == slot else item
+                    for item in snapshot.inventory
+                    if item.slot != slot or item.count > quantity
+                ))
+                replacement = self._departure_blocking_page_purchase_pure(probe)
+                if (replacement is None
+                        or max(replacement.item.charges, replacement.item.pval)
+                        <= max(released.charges, released.pval)
+                        or not self._store_purchase_fits_pack(probe, replacement.item)):
+                    return None
+                return {"op": "release-sale", "item": released,
+                        "quantity": quantity, "purchase": replacement}
             for slot, quantity in release.items():
                 released = next((item for item in snapshot.inventory
                                  if item.slot == slot), None)
@@ -3638,26 +3691,12 @@ class ShopMixin(InStoreMixin):
         return max(0, STAFF_IDENTIFY_MAX_COUNT - carried)
 
     def _identify_staff_purchase_room(self, snapshot: Snapshot) -> bool:
-        """Permit buying below the cap or swapping in a worthwhile fuller staff.
+        """Permit buying Identify staffs only below the four-staff cap.
 
         At the cap the emptiest staff is released first (see
         ``_identify_staff_release_plan``); the purchase follows the release.
         """
-        if self._identify_staff_purchase_room_count(snapshot) > 0:
-            return True
-        store = snapshot.store
-        return bool(
-            store is not None
-            and any(
-                item.tval == TVAL_STAFF
-                and item.sval == SV_STAFF_IDENTIFY
-                and item.price <= snapshot.player.gold
-                and self._identify_staff_acquisition_worthwhile(
-                    snapshot, max(item.charges, item.pval)
-                )
-                for item in store.items
-            )
-        )
+        return self._identify_staff_purchase_room_count(snapshot) > 0
 
     def _purchase_quantity(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Buy this ware's complete shortage in one transaction."""
