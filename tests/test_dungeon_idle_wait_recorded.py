@@ -89,8 +89,8 @@ class DungeonIdleWaitRecordedTests(unittest.TestCase):
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
             key = policy.choose_key(self.captured)
 
+        self.assertEqual(key, "rh")
         self.assertEqual(policy.last_reason, "stuck:recall-escape")
-        self.assertIsNotNone(key)
 
     def test_threat_still_takes_combat_priority(self):
         position = Position(37, 4)
