@@ -1,0 +1,32 @@
+Q2 residual sweep diagnosis (d667f466)
+
+Replay: the 2026-10-18 03:07:26 capture's `player_turn` frames, matched to
+`bot-decisions.jsonl.gz` by `turn`, were parsed with `parse_snapshot` and fed in
+order through `HengbotPolicy._q2_phase_key` and `QuestFloorNavigator`. The replay
+matches the recorded key and reason at the loop: decision 527 / turn 878214 at
+(1,2) -> `6`, then decision 528 / turn 878223 at (1,3) -> `4`; this repeats
+through the stop at decision 561. Both reasons are
+`quest-strategy:q2-residual-86-sweep`.
+
+Measured target and visibility: `policy_constants.py:594` includes race 86 in
+`Q2_RESIDUAL_SWEEP_RACES`. Q2's fixed battlefield placements for race 86 are
+(1,1), (3,1), and (3,7). These are the residual sweep's last-known target
+positions; the capture has zero visible hostiles at the alternating boards and
+no visible race-86 monster. The remembered placement grids are known and empty,
+but not `in_view`. At (1,2), (1,1) is within distance 1; at (1,3), (3,1) is
+within distance 2.
+
+Cause: `policy_quest.py:2538-2548` calls a placement confirmed if its grid is
+known and empty and either `grid.in_view` **or** the player is within distance
+1. That proximity clause drops an unseen placement from `unconfirmed` as the
+player passes the corridor. At `policy_quest.py:2557-2564`, only geometrically
+near walkable cells are observation goals (`quest_navigator.py:345-354`); the
+selection can therefore change to a different fixed placement while old route
+targets remain. Replaying the boards shows the selected next steps reversing
+between (1,2) and (1,3), with no new placement becoming visible.
+
+Existing bound: the residual phase iterates the five race IDs in
+`Q2_RESIDUAL_SWEEP_RACES`; per race it visits finite walkable observation goals
+within `RANGED_MAX_DISTANCE` (10), then marks that race surveyed. If no goal is
+routable it returns the existing `quest:blocked:q2-residual-<race>-sweep` path.
+There is no separate numeric attempt threshold in this sweep.

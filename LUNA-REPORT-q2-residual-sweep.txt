@@ -1,0 +1,82 @@
+Q2 residual sweep repair report
+
+Branch/base: q2-residual-sweep-1018 at d667f466.
+Implementation commit: 52a4141c (Fix Q2 residual sweep visibility gate).
+
+Measured diagnosis
+------------------
+The diagnosis is recorded first in LUNA-DIAG-q2-residual-sweep.txt. I replayed
+the 2026-10-18 capture's player-turn boards in turn order through
+HengbotPolicy._q2_phase_key and QuestFloorNavigator. The replay matched the
+recorded actions and reasons at the incident: decision 527 at (1,2) returns
+`6`, then decision 528 at (1,3) returns `4`; the pair repeats through the
+captured stop. Both decisions use
+`quest-strategy:q2-residual-86-sweep`.
+
+Race 86's three fixed Q2 placements, from the loaded battlefield, are (1,1),
+(3,1), and (3,7). At both loop cells all three remembered grids are known and
+empty, but none is `in_view`, and the captured boards contain zero visible
+hostiles and no visible race-86 monster. At (1,2), the (1,1) placement is one
+cell away, so the old proximity clause temporarily removed it from the
+unconfirmed list. At (1,3), its distance is two and that placement became a
+target again. The dynamic choice between it and the remaining placement route
+made the policy reverse direction. (3,7) is the stable route target after the
+fix.
+
+The existing sweep is bounded by `Q2_RESIDUAL_SWEEP_RACES` (five race IDs) and
+the finite walkable observation goals within `RANGED_MAX_DISTANCE` (10). Each
+race is marked surveyed after its fixed placements are confirmed; if its goals
+cannot be routed, the existing `quest:blocked:q2-residual-<race>-sweep` path
+returns. There is no separate numeric attempt threshold.
+
+Change and pins
+---------------
+At `src/hengbot/policy_quest.py:2538-2544`, a remembered empty placement is now
+confirmed only when its grid is currently in view. This prevents distance from
+one cell from dropping an unseen residual placement during passage. No new
+constant, threshold, reason, helper, or policy attribute was added.
+
+`tests/fixtures/q2-residual-sweep-20261018.jsonl.gz` contains 52 raw UTF-8
+player-turn boards, decision sequences 480-531, matched to decision rows by
+turn. The fixture uses raw JSONL board objects and is 24,657 bytes compressed.
+The new recorded test replays these rows through the Q2 phase logic. On the
+captured loop boards, the stored original outputs are keys `6, 4, 6, 4` with
+the residual-86 sweep reason on all four. After the fix, the same boards return
+`6, 6, 6, 6`, again with the sweep reason, and retain route target (3,7).
+
+The visible-monster control uses two declared constructed frames based on the
+capture: a visible race-86 monster is approached with no launcher ammunition
+(`q2-close-residual-multiplier-no-ammo`, key `6`), then attacked when adjacent
+(`q2-melee-corpse-attack`, key `3`). The focused module has 2 tests; both pass.
+
+The existing `test_policy_quest` module passed 334 tests with 7 skips. No
+existing test assertions were changed and no existing tests failed. The
+manifest write refreshed `scripts/town_work_manifest.json.gz` and the
+`policy_quest.py:QuestMixin._q2_phase_key` AST hash in
+`src/hengbot/town_work_sites.json`. There are no new helpers requiring producer
+baseline/review entries. The new module adds two test cases; no structural
+census adjustment was needed, and fast-tier reported no census failure. No
+new policy attributes means no restored-checkpoint defaults were required.
+
+Required guard outputs
+----------------------
+
+Preflight:
+
+    [preflight] PREFLIGHT OK: 7 changed files, 0 findings (q2-residual-sweep-1018 vs d667f466)
+
+Mutation check:
+
+    [mutation] 1 source hunks, tests: tests.test_q2_residual_sweep_recorded
+    [mutation] caught     src/hengbot/policy_quest.py:2539 (and grid.in_view): test_recorded_loop_replay_keeps_advancing_toward_one_route_target
+    [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+    [mutation] recorded for 52a4141c
+
+Fast-tier:
+
+    [fast] 3948 fast tests (<2.0s in d667f466) + 1 changed modules, 4 shards
+    [fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+    Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-wm1683pd)
+    Failures: none
+    Errors: none
+    Total: 3952 tests, 223.9s

@@ -1,0 +1,5 @@
+Source: captured bot decision and player-turn JSONL for the 2026-10-18 Q2 residual-sweep loop.
+Selection: decision_sequence 480-531 inclusive; each raw player-turn board matched to its decision by turn.
+Rows: 52
+Decompressed sha256: e9ed9d9b1a990791c905e9cc0ec352c036621446cc59af305fa383caefbe370f
+Encoding: UTF-8 JSONL, raw board objects.

@@ -2539,10 +2539,7 @@ class QuestMixin:
                     grid is not None
                     and grid.known
                     and not grid.has_monster
-                    and (
-                        grid.in_view
-                        or snapshot.player.position.distance_to(placement) <= 1
-                    )
+                    and grid.in_view
                 ):
                     unconfirmed.append(placement)
             if not unconfirmed:
