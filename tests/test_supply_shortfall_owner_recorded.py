@@ -24,7 +24,8 @@ fixture.py).  DECLARED WALLS (constructed context): the live process carried
 knowledge from before the capture window, so (1) the 031620 ``~f`` skill list
 (the same character) is applied before every decision except the recorded
 ``periodic:skill-exp-knowledge`` one, and (2) the capture's own later Home
-knowledge row is consumed as current Home knowledge on the first town board;
+knowledge row is consumed (public consume_home_knowledge) on the first town
+board;
 (3) every board after a posted key carries the executor's completed-operation
 binding.  Under these walls every recorded decision before each pin
 reproduces (asserted below); the pinned board is the first changed response.
@@ -41,7 +42,9 @@ from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_ALCHEMIST, STORE_MAGIC
+from hengbot.model import _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.protocol import snapshot_protocol_version
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures/supply-shortfall-owner-20261018.json.gz"
@@ -95,8 +98,8 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
         policy = _policy(root, self.monrace)
-        policy._crossarea_fundraising_enforced = True
-        policy._in_store_ops_enabled = True
+        policy._crossarea_fundraising_enforced = True  # live argv
+        policy._in_store_ops_enabled = True  # live argv (--in-store-shop-ops)
         ledger = root / "knowledge.jsonl"
         primed = home_done = False
         previous = None
@@ -119,11 +122,10 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
             if board.in_town and not home_done:
                 # Wall (2): see the module docstring.
                 home_done = True
-                policy._home_knowledge_scan_inflight = True
-                policy._home_knowledge_scan_epoch = policy._town_visit_epoch
-                _consume_response_sequence(
-                    [lines[capture["home_row"]]], policy, lambda _key: True,
-                    self.monrace, knowledge_ledger_path=ledger)
+                home = json.loads(lines[capture["home_row"]])
+                policy.consume_home_knowledge(tuple(_parse_items(
+                    home["knowledge"]["items"],
+                    protocol=snapshot_protocol_version(home))))
             if recorded["reason"] != "periodic:skill-exp-knowledge":
                 # Wall (1).
                 policy.consume_skill_knowledge(
@@ -197,6 +199,7 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
         page = policy._town_supplier_stock[STORE_MAGIC]
         policy._town_supplier_stock[STORE_MAGIC] = replace(page, items=[
             ware for ware in page.items if not (ware.tval == 55 and ware.sval == 5)])
+        self.assertIn(STORE_MAGIC, policy._town_errand_plan.blocked_this_visit)
         self.assertIsNone(policy._town_procurement_progress_key(board))
 
 
