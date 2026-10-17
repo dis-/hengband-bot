@@ -138,6 +138,33 @@ class WeightDepositLoopRecordedTest(unittest.TestCase):
         self.assertIs(policy._overweight_surplus_disposal, disposal)
         self.assertIs(disposal["pending"], pending)
 
+    def test_posted_sale_is_not_cleared_while_home_can_accept_a_deposit(self):
+        policy, snapshot = self._policy_for(self.boards[0])
+        policy._home_capacity_observation = (
+            155, 240, policy._effective_town_id(snapshot)
+        )
+        self.assertIsNotNone(policy._find_home_deposit(snapshot))
+        candidate = policy._overweight_surplus_candidates(snapshot)[0][2]
+        pending = {
+            "identity": policy._sale_item_identity(candidate),
+            "posted": True,
+            "mode": "sale",
+            "before_count": candidate.count,
+            "gold": snapshot.player.gold,
+            "weight": policy._inventory_weight(snapshot),
+            "home_stock": 155,
+        }
+        disposal = {
+            "town": policy._effective_town_id(snapshot),
+            "pending": pending,
+        }
+        policy._overweight_surplus_disposal = disposal
+
+        policy._overweight_surplus_sale_key(snapshot)
+
+        self.assertIs(policy._overweight_surplus_disposal, disposal)
+        self.assertIs(disposal["pending"], pending)
+
     def test_reserved_departure_supplies_never_enter_surplus_disposal(self):
         policy, snapshot = self._policy_for(self.boards[2])
         reserved = next(item for item in snapshot.inventory
