@@ -1,0 +1,5 @@
+Source: c4-a life-012 loop-detected capture 20261018-045328 (bot eb5db45f), bot-decisions.jsonl.gz and state.jsonl.gz.
+Selection: line 1 is the run's single raw knowledge row (~f skill list); lines 2-142 are decision_sequence 1-141 of the restarted run (fresh bot, retake-hold first), each raw player_turn board matched to its decision by turn.
+Rows: 142
+Decompressed sha256: eba479c578b07d85c80c03f1fda2ff046218f42204a825ce3fafb4513938c88b
+Encoding: UTF-8 JSONL, raw board objects.

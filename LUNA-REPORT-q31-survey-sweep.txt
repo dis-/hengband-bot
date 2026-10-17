@@ -1,0 +1,91 @@
+Q31 survey-throw-point / placement-sweep loop (ISSUE #62) - report
+
+Branch q31-survey-sweep-1018, base eb5db45f.
+Commits: 9057e566 diagnosis; 94538e85 fix + pin + fixture + bookkeeping;
+this report commit (also corrects line numbers in the diagnosis).
+
+Measured diagnosis (details in LUNA-DIAG-q31-survey-sweep.txt)
+- Capture 20261018-045328 holds a whole restarted run (decisions 0-141). A
+  fresh HengbotPolicy fed the run's knowledge row and every board via
+  prime + choose_key reproduces 139/141 recorded key+reason pairs (only the
+  timing of the single nav:break-oscillation differs: replay 124, record 126).
+- light_radius 2, cleared {(329,16,3)}. At (8,4) the survey selects plan
+  race 329 target (6,4) stand (10,4) because _player_can_see_empty_cell(6,4)
+  is True (distance 2); it steps '2' toward the stand. At (9,4) the target is
+  distance 3 > 2, not certified, no plan is selected, and the battlefield
+  placement sweep (only in_view or distance<=1 cells count as surveyed; 485
+  unsurveyed) routes (9,4)->(8,4)->(7,4), '8'. The survey's clearing check runs
+  only at the stand, which is 4 cells from the target and can never certify it
+  by light. The breaker steps once to (9,3) and both producers pull back to
+  the pair within 3 boards. Same pair/reasons in all three captures.
+
+Change (src/hengbot/policy_quest.py, survey branch of _quest_execute_key)
+- For a non-Q34 profile, when the selected plan's target already satisfies the
+  stand's own clearing evidence (fixed_target_cell_visible or
+  defeated_by_message, and the grid holds no monster) and the stand is
+  reachable, the survey no longer walks on: the existing clearing block runs
+  where the player stands (survey-target-cleared, recovery queued as before).
+- Q34 is unchanged (still clears only at its reviewed stand). An unreachable
+  stand keeps quest-strategy:throw-point-unreachable (an earlier variant without
+  the reachability clause changed the existing assertion of
+  test_policy_quest.ApprovedQuestStrategyExecutionTest
+  .test_q31_survey_unreachable_reason_is_not_labeled_q34 from
+  throw-point-unreachable to survey-target-cleared; it was not committed).
+- No new constant, threshold, policy attribute or reason. No quest-31 special
+  case (rule keys on "not Q34", the pre-existing Q34 distinction).
+- Bookkeeping: town_work_sites.json ast_sha256 of
+  policy_quest.py:QuestMixin._quest_execute_key, regenerated
+  scripts/town_work_manifest.json.gz (831 candidates, 21083 sites, zero
+  unmapped). No census count change.
+
+Pins (tests/test_q31_survey_sweep_recorded.py; fixture
+tests/fixtures/q31-survey-sweep-20261018.jsonl.gz, 33,553 bytes, 142 raw rows:
+knowledge row + decisions 1-141 with their raw boards; provenance file beside it)
+- test_recorded_alternation_no_longer_reverses: recorded 105-123 are
+  '2' survey-throw-point at (8,4) / '8' placement-sweep at (9,4) alternating.
+  eb5db45f replay: the same alternation. After the fix the replay clears
+  (329,3,3) at (5,1) on decision 99 and (329,6,4) at (6,2) on decision 101
+  (survey-target-cleared), and every replayed loop board (except one breaker
+  board) gives ('8', quest-strategy:recover-defeated-target-torches), toward
+  the bolt pile on the (6,4) recovery lane: no reversal.
+- test_survey_still_steps_toward_stand_for_an_occupied_target (control,
+  DECLARED CONSTRUCTED): after replaying boards 1-98, the recorded (8,4) board
+  with the (6,4) cell marked occupied still yields ('2',
+  quest-strategy:survey-throw-point), one step toward the stand, nothing
+  cleared; the unmodified board clears (6,4).
+Controls
+- Q2 residual sweep fix untouched; tests.test_q2_residual_sweep_recorded OK.
+- Run together, OK (376 tests, 7 skipped): test_q31_survey_sweep_recorded,
+  test_policy_quest, test_q2_residual_sweep_recorded,
+  test_quest34_target_dead_recorded, test_q34_opening_oil_recorded,
+  test_newchar_light_loop_recorded, test_quest_navigator, test_quest_strategies.
+
+Guard outputs (after commit 94538e85)
+preflight:
+[preflight] PREFLIGHT OK: 7 changed files, 0 findings (q31-survey-sweep-1018 vs eb5db45f)
+mutation_check:
+[mutation] 1 source hunks, tests: tests.test_q31_survey_sweep_recorded
+[mutation] caught     src/hengbot/policy_quest.py:3656 (# The stand only exists to observe the target. On a dark floor): test_recorded_alternation_no_longer_reverses, test_survey_still_steps_toward_stand_for_an_occupied_target
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 94538e85
+fast_tier, first run:
+[fast] 3932 fast tests (<2.0s in eb5db45f) + 1 changed modules, 4 shards
+Failures: ['tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace']
+Errors: ['tests.test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder']
+Total: 3937 tests, 371.1s
+  Not regressions: neither touches policy_quest; the cli error is a 5 s
+  subprocess timeout and the executor failure an extra 'screen' poll (timing
+  under load from other concurrent jobs). Both pass run alone (2 tests OK,
+  1.7 s), and the rerun is clean.
+fast_tier, rerun (repair round 1, no source change):
+[fast] 3895 fast tests (<2.0s in eb5db45f) + 1 changed modules, 4 shards
+[fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-x8nlm1yt)
+Failures: none
+Errors: none
+Total: 3900 tests, 272.7s
+
+Open
+- The new recorded test takes about 26 s (full fresh-run replay of 141 boards).
+- After the fix the next Q31 stage was not observed live: replayed boards after
+  decision 99 come from the old path, so only the immediate decisions are pinned.
