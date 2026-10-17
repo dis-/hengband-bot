@@ -1537,6 +1537,17 @@ class ShopMixin(InStoreMixin):
 
         self._town_terminal_transitions(snapshot)
         refreshed_needs = self._enumerate_town_needs(snapshot)
+        if self._town_blocked_reason == "repetition":
+            blocking = {
+                need.category
+                for need in self._departure_blocking_town_needs(snapshot)
+            }
+            # Equipment state machines are departure owners outside NeedSpec.
+            blocking.update({"equipment-work", "equipment-transaction"})
+            refreshed_needs = [
+                need for need in refreshed_needs
+                if need.category in blocking
+            ]
         if refreshed_needs:
             prior_change_evidence = getattr(
                 self, "_decision_plan_change_evidence", None

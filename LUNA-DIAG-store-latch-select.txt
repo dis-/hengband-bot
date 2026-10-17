@@ -1,0 +1,17 @@
+Measured diagnosis ? store latch selection (#54)
+
+Replay
+
+- Read the captured gzip JSONL as UTF-8 and filtered decision rows by `decision_sequence`. Rows 100?103 show the loop: 100 routes to store 2 at (31,91), key `9`; 101 leaves store 2 with ESC and `operation_posted: false`; 102 at the store door steps off with key `1`; 103 routes back to store 2 with key `9`. (Captured `bot-decisions.jsonl.gz`, rows 100?103.)
+- Replayed raw state frames through `parse_snapshot` and the real `HengbotPolicy` at base `0e573009`. On the store-2 frame (turn 1146943), `_town_blocked_purchase_is_composable` is `False` and `_town_blocked_key` returns ESC / `town:blocked:repetition`. On the outside door frames (turns 1146943 and 1146953), `_town_blocked_key` returns `1` / `town:blocked:repetition`, while `_next_required_store_type` returns `2`.
+
+Measured cause
+
+- Decision 100?s shop selector names the considered candidate as iron shot (`?? (1d3) (+0,+0)`, letter `s`, price 3, count 99), with `winning_rung: equipment:sale-refused`, `rejection_reason: preempted`, and composition-refusal sequence 96. The selector therefore did not compose a buy. The equipment sale refusal is the higher-priority owner/rung; the same row reports zero equipment transaction actions and no live transaction context. (Captured decision rows 96 and 100; source `_record_shop_selector_diagnostics`, `src/hengbot/policy_shop.py:2479-2578`.)
+- The blocked-store composer only allows a purchase when its family intersects a departure-blocking need, or when the item is a wand/staff (`src/hengbot/policy_town.py:1434-1471`). For this replay, the blocking needs are empty; ammo matches neither branch. Thus the in-store latch correctly refuses this candidate and exits without recording a shelf observation.
+- The required-store selector first filters live needs to departure-blocking categories plus equipment work/transactions under the repetition latch (`src/hengbot/policy_shop.py:1298-1310`). But after that filtered plan is empty, its terminal fallback rebuilds from unfiltered `_enumerate_town_needs` (`:1523-1555`). Replay measured that fallback?s live need as store 2 / category `disposal` / ordering class `normal`; it resurrects that optional stop and returns store 2. `_town_blocked_key` then routes through `_shopping_approach_step(..., router_plan_stop=True)` (`src/hengbot/policy_town.py:5790-5805`).
+
+Decisions implied by each side
+
+- Follow the in-store decision: do not bind the preempted ammo candidate; leave and let the repetition latch depart.
+- Follow the router decision: keep store 2 as a required stop, route back in, then leave again because the same candidate is not composable. These disagree because the router?s terminal fallback drops the latch?s filtered need set.

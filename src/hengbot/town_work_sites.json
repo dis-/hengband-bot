@@ -6487,7 +6487,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3e6bcdc2b68f48ad99cc36acf44898447828a00b75b1d8bf739e4d45a3cb326c"
+    "ast_sha256": "3c3926e68fed8797871a64c756dc309f561c443f78093fdf08fbf91a65dbd738"
   },
   "policy_shop.py:ShopMixin._offer_store_sale_leave": {
     "classification": "producer",
