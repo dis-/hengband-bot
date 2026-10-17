@@ -3,7 +3,6 @@ Reward pack full handoff
 Branch and commits
 - Base: 9ec39c05.
 - Implementation: fb33b56a (`Release full-pack quest reward to town space owners`).
-- 
 Measured diagnosis
 - `LUNA-DIAG-reward-pack-full.txt` records the captured board and selector measurements. The board at turn 961478 / decision_sequence 8436 has level 23, gold 8,514, position (31,99), 23/23 pack slots, and rewarded quest 22.
 - On base 9ec39c05 the recorded policy decision is key `5` (`WAIT`), reason `fixedquest:reward-pack-full`. The claim is owned by `quest-request` at `_fixed_quest_key#2`; its shadow skip list contains Home visit, shop sale, Home scan, and other town owners.
