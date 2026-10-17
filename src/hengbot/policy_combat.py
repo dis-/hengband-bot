@@ -398,6 +398,18 @@ class CombatMixin:
             if hasattr(snapshot, "visible_monsters")
             else []
         )
+        material_exploders = {
+            (monster.index, monster.race_id)
+            for monster in strategic_hostiles
+            if (
+                (knowledge := self._monrace_knowledge.get(monster.race_id))
+                is not None
+                and any(
+                    blow.method == "EXPLODE" for blow in knowledge.blows
+                )
+            )
+            and self._material_melee_engagement(snapshot, monster)
+        }
         choke_hold = (
             reason == "melee:choke-hold"
             and not self._took_damage
@@ -464,6 +476,7 @@ class CombatMixin:
             monster
             for monster in strategic_hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
+            and (monster.index, monster.race_id) not in material_exploders
         ]
         # A low-damage town contact should reach the existing melee action,
         # rather than making the town's persistent pursuer chase the player
@@ -507,6 +520,7 @@ class CombatMixin:
             monster
             for monster in hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
+            and (monster.index, monster.race_id) not in material_exploders
         ]
         if adjacent and not snapshot.player.afraid:
             self.last_reason = "no-wait:melee"
