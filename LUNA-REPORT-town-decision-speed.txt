@@ -70,8 +70,39 @@ Development runs:
 * scripts/town_work_manifest.py --write: 831 candidates, 21,000 sites, zero
   unmapped.
 
-Final required guard outputs, in required order, will be appended here after
-preflight.py, mutation_check.py, and fast_tier.py complete.
+Final required guard outputs, in required order:
+
+Preflight:
+
+```text
+[preflight] PREFLIGHT OK: 13 changed files, 0 findings (town-decision-speed-1017 vs 9ec39c05)
+```
+
+Mutation check:
+
+```text
+[mutation] 9 source hunks, tests: tests.test_town_decision_speed_caches
+[mutation] caught: 9 of 9 source hunks (0 NOT CAUGHT; two cache removals reached the 900 s test timeout and were classified caught)
+[mutation] MUTATION OK: 0 of 9 hunks are not pinned by a test
+[mutation] recorded for e58c02eb
+```
+
+Fast tier:
+
+```text
+[fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3876 tests, 1092.1s
+```
+
+The initial fast-tier invocation used the latest global timing batch and found
+two import errors for modules absent from both this worktree and base
+9ec39c05: tests.test_reward_pack_full_handoff and
+tests.test_identify_wake_interrupt_20261017. A green timing batch for base
+9ec39c05 contained no missing modules; the fast-tier output above is from that
+matching batch.
 
 Controls
 
