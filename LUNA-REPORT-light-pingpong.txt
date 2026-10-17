@@ -1,0 +1,112 @@
+Light-slot pingpong report
+==========================
+
+Base: 35f4de3b9b34f673129d285b7e04cf0c49486431
+Implementation HEAD: 82516e98985d2a04a81b6c26548e5f5a1595589c
+Branch: light-pingpong-1017
+
+Measured diagnosis
+=================
+
+See `LUNA-DIAG-light-pingpong.txt` for the captured board measurements and
+file/line predicates. I decoded the three evidence captures as UTF-8, filtered
+the `decision_sequence` rows, and replayed the raw player-turn boards through
+`parse_snapshot` and the real `HengbotPolicy._choose_key` on the base revision.
+
+At turn 1336545, a known Brass Lantern with 984 fuel and a 1,550-fuel Wooden
+Torch in inventory produces `wn / wield-light`; at turn 1336554, with the
+1,549-fuel torch worn and the same lantern at 984 in inventory, the policy
+again produces `wn / wield-light`. Both boards have
+`can_see_own_grid=True`, so `_is_dark` is false and `_darkness_recovery_key`
+returns `None`. The recorded actions on these boards are both from the ordinary
+`_light_to_wield` branch (`policy.py:11638-11658`), rather than the darkness
+recovery producer. The other capture pairs show the same alternating source
+choice at lantern fuel 962 / 941 and fueled torches 1,526 / 1,508. There are no
+oil flasks in the captured inventories, so `_light_refill_item` has no item to
+return. The existing bounds are `LANTERN_REFILL_FUEL=1000` and
+`TORCH_REFILL_FUEL=500` (`policy_constants.py:390,392`).
+
+Change
+======
+
+In `src/hengbot/policy.py`, `_light_to_wield` now refuses to select a known,
+low-fuel carried lantern when no oil is carried. The existing low-fuel worn
+lantern rule still selects a fueled torch, so a lantern can yield when it is
+nearly exhausted; once the torch is worn, the same low-fuel lantern cannot
+replace it. When oil is carried and the low-fuel lantern is equipped, the
+existing refill path wins before any light swap. No constant, threshold,
+reason, or new helper was added. The directional darkness recovery remains
+compatible: it also chooses a fueled torch for a low-fuel worn lantern and
+leaves an already working torch in place.
+
+The manifest was regenerated after the final source edit. It reports 826
+candidates and 20,989 call sites, up 3 call sites from the base manifest; the
+candidate census is unchanged. No new producer/helper baseline entries or
+stuck-family reason were needed. No existing test assertions were edited.
+
+Captured pins and controls
+=========================
+
+Fixture: `tests/fixtures/light-pingpong-20261017.json.gz` (5,758 bytes), holding
+the two captured boards at turns 1336545 and 1336554.
+
+* Base replay: both boards produced `wn / wield-light`, reproducing the
+  lantern/torch alternation.
+* After the fix: the first board still produces `wn / wield-light` to replace
+  the low-fuel lantern; the second board produces `8 / explore` and reason
+  `explore`, leaving the torch equipped instead of swapping the lantern back.
+* Control without oil: the nearly exhausted lantern still yields to the
+  fueled torch (`wn / wield-light`), and the torch-worn board has no light
+  candidate or darkness torch action.
+* Control with oil: adding a constructed oil flask to the captured
+  lantern-worn board produces `\Fz / refill-light`.
+* Mutation check removed the new predicate and the captured no-swap pins failed,
+  confirming the behavior is pinned.
+
+Focused verification before the guards:
+
+* `tests.test_light_pingpong_recorded`: 3 tests passed.
+* `tests.test_policy_supply`: 208 passed.
+* `tests.test_home_light_alternation`: 36 passed.
+* `tests.test_darkwalk`: 25 passed.
+* `tests.test_newchar_light_loop_recorded`: 4 passed.
+* `tests.test_q34_opening_oil_recorded`: 5 passed.
+* `tests.test_town_structure_lint`: 19 passed after the final manifest
+  regeneration. One earlier run, before regenerating after a formatting-only
+  source edit, reported the generated manifest stale; regeneration resolved it.
+* `tests.test_item_sink_lint`: 18 passed.
+
+Required guard outputs
+======================
+
+Preflight command:
+`python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\light-pingpong-1017 35f4de3b`
+
+Output:
+`[preflight] PREFLIGHT OK: 7 changed files, 0 findings (light-pingpong-1017 vs 35f4de3b)`
+
+Mutation command:
+`python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\light-pingpong-1017 35f4de3b --tests tests.test_light_pingpong_recorded --record`
+
+Output:
+`[mutation] 1 source hunks, tests: tests.test_light_pingpong_recorded`
+`[mutation] caught     src/hengbot/policy.py:13008 (# A low-fuel lantern that has no carried oil must not displace a): test_captured_consecutive_boards_do_not_swap_back, test_low_fuel_lantern_yields_to_torch_without_oil`
+`[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test`
+`[mutation] recorded for 753e84e2`
+
+Fast-tier command:
+`python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\light-pingpong-1017 35f4de3b --shards 4`
+
+Output:
+`[fast] 3823 fast tests (<2.0s in 35f4de3b) + 1 changed modules, 4 shards`
+`[fast] excluded 21 modules measured over 60s`
+`Crashed shards: none`
+`Failures: none`
+`Errors: none`
+`Total: 3832 tests, 201.3s`
+
+Commit
+======
+
+`82516e98 Stop low-fuel lantern light-slot pingpong`
+`753e84e2 Record light pingpong diagnosis and verification`

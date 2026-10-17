@@ -1,0 +1,63 @@
+LUNA-DIAG-light-pingpong ? measured replay
+
+Base: 35f4de3b9b34f673129d285b7e04cf0c49486431
+Evidence: the 20261017-145656-loop-detected capture; matching boards in the other
+ two captures. I decoded state.jsonl.gz as UTF-8 and filtered bot decisions by
+decision_sequence. I replayed the two raw player-turn boards through
+parse_snapshot and HengbotPolicy._choose_key from this checkout.
+
+Captured board replay
+=====================
+
+| turn | equipped | carried light | carried oil | can_see_own_grid | _is_dark | replay |
+|---:|---|---|---|---|---|---|
+| 1336545 | Brass Lantern, 984 fuel | Wooden Torch, 1550 fuel | none | True | False | `wn`, `wield-light` |
+| 1336554 | Wooden Torch, 1549 fuel | Brass Lantern, 984 fuel | none | True | False | `wn`, `wield-light` |
+
+The loop decisions are recorded at `bot-decisions.jsonl.gz` sequences 4322
+(turn 1336545) and 4323 (turn 1336554). Other captured boards continue the same
+pattern. The corresponding final decision pairs are 1336993/1337008 in the
+145708 capture (lantern 962, then torch 1526) and 1337390/1337399 in the
+145720 capture (torch 1508, then lantern 941). All six boards have
+`can_see_own_grid=True`, no carried oil, and `_darkness_recovery_key(...) is
+None`; the baseline ordinary replay returns `wn` / `wield-light` on each
+recorded board.
+
+Producer attribution and predicates
+===================================
+
+* `src/hengbot/policy.py:10701-10703` invokes `_darkness_recovery_key` before
+  ordinary navigation, but both captured boards report `can_see_own_grid=True`.
+  `_is_dark` at `src/hengbot/policy.py:13128-13134` therefore returns false;
+  the darkness producer selected neither recorded action.
+* Both recorded actions come from the ordinary block at
+  `src/hengbot/policy.py:11638-11658`. `_light_to_wield` at
+  `src/hengbot/policy.py:12993-13022` sees the equipped lantern at or below
+  `LANTERN_REFILL_FUEL` and, because no refill item exists, allows a lower-ranked
+  torch to replace it. On the next board it sees the fueled torch as rank 0 and
+  the still-usable lantern as rank 1, so selects the lantern back.
+* `_darkness_torch` at `src/hengbot/policy.py:13163-13184` has the separate
+  directional torch-recovery behavior: it would select a carried torch for a
+  low-fuel worn lantern in darkness, but it is not active on either recorded
+  board. The measured cause here is the ordinary selector's asymmetric handling
+  of an equipped low lantern versus a carried low lantern.
+* `src/hengbot/policy_constants.py:390` sets `LANTERN_REFILL_FUEL = 1000`;
+  line 392 sets `TORCH_REFILL_FUEL = 500`. These are existing refill bounds; no
+  new bound is needed.
+* `_light_refill_item` at `src/hengbot/policy_supply.py:131-164` only returns an
+  oil flask found in the inventory for a known worn lantern at/below the lantern
+  bound. Neither captured inventory contains oil. The lantern was therefore not
+  refillable on these boards. The inventory listing contains only the opposite
+  light, not any oil item.
+
+Diagnosis
+=========
+
+The captured producer is `_light_to_wield` for both sides of the alternation;
+`_darkness_recovery_key` does not run its darkness branch because the player
+can see their own grid. At 984 fuel the low-lantern no-refill rule authorizes a
+torch downgrade; after that swap, normal rank ordering upgrades to the same
+low-fuel lantern again. I will make the no-refill low lantern ineligible as a
+replacement candidate, while retaining the current equipped low-lantern escape
+to a fueled torch. When oil is carried, the existing refill command will take
+priority while the lantern is equipped.
