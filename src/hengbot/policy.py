@@ -12890,8 +12890,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or item.tval == TVAL_RING
         ):
             if self._is_disposable_item(
-                item, food_type=snapshot.player.food_type
-            ) or self._is_spare_lantern(snapshot, item):
+                item,
+                food_type=snapshot.player.food_type,
+                overflow_pressure=(
+                    snapshot.in_town and self._town_pack_space_shortage(snapshot)
+                ),
+            ) or self._is_spare_lantern(snapshot, item) or (
+                item.is_torch
+                and item.known
+                and item.fuel > 0
+                and self._retention_reservation(snapshot, item) == 0
+            ):
                 return False
             item_group = self._equipment_slot_group(item)
             item_slot = slot_for(item)
@@ -14598,7 +14607,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _is_surplus_digging_tool(self, snapshot: Snapshot, item: InventoryItem) -> bool:
-        """Keep the best two carried tools; permit excess deposit/disposal."""
+        """Permit weaker duplicate stacks beyond the retained tool choices."""
         if not item.is_digging_tool:
             return False
         if self._disposal_protected_by_identification(item):
@@ -14614,6 +14623,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             key=self._digging_tool_sale_quality,
             reverse=True,
         )[:2]
+        if item.count > 1 and any(
+            self._digging_tool_sale_quality(candidate)
+            > self._digging_tool_sale_quality(item)
+            for candidate in diggers
+            if candidate is not item
+        ):
+            return True
         return all(candidate is not item for candidate in keep)
 
 

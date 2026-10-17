@@ -1,0 +1,74 @@
+# Overflow disposal candidates report
+
+Branch: `overflow-disposal-candidates-1017`
+Base: `ac768200`
+Implementation HEAD: `2a3108d9`
+
+## Measured diagnosis
+
+The decision-sequence-filtered 21:26:14 and 21:26:41 captures both replayed to a 20/20 pack with 3 free slots. On the later board (sequence 7, turn 1681211), the baseline `_overflow_disposal_item()` returned `None`; `_town_overflow_destroy_key()` returned `WAIT_KEY` with `town:blocked:overflow-no-legal-disposal`. The 21:25:26 stop differed: its selector chose slot g and verified destruction emitted `01kg`.
+
+The item-by-item baseline reasons, reservations, parsed known/cursed/broken values, economic-path and sale-route limitations, source locations, and the 5-slot / 4-slot gates are recorded in [LUNA-DIAG-overflow-disposal-candidates.txt](LUNA-DIAG-overflow-disposal-candidates.txt). In particular, the late board contains a known, empty dark ego lantern marked broken, a dagger whose name says broken but whose parsed broken flag is false, four torches still covered by the existing carry target, a two-item weaker shovel stack, and the stronger +8 pickaxe. The decision row reports `shop:leave` / `observed-page-nothing-wanted`; no store was open at the terminal decision. The empty lantern and broken dagger had no organization sale-store route.
+
+## Change and pins
+
+The overflow selector now permits known empty lights and broken-name melee weapons only while town pack space is short. Its final fallback no longer treats a theoretical equipment sale path as proof that a sale or Home deposit will execute after productive producers have declined. Existing reservation, identification, bounty, undestroyable, useful-device, and stack checks remain in place. The existing torch carry target remains intact; a torch stack is eligible only when its whole stack is unreserved. A weaker shovel stack with count greater than one is released when a better tool is present; separate single-tool reserves retain their existing behavior. No new policy attribute, constant, threshold, or stuck reason was added.
+
+The tracked gzip JSONL pin contains only the needed state row and decision facts, raw UTF-8. Before the change, the captured board returns the recorded overflow stop. After the change, the real verified-destroy path selects empty lantern slot p and returns key `01kp`, reason `town:destroy-overflow`. A declared constructed replay doubles the four torch stacks so one whole stack exceeds the existing carry target; it selects slot o and returns `02ko` with the same reason.
+
+Controls assert the 6433-turn worn lantern is not selected; all four captured torch stacks remain reserved on the recorded board; the +8 pickaxe remains retained; and Recall, teleport, and Cure Critical Wounds remain protected. The weaker count-two shovel stack has reservation 0 and is surplus. The captured empty lantern and broken dagger both satisfy the overflow-only disposable predicate.
+
+## Focused verification
+
+All listed focused modules passed on the final source state:
+
+- `tests.test_town_overflow_disposal_candidates_recorded`: 2 tests.
+- `tests.test_town_overflow_disposal_recorded`: 3 tests.
+- `tests.test_town_overflow_recorded`: 8 tests.
+- `tests.test_destroy_procurement_guard`: 7 tests.
+- `tests.test_destroy_superior_item_guard`: 4 tests.
+- `tests.test_policy_helpers`: 23 tests.
+- `tests.test_policy_fundraising`: 53 tests.
+- `tests.test_policy_home`: 171 tests, 4 skipped.
+- `tests.test_home_light_alternation`: 36 tests.
+- `tests.test_light_pingpong_recorded`: 3 tests.
+
+During implementation, five assertions in `tests.test_town_overflow_recorded` initially failed when the tool reserve was reduced globally; the source change was narrowed to weaker multi-item stacks, and the unchanged module then passed. The first fast-tier run also found three `tests.test_light_pingpong_recorded` regressions from applying the broken-item predicate outside town overflow pressure; those predicates are now pressure-gated, and the focused module passes. No existing test assertions were changed.
+
+## Required guard outputs
+
+Preflight (final implementation HEAD):
+
+```text
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (overflow-disposal-candidates-1017 vs ac768200)
+```
+
+Mutation check (final implementation HEAD):
+
+```text
+[mutation] 8 source hunks, tests: tests.test_town_overflow_disposal_candidates_recorded
+[mutation] NOT CAUGHT src/hengbot/policy.py:12863 (item,)
+[mutation] caught     src/hengbot/policy.py:12876 (item,): test_captured_stop_releases_only_surplus_candidates, test_constructed_torch_surplus_uses_existing_carry_target
+[mutation] TEXT ONLY  src/hengbot/policy.py:14593 ("""Permit weaker duplicate stacks beyond the retained tool choices."""): docstring/comment change, nothing to pin
+[mutation] caught     src/hengbot/policy.py:14609 (if item.count > 1 and any(): test_captured_stop_releases_only_surplus_candidates
+[mutation] caught     src/hengbot/policy_helpers.py:225 (self,): test_captured_stop_releases_only_surplus_candidates, test_constructed_torch_surplus_uses_existing_carry_target
+[mutation] caught     src/hengbot/policy_helpers.py:253 (or (): test_captured_stop_releases_only_surplus_candidates
+[mutation] caught     src/hengbot/policy_helpers.py:283 (overflow_pressure = (): test_captured_stop_releases_only_surplus_candidates, test_constructed_torch_surplus_uses_existing_carry_target
+[mutation] caught     src/hengbot/policy_home.py:2113 (if item.count > 1 and any(): test_captured_stop_releases_only_surplus_candidates
+[mutation] MUTATION FAIL: 1 of 8 hunks are not pinned by a test
+```
+
+The remaining unpinned hunk is the quality-unknown melee branch in `_destroy_would_discard_superior_item`; the captured replay exercises the disposable lantern, not that fallback. I did not start another repair round because the task caps repairs at two.
+
+Fast tier (final implementation HEAD, four shards):
+
+```text
+[fast] 3927 fast tests (<2.0s in 90bb8e3f) + 1 changed modules, 4 shards
+[fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3932 tests, 208.0s
+```
+
+Manifest regenerated: 831 candidates, 21,043 sites, zero unmapped. Commits: `154d5987` implementation, `303c350b` manifest refresh, `014f3ae2` pin assertions, `2a3108d9` overflow-pressure scope.

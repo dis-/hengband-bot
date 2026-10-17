@@ -2430,7 +2430,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b1c4bf96cb0e360ec753c98992113a0b37930f36cec24a23dfc6601e912d2be0"
+    "ast_sha256": "2c851046832039996894a706ee3047bf1f87dc03494888f4ea6f96de7974e152"
   },
   "policy.py:HengbotPolicy._is_unseen_spell_message": {
     "classification": "data",
@@ -5257,7 +5257,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "aace0582a747ed2b53c2c0f3baaa0b67f38d5596b243618beb75cbbcf06bea81"
+    "ast_sha256": "2a7346a460c6cac0064cf00097fbc59078ffd0a971b1c15990c7af18d08baab3"
   },
   "policy_home.py:HomeMixin._retention_reservation_detail": {
     "classification": "data",
