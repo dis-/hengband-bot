@@ -12863,11 +12863,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             known_peer_qualities = [value for value in peer_qualities if value is not None]
             if quality is None:
                 return not self._is_disposable_item(
-                    item,
-                    food_type=snapshot.player.food_type,
-                    overflow_pressure=(
-                        snapshot.in_town and self._town_pack_space_shortage(snapshot)
-                    ),
+                    item, food_type=snapshot.player.food_type
                 )
             return bool(known_peer_qualities) and quality > max(known_peer_qualities)
         if item.is_equipment and (
@@ -14699,6 +14695,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._item_is_procurement_protected(snapshot, item)
             and not self._survival_essential(item)
             and not self._is_useful_device(item)
+            and not self._has_town_economic_path(item)
             and self._item_signature(item) not in self._undestroyable_sigs,
         )
 
