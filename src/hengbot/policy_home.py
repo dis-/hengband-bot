@@ -153,7 +153,8 @@ class HomeMixin:
         capacity = self._home_capacity_observation
         if (capacity and capacity[1] > 0 and capacity[0] < capacity[1]
                 and capacity[2] == self._effective_town_id(snapshot)
-                and not state.get("pending", {}).get("posted")):
+                and not state.get("pending", {}).get("posted")
+                and self._find_home_deposit(snapshot) is not None):
             self._overweight_surplus_disposal = None
             return None
         if not self._inventory_overweight(snapshot):
