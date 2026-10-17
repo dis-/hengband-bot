@@ -13008,6 +13008,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if self._unknown_light_last_resort(snapshot):
                 return self._find_light(snapshot)
             return None
+        # A low-fuel lantern that has no carried oil must not displace a
+        # working torch. When the lantern is worn, the low_without_refill
+        # branch below still lets a fueled torch replace it; excluding the
+        # same lantern as a replacement candidate keeps both directions of
+        # that decision stable.
+        if (
+            candidate.is_lantern
+            and candidate.known
+            and candidate.fuel <= LANTERN_REFILL_FUEL
+            and self._first_item(
+                snapshot, lambda item: item.is_oil and item.fuel > 0
+            ) is None
+        ):
+            return None
         # A nearly exhausted known lantern can strand the character in town:
         # native travel consumes the last fuel before reaching the General
         # Store, while the ordinary rank comparison refuses to replace the
