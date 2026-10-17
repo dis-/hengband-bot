@@ -1,0 +1,13 @@
+# Identify wake-interrupt diagnosis
+
+## Measured capture facts
+
+The gzip capture `20261017-060436-identify-staged-tail-dropped-executor-barrier` ends at decision 2529, turn 712175. The decision row records owner reason `identify:pack-pressure`, key `ugl`, and the preceding board message `杖をうまく使えなかった。`. The posted-character rows for decision 2529 contain `u` and `g`; there is no posted `l`. The next retained state row is turn 712184, with only `ダークエルフ・プリーストが目を覚ました。` in its message delta. Both the turn-712175 pre-operation board and the turn-712184 post-operation board show the same Identify staff in slot `g` (`tval=55`, `sval=5`, 18 charges) and the same armor in slot `l` (`tval=36`, `sval=9`, count 1, `known=false`, `fully_known=false`). No identification or staff charge use occurred.
+
+The executor log ends with `<stuck-prompt> owner=identify:pack-pressure phase=continuation transport=accepted request_id=7780 reason=expected prompt absent`. The command barrier was reached, but no item-target prompt was present. Thus the staged `l` tail was not posted; the stop was the absent-prompt classification, not an accidental target selection.
+
+## Hengband source trace
+
+The Japanese message form is emitted in `src/monster/monster-status.cpp:174-176` by `process_monsters_mtimed_aux()` when a sleeping monster wakes as its sleep counter is processed; that function does not call `disturb()`. The same source message template also appears in `src/monster/monster-processor.cpp:376-380` for aggravation waking a monster. The recorded message and named monster are consistent with the normal sleep-counter wake path, but the capture does not retain a call trace or terminal frame that identifies the exact internal `disturb()` caller. The source therefore does not support claiming that printing this line itself calls `disturb()`.
+
+`src/core/disturbance.cpp:45-68` documents that `disturb()` cancels repeated commands, rest, and running; the call sites in `src/monster/monster-update.cpp:518-591` can invoke it while visible-monster state changes are updated. This explains how monster activity can interrupt a pending game interaction, but the retained capture proves the interruption at the executor barrier rather than which disturbance call ran. For safe classification, the positive evidence is the closed, source-derived wake-up message ending (`が目を覚ました。` / ` wakes up.`), together with an identify target continuation, the same target still unknown and unchanged, and the same staff still in the same slot with unchanged charge count. A command barrier or unrelated message alone remains insufficient.

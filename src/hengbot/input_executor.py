@@ -13,6 +13,7 @@ import uuid
 from collections import deque
 
 from hengbot.control_client import KeyPostOutcome, KeyPostStatus, raw_keys_to_macro_notation
+from hengbot.model import TVAL_STAFF
 
 
 class ScreenKind(str, Enum):
@@ -709,6 +710,41 @@ def _expected_prompt_absence_is_complete(
                 and not old_target.get("pseudo_feeling")
                 and bool(target.get("pseudo_feeling"))
             ):
+                return True
+
+        # Waking a monster can interrupt an identify staff's target chooser.
+        # The wake-up text has two source-defined forms; require the exact
+        # suffix plus an unchanged charged source and unchanged unknown target.
+        pending_target = operation.continuations[0] if operation.continuations else None
+        accepted_source = operation.accepted_segments[-1][:1] if len(operation.accepted_segments) > 1 else ""
+        if pending_target is not None and ScreenKind.ITEM_TARGET in pending_target.kinds \
+                and accepted_source and any(
+                    message.endswith(("\u304c\u76ee\u3092\u899a\u307e\u3057\u305f\u3002", " wakes up."))
+                    for message in _operation_messages(screen, board)
+                ):
+            old_source = before_items.get(accepted_source)
+            source = after_items.get(accepted_source)
+            source_unchanged = (
+                old_source is not None and source is not None
+                and old_source.get("tval") == TVAL_STAFF
+                and old_source.get("charges") is not None
+                and old_source.get("charges") == source.get("charges")
+                and all(old_source.get(key) == source.get(key)
+                        for key in ("tval", "sval", "name", "count"))
+            )
+            target_slot = pending_target.keys[:1]
+            old_target = before_items.get(target_slot)
+            target = after_items.get(target_slot)
+            target_unchanged = (
+                old_target is not None and target is not None
+                and all(old_target.get(key) == target.get(key) for key in (
+                    "tval", "sval", "name", "count", "charges", "known",
+                    "fully_known", "pseudo_feeling",
+                ))
+                and not bool(target.get("known"))
+                and not bool(target.get("fully_known"))
+            )
+            if source_unchanged and target_unchanged:
                 return True
 
     # Full-identify may legitimately omit the target prompt when the bound
