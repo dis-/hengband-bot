@@ -1323,7 +1323,9 @@ class SurvivalTriggerTest(unittest.TestCase):
         # unwieldable-digger exits, each with its record-only None note.
         # 36: + policy_fundraising.py:_fundraising_key, the 10,000-turn end of a
         # scavenge run (owner 2026-10-15), also a record-only None start.
-        self.assertEqual(len(triggers), 36)
+        # 37: + policy.py idle-wait recall escape after navigation exhaustion
+        # (#56, 2026-10-17), a record-only None start like stuck:recall-escape.
+        self.assertEqual(len(triggers), 37)
         for where, trigger in triggers.items():
             if (
                 where.startswith("policy_fundraising.py:")

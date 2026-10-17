@@ -1,0 +1,60 @@
+Diagnosis on base 90bb8e3f
+
+Capture facts (UTF-8 JSONL; decision rows filtered by decision_sequence)
+- In 20261017-190010-loop-detected, decisions 7073 and 7080-7086 searched
+  eight times total at (38,4). The latter seven followed the fight, loot, and
+  rest. Search count is capped at SEARCH_LIMIT=8 (policy_constants.py:342).
+- Decisions 7087-7126 issued 40 waits at (38,4); decision 7126 then tripped the
+  position loop detector. All 40 waits have owner `idle`; visible_hostiles=0.
+- The matching final state row is turn 973783, floor (2,13,0), position
+  (38,4), no visible monsters. The decision's policy telemetry reports 273
+  known cells, 31 marked cells, 43 visited cells, 242 open frontiers, and no
+  up/down stairs. The raw final state frame itself contains only 40 map grids
+  (9 passable remembered tiles, 31 walls); persistent policy memory is not
+  serialized in that frame.
+
+Actual replay and constructed failure pin
+- Replaying all 156 captured state frames through the real policy rebuilt 241
+  remembered floor cells and 31 marked cells. The replay did not match the
+  incident actions because the capture omits the live policy checkpoint; at
+  the final board it retained a reverse-choke retreat latch. After removing
+  that replay-only latch, `_explore_step` found a 32-step path to frontier
+  (12,19). The 178 decision rows contain 47 distinct positions, not the live
+  checkpoint's reported 43 visited cells. Therefore the exact per-frontier
+  membership of the incident's `_probed_frontiers`, visit counts, and avoid
+  cells cannot be read from either capture stream.
+- The tracked recorded-board pin declares the missing policy state explicitly.
+  On the final captured frame its constructed remembered map has 9 floor
+  candidates; all 9 are in `_probed_frontiers` (visit count 1 each; none is
+  visit-exhausted at 8, none is unenterable). `_probe_unknown_step` returns
+  None, `_explore_step` returns None because all floor candidates are probed,
+  and `_least_visited_neighbor` returns None because its three walkable
+  neighbors, (37,4), (37,5), and (38,5), are held in the constructed
+  engagement avoidance set. There are no known stairs or undersearched walls.
+  These constructed avoid cells represent the stale summoner/choke retreat
+  veto; the captured decision stream does not serialize their coordinates.
+- On that constructed incident board the base policy returns ('5','wait').
+  The last previous action is constructed as `search`; its stuck streak is 7
+  before observation and 8 after observation. The escape gate is
+  STUCK_ESCAPE_LIMIT=60 (policy_constants.py:344; policy.py:12062-12075), so
+  it does not fire. `wait` is not in STUCK_FAMILY_REASONS and does not increase
+  the streak (policy_observation.py:255-266); the 40 waits cannot make the
+  threshold fire. Ordinary and oscillation searches stop at count 8
+  (policy.py:12140-12147, 12220-12227).
+
+Root cause and change target
+- `_explore_step` rejects probed/unenterable frontiers and Dijkstra excludes
+  engagement avoidance cells (policy_navigation.py:1400-1490, 1579-1665;
+  policy.py:19617-19672). The oscillation fallback then tries a local
+  least-visited neighbor, which also excludes engagement cells
+  (policy.py:12120-12171, 19672-19705). Normal exploration and secret-wall
+  search follow. The known-stairs route returns nothing because telemetry has
+  no stairs. In the constructed pin every producer consequently returns
+  nothing, although the live summary's 242 is a raw boundary count, not 242
+  routeable goals after those filters.
+- `_town_idle_key` previously returned `WAIT_KEY` once local movement failed.
+  That left a no-threat dungeon with no reachable step in a neutral, permanent
+  wait before the 60-decision stuck escape could arm. The fix uses the existing
+  guarded `stuck:recall-escape` on this exhausted-navigation fallback when a
+  readable Recall scroll is available. No new threshold or policy attribute is
+  introduced.
