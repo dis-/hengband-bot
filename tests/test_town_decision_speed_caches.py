@@ -9,6 +9,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from hengbot import cli
+from hengbot import policy as policy_module
+from hengbot import policy_town as policy_town_module
 from hengbot.item_reservation import decision_caches_disabled
 from hengbot.latch_onset_capture import checkpoint
 from hengbot.model import parse_snapshot
@@ -201,6 +203,79 @@ class TownDecisionSpeedCacheTest(unittest.TestCase):
         self.assertGreater(counts[False][1], 0)
         self.assertLess(counts[True][0], counts[False][0])
         self.assertLess(counts[True][1], counts[False][1])
+
+    def test_recorded_board_pins_claim_candidate_reuse(self):
+        board = max(
+            [parse_board(row) for row in load_rows("A")],
+            key=lambda candidate: len(candidate.inventory),
+        )
+        counts = {}
+        for enabled in (False, True):
+            policy = build_policy()
+            policy.prime(board)
+            original = policy._town_need_candidates
+            calls = 0
+
+            def counted(snapshot):
+                nonlocal calls
+                calls += 1
+                return original(snapshot)
+
+            policy._town_need_candidates = counted
+            if enabled:
+                policy.choose_key(board)
+            else:
+                with decision_caches_disabled():
+                    policy.choose_key(board)
+            counts[enabled] = calls
+        self.assertGreater(counts[False], 0)
+        self.assertLess(
+            counts[True], counts[False] // 2,
+            f"claim candidates: uncached={counts[False]}, cached={counts[True]}",
+        )
+
+    def test_unchanged_map_reuses_fixed_quest_offers(self):
+        board = parse_board(load_rows("A")[0])
+        policy = build_policy()
+        policy.prime(board)
+        original = policy_module._fixed_quest_offers_from_grids
+        calls = 0
+
+        def counted(grids):
+            nonlocal calls
+            calls += 1
+            return original(grids)
+
+        policy_module._fixed_quest_offers_from_grids = counted
+        try:
+            policy._begin_map_predicate_cache(board)
+            policy._begin_map_predicate_cache(replace(board))
+        finally:
+            policy_module._fixed_quest_offers_from_grids = original
+        self.assertEqual(calls, 1)
+
+    def test_town_fact_refresh_reuses_store_position_index(self):
+        board = parse_board(load_rows("A")[0])
+        policy = build_policy()
+        policy.prime(board)
+        policy._town_fact_region = policy._grid_region(board)
+        policy._town_fact_snapshot = None
+        policy_town_module._town_store_position_indices.pop(policy, None)
+        original = policy_town_module._build_town_store_position_index
+        calls = 0
+
+        def counted(current):
+            nonlocal calls
+            calls += 1
+            return original(current)
+
+        policy_town_module._build_town_store_position_index = counted
+        try:
+            policy._begin_map_predicate_cache(board)
+            policy._begin_map_predicate_cache(replace(board))
+        finally:
+            policy_town_module._build_town_store_position_index = original
+        self.assertEqual(calls, 1)
 
 
 if __name__ == "__main__":

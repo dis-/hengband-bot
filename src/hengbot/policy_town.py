@@ -1,5 +1,9 @@
 from __future__ import annotations
-from hengbot.item_reservation import reservation_query
+from functools import wraps
+from weakref import WeakKeyDictionary
+from hengbot.item_reservation import (
+    claim_candidate_cache, decision_caches_enabled, reservation_query,
+)
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 
 from hengbot.claim_goal_typing import (
@@ -13,6 +17,32 @@ from hengbot.claim_goal_typing import (
 # Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
 # the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
 CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
+_town_store_position_indices = WeakKeyDictionary()
+
+
+def _build_town_store_position_index(policy):
+    index = {}
+    for store_type, positions in policy._town_store_positions.items():
+        for position in positions:
+            index.setdefault(position, []).append(store_type)
+    return index
+
+
+def _town_store_position_index(policy):
+    index = _town_store_position_indices.get(policy)
+    if index is None:
+        index = _build_town_store_position_index(policy)
+        _town_store_position_indices[policy] = index
+    return index
+
+
+def _cache_claim_need_candidates(function):
+    """Share one lazy candidate view across a single claims evaluation."""
+    @wraps(function)
+    def run(self, snapshot):
+        with claim_candidate_cache(self, snapshot):
+            return function(self, snapshot)
+    return run
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.claim_ladder import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STUCK_ESCAPE_LIMIT, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
@@ -77,6 +107,8 @@ class TownMixin:
             self._town_store_positions = {}
             self._town_emitted_entrances = set()
             self._town_entrance_cache = None
+            if decision_caches_enabled():
+                _town_store_position_indices[self] = {}
             emitted = getattr(snapshot, "grids", {}).items()
         else:
             grids = getattr(snapshot, "grids", {})
@@ -86,13 +118,28 @@ class TownMixin:
                 if Position(y, x) in grids
             )
         changed = False
+        position_index = (
+            _town_store_position_index(self)
+            if decision_caches_enabled()
+            else None
+        )
         for position, grid in emitted:
-            for positions in self._town_store_positions.values():
-                if position in positions:
-                    positions.discard(position)
-                    changed = True
+            if position_index is None:
+                for positions in self._town_store_positions.values():
+                    if position in positions:
+                        positions.discard(position)
+                        changed = True
+            else:
+                previous_stores = position_index.pop(position, ())
+                for store_type in previous_stores:
+                    positions = self._town_store_positions.get(store_type)
+                    if positions is not None and position in positions:
+                        positions.discard(position)
+                        changed = True
             if grid.store_number >= 0:
                 self._town_store_positions.setdefault(grid.store_number, set()).add(position)
+                if position_index is not None:
+                    position_index[position] = [grid.store_number]
                 changed = True
             was_entrance = position in self._town_emitted_entrances
             # Preserve 4f41982 exactly: older/synthetic GridState producers may
@@ -3584,6 +3631,7 @@ class TownMixin:
         self._town_need_specs = tuple(specs)
         return self._town_need_specs
 
+    @_cache_claim_need_candidates
     def _town_claims_active(self, snapshot: Snapshot) -> bool:
         """Record live route owners from the same registry used by projection."""
         self._retire_actionless_equipment_failure(snapshot)
