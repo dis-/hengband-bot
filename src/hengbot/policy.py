@@ -9344,6 +9344,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot, STORE_HOME, goal_satisfied=False
                 )
                 self._set_town_store_attempted(STORE_HOME, snapshot.turn, "home-capture-complete")
+                if self._home_knowledge_current and not self._home_knowledge_invalidated:
+                    # The complete catalogue was in hand and no Home producer
+                    # could act on its incomplete items. Close that work for
+                    # this town stay instead of routing back to Home for it.
+                    for owned in self._equipment_catalog.items:
+                        if owned.origin == "home" and owned.identification_incomplete:
+                            signature = self._item_signature(owned.item)
+                            if signature not in self._deferred_home_items:
+                                self._defer_home_item(
+                                    signature, "home-route-claim-unfulfilled"
+                                )
                 self.last_reason = "home:route-claim-unfulfilled"
                 self._post_owner_expectation(
                     snapshot, self.last_reason, "store_type"
@@ -16444,6 +16455,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         preparation = self._prepare_equipment_optimization(snapshot)
         return any(
             owned.origin == "home"
+            and self._item_signature(owned.item) not in self._deferred_home_items
             for owned in self._selected_random_teleport_suppressions(preparation)
         )
 

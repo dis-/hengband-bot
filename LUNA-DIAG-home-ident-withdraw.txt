@@ -1,0 +1,99 @@
+Measured diagnosis: Home identification-withdrawal loop (issue #63, base 73e94383)
+
+Captures (Linux soak c4-a life-013, Level 22 warrior, town):
+- 20261018-071312-loop-detected and 20261018-074006-loop-detected. Both end in
+  the 3-decision cycle '\x1b' home:route-claim-unfulfilled (inside Home) ->
+  '9' town-progress-invariant:boxed-breakout-travel -> '1' shop:approach.
+  07:13 decisions 10203..10230; 07:40 decisions 2537..2567.
+  Every loop row: inventory used 17 / free 6, identification_need null,
+  home_candidate_waiting true, equipment_optimization.blockers
+  ["pending-random-teleport-suppression"], deferred_home_item_signatures
+  [("焼棄のブロード・アックス (2d6) (+6,+6)", 22, 11)], home_route_projection
+  home_owner_goal_pending/equipment_work_need_present/
+  equipment_work_home_route_available/outstanding_equipment_work all true,
+  home_visit_limit 300, home_unsatisfied_passes grows 1 -> 19 (07:13).
+  07:40 stall report: town_claims ["identification-withdrawal",
+  "equipment-catalog", "equipment-work"], need_attempts 20 each,
+  unsatisfied_passes {"7": 20}, blocked_stores [].
+- Pack identification sources on the loop board (state turn 873549): only
+  identify staffs (鑑定の杖 9 charges, 3x 5 charges); no Identify / *Identify*
+  scroll. The complete ~9 Home list (turn 872965) has 139 items; 6 are
+  incomplete Home gear (cursed 革製スモール・シールド, パイク {特別製},
+  焼棄のブロード・アックス, cursed ウォー・ハンマー, フレイル {上質},
+  グレート・ハンマー {高級品}).
+
+Replay (DECLARED CONSTRUCTED probe, real policy): fresh policy primed on the
+captured approach board (turn 873529, (44,124)); the captured ~9 list consumed
+via consume_home_knowledge; _home_candidate_waiting = True as recorded; skill
+cache filled. The optimizer preparation is not reproducible (the equipped
+C-sheet calibration is a dump file not in the capture; the probe's
+preparation reports calibration-required), so the suppression branch is
+pinned separately with a constructed selected target.
+
+1. Which claims send the bot to Home (measured on the probe):
+   _town_need_candidates on the approach board = Home needs
+   ["equipment-catalog", "identification-withdrawal"] (plus Alchemist
+   launcher-enchant, Black Market).
+   - equipment-catalog: policy_town.py:3530-3543, true through
+     _has_actionable_incomplete_home_item (policy_home.py:4348-4395) for the
+     known cursed shield: it is not deferred, known (no normal-ID branch) and
+     not in _processed_home_items, so line 4395 returns True without asking
+     whether any identification source exists. Live, the same need is also
+     produced by _has_selected_home_random_teleport_suppression
+     (policy.py:16441-16448), which ignores _deferred_home_items although the
+     selected Home target's producer action refuses deferred signatures
+     (policy.py:16496-16503 `signature not in self._deferred_home_items`).
+     Logged: the suppression producer armed the Home take at 10172 (work_id
+     suppress-random-teleport:home) and the axe was deferred from 10173 on,
+     yet blockers stayed "pending-random-teleport-suppression".
+   - identification-withdrawal: policy_town.py:3222-3277. bindable_home_
+     identification is true (5 non-deferred incomplete Home items), so
+     home_identification_unsatisfiable is false and, with
+     _home_candidate_waiting true, the need is added.
+   - equipment-work: policy_shop.py:1130-1140 when
+     _equipment_work_home_route_available() and _home_owner_goal_pending();
+     the latter returns 'equipment-catalog' in the Home categories
+     (policy_home.py:4555-4560). _outstanding_equipment_work()
+     (policy.py:13628-13647) is true on the logged blocker, so the Home pass
+     bound is CALIBRATION_HOME_VISIT_LIMIT 300 (policy_town.py:4423-4436)
+     instead of TOWN_STOP_PASS_LIMIT 3.
+
+2. The in-Home producers and why none acts:
+   - Identification withdrawal is bound outside only, by
+     _bind_catalogued_home_identification_withdrawal (policy_home.py:3288-3365,
+     called at policy.py:11601 and policy_shop.py:5802). For every incomplete
+     Home item it calls _find_identification_source(..., reliable_only=True)
+     (policy_home.py:3322-3327); reliable_only excludes staffs
+     (policy_identification.py:801-834), the pack has no scroll, so source is
+     None for all 6 items (probe: src None for each) and nothing is filed.
+   - Pack space is NOT the blocker: free 6, MIN_FREE_PACK_SLOTS 5,
+     HOME_BATCH_RESERVED_SLOTS 3; _town_pack_space_ready is true.
+   - Random-teleport suppression withdrawal: the selected axe is deferred, so
+     _random_teleport_suppression_producer_action returns None.
+   - Catalogue work / scan: Home knowledge is current and complete
+     (home_scan_complete true, knowledge current, valid_before 139), so the
+     scan branches do not fire; no pending item/batch/atomic op exists.
+   Result: the Home page falls through to the final branch policy.py:9339-
+   9356 ('home:route-claim-unfulfilled'), reproduced on the captured Home page
+   (turn 873529): key '\x1b', reason home:route-claim-unfulfilled.
+
+3. Why the claim stays open after that branch marks Home attempted:
+   the branch only reports an unsatisfied pass and sets
+   _town_store_attempted[Home] ("home-capture-complete"). None of the three
+   Home needs consults _town_store_attempted, and the unsatisfied-pass block
+   is installed only at the 300-pass bound. Probe on 73e94383: right after the
+   unfulfilled pass the Home needs are still ["equipment-catalog",
+   "identification-withdrawal"]; on the next outside board (turn 873540) Home
+   needs are ["equipment-catalog"], so the router returns to Home.
+
+4. 06:32 board (20261018-063248, decision 30990, turn 658080): departure_block
+   failed ["light_ready", "home_candidate_resolved",
+   "identification_need_clear", "departure_identification_need_clear"],
+   identification_need "full", free 5 / minimum 5. stdout:
+   "<keep-running> hard_stop cause=departure-unsatisfiable free=5 method=none"
+   (two earlier forced_departure lines in the same log succeeded). The A0
+   forced departure requires _departure_minimum(...)["holds"]
+   (policy_town.py:5705); light_ready is one of its conjuncts
+   (policy_town.py:5611) and was false, so A0 took the hard-stop branch
+   (policy_town.py:5719-5735). That stop is the missing light, a separate
+   defect from this Home loop; not changed here.
