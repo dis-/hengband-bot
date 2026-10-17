@@ -1,0 +1,9 @@
+# LUNA diagnosis: overweight deposit loop
+
+Target capture: `20261018-005229-town-blocked-departure-unsatisfiable`. I filtered `bot-decisions.jsonl.gz` on `decision_sequence` and replayed its captured boards through `parse_snapshot`, `HengbotPolicy`, the production town-need builder, and `choose_key`.
+
+Measured board/effect (`state.jsonl.gz` rows 66-67; matching decision rows 4-5): weight was 1718, limit 1650 (STR index 26). Home stock changed from 155/240 to 156/240, so Home was not full. Decision 4 opened Home (`key="5"`; weight stayed 1718). Decision 5 posted `de3\r\x1b` (`home:weight-overload-deposit`), depositing three 5-weight Recall scrolls; the next board was 1703, a 15-point reduction. The terminal board (row 83) remained 1703/1650. The real selectors return no Home deposit candidate but do return legal surplus candidates weighing 5 and 50.
+
+Why it stopped: `policy_town.py:2995-3003` only creates the overweight sale/destroy state after full-Home relief, while this Home was 156/240. The existing sale producer at `policy_home.py:128-166` also cleared that state whenever it saw unused Home capacity, even if no Home deposit candidate existed. Thus the observed empty deposit set plus 53 excess had no active owner. After the fix, the same board with the captured capacity observation creates the `overweight-surplus` need; the real decision path posts `shop:travel` to the existing surplus buyer. A deposit remains first while its selector returns an item.
+
+Relevant source locations: Home weight selection `policy_home.py:2328-2445`; surplus eligibility and sale/destroy handling `policy_home.py:62-244`; town need ordering and fallback activation `policy_town.py:2995-3015`. No new policy attribute or threshold was introduced.
