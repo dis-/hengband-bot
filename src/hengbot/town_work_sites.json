@@ -6471,7 +6471,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "da411fc5b58a4234548b208369afcaa54e63e650a1611401174516081f4b1191"
+    "ast_sha256": "8089e48bd4d60517d27456dc71accabb3cee5983355f4a6c2e8cec863d8330ad"
   },
   "policy_shop.py:ShopMixin._next_purchase_unreserved": {
     "classification": "data",
@@ -7513,7 +7513,7 @@
       "device"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "4b812e1f1abf63a825855545dd042dd5792f298a3dde8b431ea79ab17112312c"
+    "ast_sha256": "9db1fdba3a81157a373e2a59d14586fec55648d8a10257b33344595f08a79668"
   },
   "policy_town.py:TownMixin._town_progress_allow_members": {
     "classification": "data",

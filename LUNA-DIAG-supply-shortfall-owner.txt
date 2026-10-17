@@ -1,0 +1,57 @@
+ISSUE #50 - measured diagnosis (base eb5db45f)
+
+Replay: recorded state rows replayed through cli._consume_response_sequence +
+HengbotPolicy.choose_key (scratch script, then tests/test_supply_shortfall_owner_recorded.py).
+Declared walls: ~f skill list of the same character (031620 state row 20) applied
+before each decision except the recorded periodic:skill-exp-knowledge one; the
+capture's own Home knowledge row consumed on the first town board (031620 row 52,
+035319 row 18); completed-operation binding on boards after a posted key.
+
+NONE of the three is a stock-out. In each, the shortfall was buyable and the
+requirement row never carries blocked_reason (Teleport row has no blocked_reason
+because ledger["teleport"].obtainable=True, stores=(4,); identify staff has no
+supply label at all). The terminal is reached with _town_claims_active=True, so the
+departure path (policy_town.py ~6686 _departure_supplier_counterfactual /
+_supply_stockout_mining_key / _identify_staff_stockout_key, and ~6815) is never
+entered: all of them require `not self._town_claims_active(snapshot)`. The stop is
+produced by the progress invariant (policy_town.py:1775-1808, progress=None,
+claims_active) -> town:blocked:no-actionable-claim-owner -> owner-retired-burst.
+The A0 forced departure is not consulted on that branch.
+
+1) 20261018-031620 (failed ["teleport_ready"], Teleport 14/15)
+   - Alchemist page, state row 27 / decision row 123 (seq 612, turn 896792):
+     テレポートの巻物 e x60 @68; gold 10,235; pack 23 rows (full).
+   - Replay (all decisions 103-123 reproduce): ledger teleport count=14
+     required_departure=15 obtainable=True; home gate ALLOW_PURCHASE;
+     _departure_blocking_page_purchase -> mandatory:teleport e x1;
+     _legacy_next_purchase_unreserved -> 光の巻物 (Quest Light scroll, quest-scrolls);
+     _next_purchase -> None with pack_refusal "full-pack-nonstacking"
+     (policy_shop.py:2362-2364 at base).
+   - Decision row 124 (outside composition, policy_shop.py ~6060 _shop on the page)
+     -> '\x1b' shop:leave, so the recorded travel '\x1b`n#.' left the Alchemist
+     without the Teleport scroll; second visit (row 129) same. Root cause: one
+     non-stacking ware refused for pack space hid a later wanted ware that stacks.
+
+2) 20261018-035319 (failed ["identify_staff_ready"], Identify staff 14/20)
+   - Magic shop page, state row 51 / decision row 128 (seq 8793, turn 1080156):
+     鑑定の杖 l 9x13ch @771, m 5x4ch @645, n 1x13ch @579; gold 13,068.
+     Carried 2x5ch + 2x4ch = 4 staves, 18 charges. Replay: _next_purchase None,
+     _departure_blocking_page_purchase None (4-staff cap), shop:observe-and-leave
+     -> stop appended to plan.blocked_this_visit (observed-operation-uncomposable).
+   - Rows 129-130: release sale 'd01\ry' -> 3 staves, 14 charges.
+   - Terminal row 147 (seq 8812, replay reproduces 127-150 exactly):
+     claims ['identify-staff'] at store 5; nonhome_attempted_without_effect={}
+     (the visit had an effect: the sale); plan.blocked_this_visit=[7,5,2,4];
+     remembered Magic page: _next_purchase=9x13ch staff, composable=True,
+     _departure_blocking_page_purchase=13ch staff; _identify_staff_procurement_
+     impossible=False; _actionable_departure_supplier=5;
+     _town_procurement_progress_key=None because policy_town.py:1437-1441 skips
+     every store in blocked_this_visit. Root cause: the stop closed before the
+     release sale is never reopened although its page now holds the required buy.
+
+3) 20261018-031228 (failed ["identify_staff_ready"], Identify staff 19/20)
+   - State capture starts at turn 886722, after the Magic shop visit; a suffix
+     replay does not reproduce (inside Home, 49/54 diverge). Decision log only:
+     row 35 (seq 569) Magic shop wanted 鑑定の杖 3x17ch @851, row 38 (seq 572)
+     sale 'd0y', no staff purchase afterwards; Black market row 90 nothing wanted.
+     Same pattern as (2) by the decision log; not replayable, so not pinned.
