@@ -1,0 +1,47 @@
+Reward pack full handoff
+
+Branch and commits
+- Base: 9ec39c05.
+- Implementation: fb33b56a (`Release full-pack quest reward to town space owners`).
+Measured diagnosis
+- `LUNA-DIAG-reward-pack-full.txt` records the captured board and selector measurements. The board at turn 961478 / decision_sequence 8436 has level 23, gold 8,514, position (31,99), 23/23 pack slots, and rewarded quest 22.
+- On base 9ec39c05 the recorded policy decision is key `5` (`WAIT`), reason `fixedquest:reward-pack-full`. The claim is owned by `quest-request` at `_fixed_quest_key#2`; its shadow skip list contains Home visit, shop sale, Home scan, and other town owners.
+- Recorded Home facts are `home_candidate_waiting=true`, `town_plan.stops=["Home"]`, and `home_owner_goal_pending=true`. The capture's board row omits the prior Home catalogue, so it cannot replay the exact deposit signature from board data alone. Shop telemetry records `considered_candidate=null` and `no-store-page-observed`; selector replay also finds no sale target. The existing town overflow owner selects inventory slot `a`, `Lv1 秘術の魔法書[初心者教本]`, key `01ka`, reason `town:destroy-overflow`; it is wholly surplus and not procurement-protected.
+
+Change and pins
+- When the reward path cannot fit the reward and its quest-local disposal selector has no target, it returns through the ladder instead of turning that condition into a wait. The pending reward latch remains active; existing town Home/sale/disposal owners can make room, after which reward pickup can run.
+- Added one raw gzip JSONL player-turn board fixture and `tests/test_reward_pack_full_handoff.py`. The fixture includes the compact captured decision evidence (sequence 8436, key `5`, reason `fixedquest:reward-pack-full`) and the raw board; replay after the fix asserts the reward owner yields and the town overflow owner selects `01ka` / `town:destroy-overflow` on that same board.
+- Free-slot control: constructed one reward object on the allowlisted tile; the real reward owner returns `g` / `fixedquest:reward-pickup`.
+- Protected-item control: constructed an all-undestroyable inventory; sale selectors return no candidate and the overflow owner returns `5` / `town:blocked:overflow-no-legal-disposal`.
+- No new policy attribute, helper, threshold, constant, or reason was added; there are no restored-checkpoint defaults to add. The manifest refresh updated the producer AST fingerprints in `src/hengbot/town_work_sites.json` and its compressed manifest. No structural census count changed.
+
+Focused tests
+- `test_reward_pack_full_handoff`: 3 tests, OK.
+- `test_destroy_procurement_guard`: 7 tests, OK.
+- `test_policy_quest`: 334 tests, OK, 7 skipped.
+- `test_town_overflow_disposal_recorded`: 3 tests, OK.
+
+Required guards (run in order after implementation commit)
+
+```text
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (reward-pack-full-1017 vs 9ec39c05)
+```
+
+```text
+[mutation] 2 source hunks, tests: test_reward_pack_full_handoff
+[mutation] caught     src/hengbot/policy_quest.py:4040 (if self.last_reason == "fixedquest:reward-pack-full":): test_captured_board_releases_reward_to_existing_overflow_owner
+[mutation] caught     src/hengbot/policy_quest.py:5218 (return None): test_captured_board_releases_reward_to_existing_overflow_owner
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for fb33b56a
+```
+
+```text
+[fast] 3870 fast tests (<2.0s in 9ec39c05) + 1 changed modules, 4 shards
+[fast] excluded 20 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-zvtu__xo)
+Failures: none
+Errors: none
+Total: 3876 tests, 195.0s
+```
+
+The 20 modules over 60 seconds were excluded by the guard's configured fast-tier selection. All selected tests passed. No existing test assertions were edited, renamed, weakened, or made conditional.
