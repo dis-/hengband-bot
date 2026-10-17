@@ -1,0 +1,45 @@
+store-latch-select-1017 - completion report
+
+Change
+
+- Base: `0e573009`; implementation commit: `87534a66`.
+- `_next_required_store_type` already filters its initial live needs under the repetition latch to departure-blocking needs plus equipment work/transactions. Its terminal fallback later rebuilt the plan from unfiltered `_enumerate_town_needs`, allowing the optional `store 2 / disposal / normal` need to revive the Weapon Smith route. The same latch filter now applies to that refreshed fallback in `src/hengbot/policy_shop.py:1537-1548`.
+- This adds no store/floor-specific case, constant, helper, or policy attribute. No checkpoint defaults are needed. `town_producer_baseline.json` and `town_work_review.json` needed no new entries. The town manifest was regenerated; counts remain 831 candidates, 21,032 call sites, 112 registry sites, and 102 ladder sites (zero unmapped). The structural census counts did not change.
+
+Measured diagnosis and pins
+
+- `LUNA-DIAG-store-latch-select.txt` records the replay details and source evidence. Captured decisions 100-103 show the pre-fix loop: decision 100 routes to store 2, decision 101 exits on ESC with no operation posted, decision 102 steps off the door, and decision 103 routes back.
+- The selector identifies iron shot (`鉄弾 (1d3) (+0,+0) (20/shot 35/turn)`), shelf letter `s`, price 3, count 99. Its recorded winning rung is `equipment:sale-refused`, with rejection `preempted`; it is not a composed purchase. The blocked-store composer does not accept this ammo row: there are no matching departure-blocking families, and ammo is not a wand/staff. It therefore leaves the page without recording a shelf observation.
+- The fixture retains only the captured store/door boards and decision rows 100-103 in raw UTF-8 JSONL inside gzip. The test replays the boards through the real policy. `DECLARED CONSTRUCTED`: the private repetition latch is set because the raw game board does not serialize it.
+- Before behavior is pinned by the captured decision rows: `9 / town:repetition-required-shopping` to store 2, then `ESC / town:blocked:repetition`, then `1 / town:blocked:repetition`, then `9 / shop:approach`.
+- After the fix, the captured store page still returns `ESC / town:blocked:repetition`; the door step-off remains `1 / town:blocked:repetition`. On the next captured outside board, `_next_required_store_type` is `None` and the real policy returns `rga / town:repetition-depart:recall`. The required store is no longer re-entered.
+
+Controls and focused verification
+
+- Accepted required purchase control: `tests.test_blocked_purchase_namespace`, 6 tests passed, including the latched Alchemist page that stages and composes the required recall purchase.
+- Home latch control: `tests.test_home_withdraw_repetition_door_recorded`, 4 tests passed, unchanged.
+- Captured store selection replay: `tests.test_store_latch_select_recorded`, 2 tests passed.
+- Town work contract: `tests.test_town_work_contract`, 9 tests passed. The corpus pass took 740.396 seconds.
+- `git diff --check` passed.
+
+Required guard outputs (run after implementation commit `87534a66`)
+
+```text
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (store-latch-select-1017 vs 0e573009)
+```
+
+```text
+[mutation] 1 source hunks, tests: tests.test_store_latch_select_recorded
+[mutation] caught     src/hengbot/policy_shop.py:1537 (if self._town_blocked_reason == "repetition":): test_captured_boards_exit_the_latch_without_reentering_store_two
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 87534a66
+```
+
+```text
+[fast] 3857 fast tests (<2.0s in 0e573009) + 1 changed modules, 4 shards
+[fast] excluded 21 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-0ko432k6)
+Failures: none
+Errors: none
+Total: 3875 tests, 183.0s
+```
