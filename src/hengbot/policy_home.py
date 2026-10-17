@@ -2113,6 +2113,14 @@ class HomeMixin:
             equipped_count = sum(
                 1 for equipped in snapshot.equipment if equipped.is_digging_tool
             )
+            if item.count > 1 and any(
+                candidate is not item
+                and self._digging_tool_sale_quality(candidate)
+                > self._digging_tool_sale_quality(item)
+                for candidate in (*snapshot.equipment, *snapshot.inventory)
+                if candidate.is_digging_tool
+            ):
+                return 0, None
             keep_slots = {
                 candidate.slot
                 for candidate in sorted(

@@ -1,0 +1,29 @@
+Overflow disposal diagnosis (ac768200, recorded-board replay)
+
+Read gzip captures as UTF-8 and selected only decision rows with decision_sequence. For the terminal rows at 21:26:14 (sequence 22, turn 1681191) and 21:26:41 (sequence 7, turn 1681211), I parsed the matching state row and primed HengbotPolicy. Both boards have 20/20 pack slots (3 free); _overflow_disposal_item() is None and _town_overflow_destroy_key() returns WAIT_KEY with town:blocked:overflow-no-legal-disposal. The 21:25:26 stop (sequence 25843, turn 1680386) differs: its selector chooses slot g (an *Identify* scroll) and the verified destroy path emits 01kg.
+
+Measured item causes on the 21:26:41 board (all items are known and aware; no item has is_cursed=true):
+
+| Slot | Item | Baseline selector reason |
+|---|---|---|
+| a | Oil, count 5 | Reserved 5, supply-ledger:oil; survival essential |
+| b | Speed potions, count 10 | Reserved 10, emergency-potion:speed; survival essential |
+| c | Cure Critical Wounds, count 10 | Reserved 10, supply-ledger:cure; survival essential |
+| d | Healing potions, count 7 | Reserved 7, emergency-potion:heal; survival essential |
+| e | Teleport scrolls, count 15 | Reserved 15, supply-ledger:teleport; survival essential |
+| f | Recall scrolls, count 10 | Reserved 6, supply-ledger:recall; partial-stack surplus is unusable and Recall is survival essential |
+| g | Treasure detection scrolls, count 2 | Reserved 2, mining:detection |
+| h | Stone-to-Mud wands, count 3 | Reserved 3, mana-device; useful device |
+| i-k | Identify staffs (10, 6, 5 charges) | No reservation, but charged staffs are useful devices; empty-staff sale decision does not apply |
+| l-o | Torches (138, 284, 1979, 846 turns) | Each reserved 1, torch-carry; generic target is 5 and only 4 are carried, so these are still departure carry, not surplus |
+| p | Empty dark ego brass lantern | No reservation; parsed known=true, is_broken=true, is_ego=true, is_cursed=false. _survival_essential() treats every light as essential; _is_spare_lantern() rejects ego lanterns; disposable predicate did not include empty lanterns. Equipment makes _has_town_economic_path true, but _town_organization_sale_store() returns None |
+| q | Broken dagger (1d1) (+2,-3) | No reservation; parsed known=true, fully_known=false, is_broken=false despite the Japanese broken-item name; no disposable predicate; equipment economic-path exclusion blocks fallback; sale-store lookup returns None |
+| r | Shovel stack, count 2, (+1) | Reserved 2, mining:digging-tool; together with slot s it is one of two retained tool stacks |
+| s | Dwarven pickaxe (+8) | Reserved 1, mining:digging-tool; retained as the stronger of the two tool stacks |
+| t | Crossbow bolts, count 81 | Reserved 81, ammo:carry-plan; surplus is partial-stack and the item has an economic path |
+
+Measured gates at ac768200: procurement protection is policy.py:12912-12920; whole-stack eligibility is policy_home.py:2233-2235; mining tool stack reservation is policy_home.py:2111-2132; candidate list is policy_helpers.py:267-287; the fallback excludes _has_town_economic_path at policy.py:14673-14684. That economic flag is only a category for equipment here, not proof of an executable sale. The later capture is already stopped after its productive town path; for p/q/r/s, the sale-store finder returns None. Known-curse priority does not run on this board because the emitter's is_cursed field is false, including on the dark ego lantern.
+
+The usable 6433-turn brass lantern is worn and _expedition_light_ready() is true. The four captured torches remain protected by the existing target; no departure carry is shed. A constructed surplus must exceed that target before a whole torch stack is eligible. The shovel stack is separately measurable surplus because it contains two weaker tools while the +8 pickaxe is the best tool to keep.
+
+Slot gate: policy enters terminal overflow disposal below MIN_FREE_PACK_SLOTS=5 (policy.py:11770-11775); it emits the no-candidate stop below MIN_TERMINAL_FREE_PACK_SLOTS=4 (policy_town.py:2377-2382). Captured free slots are 3, so two more are needed to reach the 5-slot town-work reserve. No new threshold is needed.

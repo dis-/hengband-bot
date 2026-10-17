@@ -12873,7 +12873,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             if self._is_disposable_item(
                 item, food_type=snapshot.player.food_type
-            ) or self._is_spare_lantern(snapshot, item):
+            ) or self._is_spare_lantern(snapshot, item) or (
+                item.is_torch
+                and item.known
+                and item.fuel > 0
+                and self._retention_reservation(snapshot, item) == 0
+            ):
                 return False
             item_group = self._equipment_slot_group(item)
             item_slot = slot_for(item)
@@ -14580,7 +14585,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _is_surplus_digging_tool(self, snapshot: Snapshot, item: InventoryItem) -> bool:
-        """Keep the best two carried tools; permit excess deposit/disposal."""
+        """Permit weaker duplicate stacks beyond the retained tool choices."""
         if not item.is_digging_tool:
             return False
         if self._disposal_protected_by_identification(item):
@@ -14596,6 +14601,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             key=self._digging_tool_sale_quality,
             reverse=True,
         )[:2]
+        if item.count > 1 and any(
+            self._digging_tool_sale_quality(candidate)
+            > self._digging_tool_sale_quality(item)
+            for candidate in diggers
+            if candidate is not item
+        ):
+            return True
         return all(candidate is not item for candidate in keep)
 
 
@@ -14619,7 +14631,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 }
             )
             or (item.is_food and item.aware and item.sval >= FOOD_MIN_SVAL)
-            or item.is_light
+            or (item.is_light and item.fuel > 0)
             or item.is_oil
             or item.is_digging_tool
         )
@@ -14679,7 +14691,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._item_is_procurement_protected(snapshot, item)
             and not self._survival_essential(item)
             and not self._is_useful_device(item)
-            and not self._has_town_economic_path(item)
             and self._item_signature(item) not in self._undestroyable_sigs,
         )
 

@@ -249,6 +249,14 @@ class PolicyHelpersMixin:
                 and item.known
                 and item.fuel == 0
             )
+            or (item.is_light and item.known and item.fuel <= 0)
+            or (
+                item.is_melee_weapon
+                and (
+                    item.is_broken
+                    or item.name.startswith(("Broken ", "\u6298\u308c\u305f"))
+                )
+            )
             or item.pseudo_feeling in {"average", "cursed"}
             # Empty bottles are the worthless junk a quaffed potion leaves behind;
             # no shop buys them, so shed them rather than let them fill the pack.
@@ -272,8 +280,14 @@ class PolicyHelpersMixin:
             and (
                 self._is_disposable_item(it, food_type=snapshot.player.food_type)
                 or self._is_spare_lantern(snapshot, it)
-                # Fundraising needs one digging tool, never four. At pack pressure,
-                # discard every tool except the strongest before spending Recall.
+                or (
+                    it.is_torch
+                    and it.known
+                    and it.fuel > 0
+                    and self._retention_reservation(snapshot, it) == 0
+                )
+                # A weaker stack duplicating a better tool is surplus at pack
+                # pressure; preserve the retained digger before Recall.
                 or self._is_surplus_digging_tool(snapshot, it)
                 # Ammo has no use without a launcher. Keep it whenever any bow is
                 # carried or equipped; otherwise free the slot before town departure.
