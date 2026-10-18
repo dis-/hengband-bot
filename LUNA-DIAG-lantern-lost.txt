@@ -56,4 +56,6 @@ Fix (smallest):
     light is a known lantern, post the existing _light_refill_item refill (LANTERN_REFILL_FUEL
     threshold, carried oil) through the same return:darkness-recovery offer.
   B policy_helpers.py _find_disposable_item: a known lantern is not a disposable candidate while
-    oil is carried, unless it is a spare beside a worn lantern (_is_spare_lantern).
+    oil is carried and the worn light is a torch or none (a lantern or better worn leaves the
+    pack lantern to the existing rules, e.g. the ego 暗闇の lantern of
+    test_town_overflow_disposal_candidates_recorded).
