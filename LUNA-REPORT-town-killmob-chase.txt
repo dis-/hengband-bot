@@ -1,0 +1,42 @@
+LUNA-REPORT town-killmob-chase (#71) -- STOPPED before any source change (existing tests must change)
+
+Status: diagnosis done (LUNA-DIAG-town-killmob-chase.txt); no src edit committed, no pins, guards not run
+(nothing to guard).  Stopped under the rule "if an existing test must change, STOP and report".
+
+Diagnosis (measured, see DIAG):
+- Producer policy_town.py:5056 _town_kill_mob_key.  With no visible non-pet monster it walks to the remembered
+  _town_hunt_target (branch 5151-5207, reason town:kill-mob-approach at 5183) until within 1 of that cell.
+- It is ranked before every errand in choose_key (policy.py:10852) and is also called inside the travel step
+  itself through _town_clear_traveler_key (policy_shop.py:5928, policy.py:16134).
+- 215136 replay through the real producer (CLI parse path, one policy across rows) reproduces the recorded keys
+  rows 52..86: piranha (race 70, speed 120) flickers in/out of view at (51,133)/(50,134); branch (a) chases it
+  while seen, branch (b) keeps walking south while not seen (49 of the 84 approach rows), last-known-reached at
+  (50,134) yields to shop:travel, travel is interrupted ("トラベルを継続しますか") when the piranha shows again,
+  repeat x4 -> owner-retired-burst.
+
+The prescribed fix (yield when no monster is seen; drop the last-known walk) breaks five existing tests.
+Measured by a temporary edit (out-of-sight branch: release the last-known claim, clear _town_hunt_target,
+return None), run per module, then reverted (git checkout; tree clean):
+  1. tests/test_ownership_s2a1_closure.py LastKnownCellTest.test_the_last_known_walk_is_its_own_claim
+     old: key is not None, last_reason "town:kill-mob-approach", claim goal Reach(target) goal_note "last-known"
+     new: key None (no walk; last-known claim released), no approach reason.
+  2. tests/test_ownership_s2b1b_close_pairs.py TownKillMobChaseTest.test_a_detected_only_target_ends_the_chase_before_the_last_known_walk
+     old: _out_of_sight() asserts last_reason "town:kill-mob-approach"; row goal_note "last-known"
+     new: producer returns None; closed_reason "target-out-of-sight" kept, no last-known goal.
+  3. tests/test_ownership_s2b1b_close_pairs.py TownKillMobChaseTest.test_revert_proof_out_of_sight
+     old/new: same helper assertion as 2 (last_reason "town:kill-mob-approach" -> none).
+  4. tests/test_policy_navigation.py TownTravelerCombatPriorityTest.test_hidden_town_hunt_target_does_not_resume_travel
+     old: hidden target -> ("6", "town:kill-mob-approach")  (the test pins that travel does NOT resume)
+     new: the travel step resumes (value not measured; the opposite of the test's stated intent).
+  5. tests/test_starving_town_recorded.py StarvingTownRecordedTest.test_food_interrupt_preserves_last_known_hunt_for_return
+     old: _town_clear_traveler_key(fed) == "7", last_reason "town:kill-mob-approach"
+     new: None (the kept hunt cell is no longer walked to after feeding).
+  test_town_arbiter: 30 tests OK with the change.
+
+Note for the decision: removing the last-known walk alone may not end this capture's cycle.  35 of the 84 approach
+rows had the piranha in view (branch (a), unchanged by the fix), and it is seen from the travel route, so
+travel north / approach south can still alternate.  Its distance-1 cell (50,134) shows no visible monster, so it is
+never attacked.  Options for the orchestrator: (A) approve the five assertion changes above and the fix as
+prescribed; (B) additionally decide how a seen-but-never-reachable/attackable town monster yields to errands.
+
+Guards: not run (no source change).  Commit: this report and the DIAG only.
