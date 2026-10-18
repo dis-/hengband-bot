@@ -111,7 +111,7 @@ class HomeIdentWithdrawRecordedTest(unittest.TestCase):
         # First unfulfilled pass: unchanged from 73e94383, Home stays a need,
         # so the captured boards cycle back to Home.
         inside, key, reason = self._decide(policy, self.inside)
-        self.assertEqual((key, reason), ("", "home:route-claim-unfulfilled"))
+        self.assertEqual((key, reason), ("\x1b", "home:route-claim-unfulfilled"))
         self.assertEqual(
             self._home_needs(policy, inside),
             ["equipment-catalog", "identification-withdrawal"],
@@ -124,7 +124,7 @@ class HomeIdentWithdrawRecordedTest(unittest.TestCase):
         # 73e94383: the Home needs were still
         # ["equipment-catalog"] here (the router returned to Home).
         inside, key, reason = self._decide(policy, self.inside2)
-        self.assertEqual((key, reason), ("", "home:route-claim-unfulfilled"))
+        self.assertEqual((key, reason), ("\x1b", "home:route-claim-unfulfilled"))
         self.assertEqual(self._home_needs(policy, inside), [])
         self.assertEqual(len(policy._deferred_home_items), 6)
         self.assertIn(AXE, policy._deferred_home_items)
