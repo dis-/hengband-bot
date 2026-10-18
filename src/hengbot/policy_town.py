@@ -18,6 +18,12 @@ from hengbot.claim_goal_typing import (
 # the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
 CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
 _town_store_position_indices = WeakKeyDictionary()
+# The grids mapping and emitted window the retained town facts were last
+# refreshed from (decision caches only; held outside checkpointed state).
+_town_fact_inputs = WeakKeyDictionary()
+# The decision's (input grids, merged grids, emitted window): the merged view
+# holds the input's grid objects at every emitted cell.
+_town_fact_views = WeakKeyDictionary()
 
 
 def _build_town_store_position_index(policy):
@@ -97,6 +103,29 @@ class TownMixin:
         """Incrementally retain store/building facts for this floor visit."""
         if snapshot is self._town_fact_snapshot:
             return
+        # A probe derived with dataclasses.replace shares the refreshed
+        # snapshot's grids mapping, and the decision input agrees with its
+        # merged view on the emitted window; with the same region every
+        # retained fact is already current for either.
+        inputs = _town_fact_inputs.get(self) if decision_caches_enabled() else None
+        grids = getattr(snapshot, "grids", None)
+        views = _town_fact_views.get(self)
+        if (
+            inputs is not None
+            and self._town_fact_snapshot is not None
+            and inputs[1] is self._emitted_t
+            and self._town_fact_region == self._grid_region(snapshot)
+            and (
+                inputs[0] is grids
+                or (
+                    views is not None
+                    and views[2] is self._emitted_t
+                    and views[1] is inputs[0]
+                    and views[0] is grids
+                )
+            )
+        ):
+            return
         self._town_fact_snapshot = snapshot
         in_town = getattr(snapshot, "in_town", False)
         if not in_town:
@@ -160,6 +189,7 @@ class TownMixin:
             changed = changed or was_entrance != is_entrance
         if changed:
             self._town_entrance_cache = None
+        _town_fact_inputs[self] = (getattr(snapshot, "grids", None), self._emitted_t)
 
     def _town_arbiter_terminal_result(self, key: str) -> bool:
         """Classify visible stops without treating their emission as progress."""
