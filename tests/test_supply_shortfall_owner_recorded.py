@@ -146,7 +146,11 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
 
     def test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page(self):
         policy, board, key, prefix, recorded = self.replay("teleport-0316")
-        self.assertTrue(prefix and all(ok for _, ok in prefix), prefix)
+        # Row 122 is excluded since #69: with the Feanorian lamp worn the
+        # single spare torch is surplus, and the full pack routes Home first
+        # (recorded '\x1b`n%.' shop:travel -> now '\x1b`n(.' shop:travel).
+        self.assertTrue(
+            prefix and all(ok for row, ok in prefix if row != 122), prefix)
         self.assertEqual((recorded["key"], recorded["reason"]),
                          ("\x1b`n#.", "shop:travel"))
         # The adjacent outside board composes the observed Alchemist page.
@@ -177,8 +181,13 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
         policy, board, key, prefix, recorded = self.replay("idstaff-0353")
         # Rows 104-126 are outside the walls' reach (Home trips the live
         # process composed from earlier state); from the Magic shop visit on
-        # every recorded decision reproduces.
-        self.assertTrue(all(ok for row, ok in prefix if row >= 127), prefix)
+        # every recorded decision reproduces.  Row 139 is excluded since #69:
+        # with the Feanorian lamp worn the spare torch is surplus under pack
+        # pressure (recorded "\x1b`n'." shop:travel -> now '\x1b`n&.'
+        # town-progress-invariant:defect:inventory:destroy-disposable-item
+        # =>town-progress-invariant:approach).
+        self.assertTrue(
+            all(ok for row, ok in prefix if row >= 127 and row != 139), prefix)
         self.assertEqual((recorded["key"], recorded["reason"]),
                          ("\x1b`n%.", "shop:travel"))
         self.assertEqual(key, "\x1b`n&.")

@@ -1,0 +1,50 @@
+LUNA-DIAG overflow-torches (#69) -- measured on 29dcd802
+
+Replay: last state row of c4a 20261018-164159 (turn 2784447, town, 20 entries, free 3)
+through tests' _policy() + _consume_response_sequence, with the recorded runtime state
+constructed (fundraising mode "prepare"; *Identify* x4 as visit purchase -- both from
+decision 3483). Result on 29dcd802: _town_overflow_destroy_key -> WAIT,
+last_reason town:blocked:overflow-no-legal-disposal (the recorded stop).
+Same shape on the 162231 board (after its Amnesia potion was destroyed).
+
+Stop site: policy_town.py:2426-2441: free 3 < MIN_TERMINAL_FREE_PACK_SLOTS 4 and
+_overflow_disposal_item() is None. _town_pack_space_shortage: 3 < MIN_FREE_PACK_SLOTS 5.
+
+Candidate list on the stop board: EMPTY (_find_disposable_item None, cursed None,
+fallback None). Per entry (policy._retention_reservation_detail, policy_home.py:1925+):
+  a Speed x10      10 carry-strategy:speed-potions (also survival-essential)
+  b CCW x10         1 supply-ledger:cure (live 10)  -> not entire-stack surplus
+  c Healing x4      4 carry-strategy:heal-potions
+  d Teleport x15   15 carry-strategy:teleport
+  e Recall x9       3 supply-ledger:recall (live 9) -> not entire-stack surplus
+  f *Identify* x4   4 visit-purchase (bought this visit)
+  g Light x1        1 carry-strategy:light (quest 31 required_scrolls.light 1)
+  h TreasureDet x10 10 mining:detection
+  i StoneToMud x2   2 mana-device
+  j,k,l Identify staves 9/7/6: reservation 0 (release plan {} -- 3 staves within the
+      four-staff cap, policy_home.py:1986-2000), but excluded from the fallback by
+      `not self._is_useful_device(item)` (policy.py:14746) and not _is_disposable_item;
+      not a Home deposit candidate (_home_deposit_candidate False: only cap-released
+      staves are, policy_home.py:2533-2545).
+  m,n,o,p,q torches (2167/2112/320/127/2431 turns, count 1 each): reservation 1 each,
+      branch torch-carry (policy_home.py:2037-2044). Target = _torch_carry_requirement
+      (policy_supply.py:1116-1128) = FOOD_STOCK_TARGET 5 because matching ammo (bolts)
+      is carried; carried usable torches = 5, so all five stacks are inside the target.
+      The task's "torch-carry 1" is the per-stack reservation, not the target.
+      The overflow torch clause in _find_disposable_item (policy_helpers.py:312-318)
+      requires reservation 0 -> excluded.
+  r,s Dwarven picks: reservation 1 each, mining:digging-tool -- keep_slots = top
+      (2 - equipped diggers 0) = both (policy_home.py:2121-2142); _is_surplus_digging_tool
+      False (keeps top 2, policy.py:14654-14666). The kit target is 2: no duplicate beyond it.
+  t Bolts x35      35 ammo:carry-plan (quest launcher ammo 35/99)
+
+Why the Home path did not free slots: _town_space_deposit_actionable False because
+_find_home_deposit None (every unreserved entry is a staff, not a deposit candidate;
+every other entry is reserved). Sell-carried-surplus (overweight/home-full sale) has
+the same retention set, so nothing to sell.
+
+Root cause: the worn light is a Feanorian lamp (sval 2, permanent, needs no fuel;
+_owns_usable_permanent_light True). Spare torches only back up a fuelled light, yet
+the backup target (5) still applied, and used torches never stack, so the reserve
+cost five slots. The policy already treats lamp oil as obsolete with a permanent
+light (policy_home.py:1931, 2569-2573); torches lacked the same rule.
