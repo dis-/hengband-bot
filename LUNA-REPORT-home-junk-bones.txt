@@ -130,3 +130,37 @@ ROUND 3 (merge main c36af84e; #68 part 2 and #69)
 - Guards after 493575ea (vs c36af84e): preflight OK (17 files, 0 findings; notes the two modified
   sale-inscribe tests); mutation_check MUTATION OK 0 of 6 hunks unpinned (recorded for 493575ea);
   fast_tier 3935 tests, Failures none, Errors none, 221.6s.
+
+ROUND 4
+A. Soak loop (234158 / 234355 loop-detected, Yeek cave L1, fundraising): _loot_step(include_unsafe=True)
+   (the fundraise:seek-loot selector) added every object grid, bypassing the junk filter of the loot
+   list; the bot stepped onto a tval 3 pottery-shard pile, the underfoot pickup refused it, and
+   seek-treasure walked back. Fix (0c4e7d63): the include_unsafe candidates also skip
+   _floor_pile_is_worthless piles. Treasure targets are gold veins (has_gold) and the full-pack look
+   probe only seeks items of unknown cost, so no other target selection admits a junk-only pile.
+   Pin test_fundraising_loot_does_not_target_the_recorded_junk_pile (fixture
+   fundraise-junk-pile-20261018.jsonl.gz = 234158 state row 103, player (15,47) beside (16,48) tval 3;
+   DECLARED CONSTRUCTED fundraising mode "mine"): on 68c2a75c the selector targets (16,48)
+   (AssertionError Position(16,48) == Position(16,48)); after the fix it does not.
+B. Gate failures (slow modules), measured on the branch vs c36af84e (same replay, both trees):
+   STOP - intended consequence of "do not pick up bones"; tests NOT edited.
+   - test_overweight_home_unreachable_recorded (both failing tests) - rows 1588-1590, 1620-1623, 1974:
+     * 1578: a kill drops a skeleton (tval 1) at (2,84). c36af84e: seek-loot target (2,84) (key '3',
+       same as recorded); branch: target (3,85) bolts (same key '3'). The skeleton is then gone (1579).
+       c36af84e re-targets by BFS later; the branch keeps (3,85), so the walk order differs:
+       1588 rec '9' seek-loot (to (1,85) corpse) -> branch '3' seek-loot (to (3,85));
+       1589 rec '2' -> '1'; 1590 rec '6' -> '2'; 1620 rec '9' -> '1'; 1621 '6' -> '1';
+       1622 '7' -> '2'; 1623 '8' -> '1' (all seek-loot; reasons unchanged, only route keys).
+     * 1974: rec '2' seek-loot onto (6,48) = skeleton pile tval 1 (recorded game picked bones) ->
+       branch '3' seek-loot to (6,49) (tval 127 gold).
+     No non-junk item is skipped: every change starts at a tval-1 pile. Hunk: the loot filter
+     (policy_observation _floor_pile_is_worthless). Not the before-return disposal, not Home relief,
+     not the overweight deposit.
+   - test_declarations_r14.test_overweight_home_tail_keeps_its_operation_at_3715: the same
+     "overweight" replay's OFF hash (8f46fb35... vs expected 9583b98b...), i.e. the same route rows.
+   Decision needed: re-baseline these replays (expected rows / hash) to the junk-skip routes, or not.
+C. Guards after 0c4e7d63 (vs c36af84e): preflight OK (19 files, 0 findings; notes the two
+   sale-inscribe tests); mutation_check MUTATION OK 0 of 7 hunks unpinned (recorded for 0c4e7d63);
+   affected modules (junk_bones, sale_inscribe, home_full_sale_keeps_recall, overflow_torches,
+   supply_shortfall_owner, lantern_lost) 31 tests OK; fast_tier 3936 tests, Failures none, Errors none.
+   The three slow-module tests above still fail (not edited, pending the decision).
