@@ -83,8 +83,8 @@ ROUND 2 (owner decision 2026-10-18 "不要品を先に壊す")
   Commits a3ef1681, 0c1130b2 (manifest regeneration).
 - tests/test_sale_inscribe_buy_recorded.py (only the 12:38 parts; 12:34 unchanged):
   * test_sale_inscription_avoids_refused_tag_then_sells_and_buys_recall, capture 12:38:
-    old: page decision ('{j@1', 'shop:in-store-inscribe') ... final ('', 'home:scan-leave-store')
-    new: first Home decision ('', 'home:full-queue-surplus-withdraw') with relief mode 'destroy' of a
+    old: page decision ('{j@1\r', 'shop:in-store-inscribe') ... final ('\x1b', 'home:scan-leave-store')
+    new: first Home decision ('\x1b', 'home:full-queue-surplus-withdraw') with relief mode 'destroy' of a
     tval 10 remain (『スメアゴル』の死体); the sale flow is not reached. Comment cites #70 + owner decision.
     (_captures records the 12:38 decisions in self.b_decisions.)
   * test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell: intent kept on BOTH captures.
@@ -106,3 +106,24 @@ ROUND 2 (owner decision 2026-10-18 "不要品を先に壊す")
     Total 3931 tests, 193.8s. (Run after gate-torches-1018 finished.)
   Affected modules run OK: test_home_junk_bones_recorded, test_sale_inscribe_buy_recorded,
   test_home_full_relief_recorded, test_home_discard_followup_recorded, test_home_relief_progress_recorded.
+
+ROUND 3 (merge main c36af84e; #68 part 2 and #69)
+- Merged c36af84e (f9316d7a). Conflict only in scripts/town_work_manifest.json.gz: regenerated with
+  town_work_manifest.py --write (832 candidates, zero unmapped); item_sink_lint 0 violations.
+- tests/test_home_full_sale_keeps_recall_recorded.py: the three #68 tests (destroy of a 12:38 corpse
+  instead of the asserted sale) now run behind the same DECLARED CONSTRUCTED #70 wall
+  (_without_home_junk: Home tval 1/3/10 rows and the emptied chest marked is_bounty, rows/addresses
+  kept), applied in _policy_on; comment cites #70 and the owner decision. Assertions unchanged.
+- (R) test_supply_shortfall_owner_recorded.test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page
+  failed after the merge (passes on c36af84e alone): its recorded prefix rows 103-118 are
+  'return:wait-recall' during a Recall countdown with junk carried, and the before-return disposal
+  fired there (the replayed policy has no latch, so _should_start_town_return was true while
+  recalling). Fixed in src: the disposal runs only when the return starts, not latched, NOT recalling
+  and the exit not quest-locked (i.e. before the Recall read). My own pin
+  test_latched_return_destroys_remains_during_recall_countdown was removed with that clause.
+  Remaining gap (reported): remains picked up during the Recall countdown sweep or a latched
+  return-loot sweep can still reach town; the Home-full relief now destroys them first there.
+- Modules green: test_home_junk_bones_recorded, test_sale_inscribe_buy_recorded,
+  test_home_full_sale_keeps_recall_recorded, test_overflow_torches_recorded,
+  test_supply_shortfall_owner_recorded, test_lantern_lost_recorded (+ light_pingpong, dungeon_idle_wait,
+  ownership_s2b1_ladder).
