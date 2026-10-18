@@ -6670,7 +6670,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "20a5e9f13058dad29ae07bef70047cceee0a00ad706fe535a52aaf7fbd52caf9"
+    "ast_sha256": "511d9cdb8c72ea76b0dd5e71b4877cea4c3fae153b78b6721be26b6c8f905494"
   },
   "policy_shop.py:ShopMixin._shop_purchase_key": {
     "classification": "operation",

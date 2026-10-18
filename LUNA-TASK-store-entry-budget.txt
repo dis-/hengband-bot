@@ -1,0 +1,58 @@
+ISSUE: #74
+Task: one defect only. Branch store-entry-budget-1019 at main af25b541 (worktree C:\hengband\bot-client\.worktrees\store-entry-budget-1019).
+
+Evidence (not tracked; Linux soak c4-a life-013, Level 29, bot 45f0bdc1 = af25b541 + #66/#70 branches, gold 10,167):
+  C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-054156-town-blocked-shop-required-operation-uncomposable (137 rows). In the Magic shop (store 5) the
+  in-store ops alternated inscribe '{l@0\r' / sell 'd0y' for several items (謎の魔法棒 (24回分), 鑑定の杖 (3回分),
+  邪悪存在感知の杖 (10回分), ...), then '\x1b' town:blocked:shop-required-operation-uncomposable. Last row
+  shop_selector.required-page-continuation {"cause": "entry-budget", "store": 5, "operation": "buy",
+  "signature": ["鑑定の杖 (5x 15回分)", 55, 5], "row": "m", "quantity": 1, "budget_identity": 7051}. The required buy
+  (Identify staff charges 12/20, departure-blocking) did not fit the visit's existing operation budget after the sales.
+  Code: policy_instore.py (_in_store continue / _in_store_required_operation_stop), the entry budget accounting.
+
+Authority (already approved): required supplies are bought; selling surplus is allowed but must not starve a required
+purchase; A0 keep running (a visit that cannot finish closes and the bot continues).
+
+Do:
+1. LUNA-DIAG-store-entry-budget.txt first (short): MEASURED facts (file:line + values): the entry budget size and what
+   consumed it, why the sales ran before the required purchase, and why leaving and re-entering (a new budget) is not
+   taken instead of the stop.
+2. Smallest fix: a departure-blocking purchase on the observed page is done before optional sales consume the budget,
+   or, when the budget is spent, the bot leaves and re-enters (fresh budget) / continues instead of the hard stop. No new
+   constant or threshold (use the existing budget).
+3. Pins (recorded rows; DECLARED CONSTRUCTED walls): on af25b541 the board ends in the stop; after the fix it posts the
+   buy (or a non-stopping leave that leads to it) - assert key and reason. Controls: an ordinary sale-only visit is
+   unchanged; tests/test_sale_inscribe_buy_recorded.py passes.
+Token budget for this task: 200k.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at af25b541) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
+  New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions. New
+  policy attributes need restored-checkpoint defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- No new constant or threshold; no special case keyed to one store, one floor or one capture.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), scripts/town_producer_baseline.json /
+  scripts/town_work_review.json entries for new helpers (json.dumps ensure_ascii=False indent=2 + trailing newline,
+  no sorting), census counts in structural tests (report the change), STUCK_FAMILY_REASONS if a new reason is added.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8), not the console code page. They also hold
+  non-decision rows; filter on "decision_sequence".
+- Merge gates may be running their full suite. Before fast_tier, wait (sleep 60 between polls) while any file
+  C:\hengband-backups\suite-logs\gate-*-1019*.run.log modified in the last 70 minutes lacks "MERGED", "FAILED" and
+  "STOP" in its tail.
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\store-entry-budget-1019 af25b541
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\store-entry-budget-1019 af25b541 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\store-entry-budget-1019 af25b541 --shards 4
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
+  outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 250k is a HARD limit: when you reach it, stop and report what is done. Wall time 150 minutes. Write
+  LUNA-REPORT-store-entry-budget.txt (measured diagnosis, changes, pins before/after, controls, guard outputs) and commit.
