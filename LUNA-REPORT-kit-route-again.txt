@@ -61,7 +61,7 @@ Guard outputs (after commit ccb933be; fast_tier run after gate-bones-1019 ended 
   [mutation] recorded for ccb933be
 - fast_tier.py --shards 4:
   [fast] 3908 fast tests (<2.0s in af25b541) + 1 changed modules, 4 shards
-  [fast] excluded 22 modules measured over 60s (cache C:\hengband-backupsast-tier-module-seconds.json)
+  [fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
   Crashed shards: none
   Failures: none
   Errors: none
