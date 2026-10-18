@@ -120,12 +120,12 @@ class HomeLeaveSuppressedRecordedTest(unittest.TestCase):
         self.assertIsNone(policy._store_leave_inflight)
 
     def test_control_open_home_page_still_leaves(self):
-        # Control: on the recorded Home page of row 3674 (state row 104) an
-        # unconfirmed leave still posts the exit, unchanged.
-        policy, board, _inflight = self.replay(3674)
+        # Control: on the recorded Home page of row 3674 (state row 104),
+        # with the replayed leave of row 3673 still in flight, the scan owner
+        # still posts the exit, unchanged.
+        policy, board, inflight = self.replay(3674)
         self.assertEqual(board.store.store_type, STORE_HOME)
-        policy._store_leave_inflight = (
-            policy._decision_sequence, board.turn, STORE_HOME)
+        self.assertIsNotNone(inflight)
         key = policy._home_full_knowledge_key(board)
         self.assertEqual((key, policy.last_reason),
                          (LEAVE_STORE_KEY, "home:scan-leave-store"))
