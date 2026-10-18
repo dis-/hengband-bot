@@ -60,15 +60,19 @@ class FullPackStoreUnreachableRecordedTest(unittest.TestCase):
         )
         return snapshots
 
-    def _arrival(self):
-        policy = _policy(self.directory, self.monrace)
-        policy._crossarea_fundraising_enforced = True
-        # DECLARED CONSTRUCTED: the 10-18 Home census of the same life.
+    def _home_census(self, policy):
+        # DECLARED CONSTRUCTED: the 10-18 Home census of the same life, with
+        # the posted ~9 request whose answer is its line 1 (as in the #70 pin).
         self._consume(policy, self.home_lines[0])
         policy._home_knowledge_scan_inflight = True
         policy._home_knowledge_scan_epoch = None
         self._consume(policy, self.home_lines[1])
         self._consume(policy, self.home_lines[2])
+
+    def _arrival(self):
+        policy = _policy(self.directory, self.monrace)
+        policy._crossarea_fundraising_enforced = True
+        self._home_census(policy)
         dungeon = self._consume(policy, self.lines[0])[-1]
         policy._skill_exp_cache = (0, 0, dungeon.player.level, policy._town_visit_epoch)
         policy.choose_key(dungeon)
