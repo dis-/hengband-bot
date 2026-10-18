@@ -15498,12 +15498,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and reachable >= STAFF_IDENTIFY_MIN_CHARGES
         ):
             return False
-        supplier_pages = dict(self._town_supplier_stock)
-        if snapshot.store is not None and snapshot.store.store_type in {
-            STORE_MAGIC,
-            STORE_BLACK,
-        }:
-            supplier_pages[snapshot.store.store_type] = snapshot.store
+        # Judge the shelf on the same current-town pages the identify-staff
+        # need registry routes to: a remembered page without this town's
+        # observation has no owner, so it cannot keep procurement "possible"
+        # (#76: an earlier 936-gold Magic page held off the stockout run).
+        supplier_pages = {
+            page.store_type: page
+            for page in self._identify_staff_offer_pages(snapshot)
+        }
         if any(
             any(
                 item.tval == TVAL_STAFF
