@@ -374,7 +374,8 @@
     "self._store_sell_key(snapshot, target, 'home-disposal:sell-approved', rejected_reason='home-disposal:sale-refused') @ If:body:self._home_disposal_pending is not None / If:body:decision == 'sell' and target is not None and target.known and (store.store_type == self._home_disposal_store(signature))": 1,
     "self._town_random_teleport_suppression_key(snapshot) @ ": 1,
     "self._shop_purchase_key(snapshot, selection) @ If:body:item is not None": 1,
-    "self._shop_purchase_key(snapshot, completed_disposal_successor) @ If:body:self._pending_disposal_item is not None / If:body:target is None and self._pending_disposal_completed(snapshot) / If:body:completed_disposal_successor is not None": 1
+    "self._shop_purchase_key(snapshot, completed_disposal_successor) @ If:body:self._pending_disposal_item is not None / If:body:target is None and self._pending_disposal_completed(snapshot) / If:body:completed_disposal_successor is not None": 1,
+    "self._shop_purchase_key(snapshot, PurchaseSelection(matches[0] if matches else None, item, store.store_type, PurchaseContext(snapshot), self._purchase_quantity(snapshot, item))) @ If:body:entry_ledger is not None and entry_ledger.get('ops', 0) > 0 and (self._batch_sell_pending is None) and (self._departure_blocking_page_purchase(snapshot) is not None) / If:body:item is not None": 1
   },
   "policy_shop.py:_store_sell_key": {
     "self._batch_sell_key(snapshot, [item]) @ ": 1
