@@ -1,0 +1,72 @@
+LUNA-REPORT home-sale-required (#68), branch home-sale-required-1018, base 99c2fa87
+
+DIAGNOSIS (details: LUNA-DIAG-home-sale-required.txt)
+- MEASURED: 14:01:53 seq 6200: Recall 7/9, retention 7 ("supply-ledger:recall"), fundraising
+  "prepare", Treasure Detection 0/5. 14:40-14:42: fundraising null, Recall 0/10. The 14:09
+  board is not in any local capture (soak machine only).
+- CODE: the Home-full pick (_home_full_sale_candidate) and its merge barrier
+  (_home_full_merge_reserved) count carried + the picked Home stack (other Home stacks are not
+  counted). With carried 7 and any nonzero Recall target both gates, and the in-store re-check
+  (policy_home.py:870-874), forbid the sale. So at 14:09 the Recall retention target was 0.
+  _recall_target is never 0; the only path is _fundraising_mode in {"mine","scavenge"}
+  (_recall_required_target policy.py:13594-13597, ledger policy_supply.py:307-312). That
+  target is suspended for the fundraising trip only; the expedition after it needs the
+  standing target again (0/10 at 14:42, rebuy 229 each). The withdrawn stack merged with the
+  carried 7 and the sale sold the whole stack (count - reservation 0 = 10).
+- The 14:09 mode itself is DERIVED from the gates, not measured.
+
+FIX (src/hengbot/policy_home.py, one commit + one test-escape commit)
+- New helper _home_full_relief_leaves_recall_short(snapshot, item): for a Recall stack, units
+  left after the disposal = carried Recall of another sale identity + Home Recall stacks other
+  than this one (the disposal takes this stack and the carried units it merges with). Refuse
+  when left < max(ledger["recall"].required_departure, _recall_target(_planned_depth())).
+  Existing functions only; no new constant/threshold; retention authority unchanged.
+- Applied in _home_full_sale_candidate and _home_full_discard_candidate (otherwise the destroy
+  fallback would take the same stack). Outside mine/scavenge the existing retention already
+  blocks every Recall pick, so behaviour there is unchanged.
+- No new policy attribute (no restored-checkpoint defaults needed). No new reason.
+- Bookkeeping: scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json
+  regenerated (line shifts). Baseline/review JSON: no entry needed (helper is not a producer).
+
+PINS: tests/test_home_full_sale_keeps_recall_recorded.py (4 tests). Recorded rows: issue #67
+capture B (12:38, same soak) from tests/fixtures/sale-inscribe-buy-20261018.jsonl.gz (no new
+fixture). DECLARED CONSTRUCTED: Home Treasure Detection 5 -> Recall 3 (list and page), carried
+Recall 8 -> 7, fundraising mode "scavenge" (or "mine"), planned depth 20 (standing target 9).
+  - test_recall_below_standing_target_is_not_sold_while_scavenging (choose_key on the Home page):
+    99c2fa87 picks 帰還の詔の巻物; fix picks 厚布よろい [5,+0].
+  - test_recall_below_standing_target_is_not_disposed_by_either_selector (scavenge, mine):
+    99c2fa87 sale candidate non-None; fix: sale and discard candidates None.
+  - test_control_recall_outside_fundraising_is_unchanged: mode None -> 厚布よろい both before
+    and after.
+  - test_control_recall_above_standing_target_is_still_sold: second Home Recall stack 9 {@r1};
+    the 3-stack stays a candidate and is picked (sold down to 9 = target); the 9-stack is
+    refused after the fix (99c2fa87 accepted it, leaving 3).
+  Pre-fix run: 4 FAIL; post-fix: 4 OK.
+CONTROLS: tests.test_sale_inscribe_buy_recorded OK unchanged (Treasure Detection still sold).
+Also OK: test_home_full_relief_recorded, test_home_discard_incidents_recorded,
+test_home_discard_followup_recorded, test_homefull3_recorded, test_policy_fundraising,
+test_overweight_homefull_step15b, test_equipment_homefull_step15a,
+test_home_relief_progress_recorded, test_home_full_identification_procurement_recorded.
+No existing test edited.
+
+GUARDS (after the last source commit e4f714f4)
+preflight:
+  [preflight] PREFLIGHT OK: 5 changed files, 0 findings (home-sale-required-1018 vs 99c2fa87)
+  (first run FAILed control-chars on a raw ESC in the new test; fixed in e4f714f4)
+mutation_check --tests tests.test_home_full_sale_keeps_recall_recorded --record:
+  [mutation] 5 source hunks
+  caught policy_home.py:335 (recall_short = ... in sale candidate)
+  caught policy_home.py:371 (or recall_short)
+  caught policy_home.py:380 (def _home_full_relief_leaves_recall_short)
+  caught policy_home.py:461 (recall_short = ... in discard candidate)
+  caught policy_home.py:480 (or recall_short in discard candidate)
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+  [mutation] recorded for e4f714f4
+fast_tier --shards 4 (run after gate-recallstock-1018 finished):
+  [fast] 3938 fast tests + 1 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: tests.test_fundraise_kit_route_recorded, tests.test_recall_churn_stockout_recorded
+          (import, ModuleNotFoundError) -- modules of the other branches (#66, #68 part 1)
+          listed in the shared timing cache; they do not exist at 99c2fa87. Not regressions.
+  Total: 3943 tests, 233.7s
