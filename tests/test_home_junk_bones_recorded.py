@@ -6,12 +6,15 @@ Recorded inputs:
   turn 656632): the return-start board.  The pack carries seven recorded junk
   stacks (slots q-w: three corpses, a broken stick, three skeletons) and the
   floor shows recorded corpse (tval 10) and bolt (tval 18) piles.
+* ``home-junk-bones-20261018.jsonl.gz``: the full Home of capture 164159.
+* ``fundraise-junk-pile-20261018.jsonl.gz``: capture 234158 (loop-detected),
+  the fundraising board beside a pottery-shard (tval 3) pile.
 
 DECLARED CONSTRUCTED: the worn lantern fuel above the refill threshold (as in
 the existing lantern control), one floor pile shown as a skeleton (tval 1)
 instead of its recorded bolts, the pack without its junk for the loot pins,
-bounty flags in the bounty control, and the ~9 flag and blocked deposit of the
-full-Home pin.
+bounty flags in the bounty control, the ~9 flag and blocked deposit of the
+full-Home pin, and the fundraising mode of the fundraising pin.
 """
 
 from __future__ import annotations
@@ -38,6 +41,8 @@ HOME = FIXTURES / "home-junk-bones-20261018.jsonl.gz"
 HOME_BOUNDARIES = FIXTURES / "home-junk-bones-20261018.boundaries.json"
 BOLT_PILE = Position(11, 59)
 RECORDED_CORPSE_PILE = Position(10, 62)
+FUNDRAISE = FIXTURES / "fundraise-junk-pile-20261018.jsonl.gz"
+JUNK_PILE = Position(16, 48)
 
 
 class HomeJunkBonesRecordedTest(unittest.TestCase):
@@ -117,6 +122,27 @@ class HomeJunkBonesRecordedTest(unittest.TestCase):
         policy._position_changed = True
         self.assertIsNone(policy._current_floor_item_key(
             underfoot, pickup_reason="pickup", trigger_reason="trigger-autodestroy"))
+
+    def test_fundraising_loot_does_not_target_the_recorded_junk_pile(self):
+        # Soak 2026-10-18 23:41 (loop-detected): fundraise:seek-loot walked
+        # onto the pottery-shard pile (16,48), the pickup refused it and
+        # seek-treasure walked back, until the loop detector stopped the run.
+        with gzip.open(FUNDRAISE, "rt", encoding="utf-8") as stream:
+            line = stream.read().splitlines()[0]
+        policy = _policy(self.directory, self.monrace)
+        policy._crossarea_fundraising_enforced = True
+        board = self._consume(policy, line)[-1]
+        policy._skill_exp_cache = (0, 0, board.player.level, policy._town_visit_epoch)
+        self.assertEqual(board.player.position, Position(15, 47))
+        self.assertEqual(board.grids[JUNK_PILE].object_tvals, (3,))
+        # DECLARED CONSTRUCTED: the recorded fundraising mode (telemetry "mine").
+        policy._fundraising_mode = "mine"
+        policy.choose_key(board)
+        self.assertNotEqual(policy.last_reason, "fundraise:seek-loot")
+        # The fundraising loot selector (the live fundraise:seek-loot step).
+        policy._loot_target = None
+        policy._loot_step(board, include_unsafe=True)
+        self.assertNotEqual(policy._loot_target, JUNK_PILE)
 
     def test_control_recorded_bolt_pile_is_still_sought_and_picked_up(self):
         policy, board = self._dungeon()

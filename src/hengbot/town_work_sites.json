@@ -5412,7 +5412,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8cac2ccb1b985c76cde9bba027949d59df4986f3efa10530a901bd47a28e5c1d"
+    "ast_sha256": "698c8adfa51638477cef37cef8d4e1844c271046d99731167adbeabbef8fa7bf"
   },
   "policy_identification.py:IdentificationMixin._normal_loot_key": {
     "classification": "producer",
