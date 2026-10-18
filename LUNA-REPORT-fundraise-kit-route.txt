@@ -1,0 +1,108 @@
+ISSUE #66 - report (branch fundraise-kit-route-1018, base 99c2fa87)
+Commits: e24ce49e (fix (b) + pin + diagnosis), 415e96bb (manifest regenerated).
+STATUS: fix (b) is DONE. Fix (a) is STOPPED, because it changes an existing test (see below).
+
+Diagnosis (measured; details in LUNA-DIAG-fundraise-kit-route.txt)
+------------------------------------------------------------------
+140156: fundraising prepare. Procurement: Treasure Detection 0/5, Recall 7/9, identify charges
+12/20. Home knowledge (state row 28) holds 1 scroll.
+* The plan builder (policy_town.py:3138-3140 at base) claims the Alchemist "fundraising-detection"
+  only when _has_withdrawable_treasure_detection is False. That is a bool, and the one scroll at
+  Home makes it True, so the Alchemist never becomes a claim even though 4 scrolls are still
+  missing.
+* The fundraising branch returns early (3234). The Recall and identify suppliers are not claimed:
+  the identify suppliers are added only when identify is the sole block (1914-1934), and here
+  Recall also blocks.
+* Row 44: the identify-staff reserve terminal closed Home without withdrawing the scroll. This is
+  the #64 family; the state that refused the binder is not in the capture.
+* Result: no claim was left, so the bot did 30 stuck:wander and then hit the owner-retired burst.
+  Replayed on 99c2fa87 under the walls below, row 55 gets '5'
+  town:blocked:no-actionable-claim-owner with live claims [].
+123828: mode None, 19,146 gold. The Home-full relief chose sale = (財宝感知の巻物, store 4).
+Replay row 159/160 shows '\x1b' home:full-queue-surplus-withdraw. The detection is protected only
+through _retention_reservation while mining is planned (policy_home.py:1956-1960, 2108-2111).
+
+Fix (b), committed
+------------------
+src/hengbot/policy_town.py, fundraising branch of _town_need_candidates:
+* The Alchemist "fundraising-detection" stop is also claimed when the pack detection plus the
+  Home detection is below _mining_detection_scroll_target. Home detection is read from the open
+  Home page, otherwise from the Home knowledge.
+* _mining_detection_scroll_target is the existing kit requirement, the same target that
+  procurement_requirements reports.
+* There is no new constant, threshold, policy attribute or helper, so there are no
+  restored-checkpoint defaults and no baseline/review entries.
+
+Pins: tests/test_fundraise_kit_route_recorded.py
+-------------------------------------------------
+Fixture: tests/fixtures/fundraise-kit-route-20261018.json.gz (135 KB). It holds raw state lines
+of 123828 decision rows 147-160 and 140156 rows 55-56, the Home knowledge row 28 of 140156, and
+the ~f skill row of 074006 row 7. The extractor is a scratch script; provenance is in the
+docstring.
+
+DECLARED CONSTRUCTED walls for (b):
+* fundraising mode "prepare";
+* the Home knowledge from state row 28;
+* planned depth 19 (this reproduces Recall 7/9 and the logged failed set);
+* Home attempted ("identify-staff-reserve-terminal", row 44);
+* Magic attempted (rows 45-49);
+* the skill row.
+
+Tests:
+- test_prepare_routes_missing_detection_to_the_alchemist
+    - 99c2fa87: ('5', 'town:blocked:no-actionable-claim-owner'). The live post was stuck:wander.
+    - fix: ('\x1b`n%.', 'shop:travel'). The plan contains Alchemist ('fundraising-detection',).
+    - It also asserts the requirements Recall (7, 9) and Treasure Detection (0, 5).
+    - The mutation check confirms that this test catches the hunk.
+- test_control_home_covering_the_requirement_adds_no_supplier: 4 of 5 runs completed, so the
+  kit needs 1 scroll and Home holds it. No supplier is added, and the result is the same as on
+  99c2fa87 ('5', town:blocked:no-actionable-claim-owner).
+- test_captured_route_rows and test_captured_sale_rows: substrate checks.
+Controls: #63 (test_home_ident_withdraw_recorded), #64 (test_fundraise_kit_home_recorded,
+test_supply_shortfall_owner_recorded) and #67 (test_sale_inscribe_buy_recorded) all pass:
+20 tests OK.
+
+Fix (a): STOPPED, because an existing test must change
+------------------------------------------------------
+Prepared change, not committed: LUNA-PATCH-66a-home-full-sale.diff (untracked in the worktree).
+* _home_full_sale_candidate rejects a Home Treasure Detection stack when its sale would leave
+  pack + Home detection below _mining_detection_scroll_target, whether or not mining is planned.
+  Carried stacks are unchanged.
+* Measured with the patch, on the 123828 replay with planned depth 20 (row 160):
+    - 99c2fa87: sale ((財宝感知の巻物,70,26), store 4, 0), withdrawing all 5 scrolls.
+    - patch: sale ((厚布よろい [5,+0],36,10), store 1 Armoury, 0), with the same key '\x1b'
+      home:full-queue-surplus-withdraw. Another, truly surplus, item is chosen.
+    - Control with 5 of 5 runs completed (requirement 0): the detection stack is sold again,
+      (DETECTION, 4, 0).
+* This conflicts with the existing #67 pin tests/test_sale_inscribe_buy_recorded.py. Its 12:38
+  capture is the same Home-full sale of these 5 scrolls (the same board, mode None, 19,146 gold,
+  depth 20). With the patch:
+    - test_sale_inscription_avoids_refused_tag_then_sells_and_buys_recall (subtest 12:38):
+        old ('{j@1\r', 'shop:in-store-inscribe') -> 'd15\ry' -> '\x1b' home:scan-leave-store
+        new ('', 'shop:one-shot-in-flight') at the inscription board. The scrolls are no longer
+            picked, so the constructed post-withdraw boards of that test do not match.
+    - test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell (subtest 12:38):
+        old: a pending sale exists (entries[0].tag set to "0").
+        new: TypeError, because there is no pending sale record (None).
+  With the patch applied these two subtests fail; without it they pass (base and this branch).
+  Both conflicts come from the same cause.
+* Decision needed: change the #67 12:38 expectations (the detection is no longer sold there), or
+  keep the sale. The 12:34 subtests are not affected.
+
+Existing tests: none edited. With the committed branch, fast tier: 0 failures.
+
+Guard outputs (after the last commit 415e96bb)
+----------------------------------------------
+[preflight] PREFLIGHT OK: 5 changed files, 0 findings (fundraise-kit-route-1018 vs 99c2fa87)
+
+[mutation] 1 source hunks, tests: tests.test_fundraise_kit_route_recorded
+[mutation] caught     src/hengbot/policy_town.py:3135 (# Issue #66: Home holding some detection does not supply the): test_prepare_routes_missing_detection_to_the_alchemist
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 415e96bb
+
+[fast] 3961 fast tests (<2.0s in 99c2fa87) + 1 changed modules, 4 shards
+[fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3976 tests, 218.6s

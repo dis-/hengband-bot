@@ -1,0 +1,69 @@
+ISSUE #66 - measured diagnosis (base 99c2fa87; live bot d102aaf8 = same src)
+
+Captures (C:\hengband-backups\state-logs\c4a-loops-20261016\):
+  140156 = 20261018-140156-town-blocked-owner-retired-burst: 92 decision rows (seq 6109-6200),
+           81 state rows (turn 1746585-1747119; the window starts at decision row 26), two Home
+           knowledge rows (state row 6 turn 1746600, 238 items; state row 28 turn 1746652, 237 items).
+  123828 = 20261018-123828-town-blocked-shop-required-operation-uncomposable: 165 decision rows,
+           87 state rows.
+Replay: scratch harness = tests/test_fundraise_kit_home_recorded.py (_segments,
+_consume_response_sequence, choose_key, confirm_key_posted, live argv flags). Wall in all runs:
+~f skill row of the same character (20261018-074006 state row 7).
+
+1) 140156: why the plan is Home only while Treasure Detection 0/5, Recall 7/9, identify 12/20
+   - Decision rows 0-91: fundraising {"mode":"prepare","kit_secured":false,"gold_trigger":false},
+     gold 7,097-7,555. Rows 51-91 town_plan stops ["Home"] index 0; procurement Recall 7/9,
+     Treasure Detection 0/5, Digging tool 1/2, Identify staff charges 12/20 (18/20 before the Magic
+     sale rows 47-48); departure_block.failed ["recall_departure_ready","identify_staff_ready"].
+   - Home knowledge (state row 28, the visit's last full list): 財宝感知の巻物 x1, 帰還の詔の巻物 x1,
+     ドワーフのつるはし x1. So Home holds 1 of the 5 detection scrolls the kit requires
+     (_mining_detection_scroll_target, policy_fundraising.py:377-382, = procurement target 5).
+   - Plan builder (policy_town.py:3123-3234, fundraising branch, returns early at 3234):
+     * Home "fundraising-kit" home-first only while STORE_HOME not attempted (3130-3131);
+     * Alchemist "fundraising-detection" only when _has_withdrawable_treasure_detection is False
+       (3138-3140; policy_home.py:1788-1798 is a bool: any scroll at Home -> True). With Home
+       holding 1, the Alchemist is never a claim, although 4 scrolls are still missing.
+     * "mining-detection" (3164-3168) compares the pack count with scrolls_needed computed from
+       the pack count itself (planned runs = pack scrolls) -> 0, no stop.
+     * The ordinary supply-ledger shortages (Recall -> Alchemist, policy_town.py:3305-3353) are
+       after the early return; identify-staff suppliers are added only when the failed set is
+       exactly {identify_staff_ready} (_fundraising_identify_staff_only_block,
+       policy_town.py:1914-1934); the live set also has recall_departure_ready.
+     So the Alchemist / General / Magic stops are not latched or skipped (skipped_latched [] on
+     every row); in prepare mode they are simply not claims.
+   - Replay (fresh policy, no Home knowledge, prepare wall), row 51: plan [7, 4]
+     {7: fundraising-kit, 4: fundraising-detection}. Same + Home knowledge (state row 28):
+     [7, 5] {7: fundraising-kit, 5: identify-staff} (the planned depth of the fresh policy is 14,
+     Recall satisfied, so identify is the only block) - the Alchemist claim disappears as soon as
+     Home is known to hold one scroll.
+   - Replay with the walls prepare + Home knowledge (state row 28) + planned depth 19 (logged
+     last_overextended_depth 19; reproduces Recall 7/9 and the logged failed set exactly) + Home
+     attempted (row 44) + Magic attempted (rows 45-49), row 55: live claims [] and
+     '5' town:blocked:no-actionable-claim-owner (live: stuck:wander from the same empty claim set,
+     then town:blocked:owner-retired-burst at row 91). Without Home attempted the only claim is
+     (7, 'fundraising-kit').
+
+2) 140156: why the Home visit does not resolve it
+   - Row 44 (Home page, after the ~9 list of row 43 = state row 28): live posted '\x1b'
+     home:identify-staff-reserve-unavailable (policy.py:9322-9351) which marks Home attempted
+     ("identify-staff-reserve-terminal") without withdrawing the scroll; plan index -> 1, then
+     [Magic] (rows 45-49 Magic sale), then [Home] with Home attempted -> no route.
+   - Fresh replay of rows 43-45 with prepare + Home knowledge: '\x1b' home:queue-catalogue-shortage,
+     then '5pk\x1b' home:atomic-withdraw (the #64 binder, policy.py:9306-9321, binds the kit). The
+     live refusal state (#64 family) is not in the capture.
+   - Even a successful withdrawal yields 1 of 5 scrolls; Home cannot supply the remaining 4 and
+     the plan never names their supplier (the Alchemist), see 1).
+
+3) 123828: the Home-full sale of Treasure Detection
+   - Rows 147-164: fundraising mode None, gold 19,146; procurement Recall 8/10, Identify 19/20,
+     quest ammo, quest Light (no Treasure Detection: the requirement is listed only while mining is
+     planned, policy_supply.py:563-575 via _fundraising_mining_requirements,
+     policy_fundraising.py:412-418).
+   - Recorded row 161 '5pj5\r\x1b' home-errand:atomic-withdraw:full-home-sale (all 5 scrolls), then
+     the Alchemist sale.
+   - Replay rows 147-160 (wall planned depth 20): row 159 the Home-full relief chooses
+     sale = (('財宝感知の巻物', 70, 26), 4, 0); row 160 '\x1b' home:full-queue-surplus-withdraw.
+   - _home_full_sale_candidate (policy_home.py:333-379) protects only through
+     _retention_reservation, whose detection branch (policy_home.py:2108-2111) and mining_planned
+     (policy_home.py:1956-1960) need fundraising prepare/mine/scavenge or gold below
+     FUNDRAISING_START_GOLD. At 19,146 gold with mode None the 5 scrolls are "surplus".

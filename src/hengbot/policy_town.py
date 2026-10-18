@@ -3135,7 +3135,27 @@ class TownMixin:
                 ):
                     if STORE_GENERAL not in self._town_store_attempted:
                         add(STORE_GENERAL, "fundraising-digger")
-                if not self._has_withdrawable_treasure_detection(snapshot):
+                # Issue #66: Home holding some detection does not supply the
+                # kit's requirement (_mining_detection_scroll_target, the
+                # procurement target).  The part Home does not hold is routed
+                # to its supplier instead of a Home-only plan (live 2026-10-18
+                # 14:01: Home 1 of 5, Home closed, the bot wandered).
+                home_detection = sum(
+                    item.count
+                    for item in (
+                        snapshot.store.items
+                        if snapshot.store is not None
+                        and snapshot.store.store_type == STORE_HOME
+                        else self._home_knowledge_items
+                    )
+                    if item.is_treasure_detection_scroll
+                )
+                if (
+                    not self._has_withdrawable_treasure_detection(snapshot)
+                    or self._count_treasure_detection_scrolls(snapshot)
+                    + home_detection
+                    < self._mining_detection_scroll_target(snapshot)
+                ):
                     if STORE_ALCHEMIST not in self._town_store_attempted:
                         add(STORE_ALCHEMIST, "fundraising-detection")
             if not self._fundraising_food_ready(snapshot):
