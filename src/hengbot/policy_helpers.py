@@ -286,10 +286,22 @@ class PolicyHelpersMixin:
         overflow_pressure = (
             snapshot.in_town and self._town_pack_space_shortage(snapshot)
         )
+        # Carried oil refills a known lantern, so an empty one is not junk
+        # while oil is carried and no lantern or better light is worn (#65).
+        worn_light = next(
+            (item for item in snapshot.equipment if item.is_light), None
+        )
+        oil_restores_lantern = (
+            (worn_light is None or worn_light.sval == SV_LITE_TORCH)
+            and self._first_item(
+                snapshot, lambda it: it.is_oil and it.fuel > 0
+            ) is not None
+        )
         return self._first_item(
             snapshot,
             lambda it: self._entire_stack_is_surplus(snapshot, it)
             and not self._item_is_procurement_protected(snapshot, it)
+            and not (oil_restores_lantern and it.is_lantern and it.known)
             and (
                 self._is_disposable_item(
                     it,

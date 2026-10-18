@@ -1,0 +1,61 @@
+LUNA-DIAG lantern-lost (#65) - base 37f66a8c
+
+Sources (MEASURED):
+  D = 20261018-lantern-loss-decisions/bot-decisions-0624-0633.jsonl.gz (2111 decision rows)
+  S = 20261018-063248-town-blocked-departure-unsatisfiable/state.jsonl.gz (98 rows)
+  S row 0, turn 656632, Yeek cave L1: equipped 真鍮のランタン(0ターンの寿命) known=True fuel=0;
+  pack a 油つぼ x5 fuel 7500; pack n 松明 372; can_see_own_grid=True; light_radius=1
+  (the worn artifact cloak ☆クローク『常闇の刻』 carries 明 = light radius 1); pack 23/23.
+
+Link 1 - no refill while the lantern dimmed on the return walk
+  MEASURED (D): every return:* row carries claim.rung "_return_to_town_key#3":
+    return:explore 1384 rows at light_radius 1 + 310 at radius 3; return:search-upstairs 239 + 120;
+    return:wait-recall 20; return:probe 3.  Decisions 29231..29319 (06:25:17-06:25:38) are
+    return:explore with "明かりが微かになってきている。" messages; no refill-light row exists in D.
+    fundraising.mode is null (purpose "mine" complete), objective "Return to town", pack 23/23.
+  CODE: policy.py:11509-11516 returns the latched _return_to_town_key#3 result; the ordinary
+    light upkeep (policy.py:11668-11690, _light_refill_item at 11683) is below it and never runs.
+    Inside _return_to_town_key the only light step is policy_town.py:7384-7397, which calls
+    _darkness_recovery_key only.  The fundraising refill (policy_fundraising.py:1318) is not
+    reached either (mode null).
+  REPLAY (S row 0, latch constructed, fuel constructed 1000 = LANTERN_REFILL_FUEL) on 37f66a8c:
+    choose_key -> '8' return:explore although _light_refill_item -> oil slot a.
+
+Link 2 - _darkness_recovery_key does not refill the empty known lantern
+  MEASURED (S row 0): fuel 0, can_see_own_grid True, dungeon_level 1, not blind.
+  CODE: policy.py:13257-13263: _is_dark is False because can_see_own_grid is not None and True
+    (policy.py:13199-13205), so the function returns None before _light_refill_item (13273).
+  REPLAY (S row 0 as recorded, latch constructed) on 37f66a8c: _is_dark False,
+    _darkness_recovery_key None, _light_refill_item = 油つぼ a, choose_key '8' return:explore.
+    (Recorded decision 30909 at this turn: return:explore '2'.)  The walk then lasted to
+    livelock:recall-escape 'rf' (decision 30948, 06:32:10).
+
+Link 3 - town: torch swap, then the lantern destroyed
+  MEASURED (D/S): 30973 equipment-transaction:equip 'wn' (06:32:20) -> S row 71
+    "真鍮のランタン(0ターンの寿命)(n)を光源からはずした。/ 松明(372ターンの寿命)(g)を光源にした。";
+    30987 inventory:destroy-disposable-item '01kn' (06:32:41) on S row 94 (turn 658046, pack 21,
+    torch worn 321, lantern n fuel 0, oil a x5) -> row 95 "真鍮のランタン(0ターンの寿命)を壊した。";
+    30990 town:blocked:departure-unsatisfiable.
+  3a torch preferred: equipment_optimizer.py:251-261 operational_equipment_candidate drops any
+    known pack/equipped light with sval <= lantern and fuel <= 0 from the loadout search
+    (policy_equipment.py:887-891), independent of carried oil, so the target light slot is the
+    torch and the home transaction swaps it.  The town refill at policy.py:11683 is never
+    reached while the home/equipment transaction owns the board (30970-30973).  Not changed
+    (outside the requested fix): once links 1/2 refill on the walk the lantern no longer
+    arrives empty.
+  3b destroy candidate: policy.py:11431-11438 (in town, 23-21=2 free < MIN_FREE_PACK_SLOTS)
+    -> _full_pack_destroy_key -> policy_helpers.py:285 _find_disposable_item.  REPLAY S row 94:
+    _town_pack_space_shortage True, _is_disposable_item(lantern, overflow_pressure=True) True via
+    policy_helpers.py:256-261 (overflow_pressure and is_light and known and fuel <= 0), False
+    without overflow; _is_spare_lantern False (worn torch); surplus True; not
+    procurement-protected.  The clause does not look at carried oil.  choose_key on 37f66a8c
+    -> '01kn' inventory:destroy-disposable-item (matches the record).
+
+Fix (smallest):
+  A policy_town.py _return_to_town_key: when _darkness_recovery_key posts nothing and the worn
+    light is a known lantern, post the existing _light_refill_item refill (LANTERN_REFILL_FUEL
+    threshold, carried oil) through the same return:darkness-recovery offer.
+  B policy_helpers.py _find_disposable_item: a known lantern is not a disposable candidate while
+    oil is carried and the worn light is a torch or none (a lantern or better worn leaves the
+    pack lantern to the existing rules, e.g. the ego 暗闇の lantern of
+    test_town_overflow_disposal_candidates_recorded).

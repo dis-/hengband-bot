@@ -7387,6 +7387,25 @@ class TownMixin:
         # otherwise repeats READ_KEY + slot until the loop watchdog stops us.
         if not player.confused:
             darkness_recovery = self._darkness_recovery_key(snapshot)
+            # The same bypass skips the ordinary low-fuel refill. A known worn
+            # lantern shows its fuel, and another light source can keep the
+            # own grid visible after it burns out, so refill it from carried
+            # oil whether or not the grid is dark (issue #65).
+            worn_light = next(
+                (item for item in snapshot.equipment if item.is_light), None
+            )
+            if (
+                darkness_recovery is None
+                and worn_light is not None
+                and worn_light.known
+                and worn_light.is_lantern
+            ):
+                refill = self._light_refill_item(snapshot)
+                if refill is not None:
+                    self.last_reason = "refill-light"
+                    darkness_recovery = reserved_item_command(
+                        self, snapshot, "refill", refill
+                    )
             if darkness_recovery is not None:
                 self._offer_execution(
                     darkness_recovery, producer="departure",

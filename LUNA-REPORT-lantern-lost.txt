@@ -1,0 +1,80 @@
+LUNA-REPORT lantern-lost (#65) - branch lantern-lost-1018, base 37f66a8c
+Commits: c1361ab2 (fix + pins + bookkeeping + DIAG), eff39393 (repair round 1: disposal guard
+narrowed), this report.  Measured diagnosis with file:line in LUNA-DIAG-lantern-lost.txt.
+
+DIAGNOSIS (MEASURED)
+ Link 1: all 2076 return:* decisions in bot-decisions-0624-0633 carry claim.rung
+   "_return_to_town_key#3" (1384 return:explore + 239 search-upstairs at light_radius 1 after
+   06:25:38).  policy.py:11509-11516 returns the latched return before the ordinary light upkeep
+   (policy.py:11668-11690, refill at 11683); the return's only light step
+   (policy_town.py:7384-7397) is _darkness_recovery_key.  No refill-light row in the window.
+ Link 2: state row turn 656632: worn Brass lantern known fuel 0, oil a x5, can_see_own_grid True,
+   light_radius 1 (artifact cloak 常闇の刻 lights radius 1).  _is_dark False
+   (policy.py:13199-13205) -> _darkness_recovery_key returns None at policy.py:13261-13262.
+   Replay on 37f66a8c: choose_key '8' return:explore while _light_refill_item = oil a.
+ Link 3a: equipment_optimizer.py:251-261 operational_equipment_candidate drops a known empty
+   lantern from loadout search regardless of oil -> home transaction 'wn' (30973) worn torch.
+   Not changed (the refill on the walk keeps the lantern from arriving empty).
+ Link 3b: in town with 2 free slots, policy.py:11431-11438 -> _find_disposable_item; replay
+   row 658046: overflow_pressure True, _is_disposable_item True only via
+   policy_helpers.py:256-261 (known light, fuel <= 0); not spare (torch worn).  choose_key on
+   37f66a8c = '01kn' inventory:destroy-disposable-item (matches decision 30987).
+
+CHANGES
+ A policy_town.py _return_to_town_key: when _darkness_recovery_key posts nothing and the worn
+   light is a known lantern, post the existing _light_refill_item refill (LANTERN_REFILL_FUEL,
+   carried oil), reason refill-light, through the existing return:darkness-recovery offer.
+ B policy_helpers.py _find_disposable_item: a known lantern is not a disposable candidate while
+   oil is carried and the worn light is a torch or none.  (Round 1 had "unless _is_spare_lantern";
+   fast tier failed the existing test_town_overflow_disposal_candidates_recorded, which expects
+   the ego 暗闇の lantern beside a worn 6433-turn lantern to be the overflow victim -> (R)
+   regression, fixed in src, test untouched.)
+ No new constant, threshold, policy attribute or reason.  Bookkeeping: town_work_manifest
+   --write (town_work_sites.json ast hash of _return_to_town_key, manifest .gz).
+
+PINS  tests/test_lantern_lost_recorded.py, fixture tests/fixtures/lantern-lost-20261018.jsonl.gz
+  (state rows 0 and 94 as-is) + .boundaries.json (source sha256, recorded decisions).
+  DECLARED CONSTRUCTED: return latch (_returning_to_town, escape owner "return"), ~f cache,
+  worn-light fuel/known/kind in the individual cases.
+  37f66a8c -> fix:
+   recorded empty lantern, return walk:      '8' return:explore -> '\Fa' refill-light
+   constructed fuel 1000 (= threshold):      '8' return:explore -> '\Fa' refill-light
+   recorded town board 658046:               '01kn' destroy lantern -> lantern kept
+                                             (_find_disposable_item None; next key is the
+                                             equipment-transaction catalogue request)
+  Controls (pass before and after): lantern fuel 1001 keeps return:explore; unknown-fuel lantern
+  keeps return:explore (darkness rule); torch-only character: low worn torch not refilled when
+  lit, in darkness the existing rule still combines the spare torch ('\Fn'); empty torch with oil
+  still disposable; spare lantern beside a worn fuelled lantern still disposable.
+
+EXISTING TESTS run as single modules (all OK): destroy_procurement_guard, destroy_superior_item_guard,
+  destruction_gate_procurement, home_light_alternation, item_sink_lint, light_pingpong_recorded,
+  newchar_light_loop_recorded, q34_opening_oil_recorded, recall_stockout_surplus_pins,
+  loot_before_recall_recorded, town_work_contract, darkwalk, fundraise_light_block, policy_supply,
+  town_overflow_disposal_candidates_recorded.  No existing test edited.
+
+GUARDS (after the last source commit eff39393)
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (lantern-lost-1018 vs 37f66a8c)
+
+[mutation] 2 source hunks, tests: test_lantern_lost_recorded
+[mutation] caught     src/hengbot/policy_helpers.py:286 (# Carried oil refills a known lantern, so an empty one is not junk): test_recorded_town_board_keeps_the_empty_lantern
+[mutation] caught     src/hengbot/policy_town.py:7387 (# The same bypass skips the ordinary low-fuel refill. A known worn): test_dimming_lantern_is_refilled_before_it_burns_out, test_recorded_empty_lantern_is_refilled_on_the_return_walk
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for eff39393
+
+[fast] 3922 fast tests (<2.0s in d6e613e2) + 1 changed modules, 4 shards
+[fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-ggtanibv)
+Failures: none
+Errors: ['tests.test_home_ident_withdraw_recorded (import) ModuleNotFoundError("No module named 'tests.test_home_ident_withdraw_recorded'")']
+Total: 3932 tests, 296.8s
+  The one error is not this branch: the module was added on main d6e613e2 (commit 78acb776,
+  merged by the gate after base 37f66a8c) and does not exist on lantern-lost-1018; fast_tier
+  takes its module list from main.  It disappears when the branch is merged onto d6e613e2.
+  (Round 1 fast tier, before eff39393: same import error + the overflow-disposal failure above.)
+
+RESIDUAL (not fixed, outside the three requested changes)
+ - Link 3a: the optimizer still drops a known empty lantern even with oil carried, so a lantern
+   that does arrive empty in town is swapped for a torch; with change B it now stays in the pack
+   (light_ready holds via owned lantern + oil), but nothing re-wields and refills it while the
+   torch works.
