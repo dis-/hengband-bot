@@ -40,3 +40,29 @@ never attacked.  Options for the orchestrator: (A) approve the five assertion ch
 prescribed; (B) additionally decide how a seen-but-never-reachable/attackable town monster yields to errands.
 
 Guards: not run (no source change).  Commit: this report and the DIAG only.
+
+ROUND 2 (supervisor: drop unreachable / un-meleeable town monsters as targets) -- STOPPED again, premise not met
+Measured on the CLI replays (scratch harness, real parse path, c36af84e), every row:
+- The piranha is seen only at (51,133) and (50,134).  Both cells are DEEP_WATER (terrain_id 83, flags include
+  MOVE), grid.passable True, and each has 3 adjacent passable cells that are NOT water (dirt, terrain 88:
+  (52,132..134) and (51,135) etc.).  215136: 29 sightings, 184243: 19, all of these two cells.
+- The town router already treats deep water as walkable: the player itself stood in deep water at (50,134) on
+  16 rows (215136) / 15 rows (184243), and at (40..41,134) after travel.  Hengband lets a player melee a monster
+  in water from an adjacent land cell; piranha is AQUATIC (cannot leave water), not unreachable.
+- So "cell the player cannot enter, or no adjacent passable cell to melee from" is false for every recorded
+  sighting; a rule judged with the router's passability helpers selects nothing here and the replay is unchanged
+  (I did not commit a no-op change).
+What actually happens: the piranha is never seen at distance <= 3 (closest sighting 4 in 215136, 5 in 184243;
+fearful False, asleep False, daytime 12:07 / 11:11).  The bot walks to within 1 of its cell, it is out of view
+there (rows at (50,134) show no monster), last-known-reached ends the chase, shop:travel / town:travel-entrance
+is issued, travel moves the player north 9 cells and is disturbed when the piranha comes into view again
+("トラベルを継続しますか" <x3>..<x9>, 7 prompts in 215136, 6 kinds in 184243); the next decision answers with a chase
+direction key ('3'), cancelling travel.  0 attacks on the piranha in both captures.
+Options needing a decision (each is a new rule, so I did not pick one):
+  (C) a town monster that the bot has walked to (last-known-reached) without it being in view there is not
+      re-chased on later sightings while the town errands are pending (needs per-monster memory = a new policy
+      attribute with checkpoint default);
+  (D) a monster whose race cannot leave its terrain (AQUATIC in water, as the game's monster-info.cpp:77-87 rule)
+      and that is not adjacent is not a town kill-mob target; it is still fought when adjacent/attacking;
+  (E) treat deep water as un-enterable for the town kill-mob goal only (still leaves the 3 dry cells, so (E)
+      alone does not stop this chase).
