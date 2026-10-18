@@ -1,0 +1,23 @@
+{
+  "source_capture": "c4a-loops-20261016/20261019-050617-town-blocked-owner-retired-burst",
+  "rows": [
+    {
+      "line": 0,
+      "source_row": 77,
+      "turn": 3179085,
+      "in_town": false
+    },
+    {
+      "line": 1,
+      "source_row": 83,
+      "turn": 3179094,
+      "in_town": true
+    }
+  ],
+  "recorded_decisions": {
+    "22015": "periodic:skill-exp-knowledge (first town board)",
+    "22017": "town:blocked:home-full-surplus-store-unreachable (policy_home.py:1239), x8 to 22024",
+    "22025": "town:blocked:owner-retired-burst"
+  },
+  "board_sha256": "ba9613ed9632c8235cdc86fb1956df271b2c8d4c5c930c7fe59ab157ba0c0ad2"
+}
