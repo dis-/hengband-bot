@@ -4753,8 +4753,16 @@ class HomeMixin:
             or item.is_digging_tool
         )
 
-    def _queue_home_catalogue_shortages(self, snapshot: Snapshot) -> bool:
-        """Bind live shortages from current all-page Home knowledge."""
+    def _queue_home_catalogue_shortages(
+        self, snapshot: Snapshot, *, departure_blocking_only: bool = False
+    ) -> bool:
+        """Bind live shortages from current all-page Home knowledge.
+
+        ``departure_blocking_only`` is the Home-visit close: before a Home
+        pass is closed unfulfilled, the departure-blocking shortages Home
+        holds are still bound although a filed non-scan visit request
+        refuses the ordinary class binder.
+        """
         visit_request = (
             self._home_visit.request
             if getattr(self, "_home_visit", None) is not None
@@ -4764,7 +4772,8 @@ class HomeMixin:
             getattr(self, "_home_procurement_probe", ()) is not None
             or not self._home_knowledge_current
             or (
-                visit_request is not None
+                not departure_blocking_only
+                and visit_request is not None
                 and visit_request.kind
                 not in {HomeVisitKind.SCAN, HomeVisitKind.RECOVERY}
             )
@@ -4795,6 +4804,11 @@ class HomeMixin:
                     for kind in SUPPLY_STORES
                 )
             )
+
+        if departure_blocking_only:
+            candidates = [
+                item for item in candidates if departure_blocking_shortage(item)
+            ]
 
         candidates.sort(
             key=lambda item: (
