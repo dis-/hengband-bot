@@ -1,0 +1,84 @@
+ISSUE #67 - report (branch sale-inscribe-buy-1018, base 5ffac123, fix commit 2aea292e)
+
+Diagnosis (measured; details in LUNA-DIAG-sale-inscribe-buy.txt)
+------------------------------------------------------------------
+Replayed both captures through the real policy at 5ffac123. Both reproduce the live rows:
+'{h@0\r' / '{j@0\r' shop:in-store-inscribe, then '\x1b'
+town:blocked:shop-required-operation-uncomposable (Recall row g qty 1 / row h qty 2).
+* Before the visit the pack already held an Identify staff inscribed {@0}, and that tag was
+  not made by this visit. The Alchemist (store 4) refuses staves.
+* _unique_sale_tag (policy_quest.py:1542) built `used` only from items the current store
+  accepts. It skipped the staff's @0, allocated '0' and inscribed the sale scroll @0.
+* On the next board, _sale_tag_is_unique (policy_shop.py:4255) counts every pack tag on
+  purpose, because a refused rival can still pass the game's tester. It found two @0 items,
+  so the sale ended with shop:sale-inscription-ambiguous-leave (policy_shop.py:4123-4130).
+* The in-store continuation had selected the departure-blocking Recall buy (9/10, 8/10).
+  _shop returned that leave instead (_batch_sell_key runs first), so _in_store_emit fell
+  back with None, and _in_store_required_operation_stop raised
+  "selection-emission-mismatch" (policy_instore.py:500-515).
+
+Fix
+---
+src/hengbot/policy_quest.py _unique_sale_tag: `used` now counts the tags on every pack
+item, which is the same set the uniqueness proof counts. The bot's own inscription can
+no longer collide with a tag on an item the store refuses. This adds no new constant,
+threshold or policy attribute (so no restored-checkpoint defaults are needed).
+Bookkeeping: town_work_manifest regenerated (scripts/town_work_manifest.json.gz,
+src/hengbot/town_work_sites.json). Baseline and review entries are unchanged, because no
+new helper was added.
+Self-healing: the live character now has two @0 items. On the next visit the existing @0
+is not unique, so a fresh digit (1) is allocated and the inscription is replaced.
+
+Pins (tests/test_sale_inscribe_buy_recorded.py, fixture
+tests/fixtures/sale-inscribe-buy-20261018.jsonl.gz, 11 raw captured state rows, 48 KB)
+------------------------------------------------------------------------------------
+DECLARED CONSTRUCTED walls:
+* a fresh primed policy with in-store operations on;
+* planned depth 20 (this reproduces the captured Recall target 10);
+* the skill-exp cache is filled;
+* the post-inscription board carries the tag the fixed policy posted;
+* the post-sale and post-buy boards apply the sale and buy effects to the captured page.
+- test_sale_inscription_avoids_refused_tag_then_sells_and_buys_recall:
+    5ffac123: '{h@0\r' / '{j@0\r', then the stop (replayed; the mutation check confirms
+    that this test fails there).
+    fix 12:34: '{h@1\r' -> 'd1y' -> 'po1\r\r' (verified ordinary Light scroll buy)
+               -> 'pg1\r\r' shop:in-store-buy (the required Recall in the same visit).
+    fix 12:38: '{j@1\r' -> 'd15\ry' -> '\x1b' home:scan-leave-store (a leave without the
+               stop).
+- test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell: the captured
+  post-inscription board (two different items carrying @0, the staff's tag older than
+  this visit) with the pre-fix pending tag '0'. Result: key ESC, no sale composed, the
+  pending sale is cleared, and the signature is marked unsellable.
+- test_captured_boards: checks the fixture's turns and stores, and that the staff's
+  pre-existing @0 is present.
+
+Existing tests: none edited. Fast tier: 0 failures.
+
+Also report (no fix): Treasure Detection full-home-sale and the fundraising kit (#64)
+-------------------------------------------------------------------------------------
+* Treasure Detection is protected from Home disposal (category "fundraising-detection",
+  policy_home.py:2386-2396) only when mining is planned: fundraising mode
+  prepare/mine/scavenge, or gold below FUNDRAISING_START_GOLD.
+* At 19,1xx gold with fundraising mode None it is not protected, so the Home-full relief
+  withdrew it and sold it. At 12:38 it sold all 5 scrolls ('d15\ry' after the fix).
+* That leaves no Treasure Detection anywhere. _fundraising_kit_secured
+  (policy_fundraising.py:248) becomes false, and #64's kit withdrawal finds nothing at Home.
+* It is not a stop: _fundraising_kit_reserve keeps the gold for the detection price, and
+  the Alchemist stocks the scroll (71 at 23 gold). It is still a sell-then-rebuy
+  conflict whenever fundraising starts later.
+
+Guard outputs
+-------------
+[preflight] PREFLIGHT OK: 7 changed files, 0 findings (sale-inscribe-buy-1018 vs 5ffac123)
+
+[mutation] 1 source hunks, tests: tests.test_sale_inscribe_buy_recorded
+[mutation] caught     src/hengbot/policy_quest.py:1552 (# The tag must pass _sale_tag_is_unique, which counts every pack): test_sale_inscription_avoids_refused_tag_then_sells_and_buys_recall
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 2aea292e
+
+[fast] 3951 fast tests (<2.0s in 5ffac123) + 1 changed modules, 4 shards
+[fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3966 tests, 199.6s
