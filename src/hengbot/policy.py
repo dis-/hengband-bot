@@ -11437,6 +11437,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if dungeon_identify is not None:
             return dungeon_identify
 
+        # Worthless remains never travel to town (#70, owner 2026-10-18):
+        # destroy them in the dungeon, before a return starts or while the
+        # Recall countdown runs; a latched return walk is not interrupted.
+        if (not snapshot.in_town
+                and (not self._returning_to_town or player.recalling)
+                and self._find_worthless_junk(snapshot) is not None):
+            junk = self._verified_destroy_key(
+                snapshot, self._find_worthless_junk,
+                "inventory:destroy-worthless-junk")
+            if junk is not None:
+                return junk
+
         fundraising = self._town_producer_entry("_fundraising_key#1", lambda: self._fundraising_key(snapshot, strategic_hostiles))
         if fundraising is not None:
             return fundraising
@@ -16819,6 +16831,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return None
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:
+            return None
+        if self._floor_pile_is_worthless(here):
             return None
         if here.position in self._deferred_loot:
             return None

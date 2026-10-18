@@ -1,0 +1,38 @@
+LUNA-DIAG #70 home-junk-bones (base 29dcd802). MEASURED unless marked.
+
+1. Loot selector admits every pile; no value rule exists.
+   - src/hengbot/policy_observation.py:1150-1151 `if grid.object_count > 0: self._known_loot.add(...)`;
+     GridState.object_tvals (model.py:743, filled by protocol sidecar "t") is never consulted here.
+   - policy_identification.py:1110 `_loot_step` targets the nearest of `_known_loot - deferred`;
+     policy.py:16811 `_current_floor_item_key` picks up any underfoot pile (`g` / `g`+`a`*n).
+   - Recorded board lantern-lost-20261018 line 0 (life-013, turn 656632, Yeek cave L1): floor piles
+     with object_tvals (10,) at (10,62),(17,89),(27,123) and the pack already carries 7 junk stacks:
+     q/r/s corpses tval 10 (土ヘビの死体, 虚弱なイークの死体, 『きば』の死体), t 折れた棒 tval 3,
+     u/v/w 頭蓋骨の破片/骨の破片/犬の骨 tval 1.
+   - With a tval 1 pile at (11,59) the base policy's `_loot_step` targets it (new pin fails on base:
+     "Position(y=11, x=59) == Position(y=11, x=59)").
+
+2. Nothing destroys junk in the dungeon unless the pack is full.
+   - policy.py:11466-11472 dungeon compaction runs `_full_pack_destroy_key` only at PACK_CAPACITY.
+   - policy_helpers.py:227-283 `_is_disposable_item` lists empty chests but not tval 1/3/10:
+     recorded corpse 殺人イタチの死体 (tval 10 sval 1, 164159 row 0, town) -> `_is_disposable_item`
+     False, `_find_disposable_item` None, base cost 0.
+   - Same lantern board: base choose_key = 'return:explore' (walks home with all 7 junk stacks);
+     with Recall active = 'return:wait-recall'.
+
+3. Home deposits accept them through the weight-overload path.
+   - 164159 row 0 (town): `_find_home_deposit` returns 殺人イタチの死体 although
+     `_home_deposit_candidate` is False; `_overweight_home_deposit` (policy_home.py:2436) returns
+     it (weight 40, `_retention_surplus` 1, `_inventory_overweight` True). Its candidate list is
+     any weighted surplus; worthlessness is not considered. Recorded rows: home:weight-overload-deposit
+     (decisions 3455/3456, 3479 'dt17').
+
+4. Home-full relief prefers a sale; junk is destroyed only when nothing is sellable, one stack per relief.
+   - policy_home.py:1083-1095: sale candidates (non-equipment, then equipment) first; the discard
+     list and `_home_full_discard_rank` (472-492, which ranks tval {1,3,9,10} first) are used only
+     when no sale candidate exists. `remaining` = number of blocked deposits (usually 1).
+   - Replay 164159 rows 33/34/35 (Home 240/240, ~9 list 240 entries, 100 tval 10): base relief ->
+     mode 'sale' (('耐火の薬',75,30), store 4). Rows 12/13 (no sale candidate at that moment) ->
+     mode 'destroy' ('スモール・コボルドの死体') = recorded 3452/3453 '02ku'.
+   - Hence bones were destroyed only when no sale was possible, one stack per blocked deposit,
+     while sales (later Word of Recall, #68) consumed the slots.
