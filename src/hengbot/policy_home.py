@@ -1255,6 +1255,11 @@ class HomeMixin:
         self, snapshot: Snapshot, *, leave_foreign_store: bool = False,
     ) -> str:
         """Reacquire changed stock through the existing observed scan owner."""
+        if snapshot.store is None and self._store_leave_inflight is not None:
+            # Issue #77: an outside board is the posted exit's effect.  Release
+            # the derived leave view, exactly as the inflight-leave branch of
+            # _choose_key does, instead of posting another exit outside.
+            self._store_leave_inflight = None
         if (self._store_leave_inflight is not None
                 or (snapshot.store is not None
                     and ((leave_foreign_store and snapshot.store.store_type != STORE_HOME)
