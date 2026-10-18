@@ -1,0 +1,78 @@
+LUNA-REPORT #70 home-junk-bones (branch home-junk-bones-1018, base 29dcd802)
+Commits: fec25709 (fix + pins + DIAG), e4167cf3 (repair round 1: placement), this report.
+
+DIAGNOSIS (MEASURED; details in LUNA-DIAG-home-junk-bones.txt)
+- Loot: policy_observation.py:1150 adds every grid with object_count>0 to _known_loot; _loot_step /
+  _current_floor_item_key take any pile; GridState.object_tvals is ignored. No value rule exists.
+- No dungeon disposal: tval 1/3/10 are not in _is_disposable_item; dungeon compaction only at a full
+  pack. Recorded lantern-lost board (life-013 L1, turn 656632) walks home ('return:explore', or
+  'return:wait-recall' with Recall active) carrying 7 junk stacks (3 corpses tval 10, 折れた棒 tval 3,
+  3 skeletons tval 1).
+- Deposit: town weight-overload path (_overweight_home_deposit, policy_home.py:2436) picks the corpse
+  殺人イタチの死体 (164159 row 0; _home_deposit_candidate False, disposable False, base cost 0).
+- Home-full relief: sale candidates first; the junk-first discard rank is used only when nothing is
+  sellable, one stack per blocked deposit. Replay 164159 rows 33-35 (Home 240/240, 100 tval-10
+  entries): relief = sale 耐火の薬.
+
+CHANGES ON THE BRANCH
+1. policy_helpers.py: _is_worthless_junk (tval 1/3/10 or an emptied chest via the existing
+   _is_disposable_item marker; never is_bounty/artifact), _floor_pile_is_worthless (visible tvals all
+   in {1,3}), _find_worthless_junk (whole-stack surplus, not procurement-protected, not undestroyable).
+2. Loot: a skeleton/junk-only pile is dropped from _known_loot (policy_observation.py) and not picked
+   up underfoot (_current_floor_item_key). Corpses (tval 10) stay loot because a bounty is only
+   visible once carried (is_bounty is an inventory field); they are destroyed before the return.
+3. Before-return disposal: policy_identification._worthless_junk_destroy_key (via the existing
+   _verified_destroy_key, reason "inventory:destroy-worthless-junk") runs in _decide right before
+   _return_to_town_key#3 when the return is starting (not latched) or Recall is counting down, and the
+   exit is not quest-locked. A latched return walk is not interrupted (existing lantern pins).
+   Repair round 1: the first placement (before _fundraising_key) preempted light/explore on ordinary
+   boards (test_light_pingpong_recorded x3, test_dungeon_idle_wait_recorded x2: R, fixed) and a direct
+   claims call in _decide broke test_ownership_s2b1_ladder (R, fixed by the wrapper producer).
+4. Bookkeeping: item_sink_adapters.json (wrapper call), town_producer_baseline.json and
+   town_work_review.json entries for _worthless_junk_destroy_key, manifest + town_work_sites.json.
+   No new policy attributes (no checkpoint defaults needed). No new reason family entries needed
+   ("inventory:" prefix already typed).
+
+NOT APPLIED - STOP per rules: (b) Home-full relief destroys junk first
+- Implemented and pinned, but it changes an existing control: tests/test_sale_inscribe_buy_recorded.py
+  test_sale_inscription_avoids_refused_tag_then_sells_and_buys_recall, subTest capture='12:38':
+  old ('{j@1\r', 'shop:in-store-inscribe')  new ('', 'shop:one-shot-in-flight').
+  Cause: that capture's Home holds 106 tval-10 + 7 tval-1 entries; with junk-first the relief at
+  b_inside withdraws/destroys 『スメアゴル』の死体 instead of the recorded scroll sale, so the recorded
+  later boards no longer follow. (test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell also
+  errors for the same reason.) The task requires this module to pass, so the change is NOT on the
+  branch. It is in LUNA-PATCH-home-full-junk-first.diff (policy_home.py hunk + pin
+  test_full_home_destroys_remains_before_any_sale + fixture home-junk-bones-20261018.jsonl.gz rows
+  33-35 of 164159 + boundaries). Pin result: base 'sale' != 'destroy' (fails); with patch passes,
+  relief destroys ('スモール・コボルドの骨',10,0). Applying it needs an owner decision on that control.
+
+PINS (tests/test_home_junk_bones_recorded.py; base 29dcd802 -> branch)
+- test_floor_skeleton_pile_is_not_sought_or_picked_up: base targets (11,59) skeleton pile -> not
+  targeted, not in _known_loot, no underfoot pickup.
+- test_return_start_destroys_carried_remains_first: base 'return:explore' -> 'inventory:destroy-
+  worthless-junk' key ...kq (recorded corpse slot q).
+- test_latched_return_destroys_remains_during_recall_countdown: base 'return:wait-recall' -> destroy.
+- Controls: test_control_recorded_bolt_pile_is_still_sought_and_picked_up (recorded bolts still
+  targeted and picked 'g'), test_control_bounty_remains_are_kept, recorded-board facts test.
+- tests/test_lantern_lost_recorded.py and tests/test_sale_inscribe_buy_recorded.py pass (76 tests in
+  the targeted run incl. ladder/light/idle modules: OK).
+
+GUARDS (after e4167cf3)
+[preflight] PREFLIGHT OK: 11 changed files, 0 findings (home-junk-bones-1018 vs 29dcd802)
+[mutation] 5 source hunks, tests: test_home_junk_bones_recorded
+[mutation] caught policy.py:11536 (before-return destroy), policy.py:16831 (underfoot),
+  policy_helpers.py:282 (predicates), policy_identification.py:540 (producer),
+  policy_observation.py:1147 (loot observation)
+[mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+[mutation] recorded for e4167cf3
+[fast] 3960 fast tests (<2.0s in 2ad77937) + 1 changed modules, 4 shards
+Crashed shards: none; Failures: none
+Errors: ['tests.test_recall_churn_stockout_recorded (import) ModuleNotFoundError'] - not a
+  regression: the module exists only on main (094a6500, #68), not on base 29dcd802.
+Total: 3978 tests, 285.7s
+(First fast_tier on fec25709 had 6 failures: the R regressions fixed in e4167cf3.)
+
+OPEN / FOR THE OWNER
+- (b) above: apply the patch and accept the 12:38 control change, or keep relief as is.
+- Corpses still get picked up (bounty unknown at distance) and are destroyed at the return start;
+  a corpse picked during a latched return-loot sweep without Recall would still reach town.
