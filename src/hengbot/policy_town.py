@@ -3127,7 +3127,20 @@ class TownMixin:
             ):
                 add(STORE_GENERAL, "fundraising-digger")
             if not self._fundraising_kit_secured(snapshot):
-                if STORE_HOME not in self._town_store_attempted:
+                # Issue #66 (2026-10-19 00:20): once the Home kit route has
+                # spent its pass budget without the withdrawal, the claim
+                # ledger retires it (_town_claims_active).  The stock left at
+                # Home then supplies nothing; a Home-only plan wandered.
+                home_kit_route_live = all(
+                    self._town_visit_ledger.need_attempts.get(spec.category, 0)
+                    < spec.budget
+                    for spec in self._town_need_registry()
+                    if spec.category == "fundraising-kit"
+                )
+                if (
+                    STORE_HOME not in self._town_store_attempted
+                    and home_kit_route_live
+                ):
                     add(STORE_HOME, "fundraising-kit", "home-first")
                 if (
                     not self._has_withdrawable_digging_tool(snapshot)
@@ -3149,7 +3162,7 @@ class TownMixin:
                         else self._home_knowledge_items
                     )
                     if item.is_treasure_detection_scroll
-                )
+                ) if home_kit_route_live else 0
                 if (
                     not self._has_withdrawable_treasure_detection(snapshot)
                     or self._count_treasure_detection_scrolls(snapshot)

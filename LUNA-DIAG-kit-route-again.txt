@@ -1,0 +1,58 @@
+ISSUE #66 (recurrence) - measured diagnosis (base af25b541; live bot c38ec348)
+
+Capture: C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-0050-manual-town-wander
+2711 decision rows (index 0-2710), 387 state rows (turn 2943641-2947219; the state window starts at
+decision row 2391, 00:18:26). Knowledge rows in the window: ~f skill (state row 1), Home lists
+(state rows 9, 67, 75, 86, 98, 112; row 112 = turn 2945295, 238 entries).
+Replay: scratch harness = tests/test_fundraise_kit_route_recorded.py (_segments,
+_consume_response_sequence, choose_key, confirm_key_posted, live argv flags), started at row 2547.
+
+Timeline (decision rows):
+  2400 mode "mine", kit secured, Cure Critical 9/10, gold 6,763.
+  2412-2426 mode None, plan [Home, Alchemist, Temple, Magic] -> [Alchemist, Temple]; the Alchemist
+       bought two *Identify* scrolls (2,359 each; shop_selector "star-identify"), gold 6,763 -> 2,045.
+  2434 gold below the trigger -> fundraising {"mode": "prepare", "kit_secured": false,
+       "gold_trigger": true}; plan ["Home"]; Treasure Detection 0/5, Digging tool 1/2.
+  2434-2449 Home pages: identification-catalog withdrawals, full-home discard/destroy, an
+       equipment deposit, scans. No Treasure Detection withdrawal was posted.
+  2450-2542 probe / 89 stuck:wander; 2543 town:cycle-break; 2544-2546 Temple: bought 2 Recall
+       (229 each), gold 1,587; 2547-2710 stuck:wander again (232 stuck:wander in the window).
+
+1) Why the plan is Home only
+   - Home knowledge (state row 112): 財宝感知の巻物 x7, ドワーフのつるはし x2. Pack: digger x1,
+     Cure Critical x9, no detection (state rows 60/200/215).
+   - Recorded town ledger on every row from 2450 (departure_block.town_ledger):
+     need_attempts {"fundraising-kit": 5, "cure-critical": 1, ...}, store_visits {7: 8, 4: 3}.
+   - _town_claims_active (policy_town.py:3679-3805 at af25b541) retires a Home need when
+     need_attempts[category] >= spec.budget (3756-3760; NeedSpec.budget = TOWN_STOP_PASS_LIMIT 3,
+     the registry entry ("fundraising-kit", "home-first", 1, True)). 5 >= 3 -> the Home
+     "fundraising-kit" claim is retired: town_claims [] on every wander row.
+   - The plan builder (policy_town.py:3123-3160) still adds Home "fundraising-kit" (Home is not
+     in _town_store_attempted) and adds the Alchemist "fundraising-detection" only when pack +
+     Home detection < _mining_detection_scroll_target: 0 + 7 >= 5 -> no Alchemist stop.
+   - The Alchemist is NOT in _town_store_attempted (replay row 2547: attempted {}), and the gold is
+     not below a reserve: _fundraising_kit_reserve = 0 (withdrawable digger and detection).
+     Alchemist page (state rows 33-64): 財宝感知の巻物 23 gold x31 -> 5 cost 115 of 1,587.
+   - Replay row 2547 with walls (prepare, Home list row 112, recorded need_attempts of row 2544):
+     needs [(7, 'fundraising-kit')], claims [] -> ('1', 'stuck:wander') = recorded.
+     Same without the ledger wall: ('\x1b`n(.', 'shop:travel') to Home (the route is live).
+
+2) Why the Cure Critical shortfall is not routed to the Temple/Alchemist
+   - In prepare the fundraising branch returns early (policy_town.py:3254 "return needs"), before
+     the ordinary supply-ledger shortages; cure-critical is routed only when the mode is None
+     (rows 2412-2426: plan [Alchemist, Temple]; the Alchemist page has no Cure Critical).
+   - departure_block.failed ["cure_critical_ready"] is the recall-departure gate; the fundraising
+     departure (_fundraising_departure_ready, policy_fundraising.py:450-487) does not require it.
+     Replay row 2547: _fundraising_departure_ready True, _fundraising_supplies_ready False,
+     _fundraising_kit_secured False. So the block that holds the bot is the kit, not Cure Critical.
+   - The Temple visit (rows 2544-2546, page state row 213: 致命傷の治癒の薬 152 x27, 114 x5) bought
+     only the Recall shortage (wanted_purchase recall); no cure-critical owner in prepare.
+
+3) What the stuck:wander walks toward
+   - All 232 rows: claim rung _explore_step#1, town_emit_ownership.target_store null (one row 3);
+     _town_idle_key -> _least_visited_neighbor (policy.py:12331-12334): no target.
+     choose_key 5-7 s per wander row (204 of 232 rows 6.x s).
+
+Fix direction: when the Home kit route is retired by its pass budget, do not keep the Home-only
+stop and do not count the Home stock as supplying the kit, so the Alchemist "fundraising-detection"
+claim is live (the kit is then secured by purchase and the fundraising departure proceeds).
