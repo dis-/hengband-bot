@@ -9340,14 +9340,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             elif (
                 self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None
             ):
+                home_already_unfulfilled = STORE_HOME in self._town_store_attempted
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=False
                 )
                 self._set_town_store_attempted(STORE_HOME, snapshot.turn, "home-capture-complete")
-                if self._home_knowledge_current and not self._home_knowledge_invalidated:
-                    # The complete catalogue was in hand and no Home producer
-                    # could act on its incomplete items. Close that work for
-                    # this town stay instead of routing back to Home for it.
+                if (
+                    home_already_unfulfilled
+                    and self._home_knowledge_current
+                    and not self._home_knowledge_invalidated
+                ):
+                    # A repeated pass had the complete catalogue in hand and
+                    # no Home producer could act on its incomplete items.
+                    # Close that work for this town stay instead of routing
+                    # back to Home for it.
                     for owned in self._equipment_catalog.items:
                         if owned.origin == "home" and owned.identification_incomplete:
                             signature = self._item_signature(owned.item)

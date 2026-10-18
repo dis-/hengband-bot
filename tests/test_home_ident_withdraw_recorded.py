@@ -48,7 +48,8 @@ class HomeIdentWithdrawRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-            cls.home9, cls.approach, cls.inside, cls.after = [
+            (cls.home9, cls.approach, cls.inside, cls.after,
+             cls.approach2, cls.inside2) = [
                 json.loads(line) for line in stream
             ]
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
@@ -90,9 +91,11 @@ class HomeIdentWithdrawRecordedTest(unittest.TestCase):
         self.assertEqual(
             [(row["turn"], row["player"]["y"], row["player"]["x"],
               (row.get("store") or {}).get("store_type"), len(row["inventory"]))
-             for row in (self.approach, self.inside, self.after)],
+             for row in (self.approach, self.inside, self.after,
+                         self.approach2, self.inside2)],
             [(873529, 44, 124, None, 17), (873529, 45, 123, STORE_HOME, 17),
-             (873540, 45, 123, None, 17)],
+             (873540, 45, 123, None, 17), (873549, 44, 124, None, 17),
+             (873549, 45, 123, STORE_HOME, 17)],
         )
 
     def test_unfulfilled_home_pass_does_not_route_back_to_home(self):
@@ -105,24 +108,33 @@ class HomeIdentWithdrawRecordedTest(unittest.TestCase):
         policy.confirm_key_posted(key)
         self.assertEqual((str(key), policy.last_reason), ("1", "shop:approach"))
 
+        # First unfulfilled pass: unchanged from 73e94383, Home stays a need,
+        # so the captured boards cycle back to Home.
         inside, key, reason = self._decide(policy, self.inside)
-        self.assertEqual((key, reason), ("\x1b", "home:route-claim-unfulfilled"))
-        # 73e94383: identification-withdrawal and equipment-catalog stayed
-        # Home needs here, so the router came back to Home.
+        self.assertEqual((key, reason), ("", "home:route-claim-unfulfilled"))
+        self.assertEqual(
+            self._home_needs(policy, inside),
+            ["equipment-catalog", "identification-withdrawal"],
+        )
+        self.assertEqual(policy._deferred_home_items, set())
+        self._decide(policy, self.after)
+        self._decide(policy, self.approach2)
+
+        # The repeated pass closes the unbindable work for this stay.
+        # 73e94383: the Home needs were still
+        # ["equipment-catalog"] here (the router returned to Home).
+        inside, key, reason = self._decide(policy, self.inside2)
+        self.assertEqual((key, reason), ("", "home:route-claim-unfulfilled"))
         self.assertEqual(self._home_needs(policy, inside), [])
         self.assertEqual(len(policy._deferred_home_items), 6)
         self.assertIn(AXE, policy._deferred_home_items)
         self.assertEqual(
             policy._deferred_home_item_sites[AXE], "home-route-claim-unfulfilled"
         )
-
-        after, key, reason = self._decide(policy, self.after)
-        self.assertEqual(self._home_needs(policy, after), [])
+        policy._town_claims_active(inside)
         self.assertFalse(
             HOME_CLAIMS & set(getattr(policy, "_town_claim_categories", ()) or ())
         )
-        self.assertNotEqual(reason, "shop:approach")
-        self.assertEqual((key, reason), ("\x1b`n%.", "shop:travel"))
 
     def test_deferred_home_suppression_target_is_not_a_home_claim(self):
         policy, snapshot = self._policy_for(self.approach)
