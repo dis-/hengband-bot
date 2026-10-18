@@ -127,3 +127,6 @@ ROUND 3 (merge main c36af84e; #68 part 2 and #69)
   test_home_full_sale_keeps_recall_recorded, test_overflow_torches_recorded,
   test_supply_shortfall_owner_recorded, test_lantern_lost_recorded (+ light_pingpong, dungeon_idle_wait,
   ownership_s2b1_ladder).
+- Guards after 493575ea (vs c36af84e): preflight OK (17 files, 0 findings; notes the two modified
+  sale-inscribe tests); mutation_check MUTATION OK 0 of 6 hunks unpinned (recorded for 493575ea);
+  fast_tier 3935 tests, Failures none, Errors none, 221.6s.
