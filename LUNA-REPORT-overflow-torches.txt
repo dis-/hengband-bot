@@ -102,3 +102,20 @@ Argument: both differences are the intended consequence of the #69 rule, not a m
   inside its retention target, which the #69 task's control forbids. So I did not apply it.
 Supervisor decision needed: accept the new rows (update the two prefix expectations), or
 choose the narrower terminal-only release.
+
+ROUND 3 (supervisor accepted the #69 behavior): commit f31640d1
+- tests/test_supply_shortfall_owner_recorded.py: only the two prefix assertions changed. They
+  now exclude teleport-0316 row 122 and idstaff-0353 row 139, each with a #69 comment giving the
+  recorded and new key and reason. The pin assertions are unchanged.
+- On this branch, both tests and test_overflow_torches_recorded pass (5 tests OK).
+- On main 5e487612 (source extracted from git, with the edited test copied in), the whole
+  module passes (5 tests OK). The replay shows no prefix mismatch outside rows 104-126, so
+  rows 122 and 139 reproduce on main and the exclusion hides nothing there.
+- preflight: PREFLIGHT OK: 7 changed files, 0 findings (two notes: existing-test MODIFIED for
+  the two tests above).
+- mutation_check: policy_supply.py:1125 is caught by both pins; MUTATION OK: 0 of 1 hunks are
+  not pinned; recorded for f31640d1.
+- fast_tier (run after gate-homesale-1018 MERGED main 2ad77937): 3980 tests, Failures: none,
+  crashed shards: none. One Error: the import of tests.test_recall_churn_stockout_recorded,
+  which is on main but not on this branch (base 29dcd802). This is the same environment
+  artifact as before, not a regression.
