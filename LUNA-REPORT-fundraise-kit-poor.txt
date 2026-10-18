@@ -36,3 +36,75 @@ NOT DONE
   visit state (e.g. request kind DEPOSIT at row 92) and, for the WAIT x9, more state that
   the capture does not hold.
 - Guards (preflight, mutation_check, fast_tier): not run (no source change).
+
+======================================================================
+ROUND 2 (fix + pins) - commit a63c99be on fundraise-kit-poor-1018 (contains #63 merge 06b47af4, unchanged)
+
+FIX (src/hengbot/policy.py Home page chain, src/hengbot/policy_home.py)
+- _queue_home_catalogue_shortages(snapshot, *, departure_blocking_only=False): with the flag the
+  visit-request-kind refusal (non-SCAN/RECOVERY request) is skipped and the candidates are
+  restricted to the existing departure_blocking_shortage predicate (Treasure Detection, digging
+  tool, supply-store items). All other refusals (procurement probe, knowledge not current,
+  pending item/batch/atomic withdraw) and the slot logic are unchanged.
+- New elif in the Home page chain directly before the identify-staff reserve terminal (and
+  therefore also before home-capture-complete / route-claim-unfulfilled): with no atomic
+  deposit, no equipment transaction and no actionable space deposit, bind the departure-blocking
+  shortages Home holds and leave as home:queue-catalogue-shortage (same reason/work id as the
+  existing binder branch). The outside board then composes the withdrawal.
+- No new constant, threshold, reason, policy attribute or helper (restored-checkpoint defaults:
+  none needed). Bookkeeping: town_work_sites.json ast hash + scripts/town_work_manifest.json.gz
+  rewritten (831 candidates, zero unmapped).
+
+PINS (tests/test_fundraise_kit_home_recorded.py; fixture tests/fixtures/fundraise-kit-poor-20261018.json.gz,
+extractor tests/extract_fundraise_kit_poor_fixture.py)
+- Recorded 091516 boards replayed through the real policy from decision row 91 to row 93.
+  Walls: (1) ~f skill row (074006 row 7), (2) Home list (083222 row 46), (3) ONE live-visit
+  wall at row 92: _home_visit.request = DEPOSIT (equipment-transaction).
+- test_home_page_binds_the_fundraising_kit_before_closing:
+    row 92  37f66a8c: '\x1b' home:identify-staff-reserve-unavailable (= recorded)
+            after:    '\x1b' home:queue-catalogue-shortage (Detection x4 primary, shovel in batch)
+    row 93  37f66a8c: '9' town:blocked:no-actionable-claim-owner
+            after:    '5pn4\r\x1b' home:atomic-withdraw; Home not marked attempted.
+  (Row 91 posts the recorded key '\x1b`n(.' under reason shop:travel - fresh plan; the live
+  repetition state is not reconstructed. Declared in the docstring.)
+- Control test_control_without_a_home_kit_the_terminal_still_closes_home: kit deferred for the
+  stay on the pinned page -> '\x1b' home:identify-staff-reserve-unavailable, Home attempted.
+- Before/after verified by reverting src: the pin fails on the base code with exactly the
+  recorded choice.
+- Other controls (single modules, all OK): test_home_ident_withdraw_recorded (5, #63 pins),
+  test_policy_supply (208, incl. identify-staff terminal tests), test_policy_home (171, 4 skipped),
+  test_equipment_homefull_step15a (20), test_fundraising_set_end_counter_recorded (3),
+  test_declarations_r5 (9). No existing test edited.
+
+NOT CHANGED / NOTES
+- VISIT_CLOSABLE_REASONS and the repetition WAIT are untouched. They only matter after the Home
+  plan is exhausted; with the kit withdrawn the gold-triggered fundraising can depart, so the
+  repetition rung should not be reached in this scenario. The live WAIT x9 still needs process
+  state the capture does not hold.
+- Not covered by this fix: a stale _home_procurement_probe (still refuses the binder). Round 1
+  measured it as one of the refusing states; the live state was not recoverable. The
+  departure_blocking_only bypass is limited to the visit-request refusal (the declared wall).
+
+GUARDS (after the last source commit a63c99be; the merge gate finished "[gate] MERGED: main is now
+d6e613e2" before fast_tier)
+[preflight] PREFLIGHT OK: 13 changed files, 0 findings (fundraise-kit-poor-1018 vs 37f66a8c)
+
+mutation_check --tests test_fundraise_kit_home_recorded test_home_ident_withdraw_recorded --record
+(the first run with only the new module reported the two #63 hunks NOT CAUGHT; they are pinned by
+the #63 module, so it was added)
+[mutation] 6 source hunks, tests: test_fundraise_kit_home_recorded test_home_ident_withdraw_recorded
+[mutation] caught     src/hengbot/policy.py:9305 (elif (): test_home_page_binds_the_fundraising_kit_before_closing
+[mutation] caught     src/hengbot/policy.py:9356 (home_already_unfulfilled = ...): test_unfulfilled_home_pass_does_not_route_back_to_home
+[mutation] caught     src/hengbot/policy.py:16477 (... not in self._deferred_home_items): test_deferred_home_suppression_target_is_not_a_home_claim
+[mutation] caught     src/hengbot/policy_home.py:4753 (def _queue_home_catalogue_shortages(): test_control_..., test_home_page_binds_...
+[mutation] caught     src/hengbot/policy_home.py:4772 (not departure_blocking_only): test_home_page_binds_the_fundraising_kit_before_closing
+[mutation] caught     src/hengbot/policy_home.py:4805 (if departure_blocking_only:): test_control_..., test_home_page_binds_...
+[mutation] MUTATION OK: 0 of 6 hunks are not pinned by a test
+[mutation] recorded for a63c99be
+
+[fast] 3922 fast tests (<2.0s in d6e613e2) + 1 changed modules, 4 shards
+[fast] excluded 22 modules measured over 60s
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3931 tests, 268.3s
