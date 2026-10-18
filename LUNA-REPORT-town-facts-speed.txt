@@ -1,0 +1,127 @@
+LUNA-REPORT town-facts-speed (#72)
+Branch town-facts-speed-1019, base af25b541, code commit 3f34df38.
+
+1. Measured diagnosis (details: LUNA-DIAG-town-facts-speed.txt)
+- The 7,493 _refresh_town_facts calls were mostly NOT recomputes: the existing
+  same-snapshot early return already skipped most of them. Measured on the 300
+  boards: genexpr policy_town.py:115 ran 9,422,761 times = about 721 full runs
+  (each full run walks the whole emitted town window, 13,068 cells), i.e. about
+  2.5 full runs per decision, each ~0.25 s under the profiler.
+- Full runs came from (a) probe snapshots built with dataclasses.replace in
+  Home/shop planning (_home_available via _town_need_candidates,
+  policy_town.py:2954) - new objects sharing the same grids dict - and (b) the
+  public choose_key's raw decision input (_town_procurement_decision,
+  policy.py:2914), a different dict than the merged view of _with_grid_memory but
+  holding the same grid objects on every emitted cell (merged.update(raw)).
+- Inputs of the facts: grids (emitted cells only when the region is unchanged),
+  region (floor_key, width, height, town_id, in_town) and _emitted_t. No grids
+  dict is mutated after construction. Home knowledge is not an input.
+
+2. Change (src only, no new policy attribute, no constant)
+- policy_town.py: module WeakKeyDictionaries _town_fact_inputs (grids mapping
+  and emitted window of the last full run; written after every full run) and
+  _town_fact_views (decision input grids, merged grids, emitted window).
+  _refresh_town_facts now also returns early when decision caches are enabled,
+  _town_fact_snapshot is set, the emitted window and region are unchanged and
+  the grids mapping is the last refreshed one or the decision input of that
+  merged view. Same-snapshot return, forced recompute after a caller clears
+  _town_fact_snapshot, and the decision_caches_disabled() path are unchanged.
+- policy.py _choose_key: records (input grids, merged grids, _emitted_t) right
+  after _with_grid_memory.
+- Restored-checkpoint defaults: none needed (no new policy attribute).
+- Bookkeeping: scripts/town_work_manifest.json.gz and
+  src/hengbot/town_work_sites.json regenerated (line shifts only). No new
+  helper, reason, census or baseline entry.
+
+3. Timings, capture 20261019-0050-manual-town-wander/state.jsonl.gz, last 300 boards
+  profile_town.py (cProfile on):
+    before af25b541: town median 981 ms, p90 1189 ms, total 286.8 s
+      7493 calls  cumtime 183.406 s  policy_town.py:96(_refresh_town_facts)
+      9422761 genexpr policy_town.py:115, 96.4 s
+    after 3f34df38:  town median 807 ms, p90 1046 ms, total 243.3 s
+      7493 calls  cumtime 101.921 s  policy_town.py:102(_refresh_town_facts)
+      3659327 genexpr policy_town.py:144, 53.7 s (= 280 full runs, 1 per decision)
+      _town_procurement_decision 137.5 s -> 19.0 s
+  plain replay without profiler (equivalence harness, same boards):
+    before: median 764 ms, p90 866 ms, total 212.2 s
+    after:  median 481 ms, p90 673 ms, total 150.0 s
+  Note: the machine was shared with a soak and merge gates; cProfile totals vary.
+  The remaining full run per decision walks all 13,068 emitted cells; making it
+  incremental across boards would change the existing loop and is out of scope.
+
+4. Equivalence
+- Full replay of the same 300 boards, before (git archive af25b541 src) vs after:
+  300/300 identical (key, last_reason); 0 exceptions. Full refreshes per
+  decision after: 1 x 288, 0 x 12.
+- Pin tests/test_town_fact_refresh_once.py (new):
+  test_recorded_boards_refresh_town_facts_once_per_decision: tracked fixtures
+  town-decision-speed A (85 boards) and B (49), counts full refreshes per
+  choose_key (patched _town_store_position_index); asserts <= 1. Before (base
+  policy_town.py): fails, A has decisions with 2 and 3 full runs. After: passes.
+  test_recorded_boards_decide_as_per_snapshot_refresh: first 30 boards of A and
+  B, memoised policy vs a policy whose refresh reproduces the af25b541
+  same-snapshot-only rule; identical (key, reason), _town_store_positions and
+  _town_visit_entrances on every board. Passes before and after.
+- Existing tests: none edited.
+
+5. Guards (after the last source commit 3f34df38)
+preflight:
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (town-facts-speed-1019 vs af25b541)
+
+mutation_check --tests tests.test_town_fact_refresh_once --record:
+[mutation] 5 source hunks, tests: tests.test_town_fact_refresh_once
+[mutation] caught     src/hengbot/policy.py:1256 (from .policy_town import TownMixin, _town_fact_views): test_recorded_boards_decide_as_per_snapshot_refresh, test_recorded_boards_refresh_town_facts_once_per_decision
+[mutation] caught     src/hengbot/policy.py:8087 (_town_fact_views[self] = (): test_recorded_boards_refresh_town_facts_once_per_decision
+[mutation] caught     src/hengbot/policy_town.py:18 (# The grids mapping and emitted window the retained town facts were la): test_town_fact_refresh_once
+[mutation] caught     src/hengbot/policy_town.py:103 (# A probe derived with dataclasses.replace shares the refreshed): test_recorded_boards_refresh_town_facts_once_per_decision
+[mutation] caught     src/hengbot/policy_town.py:189 (_town_fact_inputs[self] = (getattr(snapshot, "grids", None), self._emi): test_recorded_boards_refresh_town_facts_once_per_decision
+[mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+[mutation] recorded for 3f34df38
+
+fast_tier --shards 4 (run after gate logs were clear, 02:10):
+[fast] 3908 fast tests (<2.0s in af25b541) + 1 changed modules, 4 shards
+[fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3926 tests, 470.3s
+
+ROUND 2 (merge gate: tests.test_town_decision_speed_caches
+test_recorded_boards_keep_key_and_reason_with_caches_enabled, pickled policy
+state differs after A decision 4)
+- Measured cause (field-by-field removal on the A capture):
+  decision 4: only _town_store_positions; values and set order equal, but the
+  cell objects were shared with _town_emitted_entrances / _town_visit_entrances
+  in the cached run. Every uncached rerun discards and re-adds a fresh Position
+  into the store set (the entrance sets keep the first one), so object sharing in
+  the pickle depended on how many reruns ran.
+  decision 34 (after fixing the first): _town_entrance_cache - an uncached rerun
+  drops it whenever an emitted store cell exists; the skip kept it.
+- Fix (commit fb504684, policy_town.py): the store set stores its own
+  Position(y, x) copy (never shared, so the number of refreshes cannot change the
+  pickle); the full run records store_seen and a skipped rerun drops
+  _town_entrance_cache exactly when the last full run saw an emitted store cell
+  (what the rerun would have done). No test edited.
+- Pin strengthened: test_recorded_boards_decide_as_per_snapshot_refresh now runs
+  all A (85) and B (49) boards and compares checkpoint_without_elapsed_telemetry
+  bytes against the af25b541 same-snapshot-only refresh after every decision.
+- Results: tests.test_town_decision_speed_caches 6 tests OK; new module 2 tests OK;
+  300-board equivalence vs af25b541: 0 differences in (key, reason), 0 errors,
+  1 full refresh in 288 decisions and 0 in 12; plain replay median 523 ms, p90
+  631 ms, total 155.2 s (before 764 / 866 / 212.2; machine shared with a gate).
+- preflight: [preflight] PREFLIGHT OK: 7 changed files, 0 findings (town-facts-speed-1019 vs af25b541)
+- mutation_check --tests tests.test_town_fact_refresh_once --record:
+  [mutation] 7 source hunks; all caught (policy.py:1256, policy.py:8087,
+  policy_town.py:18, :103, :151 store_seen, :171 own cell object, :200 inputs)
+  [mutation] MUTATION OK: 0 of 7 hunks are not pinned by a test
+  [mutation] recorded for fb504684
+- fast_tier --shards 4 (after gate-kit-1019 MERGED, 06:08):
+  [fast] 3904 fast tests (<2.0s in cc191288) + 1 changed modules, 4 shards
+  [fast] excluded 23 modules measured over 60s
+  Crashed shards: none
+  Failures: none
+  Errors: ['tests.test_fundraise_kit_retired_recorded (import) ModuleNotFoundError(...)']
+  Total: 3913 tests, 703.9s
+  The one error is a tool artifact: fast_tier took its test list from the new
+  main cc191288, whose module tests/test_fundraise_kit_retired_recorded.py came
+  with ccb933be (#66) and does not exist on this branch (based on af25b541).

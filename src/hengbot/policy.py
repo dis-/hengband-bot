@@ -1256,7 +1256,7 @@ from hengbot.policy_quest import QuestMixin
 from hengbot.policy_equipment import EquipmentMixin
 from .policy_home import HomeMixin
 from .policy_shop import ShopMixin
-from .policy_town import TownMixin
+from .policy_town import TownMixin, _town_fact_views
 from .policy_observation import ObservationMixin
 
 
@@ -8087,6 +8087,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for position in getattr(snapshot, "grids", {})
         }
         snapshot = self._with_grid_memory(snapshot)
+        _town_fact_views[self] = (
+            getattr(latest_snapshot, "grids", None), snapshot.grids, self._emitted_t,
+        )
         self._begin_map_predicate_cache(snapshot)
         # Posted entry observation is handled before ``_decide``, so its empty
         # wait would otherwise bypass the registered release evaluators.  Run

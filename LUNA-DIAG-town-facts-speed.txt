@@ -1,0 +1,48 @@
+LUNA-DIAG town-facts-speed (#72), base af25b541
+
+What _refresh_town_facts (policy_town.py:96) recomputes
+- _town_store_positions (store number -> entrance cells), its position index
+  (_town_store_position_indices), _town_emitted_entrances, _town_visit_entrances,
+  and invalidates _town_entrance_cache when an entrance changed.
+- Inputs: snapshot.grids (only the cells in self._emitted_t once the region is
+  unchanged; all grids on a region change), snapshot.in_town and _grid_region
+  (floor_key, width, height, town_id, in_town), and self._emitted_t (the key set
+  of the decision's input grids, rebuilt once per decision at policy.py:8085).
+  Nothing else: no inventory, store page, player or Home knowledge is read.
+
+Why it runs ~25 times per decision
+- Its only memo is "same Snapshot object" (snapshot is self._town_fact_snapshot).
+- Home/shop planning builds probe snapshots with dataclasses.replace(snapshot,
+  inventory=... / store=... / player=...) (policy_home.py:34/348/469/836/886/1109,
+  policy_shop.py:875/997/3120, policy_town.py:1342/1448/3850/4935 ...) and calls
+  _home_available / _current_town_has_home on them. Every probe is a new object,
+  so the full emitted-window loop (~1,250 cells, Position construction and
+  hashing; genexpr policy_town.py:115) reran for each probe: 7,493 calls /
+  300 boards, 183 s of 287 s total (local re-measure, see report). The number of
+  probes grows with the Home/pack item count, hence the scaling with Home size.
+- The probes share the grids dict object of the snapshot they were derived from
+  (replace copies the reference), and _emitted_t is the same set object for the
+  whole decision, so every one of those reruns read identical inputs.
+
+What is safe to memoise
+- Per (grids mapping identity, _emitted_t identity, region): a rerun with the
+  same three inputs rewrites the same set members and positions (discard + add
+  of the same value), re-adds the same visit entrances (or clears an already
+  cleared set when not in town) and only drops _town_entrance_cache, which is a
+  pure function of _town_visit_entrances, the region and the grids (through
+  _town_map_active) and is rebuilt identically. No grids dict is mutated after
+  construction (no item assignment/update/pop on snapshot.grids in src).
+- Not per decision alone: one decision reads two mappings, the merged view from
+  _with_grid_memory (policy.py:8089) and the public choose_key's raw decision
+  input (e.g. _town_procurement_decision at policy.py:2914). Treating them as
+  one would rely on merged.update(raw) holding for an arbitrary caller; keyed on
+  the mapping identity the facts are refreshed at most once per mapping (<= 2
+  per decision) and exactly when an input object changes.
+- Not per Home knowledge epoch: Home knowledge is not an input.
+- Kept: the existing same-snapshot early return, the forced recompute when a
+  caller clears _town_fact_snapshot (several existing tests rely on it), and
+  the decision_caches_disabled() legacy path (the memo is read only when decision
+  caches are enabled; it is recorded unconditionally so toggling cannot leave
+  it stale). The memo lives in a module WeakKeyDictionary like
+  _town_store_position_indices, so no new policy attribute and no checkpoint
+  default is needed.
