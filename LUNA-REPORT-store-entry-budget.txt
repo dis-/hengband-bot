@@ -1,0 +1,63 @@
+LUNA-REPORT store-entry-budget (#74) - branch store-entry-budget-1019 from main af25b541
+
+Diagnosis (measured; details in LUNA-DIAG-store-entry-budget.txt)
+- Budget: STORE_STUCK_LIMIT = 8 (policy_constants.py:89), counted per confirmed effect
+  (policy_instore.py:749). Capture 20261019-054156: 4 inscriptions + 4 sales (decisions 7052..7059, ops 0..7)
+  spent it; 7060 ops 8 -> policy_instore.py:464 -> typed stop cause "entry-budget", buy row m
+  鑑定の杖 (5x 15回分).
+- The requirement appeared after the 3-charge Identify staff sale (7057). From 7058 _in_store_selection
+  (ops > 0, policy_instore.py:217) chose the required buy, but the emitted key comes from _shop:
+  _shop_core's _batch_sell_key started the next surplus sale inscription before the purchase rung, and
+  _in_store_emit accepts an inscribe/sell key (only a buy key is re-addressed, policy_instore.py:553).
+- Leave + re-enter at the budget is not taken because the stop is by design and pinned by the existing test
+  tests/test_step15d2_f3.py test_entry_budget_stop_is_visible_and_keeps_the_existing_budget, so that branch
+  was left unchanged.
+
+Change
+- src/hengbot/policy_shop.py _shop_core: before _batch_sell_key, when the in-store entry ledger has ops > 0,
+  no sale is pending (_batch_sell_pending is None) and the page has a departure-blocking purchase
+  (_departure_blocking_page_purchase), compose the purchase that _next_purchase selects (the same
+  PurchaseSelection/_shop_purchase_key composition as the purchase rung) instead of starting a new optional
+  sale. A sale already in progress still completes; the order between purchases stays _next_purchase's
+  (an earlier fix to buy the blocker directly broke tests/test_shop_uncomposable_recorded, which pins the
+  ordinary purchase before the blocker; the final version keeps it). No new constant, threshold, or policy
+  attribute (no restored-checkpoint defaults needed).
+- Bookkeeping: scripts/town_work_manifest.json.gz + src/hengbot/town_work_sites.json refreshed (ast hash of
+  _shop_core); scripts/item_sink_adapters.json pins the new _shop_purchase_key call in
+  policy_shop.py:_shop_core (tests/test_item_sink_lint requires every adapter call to be pinned).
+  No census counts changed, no new reason.
+
+Pins (tests/test_store_entry_budget_recorded.py, fixture tests/fixtures/store-entry-budget-20261019.jsonl.gz =
+raw state rows: Home ~9 list, door board, the nine captured store-5 pages; DECLARED CONSTRUCTED: fresh policy
+primed on the door board with in-store ops on and the Home knowledge applied)
+- af25b541: the replay reproduces all nine captured keys, ending ('\x1b',
+  'town:blocked:shop-required-operation-uncomposable') (test fails: 9 != 7).
+- fixed: keys 1..6 equal the capture, the 7th page posts ('pm1\r\r', 'shop:in-store-buy'), no stop,
+  _town_blocked_reason None (the next page then leaves with shop:in-store-done).
+- Controls: test_control_surplus_sales_before_the_requirement_are_unchanged (ordinary sale-only continuation,
+  pages 1..6 keep the captured inscribe/sell keys); tests/test_sale_inscribe_buy_recorded.py passes;
+  tests/test_step15d2_f3.py (budget stop still visible), test_shop_uncomposable_recorded,
+  test_supply_shortfall_owner_recorded, test_shop_one_shot, test_step15d2_f2 and 17 other in-store recorded
+  modules pass.
+
+Existing tests: none edited.
+
+Guard outputs
+preflight:
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (store-entry-budget-1019 vs af25b541)
+  (first run before the adapter pin: FAIL fakery/sink test_item_sink_lint -> fixed by the pin commit)
+mutation_check:
+[mutation] 1 source hunks, tests: test_store_entry_budget_recorded
+[mutation] caught     src/hengbot/policy_shop.py:5061 (# An in-store entry that has already operated buys before it starts): test_required_identify_staff_is_bought_before_the_next_surplus_sale
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for eeb164e4
+fast_tier (run after gate-bones-1019b reported MERGED):
+[fast] 3861 fast tests (<2.0s in 35b1cf2d) + 1 changed modules, 4 shards
+[fast] excluded 24 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: ['tests.test_fundraise_kit_retired_recorded (import) ModuleNotFoundError(...)']
+Total: 3867 tests, 175.0s
+  The one error is not a regression: the module list comes from main 35b1cf2d, and
+  tests/test_fundraise_kit_retired_recorded.py was added on main by ccb933be (#66) after af25b541; it does
+  not exist on this branch.
