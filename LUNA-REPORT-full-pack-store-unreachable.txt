@@ -1,0 +1,54 @@
+#73 full pack + full Home: store "unreachable" -> owner-retired-burst  (branch full-pack-store-unreachable-1019, base 45f0bdc1)
+
+DIAGNOSIS (measured; details in LUNA-DIAG-full-pack-store-unreachable.txt)
+- Replay of capture 20261019-050617 (state row 77 dungeon, row 83 first town board) through the real policy reproduces
+  the live reason: '5' town:blocked:home-full-surplus-store-unreachable, repeated, then town:blocked:owner-retired.
+- Relief choice: the pack is 23/23, so the carried-stock path picks ('鑑定の杖 (7回分)', 55, 5) for sale at
+  STORE_MAGIC (5), pack_only (policy_home.py:1072-1076, 1213-1222). Its retention reservation is 0.
+- "Unreachable" was false: the player at (37,105) stands diagonally next to the Magic shop entrance (38,106).
+  _shopping_approach_step returned None (policy_shop.py:5653) because _walkable_neighbors saw no cells: self._floor_t
+  was still the previous dungeon floor's index (61 cells; (37,104) absent). _build_grid_index runs only in prime()
+  and at policy.py:10619 (after the in-store branch); the full-Home relief producer runs earlier in _decide, so on the
+  first town board after a recall it routes on stale cells. Each later decision returns at the relief again, so the
+  index is never rebuilt and the wait ('5') can change nothing until the town-plan claim retires (burst).
+- No fallback: the step-None branch (policy_home.py:1238-1240) only blocks; the carried-junk destroy fallback applies
+  only with no sale candidate and a free slot. No fallback is needed once the route is correct.
+
+FIX (src/hengbot/policy.py, _decide, 5 lines)
+- Before the overweight-surplus and full-Home relief producers: if in town and outside a store, call
+  self._build_grid_index(snapshot). No new constant, threshold, attribute or reason. Cost measured: ~27 ms per call
+  on this town board (choose_key here took ~2.3 s live).
+- Bookkeeping: scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json regenerated (line shift).
+  No new policy attributes (no checkpoint defaults needed); no new helpers; no census counts changed.
+
+PINS (tests/test_full_pack_store_unreachable_recorded.py; fixtures tests/fixtures/
+recall-full-pack-store-unreachable-20261019.jsonl.gz (2 recorded rows) + .boundaries.json (sha256, source rows))
+DECLARED CONSTRUCTED: Home contents = 10-18 census of the same life (home-junk-bones-20261018 fixture, the #70 pin's);
+_home_capacity_observation (240,240,0); the relief's blocked deposit (spear, slot u).
+- test_full_pack_relief_walks_to_the_adjacent_store
+    before (45f0bdc1): last_reason 'town:blocked:home-full-surplus-store-unreachable' (FAIL)
+    after: key '3', last_reason 'shop:approach', sale = Identify staff (55,5) at STORE_MAGIC, pack_only (OK)
+- test_control_items_inside_their_targets_are_not_chosen: the chosen item has retention reservation 0 and is not any
+  reserved stack (Speed/CCW/Heal/Teleport/Recall...).
+- test_recorded_first_town_board: fixture hash, 23 items, position, entrance store 5, Home full.
+- #69/#70 pins green: test_home_junk_bones_recorded, test_overflow_torches_recorded,
+  test_supply_shortfall_owner_recorded -> OK.
+- Existing tests: none edited; none failing.
+
+GUARDS (after the last source edit and commit)
+preflight:
+  [preflight] PREFLIGHT OK: 7 changed files, 0 findings (full-pack-store-unreachable-1019 vs 45f0bdc1)
+  (first run flagged fakery/sink private-state-injected '_arrival'; fixed by moving the declared Home-census setup
+   into its own helper, commit 2)
+mutation_check --tests test_full_pack_store_unreachable_recorded --record:
+  [mutation] 1 source hunks, tests: test_full_pack_store_unreachable_recorded
+  [mutation] caught     src/hengbot/policy.py:10392 (if snapshot.in_town and snapshot.store is None:): test_full_pack_relief_walks_to_the_adjacent_store
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for ece6620b
+fast_tier --shards 4:
+  [fast] 3904 fast tests (<2.0s in cc191288) + 1 changed modules, 4 shards
+  [fast] excluded 23 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 3915 tests, 226.3s
