@@ -5080,8 +5080,22 @@ class TownMixin:
             )
             return None
         player = snapshot.player
+        # An AQUATIC race cannot leave water (monster-info.cpp
+        # monster_can_enter_terrain), so walking to one the player is not
+        # adjacent to never catches it while the errands starve (#71).  An
+        # adjacent one is still fought; nothing remembers its cell, so the
+        # last-known walk below never follows it either.
         targets = sorted(
-            (monster for monster in snapshot.visible_monsters if not monster.pet),
+            (
+                monster for monster in snapshot.visible_monsters
+                if not monster.pet
+                and (
+                    player.position.distance_to(monster.position) <= 1
+                    or "AQUATIC" not in getattr(
+                        self._monrace_knowledge.get(monster.race_id), "flags", ()
+                    )
+                )
+            ),
             key=lambda monster: monster.distance,
         )
         # Record-only (S2b.1b): the last-known cell this producer may be
