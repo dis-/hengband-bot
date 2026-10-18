@@ -1,0 +1,112 @@
+Home identification-withdrawal loop report (issue #63, base 73e94383)
+
+Diagnosis (measured; details and file:line in LUNA-DIAG-home-ident-withdraw.txt)
+
+- Loop rows 07:13 (10203..10230) and 07:40 (2537..2567): '\x1b'
+  home:route-claim-unfulfilled -> '9' boxed-breakout-travel -> '1'
+  shop:approach. Pack free 6 (minimum 5), identification_need null,
+  home_candidate_waiting true, optimizer blockers
+  ["pending-random-teleport-suppression"], deferred Home item = the
+  焼棄のブロード・アックス only, Home pass bound 300 (outstanding equipment work).
+- Pack identification sources: identify staffs only, no scroll. Complete ~9
+  Home list (139 items) holds 6 incomplete Home items.
+- DECLARED CONSTRUCTED replay (real policy, captured boards + captured ~9
+  list, _home_candidate_waiting set as logged): Home needs on the approach
+  board = ["equipment-catalog", "identification-withdrawal"]. The
+  equipment-catalog claim comes from _has_actionable_incomplete_home_item
+  (no source check; the known cursed shield returns True) and, live, also from
+  _has_selected_home_random_teleport_suppression, which ignored
+  _deferred_home_items although its producer refuses deferred targets.
+  equipment-work follows from _home_owner_goal_pending ('equipment-catalog').
+- The in-Home side has no producer for this work: identification
+  withdrawals are bound outside by
+  _bind_catalogued_home_identification_withdrawal, which requires a reliable
+  (scroll) source; with staffs only it binds nothing for all 6 items. Pack
+  space is not the blocker. The Home page therefore falls through to
+  home:route-claim-unfulfilled (reproduced on the captured page).
+- That branch only records an unsatisfied pass and marks Home attempted; none
+  of the three needs reads _town_store_attempted and the block is installed
+  only at the 300-pass bound, so the next outside board still has the Home
+  need and the router returns.
+- 06:32 stop (decision 30990): A0 took "hard_stop" because the departure
+  minimum failed on light_ready=false (stdout "<keep-running> hard_stop
+  cause=departure-unsatisfiable free=5 method=none"); separate defect
+  (missing light), not changed here.
+
+Change (src/hengbot/policy.py, no new constant/threshold/attribute)
+
+1. Final Home fall-through (home:route-claim-unfulfilled): when this is a
+   repeated unfulfilled pass in the stay (Home already in
+   _town_store_attempted before the pass) and the Home knowledge is current,
+   defer every incomplete Home item for this town stay (existing
+   _defer_home_item, site "home-route-claim-unfulfilled"). Deferred items are
+   already skipped by the identification-withdrawal, equipment-catalog and
+   binder predicates, so the Home claims close and the bot proceeds.
+   The first pass is unchanged: the first version deferred on the first pass
+   and changed tests.test_town_cure_supplier_recorded.
+   test_pre_fix_rule_reproduces_the_live_stop (last row ('7',
+   'town:blocked:owner-retired') became ('\x1b`n$.', 'shop:travel')); the
+   narrowed rule keeps that existing test passing unedited.
+2. _has_selected_home_random_teleport_suppression ignores deferred Home
+   targets, matching _random_teleport_suppression_producer_action.
+Restored-checkpoint defaults: none needed (no new policy attribute;
+_deferred_home_item_sites is created by the existing _defer_home_item).
+Bookkeeping: town manifest regenerated (831 candidates, 21099 sites, zero
+unmapped; town_work_sites.json ast hash of _choose_key). No new helper, so no
+producer-baseline/review entries; no census change; no new stuck reason.
+
+Pins (tests/test_home_ident_withdraw_recorded.py, fixture
+tests/fixtures/home-ident-withdraw-20261018.jsonl.gz = 6 raw captured rows:
+~9 list 872965, approach 873529, Home page 873529, outside 873540, approach
+873549, Home page 873549)
+
+- test_unfulfilled_home_pass_does_not_route_back_to_home: two captured
+  cycles. First pass: route-claim-unfulfilled, Home needs stay
+  ["equipment-catalog", "identification-withdrawal"]. Second pass:
+  73e94383 -> Home needs ["equipment-catalog"] (router returns to Home);
+  fix -> [] , 6 deferred items incl. the axe, no Home claim active.
+- test_deferred_home_suppression_target_is_not_a_home_claim (constructed
+  selected target, one patched collaborator): 73e94383 True after deferral;
+  fix False.
+- Controls: an Identify scroll added to the captured pack (18 slots, fits)
+  -> the binder files the identification-catalog Home errand, nothing
+  deferred; a bound pending withdrawal on the captured Home page ->
+  home:leave-for-pending-withdraw, nothing deferred.
+- Before/after: on 73e94383 the two main pins fail, controls pass; with the
+  fix all 5 pass.
+
+Other single modules run on the fix (all OK): test_absorbing_states,
+test_fundraising_set_end_counter_recorded, test_home_catalogue_take_sequence,
+test_home_visit, test_home_withdraw_deposit_alternation_recorded,
+test_home_withdraw_moved_address, test_identify_staff_live27_recorded,
+test_overweight_home_hold_recorded, test_ownership_s2a1_closure,
+test_recall_stockout_surplus_pins, test_s33_batch_context,
+test_town_cure_supplier_recorded, test_town_owner_cluster_incident,
+test_town_progress_invariant, test_town_unaffordable_supplies,
+test_policy_equipment, test_policy_town, test_policy_shop, test_policy_home.
+
+Guard outputs (after the last source edit and commit)
+
+1. python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\home-ident-withdraw-1018 73e94383
+   [preflight] PREFLIGHT OK: 6 changed files, 0 findings (home-ident-withdraw-1018 vs 73e94383)
+
+2. python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\home-ident-withdraw-1018 73e94383 --tests tests.test_home_ident_withdraw_recorded --record
+   [mutation] 2 source hunks, tests: tests.test_home_ident_withdraw_recorded
+   [mutation] caught     src/hengbot/policy.py:9340 (home_already_unfulfilled = STORE_HOME in self._town_store_attempted): test_unfulfilled_home_pass_does_not_route_back_to_home
+   [mutation] caught     src/hengbot/policy.py:16461 (and self._item_signature(owned.item) not in self._deferred_home_items): test_deferred_home_suppression_target_is_not_a_home_claim
+   [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+   [mutation] recorded for 78acb776
+
+3. python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\home-ident-withdraw-1018 73e94383 --shards 4
+   (run after the gate log showed "[gate] MERGED: main is now 37f66a8c")
+   [fast] 3914 fast tests (<2.0s in 37f66a8c) + 1 changed modules, 4 shards
+   [fast] excluded 22 modules measured over 60s
+   Crashed shards: none
+   Failures: none
+   Errors: none
+   Total: 3929 tests, 203.4s
+
+Limits: the optimizer's selected loadout is not reproducible from the capture
+(equipped C-sheet calibration dump absent), so the suppression hunk is pinned
+with a declared constructed target; the live process state before the capture
+window (home_candidate_waiting) is declared constructed.
