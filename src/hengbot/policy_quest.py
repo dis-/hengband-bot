@@ -1552,10 +1552,12 @@ class QuestMixin:
             snapshot, intended, existing
         ):
             return existing
+        # The tag must pass _sale_tag_is_unique, which counts every pack
+        # tag (a refused rival can still pass the game's tester), so a tag
+        # on an item this store refuses is not free either.
         used = {
             digit
             for item in snapshot.inventory
-            if self._store_accepts_sale(snapshot.store.store_type, item)
             for digit in "0123456789"
             if self._item_has_sale_tag(item, digit)
         }
