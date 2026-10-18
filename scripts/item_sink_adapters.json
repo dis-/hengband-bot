@@ -132,7 +132,6 @@
   },
   "policy_combat.py:_forbid_wait_while_damaged": {
     "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid)": 1,
-    "self._direction_key(snapshot.player.position, step) @ If:body:not only_suppressed_weak_breeders / If:body:step is not None and (not (self._escape_state.owner in {'disengage', 'emergency'} and self._is_oscillating() and (step in set(self._recent))))": 1,
     "self._direction_key(snapshot.player.position, step) @ If:body:step is not None": 1,
     "self._direction_key(snapshot.player.position, target.position) @ If:body:self._took_damage and hostiles and (not snapshot.player.afraid)": 1,
     "self._flee_step(snapshot, hostiles) @ If:body:not only_suppressed_weak_breeders": 1,

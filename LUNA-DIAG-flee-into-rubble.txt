@@ -1,0 +1,38 @@
+LUNA-DIAG flee-into-rubble (issue #75)   base cc191288
+
+Replay: state rows of c4a-loops-20261016/20261019-062555-loop-detected fed through
+_consume_response_sequence + HengbotPolicy.choose_key (test_esp_threat_rest_recorded._policy,
+~f cache constructed). Row 72 (turn 3407514, floor (1, 24, 41), Level 30, HP 600/600, player
+(12,38)) reproduces '8' no-wait:flee, and rows 73.. (same turn, message
+"岩石が行く手をはばんでいる。") repeat '8' no-wait:flee. 20261019-062620 row 71 (turn 3407549,
+one 蛇人間 at (15,40)) reproduces the same '8' no-wait:flee.
+
+MEASURED
+1. Producer: policy_combat.py:493-499 _forbid_wait_while_damaged (called from policy.py:2945
+   choose_key) rewrites the selected WAIT ('5'), takes step = self._flee_step(...) and posted
+   self._direction_key(here, step) -> a plain move.
+2. Why north: neighbours of (12,38): (11,37),(11,39),(12,37),(12,39) terrain 56 wall;
+   (11,38) terrain 49 RUBBLE (TerrainDefinitions.jsonc: flags REMEMBER HAS_ITEM STONE CAN_PASS
+   CAN_DIG CAN_DISINTEGRATE, tunnel power 10; no MOVE) -> GridState passable=False wall=False
+   can_dig=True, is_rubble=True; (13,37),(13,38),(13,39) floor.
+   _walkable_neighbors (policy.py:19393-19395) returns orthogonal rubble as a neighbour
+   ("Rubble is tunnelled from an orthogonally adjacent tile"): [(11,38),(13,37),(13,38),(13,39)].
+   _flee_step (policy_combat.py:4117) keeps only cells farther from the hostiles than
+   origin distance 4; the (13,x) cells are closer, so (11,38) is the only candidate.
+   Every other caller of _flee_step posts through _step_toward, whose rubble branch
+   (policy_navigation.py:1833-1850) turns the step into TUNNEL_KEY+dir; this caller alone
+   used the bare direction key, which the game refuses for rubble.
+3. Why not remembered: no code reads "岩石が行く手をはばんでいる" (grep of src: 0 hits). The
+   refused-step memory for rubble (_last_dig_signature/_rejected_dig_attempts ->
+   _blocked_rubble, RUBBLE_REJECT_LIMIT=3) lives only in _step_toward, which this producer
+   bypassed; _dig_attempts stayed empty and (11,38) stayed in _rubble_t.
+4. Why flee at full HP: the pre-rewrite reason "summoner:hold-choke" is not in the sanctioned
+   set (policy_combat.py:419-437; it does not end with ":hold"), and under_fire
+   (policy_combat.py:441-447) is true: both 蛇人間 (race 364, index 44 at (16,41) d4, index 45
+   at (17,42) d5, awake, max_ranged_damage 138) have line of fire, _predicted_damage 1 turn = 7
+   each (3 turns 12 / 7). _took_damage=False, engagement_avoid_cells empty. That is the
+   approved flee rule (not changed here).
+
+FIX: post the flee step through _step_toward (the regular router's step owner), so a rubble
+step is tunnelled ('T8') and a refused dig is counted and abandoned by the existing
+RUBBLE_REJECT_LIMIT. No new constant, threshold or attribute.
