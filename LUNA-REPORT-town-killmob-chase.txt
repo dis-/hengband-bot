@@ -66,3 +66,39 @@ Options needing a decision (each is a new rule, so I did not pick one):
       and that is not adjacent is not a town kill-mob target; it is still fought when adjacent/attacking;
   (E) treat deep water as un-enterable for the town kill-mob goal only (still leaves the 3 dry cells, so (E)
       alone does not stop this chase).
+
+ROUND 3 (supervisor decision (D)) -- implemented, commit 65c29ec5
+Change: policy_town.py _town_kill_mob_key, target list only.  A visible non-pet monster whose race has the
+static flag AQUATIC (MonraceKnowledge.flags, i.e. the game's monster-info.cpp:77-87 "cannot leave water") and
+that is not adjacent to the player is not a target.  It is never assigned to _town_hunt_target, so the last-known
+branch never follows it.  An adjacent one is still assigned and handed to the existing melee.  No new constant,
+threshold, policy attribute or helper.  Bookkeeping: town_work_manifest regenerated (--write; 0 violations),
+src/hengbot/town_work_sites.json digest updated by it.
+
+Replays (CLI parse path, real producer, one policy across all rows; town:kill-mob-approach count):
+  215136: before 68, after 0.   184243: before 68, after 0.   144457 (town people): 52 -> 52, output identical.
+Full choose_key, one fresh policy per board (DECLARED CONSTRUCTED: empty Home catalogue, ~f cache, cross-area on):
+  215136 rows 53,61,65,86 and 184243 rows 40,41,43,70,80 (piranha not seen): '\x1b`n%.' shop:travel.
+  Piranha in view (215136 rows 52,55,75,79; 184243 rows 42,50,60): the ordinary ranged rule fires at it
+  (ranged:fire 'fp2' / ranged:fire-target / ranged:fire-offset), not the town chase.  The next travel macro
+  itself answers the continue prompt with 'n' and travels to the store again; nothing re-plans endlessly in
+  these replays.  Not verifiable offline: whether arrows land in the water and are then sought as loot (watch on
+  the soak).
+Pins: tests/test_town_aquatic_chase_recorded.py (fixture tests/fixtures/town-aquatic-chase-20261018.jsonl.gz,
+  3 raw state rows, 23.6 kB, sha256 ec8fff0f...):
+  - recorded piranha board (row 52): c36af84e '3' town:kill-mob-approach; now _town_kill_mob_key None,
+    hunt target None, choose_key ('fp2', 'ranged:fire'); next recorded board (row 53, nothing seen): c36af84e
+    '2' town:kill-mob-approach (last-known walk); now ('\x1b`n%.', 'shop:travel').
+  - control: 144457 やせこけた馬 (land) still ('9', 'town:kill-mob-approach'), hunt target (24,118).
+  - control (constructed): piranha moved into adjacent deep water -> producer None, hunt target = its cell,
+    choose_key = direction key, reason 'melee'.
+Controls, existing modules unchanged and green: test_ownership_s2a1_closure 80 OK, test_ownership_s2b1b_close_pairs
+  35 OK, test_policy_navigation 129 OK, test_starving_town_recorded 9 OK, test_town_arbiter 30 OK,
+  test_policy_town 592 OK.
+Guards:
+  preflight: [preflight] PREFLIGHT OK: 7 changed files, 0 findings (town-killmob-chase-1018 vs c36af84e)
+  mutation:  [mutation] caught src/hengbot/policy_town.py:5080 : test_recorded_far_piranha_is_not_chased_and_travel_resumes
+             [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test  (recorded for 65c29ec5)
+  fast_tier: [fast] 3920 fast tests (<2.0s in c36af84e) + 1 changed modules, 4 shards; excluded 24 modules
+             measured over 60s; Crashed shards: none; Failures: none; Errors: none; Total: 3925 tests, 190.8s
+  (fast_tier started after gate-bones-1018-r2.run.log showed STOP; no other gate log was active.)
