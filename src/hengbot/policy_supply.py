@@ -219,7 +219,10 @@ class SupplyMixin:
         The ledger's one predicate for a known shelf, shared with the town
         planner's supply needs: a ware that supplies ``kind`` (for a MANA
         eater's food, a wand or staff with charges) that is either within
-        the carried gold or on a store not yet attempted this visit.
+        the carried gold or on a store not yet attempted this visit.  A ware
+        whose class the sell-rebuy churn guard refuses this visit
+        (``_purchase_churn_rejected``) is no supplier: the purchase selector
+        will not buy it however long the bot waits for restock (issue #68).
         """
         mana_food = (
             kind == "food"
@@ -235,6 +238,7 @@ class SupplyMixin:
                 store_type not in self._town_store_attempted
                 or item.price <= snapshot.player.gold
             )
+            and not self._purchase_churn_rejected(store_type, item)
             for item in page.items
         )
 
