@@ -164,3 +164,25 @@ C. Guards after 0c4e7d63 (vs c36af84e): preflight OK (19 files, 0 findings; note
    affected modules (junk_bones, sale_inscribe, home_full_sale_keeps_recall, overflow_torches,
    supply_shortfall_owner, lantern_lost) 31 tests OK; fast_tier 3936 tests, Failures none, Errors none.
    The three slow-module tests above still fail (not edited, pending the decision).
+
+ROUND 5 (supervisor decision: re-baseline the overweight replay), commit 1bab1456
+- tests/test_overweight_home_unreachable_recorded.py: JUNK_ROUTE_ROWS = {1588-1590, 1620-1623, 1974}
+  with a comment citing #70, the owner directive and old->new keys; in both failing tests only these
+  rows' keys are excluded (recorded key used, as for quantity_keys); reasons still compared; all other
+  rows and assertions unchanged.
+- The overweight OFF hash is not in tests/test_declarations_r14.py but in
+  scripts/first_divergence_s3_3.py OFF_SHA (measure() raises there). Updated only the "overweight"
+  entry 9583b98b... -> 8f46fb3508804e3eaa0975f830b99d4c2d75d6b3a87bceef84a6144590eac905 with a #70
+  comment; test_declarations_r14 itself unchanged.
+- Branch: test_declarations_r14, test_overweight_home_unreachable_recorded,
+  test_first_divergence_declarations -> 12 tests OK.
+- c36af84e + the edited files (temporary worktree, removed): the overweight module passes (its
+  non-excluded rows reproduce there); test_overweight_home_tail_keeps_its_operation_at_3715 fails there
+  as expected (c36af84e produces the old hash 9583b98b...).
+- Guards vs c36af84e: preflight OK (21 files, 0 findings; notes the modified overweight and
+  sale-inscribe tests); mutation_check MUTATION OK 0 of 7 hunks unpinned (recorded for 1bab1456);
+  fast_tier (after gate-killmob-1018 finished) 3946 tests, Errors none, Failures 2:
+  test_input_executor...test_single_segment_ack_gets_post_ack_observation_grace and
+  test_control_client...test_pin_d6_9_slow_screen_releases_gate_without_key_backoff - timing pins
+  (the run took 573.6s under load); both pass rerun alone (2 tests OK, 0.5s); the branch does not
+  touch input_executor.py or control_client.py.
