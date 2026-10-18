@@ -73,3 +73,32 @@ EXIT 1
 tests.test_recall_churn_stockout_recorded. That module exists on 5e487612 but not at 29dcd802
 or on this branch: fast_tier listed the modules from the new main. It is not a regression and
 not caused by this change. Failures: none; crashed shards: none.
+
+ROUND 2 (gate on main 5e487612 + this branch): tests.test_supply_shortfall_owner_recorded -- STOPPED, src and tests unchanged
+I measured the replay on this branch. In both captures the character wears a Feanorian lamp
+(暗視のフェアノールのランプ, so _owns_usable_permanent_light is True) and carries a single torch with
+2300 turns. Matching ammo is carried, so on 29dcd802 the torch target was 5 and this torch was
+reserved. Under the #69 rule it is unreserved.
+- teleport-0316, row 122 (pack 23/23, full):
+  recorded '\x1b`n%.' shop:travel (to the Alchemist) -> new '\x1b`n(.' shop:travel (to Home).
+  _find_home_deposit = torch n. The existing shortage-relief ordering (_town_space_deposit_key,
+  "route shortage relief before any transaction that may need a slot"; A0: a free-slot
+  shortage is handled first) now has a deposit to make before the Teleport buy. The pinned
+  board still returns '5' shop:one-shot-buy. Only the prefix assertion fails.
+- idstaff-0353, row 139 (pack 19, free 4 < MIN_FREE_PACK_SLOTS 5, overflow pressure):
+  recorded "\x1b`n'." shop:travel (to the Black market) -> new '\x1b`n&.'
+  town-progress-invariant:defect:inventory:destroy-disposable-item=>town-progress-invariant:approach.
+  _find_disposable_item = torch l: the existing overflow-pressure clause for an unreserved
+  fuelled torch (policy_helpers.py:312-318).
+  (Rows 104-126 also differ, but that test excludes them.)
+Argument: both differences are the intended consequence of the #69 rule, not a misfire.
+- The permanent-light check is true on these boards, and correctly so.
+- The torch has no remaining use there: matching bolts mean it is not a throwing torch, no
+  quest torch target applies, and the lamp needs no fuel.
+- The new actions are the existing shortage handling (Home deposit first, destroy under
+  overflow pressure) acting on a now-surplus item.
+- A narrower variant could keep these prefixes: release the torch only at the terminal
+  overflow stop while keeping its retention target. That variant would destroy an item
+  inside its retention target, which the #69 task's control forbids. So I did not apply it.
+Supervisor decision needed: accept the new rows (update the two prefix expectations), or
+choose the narrower terminal-only release.
