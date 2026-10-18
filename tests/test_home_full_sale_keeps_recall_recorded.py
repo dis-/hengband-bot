@@ -55,6 +55,22 @@ def _recall_at_home(row, count):
     return row
 
 
+def _without_home_junk(row):
+    """DECLARED CONSTRUCTED wall (#70, owner decision 2026-10-18 junk first).
+
+    The 12:38 Home's worthless remains (tval 1/3/10) and emptied chest are
+    marked as bounties (rows and addresses kept), so the Home-full relief
+    still chooses among the sale stock this pin is about instead of
+    destroying a remain first.
+    """
+    row = copy.deepcopy(row)
+    for item in row["knowledge"]["items"]:
+        if item["tval"] in {1, 3, 10} or (
+                item["tval"] == 7 and "(空)" in item["name"]):
+            item["is_bounty"] = True
+    return row
+
+
 def _carried_recall(board, count):
     board = copy.deepcopy(board)
     next(item for item in board["inventory"]
@@ -81,6 +97,7 @@ class HomeFullSaleKeepsRecallRecordedTest(unittest.TestCase):
         policy._skill_exp_cache = (
             0, 0, snapshot.player.level, policy._town_visit_epoch
         )
+        home = _without_home_junk(home)
         policy.consume_home_knowledge(tuple(_parse_items(
             home["knowledge"]["items"], protocol=home.get("protocol_version"),
         )))

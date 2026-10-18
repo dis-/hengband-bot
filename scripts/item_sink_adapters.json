@@ -249,6 +249,9 @@
   "policy_identification.py:_full_pack_destroy_key": {
     "self._verified_destroy_key(snapshot, self._find_disposable_item, 'inventory:destroy-disposable-item') @ ": 1
   },
+  "policy_identification.py:_worthless_junk_destroy_key": {
+    "self._verified_destroy_key(snapshot, self._find_worthless_junk, 'inventory:destroy-worthless-junk') @ ": 1
+  },
   "policy_identification.py:_full_pack_loot_triage_key": {
     "self._floor_item_identify_key(snapshot, floor_item) @ For:sorted(loot_positions, key=lambda candidate: snapshot.player.position.distance_to(candidate)) / For:self._look_floor_items.get(position, ()) / If:body:item_base_cost(floor_item, self._baseitem_costs) is None / If:body:position == snapshot.player.position": 1,
     "self._look_probe_key(snapshot) @ If:body:live_counts != cached_counts": 1,

@@ -119,13 +119,24 @@ class SaleInscribeBuyRecordedTest(unittest.TestCase):
         policy.confirm_key_posted(key)
         return str(key), policy.last_reason
 
-    def _captures(self):
+    def _captures(self, *, without_home_junk=False):
         """Yield (name, policy, page, tagged board, sold slot) at the inscription."""
         policy = self._policy_for(self.a_home, self.a_door)
         yield "12:34", policy, self.a_page, self.a_tagged, "h"
-        policy = self._policy_for(self.b_home, self.b_approach)
-        for board in (self.b_inside, self.b_withdraw, self.b_walk):
-            self._decide(policy, board)
+        b_home = self.b_home
+        if without_home_junk:
+            # DECLARED CONSTRUCTED wall (#70): the 12:38 Home's worthless
+            # remains and emptied chest are marked as bounties (rows and
+            # addresses kept), so the recorded scroll sale is still the
+            # Home-full relief's choice.
+            b_home = copy.deepcopy(b_home)
+            for item in b_home["knowledge"]["items"]:
+                if item["tval"] in {1, 3, 10} or (
+                        item["tval"] == 7 and "(空)" in item["name"]):
+                    item["is_bounty"] = True
+        policy = self._policy_for(b_home, self.b_approach)
+        self.b_decisions = [self._decide(policy, board)
+                            for board in (self.b_inside, self.b_withdraw, self.b_walk)]
         yield "12:38", policy, self.b_page, self.b_tagged, "j"
 
     def test_captured_boards(self):
@@ -154,6 +165,16 @@ class SaleInscribeBuyRecordedTest(unittest.TestCase):
         }
         for name, policy, page, tagged, slot in self._captures():
             with self.subTest(capture=name):
+                if name == "12:38":
+                    # #70 owner decision 2026-10-18 ("不要品を先に壊す"): the
+                    # full Home's worthless remains are destroyed before any
+                    # surplus sale, so this visit withdraws a corpse to
+                    # destroy instead of the recorded scroll sale.
+                    self.assertEqual(self.b_decisions[0], (
+                        "\x1b", "home:full-queue-surplus-withdraw"))
+                    self.assertEqual(policy._home_full_relief["mode"], "destroy")
+                    self.assertEqual(policy._home_full_relief["sale"][0][1], 10)
+                    continue
                 # 5ffac123 posted "{<slot>@0\r" here; the tagged board then
                 # held two @0 items and ended in the uncomposable stop.
                 key, reason = self._decide(policy, page)
@@ -192,10 +213,10 @@ class SaleInscribeBuyRecordedTest(unittest.TestCase):
         # pending tag 0 -- two different pack items carry @0, one of them
         # inscribed before this visit.  The game's tester could pick either;
         # the bot must leave without composing the sale.
-        for name, policy, page, tagged, slot in self._captures():
+        for name, policy, page, tagged, slot in self._captures(without_home_junk=True):
             with self.subTest(capture=name):
                 self._decide(policy, page)
-                pending = policy._batch_sell_pending
+                pending =policy._batch_sell_pending
                 pending["entries"][0]["tag"] = "0"
                 key, reason = self._decide(policy, tagged)
                 self.assertEqual(key, "\x1b")

@@ -1,0 +1,39 @@
+{
+  "source_capture": "c4a-loops-20261016/20261018-164159-town-blocked-overflow-no-legal-disposal",
+  "rows": [
+    {
+      "line": 0,
+      "source_row": 33,
+      "turn": 2783359,
+      "type": "store",
+      "store_stock": 240,
+      "knowledge_items": 0
+    },
+    {
+      "line": 1,
+      "source_row": 34,
+      "turn": 2783359,
+      "type": "knowledge",
+      "store_stock": null,
+      "knowledge_items": 240
+    },
+    {
+      "line": 2,
+      "source_row": 35,
+      "turn": 2783359,
+      "type": "store",
+      "store_stock": 240,
+      "knowledge_items": 0
+    }
+  ],
+  "recorded_decisions": {
+    "3452": "home-errand:atomic-withdraw:full-home-discard (turn 2783331) then 3453 home:full-destroy-surplus '02ku'",
+    "3465": "home:full-queue-surplus-withdraw (turn 2783620) then 3468 home-errand:atomic-withdraw:full-home-sale '5pg' and 3471 shop:in-store-sell"
+  },
+  "source_sha256": {
+    "board_capture": "24462edad0cff468c38c6fd4d4db16997b7afbc20cfc998a970febe092fe0c5f",
+    "decision_capture": "b71d682456a460a006b33b777ffc7d348b6c88a3c5ab637775c8bd471867f550"
+  },
+  "board_sha256": "467371f1885ce6b184afa8dd3d2daf00268a461417f1d9c2590c2ad85b896530",
+  "notes": "Three state rows copied as-is: lines 0-2 the Home page at 240/240, its ~9 knowledge (240 entries), and the Home page again. The ~9 inflight flag and the relief's blocked deposit entry are DECLARED CONSTRUCTED in the test."
+}

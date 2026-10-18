@@ -1147,7 +1147,10 @@ class ObservationMixin:
             # CAVE_UNSAFE means trap detection has not covered this grid.  The
             # bot already traverses such grids during ordinary exploration, so
             # it must not make otherwise reachable floor loot invisible.
-            if grid.object_count > 0:
+            if grid.object_count > 0 and self._floor_pile_is_worthless(grid):
+                # Skeletons and junk have no use or sale value (#70).
+                self._known_loot.discard(grid.position)
+            elif grid.object_count > 0:
                 self._known_loot.add(grid.position)
             elif grid.position in self._known_loot and (
                 position.distance_to(grid.position) <= 1

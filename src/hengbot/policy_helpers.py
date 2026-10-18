@@ -282,6 +282,35 @@ class PolicyHelpersMixin:
             # poison gamble worth almost nothing — shed them instead of hoarding.
             or (item.is_food and not item.aware)
         )
+    def _is_worthless_junk(self, item: InventoryItem) -> bool:
+        """Remains, skeletons, junk and emptied chests: no use, no sale value.
+
+        tval 1 skeleton, 3 junk and 10 corpse ("~の骨"/"~の死体") from
+        src/object/tval-types.h, the kinds the Home-full discard rank already
+        ranks as auto-destroy targets. A wanted monster's remains are a
+        bounty, never junk (#70).
+        """
+        if item.is_bounty or item.is_artifact:
+            return False
+        return item.tval in {1, 3, 10} or (
+            item.is_chest and self._is_disposable_item(item))
+    @staticmethod
+    def _floor_pile_is_worthless(grid) -> bool:
+        """A visible pile of only skeletons / junk is not loot (#70).
+
+        Corpses (tval 10) stay loot: a bounty is only visible once carried,
+        where the dungeon junk disposal destroys every other remain.
+        """
+        return bool(grid.object_tvals) and all(
+            tval in {1, 3} for tval in grid.object_tvals)
+    def _find_worthless_junk(self, snapshot: Snapshot) -> InventoryItem | None:
+        return self._first_item(
+            snapshot,
+            lambda it: self._is_worthless_junk(it)
+            and self._entire_stack_is_surplus(snapshot, it)
+            and not self._item_is_procurement_protected(snapshot, it)
+            and self._item_signature(it) not in self._undestroyable_sigs,
+        )
     def _find_disposable_item(self, snapshot: Snapshot) -> InventoryItem | None:
         overflow_pressure = (
             snapshot.in_town and self._town_pack_space_shortage(snapshot)

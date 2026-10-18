@@ -1110,14 +1110,24 @@ class HomeMixin:
                     carried for carried in snapshot.inventory if carried is not item))
                     if id(item) in pack_ids else snapshot) for item in stock}
             self._prime_disposable_armour_scan(snapshot)
-            candidates = [(result, item) for item in sale_stock
-                          if not item.is_equipment
-                          and (result := self._home_full_sale_candidate(probes[id(item)], item))]
-            if not candidates:
+            # Worthless remains/junk on the shelf are destroyed before any
+            # sale of other stock (#70; owner 2026-10-04 auto-destroy target).
+            junk = [(candidate, item) for item in stock
+                    if self._is_worthless_junk(
+                        item if isinstance(item, InventoryItem)
+                        else self._inventory_item_from_store_item(item))
+                    and (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
+            candidates = [] if junk else [
+                (result, item) for item in sale_stock
+                if not item.is_equipment
+                and (result := self._home_full_sale_candidate(probes[id(item)], item))]
+            if not candidates and not junk:
                 candidates = [(result, item) for item in sale_stock
                               if item.is_equipment
                               and (result := self._home_full_sale_candidate(probes[id(item)], item))]
-            if not candidates:
+            if junk:
+                discard, unidentified = junk, []
+            elif not candidates:
                 discard = [(candidate, item) for item in stock
                            if (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
                 unidentified = [(candidate, item) for item in stock

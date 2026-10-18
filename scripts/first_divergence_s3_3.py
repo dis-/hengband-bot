@@ -37,7 +37,11 @@ OFF_SHA = {
     # now the wander step 7 (stuck:wander) instead of the detector repair 3;
     # all 3725 other (key, reason) rows are unchanged. Accepted to unblock
     # the suite; the missing repair is tracked in a GitHub issue.
-    "overweight": "9583b98bc95901d3d8931e80bf40ce5d855dda096a9ffe8b497f6b54a5385646",
+    # #70 (owner directive 2026-10-18: do not pick up bones): skeleton
+    # (tval 1) piles are no longer loot, so the seek-loot route keys of rows
+    # 1588-1590, 1620-1623 and 1974 change (old 9583b98b...); see
+    # tests/test_overweight_home_unreachable_recorded.py JUNK_ROUTE_ROWS.
+    "overweight": "8f46fb3508804e3eaa0975f830b99d4c2d75d6b3a87bceef84a6144590eac905",
     "withdraw": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
     "recall": "b21c0b3b423c886674960f5f3640424b8a51fc3d1f8215e31b3f61a5299bcef4",
     "stuck": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
