@@ -1,0 +1,45 @@
+ISSUE #67 - diagnosis (measured, replayed through the real policy at 5ffac123)
+
+Replay: fresh HengbotPolicy (tests/test_esp_threat_rest_recorded._policy), in-store ops on,
+captured Home ~9 list consumed, planned depth 20 (reproduces the captured Recall target
+10 = recall target 9 + the departure scroll; policy_supply.py:307-330, policy.py:13373).
+  12:34: primed on the door board (state row 93), decide rows 94, 95:
+    94 '{h@0\r' shop:in-store-inscribe   (pending tag '0', sell 'd0y')
+    95 '\x1b' town:blocked:shop-required-operation-uncomposable
+       required-page-continuation: selection-emission-mismatch, store 4, buy,
+       ('帰還の詔の巻物', 70, 11), row 'g', quantity 1   == live row 9945
+  12:38: primed on row 76, decide rows 77, 80, 82, 85, 86:
+    85 '{j@0\r' shop:in-store-inscribe (pending tag '0', sell 'd05\ry')
+    86 '\x1b' town:blocked:shop-required-operation-uncomposable, row 'h', quantity 2
+       == live row 2132
+
+What is ambiguous
+-----------------
+Both pages, before the inscription, already hold an Identify staff inscribed @0
+(12:34 slot k "鑑定の杖 (4回分) {@0}", 12:38 slot n "鑑定の杖 (2x 4回分) {@0}"), not made by
+this visit.  The Alchemist (store 4) does not buy staves.
+* policy_quest.py:1542-1561 _unique_sale_tag allocates the first digit not in `used`, and
+  `used` only counts pack items with _store_accepts_sale(store 4, item) -> the staff's @0
+  is skipped, digit '0' is allocated -> '{h@0\r' / '{j@0\r'.
+* After the game applies it, policy_shop.py:4083-4131 (await-inscription) calls
+  _sale_tag_is_unique (policy_shop.py:4255-4270), which deliberately counts EVERY pack
+  item carrying the tag ("a conservatively refused rival can still pass the game's
+  tester") -> two @0 items (scroll + staff) -> not unique -> signature added to
+  _unsellable_items, store 4 to _store_sale_refused, pending cleared,
+  last_reason = shop:sale-inscription-ambiguous-leave, key ESC.
+So the inscription is visible (the observed check passed, ops became 1); the ambiguity is
+the bot's own tag colliding with a pre-existing tag on an item this store refuses: the
+allocator and the uniqueness proof use different item sets.
+
+Why the selection says "buy Recall" but _shop does not emit it
+--------------------------------------------------------------
+policy_instore.py:463-500: the inscription was confirmed (_in_store_effect_confirmed, ops 1);
+_in_store_selection then returns the departure-blocking page purchase (Recall 9/10 or 8/10,
+row g / h, all preconditions true).  _in_store_emit (policy_instore.py:522+) runs _shop once;
+_shop reaches _batch_sell_key first (pending await-inscription for store 4) and returns the
+ambiguous leave ESC.  That key is neither p/d/{ nor a shop:buy leave -> fallback, None
+(policy_instore.py:543-553) -> _in_store_required_operation_stop("selection-emission-
+mismatch") (policy_instore.py:509-515) because a departure-blocking buy is on the page.
+
+Fix direction: allocate the sale tag over the same item set the uniqueness proof counts
+(every pack tag), so the bot's own inscription can never collide with a refused item's tag.

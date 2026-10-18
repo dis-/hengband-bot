@@ -1,0 +1,64 @@
+ISSUE: #67
+URGENT: the Linux soak is paused because of this stop (a third occurrence would retire a Level 26 character).
+Task: one defect only. Branch sale-inscribe-buy-1018 at main 5ffac123 (worktree C:\hengband\bot-client\.worktrees\sale-inscribe-buy-1018).
+
+Evidence (not tracked; bot 36c362a7 (same shop code as 5ffac123), Linux soak c4-a life-013, Level 26, gold ~19,100):
+  C:\hengband-backups\state-logs\c4a-loops-20261016\20261018-123401-town-blocked-shop-required-operation-uncomposable
+  C:\hengband-backups\state-logs\c4a-loops-20261016\20261018-123828-town-blocked-shop-required-operation-uncomposable
+  Both end the same way (decision rows, last four):
+    '5pj\x1b' / '5pj5\r\x1b' home-errand:atomic-withdraw:full-home-sale (Home full; withdraws a scroll stack to sell:
+      1st "透明物体感知の巻物", 2nd "5巻の 財宝感知の巻物")
+    '\x1b`n%.' shop:approach (store 4)
+    '{h@0\r' / '{j@0\r' shop:in-store-inscribe (inscribes the withdrawn item with @0 for the sale)
+    '\x1b' town:blocked:shop-required-operation-uncomposable
+  Last row: shop_selector.required-page-continuation {"cause": "selection-emission-mismatch", "store": 4,
+  "operation": "buy", "signature": ["帰還の詔の巻物", 70, 11], "row": "g"/"h", "quantity": 1/2}; in_store.continue
+  op "buy", all preconditions true; in_store.fallback {"shop_key": "\x1b", "shop_reason":
+  "shop:sale-inscription-ambiguous-leave"}. Word of Recall 9/10 and 8/10 are departure-blocking.
+  Code: policy_instore.py ~466-519 (_in_store continue -> _in_store_emit -> _in_store_required_operation_stop).
+
+Authority (already approved): Home full -> sell surplus (2026-10-04); required supplies are bought; A0 keep running.
+
+Do:
+1. LUNA-DIAG-sale-inscribe-buy.txt first (short): replay the boards through the real policy; MEASURED facts
+   (file:line + values): why _shop answers shop:sale-inscription-ambiguous-leave right after the bot's own @0
+   inscription (what is ambiguous: two @0 items, the inscription not yet visible, the sale target vs the page), and why
+   the in-store selection picks "buy Recall" while _shop does not emit it.
+2. Implement the smallest fix so that after its own sale inscription the bot either completes the sale and the
+   required Recall purchase in this visit, or leaves and continues without the stop. No new constant or threshold.
+3. Pins (only needed rows to tests/fixtures, small gzip, raw encoding; replay through the real policy; DECLARED
+   CONSTRUCTED walls): on 5ffac123 the captured board ends in the stop; after the fix it posts the sell or the buy (or a
+   non-stopping leave) - assert key and reason. Controls: a genuinely ambiguous inscription (two different items with
+   the same @0 inscription not made by this visit) still leaves without selling.
+Also report (no fix): whether selling Treasure Detection from Home as full-home-sale conflicts with the fundraising
+kit (#64 withdraws that kit from Home).
+Token budget for this task: 220k.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at 5ffac123) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
+  New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions. New
+  policy attributes need restored-checkpoint defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- No new constant or threshold; no special case keyed to one store, one floor or one capture.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), scripts/town_producer_baseline.json /
+  scripts/town_work_review.json entries for new helpers (json.dumps ensure_ascii=False indent=2 + trailing newline,
+  no sorting), census counts in structural tests (report the change), STUCK_FAMILY_REASONS if a new reason is added.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8), not the console code page. They also hold
+  non-decision rows; filter on "decision_sequence".
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\sale-inscribe-buy-1018 5ffac123
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\sale-inscribe-buy-1018 5ffac123 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\sale-inscribe-buy-1018 5ffac123 --shards 4
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
+  outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 250k is a HARD limit: when you reach it, stop and report what is done. Wall time 150 minutes. Write
+  LUNA-REPORT-sale-inscribe-buy.txt (measured diagnosis, changes, pins before/after, controls, guard outputs) and commit.

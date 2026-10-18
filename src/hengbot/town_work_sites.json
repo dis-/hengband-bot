@@ -6183,7 +6183,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6244968968a9559f717889d86bd294217d6c1713465c3fd6cb51c7407c2ab2b5"
+    "ast_sha256": "f5ad5e21589b53cffaf45613b3c50560bf16ece359b86f3d3dedc67af38da2ef"
   },
   "policy_shop.py:ShopMixin._ammo_purchase_preserves_plan": {
     "classification": "data",
