@@ -76,3 +76,33 @@ OPEN / FOR THE OWNER
 - (b) above: apply the patch and accept the 12:38 control change, or keep relief as is.
 - Corpses still get picked up (bounty unknown at distance) and are destroyed at the return start;
   a corpse picked during a latched return-loot sweep without Recall would still reach town.
+
+ROUND 2 (owner decision 2026-10-18 "不要品を先に壊す")
+- Applied the Home-full junk-first change (policy_home.py) + pin test_full_home_destroys_remains_before_any_sale
+  + fixture home-junk-bones-20261018.jsonl.gz (rows 33-35 of 164159) and boundaries. Patch file removed.
+  Commits a3ef1681, 0c1130b2 (manifest regeneration).
+- tests/test_sale_inscribe_buy_recorded.py (only the 12:38 parts; 12:34 unchanged):
+  * test_sale_inscription_avoids_refused_tag_then_sells_and_buys_recall, capture 12:38:
+    old: page decision ('{j@1', 'shop:in-store-inscribe') ... final ('', 'home:scan-leave-store')
+    new: first Home decision ('', 'home:full-queue-surplus-withdraw') with relief mode 'destroy' of a
+    tval 10 remain (『スメアゴル』の死体); the sale flow is not reached. Comment cites #70 + owner decision.
+    (_captures records the 12:38 decisions in self.b_decisions.)
+  * test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell: intent kept on BOTH captures.
+    12:38 runs behind a DECLARED CONSTRUCTED wall (_captures(without_home_junk=True)): the 12:38 Home's
+    tval 1/3/10 rows and the emptied chest are marked is_bounty (rows/addresses kept; removing rows made
+    the page count disagree and forced a rescan). Relief then picks the recorded scroll sale
+    (財宝感知の巻物) and the ambiguous @0 tag is still not sold. Assertions unchanged.
+- Item 3 (destroy junk on arrival in town before a Home deposit): SKIPPED. It needs a new town producer
+  ahead of _town_space_deposit_key with town admission/claims and would preempt recorded town pins that
+  carry remains (e.g. 164159 row 0); not a small hunk.
+- Guards after 0c1130b2:
+  [preflight] NOTE existing-test MODIFIED: test_sale_inscribe_buy_recorded (the two tests above)
+  [preflight] PREFLIGHT OK: 16 changed files, 0 findings (home-junk-bones-1018 vs 29dcd802)
+  [mutation] 6 source hunks, tests: test_home_junk_bones_recorded test_sale_inscribe_buy_recorded
+  [mutation] all caught (policy.py:11536, policy.py:16831, policy_helpers.py:282, policy_home.py:1080,
+    policy_identification.py:540, policy_observation.py:1147); MUTATION OK: 0 of 6 hunks are not pinned
+  [fast] 3921 fast tests (<2.0s in c36af84e) + 2 changed modules: Failures none; Errors only
+    tests.test_recall_churn_stockout_recorded (import; module exists only on main, not on 29dcd802).
+    Total 3931 tests, 193.8s. (Run after gate-torches-1018 finished.)
+  Affected modules run OK: test_home_junk_bones_recorded, test_sale_inscribe_buy_recorded,
+  test_home_full_relief_recorded, test_home_discard_followup_recorded, test_home_relief_progress_recorded.
