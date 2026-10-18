@@ -1,9 +1,9 @@
 """Recorded pin: the Home-full sale keeps the standing Word of Recall target.
 
 Live soak 2026-10-18 14:09 (issue #68), Level 27: Home was full, the relief
-withdrew the Home stack of Word of Recall (``5pk\x1b``,
+withdrew the Home stack of Word of Recall (``5pk\\x1b``,
 ``home-errand:atomic-withdraw:full-home-sale``); it merged with the carried 7
-and the Alchemist bought all 10 (``d110\ry``).  At 14:01 the requirement was
+and the Alchemist bought all 10 (``d110\\ry``).  At 14:01 the requirement was
 Recall 7/9 (fundraising mode ``prepare``); after the trip it was 0/10 and the
 bot waited for a Temple restock (``town:wait-restock:temple``, 14:42).
 
@@ -109,7 +109,7 @@ class HomeFullSaleKeepsRecallRecordedTest(unittest.TestCase):
         self.assertEqual(
             self._relief_pick(*self._boards(), "scavenge"),
             ("厚布よろい [5,+0]", "sale",
-             ("", "home:full-queue-surplus-withdraw")),
+             ("\x1b", "home:full-queue-surplus-withdraw")),
         )
 
     def test_recall_below_standing_target_is_not_disposed_by_either_selector(self):
