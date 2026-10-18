@@ -1,0 +1,38 @@
+LUNA-REPORT fundraise-kit-poor (ISSUE #64) - branch fundraise-kit-poor-1018, base 37f66a8c
+
+STATUS: STOPPED AT THE TOKEN BUDGET (250k hard limit) after the diagnosis.
+No source change, no pin, no guard run. Only LUNA-DIAG-fundraise-kit-poor.txt and this
+report are committed.
+
+MEASURED DIAGNOSIS (details and file:line in LUNA-DIAG-fundraise-kit-poor.txt)
+- The bot is not too poor for the kit. The kit is at Home: 財宝感知の巻物 x4 (Home page,
+  state row 94) and シャベル (+1) x2 (Home knowledge of the same character, 083222 row 46).
+  The plan is [Home] "fundraising-kit" only (replayed); no shop stop is planned because the
+  kit counts as withdrawable from Home (policy_home.py:1781-1798, policy_town.py:3127-3140).
+- Each Home visit ends with home:identify-staff-reserve-unavailable (policy.py:9312-9345):
+  Home is left and marked attempted without withdrawing the kit. A fresh policy on the same
+  Home board instead queues the catalogue shortage and withdraws 4 Treasure Detection.
+  The recorded choice needs process state that refuses _queue_home_catalogue_shortages
+  (policy_home.py:4756-4775): a non-SCAN/RECOVERY Home visit request, a procurement probe,
+  or an actionable space deposit (deep-copy trials). Both live kit visits followed an
+  equipment-transaction deposit at Home ('dl' 08:32:42, 'dp' 08:55:24). Which state the
+  live process held is not in the capture (state window starts at turn 1062020, after both
+  kit visits).
+- Then the plan is exhausted -> ~60 stuck:wander with no target store ->
+  repetition-required-shopping -> Home closed again -> town:blocked:repetition.
+- A0: "repetition" is not in VISIT_CLOSABLE_REASONS (policy_town.py:64-69), so
+  force_visit_departure only runs at the burst (hard_stop, method none). The repetition
+  rung's live WAIT x9 is not reproduced by the walls (with walls it reads recall 'rga').
+- Same root-cause family as #63 (a Home visit closed by an identification terminal while
+  other Home work is pending). Please coordinate with home-ident-withdraw-1018.
+
+NOT DONE
+- Fix: not implemented. Candidate direction (not validated): the identify-staff-reserve
+  terminal must not close the Home stop while a departure-blocking Home shortage (here the
+  fundraising kit) is withdrawable; or the kit shortage must be bound before that terminal.
+  Buying a new kit while Home holds it would contradict home-first, and no-detection
+  scavenging is not allowed (detection is at Home).
+- Pins / controls: none. A faithful "before" pin needs a declared wall for the live Home
+  visit state (e.g. request kind DEPOSIT at row 92) and, for the WAIT x9, more state that
+  the capture does not hold.
+- Guards (preflight, mutation_check, fast_tier): not run (no source change).
