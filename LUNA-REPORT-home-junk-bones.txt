@@ -212,3 +212,69 @@ ROUND 7 (supervisor decision: wall the junk-pile skip in the town-approach repla
 - Guards vs c36af84e (merge base): preflight OK (22 files, 0 findings); mutation_check MUTATION OK
   0 of 7 hunks unpinned (recorded for 183e3569); fast_tier (after the 1019 gates finished) 3957 tests,
   Failures none, Errors none. src unchanged since 1bab1456, so the round-5 module runs still apply.
+
+ROUND 8 (merge af25b541 = ab3dbf4a; walls a74cfbcd)
+- Merged af25b541 (conflict only in town_work_manifest.json.gz: regenerated; item_sink_lint 0).
+- Walls (DECLARED CONSTRUCTED, #70 owner decision junk first; create=True no-op on af25b541):
+  tests/test_homefull3_recorded.py test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist and
+  tests/test_home_full_await_knowledge_recorded.py test_recorded_sale_delta_scans_then_selects_next_withdrawal
+  run with HengbotPolicy._is_worthless_junk patched to False (Home remains treated as stock). No assertion
+  changes. Both modules OK on the branch (10 tests) and OK on af25b541 with the edited files (temp worktree, removed).
+- Sweep on the merged branch (before the walls): 130 modules = every tests/test_*.py matching
+  full-home|full_home|homefull|home_full|overweight|full-destroy|surplus plus every *recorded*.py matching
+  fundrais|seek-loot|_loot_step|known_loot. Result: 128 OK, 2 failing = the two walled above; after the walls both OK.
+  Modules run:
+    test_alchemist_recall_selection_recorded test_ammo_surplus test_breeder_refill_escape_recorded 
+    test_buy_deposit_loop_recorded test_calibration_crlf_dump_recorded 
+    test_castle_top_floor_exit_recorded test_classC2_departure_recorded test_cli 
+    test_curse_priority_recorded test_declarations_r14 test_declarations_r7 
+    test_departure_unsatisfiable_weight_recorded test_destroy_procurement_guard 
+    test_destroy_superior_item_guard test_destruction_gate_procurement 
+    test_entrance_travel_retired_recorded test_equipment_deposit_owner_recorded 
+    test_equipment_home_entry_cycle_recorded test_equipment_home_full_incident_recorded 
+    test_equipment_homefull_step15a test_equipment_in_home_stage1 test_equipment_margin_ratio_recorded 
+    test_equipment_transaction_planner test_execution_declaration test_experience_potion 
+    test_fundraise_kit_home_recorded test_fundraise_kit_route_recorded 
+    test_fundraise_upstairs_explore_recorded test_fundraising_restart_purpose_recorded 
+    test_fundraising_set_end_counter_recorded test_guardian_recall_pingpong_recorded 
+    test_home_catalogue_take_sequence test_home_deposit_hang_recorded 
+    test_home_discard_followup_recorded test_home_discard_incidents_recorded 
+    test_home_full_await_knowledge_recorded test_home_full_destroy_posted_confirm 
+    test_home_full_identification_procurement_recorded test_home_full_relief_recorded 
+    test_home_full_sale_keeps_recall_recorded test_home_full_withdraw_failure_incident_recorded 
+    test_home_interruption_constructed test_home_junk_bones_recorded test_home_light_alternation 
+    test_home_relief_progress_recorded test_home_scan_owner_priority 
+    test_home_surplus_inscription_recorded test_home_surplus_sale_screen_recorded 
+    test_home_withdraw_deposit_alternation_recorded test_homeexit_recorded test_homefull3_recorded 
+    test_identify_staff_live27_recorded test_identify_staff_swap_churn_recorded test_idw_block_recorded 
+    test_item_reservation test_item_serialization test_item_sink_lint test_keep_running_a0 
+    test_lantern_lost_recorded test_lethal_unseen_caster_recorded test_live23_home_cycle 
+    test_live36_weight test_loot_before_recall_recorded test_loot_choke_oscillation_recorded 
+    test_loot_ledger_mass_deferral_recorded test_loot_suppression_returning_recorded test_loot_triage 
+    test_magic_required_staff_homefull_recorded test_mana_home_recorded 
+    test_manafood_departure_recorded test_newchar_town_wander_recorded 
+    test_no_safe_destination_recorded test_oneshot_preempt_recorded test_overflow_torches_recorded 
+    test_overweight_home_hold_recorded test_overweight_home_unreachable_recorded 
+    test_overweight_homefull_step15b test_ownership_s2a_classification test_ownership_s2b1_ladder 
+    test_ownership_s2b2_bar test_ownership_s3_3_first_divergence test_pickup_pile_prompt_recorded 
+    test_policy_equipment test_policy_fundraising test_policy_home test_policy_identification 
+    test_policy_quest test_policy_shop test_policy_supply test_policy_town test_q2_choke_loop_recorded 
+    test_q2travel_progress_recorded test_quest_ammo_not_bought test_quest_leave_confirm_recorded 
+    test_recall_churn_stockout_recorded test_recall_stockout_set_end_recorded 
+    test_recall_stockout_surplus_pins test_reverse_choke_loot_loop_recorded 
+    test_reward_pack_full_handoff test_s33_shadow_recorded test_s33_shadow_zero 
+    test_sale_inscribe_buy_recorded test_scavenge_stockout_recorded test_shadow3_recorded 
+    test_shop_one_shot test_star_identify_departure_recorded test_step15d2_f3 test_stop_shape_recorded 
+    test_summoner_loot_choke_loop_recorded test_supply_ledger_observer_memo 
+    test_supply_shortfall_owner_recorded test_supply_stockout_recorded test_torch_predicate_recorded 
+    test_town_approach_retired_recorded test_town_aquatic_chase_recorded 
+    test_town_blackmarket_stall_recorded test_town_cure_supplier_recorded 
+    test_town_decision_speed_caches test_town_loot_store_20260926_recorded 
+    test_town_overflow_disposal_candidates_recorded test_town_overflow_disposal_recorded 
+    test_town_overflow_recorded test_town_stall test_tpstockout_restart_recorded 
+    test_two_cell_oscillation_recorded test_unaffordable_claim_tour_recorded 
+    test_unseen_loot_deferral_recorded test_unseen_retreat_visible_attacker_recorded 
+    test_weight_deposit_loop_20261018 test_xbow_pref_recorded_divergence 
+- Guards vs af25b541: preflight OK (24 files, 0 findings); mutation_check MUTATION OK 0 of 7 hunks unpinned
+  (recorded for a74cfbcd); fast_tier 3952 tests, Failures none, Errors only tests.test_fundraise_kit_retired_recorded
+  (import; module exists only on another branch, ccb933be, not in af25b541).
