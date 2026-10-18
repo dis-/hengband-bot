@@ -9306,6 +9306,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 key = open_page_deposit
             elif (
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._town_space_deposit_actionable(snapshot)) and self._queue_home_catalogue_shortages(snapshot, departure_blocking_only=True)
+            ):
+                # Issue #64: the closing Home terminals below must not leave
+                # a departure-blocking shortage (the fundraising kit) that
+                # Home holds behind.  A filed non-scan visit request refused
+                # the class binder above; with no Home operation pending the
+                # shortage is bound here and composed outside.
+                self._request_store_trip(STORE_HOME, "home-visit")
+                self.last_reason = "home:queue-catalogue-shortage"
+                key = LEAVE_STORE_KEY
+                self._offer_execution(
+                    key, producer="home-visit", work_id="home:queue-catalogue-shortage",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                )
+            elif (
                 self._home_atomic_deposit_pending is None and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (STORE_HOME not in self._town_store_attempted) and (PACK_CAPACITY - len(snapshot.inventory) <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS) or not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items)))
             ):
                 has_usable_staff = any(

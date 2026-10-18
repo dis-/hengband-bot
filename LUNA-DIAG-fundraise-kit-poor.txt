@@ -1,0 +1,62 @@
+ISSUE #64 - measured diagnosis (base 37f66a8c)
+
+Capture: C:\hengband-backups\state-logs\c4a-loops-20261016\20261018-091516-town-blocked-owner-retired-burst
+(105 decision rows, seq 1914-2018; 108 state rows, turns 1062020-1063485). The state window
+starts AFTER both Home kit visits of this town visit (08:55:33 seq 1797, 08:55:47 seq 1808);
+the in-process history that made those visits fail is not in the capture.
+
+Replay: scratch harness (same as tests/test_supply_shortfall_owner_recorded.py: _segments,
+_consume_response_sequence, choose_key). Declared walls: ~f skill row of the same character
+from 20261018-074006-loop-detected row 7 (Lv22, same class/race); Home knowledge row of the
+same character from 20261018-083222 state row 46 (turn 1041402, 175 items).
+
+1) What the gold-triggered fundraising prepare stage wants
+   - Decision rows: fundraising {"mode":"prepare","kit_secured":false,"gold_trigger":true},
+     gold 2,134, procurement Treasure Detection 0/5, Digging tool 0/2.
+   - Replay (board of decision row 6): plan stops [7] (Home), need_categories
+     {7: ('fundraising-kit',)}. Built at policy_town.py:3127-3140: Home "fundraising-kit"
+     home-first; General/Alchemist stops are NOT added because
+     _has_withdrawable_digging_tool / _has_withdrawable_treasure_detection
+     (policy_home.py:1781-1798) are True from Home knowledge.
+   - The kit is at Home, not missing: Home page (state row 94, turn 1063378) shows
+     財宝感知の巻物 x4; Home knowledge (083222 row 46) shows シャベル (+1) x2 and 4 detection.
+     So no purchase is needed or planned; prices vs 2,134 gold were therefore not the
+     blocker (not measured further).
+
+2) Why no withdrawal / departure happens
+   - Recorded row 92 (Home page): '\x1b' home:identify-staff-reserve-unavailable
+     (policy.py:9312-9345): leaves Home and marks STORE_HOME attempted
+     ("identify-staff-reserve-terminal") without touching the kit; plan index -> 1 (exhausted).
+   - Fresh replay on the same board (no in-process history): '\x1b'
+     home:queue-catalogue-shortage (policy.py:9186-9203), then '5pn4\r\x1b'
+     home:atomic-withdraw (4 Treasure Detection). Candidates (replay): detection x4 member=True
+     missing=5; shovel x2 member=True missing=2.
+   - Deep-copy trials on that board: the recorded identify-staff-reserve-unavailable is
+     reproduced when _queue_home_catalogue_shortages (policy_home.py:4756-4775) is refused by
+     live state: _home_visit.request.kind in {DEPOSIT, WITHDRAW, EQUIPMENT_MUTATION}, or
+     _home_procurement_probe not None, or _town_space_deposit_actionable True. Kinds SCAN /
+     RECOVERY, deferred kit signatures, or mode None still queue the shortage.
+   - Posted-characters log: both live kit visits were preceded by an equipment-transaction
+     deposit at Home (08:32:42 'dl' seq 8; 08:55:24 'dp' seq 1792, then
+     home:leave-after-one-operation). Which of the refusing states the live process held is
+     NOT recoverable from the capture (state window starts later).
+   - Same root-cause family as #63: a Home visit is closed by an identification terminal
+     (identify-staff reserve) while other Home work (here the fundraising kit) is pending.
+
+3) The ~60 stuck:wander decisions
+   - Plan exhausted ([Home], index 1), no owner, departure_block.failed
+     [recall_departure_ready, identify_staff_ready, home_candidate_resolved,
+     identification_need_clear, departure_identification_need_clear]; the detectors' wander
+     (policy.py:12301) walks the town with no target store (town_emit_ownership.target_store
+     null). Then town:repetition-required-shopping routes back to Home (row 88/91), Home is
+     closed again (row 92), town:blocked:repetition.
+
+4) Why the A0 forced departure does not act
+   - "repetition" is not in VISIT_CLOSABLE_REASONS (policy_town.py:64-69), so
+     force_visit_departure is reached only at the burst (stdout: one <keep-running>
+     hard_stop cause=owner-retired-burst, method=none).
+   - The repetition rung (policy_town.py:~5856-6012) returned WAIT '5' x9 live. With walls
+     (request kind DEPOSIT at row 92 + _town_blocked_reason="repetition" at row 93) the base
+     policy instead reads recall ('rga' town:repetition-depart:recall, destination angband);
+     the live WAIT needs further process state not in the capture (the first visit at 08:53
+     did take 'rfa' town:repetition-depart:recall).
