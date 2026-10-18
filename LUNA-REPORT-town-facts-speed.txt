@@ -85,3 +85,43 @@ Crashed shards: none
 Failures: none
 Errors: none
 Total: 3926 tests, 470.3s
+
+ROUND 2 (merge gate: tests.test_town_decision_speed_caches
+test_recorded_boards_keep_key_and_reason_with_caches_enabled, pickled policy
+state differs after A decision 4)
+- Measured cause (field-by-field removal on the A capture):
+  decision 4: only _town_store_positions; values and set order equal, but the
+  cell objects were shared with _town_emitted_entrances / _town_visit_entrances
+  in the cached run. Every uncached rerun discards and re-adds a fresh Position
+  into the store set (the entrance sets keep the first one), so object sharing in
+  the pickle depended on how many reruns ran.
+  decision 34 (after fixing the first): _town_entrance_cache - an uncached rerun
+  drops it whenever an emitted store cell exists; the skip kept it.
+- Fix (commit fb504684, policy_town.py): the store set stores its own
+  Position(y, x) copy (never shared, so the number of refreshes cannot change the
+  pickle); the full run records store_seen and a skipped rerun drops
+  _town_entrance_cache exactly when the last full run saw an emitted store cell
+  (what the rerun would have done). No test edited.
+- Pin strengthened: test_recorded_boards_decide_as_per_snapshot_refresh now runs
+  all A (85) and B (49) boards and compares checkpoint_without_elapsed_telemetry
+  bytes against the af25b541 same-snapshot-only refresh after every decision.
+- Results: tests.test_town_decision_speed_caches 6 tests OK; new module 2 tests OK;
+  300-board equivalence vs af25b541: 0 differences in (key, reason), 0 errors,
+  1 full refresh in 288 decisions and 0 in 12; plain replay median 523 ms, p90
+  631 ms, total 155.2 s (before 764 / 866 / 212.2; machine shared with a gate).
+- preflight: [preflight] PREFLIGHT OK: 7 changed files, 0 findings (town-facts-speed-1019 vs af25b541)
+- mutation_check --tests tests.test_town_fact_refresh_once --record:
+  [mutation] 7 source hunks; all caught (policy.py:1256, policy.py:8087,
+  policy_town.py:18, :103, :151 store_seen, :171 own cell object, :200 inputs)
+  [mutation] MUTATION OK: 0 of 7 hunks are not pinned by a test
+  [mutation] recorded for fb504684
+- fast_tier --shards 4 (after gate-kit-1019 MERGED, 06:08):
+  [fast] 3904 fast tests (<2.0s in cc191288) + 1 changed modules, 4 shards
+  [fast] excluded 23 modules measured over 60s
+  Crashed shards: none
+  Failures: none
+  Errors: ['tests.test_fundraise_kit_retired_recorded (import) ModuleNotFoundError(...)']
+  Total: 3913 tests, 703.9s
+  The one error is a tool artifact: fast_tier took its test list from the new
+  main cc191288, whose module tests/test_fundraise_kit_retired_recorded.py came
+  with ccb933be (#66) and does not exist on this branch (based on af25b541).
