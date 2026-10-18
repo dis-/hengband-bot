@@ -186,3 +186,17 @@ ROUND 5 (supervisor decision: re-baseline the overweight replay), commit 1bab145
   test_control_client...test_pin_d6_9_slow_screen_releases_gate_without_key_backoff - timing pins
   (the run took 573.6s under load); both pass rerun alone (2 tests OK, 0.5s); the branch does not
   touch input_executor.py or control_client.py.
+
+ROUND 6 - STOP (intended junk-skip consequence; tests NOT edited, src unchanged)
+- tests/test_town_approach_retired_recorded: 8 failures on the branch, all "AssertionError: 342"
+  (_replay asserts the first changed decision is HOME_KNOWLEDGE_FIRST_CHANGED = 1180; it is now 342).
+  af25b541 alone: 11 tests OK. Branch with only policy_identification.py restored to 68c2a75c
+  (i.e. without the round-4 include_unsafe junk filter, 0c4e7d63): 11 tests OK. So the sole cause is
+  the fundraising loot selector skipping junk-only piles.
+- Row 342 (fundraising mining, player (41,42)): live '7' fundraise:seek-loot -> branch 'T3'
+  fundraise:dig-to-treasure (treasure target (42,43)). The live walk 342-348 ('7' x4, '1' x3) goes to
+  (40,35), whose pile is object_tvals (1,) (a skeleton) - the only pile within range on that board;
+  the live bot then dug ('T7' at 349) without a pickup. The replay stops at its first changed key, so
+  all 8 tests of the module fail at the same assertion.
+- Decision needed: re-baseline this replay (first changed decision 342 instead of 1180, or a declared
+  divergence for 342) or not.
