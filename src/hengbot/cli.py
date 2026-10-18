@@ -401,6 +401,8 @@ STATIONARY_EXEMPT_REASONS = frozenset(
 QUEST_COMBAT_REASON_PREFIXES = (
     "quest-strategy:melee",
     "quest-strategy:ranged-fire",
+    # The same ranged core labels its Q2 shots separately.
+    "quest-strategy:q2-fire",
 )
 
 # Consecutive town:blocked:* decisions before the bot stops itself. The block

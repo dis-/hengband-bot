@@ -1,0 +1,4 @@
+Source: Linux soak c4-a life-014 captures 20261019-083824-loop-detected and 20261019-083936-loop-detected (#78).
+q2-corpse-fire-loop-20261019.jsonl.gz: bot-decisions rows 5120-5159 (40), fields decision_sequence, turn, reason, key, position, floor, visible_hostiles, messages.
+q2-residual-202-blocked-20261019.jsonl.gz: bot-decisions rows 811-845 (35), same fields; row 811 also carries its player_turn board matched by turn.
+Encoding: UTF-8 JSONL, gzip mtime 0. Decompressed sha256 asserted in tests/test_q2_breeder_sweep_recorded.py.

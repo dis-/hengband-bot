@@ -1,0 +1,60 @@
+ISSUE: #78
+URGENT: the Linux soak is paused because of this (a third stop would retire the Level 23 character, which is inside
+quest 2). Task: the quest-2 stalls below (one quest, two shapes). Branch q2-breeder-sweep-1019 at main 35b1cf2d
+(worktree C:\hengband\bot-client\.worktrees\q2-breeder-sweep-1019). Read first: C:\hengband\bot-client\.worktrees\q2-residual-sweep-1018\LUNA-DIAG-q2-residual-sweep.txt
+(#61, the earlier q2 residual-sweep alternation fix, already in main).
+
+Evidence (not tracked; Linux soak c4-a life-014, Level 23, HP 412/412, quest 2 "下水道" floor (0, 15, 2), main 35b1cf2d):
+  C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-083824-loop-detected (123 rows): quest-strategy:q2-fire x30 ('fp6', 'fp*p336666666t5\x1b'), q2-quaff-speed,
+  q2-breeder-recommit x3, summoner:ranged-kill; messages "死体の塊を倒した。" / "死体の塊は身もだえした。" (a breeding
+  monster keeps reappearing); "<loop-detected> ... confined to [(3,23)...(8,26)] over 40 decisions".
+  C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-083936-loop-detected (222 rows, after the restart): quest:blocked:q2-residual-202-sweep '5' x35 at (9,46),
+  confined to (9..14,46), loop-detected.
+
+Authority (already approved): the reviewed quest-2 strategy (strategy/quests, policy_quest.py q2 breeder recommit and
+residual sweeps) clears the quest monsters; a sweep must make progress or end by the existing completion/abandon path;
+A0 keep running. Kills are progress, but a breeder that out-breeds the kill rate must end in the strategy's existing
+fallback (recommit / leave / abandon as the strategy defines), not in an endless confined loop.
+
+Do:
+1. LUNA-DIAG-q2-breeder-sweep.txt first (short): replay both captures through the real policy; MEASURED facts
+   (file:line + values): (a) what 死体の塊 is (race, breeds?), the kill rate vs the visible count over the 40 decisions,
+   what the q2 strategy expects in this case and why no fallback fires; (b) what blocks q2-residual-202-sweep (target
+   race 202, its position, route) and why the blocked state only waits.
+2. Smallest fix so each case progresses or ends via the existing strategy path. No new constant or threshold.
+3. Pins (recorded rows; DECLARED CONSTRUCTED walls): on 35b1cf2d each captured board loops/waits; after the fix it
+   takes the progressing/ending step (assert key and reason). Controls: the #61 pins
+   (tests/test_q2_residual*_recorded.py or as named in that DIAG) stay green; a normal q2 fight still fires.
+Token budget for this task: 220k.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at 35b1cf2d) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
+  New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions. New
+  policy attributes need restored-checkpoint defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- No new constant or threshold; no special case keyed to one store, one floor or one capture.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), scripts/town_producer_baseline.json /
+  scripts/town_work_review.json entries for new helpers (json.dumps ensure_ascii=False indent=2 + trailing newline,
+  no sorting), census counts in structural tests (report the change), STUCK_FAMILY_REASONS if a new reason is added.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8), not the console code page. They also hold
+  non-decision rows; filter on "decision_sequence".
+- Merge gates may be running their full suite. Before fast_tier, wait (sleep 60 between polls) while any file
+  C:\hengband-backups\suite-logs\gate-*-1019*.run.log modified in the last 70 minutes lacks "MERGED", "FAILED" and
+  "STOP" in its tail.
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\q2-breeder-sweep-1019 35b1cf2d
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\q2-breeder-sweep-1019 35b1cf2d --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\q2-breeder-sweep-1019 35b1cf2d --shards 4
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
+  outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 250k is a HARD limit: when you reach it, stop and report what is done. Wall time 150 minutes. Write
+  LUNA-REPORT-q2-breeder-sweep.txt (measured diagnosis, changes, pins before/after, controls, guard outputs) and commit.

@@ -2604,8 +2604,11 @@ class QuestMixin:
                 ] = route_target
                 self.last_reason = residual_reason
                 return self._step_toward(snapshot, path[1])
-            self.last_reason = f"quest:blocked:q2-residual-{race_id}-sweep"
-            return WAIT_KEY
+            # Every routable observation goal for this race has been visited.
+            # Waiting cannot change the visited set or the static routes, so
+            # the finite sweep of this race is complete; continue with the
+            # next residual race and then the full-map patrol.
+            self._q2_residual_surveyed_races.add(race_id)
 
         # Initial placement checks cannot find monsters that teleported or
         # wandered into another room. Record the cells actually visible during
