@@ -125,6 +125,10 @@ class TownMixin:
                 )
             )
         ):
+            # A rerun would rewrite every emitted store cell and so drop the
+            # entrance cache; keep that state identical to the uncached path.
+            if inputs[2]:
+                self._town_entrance_cache = None
             return
         self._town_fact_snapshot = snapshot
         in_town = getattr(snapshot, "in_town", False)
@@ -147,6 +151,7 @@ class TownMixin:
                 if Position(y, x) in grids
             )
         changed = False
+        store_seen = False
         position_index = (
             _town_store_position_index(self)
             if decision_caches_enabled()
@@ -166,10 +171,16 @@ class TownMixin:
                         positions.discard(position)
                         changed = True
             if grid.store_number >= 0:
-                self._town_store_positions.setdefault(grid.store_number, set()).add(position)
+                # An own cell object: the entrance sets keep the first one
+                # added, so checkpoint sharing must not depend on how many
+                # refreshes ran in a decision.
+                self._town_store_positions.setdefault(grid.store_number, set()).add(
+                    Position(position.y, position.x)
+                )
                 if position_index is not None:
                     position_index[position] = [grid.store_number]
                 changed = True
+                store_seen = True
             was_entrance = position in self._town_emitted_entrances
             # Preserve 4f41982 exactly: older/synthetic GridState producers may
             # use None for a non-store even though current parsed snapshots use
@@ -189,7 +200,9 @@ class TownMixin:
             changed = changed or was_entrance != is_entrance
         if changed:
             self._town_entrance_cache = None
-        _town_fact_inputs[self] = (getattr(snapshot, "grids", None), self._emitted_t)
+        _town_fact_inputs[self] = (
+            getattr(snapshot, "grids", None), self._emitted_t, store_seen,
+        )
 
     def _town_arbiter_terminal_result(self, key: str) -> bool:
         """Classify visible stops without treating their emission as progress."""

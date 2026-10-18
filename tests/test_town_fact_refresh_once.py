@@ -8,6 +8,7 @@ from hengbot.policy import ConservativePolicy
 from tests.test_town_decision_speed_caches import (
     CAPTURES,
     build_policy,
+    checkpoint_without_elapsed_telemetry,
     load_rows,
     parse_board,
 )
@@ -46,26 +47,29 @@ class TownFactRefreshOncePerDecisionTest(unittest.TestCase):
             self.assertLessEqual(max(counts), 1, f"{capture}: {counts}")
 
     def test_recorded_boards_decide_as_per_snapshot_refresh(self):
+        # The skipped reruns must leave the checkpointed state byte-identical,
+        # including which cell objects the fact sets share and whether the
+        # entrance cache was dropped.
         for capture in CAPTURES:
-            boards = [parse_board(row) for row in load_rows(capture)][:30]
+            rows = load_rows(capture)
             memoised = build_policy()
             legacy = build_policy()
-            legacy._refresh_town_facts = _per_snapshot_refresh(legacy)
-            memoised.prime(boards[0])
-            legacy.prime(boards[0])
-            for line_number, board in enumerate(boards, 1):
+            refresh = _per_snapshot_refresh(legacy)
+            memoised.prime(parse_board(rows[0]))
+            legacy.prime(parse_board(rows[0]))
+            for line_number, row in enumerate(rows, 1):
+                legacy._refresh_town_facts = refresh
+                legacy_key = legacy.choose_key(parse_board(row))
+                del legacy._refresh_town_facts
                 self.assertEqual(
-                    (memoised.choose_key(board), memoised.last_reason),
-                    (legacy.choose_key(board), legacy.last_reason),
+                    (memoised.choose_key(parse_board(row)), memoised.last_reason),
+                    (legacy_key, legacy.last_reason),
                     f"{capture}:{line_number}",
                 )
                 self.assertEqual(
-                    memoised._town_store_positions,
-                    legacy._town_store_positions,
-                )
-                self.assertEqual(
-                    memoised._town_visit_entrances,
-                    legacy._town_visit_entrances,
+                    checkpoint_without_elapsed_telemetry(memoised),
+                    checkpoint_without_elapsed_telemetry(legacy),
+                    f"{capture}:{line_number} policy state",
                 )
 
 
