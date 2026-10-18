@@ -16,6 +16,7 @@ import tests
 from hengbot.model import parse_snapshot, _parse_items, InventoryItem, STORE_HOME, TVAL_BOTTLE, TVAL_POTION
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.policy import HengbotPolicy
+from unittest.mock import patch
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.home_errand import HomeErrandRequest
@@ -44,6 +45,14 @@ def policy_at(snapshot, enforced=False):
     p._crossarea_fundraising_enforced = True
     p._in_store_ops_enabled = True
     return p
+
+
+# DECLARED CONSTRUCTED wall (#70, owner decision 2026-10-18 "junk first"):
+# the recorded Home's worthless remains (tval 1/3/10) and emptied chest are
+# treated as non-junk, so the Home-full relief still chooses among the sale
+# stock this pin records instead of destroying a remain first.
+_RECORDED_HOME_JUNK_AS_STOCK = patch.object(
+    HengbotPolicy, "_is_worthless_junk", lambda _self, _item: False, create=True)
 
 
 class RecordedHomeFull3Test(unittest.TestCase):
@@ -80,6 +89,7 @@ class RecordedHomeFull3Test(unittest.TestCase):
             self.assert_owner(p, after, key)
             self.assertFalse(p._store_visit.operation_effect_observed)
 
+    @_RECORDED_HOME_JUNK_AS_STOCK
     def test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist(self):
         home, outside = board(ROWS[4291]), board(ROWS[4292])
         catalogue = tuple(_parse_items(ROWS[4288]['knowledge']['items'], protocol=3))
