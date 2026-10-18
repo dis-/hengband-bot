@@ -1,0 +1,49 @@
+LUNA-DIAG home-sale-required (#68, base 99c2fa87)
+
+MEASURED (captures, read with python -X utf8, decision rows only)
+- 20261018-140156-town-blocked-owner-retired-burst, last row seq 6200 14:01:53:
+  procurement_requirements Word of Recall current 7 target 9; retention_reservations
+  帰還の詔の巻物 count 7 reservation 7 branch "supply-ledger:recall"; fundraising.mode "prepare"
+  (kit_secured false); Treasure Detection 0/5; gold 7555.
+- 20261018-144235-...-wait-restock-temple, rows seq 1542..1639 14:40:09..14:42:34:
+  fundraising.mode null; Recall current 0 target 10. Decision sequence restarted (6200 -> 1542),
+  game turn 1765827 -> 2534840 (a dungeon trip in between).
+- The 14:09 rows themselves are not in any local capture (soak machine only), so the board at
+  the sale is NOT measured. What follows is derived from the code gates the sale passed.
+
+CODE (file:line at 99c2fa87)
+- Candidate pick: policy_home.py:1081-1084 calls _home_full_sale_candidate(probe, item) for each
+  Home stack (or carried stack when the pack is full); max by base value (1153). The candidate
+  is rejected when _retention_reservation(probe, item) > 0 (361) where probe = carried +
+  the Home stack appended last, so the Home stack is reserved only for target - carried; and by
+  the merge barrier _home_full_merge_reserved (390-428): any carried stack of the same sale
+  identity with _retention_reservation(snapshot, carried) > 0 (409) blocks the pick.
+  => carried + this Home stack ARE counted; other Home stacks are not.
+- Recall retention target: policy_home.py:1999-2006 target = max(ledger["recall"].
+  required_departure, _recall_required_target(snapshot)). policy.py:13594-13597
+  _recall_required_target returns 0 when _fundraising_mode in {"mine","scavenge"}; otherwise
+  _recall_target(_planned_depth()) >= 3 (policy.py:13373-13380). policy_supply.py:307-312 sets
+  the ledger's recall required_return/required_departure to 0 in the same modes.
+- Sale: after the take the Home stack merges with the carried stack (game merge). The sale
+  re-check policy_home.py:870-874 skips when _retention_reservation(snapshot, target) > 0 for
+  the merged stack, and _batch_sale_entry sells count - reservation, i.e. the whole stack when
+  the reservation is 0 (policy_shop.py:4349-4350). Observed: 'd110\ry' sold 10 = 7 carried + 3
+  withdrawn.
+
+WHY RECALL QUALIFIED (derived; not measured at 14:09)
+- With carried 7 and any nonzero Recall target, the carried stack has reservation > 0 and the
+  merge barrier (409) and the re-check (872) both forbid this sale. The sale happened, so at
+  14:09 the Recall retention target was 0. _recall_target is never 0, so the only path is
+  _fundraising_mode in {"mine","scavenge"} (14:01 was "prepare" with no Treasure Detection;
+  policy_fundraising.py:333-339 promotes to "scavenge" once the supplier is observed empty).
+- In those modes the Recall target is suspended for the fundraising trip only; the standing
+  expedition target _recall_target(_planned_depth()) still applies when the trip ends (14:42:
+  0/10, rebuy 229 each). The Home-full relief treats the suspended target as "not needed" and
+  sells (or, with no sale store, could destroy) the whole carried+Home Recall.
+
+FIX PLAN
+- In the Home-full relief selectors only (_home_full_sale_candidate and
+  _home_full_discard_candidate), refuse a Recall stack whose disposal leaves fewer Recall units
+  (carried + Home, minus the stack and the carried units it merges with) than the standing
+  target max(ledger required_departure, _recall_target(_planned_depth())). No new constant;
+  retention authority itself unchanged.

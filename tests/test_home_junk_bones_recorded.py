@@ -10,7 +10,8 @@ Recorded inputs:
 DECLARED CONSTRUCTED: the worn lantern fuel above the refill threshold (as in
 the existing lantern control), one floor pile shown as a skeleton (tval 1)
 instead of its recorded bolts, the pack without its junk for the loot pins,
-bounty flags in the bounty control, and the latch/Recall state where named.
+bounty flags in the bounty control, and the ~9 flag and blocked deposit of the
+full-Home pin.
 """
 
 from __future__ import annotations
@@ -90,15 +91,6 @@ class HomeJunkBonesRecordedTest(unittest.TestCase):
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
         self.assertTrue(key.endswith("kq"), key)
-
-    def test_latched_return_destroys_remains_during_recall_countdown(self):
-        policy, board = self._dungeon()
-        # DECLARED CONSTRUCTED: the latched return with Recall active.
-        policy._returning_to_town = True
-        policy._escape_state.enter("return", "return:explore")
-        board = replace(board, player=replace(board.player, recalling=True))
-        policy.choose_key(board)
-        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
     def test_control_bounty_remains_are_kept(self):
         policy, board = self._dungeon()

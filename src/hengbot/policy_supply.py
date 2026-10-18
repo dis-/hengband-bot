@@ -219,7 +219,10 @@ class SupplyMixin:
         The ledger's one predicate for a known shelf, shared with the town
         planner's supply needs: a ware that supplies ``kind`` (for a MANA
         eater's food, a wand or staff with charges) that is either within
-        the carried gold or on a store not yet attempted this visit.
+        the carried gold or on a store not yet attempted this visit.  A ware
+        whose class the sell-rebuy churn guard refuses this visit
+        (``_purchase_churn_rejected``) is no supplier: the purchase selector
+        will not buy it however long the bot waits for restock (issue #68).
         """
         mana_food = (
             kind == "food"
@@ -235,6 +238,7 @@ class SupplyMixin:
                 store_type not in self._town_store_attempted
                 or item.price <= snapshot.player.gold
             )
+            and not self._purchase_churn_rejected(store_type, item)
             for item in page.items
         )
 
@@ -1125,6 +1129,11 @@ class SupplyMixin:
             return quest[2], quest[1]
         if self._matching_ammo(snapshot) is None:
             return TORCH_THROW_TARGET, self._count_throwing_torches(snapshot)
+        if self._owns_usable_permanent_light(snapshot):
+            # Spare torches only back up a fuelled light; with a permanent
+            # light they are obsolete like its lamp oil (#69: five torch
+            # stacks held the pack below its free-slot minimum).
+            return 0, self._count_usable_torches(snapshot)
         return FOOD_STOCK_TARGET, self._count_usable_torches(snapshot)
 
     def _carry_strategy_potion_target(

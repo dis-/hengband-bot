@@ -1,0 +1,88 @@
+ISSUE #68 - report (branch recall-stockout-wait-1018, base 99c2fa87)
+Commits: af13f433 diagnosis (LUNA-DIAG-recall-stockout-wait.txt), 094a6500 fix + pins + manifest.
+
+MEASURED DIAGNOSIS (details and file:line in LUNA-DIAG-recall-stockout-wait.txt)
+- Not a shelf stock-out. State rows of 144235: Temple shelf Recall x19 @229 (rows 0/34; x15, x23 on
+  17/54), Alchemist Recall x1-x5 @236 (rows 13/30/50), gold 6,835, need 10. The Black Market had none.
+- The selector refused the class via the sell-rebuy churn guard: row 0 town_work
+  "store-page:4:1542:shop:sell-rebuy-churn-defect" (policy_shop.py:5170-5172 = no purchase AND
+  churn rows on the Alchemist page). Replay with one sold class added: only Recall (70,11) gives
+  "no purchase" on the Temple page and "no purchase + churn rows" on the Alchemist page; 8 other
+  classes leave Recall @229 as the purchase.
+- The ledger still said obtainable: _supply_page_offers (policy_supply.py:214) ignored the churn
+  refusal, so procurement_requirements had no blocked_reason on all 98 rows.
+- Producer of town:wait-restock:temple: policy.py _recall_restock_key (RESTOCK_WAIT_MACRO, :15406),
+  reached from policy_town.py _town_special_key's recall_only_block branch (:6469-6487) after
+  _supply_stockout_mining_key returned None (blocked = {}, :6879-6882). The in-store recall
+  stock-out time-pass (policy.py:10553) needs _recall_stockout_persists (not obtainable) and so
+  never started. Cross-town is not reached from that branch.
+- Where Recall was sold is not in the logs: pack Recall 7 at 14:01, 0 at 14:42. The only Alchemist
+  sale after the last mining return is seq 301 'd110\ry' at 14:09:40, with no floor change after
+  it. The churn scope is already cleared on every floor change (policy_observation.py:803-806).
+- After the restart (144457): the 52 town:kill-mob-approach came from policy_town.py
+  _town_kill_mob_key (survival). Targets were ordinary town residents (urchin, skinny horse,
+  Black Market agent, drunk, beggar, leper). town_plan was None on every row and Recall was 0/10.
+  This was not analysed further.
+
+CHANGE (one hunk, src/hengbot/policy_supply.py _supply_page_offers)
+  + and not self._purchase_churn_rejected(store_type, item)
+A ware the churn guard refuses this visit is no supplier. Effects: the requirement gets
+no-actionable-supplier, the existing recall stock-out time-pass starts (town:recall-stockout-mining:
+mode prepare, one Yeek Cave 1F run), and the run's floor change ends the churn scope, so the retry
+buys. No new constant, threshold, attribute or reason. The town planner's supply needs share the
+predicate, so they stop routing to such a shelf.
+An earlier draft also cleared the churn state at the mining return. I removed it: the existing
+floor-change reset already does this (the hunk was unpinnable).
+Bookkeeping: scripts/town_work_manifest.json.gz regenerated (it was stale from the line shift). No
+new helpers, so no baseline/review entries. STUCK_FAMILY_REASONS is unchanged.
+
+PINS: tests/test_recall_churn_stockout_recorded.py
+Fixture: tests/fixtures/recall-churn-stockout-20261018.json.gz, 48,737 B, raw state lines of decision
+rows 38-52 plus decision metadata. Extractor: tests/extract_recall_churn_stockout_fixture.py.
+DECLARED walls:
+  (1) ~f skill row of the same character (123828 row 56)
+  (2) Recall class in the visit sale signatures
+  (3) Home and Magic latched as attempted before every decision
+Replay Recall target is 7 (live 10; the destination state is not reconstructed).
+Tests and results:
+  - test_captured_rows: the recorded rows 47-52 and the Temple offer x19 @229, gold 6,835.
+  - test_churn_refused_recall_starts_the_recall_stockout_time_pass:
+      before: row 47 ('\x1b','shop:observe-and-leave'), row 52 ('R300\r','town:wait-restock:temple')
+              (both = recorded; checked by reverting the src hunk)
+      after:  row 47 ('\x1b','town:recall-stockout-mining'), mode prepare, recall plan, 1 run,
+              Recall requirement blocked_reason no-actionable-supplier, and no wait-restock.
+  - Control test_supply_stockout_owner_keeps_its_three_round_stop (constructed: Home work resolved
+    so the only failed leaf is Recall):
+      cycles=3 -> town blocked departure-unsatisfiable
+      cycles=0 -> '5' fundraise:supply-stockout-mining
+      before the fix: dispatcher returned None
+  - Control test_mining_return_ends_the_churn_scope_so_the_retry_buys: Yeek 1F, then town. Churn
+    sets are cleared, the set ends, and _next_purchase on the Temple page = Recall @229.
+  - Control test_control_an_offered_recall_without_churn_is_still_bought: without wall (2), Recall
+    @229 is the wanted purchase, there is no blocked_reason, and no time-pass starts.
+Related existing modules (all OK, assertions untouched):
+  test_supply_ledger_observer_memo, test_crosstown_alt_recorded, test_curse_priority_recorded,
+  test_identify_staff_swap_churn_recorded, test_keep_running_a0, test_recall_stockout_set_end_recorded,
+  test_recall_stockout_surplus_pins, test_step15d2_f2, test_supply_stockout_recorded,
+  test_town_cure_supplier_recorded, test_town_restock_trajectory, test_newchar_light_churn_recorded,
+  test_policy_supply (208), test_policy_shop (275, 1 skip).
+
+GUARD OUTPUTS
+preflight:  [preflight] PREFLIGHT OK: 6 changed files, 0 findings (recall-stockout-wait-1018 vs 99c2fa87)
+mutation:   [mutation] 2 source hunks, tests: test_recall_churn_stockout_recorded
+            [mutation] TEXT ONLY  src/hengbot/policy_supply.py:219 (...): docstring/comment change, nothing to pin
+            [mutation] caught     src/hengbot/policy_supply.py:238 (and not self._purchase_churn_rejected(store_type, item)): test_churn_refused_recall_starts_the_recall_stockout_time_pass, test_mining_return_ends_the_churn_scope_so_the_retry_buys, test_supply_stockout_owner_keeps_its_...
+            [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+            [mutation] recorded for 094a6500
+fast_tier (run after gate log showed "[gate] STOP: 12 tests are >1.5x and +10s slower than main 99c2fa87"):
+            [fast] 3957 fast tests (<2.0s in 29dcd802) + 1 changed modules, 4 shards
+            Crashed shards: none
+            Failures: none
+            Errors: ['tests.test_fundraise_kit_route_recorded (import) ModuleNotFoundError(...)']
+            Total: 3963 tests, 219.5s
+  The one error is not from this branch. fast_tier's list names a module from the other branch
+  (fundraise-kit-route-1018, #66), and that module does not exist at 99c2fa87 or here.
+
+OPEN (not changed)
+- Why Recall was sold in that stay (14:09:40 Alchemist sale). The item is not in the logs.
+- The post-restart town_plan None / kill-mob burst (144457).

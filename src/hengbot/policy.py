@@ -11537,12 +11537,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return walkout
 
         # Worthless remains never travel to town (#70, owner 2026-10-18):
-        # destroy them in the dungeon when a return starts or while the
-        # Recall countdown runs; a latched return walk is not interrupted.
+        # destroy them in the dungeon when a return starts, before the
+        # latch and the Recall read; a latched return is not interrupted.
         if (
-            (return_starting and not self._returning_to_town)
-            or (not snapshot.in_town and player.recalling)
-        ) and not self._return_exit_locked(snapshot):
+            return_starting and not self._returning_to_town
+            and not player.recalling
+            and not self._return_exit_locked(snapshot)
+        ):
             junk = self._worthless_junk_destroy_key(snapshot)
             if junk is not None:
                 return junk

@@ -335,6 +335,7 @@ class HomeMixin:
     ) -> tuple[InventoryItem, int, int] | None:
         # Evaluate Home stock with the same pack retention authority, using a
         # distinct slot so an existing pack stack cannot hide its reservation.
+        recall_short = self._home_full_relief_leaves_recall_short(snapshot, item)
         if not isinstance(item, InventoryItem):
             item = InventoryItem(**{
                 field.name: ("home-surplus" if field.name == "slot"
@@ -370,6 +371,7 @@ class HomeMixin:
                 # selecting it here would withdraw an item no store sale may
                 # take (live 2026-10-05 05:14 retain-standing-digging-tool loop).
                 or self._sale_retains_digging_tool(probe, item)
+                or recall_short
                 or not self._home_full_equipment_surplus(snapshot, item)
                 or store_type is None):
             return None
@@ -377,6 +379,32 @@ class HomeMixin:
         if value is not None and value <= 0:
             return None
         return item, store_type, value or 0
+
+    def _home_full_relief_leaves_recall_short(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem,
+    ) -> bool:
+        """Keep the standing Recall target through a Home-full disposal.
+
+        Issue #68: fundraising (mine/scavenge) suspends the Recall retention
+        target for its own trip only; the expedition after it needs the
+        standing target again (live 2026-10-18 14:09 sold carried 7 + Home 3,
+        then waited at 0/10 for a restock).  The disposal removes this stack
+        and the carried units of its sale identity (a withdrawn Home stack
+        merges into them and the sale takes the whole stack), so count what
+        stays on the pack and on the Home shelves.
+        """
+        if not item.is_recall_scroll:
+            return False
+        identity = self._sale_item_identity(item)
+        left = sum(carried.count for carried in snapshot.inventory
+                   if carried.is_recall_scroll and carried is not item
+                   and self._sale_item_identity(carried) != identity)
+        left += sum(stock.count for stock in self._home_knowledge_items
+                    if stock.is_recall_scroll and stock is not item)
+        depth = self._planned_depth()
+        standing = max(self._supply_ledger(snapshot, depth)["recall"].required_departure,
+                       self._recall_target(depth))
+        return left < standing
 
     def _home_full_equipment_reserved(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # The ordinary Home equipment guard retains every torch. An observed
@@ -433,6 +461,7 @@ class HomeMixin:
         *, identify: bool = False,
     ) -> InventoryItem | None:
         """Apply retention before reclaiming a shelf slot by destruction."""
+        recall_short = self._home_full_relief_leaves_recall_short(snapshot, item)
         if not isinstance(item, InventoryItem):
             item = self._inventory_item_from_store_item(item)
         item = replace(item, slot="home-surplus")
@@ -451,7 +480,8 @@ class HomeMixin:
                     and not empty_identify_surplus)
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
-                or self._home_full_merge_reserved(snapshot, item, destroy=True)):
+                or self._home_full_merge_reserved(snapshot, item, destroy=True)
+                or recall_short):
             return None
         needs_id = not item.known or self._disposal_protected_by_identification(item)
         if needs_id:
