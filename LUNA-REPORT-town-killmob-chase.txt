@@ -1,0 +1,104 @@
+LUNA-REPORT town-killmob-chase (#71) -- STOPPED before any source change (existing tests must change)
+
+Status: diagnosis done (LUNA-DIAG-town-killmob-chase.txt); no src edit committed, no pins, guards not run
+(nothing to guard).  Stopped under the rule "if an existing test must change, STOP and report".
+
+Diagnosis (measured, see DIAG):
+- Producer policy_town.py:5056 _town_kill_mob_key.  With no visible non-pet monster it walks to the remembered
+  _town_hunt_target (branch 5151-5207, reason town:kill-mob-approach at 5183) until within 1 of that cell.
+- It is ranked before every errand in choose_key (policy.py:10852) and is also called inside the travel step
+  itself through _town_clear_traveler_key (policy_shop.py:5928, policy.py:16134).
+- 215136 replay through the real producer (CLI parse path, one policy across rows) reproduces the recorded keys
+  rows 52..86: piranha (race 70, speed 120) flickers in/out of view at (51,133)/(50,134); branch (a) chases it
+  while seen, branch (b) keeps walking south while not seen (49 of the 84 approach rows), last-known-reached at
+  (50,134) yields to shop:travel, travel is interrupted ("トラベルを継続しますか") when the piranha shows again,
+  repeat x4 -> owner-retired-burst.
+
+The prescribed fix (yield when no monster is seen; drop the last-known walk) breaks five existing tests.
+Measured by a temporary edit (out-of-sight branch: release the last-known claim, clear _town_hunt_target,
+return None), run per module, then reverted (git checkout; tree clean):
+  1. tests/test_ownership_s2a1_closure.py LastKnownCellTest.test_the_last_known_walk_is_its_own_claim
+     old: key is not None, last_reason "town:kill-mob-approach", claim goal Reach(target) goal_note "last-known"
+     new: key None (no walk; last-known claim released), no approach reason.
+  2. tests/test_ownership_s2b1b_close_pairs.py TownKillMobChaseTest.test_a_detected_only_target_ends_the_chase_before_the_last_known_walk
+     old: _out_of_sight() asserts last_reason "town:kill-mob-approach"; row goal_note "last-known"
+     new: producer returns None; closed_reason "target-out-of-sight" kept, no last-known goal.
+  3. tests/test_ownership_s2b1b_close_pairs.py TownKillMobChaseTest.test_revert_proof_out_of_sight
+     old/new: same helper assertion as 2 (last_reason "town:kill-mob-approach" -> none).
+  4. tests/test_policy_navigation.py TownTravelerCombatPriorityTest.test_hidden_town_hunt_target_does_not_resume_travel
+     old: hidden target -> ("6", "town:kill-mob-approach")  (the test pins that travel does NOT resume)
+     new: the travel step resumes (value not measured; the opposite of the test's stated intent).
+  5. tests/test_starving_town_recorded.py StarvingTownRecordedTest.test_food_interrupt_preserves_last_known_hunt_for_return
+     old: _town_clear_traveler_key(fed) == "7", last_reason "town:kill-mob-approach"
+     new: None (the kept hunt cell is no longer walked to after feeding).
+  test_town_arbiter: 30 tests OK with the change.
+
+Note for the decision: removing the last-known walk alone may not end this capture's cycle.  35 of the 84 approach
+rows had the piranha in view (branch (a), unchanged by the fix), and it is seen from the travel route, so
+travel north / approach south can still alternate.  Its distance-1 cell (50,134) shows no visible monster, so it is
+never attacked.  Options for the orchestrator: (A) approve the five assertion changes above and the fix as
+prescribed; (B) additionally decide how a seen-but-never-reachable/attackable town monster yields to errands.
+
+Guards: not run (no source change).  Commit: this report and the DIAG only.
+
+ROUND 2 (supervisor: drop unreachable / un-meleeable town monsters as targets) -- STOPPED again, premise not met
+Measured on the CLI replays (scratch harness, real parse path, c36af84e), every row:
+- The piranha is seen only at (51,133) and (50,134).  Both cells are DEEP_WATER (terrain_id 83, flags include
+  MOVE), grid.passable True, and each has 3 adjacent passable cells that are NOT water (dirt, terrain 88:
+  (52,132..134) and (51,135) etc.).  215136: 29 sightings, 184243: 19, all of these two cells.
+- The town router already treats deep water as walkable: the player itself stood in deep water at (50,134) on
+  16 rows (215136) / 15 rows (184243), and at (40..41,134) after travel.  Hengband lets a player melee a monster
+  in water from an adjacent land cell; piranha is AQUATIC (cannot leave water), not unreachable.
+- So "cell the player cannot enter, or no adjacent passable cell to melee from" is false for every recorded
+  sighting; a rule judged with the router's passability helpers selects nothing here and the replay is unchanged
+  (I did not commit a no-op change).
+What actually happens: the piranha is never seen at distance <= 3 (closest sighting 4 in 215136, 5 in 184243;
+fearful False, asleep False, daytime 12:07 / 11:11).  The bot walks to within 1 of its cell, it is out of view
+there (rows at (50,134) show no monster), last-known-reached ends the chase, shop:travel / town:travel-entrance
+is issued, travel moves the player north 9 cells and is disturbed when the piranha comes into view again
+("トラベルを継続しますか" <x3>..<x9>, 7 prompts in 215136, 6 kinds in 184243); the next decision answers with a chase
+direction key ('3'), cancelling travel.  0 attacks on the piranha in both captures.
+Options needing a decision (each is a new rule, so I did not pick one):
+  (C) a town monster that the bot has walked to (last-known-reached) without it being in view there is not
+      re-chased on later sightings while the town errands are pending (needs per-monster memory = a new policy
+      attribute with checkpoint default);
+  (D) a monster whose race cannot leave its terrain (AQUATIC in water, as the game's monster-info.cpp:77-87 rule)
+      and that is not adjacent is not a town kill-mob target; it is still fought when adjacent/attacking;
+  (E) treat deep water as un-enterable for the town kill-mob goal only (still leaves the 3 dry cells, so (E)
+      alone does not stop this chase).
+
+ROUND 3 (supervisor decision (D)) -- implemented, commit 65c29ec5
+Change: policy_town.py _town_kill_mob_key, target list only.  A visible non-pet monster whose race has the
+static flag AQUATIC (MonraceKnowledge.flags, i.e. the game's monster-info.cpp:77-87 "cannot leave water") and
+that is not adjacent to the player is not a target.  It is never assigned to _town_hunt_target, so the last-known
+branch never follows it.  An adjacent one is still assigned and handed to the existing melee.  No new constant,
+threshold, policy attribute or helper.  Bookkeeping: town_work_manifest regenerated (--write; 0 violations),
+src/hengbot/town_work_sites.json digest updated by it.
+
+Replays (CLI parse path, real producer, one policy across all rows; town:kill-mob-approach count):
+  215136: before 68, after 0.   184243: before 68, after 0.   144457 (town people): 52 -> 52, output identical.
+Full choose_key, one fresh policy per board (DECLARED CONSTRUCTED: empty Home catalogue, ~f cache, cross-area on):
+  215136 rows 53,61,65,86 and 184243 rows 40,41,43,70,80 (piranha not seen): '\x1b`n%.' shop:travel.
+  Piranha in view (215136 rows 52,55,75,79; 184243 rows 42,50,60): the ordinary ranged rule fires at it
+  (ranged:fire 'fp2' / ranged:fire-target / ranged:fire-offset), not the town chase.  The next travel macro
+  itself answers the continue prompt with 'n' and travels to the store again; nothing re-plans endlessly in
+  these replays.  Not verifiable offline: whether arrows land in the water and are then sought as loot (watch on
+  the soak).
+Pins: tests/test_town_aquatic_chase_recorded.py (fixture tests/fixtures/town-aquatic-chase-20261018.jsonl.gz,
+  3 raw state rows, 23.6 kB, sha256 ec8fff0f...):
+  - recorded piranha board (row 52): c36af84e '3' town:kill-mob-approach; now _town_kill_mob_key None,
+    hunt target None, choose_key ('fp2', 'ranged:fire'); next recorded board (row 53, nothing seen): c36af84e
+    '2' town:kill-mob-approach (last-known walk); now ('\x1b`n%.', 'shop:travel').
+  - control: 144457 やせこけた馬 (land) still ('9', 'town:kill-mob-approach'), hunt target (24,118).
+  - control (constructed): piranha moved into adjacent deep water -> producer None, hunt target = its cell,
+    choose_key = direction key, reason 'melee'.
+Controls, existing modules unchanged and green: test_ownership_s2a1_closure 80 OK, test_ownership_s2b1b_close_pairs
+  35 OK, test_policy_navigation 129 OK, test_starving_town_recorded 9 OK, test_town_arbiter 30 OK,
+  test_policy_town 592 OK.
+Guards:
+  preflight: [preflight] PREFLIGHT OK: 7 changed files, 0 findings (town-killmob-chase-1018 vs c36af84e)
+  mutation:  [mutation] caught src/hengbot/policy_town.py:5080 : test_recorded_far_piranha_is_not_chased_and_travel_resumes
+             [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test  (recorded for 65c29ec5)
+  fast_tier: [fast] 3920 fast tests (<2.0s in c36af84e) + 1 changed modules, 4 shards; excluded 24 modules
+             measured over 60s; Crashed shards: none; Failures: none; Errors: none; Total: 3925 tests, 190.8s
+  (fast_tier started after gate-bones-1018-r2.run.log showed STOP; no other gate log was active.)

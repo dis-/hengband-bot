@@ -1,0 +1,36 @@
+LUNA-DIAG town-killmob-chase (#71) -- measured on c36af84e
+
+Capture: c4a-loops-20261016/20261018-215136-town-blocked-owner-retired-burst (87 state rows, 97 decision rows).
+Recorded decisions: 84 town:kill-mob-approach (49 with visible_hostiles 0, 35 with 1), 9 shop:travel,
+1 cycle-break, 1 owner-retired-burst.  Earlier captures, same producer:
+  184243: 76 approach (53 with visible_hostiles 0, 23 with 1), 8 town:travel-entrance; monster ピラニア only.
+  144457: 52 approach (13 with 0, 39 with 1), 14 melee, 30 seek-loot; town people (イタズラ小僧 78 sightings, 馬, 酔っぱらい ...).
+
+The only visible monster in 215136 is ピラニア (race 70, level 3, speed 120, friendly False, index 3), seen
+at (51,133) or (50,134) on 29 of 87 rows and absent on the others (it flickers in and out of view while the
+player walks 41..50 along x=135).
+
+Producer: policy_town.py:5056 TownMixin._town_kill_mob_key, called from
+  - policy.py:10852 choose_key, BEFORE every town errand (comment 10848: "Town is cleared before errands
+    resume ... deliberately unconditional: every visible non-pet monster is a target"), and
+  - policy_shop.py:5928 / policy.py:16134 via _town_clear_traveler_key (policy_town.py:5049), i.e. inside the
+    shop/Home/entrance travel step itself, so the town plan step re-emits the same chase.
+Branches:
+  (a) policy_town.py:5085-5150 a visible non-pet monster: adjacent -> friendly attack / melee delegation;
+      otherwise step toward it, reason town:kill-mob-approach (5131).  Sets _town_hunt_target = its position.
+  (b) policy_town.py:5151-5207 no visible non-pet monster but _town_hunt_target remembered (the cell where the
+      chased monster was last seen): walk toward that cell, reason town:kill-mob-approach (5183); ends only
+      when the player is within 1 of the cell (last-known-reached, 5168) or no step exists (5203).
+Preconditions: in_town and dungeon_level 0; not (hungry and no edible).  No bound on count or turns.
+
+Replay (real producer, CLI parse path _consume_response_sequence, one policy across the rows, _town_kill_mob_key
+called per board): matches the recorded keys on every row 52..86, e.g.
+  row 52 t2925188 (41,134) '3' approach  piranha seen (50,134)   hunt None -> (50,134)
+  row 53 t2925196 (42,135) '2' approach  nothing seen           hunt (50,134) kept   [branch (b)]
+  row 55 t2925216 (44,135) '2' approach  piranha seen (51,133)   hunt -> (51,133)    [branch (a)]
+  rows 57-60 (46..49,135) '2','2','2','1' approach, nothing seen, hunt (51,133)     [branch (b)]
+  row 61 t2925250 (50,134) None (last-known-reached, nothing seen) -> the town plan (recorded shop:travel `n%.)
+  row 63 t2925324 (41,134): travel was interrupted ("トラベルを継続しますか" in messages) as the piranha came
+      into view again -> branch (a) again; the cycle repeats 4 times until owner-retired-burst.
+So the chase outranks the town plan because it is ranked first in choose_key and also runs inside the travel
+step, and branch (b) keeps it alive on every board where the monster is not seen (49 of 84 rows here).
