@@ -1125,6 +1125,11 @@ class SupplyMixin:
             return quest[2], quest[1]
         if self._matching_ammo(snapshot) is None:
             return TORCH_THROW_TARGET, self._count_throwing_torches(snapshot)
+        if self._owns_usable_permanent_light(snapshot):
+            # Spare torches only back up a fuelled light; with a permanent
+            # light they are obsolete like its lamp oil (#69: five torch
+            # stacks held the pack below its free-slot minimum).
+            return 0, self._count_usable_torches(snapshot)
         return FOOD_STOCK_TARGET, self._count_usable_torches(snapshot)
 
     def _carry_strategy_potion_target(
