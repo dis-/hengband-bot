@@ -5061,6 +5061,28 @@ class ShopMixin(InStoreMixin):
             )
             return LEAVE_STORE_KEY
 
+        # An in-store entry that has already operated buys before it starts
+        # a new optional sale while the page shows a departure-blocking
+        # purchase (as _in_store_selection does): the sales must not spend
+        # the entry's existing operation budget first.  A sale already in
+        # progress completes first; the purchase order is _next_purchase's.
+        entry_ledger = getattr(self, "_in_store_entry_ledger", None)
+        if (entry_ledger is not None and entry_ledger.get("ops", 0) > 0
+                and self._batch_sell_pending is None
+                and self._departure_blocking_page_purchase(snapshot) is not None):
+            previous_commit_mode = getattr(self, "_shop_selection_commits", False)
+            self._shop_selection_commits = True
+            try:
+                item = self._next_purchase(snapshot)
+            finally:
+                self._shop_selection_commits = previous_commit_mode
+            if item is not None:
+                matches = self._matching_live_purchase_rungs(snapshot, item)
+                return self._shop_purchase_key(snapshot, PurchaseSelection(
+                    matches[0] if matches else None, item, store.store_type,
+                    PurchaseContext(snapshot), self._purchase_quantity(snapshot, item),
+                ))
+
         batch_key = self._batch_sell_key(snapshot)
         if batch_key is not None:
             return batch_key

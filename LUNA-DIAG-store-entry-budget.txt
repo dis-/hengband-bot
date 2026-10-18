@@ -1,0 +1,34 @@
+LUNA-DIAG store-entry-budget (#74) - measured on af25b541
+
+Capture: C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-054156-town-blocked-shop-required-operation-uncomposable
+(bot-decisions.jsonl.gz decisions 7052..7060; state.jsonl.gz rows 72..80 = the nine store-5 pages, all turn 3266048).
+
+1. Budget size and what consumed it
+- STORE_STUCK_LIMIT = 8 (src/hengbot/policy_constants.py:89). The in-store entry ledger counts confirmed
+  effects: ledger["ops"] += 1 in _in_store_effect_confirmed (src/hengbot/policy_instore.py:749).
+- Consumed by 4 inscriptions + 4 sales: 7052 {k@0 (ops 0), 7053 d0y (1), 7054 {k@0 (2), 7055 d0y (3),
+  7056 {l@0 (4), 7057 d0y (5), 7058 {l@0 (6), 7059 d0y (7). Items sold: パニック・モンスターの魔法棒 (14回分),
+  謎の魔法棒 (24回分), 鑑定の杖 (3回分), 邪悪存在感知の杖 (10回分). Gold 9205 -> 9555 -> 9735 -> 9940 -> 10167.
+- 7060: ops 8 >= 8 -> policy_instore.py:464-469 -> _in_store_required_operation_stop("entry-budget"):
+  required-page-continuation {"cause":"entry-budget","operation":"buy","signature":["鑑定の杖 (5x 15回分)",55,5],
+  "row":"m","quantity":1,"budget_identity":7051}.
+
+2. Why the sales ran before the required purchase
+- The requirement appeared after the 3-charge Identify staff sale (7057): from 7058 the in-store selection
+  (_in_store_selection, policy_instore.py:217, "ops > 0" -> _departure_blocking_page_purchase) chose op "buy"
+  (in_store.continue.op = "buy" at 7058 and 7059; shop_selector.wanted_purchase identify-staff m, rejection
+  "preempted").
+- The emitted key comes from _shop (_in_store_emit). _shop_core calls _batch_sell_key (policy_shop.py, before
+  the ordinary sale/purchase rungs) which, with no pending sale, starts a new sale inscription from
+  _current_store_sale_candidates (policy_shop.py:4187) -> "shop:batch-inscribe" {l@0. _in_store_emit only
+  re-addresses a buy key that differs from the selection (policy_instore.py:553); an inscribe/sell key is
+  accepted. So the shop selector's sale-first order overrode the selection's required-buy-first order.
+  Replay (tests/test_store_entry_budget_recorded.py) on af25b541 reproduces all nine captured keys.
+
+3. Why leave + re-enter (fresh budget) is not taken
+- policy_instore.py:464-469 routes a remaining departure-blocking page operation at budget exhaustion to the
+  typed stop by design (F3), and the existing test tests/test_step15d2_f3.py
+  test_entry_budget_stop_is_visible_and_keeps_the_existing_budget asserts that stop (key "\x1b", reason
+  town:blocked:shop-required-operation-uncomposable, cause "entry-budget"). Changing it would change an existing
+  assertion, so the fix takes the other approved option: the required purchase is posted before a new optional
+  sale spends the budget.
