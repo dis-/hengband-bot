@@ -1,0 +1,39 @@
+{
+  "source_capture": "c4a-loops-20261016/20261018-063248-town-blocked-departure-unsatisfiable",
+  "decision_capture": "c4a-loops-20261016/20261018-lantern-loss-decisions/bot-decisions-0624-0633.jsonl.gz",
+  "rows": [
+    {
+      "line": 0,
+      "source_row": 0,
+      "turn": 656632,
+      "floor": [
+        2,
+        1,
+        0
+      ],
+      "recorded_decision_sequence": 30909,
+      "recorded_reason": "return:explore",
+      "recorded_rung": "_return_to_town_key#3",
+      "recorded_light_radius": 1
+    },
+    {
+      "line": 1,
+      "source_row": 94,
+      "turn": 658046,
+      "floor": [
+        0,
+        0,
+        0
+      ],
+      "recorded_decision_sequence": 30987,
+      "recorded_reason": "inventory:destroy-disposable-item",
+      "recorded_key": "01kn"
+    }
+  ],
+  "source_sha256": {
+    "board_capture": "f86a526760cdc3e1a4cd722204f8d99ac5e082a72447d3602435aa0357f87fa6",
+    "decision_capture": "e2eb70e7f603008ba1a140bed4edbc99e4e62ec47bf83732c9e9163d7eee4683"
+  },
+  "board_sha256": "8979a200d28489ad503aae474194c10584e6f9c0bb1b48c05b67553fd1326f89",
+  "notes": "Two state rows parsed as-is. The return latch (policy runtime state) and, for the above-zero case, the worn lantern fuel are DECLARED CONSTRUCTED in the test; policy checkpoints were not captured."
+}
