@@ -2043,7 +2043,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "489c403bc6b9fa41802a3042def842322851cc019d895104bcc0eef23e18b32c"
+    "ast_sha256": "debecfd99c9542894c8cd16d4bdcf8880fa715c86d806b7837d6a0ee7278d3b2"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5445,6 +5445,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "c5284c9c6fa024cad1bd12b1be21b6d9f2308d968ec772a150035dd84de8ec64"
+  },
+  "policy_identification.py:IdentificationMixin._worthless_junk_destroy_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "c3c82f5b3558e1b703d3a9b608a0a7d0e5190ba8dcf6022322da9167f40a81ee"
   },
   "policy_instore.py:InStoreMixin._in_store_cached_shop": {
     "classification": "adapter",

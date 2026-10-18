@@ -31,9 +31,6 @@
     "self._suppress_pending_stair_command(snapshot, key) @ ": 1,
     "self._update_combat_outcome(snapshot) @ ": 1
   },
-  "policy.py:_decide": {
-    "self._verified_destroy_key(snapshot, self._find_worthless_junk, 'inventory:destroy-worthless-junk') @ If:body:not snapshot.in_town and (not self._returning_to_town or player.recalling) and (self._find_worthless_junk(snapshot) is not None)": 1
-  },
   "policy.py:_finish_mining_floor": {
     "self._leave_fundraising_floor(snapshot, allow_recall=not (self._fundraising_mode == 'mine' and self._breeder_breakthrough_floor == snapshot.floor_key)) @ ": 1
   },
@@ -251,6 +248,9 @@
   },
   "policy_identification.py:_full_pack_destroy_key": {
     "self._verified_destroy_key(snapshot, self._find_disposable_item, 'inventory:destroy-disposable-item') @ ": 1
+  },
+  "policy_identification.py:_worthless_junk_destroy_key": {
+    "self._verified_destroy_key(snapshot, self._find_worthless_junk, 'inventory:destroy-worthless-junk') @ ": 1
   },
   "policy_identification.py:_full_pack_loot_triage_key": {
     "self._floor_item_identify_key(snapshot, floor_item) @ For:sorted(loot_positions, key=lambda candidate: snapshot.player.position.distance_to(candidate)) / For:self._look_floor_items.get(position, ()) / If:body:item_base_cost(floor_item, self._baseitem_costs) is None / If:body:position == snapshot.player.position": 1,

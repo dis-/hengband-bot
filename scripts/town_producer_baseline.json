@@ -380,6 +380,7 @@
   "policy_identification.py:IdentificationMixin._find_identification_source": "pure helper: _find_identification_source returns tuple[str, InventoryItem] | None used as input/observation, not an independently selected game action",
   "policy_identification.py:IdentificationMixin._find_identification_source.available": "pure helper: available returns bool used as input/observation, not an independently selected game action",
   "policy_identification.py:IdentificationMixin._full_pack_destroy_key": "town producer to migrate: Destroy one disposable item to free a pack slot, verifying progress.",
+  "policy_identification.py:IdentificationMixin._worthless_junk_destroy_key": "town producer to migrate: Destroy carried worthless remains/junk before the town return (#70).",
   "policy_identification.py:IdentificationMixin._full_pack_loot_triage_key": "town producer to migrate: Identify and exchange valuable guardian loot before permitting return.",
   "policy_identification.py:IdentificationMixin._identification_flow_candidate": "pure helper: Return whether the town identification scan should own an item.",
   "policy_identification.py:IdentificationMixin._identification_flow_owns": "pure helper: _identification_flow_owns returns bool used as input/observation, not an independently selected game action",

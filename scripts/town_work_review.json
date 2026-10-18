@@ -6270,6 +6270,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_identification.py:IdentificationMixin._worthless_junk_destroy_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_identification.py:IdentificationMixin._full_pack_loot_triage_key": {
     "classification": "producer",
     "rows": [

@@ -540,6 +540,16 @@ class IdentificationMixin:
             "inventory:destroy-disposable-item",
         )
 
+    def _worthless_junk_destroy_key(self, snapshot: Snapshot) -> str | None:
+        """Destroy carried worthless remains/junk before the town return (#70)."""
+        if self._find_worthless_junk(snapshot) is None:
+            return None
+        return self._verified_destroy_key(
+            snapshot,
+            self._find_worthless_junk,
+            "inventory:destroy-worthless-junk",
+        )
+
     @claims(ClaimOwner.FLOOR_LOOT)
     def _full_pack_loot_triage_key(self, snapshot: Snapshot) -> str | None:
         """Identify and exchange valuable guardian loot before permitting return."""
