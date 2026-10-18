@@ -1,0 +1,75 @@
+ISSUE #66 recurrence - report (branch kit-route-again-1019, base af25b541)
+
+Measured diagnosis (details: LUNA-DIAG-kit-route-again.txt)
+- Capture 20261019-0050-manual-town-wander, decision rows 2434-2710: fundraising prepare
+  (kit_secured false, gold_trigger true), pack Treasure Detection 0, digger 1; Home (state row 112)
+  holds 財宝感知の巻物 x7 and two diggers. Five Home passes (rows 2434-2449) counted
+  "fundraising-kit" without posting a detection withdrawal: recorded town ledger need_attempts
+  {"fundraising-kit": 5}.
+- _town_claims_active retires a Home need at need_attempts >= NeedSpec.budget (3)
+  (policy_town.py:3756-3760 at af25b541) -> town_claims [] on every wander row.
+- The plan builder (policy_town.py:3123-3160) still added Home "fundraising-kit" and counted the 7
+  Home scrolls as the kit's supply (0 + 7 >= target 5), so the Alchemist "fundraising-detection"
+  stop was never added. Alchemist not attempted ({}), kit reserve 0, Alchemist price 23 x31
+  -> affordable at 1,587 gold. Plan ["Home"], no live claim -> _explore_step#1 /
+  _town_idle_key -> _least_visited_neighbor with no target (232 stuck:wander, 5-7 s each).
+- Cure Critical 9/10 is the recall-departure conjunct; in prepare the fundraising branch returns
+  before the supply-ledger routes (policy_town.py:3254) and _fundraising_departure_ready does not
+  need it (replay row 2547: departure_ready True, supplies_ready False). The blocking piece is the
+  kit, not Cure Critical; no change made there.
+
+Change (src/hengbot/policy_town.py, fundraising branch of _town_need_candidates)
+- home_kit_route_live = need_attempts["fundraising-kit"] < the registry spec budget (the same
+  retirement bound _town_claims_active uses; no new constant).
+- Home "fundraising-kit" is added only while that route is live, and Home detection counts toward
+  the kit only while it is live. With the route retired, the Alchemist "fundraising-detection"
+  claim is live and the plan is [Alchemist].
+- No new policy attribute (no restored-checkpoint defaults needed). No new reason.
+- Manifest refreshed (scripts/town_work_manifest.json.gz: 831 candidates, zero unmapped).
+
+Pins (tests/test_fundraise_kit_retired_recorded.py; fixture
+tests/fixtures/fundraise-kit-retired-20261019.json.gz from tests/extract_fundraise_kit_retired_fixture.py:
+raw state rows of decision rows 2547-2548, recorded ledger of row 2544, Home list state row 112,
+skill state row 1)
+- DECLARED CONSTRUCTED walls: fundraising mode "prepare", Home list (row 112), skill list,
+  recorded need_attempts (row 2544) set on the first board.
+- test_retired_home_kit_route_travels_to_the_alchemist, row 2547:
+    af25b541: ('1', 'stuck:wander')  (= recorded)
+    branch:   ('\x1b`n%.', 'shop:travel'), plan stops [Alchemist],
+              need_categories {Alchemist: ('fundraising-detection',)}
+- test_control_live_home_kit_route_stays_home_first (no ledger wall): ('\x1b`n(.', 'shop:travel'),
+  plan [Home] (home-first kept while the route is live) - green before and after.
+- test_captured_rows: recorded keys/reasons, prepare, plan ["Home"], claims [], gold 1,587,
+  need_attempts 5, Home detection 7.
+
+Controls (single modules, branch)
+- test_fundraise_kit_home_recorded (#64): OK (3)
+- test_fundraise_kit_route_recorded (#66 a/b): OK (4)
+- test_sale_inscribe_buy_recorded: OK (3)
+- test_no_safe_destination_recorded: OK (5)
+- test_policy_quest: OK (skipped=7)
+No existing test was edited.
+
+Guard outputs (after commit ccb933be; fast_tier run after gate-bones-1019 ended with STOP)
+- preflight.py:
+  [preflight] PREFLIGHT OK: 6 changed files, 0 findings (kit-route-again-1019 vs af25b541)
+- mutation_check.py --tests test_fundraise_kit_retired_recorded --record:
+  [mutation] 2 source hunks, tests: test_fundraise_kit_retired_recorded
+  [mutation] caught     src/hengbot/policy_town.py:3127 (# Issue #66 (2026-10-19 00:20): once the Home kit route has): test_control_live_home_kit_route_stays_home_first, test_retired_home_kit_route_travels_to_the_alchemist
+  [mutation] caught     src/hengbot/policy_town.py:3162 () if home_kit_route_live else 0): test_retired_home_kit_route_travels_to_the_alchemist
+  [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+  [mutation] recorded for ccb933be
+- fast_tier.py --shards 4:
+  [fast] 3908 fast tests (<2.0s in af25b541) + 1 changed modules, 4 shards
+  [fast] excluded 22 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 3927 tests, 296.6s
+
+Not done / notes
+- Why the five Home passes never withdrew the kit (identification-catalog, full-home relief and
+  deposit work took every Home page) is the #64 family and not changed here; this change only
+  stops the retired route from leaving the bot with no claim.
+- The digger side has the same shape (_has_withdrawable_digging_tool counts Home diggers even when
+  the Home route is retired); not exercised by this capture (a digger was in the pack), not changed.
