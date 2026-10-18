@@ -200,3 +200,15 @@ ROUND 6 - STOP (intended junk-skip consequence; tests NOT edited, src unchanged)
   all 8 tests of the module fail at the same assertion.
 - Decision needed: re-baseline this replay (first changed decision 342 instead of 1180, or a declared
   divergence for 342) or not.
+
+ROUND 7 (supervisor decision: wall the junk-pile skip in the town-approach replay), commit 183e3569
+- tests/test_town_approach_retired_recorded.py: new _recorded_junk_pile_loot() = DECLARED CONSTRUCTED
+  wall (patch.object(HengbotPolicy, "_floor_pile_is_worthless", staticmethod(lambda _grid: False),
+  create=True)) entered with the module's other walls in _replay; comment cites #70, the owner
+  directive and row 342 (recorded '7' fundraise:seek-loot vs 'T3' fundraise:dig-to-treasure, single
+  skeleton pile at (40,35)). HOME_KNOWLEDGE_FIRST_CHANGED and all assertions unchanged.
+- Branch: module 11 tests OK. af25b541 + the edited test (temporary worktree, removed): 11 tests OK
+  (create=True makes the wall a no-op where the helper does not exist).
+- Guards vs c36af84e (merge base): preflight OK (22 files, 0 findings); mutation_check MUTATION OK
+  0 of 7 hunks unpinned (recorded for 183e3569); fast_tier (after the 1019 gates finished) 3957 tests,
+  Failures none, Errors none. src unchanged since 1bab1456, so the round-5 module runs still apply.
