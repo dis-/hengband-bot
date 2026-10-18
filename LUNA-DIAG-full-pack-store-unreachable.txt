@@ -1,0 +1,28 @@
+#73 diagnosis (replay on 45f0bdc1)
+
+Capture: c4a-loops-20261016/20261019-050617-town-blocked-owner-retired-burst (state rows 77 dungeon, 83 first town board).
+Replay: real policy; Home census from tests/fixtures/home-junk-bones-20261018 (same life, DECLARED CONSTRUCTED),
+_home_capacity_observation=(240,240,0) and a relief with the spear as blocked deposit (DECLARED CONSTRUCTED; the live relief
+began before the capture). Replay reproduces the live reason on every decision:
+  row 83/84/85 -> '5' town:blocked:home-full-surplus-store-unreachable, 4th -> town:blocked:owner-retired.
+
+MEASURED
+1. Selected surplus/store: pack is 23/23, so policy_home.py:1072-1076 uses carried_stock; the sale candidate is
+   ('鑑定の杖 (7回分)', 55, 5) -> STORE_MAGIC (5), pack_only=True (policy_home.py:1213-1222). Retention reservation 0
+   (reserved: Speed 9, CCW 10, Heal 4, Teleport, Recall ... per decision row retention_reservations).
+2. Why "unreachable": policy_home.py:1237 _shopping_approach_step(snapshot, 5) returns None at policy_shop.py:5653.
+   The player is at (37,105); the Magic shop entrance is (38,106), diagonal and adjacent, store_number=5, passable door.
+   _walkable_neighbors(37,105) == [] because self._floor_t is the PREVIOUS floor's index: after the dungeon decision
+   len(_floor_t)=61, (37,104) not in it. _build_grid_index runs only in prime() and at policy.py:10619 (after the
+   in-store branch of _decide); the full-Home relief producer runs earlier (policy.py:10404-10415), so on the first town
+   board after a recall it routes on the dungeon's cells. Every following decision returns at the relief again, so the
+   index is never rebuilt. After _build_grid_index(board): len(_floor_t)=11049, neighbours include (38,106).
+   Not a closed store, not an entrance/route-cost rule, not the pack-full travel rule.
+3. Why no fallback: the step-None branch (policy_home.py:1238-1240) only sets home-full-surplus-store-unreachable and
+   returns _town_blocked_key; there is no destroy fallback there. The carried-junk destroy fallback
+   (policy_home.py:1152-1185) applies only when no sale candidate exists and the pack has a free slot.
+4. What the wait waits for: nothing that can change. '5' (wait) leaves board and index unchanged; the town-plan claim's
+   budget (3) runs out and the arbiter retires it -> owner-retired-burst (decision 22025).
+
+FIX: build the grid index for the current town board before the outside-store producers in _decide (overweight-surplus
+sale and full-Home relief) route on it. The store is then reached (policy chooses '3' shop:approach onto (38,106)).

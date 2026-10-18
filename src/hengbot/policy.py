@@ -10395,6 +10395,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 budget_ref="home-operation-existing-budget",
             )
             return WAIT_KEY
+        if snapshot.in_town and snapshot.store is None:
+            # The outside-store producers below route on the grid index. On
+            # the first town board after a recall it still held the previous
+            # floor's cells, so an adjacent store was "unreachable" (#73).
+            self._build_grid_index(snapshot)
         if snapshot.in_town and self._overweight_surplus_disposal is not None:
             surplus_key = self._town_producer_entry("_overweight_surplus_sale_key",
                 lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
