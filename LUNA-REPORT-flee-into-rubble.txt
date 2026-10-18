@@ -1,0 +1,76 @@
+LUNA-REPORT flee-into-rubble (issue #75)
+
+Branch flee-into-rubble-1019, base cc191288.
+Commits: 32283b27 (fix + pins + manifest), 25ce22c8 (item-sink pin bookkeeping), this report.
+
+MEASURED DIAGNOSIS (details in LUNA-DIAG-flee-into-rubble.txt)
+- Replaying 20261019-062555 state row 72 (turn 3407514, floor (1, 24, 41), Level 30, HP 600/600,
+  player (12,38)) through the real choose_key reproduces '8' no-wait:flee; the same-turn rows after it
+  ("岩石が行く手をはばんでいる。") repeat '8'. 20261019-062620 row 71 (turn 3407549) reproduces it too.
+- Producer: policy_combat.py:493-499 _forbid_wait_while_damaged rewrote the selected WAIT ('5',
+  reason summoner:hold-choke) with step = _flee_step(...) posted as a bare _direction_key.
+- North (11,38) is terrain 49 RUBBLE (passable=False, wall=False, can_dig=True, is_rubble). The flee
+  neighbours (_walkable_neighbors, policy.py:19393-19395) include orthogonal rubble because the router
+  tunnels it; the floor neighbours (13,37..39) are closer to the hostiles, so rubble was the only
+  flee candidate. Every other _flee_step caller posts through _step_toward, which converts a rubble step
+  to 'T'+dir (policy_navigation.py:1833-1850); this caller alone posted a plain move.
+- Not remembered: nothing reads the refusal message; the refused-dig memory (_rejected_dig_attempts ->
+  _blocked_rubble, RUBBLE_REJECT_LIMIT) lives in _step_toward, which this producer bypassed.
+- Flee at full HP: "summoner:hold-choke" is not a sanctioned wait (it does not end with ":hold"), and
+  both 蛇人間 (race 364; (16,41) d4, (17,42) d5; awake; max_ranged_damage 138) have line of fire with
+  1-turn predicted damage 7 each -> under_fire. That is the approved flee rule and is unchanged.
+
+CHANGE
+- policy_combat.py: the no-wait flee step is posted with self._step_toward(snapshot, step) instead of
+  self._direction_key(...). A rubble step becomes 'T8'; a dig the game refuses (same turn) is counted
+  by the existing rejected-dig signature and the rubble is dropped from the route after
+  RUBBLE_REJECT_LIMIT, so the step is not repeated. No new constant, threshold or policy attribute
+  (no restored-checkpoint defaults needed).
+- Bookkeeping: scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json regenerated
+  (ast hash of _forbid_wait_while_damaged; census unchanged: 831 candidates, 21135 call sites).
+  scripts/item_sink_adapters.json: removed the pinned expression
+  "self._direction_key(snapshot.player.position, step) @ If:body:not only_suppressed_weak_breeders / ..."
+  for _forbid_wait_while_damaged, because that direct call no longer exists
+  (test_item_sink_lint.test_every_pinned_adapter_call_still_exists / test_repository_item_sinks failed
+  on it; test code unchanged; module now 18 OK). No STUCK_FAMILY_REASONS change (no new reason).
+
+PINS  tests/test_flee_into_rubble_recorded.py, fixture tests/fixtures/flee-into-rubble-20261019.jsonl.gz
+(2 raw rows, 15,173 bytes; DECLARED CONSTRUCTED: ~f cache, quest speed potion already tried, same-turn
+repost for the refused dig, rubble->floor in the control)
+                                                    cc191288 (measured)         after fix
+  recorded 062555 row 72                            '8'  no-wait:flee           'T8' no-wait:flee
+  recorded 062620 row 71                            '8'  no-wait:flee           'T8' no-wait:flee
+  same board reposted 6x (dig refused)              '8'  no-wait:flee x6        'T8' x4, then '1' no-wait:least-visited x2
+  control: rubble replaced by open floor            '8'  no-wait:flee           '8'  no-wait:flee (unchanged)
+
+EXISTING TESTS (single modules, after the fix): test_policy_combat 303 OK (5 skipped),
+test_low_hp_no_unchecked_walk 11 OK, test_owner_retirement_slice1 16 OK, test_posted_effect_unobserved 7 OK,
+test_reward_approach_progress 3 OK, test_staged_prompt_chain_rewrite 5 OK, test_starving_town_recorded 9 OK,
+test_town_cat_no_wait_recorded 5 OK, test_item_sink_lint 18 OK. No existing test assertion changed.
+
+NOT CHANGED (noted only): policy.py:10216-10240 (the unseen-attacker no-wait flee) also posts
+_walkable_neighbors steps with a bare _direction_key and could meet the same rubble; not observed, left
+for a separate issue (one defect only).
+
+GUARD OUTPUTS
+
+preflight.py (after the last source commit 25ce22c8):
+  [preflight] PREFLIGHT OK: 7 changed files, 0 findings (flee-into-rubble-1019 vs cc191288)
+  (The first run, before 25ce22c8, failed only test_item_sink_lint on the stale pinned
+  _direction_key expression; fixed by the bookkeeping commit above.)
+
+mutation_check.py --tests test_flee_into_rubble_recorded --record:
+  [mutation] 1 source hunks, tests: test_flee_into_rubble_recorded
+  [mutation] caught     src/hengbot/policy_combat.py:497 (# The flee neighbours include orthogonal rubble, which the): test_recorded_flee_tunnels_the_rubble_instead_of_walking_into_it, test_recorded_restart_board_tunnels_the_rubble, test_refused_dig_is_not_repeated
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for 25ce22c8
+
+fast_tier.py --shards 4 (started 08:49 after gate-three-1019 logged STOP and gate-bones-1019b MERGED):
+  [fast] 3881 fast tests (<2.0s in 7055efd6) + 1 changed modules, 4 shards
+  [fast] excluded 24 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-4se6v9gw)
+  Failures: none
+  Errors: ['tests.test_store_entry_budget_recorded (import) ModuleNotFoundError("No module named 'tests.test_store_entry_budget_recorded'")']
+  Total: 3893 tests, 197.6s
+  The single error is not a regression: the module was added by #74 (commit 6f1022ed) on another
+  branch and is in the fast list from green state 7055efd6, but does not exist at base cc191288.
