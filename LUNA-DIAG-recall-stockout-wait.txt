@@ -1,0 +1,64 @@
+ISSUE #68 - measured diagnosis (base 99c2fa87). Verdict: NOT a shelf stock-out. Recall was on the
+Temple and Alchemist shelves and affordable; the purchase selector refused the class through the
+sell-rebuy churn guard, while the supply ledger still counted both shelves as actionable suppliers.
+So neither the recall stock-out time-pass nor the generic supply stock-out owner could start, and
+the recall owner waited for a restock that cannot change a churn refusal.
+
+Capture: C:\hengband-backups\state-logs\c4a-loops-20261016\20261018-144235-stall-floor-dwell-town-wait-restock-temple
+98 decision rows (seq 1542-1639); state.jsonl holds 94 rows covering decision rows 38-97 only
+(turns 2476797-2534840). Replay harness: tests/test_recall_churn_stockout_recorded.py (public
+response path, _segments/_consume_response_sequence as in test_fundraise_kit_home_recorded.py,
+live argv flags). DECLARED walls: ~f skill row of the same character (123828 state row 56); Recall
+class in the visit's sale signatures; Home and Magic latched attempted (live plan: Temple/Black
+Market only). No Home knowledge wall (Home at 140156 row 28 held 1 Recall, the live 14:42 plan had
+no Home stop).
+
+1) Is Recall classified as a stock-out? No.
+   - Shelves (state rows): Temple (store 3) row 0 turn 2476797: 帰還の詔の巻物 x19 @229; rows 17/34/54:
+     x15/x19/x23 @229. Alchemist (store 4) rows 13/30/50: x1/x4/x5 @236. Black Market (store 6)
+     rows 4/21/40: no Recall. Gold 6,835 on every row; need 10 (2,290 at the Temple).
+   - Decision rows: procurement_requirements [Word of Recall 0/10] with NO blocked_reason on all 98
+     rows; departure_block.failed ["recall_departure_ready"]; shop_selector at Temple/Alchemist/BM
+     "observed-page-nothing-wanted"; in_store.shelf_evidence_skips recall absent:true for stores 3
+     and 4 (the dry run _shelf_dry_run_absent, policy_instore.py:964, saw no purchase).
+   - Row 0 town_work: work_id "store-page:4:1542:shop:sell-rebuy-churn-defect" = _shop
+     (policy_shop.py:5170-5172): _next_purchase None AND _purchase_churn_rows non-empty on the
+     Alchemist page.
+   - Replay (row 38 Temple page / row 47 Alchemist page), _next_purchase with one sold class added:
+     (70,26),(70,12),(75,45),(70,9),(70,8),(70,22),(70,14),(75,36) -> Recall @229 is bought;
+     (70,11) Recall -> None at the Temple and None + churn rows at the Alchemist. Without any churn
+     -> Recall x19 @229. Only the Recall class reproduces both recorded verdicts.
+   - Why the ledger said "obtainable": _compute_supply_ledger (policy_supply.py:283-305) counts a
+     remembered page through _supply_page_offers (policy_supply.py:214), which checks ware + price/
+     attempted but not _purchase_churn_rejected (policy_shop.py:2286). So blocked_reason
+     "no-actionable-supplier" (policy_supply.py:648) was never set.
+   - Where Recall was sold: not in the logs. Measured: pack Recall 7 at 14:01 (140156 last state
+     row), 0 at 14:42; this process (sequence restart at 14:07:44) posted one Alchemist sale after
+     its last mining return (seq 280 fundraise:ascend 14:09:15; seq 300 '{e@1', seq 301 'd110\ry'
+     14:09:40) and no dungeon floor since (posted-characters). The churn scope is cleared on every
+     floor change (policy_observation.py:803-806), so the refusal belongs to that same town stay.
+
+2) Producer of town:wait-restock:temple and why it outranks the stock-out paths
+   - town_work chain (row 4): policy.py:HengbotPolicy._recall_restock_key (line 15406) called from
+     policy_town.py:TownMixin._town_special_key. The board is the recall_only_block branch
+     (policy_town.py:6467-6487): _supply_stockout_mining_key is tried first and returns None
+     because blocked={} (no no-actionable-supplier row, policy_town.py:6879-6882), then
+     _recall_restock_key: both stores rechecked, no owned kit gate passed -> RESTOCK_WAIT_MACRO
+     (policy.py:15404-15406), reason town:wait-restock:temple (_restock_wait_reason).
+   - In-store recall stock-out time-pass (policy.py:10553 _start_unobtainable_recall_stockout_
+     mining) needs _recall_stockout_persists (policy.py:15434: count < required and not
+     obtainable); obtainable was True, so it never started.
+   - Replay on 99c2fa87 under the walls: row 47 ('\x1b', shop:observe-and-leave) and row 52
+     ('R300\r', town:wait-restock:temple) = recorded.
+
+3) Why mining time-pass / cross-town never started
+   - Both are gated on the same classification (no actionable supplier); the ledger reported an
+     actionable supplier (the churn-refused shelf). Cross-town is not reached: the recall_only_block
+     branch returns _recall_restock_key before it.
+
+4) The 52 town:kill-mob-approach after the restart (144457 capture, fresh process seq 6-103)
+   - Producer policy_town.py:TownMixin._town_kill_mob_key (town_work line 5115, owner survival,
+     goal Reach monster): ordinary town residents (visible: 汚いイタズラ小僧 x78 rows, やせこけた馬 30,
+     ブラックマーケットのエージェント 24, 酔っぱらい 15, 乞食 13, 病人 13), 14 melee, 30 seek-loot;
+     town_plan None and Recall 0/10 on every row, then owner-retired-burst. Not analysed further
+     (no store visit was planned in that window; out of scope of this one defect).
