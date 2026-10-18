@@ -7375,7 +7375,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "fbd151dac95e5a3909d067fce03f44b9e3103fa690fab15385ef285f6a237d3b"
+    "ast_sha256": "417a47ecdd0c35b0985c2afe077fc0415ca956cb9beb02cededb17741b21af07"
   },
   "policy_town.py:TownMixin._town_map_active": {
     "classification": "data",
