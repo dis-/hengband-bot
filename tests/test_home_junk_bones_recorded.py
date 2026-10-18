@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
 import gzip
+import hashlib
+import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -31,6 +33,8 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DUNGEON = FIXTURES / "lantern-lost-20261018.jsonl.gz"
+HOME = FIXTURES / "home-junk-bones-20261018.jsonl.gz"
+HOME_BOUNDARIES = FIXTURES / "home-junk-bones-20261018.boundaries.json"
 BOLT_PILE = Position(11, 59)
 RECORDED_CORPSE_PILE = Position(10, 62)
 
@@ -136,6 +140,35 @@ class HomeJunkBonesRecordedTest(unittest.TestCase):
         policy._position_changed = True
         self.assertEqual(policy._current_floor_item_key(
             underfoot, pickup_reason="pickup", trigger_reason="trigger-autodestroy"), "g")
+
+
+    def test_full_home_destroys_remains_before_any_sale(self):
+        with gzip.open(HOME, "rt", encoding="utf-8") as stream:
+            home_lines = stream.read().splitlines()
+        self.assertEqual(hashlib.sha256(gzip.decompress(HOME.read_bytes())).hexdigest(),
+                         json.loads(HOME_BOUNDARIES.read_text(encoding="utf-8"))["board_sha256"])
+        policy = _policy(self.directory, self.monrace)
+        policy._crossarea_fundraising_enforced = True
+        board = self._consume(policy, home_lines[0])[-1]
+        # DECLARED CONSTRUCTED: the posted ~9 request whose answer is line 1.
+        policy._home_knowledge_scan_inflight = True
+        policy._home_knowledge_scan_epoch = None
+        self._consume(policy, home_lines[1])
+        board = self._consume(policy, home_lines[2])[-1]
+        policy._skill_exp_cache = (0, 0, board.player.level, policy._town_visit_epoch)
+        self.assertEqual((board.store.stock_num, board.store.capacity), (240, 240))
+        self.assertEqual(sum(item.tval == 10 for item in policy._home_knowledge_items), 100)
+        self.assertTrue(policy._home_is_full(board))
+        # DECLARED CONSTRUCTED: the relief's blocked deposit (the bolt stack).
+        bolts = board.inventory[-1]
+        policy._begin_home_full_relief(board, (
+            (policy._item_signature(bolts), bolts.count, bolts.count),), refused=True)
+        policy._home_full_relief_key(board)
+        relief = policy._home_full_relief
+        self.assertEqual(relief["mode"], "destroy")
+        signature, store_type, _before = relief["sale"]
+        self.assertIn(signature[1], {1, 3, 10})
+        self.assertEqual(policy._home_errand.request.purpose, "full-home-discard")
 
 
 if __name__ == "__main__":
