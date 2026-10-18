@@ -1,0 +1,17 @@
+{
+  "source_capture": "c4a-loops-20261016/20261018-234158-loop-detected",
+  "rows": [
+    {
+      "line": 0,
+      "source_row": 103,
+      "turn": 2941127
+    }
+  ],
+  "recorded_decisions": "559-569 alternate fundraise:seek-loot (to the tval 3 pile (16,48), 陶器のかけら) and fundraise:seek-treasure back to (15,47) until loop-detected at 569",
+  "source_sha256": {
+    "board_capture": "5be01a57468595e6ce0827a1429e21e18bcde194de12f73bff8ec691a79bd299",
+    "decision_capture": "0d5435ea6fc2c56f483a5e60e98aeb2f6121874bea7ba1ab4dfe8e00596f1c40"
+  },
+  "board_sha256": "31c5071062ef7ee8ea77354cc3e83297f169f0557c0462eaa5ec37c3d8ff052b",
+  "notes": "One state row copied as-is (Yeek cave L1, player (15,47) beside the junk-only pile). The fundraising mode 'mine' (decision telemetry) is DECLARED CONSTRUCTED in the test."
+}

@@ -149,6 +149,19 @@ def _recorded_optional_reserve():
     )
 
 
+def _recorded_junk_pile_loot():
+    """DECLARED CONSTRUCTED wall (#70): keep this lifetime's junk-pile loot.
+
+    Owner directive 2026-10-18: worthless piles are not loot.  This 2026-09-25
+    lifetime walked to a single skeleton pile at (40,35) during fundraising
+    (row 342: recorded '7' fundraise:seek-loot; with the skip, 'T3'
+    fundraise:dig-to-treasure), which would end the replay before the town
+    decisions this module checks.  The skip is disabled for this replay only.
+    """
+    return patch.object(_P2Policy, "_floor_pile_is_worthless",
+                        staticmethod(lambda _grid: False), create=True)
+
+
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "town-approach-retired-20260925.jsonl.gz"
 CALIBRATION = FIXTURES / (
@@ -329,7 +342,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             return cls.replay
         cls.path = {}
         with (TemporaryDirectory() as raw_directory,
-              _pre_p2_departure_count(), _recorded_optional_reserve()):
+              _pre_p2_departure_count(), _recorded_optional_reserve(),
+              _recorded_junk_pile_loot()):
             directory = Path(raw_directory)
             policy = cls._new_policy(directory)
             replay = []

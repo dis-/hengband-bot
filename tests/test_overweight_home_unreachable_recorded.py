@@ -144,6 +144,14 @@ STOP = 3781  # sequence 3780, town:blocked:overweight-home-unreachable
 # decides indices below it only.
 STRIP_START = 3734  # sequence 3733, base arms the strip deposit phase
 DUMP_REQUEST = 3701  # sequence 3700, declared rework divergence
+# #70 (owner directive 2026-10-18: do not pick up bones): skeleton (tval 1)
+# piles are no longer loot.  At 1578 the walk keeps the bolt pile (3,85)
+# instead of the vanished skeleton at (2,84), so these seek-loot rows take
+# another route (recorded -> replay key): 1588 '9'->'3', 1589 '2'->'1',
+# 1590 '6'->'2', 1620 '9'->'1', 1621 '6'->'1', 1622 '7'->'2', 1623 '8'->'1';
+# 1974 '2'->'3' (the recorded step onto the skeleton pile at (6,48)).  Only
+# their keys are excluded; their reasons are still compared.
+JUNK_ROUTE_ROWS = frozenset({1588, 1589, 1590, 1620, 1621, 1622, 1623, 1974})
 HOME_ENTRANCE = (45, 123)
 PRE_CASTER_WALL = 1594
 
@@ -317,7 +325,8 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         quantity_keys = {3, 3713, RING_DEPOSIT}
         self.assertEqual(
             [index for index in range(2636)
-             if ((self.recorded[index]["key"] if index in quantity_keys
+             if ((self.recorded[index]["key"]
+                  if index in quantity_keys or index in JUNK_ROUTE_ROWS
                   else replay[index][0]), replay[index][1])
              != (self.recorded[index]["key"], self.recorded[index]["reason"])],
             [],
@@ -411,7 +420,8 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             [
                 index
                 for index in range(HOME_OBSERVATION_BOUNDARY + 1)
-                if (self.recorded[index]["key"] if index in quantity_keys
+                if (self.recorded[index]["key"]
+                    if index in quantity_keys or index in JUNK_ROUTE_ROWS
                     else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],

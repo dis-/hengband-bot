@@ -11536,6 +11536,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._escape_state.enter("return", self.last_reason)
                 return walkout
 
+        # Worthless remains never travel to town (#70, owner 2026-10-18):
+        # destroy them in the dungeon when a return starts, before the
+        # latch and the Recall read; a latched return is not interrupted.
+        if (
+            return_starting and not self._returning_to_town
+            and not player.recalling
+            and not self._return_exit_locked(snapshot)
+        ):
+            junk = self._worthless_junk_destroy_key(snapshot)
+            if junk is not None:
+                return junk
+
         # Low supplies and a full pack are expedition-ending conditions. Once
         # triggered, keep heading upward even if using an item opens a pack slot.
         town_return = (
@@ -16819,6 +16831,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return None
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:
+            return None
+        if self._floor_pile_is_worthless(here):
             return None
         if here.position in self._deferred_loot:
             return None

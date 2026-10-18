@@ -19,9 +19,18 @@ import unittest
 import tests  # noqa: F401
 from hengbot.model import parse_snapshot, _parse_items, StoreItem
 from hengbot.policy import HengbotPolicy
+from unittest.mock import patch
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 
 FIXTURE = Path(__file__).parent / "fixtures/home-full-await-knowledge-20261004.json.gz"
+
+
+# DECLARED CONSTRUCTED wall (#70, owner decision 2026-10-18 "junk first"):
+# the recorded Home's worthless remains (tval 1/3/10) and emptied chest are
+# treated as non-junk, so the Home-full relief still chooses among the sale
+# stock this pin records instead of destroying a remain first.
+_RECORDED_HOME_JUNK_AS_STOCK = patch.object(
+    HengbotPolicy, "_is_worthless_junk", lambda _self, _item: False, create=True)
 
 
 class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
@@ -80,6 +89,7 @@ class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
                 # First divergence is the scan command: do not replay the later
                 # recorded ESC/router/detector boards against the changed key.
 
+    @_RECORDED_HOME_JUNK_AS_STOCK
     def test_recorded_sale_delta_scans_then_selects_next_withdrawal(self):
         sale_board = parse_snapshot(self.rows[70])
         sold_board = parse_snapshot(self.rows[72])
