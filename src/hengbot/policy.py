@@ -2235,6 +2235,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Marks the one-run D1 recall-stockout time-pass (not a funding set):
         # the gold set-end leaves it running while the stockout persists.
         self._recall_stockout_mining_plan = False
+        # Marks a set opened because no recall landing is safe: the gold
+        # set-end leaves it running and the run count ends it.
+        self._no_safe_destination_set = False
         # Supply-stockout time-pass state survives town resets/checkpoints;
         # old captures read these with getattr defaults.
         self._supply_stockout_cycles = 0
@@ -15842,6 +15845,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False
+        self._no_safe_destination_set = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
@@ -15897,23 +15901,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         this point (``_fixed_quest_key#2`` runs before ``_town_special_key``).
 
         It enters the same ``prepare`` set ``_start_fundraising`` opens, only
-        without its poverty threshold, and therefore ends by the same rules:
-        the gold set-end (``_end_fundraising_set_at_gold_target``) and the
-        run-count end.  It is never opened at or above
-        FUNDRAISING_GOLD_TARGET, where the gold set-end would close it on the
-        next board and the next refusal would reopen it (a town cycle); there
-        the named depth-gate stop stays.  Only equipment abilities qualify:
-        the *Destruction* and speed gates are not answered by gold.
+        without its poverty threshold.  USER DECISION 2026-10-19 (「金額に
+        関係なく資金稼ぎ」): it opens whatever the gold, and the set is exempt
+        from the gold set-end (``_end_fundraising_set_at_gold_target``); it
+        ends by the ordinary run count (``_no_safe_destination_set``).  Only
+        equipment abilities qualify: the *Destruction* and speed gates are not
+        answered by gold.
         """
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
         missing = self._missing_required_abilities(snapshot, destination_depth)
         if not missing or missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}:
             return False
-        if snapshot.player.gold >= FUNDRAISING_GOLD_TARGET:
-            return False
         if self._opening_q34_active(snapshot):
             return False
+        self._no_safe_destination_set = True
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False

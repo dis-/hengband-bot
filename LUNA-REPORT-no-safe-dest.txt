@@ -25,3 +25,21 @@ on the next board).
 Changes: none to src/ or tests/.  Commit holds only this report and the
 diagnosis.  Guards (preflight / mutation_check / fast_tier) not run: no source
 change to check.
+
+ROUND 2 (owner decision 2026-10-19 「金額に関係なく資金稼ぎ (Recommended)」): STOPPED again.
+Implemented (commit below): the set opens at any gold (_no_safe_destination_set),
+is exempt from the gold set-end, the in-run gold return and the town-need gold
+gate, counts scavenge returns, and ends by the run count. Authorized test
+renamed to test_unsafe_target_at_the_gold_target_enters_fundraising_like_angband.
+New module tests/test_no_safe_destination_gold_recorded.py (9 tests, green;
+on the reverted src 6 FAIL + 1 ERROR for the pins, controls green).
+Three OTHER existing tests now fail (tests/test_policy_town.py, gold 22412 board):
+  NoSafeRecallDestinationTest.test_drive_ending_town_terminals_survive_decision_rederivation
+    terminal=departure-unsatisfiable: old last_reason "town:blocked:departure-unsatisfiable",
+      new "fundraising:no-safe-destination"
+    terminal=equipment-work-home-route-exhausted: old "town:blocked:equipment-work-home-route-exhausted",
+      new "fundraising:no-safe-destination"
+  NoSafeRecallDestinationTest.test_no_town_work_latches_visible_terminal
+    old "town:blocked:depth-gate:destination-30:missing-resist_acid,resist_elec",
+    new "fundraising:no-safe-destination:depth-gate:destination-30:missing-resist_acid,resist_elec"
+Guards not run (existing tests fail by design of the decision; awaiting a ruling).
