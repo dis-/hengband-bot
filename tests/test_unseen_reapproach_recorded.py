@@ -34,10 +34,20 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import hengbot.cli as cli
-from hengbot.cli import _consume_response_sequence
+import os
+from types import SimpleNamespace
+from unittest import mock
+
+from hengbot.cli import (
+    _build_argument_parser,
+    _configure_policy_output_paths,
+    _consume_response_sequence,
+)
 from hengbot.model import Position
+from hengbot.policy_identification import UNSEEN_LOOT_QUIET_TURNS
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
+from hengbot.runtime_paths import RUNTIME_DIR_ENV, isolate_restored_runtime_paths
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 
@@ -78,12 +88,11 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
         """A bot process as the CLI starts it, decision log in ``directory``."""
         policy = _policy(directory, self.monrace)
         policy.consume_skill_knowledge(self.knowledge)
-        # Looked up so the controls also run on e8ae2b19, which has no record.
-        configure = getattr(cli, "_configure_unseen_attack_memory", None)
-        if configure is not None:
-            configure(policy, type(
-                "Args", (), {"decision_log": directory / "bot-decisions.jsonl"}
-            ))
+        # As the CLI points it: beside the decision log.
+        _configure_policy_output_paths(policy, _build_argument_parser().parse_args([
+            "--state-file", str(directory / "state.jsonl"),
+            "--decision-log", str(directory / "bot-decisions.jsonl"),
+        ]))
         return policy
 
     def _decide(self, policy, directory: Path, tag: str):
@@ -164,8 +173,6 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
         self.assertEqual(restarted._loot_target, ITEM_IN_ATTACK)
 
     def test_control_attack_past_the_quiet_window_still_loots_the_item(self):
-        from hengbot.policy_identification import UNSEEN_LOOT_QUIET_TURNS
-
         turn = self.recorded[RESTART_BOARD][1]
         with TemporaryDirectory() as tmp:
             directory = Path(tmp)
@@ -179,6 +186,99 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
             key, reason, _board = self._decide(restarted, directory, RESTART_BOARD)
         self.assertEqual((key, reason), self._live(RESTART_BOARD))
         self.assertEqual(restarted._loot_target, ITEM_IN_ATTACK)
+
+
+class UnseenAttackAreaConsumersTest(unittest.TestCase):
+    """Declared boards: every walker consults the same area predicate.
+
+    The last unseen hit of this floor landed on HIT and the retreat heads
+    east (0, 1), so the area is x <= HIT.x while the hit is inside the quiet
+    window.  Walls are declared through ``_walkable_neighbors``.
+    """
+
+    HIT = Position(10, 8)
+    TURN = 5000
+
+    def _policy(self):
+        policy = HengbotPolicy()
+        policy._unseen_last_hit_floor = FLOOR
+        policy._unseen_last_hit_turn = self.TURN
+        policy._unseen_last_hit_position = self.HIT
+        policy._unseen_loot_direction = (0, 1)
+        return policy
+
+    def _board(self, position):
+        return SimpleNamespace(
+            player=SimpleNamespace(position=position), floor_key=FLOOR,
+            turn=self.TURN + 1, grids={}, in_town=False,
+            in_bounds=lambda _position: True,
+        )
+
+    def test_loot_target_in_the_area_is_not_resumed(self):
+        # Standing behind the hit cell (the half-plane deferral measured from
+        # the player keeps the item); the predicate drops the committed target.
+        policy = self._policy()
+        policy._known_loot = {self.HIT}
+        policy._loot_target = self.HIT
+        policy._position_target_step = lambda snapshot, target: target
+        self.assertIsNone(policy._loot_step(self._board(Position(10, 7))))
+
+    def test_loot_route_does_not_cross_the_area(self):
+        policy = self._policy()
+        target = Position(11, 10)
+        policy._known_loot = {target}
+        graph = {Position(10, 9): [Position(10, 8)], Position(10, 8): [target]}
+        policy._walkable_neighbors = lambda snapshot, pos, **_: graph.get(pos, [])
+        self.assertIsNone(policy._loot_step(self._board(Position(10, 9))))
+        # Control: the same board without the hit walks the route.
+        policy._unseen_last_hit_position = None
+        self.assertEqual(policy._loot_step(self._board(Position(10, 9))), Position(10, 8))
+
+    def test_explore_planner_does_not_enter_the_area(self):
+        policy = self._policy()
+        policy._floor_t = {(10, 8)}
+        policy._walkable_neighbors = lambda snapshot, pos, **_: (
+            [Position(10, 8)] if pos == Position(10, 9) else []
+        )
+        board = self._board(Position(10, 9))
+        self.assertEqual(policy._plan_explore_path_pass(board, allow_damaging=False), [])
+        policy._unseen_last_hit_turn = self.TURN - UNSEEN_LOOT_QUIET_TURNS
+        self.assertEqual(
+            policy._plan_explore_path_pass(board, allow_damaging=False), [Position(10, 8)]
+        )
+
+    def _frontier_policy(self, frontiers, graph=None):
+        policy = self._policy()
+        policy._remembered_floor_t = {(p.y, p.x) for p in frontiers}
+        policy._is_remembered_frontier = lambda snapshot, position: True
+        policy._equipped_digging_tool = lambda snapshot: None
+        if graph is None:
+            policy._walkable_neighbors = lambda snapshot, pos, **_: [
+                Position(pos.y + dy, pos.x + dx)
+                for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx
+            ]
+        else:
+            policy._walkable_neighbors = lambda snapshot, pos, **_: graph.get(pos, [])
+        return policy
+
+    def test_global_frontier_prefers_a_frontier_outside_the_area(self):
+        inside, outside = Position(10, 5), Position(10, 12)
+        policy = self._frontier_policy({inside, outside})
+        path = policy._global_frontier_path(self._board(Position(10, 10)))
+        self.assertEqual((len(path), path[-1]), (2, outside))
+
+    def test_global_frontier_route_does_not_cross_the_area(self):
+        goal = Position(12, 12)
+        graph = {Position(10, 12): [Position(11, 11)], Position(11, 11): [goal]}
+        policy = self._frontier_policy({goal}, graph)
+        policy._unseen_last_hit_position = Position(11, 11)
+        self.assertEqual(policy._global_frontier_path(self._board(Position(10, 12))), [])
+
+    def test_restored_checkpoint_moves_the_record_with_the_runtime_dir(self):
+        policy = SimpleNamespace(_unseen_attack_path=Path("jsonlog") / "unseen-attack.json")
+        with TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {RUNTIME_DIR_ENV: tmp}):
+            isolate_restored_runtime_paths(policy)
+            self.assertEqual(policy._unseen_attack_path, Path(tmp) / "unseen-attack.json")
 
 
 if __name__ == "__main__":

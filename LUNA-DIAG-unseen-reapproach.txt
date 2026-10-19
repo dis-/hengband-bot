@@ -62,6 +62,8 @@ FIX (one predicate, no new constant)
    Consumers: _explore_step avoid set, _plan_explore_path_pass, _global_frontier_path
    (candidates and BFS), _loot_step (candidates and BFS).  The hit cell is recorded in
    _observe; the retreat writes {floor, turn, position, direction} to unseen-attack.json
-   beside the decision log on each eligible hit; the CLI loads it at start and the first
-   observed board applies it only for the same floor inside the quiet window (information
-   the player saw earlier, no hidden state).  The retreat's own stepping is unchanged.
+   beside the decision log (_configure_policy_output_paths sets _unseen_attack_path; it is
+   registered in POLICY_RUNTIME_PATH_ATTRIBUTES) on each eligible hit; the first observed
+   board of a process reads it once and applies it only for the same floor inside the quiet
+   window (information the player saw earlier, no hidden state).  The retreat's own
+   stepping is unchanged.

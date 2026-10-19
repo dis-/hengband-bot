@@ -1258,33 +1258,25 @@ class IdentificationMixin:
         except OSError:
             pass
 
-    def load_unseen_attack(self, path: Path | None) -> dict | None:
-        """CLI start: the previous process's unseen attack, applied on the
-        first board only if it is the same floor inside the quiet window."""
-        self._unseen_attack_path = path
-        self._unseen_attack_restore = None
-        if path is None or not path.exists():
-            return None
-        try:
-            record = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
-        if not isinstance(record, dict):
-            return None
-        self._unseen_attack_restore = record
-        return record
-
     def _apply_unseen_attack_restore(self, snapshot: Snapshot) -> None:
-        record = getattr(self, "_unseen_attack_restore", None)
-        if record is None:
+        """First board of a process: the previous process's unseen attack.
+
+        Applied only for the same floor inside the quiet window -- the hit
+        the player saw before the restart, never hidden information.
+        """
+        if getattr(self, "_unseen_attack_read", False):
             return
-        self._unseen_attack_restore = None
+        self._unseen_attack_read = True
+        path = getattr(self, "_unseen_attack_path", None)
+        if path is None:
+            return
         try:
+            record = json.loads(Path(path).read_text(encoding="utf-8"))
             floor_key = tuple(record["floor"])
             turn = int(record["turn"])
             position = Position(int(record["position"][0]), int(record["position"][1]))
             direction = (int(record["direction"][0]), int(record["direction"][1]))
-        except (KeyError, TypeError, ValueError, IndexError):
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
             return
         if (
             floor_key != tuple(snapshot.floor_key)
