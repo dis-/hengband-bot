@@ -12869,7 +12869,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         if item is not disposable
                     ],
                 )
+                refused = disposable
                 disposable = finder(candidate_snapshot)
+                # A finder bound to one selected stack returns it again after
+                # its removal; every later pass repeats this refusal unchanged.
+                if disposable is refused:
+                    disposable = None
                 continue
             watch = (
                 self._item_signature(disposable),

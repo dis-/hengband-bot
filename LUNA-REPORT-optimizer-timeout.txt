@@ -1,0 +1,66 @@
+ISSUE #80 report: decision > 90 s on c4-a life-014 (turn 996646, victory loot, pack full)
+Branch optimizer-timeout-1019 at 8a1f6bba. Diagnosis details: LUNA-DIAG-optimizer-timeout.txt.
+
+Diagnosis (measured)
+- Not an equipment-search explosion. The optimizer runs before the crash were single-slot
+  searches of ~50 candidates (loadout-report.jsonl). equipment_optimizer.py was only the leaf
+  (equipment_identity -> _catalog_digest) of an unbounded loop.
+- Loop: _full_pack_loot_triage_key (exchange-cheapest-surplus) gives _verified_destroy_key a
+  finder bound to one carried stack. When _destroy_would_discard_superior_item refuses it, the
+  stack is removed from candidate_snapshot, the bound finder returns the same object again, and
+  the identical refusal repeats forever (the refusal reads the original snapshot).
+- Reproduced by replaying the whole crashed run (5018 response rows from the soak machine's
+  flight-recorder snapshots, through cli._consume_response_sequence, live calibration). The
+  replay's last 40 decisions equal the live tail (996600 ulr ... 996637 ukr).
+
+Change (src/hengbot/policy.py, _verified_destroy_dispatch_key, refusal branch, +5 lines)
+- After the refusal, if the finder returns the very object just refused, end the candidates
+  (disposable = None), exactly like the existing unavailable-item branch. No new constant,
+  threshold or policy attribute (no restored-checkpoint defaults needed).
+- Equivalence: the new check fires only when the finder returns the refused object after its
+  removal; at that point every later pass has identical inputs, so 8a1f6bba never returned.
+  All terminating paths are unchanged. When it fires the loop ends as a normal "refused, no
+  other candidate": key None, last_reason inventory:destroy-refused-superior-item, and the
+  ladder continues (here: return:recall).
+- Bookkeeping: town work manifest regenerated (scripts/town_work_manifest.json.gz,
+  src/hengbot/town_work_sites.json ast hash), committed separately.
+
+Before / after times
+- Crash board 996646 (policy checkpoint taken by the fixed replay just before it):
+  8a1f6bba > 100 s (watchdog, same stack); fix 99 ms -> 'rg' return:recall.
+- Replay board 996274 (where the 8a1f6bba replay hangs; live chose 01ku there, the replay lacks
+  one live screen): 8a1f6bba > 100 s (two runs); fix 68-72 ms -> 'rh' return:recall.
+- Whole-run replay, 8a1f6bba vs fix: 4947 decisions before the 8a1f6bba hang, 0 differences in
+  (index, key, reason). Max decision time elsewhere 5.3 s / 5.2 s (quest:enter, unrelated);
+  town decisions 1-2 s in both.
+- Merged #76/#77/#78 do not touch these functions; the difference does not matter here.
+
+Pins (tests/test_verified_destroy_refusal_terminates.py, new module)
+- test_bound_finder_refusal_returns_without_destroying: triage finder shape, refusal patched;
+  must finish within 10 s, key None, reason destroy-refused-superior-item. (2 collaborators)
+- test_refusal_still_advances_to_a_different_candidate: finder yields another stack after the
+  refusal; still destroys it with reason destroy-after-superior-item-refusal (unchanged path).
+- test_recorded_victory_board_decides_within_budget: tracked fixture
+  tests/fixtures/victory-exchange-refusal-20261019.checkpoint.json.gz (494 KB, sha256 pinned;
+  policy checkpoint + board of the 996274 replay hang); choose_key must finish < 10 s.
+- Revert check: with the src change reverted, tests 1 and 3 fail (thread still running at 10 s).
+
+Guard outputs
+preflight:
+  [preflight] PREFLIGHT OK: 5 changed files, 0 findings (optimizer-timeout-1019 vs 8a1f6bba)
+  (first run: FAIL manifest stale -> regenerated and committed)
+mutation_check --tests test_verified_destroy_refusal_terminates --record:
+  [mutation] 1 source hunks, tests: test_verified_destroy_refusal_terminates
+  [mutation] caught     src/hengbot/policy.py:12862 (refused = disposable): test_bound_finder_refusal_returns_without_destroying, test_recorded_victory_board_decides_within_budget
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for 88b572a5
+fast_tier --shards 4 (run after gate-dark-1019 MERGED, main 4e34499f):
+  [fast] 3949 fast tests (<2.0s in 4e34499f) + 1 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: tests.test_home_leave_suppressed_recorded, tests.test_q2_breeder_sweep_recorded,
+          tests.test_idstaff_poor_depart_recorded (import) ModuleNotFoundError
+  Total: 3953 tests, 290.3s
+  The 3 errors are not regressions: fast_tier lists modules from main 4e34499f, and these
+  modules came with #76/#77/#78, which are not in this branch (based on 8a1f6bba). They
+  disappear once the branch is merged on top of main. No existing test failed.
