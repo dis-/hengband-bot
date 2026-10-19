@@ -1,0 +1,79 @@
+#81 dark:backtrack / return:explore alternation -- report
+Branch dark-backtrack-loop-1019 (base 8a1f6bba): b5ea1314, 244f89d4 (+ this report).
+
+Diagnosis (measured; details in LUNA-DIAG-dark-backtrack-loop.txt)
+- Capture 20261019-103828-loop-detected, floor (1, 2, 0) 鉄獄 level 2, latched
+  walk-out.  Worn 松明 0 turns, light_radius 0 on every decision 7150..7184, no oil
+  (_light_refill_item None), no spare torch (_darkness_torch None), 帰還の詔の巻物 x10
+  in slot f, no up stairs known.
+- State row 75 (turn 1067563, (17,67)): own grid visible, scrolls readable.
+  return:explore (policy_town.py explore rung) steps '4' toward claim goal (62,94)
+  into the unmapped corridor cell (17,66).
+- State row 76 (turn 1067571, (17,66)): own grid not visible; the darkness owner
+  (_dark_locomotion_key, policy.py:10768, ranks above the return) routes to the
+  nearest remembered room cell and steps '6' back.  In the lit cell it returns
+  None at once, so the route is counted as missed and after PROBE_LIMIT=2 it moves
+  on to the next room cell ((17,67) (16,68) (17,68) (18,68) (15,68) ...) -- bounded
+  only by 2 x room cells, past the 40-decision loop detector.
+- The walk out may not recall at level 2 (recall rung needs depth >
+  WALK_OUT_MAX_DEPTH = 4), and exploring with light radius 0 reveals nothing, so
+  each producer undoes the other.  Replay on 8a1f6bba reproduces the dark:backtrack
+  goal sequence exactly.
+- Live f9afbaa7 (= 8a1f6bba + #76/#77/#78) does not touch darkness, the return walk
+  or recall (diff in cli/policy/policy_home/policy_quest only); no difference.
+
+Fix (policy_town.py, _return_to_town_key explore rung, one hunk)
+- When the return would explore (_explore_step returned a step) and the character
+  has light radius 0 with nothing to refill or wield, and a readable recall scroll
+  is carried (same blind/confused/_can_read_scrolls/_owner_may_select gates as the
+  existing return:recall rung), read recall ("return:recall") instead of exploring.
+  The dark backtrack completes first (it brings the bot to the readable cell), then
+  the return ends there.  No new constant, threshold, reason or policy attribute.
+- A first version put the lightless clause on the top recall rung; it also
+  pre-empted the bounded stuck escape and failed the existing
+  test_return_wander_recall.test_stuck_bound_reads_constructed_readable_recall
+  (reason 'stuck:recall-escape' -> 'return:recall').  Moved to the explore rung in
+  244f89d4; that test is green and unchanged.
+- Bookkeeping: town_work_manifest regenerated (scripts/town_work_manifest.json.gz,
+  src/hengbot/town_work_sites.json ast hash of _return_to_town_key).  No new
+  helpers, no census/STUCK_FAMILY_REASONS change.  Note: ac9ed592 also changed
+  town_work_sites.json; regenerate the manifest after merging.
+
+Pins: tests/test_dark_backtrack_loop_recorded.py, fixture
+tests/fixtures/dark-backtrack-loop-20261019.jsonl.gz (state rows 75, 76 as-is).
+DECLARED CONSTRUCTED: return latch, ~f skill-exp cache, _explore_step patched to the
+recorded step (17,66) (the live remembered map is not in one board), and in the
+controls light_radius=1 / a fuelled pack torch.
+- test_recorded_pair_no_longer_alternates:
+    8a1f6bba: [('4', 'return:explore'), ('6', 'dark:backtrack')]
+    fix:      [('rf', 'return:recall'), ('6', 'dark:backtrack')]
+- test_recorded_lit_board_reads_recall_instead_of_stepping_into_the_dark:
+    8a1f6bba ('4', 'return:explore') -> fix ('rf', 'return:recall')
+Controls (green before and after):
+- test_control_recorded_dark_board_still_backtracks_to_the_lit_cell:
+  ('6', 'dark:backtrack'), dark route goal (17,67).
+- test_control_own_light_keeps_the_shallow_walk_out: light_radius 1 -> ('4', 'return:explore').
+- test_control_fuelled_pack_torch_keeps_the_shallow_walk_out -> ('4', 'return:explore').
+- test_fixture_is_the_recorded_lightless_pair.
+- #65 pins test_lantern_lost_recorded 9/9 OK; test_darkwalk 25/25,
+  test_return_wander_recall 4/4, test_loot_before_recall_recorded,
+  test_guardian_recall_pingpong_recorded, test_q34_opening_oil_recorded,
+  test_lethal_unseen_caster_recorded, test_quest34_target_dead_recorded,
+  test_ability_sources_incident, test_exploration_commitment_observation OK.
+
+Guard outputs (after 244f89d4)
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (dark-backtrack-loop-1019 vs 8a1f6bba)
+
+[mutation] 1 source hunks, tests: test_dark_backtrack_loop_recorded
+[mutation] caught     src/hengbot/policy_town.py:7668 (if (): test_recorded_lit_board_reads_recall_instead_of_stepping_into_the_dark, test_recorded_pair_no_longer_alternates
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 244f89d4
+
+[fast] 3904 fast tests (<2.0s in ac9ed592) + 1 changed modules, 4 shards
+[fast] excluded 24 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-uk4y6cks)
+Failures: none
+Errors: ['tests.test_q2_breeder_sweep_recorded (import) ...', 'tests.test_idstaff_poor_depart_recorded (import) ...', 'tests.test_home_leave_suppressed_recorded (import) ...']
+Total: 3907 tests, 166.9s
+  The three import errors are modules that exist only on main ac9ed592 (#76/#77/#78,
+  merged after this branch's base 8a1f6bba); not regressions.
