@@ -80,16 +80,16 @@ ROUND 2 (supervisor authorized updating exactly the two tests; commit 0fb29508)
 1. ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable RENAMED to
    test_home_only_permanent_light_keeps_the_lantern_oil (the old name stated the opposite). Same
    board; asserts required_departure 0 -> 5, retention 0 -> 5, deposit candidate True -> False; the
-   deposit-key assert ("do5") is dropped because no deposit is reached. Comment cites #82 + the
+   deposit-key assert ("do5\r") is dropped because no deposit is reached. Comment cites #82 + the
    owner decision with old/new values.
 2. IdentifyStaffLiveCatalogueTest.test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed:
    first reason 'home:queue-withdraw-identify-staff-reserve' -> 'home:queue-catalogue-shortage'
-   (pending = the Home oil, withdrawn with "5pa5", then leave-after-one-operation). Keeping
+   (pending = the Home oil, withdrawn with "5pa5\r\x1b", then leave-after-one-operation). Keeping
    the rest of its assertions needed the oil round played out first: the oil is then carried
    (constructed), one outside decision ends the visit, the next Home visit queues the staff
-   ('home:queue-withdraw-identify-staff-reserve', pending = the staff), the entrance asks '~9'
+   ('home:queue-withdraw-identify-staff-reserve', pending = the staff), the entrance asks '~9\x1b'
    (Home changed), the recorded list is consumed again, and the original asserts follow unchanged
-   ("5pp1", leave-after-one-operation, staff ready, no failed atomic withdraw).
+   ("5pp1\r\x1b", leave-after-one-operation, staff ready, no failed atomic withdraw).
 Runs: test_policy_supply 208 OK; test_light_in_hand_recorded 5 OK; test_lantern_lost_recorded (#65)
 9 OK; test_overflow_torches_recorded (#69) 3 OK.
 
