@@ -48,6 +48,9 @@ LAMP = "home:ff2b3ffaa208a881:0"
 INFRAVISION_TORCH = "home:6e94dd272b55f172:0"
 WORN_LANTERN = "equipped:cf9cbd9f667b29b6:0"
 TRAVEL_HOME = ("\x1b`n(.", "equipment-transaction:travel-home")
+# #79: the fixture board (turn 1068217, night) has can_see_own_grid False, so
+# town travel (`) is not used; the first step toward Home is a walking step.
+APPROACH_HOME = ("6", "equipment-transaction:approach-home")
 LAMP_NAME = "フェアノールのランプ"
 
 
@@ -158,7 +161,7 @@ class OptimizerLampRecordedTest(unittest.TestCase):
 
     def test_recorded_town_board_withdraws_the_home_lamp(self):
         decisions = self._replay(self._rows())
-        self.assertEqual(decisions[-1], TRAVEL_HOME)
+        self.assertEqual(decisions[-1], APPROACH_HOME)
         # 3cb276a3: [('withdraw', INFRAVISION_TORCH, None),
         #            ('equip', INFRAVISION_TORCH, 'light')], target loadout
         #            4767118d3bb15871 (the recorded one).
@@ -172,7 +175,7 @@ class OptimizerLampRecordedTest(unittest.TestCase):
         decisions = self._replay(self._rows(worn_lantern=True))
         # 3cb276a3: ('\x1b`n%.', 'shop:travel'), no equipment transaction;
         # the lantern stays worn and the lamp stays at Home.
-        self.assertEqual(decisions[-1], TRAVEL_HOME)
+        self.assertEqual(decisions[-1], APPROACH_HOME)
         self.assertEqual(
             self._transaction_actions(),
             [
@@ -185,7 +188,7 @@ class OptimizerLampRecordedTest(unittest.TestCase):
 
     def test_control_without_the_lamp_the_infravision_torch_is_withdrawn(self):
         decisions = self._replay(self._rows(lamp_at_home=False))
-        self.assertEqual(decisions[-1], TRAVEL_HOME)
+        self.assertEqual(decisions[-1], APPROACH_HOME)
         self.assertEqual(
             self._transaction_actions(),
             [

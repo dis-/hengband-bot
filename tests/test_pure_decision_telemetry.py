@@ -72,7 +72,7 @@ import test_esp_threat_rest_recorded as esp_recorded
 import test_golden_trajectory as golden
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
-from recorded_loadout import recorded_loadout_replay
+from recorded_loadout import pre_light_radius_replay, recorded_loadout_replay
 from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
 
 
@@ -459,6 +459,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             lockstep.decide(boards, boundaries["recorded"][index][1], index)
         return lockstep, boundaries
 
+    @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def test_t1_t2_protocol3_tour_first_town_visit(self):
         lockstep, boundaries = self._recorded_lifetime(
@@ -481,6 +482,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
         )
         lockstep.assert_pure()
 
+    @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result(self):
         """T1 revert-proof: the second town arrival of the tour lifetime.

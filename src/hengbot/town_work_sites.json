@@ -3963,7 +3963,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "13069026b726837738070f57e68656eafdd61a0e9987594f30dd28fa2da4acaa"
+    "ast_sha256": "17f40bfc5d01ac2617b88655eee95451dcf43ae4c97bbe77562b0b35838386f6"
   },
   "policy_calibration.py:legacy_calibration_file_debt": {
     "classification": "data",
@@ -4678,7 +4678,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "fa4aecb8bc6f13e8bedef384bb13c044ac91bfea7641d5c9b12712ee0c633ca6"
+    "ast_sha256": "e35e6a15b9bdd00c6ac8b17aa2dd0973f348070279d8e293022843498c3ab8e5"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": {
     "classification": "producer",
@@ -7635,7 +7635,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0d732e9e2e10401ab82a3a48cb708daf82c50d49b647dda2c66f5470835ccaad"
+    "ast_sha256": "5f02671febbffff076719e506c70cfc70e41200849dbad2d5a0d40a78ef38637"
   },
   "policy_town.py:TownMixin._town_teleport_building_positions": {
     "classification": "data",

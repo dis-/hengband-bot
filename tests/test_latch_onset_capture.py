@@ -183,6 +183,12 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             installing_snapshot = replace(snapshot, turn=snapshot.turn + 1)
             self._exhaust_town_work(policy, installing_snapshot)
             policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 17
+            # #90 (owner decision 2026-10-19): this board now opens the
+            # no-safe-destination fundraising set.  Declare the set already
+            # open (the state its start writes), so the existing refusal of a
+            # second start keeps the depth-gate onset on the installing board.
+            policy._fundraising_mode = "prepare"
+            policy._no_safe_destination_set = True
             installing_key = policy.choose_key(installing_snapshot)
             installing_reason = policy.last_reason
             following = [

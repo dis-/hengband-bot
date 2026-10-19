@@ -2235,6 +2235,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Marks the one-run D1 recall-stockout time-pass (not a funding set):
         # the gold set-end leaves it running while the stockout persists.
         self._recall_stockout_mining_plan = False
+        # Marks a set opened because no recall landing is safe: the gold
+        # set-end leaves it running and the run count ends it.
+        self._no_safe_destination_set = False
         # Supply-stockout time-pass state survives town resets/checkpoints;
         # old captures read these with getattr defaults.
         self._supply_stockout_cycles = 0
@@ -13563,8 +13566,35 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    def _own_grid_visible(self, snapshot: Snapshot) -> bool:
+        """Whether the player can see their own grid (issue #89, question 6).
+
+        The game's ``player_can_see_bold(own grid)``: false while blind
+        (geometry.cpp) and false when the grid is unlit (grid.cpp ``no_lite``),
+        at any depth, the town at night included.  Protocol 3 reports it
+        directly as ``can_see_own_grid``; older boards keep the dungeon-only
+        unlit-grid inference of ``_is_dark``."""
+        if snapshot.player.blind:
+            return False
+        if snapshot.can_see_own_grid is not None:
+            return snapshot.can_see_own_grid
+        return not self._is_dark(snapshot)
+
+    def _can_read_now(self, snapshot: Snapshot) -> bool:
+        """The game's read rule: ``cmd_limit_blind`` (blind or ``no_lite``)
+        and ``cmd_limit_confused`` (cmd-read.cpp, cmd-item.cpp)."""
+        return (
+            not snapshot.player.blind
+            and not snapshot.player.confused
+            and self._can_read_scrolls(snapshot)
+        )
+
     def _can_read_scrolls(self, snapshot: Snapshot) -> bool:
         """Return whether Hengband permits reading on the current grid now."""
+        if snapshot.can_see_own_grid is not None:
+            # The reported own grid is the game's answer at every depth: an
+            # unlit town street at night refuses the read like a dark room.
+            return self._own_grid_visible(snapshot)
         if not self._is_dark(snapshot):
             return True
         equipped = next((item for item in snapshot.equipment if item.is_light), None)
@@ -15842,6 +15872,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False
+        self._no_safe_destination_set = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
@@ -15897,23 +15928,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         this point (``_fixed_quest_key#2`` runs before ``_town_special_key``).
 
         It enters the same ``prepare`` set ``_start_fundraising`` opens, only
-        without its poverty threshold, and therefore ends by the same rules:
-        the gold set-end (``_end_fundraising_set_at_gold_target``) and the
-        run-count end.  It is never opened at or above
-        FUNDRAISING_GOLD_TARGET, where the gold set-end would close it on the
-        next board and the next refusal would reopen it (a town cycle); there
-        the named depth-gate stop stays.  Only equipment abilities qualify:
-        the *Destruction* and speed gates are not answered by gold.
+        without its poverty threshold.  USER DECISION 2026-10-19 (「金額に
+        関係なく資金稼ぎ」): it opens whatever the gold, and the set is exempt
+        from the gold set-end (``_end_fundraising_set_at_gold_target``); it
+        ends by the ordinary run count (``_no_safe_destination_set``).  Only
+        equipment abilities qualify: the *Destruction* and speed gates are not
+        answered by gold.
         """
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
         missing = self._missing_required_abilities(snapshot, destination_depth)
         if not missing or missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}:
             return False
-        if snapshot.player.gold >= FUNDRAISING_GOLD_TARGET:
-            return False
         if self._opening_q34_active(snapshot):
             return False
+        self._no_safe_destination_set = True
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False

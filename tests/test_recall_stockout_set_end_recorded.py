@@ -44,7 +44,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.model import STORE_HOME
 import hengbot.policy_combat as policy_combat
 from recorded_loot_observation import pre_fix_loot_observation
-from recorded_loadout import recorded_loadout_replay
+from recorded_loadout import pre_light_radius_replay, recorded_loadout_replay
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
@@ -124,6 +124,7 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         assert len(cls.lines) == sum(cls.boundaries["input_rows"])
 
     @classmethod
+    @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def _replay(cls):
         """Measure new-code decisions through the recorded 1426 input.
@@ -200,6 +201,7 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         return cls.replay
 
     @classmethod
+    @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def _live_loot_prefix(cls):
         """Use production loot behavior through the first changed key."""

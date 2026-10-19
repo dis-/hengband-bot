@@ -14056,6 +14056,14 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                         messages=(f"terminal observation {decision}",),
                     )
                     key = policy.choose_key(current)
+                    if terminal != "no-safe-recall-destination":
+                        # Owner decision 2026-10-19 (#90, fundraise whatever the gold); later
+                        # decisions not pinned: this one-cell board has no route Home for the kit.
+                        self.assertEqual(key, WAIT_KEY)
+                        self.assertEqual(policy.last_reason, "fundraising:no-safe-destination")
+                        self.assertIsNone(policy._town_blocked_reason)
+                        self.assertEqual(policy._fundraising_mode, "prepare")
+                        break
 
                     self.assertEqual(key, WAIT_KEY)
                     self.assertEqual(
@@ -14090,14 +14098,14 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         key = policy.choose_key(stopped)
 
         self.assertEqual(key, WAIT_KEY)
+        # Owner decision 2026-10-19 (#90): with no safe landing, fundraise whatever the gold.
         self.assertEqual(
             policy.last_reason,
-            "town:blocked:depth-gate:destination-30:missing-resist_acid,resist_elec",
-        )
-        self.assertEqual(
-            policy._town_blocked_reason,
+            "fundraising:no-safe-destination:"
             "depth-gate:destination-30:missing-resist_acid,resist_elec",
         )
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(policy._fundraising_mode, "prepare")
 
     def test_successful_depth_30_transaction_keeps_home_reachable_publicly(self):
         """Pin the live 21:50:07 success-revokes-allowance shape."""

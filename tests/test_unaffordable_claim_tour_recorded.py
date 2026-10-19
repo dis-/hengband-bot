@@ -80,7 +80,9 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
-from recorded_loadout import pre_ratio_optimizer_replay, recorded_loadout_replay
+from recorded_loadout import (
+    pre_light_radius_replay, pre_ratio_optimizer_replay, recorded_loadout_replay,
+)
 from extraction_calibration import install_extraction_calibration
 
 
@@ -429,6 +431,7 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         self.fail("equipment-choice divergence was not reached")
 
     @classmethod
+    @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def _replay(cls):
         """Drive the recorded lifetime through the Healing purchase, then decide."""

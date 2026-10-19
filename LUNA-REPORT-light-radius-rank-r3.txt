@@ -1,0 +1,50 @@
+#86 round 3 REPORT - merge-gate regressions of light-radius-rank-1019 (ae970cd7) vs main 653c1bb6
+
+RESULT: STOP (no source change). The owner decision itself requires the changed decision on
+these boards. Details and evidence: LUNA-DIAG-light-radius-rank-r3.txt.
+
+MEASURED
+- Diag: wrapper around warrior_optimization.optimize_loadout; every call computed with branch
+  code and with main code in the same process, plus each branch part reverted alone.
+  Runs: test_protocol3_client P1 (esp-threat-rest protocol3 fixture), test_experience_potion t4
+  and test_unaffordable_claim_tour_recorded s3 (unaffordable-claim-tour fixture).
+- First differing optimizer call in all three: branch best = main best with the worn
+  フェアノールのランプ {明} (equipped:21b109e0, known_flags [86,122], radius 2) replaced by the Home
+  ★ガラドリエルの玻璃瓶 (+1探索) {+探;明, !!} (home:1238e7da, fully_known, known_flags
+  [9,84,85,86,87,88,123], radius 3). Combat metrics of both sets identical.
+- Only the radius in _prefer / _stable_operational_best (equipment_optimizer.py:1042/1046/1312)
+  causes it: light key (2,3) vs (2,2). Reverting the dominance-part (#86 part 1 sval, radius in
+  the prune vector) or the _gear_state element alone does not change the result.
+- The fixture premise "only one light" does not hold: the Phial (and a spare lamp, lantern, torch)
+  sit at Home from the first Home page (tour fixture row 3, turn 4372754, Phial fully_known).
+  All failing fixtures are this same character/Home (esp-threat-rest, recall-stockout-set-end,
+  home-withdraw-failed-stock-present, store-reentry-20261003 which also has ★知識の石;
+  test_ownership_s2a1_closure replays the tour fixture) = the 10-03 owner observation case.
+- s3 at 2996: 'tb' is the shield leg (takeoff sub_hand 97c0d4f4 + deposit) of a transaction that
+  main and branch both choose from call 8 on (same best, dps 91.77); the earlier Phial
+  transaction (branch only, calls 1-5) changed the policy state so it is applied at 2996 instead
+  of main's shop:travel.
+
+WHY STOP
+- Task rule: "If the owner decision itself requires a different decision on this board, STOP and
+  report with evidence." Main keeps the radius-2 lamp only because of the tie that the owner
+  decision 「照らせる範囲も比べる」 removes. Restoring main's result on these boards means not
+  choosing the wider, fully known permanent light with equal combat results, i.e. reverting the
+  decision on the very case it was made for.
+- The 7 named tests (+ the gate's other failures from the same cause) encode main's recorded
+  lamp-kept trajectory. Their expectations were NOT edited. Options for the owner/lead:
+  (a) accept the new behaviour and re-baseline these recorded expectations (owner/lead decision;
+      each test name, old and new value is in the gate logs batch-003/004/007/015/017/019/021/024);
+  (b) declare a wall for these replays (keep the pre-#86 light comparison inside them, like the
+      existing pre_ratio_optimizer_replay wall) so they keep pinning their own subject;
+  (c) a different owner decision for this board.
+
+CHANGES
+- No source or test change. Committed only LUNA-DIAG-light-radius-rank-r3.txt and this report.
+- Revert-proof: not applicable (no fix hunk). Control measured instead: with the radius part
+  reverted (permanent_light_radius -> 0 in equipment_optimizer) the optimizer returns main's
+  lamp-kept best on the first differing call of all three replays.
+
+GUARDS
+- preflight / mutation_check / fast_tier not run: there is no source edit after round 2's
+  guarded commit 3cdcbbd7 (round 2 outputs in LUNA-REPORT-light-radius-rank.txt).

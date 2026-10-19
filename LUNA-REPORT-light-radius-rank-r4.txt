@@ -1,0 +1,104 @@
+#86 round 4 REPORT - declared pre-#86 light wall for replays whose subject is not the light
+
+RESULT: walls applied, every listed module passes alone; non-vacuity pin added. One guard item is
+left (mutation NOT CAUGHT on a reverse hunk of main's #85 that this branch does not contain): STOP.
+
+COMMITS
+- 192821c0 Declare the pre-#86 light wall for replays whose subject is not the light (#86)
+- 66c1ba84 Pin the light subtype in the catalog prune for fuel lights (#86)  (mutation repair round 1)
+
+MEASURED
+- Wall: tests/recorded_loadout.py pre_light_radius_rule() patches
+  equipment_optimizer.permanent_light_radius -> 0. Only _prefer and _stable_operational_best read it
+  through that module global (warrior_loadout_search imports the name, so its prune/compression
+  terms stay as on the branch). r3 measured that this part alone restores main's lamp choice.
+- First diverging optimizer call (scratch replay of the tour capture, recorded_loadout_replay):
+  decision index 2; unwalled best light home:1238e7da (★ガラドリエルの玻璃瓶, radius 3),
+  walled best light equipped:21b109e0 (フェアノールのランプ, radius 2). Branch key there
+  ('\x1b`n(.', equipment-transaction:travel-home) vs recorded ('\x1b`n%.', shop:travel).
+- test_home_withdraw...test_shield_and_weapon_survival_terms_on_first_changed_board, unwalled: only
+  the last assertion failed (best.item_ids had home:1238e7da instead of equipped:21b109e0); the
+  key 5pb1 home:atomic-withdraw and every shield/weapon term passed. Its subject is the
+  shield/weapon choice, which the Phial swap does not change -> walled, not re-pinned.
+
+WALLS ("# declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)")
+- test_experience_potion: classmethod _replay (shared cached replay) + test_t1..t4 (they decide on
+  the board in the test body).
+- test_unaffordable_claim_tour_recorded: classmethod _replay (the 3 failing tests only read it).
+- test_pure_decision_telemetry: the 2 tests (composed with recorded_loadout_replay).
+- test_recall_stockout_set_end_recorded: classmethods _replay and _live_loot_prefix (the 4 failing
+  tests only read them).
+- test_ownership_s2a1_closure: ClosingPathsTest.test_revert_proof_without_the_effect_confirmation_
+  no_sale_completes (not tour_rows, which another test at line 1788 also uses).
+- test_protocol3_client: P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.
+- test_store_reentry_recorded: StoreReentryRecordedTest.setUpClass (the replay that errored).
+- test_home_withdraw_failed_stock_present_recorded: test_shield_and_weapon... (composed with
+  pre_ratio_optimizer_replay).
+- Walling the shared replays also walls the replay read by passing tests of the same classes
+  (e.g. experience x1-x6, tour u1-u3/root_cause, recall s4); all still pass. No expected value
+  changed; no re-pin.
+
+PINS (new)
+- tests/test_light_radius_wall_recorded.py: tour decisions 0-1 replayed, decision 2 decided once
+  with a call-through spy on warrior_optimization.optimize_loadout; the first call's inputs
+  evaluated again: unwalled -> Phial (radius 3), walled -> lamp (radius 2), other items and
+  metrics identical. Control: with pre_light_radius_rule replaced by nullcontext the pin FAILS
+  (('home:1238e7da3d947a78:0', 3) != ('equipped:21b109e0d6b6382d:0', 2)).
+- tests/test_light_radius_rank_recorded.py (branch-new module):
+  test_catalog_prune_keeps_a_lantern_against_an_infravision_torch. Revert-proof: with
+  warrior_loadout_search.py:119 back to "signature[2] if launcher else None" it FAILS.
+
+TEST RESULTS (each module alone, after the change)
+  test_home_withdraw_failed_stock_present_recorded  7 tests OK
+  test_store_reentry_recorded                       36 tests OK
+  test_protocol3_client                             29 tests OK
+  test_pure_decision_telemetry                      6 tests OK
+  test_recall_stockout_set_end_recorded             5 tests OK
+  test_ownership_s2a1_closure                       80 tests OK
+  test_unaffordable_claim_tour_recorded             8 tests OK
+  test_experience_potion                            14 tests OK
+  test_light_radius_wall_recorded                   1 test OK
+  test_light_radius_rank_recorded                   13 tests OK
+
+GUARDS (after the last commit 66c1ba84)
+preflight:
+  [preflight] PREFLIGHT OK: 39 changed files, 0 findings (light-radius-rank-1019 vs 653c1bb6)
+  (27 NOTE lines: the walled tests above listed as MODIFIED; plus test_lantern_rewield_recorded /
+   test_light_in_hand_recorded / test_policy_supply / test_town_unseen_travel_recorded notes that
+   come from main's #85/#82 commits this branch does not contain - see STOP.)
+mutation_check --tests test_light_radius_wall_recorded test_light_radius_rank_recorded
+  test_optimizer_lamp_recorded test_policy_supply --record:
+  [mutation] 14 source hunks, tests: test_light_radius_wall_recorded test_light_radius_rank_recorded test_optimizer_lamp_recorded test_policy_supply
+  [mutation] caught     src/hengbot/equipment_optimizer.py:26 (TVAL_LITE,): test_without_the_wall_the_phial_with_the_wall_the_lamp, test_control_lamp_worn_with_only_fuel_lights_at_home_is_kept, test_control_radius_does_not_override_
+  [mutation] caught     src/hengbot/equipment_optimizer.py:95 (# Light radius, as ItemEntity::get_lite_radius() (item-entity.cpp) add): test_without_the_wall_the_phial_with_the_wall_the_lamp, test_control_lamp_worn_with_only_fuel_li
+  [mutation] NOT CAUGHT src/hengbot/equipment_optimizer.py:256 (def operational_equipment_candidate(owned: OwnedEquipment) -> bool:)
+  [mutation] caught     src/hengbot/equipment_optimizer.py:316 (def permanent_light_radius(item: OwnedEquipment | None) -> int:): test_light_radius_wall_recorded, test_light_radius_rank_recorded, test_optimizer_lamp_recorded, test_p
+  [mutation] caught     src/hengbot/equipment_optimizer.py:1037 (candidate_light = (): test_without_the_wall_the_phial_with_the_wall_the_lamp, test_worn_lamp_is_replaced_by_the_home_phial, test_worn_lamp_is_replaced_by_the_radius_3_
+  [mutation] caught     src/hengbot/equipment_optimizer.py:1309 (permanent_light_radius(entry.loadout.item_at(SLOT_LIGHT)),): test_field_selection_takes_the_wider_permanent_light
+  [mutation] caught     src/hengbot/policy_equipment.py:884 (if operational_equipment_candidate(item)): test_without_the_wall_the_phial_with_the_wall_the_lamp, test_control_lamp_worn_with_only_fuel_lights_at_home_is_kept, test_contr
+  [mutation] caught     src/hengbot/policy_supply.py:112 ("""Return whether carried gear or the known Home catalog has permanent): test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed, test_home_owned_permanent_lig
+  [mutation] TEXT ONLY  src/hengbot/policy_supply.py:342 (# expedition stock as soon as a usable permanent light is owned,): docstring/comment change, nothing to pin
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:21 (permanent_light_radius,): test_without_the_wall_the_phial_with_the_wall_the_lamp, test_control_lamp_worn_with_only_fuel_lights_at_home_is_kept, test_control_radius_do
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:106 (light = signature[0] == SLOT_LIGHT): test_without_the_wall_the_phial_with_the_wall_the_lamp, test_control_lamp_worn_with_only_fuel_lights_at_home_is_kept, test_contr
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:114 (# The light subtype is the selection's light-quality rank: a +1): test_catalog_prune_keeps_a_lantern_against_an_infravision_torch
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:130 (permanent_light_radius(item),): test_catalog_prune_keeps_a_wider_same_kind_light
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:297 (permanent_light_radius(loadout.item_at(SLOT_LIGHT)),): test_state_compression_keeps_the_wider_permanent_light
+  [mutation] MUTATION FAIL: 1 of 14 hunks are not pinned by a test
+fast_tier --shards 4 (started after gate-nosafe-1019 ended with STOP at 01:33):
+  [fast] 3754 fast tests (<2.0s in e40a6a11) + 13 changed modules, 4 shards
+  [fast] excluded 28 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-wzb7h1np)
+  Failures: none
+  Errors: ['tests.test_own_grid_visible (import) ModuleNotFoundError("No module named \'tests.test_own_grid_visible\'")', 'tests.test_mutation_calibration (import) ModuleNotFoundError("No module named \'tests.test_mutation_calibration\'")']
+  Total: 4145 tests, 1634.6s
+  The 2 import errors are modules of other branches (#88/#89) in the shared timing cache; neither
+  file exists in this worktree or at 653c1bb6.
+
+STOP (not fixed, outside this task)
+- mutation NOT CAUGHT equipment_optimizer.py:256: it is not a hunk of this branch. 653c1bb6 holds 17
+  commits this branch lacks (merge base b742206d), incl. 61592abf [Fix] #85 (oil_carried in
+  operational_equipment_candidate) and 162d1abb #82. Diffing against 653c1bb6 shows them reversed
+  (also policy_supply.py:112, policy_equipment.py:884, policy.py, policy_town.py,
+  town_work_sites.json, and the "REMOVED" preflight notes for test_lantern_rewield_recorded /
+  test_light_in_hand_recorded). A reverse hunk cannot be pinned on this branch; merging 653c1bb6
+  into the branch (lead decision) would remove it.

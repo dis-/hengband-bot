@@ -5,3 +5,4 @@ tests/fixtures/incident-calibration-entry-await-20260823.jsonl -text whitespace=
 tests/fixtures/incident-magic-abandon-cycle-20260823.jsonl -text whitespace=-trailing-space
 jsonlog/replay-*.jsonl -text whitespace=-trailing-space
 tests/fixtures/live36-weight.json -text
+tests/fixtures/mutation-calibration/bot-test_Autodump_2026-07-25_054022.txt -text

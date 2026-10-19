@@ -1,0 +1,65 @@
+LUNA-DIAG own-grid-visible (#89, predicate audit question 6) -- base 653c1bb6
+
+Game rules (C:\hengband\src):
+- read: cmd-read.cpp:37 / cmd-item.cpp:276 cmd_limit_blind || cmd_limit_confused;
+  action-limited.cpp:88 cmd_limit_blind = blind ("目が見えない。") or no_lite ("明かりがないので見えない。").
+- native travel: travel-execution.cpp:134 blindness || no_lite -> "目が見えない！", no step.
+- no_lite = !player_can_see_bold(own grid) (grid.cpp), false while blind (geometry.cpp); the
+  emitter's can_see_own_grid = !no_lite (bot-json-output.cpp:1584). Any depth, town at night too.
+
+Sites that decide "can the player see / read / travel / explore by sight" (line = 653c1bb6):
+
+A. Answerers
+ 1 policy.py:13272 _is_dark: dungeon_level>=1 and not blind and not can_see_own_grid (legacy: unlit
+   own grid). Mirrors: darkness-recovery trigger (refill/wield in the dungeon), not the read rule.
+   Kept as is (dungeon light upkeep, question 7); now also the legacy fallback of _own_grid_visible.
+ 2 policy.py:13566 _can_read_scrolls: True unless _is_dark -> always True in town and while blind;
+   in the dark True when the worn light has fuel. Mirrors cmd_limit_blind(no_lite) only in the
+   dungeon. WRONG in a dark town (game refuses) and in a dark dungeon with a fueled worn light.
+ 3 policy_town.py:5047 _native_travel_sightless: can_see_own_grid is False (#79). Mirrors
+   travel-execution.cpp:134 on protocol-3 boards; a legacy (None) blind board passed.
+ 4 policy.py:13236 _player_can_see_empty_cell: blind / can_see_own_grid is not True / light radius.
+   Another cell's visibility (not own grid); consistent, unchanged.
+
+B. Read sites through _can_read_scrolls (all inherit the fix via A2):
+   policy.py:10331, 12193, 12200, 12389, 18127 (_escape_scroll: every flee/threat/status/no-wait/
+   wilderness escape read), policy_combat.py:295, 2170, 2814, 3682, policy_fundraising.py:585, 662,
+   policy_navigation.py:746, 772, 896, policy_town.py:7548, 7657, 7708 (#81 composite).
+   Most add an ad-hoc "not blind and not confused"; now redundant for blind, still needed for
+   confused (_can_read_scrolls stays the sight half; _can_read_now adds confusion). Left in place:
+   deleting them is a pure refactor (no behaviour change, cannot be pinned).
+
+C. Read sites with an ad-hoc guard only (ignore darkness):
+ - policy_town.py:6698 town departure recall read: not blind and not confused. WRONG in a dark
+   town (measured below). -> _can_read_now.
+ - policy_identification.py:506 dungeon identify read: in_town/blind/confused excluded above, then
+   _is_dark -> equal to not _own_grid_visible in the dungeon. Right; unchanged (pure refactor).
+ - policy_fundraising.py:1588 detect-treasure read, policy_quest.py:1745/2249/2341/3103 light-area
+   reads, 1813/2823 quest teleport, policy.py:18213 q22 opening teleport, policy_equipment.py:3818,
+   policy_home.py:4178/policy_identification.py:455 identify reads (in-store or dungeon
+   identification producers with their own blind/confused/hostile gates). Dungeon-only or
+   in-store; no darkness check. Not routed in this change: each needs its own dark pin and no
+   incident is measured (latent; listed for a follow-up).
+
+D. Travel sites
+ - policy_town.py:5080 _town_travel_key (every store/Home/entrance travel leg), policy.py:8148
+   entry-wait release: both via A3 -> now _own_grid_visible.
+ - policy_town.py:2044 _boxed_town_breakout_key: probe only (its key is discarded at 1738; the
+   committed key goes through _shopping_approach_key -> _town_travel_key). Unchanged.
+ - policy_shop.py:5940 / policy.py:16168 _has_light_equipped (any light, 0 fuel counts): chooses
+   walking when NO light is worn; walking is legal, so not a contradiction of the game rule.
+   Travel itself is gated by A3. Light possession is question 7; unchanged.
+
+E. Explore / darkness producers
+ - policy_navigation.py:325 _dark_locomotion_key, 482, policy_identification.py:1385: _is_dark
+   (dungeon). policy_navigation.py:1400 _explore_step; #81 composite policy_town.py:7690-7710
+   (light_radius==0, no refill, no torch, _can_read_scrolls). Light upkeep / #81 already fixed;
+   unchanged.
+ - policy_supply.py:131 _light_refill_item unknown lantern: here.lit, dungeon only (question 7).
+
+Measured (scratch replay, tests/test_star_identify_departure_recorded.py board, 653c1bb6):
+ - recorded lit board: _town_special_key 'ric' town:recall-to-alt-dungeon.
+ - same board, worn Brass Lantern 0 turns + 5 flasks of oil, can_see_own_grid False, light_radius 0:
+   _town_special_key 'ric' (the game refuses: no_lite). choose_key: '\Fw' refill-light (light
+   upkeep rung acts first on the full decision; the departure producer itself is wrong).
+ - worn torch 0 turns, no oil: _town_special_key None (departure not ready) -- not a pin board.

@@ -124,7 +124,7 @@ from hengbot.town_arbiter import (
 )
 
 from test_ownership_claims import LEGACY_CHECKPOINT, _Replay
-from recorded_loadout import recorded_loadout_replay
+from recorded_loadout import pre_light_radius_replay, recorded_loadout_replay
 from test_ownership_s2a_classification import _reason_literals
 
 
@@ -788,6 +788,7 @@ class ClosingPathsTest(unittest.TestCase):
                 policy.confirm_key_posted(key)
         return rows
 
+    @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     def test_revert_proof_without_the_effect_confirmation_no_sale_completes(self):
         """The first two sale confirmations of the tour, with and without.
 

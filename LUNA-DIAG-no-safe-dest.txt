@@ -1,0 +1,85 @@
+LUNA-DIAG no-safe-dest (branch no-safe-dest-1019, base main 653c1bb6)
+
+MEASURED CAUSE
+The no-safe-destination fundraising path is refused only because carried gold
+is at/above FUNDRAISING_GOLD_TARGET:
+
+  src/hengbot/policy.py:15913
+      if snapshot.player.gold >= FUNDRAISING_GOLD_TARGET:
+          return False
+  src/hengbot/policy_constants.py:227  FUNDRAISING_GOLD_TARGET = 15000
+  board gold = 20238  (both captures, decision rows 32413..32421 and 6..14)
+
+  -> _start_no_safe_destination_fundraising returns False
+  -> src/hengbot/policy_town.py:6927-6928
+         self._town_blocked_reason = gate_reason
+         return self._town_blocked_key(snapshot)
+  -> "town:blocked:depth-gate:destination-NN:missing-..." x8, then
+     owner-retired-burst.
+
+Replay (public response path, fresh policy, capture
+20261019-231644-town-blocked-owner-retired-burst, state lines 72..83, decisions
+0..6; --crossarea-fundraising and --in-store-shop-ops on as live) on 653c1bb6:
+  decisions 0..6 reproduce the live keys exactly (bot dcf664fa gave the same),
+  decision 6: '1' town:blocked:depth-gate:destination-26:missing-resist_acid,resist_elec
+  Same board with only player.gold = 14999:
+  decision 6: '2' town:entrance-step-off:fundraising:no-safe-destination:
+              depth-gate:destination-26:missing-resist_acid,resist_elec
+              (_fundraising_mode = "prepare")
+  => the gold check is the single deciding conjunct.
+
+departure_block at decision 6 (policy._departure_block_state):
+  gate town_departure_ready, ready True, failed [] (every conjunct True,
+  free_pack_slots 7 / minimum 5).  The only refusal is the depth gate.
+
+Other suspects, ruled out by measurement:
+- run-count / mining hard limit latched: no.  fundraise:mining-hard-limit is
+  the per-floor sweep ceiling (policy_fundraising.py:946-948, finishes the
+  floor); the set had already ended (fundraising mode null, planned_runs null,
+  over_extension.last_return_trigger "fundraising-run-exhausted").
+- kit_secured false: not consulted by _start_no_safe_destination_fundraising.
+- missing abilities: equipment abilities only (free_action / resist_acid,
+  resist_elec), no *Destruction* / speed label, so policy.py:15911 passes.
+- fixed quest: quest 18, not approved (approved_quest_strategy(18) None);
+  re-evaluated on the replayed board: verdict False reason
+  "three-turn-threat" (worst_adjacent 4376, hp budget 480).  The logged
+  reason "departure" is a stale evaluation; there is no acceptable quest.
+- 23 -> 26: capture 231616 last row over_extension target_dungeon_id 7
+  (Forest, alternate_dungeon_id 7, recall depth 23, missing free_action).
+  _alternate_dungeon is in-memory; after the restart (231644) it is null,
+  so the target is Angband (recall depth 26, missing resist_acid,resist_elec).
+  Entered recall depths {1:26, 7:23, 14:25, 18:30, 4:18 (conquered), 2:Yeek}:
+  no safe landing either way.  Not a cause.
+
+Earlier "approved path worked" (4 times): no capture in c4a-loops-20261016
+contains a no-safe-destination reason, so its gold is not measured here; by
+the code above it can only have been taken with gold < 15000.
+
+WHY THIS IS A STOP
+The behaviour is the documented and pinned design: the docstring of
+_start_no_safe_destination_fundraising (policy.py:15902-15905) says the set is
+"never opened at or above FUNDRAISING_GOLD_TARGET, where the gold set-end would
+close it on the next board ... there the named depth-gate stop stays", and the
+existing test pins it:
+
+  tests/test_no_safe_destination_recorded.py
+  NoSafeDestinationRecordedTest.test_unsafe_alternate_target_stops_like_angband_when_no_fallback
+    gold = FUNDRAISING_GOLD_TARGET (15000)
+    old (current) value:
+      ("1", "town:blocked:depth-gate:destination-22:missing-resist_conf")
+      ("1", "town:blocked:depth-gate:destination-21:missing-resist_conf")
+    value after any fix that takes the approved path at gold >= target:
+      ("2", "town:entrance-step-off:fundraising:no-safe-destination:
+             depth-gate:destination-22:missing-resist_conf")
+      ("2", "town:entrance-step-off:fundraising:no-safe-destination:
+             depth-gate:destination-21:missing-resist_conf")
+
+No distinction between that board (gold 15000) and this one (gold 20238)
+exists other than the gold amount, so the fix cannot leave that test green
+without a new threshold or a capture-keyed special case (both forbidden).
+In addition, opening the set at gold >= target needs a set-end rule other
+than the gold end (_end_fundraising_set_at_gold_target, policy_town.py:4790,
+would close it on the next board -> reopen -> town cycle).  Choosing that end
+rule (e.g. the ordinary run-count end MINING_RUNS_PER_SET, exempting this set
+from the gold end the way the supply-stockout set is exempted) is a decision,
+not a bug fix.

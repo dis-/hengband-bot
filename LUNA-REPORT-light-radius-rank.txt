@@ -84,3 +84,17 @@ REPAIR ROUNDS
      dropped the redundant equivalence-key hunk, added unit pins.
   2. mutation: field-selection hunk not caught -> unit pin. fast tier: test_no_live_state_artifact
      flagged the live state file name in my test docstring -> reworded (no behavior change).
+
+ROUND 2 (main b742206d with #79)
+- optimizer-lamp-1019: merged b742206d (dbaabc51; manifest regenerated), a4b04b5e sets the first-key
+  expectation of the 3 travel-home tests in test_optimizer_lamp_recorded to
+  APPROACH_HOME = ('6', 'equipment-transaction:approach-home') (#79: night board, can_see_own_grid
+  False -> walk). All transaction-plan assertions unchanged and green.
+  Guards vs b742206d: PREFLIGHT OK (6 files, 0 findings); MUTATION OK 0 of 2; fast_tier first run
+  crashed shard 2 (90 s timeout inside town_work.profile, about test_home_interruption_constructed;
+  that module passes alone), re-run: 3746 tests, no crash, no failure, no error.
+- light-radius-rank-1019: merged optimizer-lamp-1019 (abe0729d, includes main), 3cdcbbd7 sets the
+  same first key in the 2 radius pins; the 3 controls exclude both travel-home and approach-home.
+  Guards vs a4b04b5e: PREFLIGHT OK (9 files, 0 findings); MUTATION OK 0 of 8 (recorded 3cdcbbd7);
+  fast_tier 3753 tests, no crash, no failure, no error.
+- Only the first key/reason differed; nothing else changed.

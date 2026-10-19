@@ -1,0 +1,51 @@
+#86 round 3 DIAGNOSIS - why the 7 (+) gate tests changed (branch ae970cd7 vs main 653c1bb6)
+
+MEASURED CAUSE
+- Method: the failing replays were run on the branch with a wrapper around
+  warrior_optimization.optimize_loadout (scratch diag script, not committed). Each call ran
+  the branch code and main's code in the same process (main = 653c1bb6's _item_dominance_parts
+  and _gear_state, and permanent_light_radius -> 0 in equipment_optimizer), then each of the
+  three branch parts alone reverted ("d" dominance parts, "g" gear state, "p" radius in
+  _prefer/_stable_operational_best).
+- test_protocol3_client P1 (esp-threat-rest fixture), test_t4 and test_s3
+  (unaffordable-claim-tour fixture): the FIRST optimizer call already differs, and every
+  differing call is the same single-slot change:
+    branch best = main best with  equipped:21b109e0 フェアノールのランプ {明} (tval 39 sval 2,
+                  known_flags [86,122] -> radius 2)
+                 replaced by  home:1238e7da ★ガラドリエルの玻璃瓶 (+1探索) {+探;明, !!}
+                  (tval 39 sval 4, fully_known True, known_flags [9,84,85,86,87,88,123] -> radius 3)
+    LoadoutMetrics of both bests identical (dps 77.548, survival 15.608, margin 7.590,
+    ranged 31.81, speed 4, secondary -0.554).
+  Part attribution: reverting "d" or "g" alone leaves the Phial choice; reverting "p" alone
+  gives main's lamp. The cause is equipment_optimizer.py:1040-1049 (_prefer, radius after
+  light_source_quality under cm == im) together with :1312 (_stable_operational_best):
+  key (light_source_quality, radius) = (2, 3) for the Phial vs (2, 2) for the lamp; on main
+  both are 2 and the current set wins the tie.
+- Downstream (test_s3 run, 12 optimizer calls, takeoff probe on _equipment_takeoff):
+  calls 1-5 = the lamp -> Phial choice above (branch only). The recorded boards keep the lamp,
+  so the replayed policy state differs from main from there on. Calls 6-12 return the SAME best
+  on branch and main (from call 8: dps 91.77, a loadout with equipped:1b970248 and without the
+  shield equipped:97c0d4f4; only top_candidates differ by the Phial). At 2996 the branch then
+  applies an already planned transaction [takeoff sub_hand 97c0d4f4, deposit 97c0d4f4] in Home
+  -> ('tb', equipment-transaction:takeoff), while main travels ('\x1b`n(.', shop:travel).
+  So 'tb' is the shield leg of a transaction both sides choose; only its timing moved because
+  the earlier Phial transaction changed the policy state. The other gate failures look like the
+  Phial leg itself (INFERRED from the gate logs, not traced item by item): P1 seq 4
+  ('5 pk\x1b', equipment-transaction:atomic-withdraw) where main travels; recall-stockout s1/s2
+  ('\x1b`n(.', equipment-transaction:travel-home) instead of shop:travel. MEASURED for P1: its
+  first optimizer call (esp-threat-rest protocol3 fixture) is the same lamp -> Phial change.
+- The task premise "the character only ever has that one light" does not hold: every failing
+  fixture holds the Phial (radius 3, fully known) at Home from its first Home page on
+  (unaffordable-claim-tour row 3, turn 4372754; also esp-threat-rest(.protocol3),
+  recall-stockout-set-end, home-withdraw-failed-stock-present, store-reentry-20261003 (also
+  ★知識の石); test_ownership_s2a1_closure replays the tour fixture). It is the same character
+  and the same Home as the owner's 10-03 observation 「明確に下位互換の光源を装備している」.
+- Not the suspects: no stored/restored key mismatch, the dominance/gear-state parts change
+  nothing here, and the radius is read from the same known_flags on equipment and Home rows.
+
+CONSEQUENCE
+- The owner decision 「照らせる範囲も比べる」 is exactly what changes these boards: main keeps the
+  radius-2 lamp because of the tie; the decision requires the radius-3 Phial. Returning these
+  tests to main's result would mean not preferring the wider light on the very board the
+  decision was made for. -> STOP (task rule: "If the owner decision itself requires a different
+  decision on this board, STOP and report with evidence"). No source change was made.

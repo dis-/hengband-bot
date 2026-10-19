@@ -2862,6 +2862,8 @@ class TownMixin:
                 # The D1 time-pass still needs its D3 kit above the target.
                 or self._recall_stockout_run_outstanding(snapshot)
                 or getattr(self, "_supply_stockout_gold_target", None) is not None
+                # The no-safe-destination set has no gold objective.
+                or getattr(self, "_no_safe_destination_set", False)
             )
             and not self._opening_q34_active(snapshot)
         )
@@ -4800,6 +4802,9 @@ class TownMixin:
             # to its outstanding run while the recall stockout persists.
             and not self._recall_stockout_run_outstanding(snapshot)
             and getattr(self, "_supply_stockout_gold_target", None) is None
+            # No safe recall landing: the set runs to its run count whatever
+            # the gold (user decision 2026-10-19).
+            and not getattr(self, "_no_safe_destination_set", False)
         ):
             self._fundraising_mode = None
             self._planned_mining_runs = None
@@ -5043,14 +5048,12 @@ class TownMixin:
                 return store_type
         return None
 
-    @staticmethod
-    def _native_travel_sightless(snapshot: Snapshot) -> bool:
+    def _native_travel_sightless(self, snapshot: Snapshot) -> bool:
         """Whether the game refuses every native-travel step on this board.
 
-        The board's ``can_see_own_grid`` is the game's ``!no_lite()``, which is
-        also false while blind; travel-execution.cpp ``decide_travel_step_dir``
-        then stops travel with "目が見えない！" (darkness or blindness)."""
-        return snapshot.can_see_own_grid is False
+        travel-execution.cpp ``decide_travel_step_dir`` stops travel with
+        "目が見えない！" when blind or ``no_lite()``: the own grid is unseen."""
+        return not self._own_grid_visible(snapshot)
 
     def _town_travel_key(
         self, snapshot: Snapshot, goal: Position, macro: str, reason: str
@@ -6308,9 +6311,11 @@ class TownMixin:
         if (
             (self._fundraising_mode == "mine"
              or (self._fundraising_mode == "scavenge"
-                 and getattr(self, "_supply_stockout_gold_target", None) is not None))
+                 and (getattr(self, "_supply_stockout_gold_target", None) is not None
+                      or getattr(self, "_no_safe_destination_set", False))))
             and self._mining_runs_completed >= self._effective_mining_run_target()
         ):
+            self._no_safe_destination_set = False
             self._fundraising_mode = None
             self._mining_runs_completed = 0
             self._planned_mining_runs = None
@@ -6695,7 +6700,7 @@ class TownMixin:
                     continuation="recall.read",
                 )
                 return CHARACTER_DUMP_MACRO
-            if not snapshot.player.blind and not snapshot.player.confused:
+            if self._can_read_now(snapshot):
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None and guardian_blocked:
                     # The recall would be read now and would land on a

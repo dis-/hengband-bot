@@ -38,8 +38,10 @@ ITEM 4, USER DECISION 2026-10-02 17:4x (verbatim answer: 「1 ただし、クエ
 正常に進行すれば混乱耐性は獲得できる」; option 1: 停止せず、イークの洞穴（町から
 歩いて入れる）で資金稼ぎを続けながら、町に戻るたびに店と闇市で耐混乱の付いた装備
 を探して買う。手に入ったら通常の潜行に戻る): with no safe landing the town enters
-the ordinary fundraising set (``prepare``) instead of the named stop, below the
-fundraising gold target; the gate is not relaxed.  The first changed key is
+the ordinary fundraising set (``prepare``) instead of the named stop, whatever
+the gold (owner decision 2026-10-19 「金額に関係なく資金稼ぎ」, #90: the set is
+not ended by the gold target and ends by the run count); the gate is not
+relaxed.  The first changed key is
 pinned; the set's next owner is shown by re-deciding the SAME board (no later
 recorded board is the effect of the new key, R4).
 
@@ -144,19 +146,25 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
 
     # ------------------------------------------------------------ item 9
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
-    def test_unsafe_alternate_target_stops_like_angband_when_no_fallback(self):
-        # Gold at the fundraising target: the fundraising fallback of item 4
-        # does not apply, so the decided terminal is the named stop.
+    def test_unsafe_target_at_the_gold_target_enters_fundraising_like_angband(self):
+        # Gold at the fundraising target.  OWNER DECISION 2026-10-19
+        # (AskUserQuestion answer, verbatim: 「金額に関係なく資金稼ぎ
+        # (Recommended)」): with no safe landing the town fundraises whatever
+        # the gold, so the alternate target takes the same item 4 fallback as
+        # Angband instead of the former named stop
+        # ("1", "town:blocked:depth-gate:destination-22/21:missing-resist_conf").
         key, reason, policy, _board = self._decide_board_4(
             alternate=CASTLE, gold=FUNDRAISING_GOLD_TARGET)
         self.assertEqual(policy._target_dungeon_id, CASTLE)
         self.assertEqual(
             (key, reason),
-            ("1", "town:blocked:depth-gate:destination-22:missing-resist_conf"))
+            ("2", "town:entrance-step-off:fundraising:no-safe-destination:"
+                  "depth-gate:destination-22:missing-resist_conf"))
         angband = self._decide_board_4(gold=FUNDRAISING_GOLD_TARGET)
         self.assertEqual(
             angband[:2],
-            ("1", "town:blocked:depth-gate:destination-21:missing-resist_conf"))
+            ("2", "town:entrance-step-off:fundraising:no-safe-destination:"
+                  "depth-gate:destination-21:missing-resist_conf"))
 
     # ------------------------------------------------------------ item 4
     def _assert_fundraising_entered(self, alternate):
@@ -184,7 +192,7 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
         again = policy.choose_key(board)
         self.assertEqual(
             (str(again), policy.last_reason),
-            (f"`n{TOWN_TRAVEL_STORE_SYMBOLS[STORE_HOME]}.", "shop:travel"))
+            (f"\x1b`n{TOWN_TRAVEL_STORE_SYMBOLS[STORE_HOME]}.", "shop:travel"))
         self.assertNotEqual(WAIT_KEY, again)
 
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
