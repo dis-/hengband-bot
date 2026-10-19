@@ -1,0 +1,78 @@
+LUNA-REPORT Issue #88 - mutation calibration, first step
+Branch mutation-calibration-1019, base 653c1bb6, code commit 1cb6ef99.
+
+MEASURED DIAGNOSIS
+- On 653c1bb6, the RECORDED 0917 C response + dump with a DECLARED mutations [12]
+  through observe_character_snapshot/_complete_character_dump gives
+  _calibration_unavailable_reason "unsupported-mutation", and
+  _prepare_equipment_optimization returns blockers ('calibration-required',).
+  The same inputs with mutations [] calibrate, and the optimizer returns
+  blockers () with result.best set (scratch run, 22:0x).
+
+CHANGES
+1. src/hengbot/character_sheet.py: SHEET_NEUTRAL_MUTATIONS = range(0, 64) |
+   {75..82, 86, 87, 88, 89, 92, 94, 95} (79 ids, design class A, including
+   86/87/89/94 by the owner's decision). The refusal is now
+   "unsupported-mutation:<ascending ids outside the allowlist>". No calculation changed.
+2. src/hengbot/policy_calibration.py (review finding 2): the schema-2 recheck also
+   compares base_hp + constitution_hp_bonus(CON predicted from the calibration and
+   current gear, level) + temporary_bonuses() HP with player.max_hp; on mismatch the
+   calibration is stale with reason "visible-max-hp-changed". This is the
+   calibration's own inverse run forward (character_sheet.py: roll = neutral_hp -
+   constitution_hp_bonus(con, level)). The temporary part could be derived, so no STOP.
+3. The design doc edits were skipped: plans/ does not exist in this worktree.
+4. Bookkeeping: town_work_manifest regenerated (town_work_sites.json ast hash for
+   CalibrationMixin._validated_character_calibration, manifest .gz).
+   .gitattributes: "-text" for the CP932/CRLF dump fixture, so it stays byte for byte.
+   No new policy attribute (no checkpoint defaults needed). No new decision reason
+   (STUCK_FAMILY_REASONS untouched).
+
+FIXTURE (RECORDED)
+- tests/fixtures/mutation-calibration/bot-test_Autodump_2026-07-25_054022.txt
+  (copy of the lib/user auto-dump; BR_FIRE 1 only; sha256 in .provenance.txt).
+
+TESTS (tests/test_mutation_calibration.py, 8 tests)
+- SheetNeutralMutationTest.test_recorded_july_dump_with_br_fire_equals_its_no_mutation_calibration (RECORDED 07-25, [1] vs [])
+- SheetNeutralMutationTest.test_swap_pos_equals_no_mutation_except_signature_and_still_invalidates (i)
+- SheetNeutralMutationTest.test_every_class_a_mutation_is_accepted_without_changing_the_calibration
+- SheetNeutralMutationTest.test_reason_lists_only_the_ids_outside_the_allowlist (ii: 69 / 93 / 96 / "74,93", every B id and 93)
+- SheetNeutralMutationTest.test_allowlist_is_the_design_partition (iii)
+- GameSourceCrossCheckTest.test_no_allowlisted_mutation_reaches_stats_ac_or_the_stat_table (vi; the control asserts that the scan finds exactly class B)
+- PolicyIntegrationTest.test_swap_pos_character_reaches_the_optimizer (iv)
+- PolicyIntegrationTest.test_max_hp_reroll_makes_the_calibration_stale (v; unchanged stays valid, hero +10 stays valid, +1 becomes stale)
+Partition note (iii): the design's class B (64..74, 83, 84, 85, 90, 91 = 16 ids)
+already contains 74, so A | B | {93} == range(96). The test asserts 74 in B and
+also the task's A | B | {74} | {93} form.
+
+REVERT-PROOF (git apply -R of one file's diff, then the new module)
+- character_sheet.py reverted: 7 of 8 tests fail (every test except the max-HP one).
+  test_swap_pos_character_reaches_the_optimizer FAILS on the base (blockers
+  ('calibration-required',)).
+- policy_calibration.py reverted: only test_max_hp_reroll_makes_the_calibration_stale fails.
+- Controls: [] calibrations unchanged; the hero case stays valid.
+
+EXISTING TESTS
+- None changed. Ran test_character_sheet_calibration, test_policy_calibration,
+  test_calibration_checkpoint (33 OK); test_classC2_departure_recorded,
+  test_tpstockout_restart_recorded (12 OK).
+
+GUARD OUTPUTS
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (mutation-calibration-1019 vs 653c1bb6)
+
+[mutation] 4 source hunks, tests: tests.test_mutation_calibration
+[mutation] caught     src/hengbot/character_sheet.py:173: test_no_allowlisted_mutation_reaches_stats_ac_or_the_stat_table, test_max_hp_reroll_makes_the_calibration_stale, test_swap_pos_character_reaches_the_optimizer, ...
+[mutation] caught     src/hengbot/character_sheet.py:267: test_every_class_a_mutation_is_accepted_without_changing_the_calibration, test_recorded_july_dump_with_br_fire_equals_its_no_mutation_calibration, test_swap_pos ...
+[mutation] caught     src/hengbot/policy_calibration.py:187: test_max_hp_reroll_makes_the_calibration_stale, test_swap_pos_character_reaches_the_optimizer
+[mutation] caught     src/hengbot/policy_calibration.py:203: test_max_hp_reroll_makes_the_calibration_stale
+[mutation] MUTATION OK: 0 of 4 hunks are not pinned by a test
+[mutation] recorded for 1cb6ef99
+
+(fast_tier ran after waiting for gate-radius-1019 to end with STOP at 22:41)
+[fast] 3709 fast tests (<2.0s in 653c1bb6) + 1 changed modules, 4 shards
+[fast] excluded 28 modules measured over 60s
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3725 tests, 233.2s
+
+STOPS: none.

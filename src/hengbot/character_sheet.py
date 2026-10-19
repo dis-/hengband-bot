@@ -173,6 +173,17 @@ def invert_current(row: StatRow, adjustment: int) -> int:
     return min(candidates)
 
 
+# ``PlayerMutationType`` ids (src/mutation/mutation-flag-types.h) that touch
+# none of the calibration inputs: the activatable powers 0..31, the random
+# events and extra attacks 32..63 (their timed states, stat losses and gear
+# changes are caught by the existing checks), and the constant effects that
+# change neither a stat (src/player-ability/*.cpp) nor the AC (calc_to_ac).
+# Speed and saving throw are read from every snapshot, flags from the
+# characteristics.  Issue #88 design, class A (79 ids).
+SHEET_NEUTRAL_MUTATIONS = frozenset(range(0, 64)) | frozenset(
+    {75, 76, 77, 78, 79, 80, 81, 82, 86, 87, 88, 89, 92, 94, 95})
+
+
 def temporary_bonuses(effects: frozenset[str]) -> tuple[int, int]:
     """Subtract visible timed bonuses after the game's HP floor and AC sum."""
     known = {"ultimate_resistance", "ult_res", "musou", "tsubureru", "shield",
@@ -256,9 +267,12 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     if character.get("mutations") is None:
         raise CharacterSheetUnavailable("mutations-missing")
     mutations = tuple(sorted(int(value) for value in character["mutations"]))
-    if mutations:
-        # Mutation names and sustain-overwritten symbols need an explicit rule.
-        raise CharacterSheetUnavailable("unsupported-mutation")
+    # A mutation outside the sheet-neutral set changes a stat, the AC or the
+    # element multiplier the evaluator assumes; it still needs its own rule.
+    unsupported = sorted(set(mutations) - SHEET_NEUTRAL_MUTATIONS)
+    if unsupported:
+        raise CharacterSheetUnavailable(
+            "unsupported-mutation:" + ",".join(str(value) for value in unsupported))
     if not skill_exp_known(player, ("shield_skill",)):
         raise CharacterSheetUnavailable("skill-exp-unknown")
     if not isinstance(character.get("characteristics"), list):
