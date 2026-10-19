@@ -44,10 +44,7 @@
     "self._explore_step(snapshot) @ ": 1
   },
   "policy.py:_low_hp_no_kit_hit_key": {
-    "self._direction_key(here, cell) @ For:neighbors / If:body:not exposed_to(cell)": 1,
-    "self._direction_key(here, cell) @ If:body:melee / If:body:candidates": 1,
-    "self._direction_key(here, cover[1]) @ If:body:cover is not None": 1,
-    "self._direction_key(here, enemy.position) @ If:body:enemy is not None and (cover is None or enemy.position.distance_to(here) <= cover[0])": 1
+    "self._direction_key(here, cell) @ If:body:melee / If:body:candidates": 1
   },
   "policy.py:_low_hp_walk_gate": {
     "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid)": 1,
@@ -132,7 +129,6 @@
   },
   "policy_combat.py:_forbid_wait_while_damaged": {
     "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid)": 1,
-    "self._direction_key(snapshot.player.position, step) @ If:body:step is not None": 1,
     "self._direction_key(snapshot.player.position, target.position) @ If:body:self._took_damage and hostiles and (not snapshot.player.afraid)": 1,
     "self._flee_step(snapshot, hostiles) @ If:body:not only_suppressed_weak_breeders": 1,
     "self._direction_key(snapshot.player.position, self._weakest(strategic_adjacent).position) @ If:body:snapshot.in_town and (not self._took_damage) and strategic_adjacent and (not snapshot.player.afraid) and (not material_threat)": 1
