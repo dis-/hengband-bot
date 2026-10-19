@@ -1,0 +1,78 @@
+LUNA-REPORT unseen-reapproach (branch unseen-reapproach-1020, base e8ae2b19)
+Commits: 344f5dcd (fix + recorded pins), 0e75f087 (mutation repair: wiring, declared consumer pins)
+
+MEASURED DIAGNOSIS (details and file:line in LUNA-DIAG-unseen-reapproach.txt)
+- Replay of the recorded DL30 boards (9604 arrival .. 9714 loop stop, fresh process) on
+  e8ae2b19 reproduces live on every board except 9629 (probe vs seek-loot); 9630..9714
+  incl. the loop is the live key sequence.
+- Retreat (unseen:reverse-choke) walks east and retires at (22,64) (choke hold inactive with
+  no hostile); explore then re-plans to frontier (24,59) behind the hit cells and walks '4'
+  back in.  Explore's avoid set never knew the attack; the only re-approach guard was the
+  loot-only _unseen_deferred_loot (half plane from the current player position, 200-turn
+  quiet window).
+- The deferral is plain policy memory; the restarted process (board 1:1, messages []) has
+  none -> seek-loot '4' to (23,61) (reproduced).
+- 'warning:blocked-step' + None: after the restart's fire bolt the retreat steps '6' onto
+  (22,63), the weapon warning prompt latches the refusal, the retreat re-selects the same
+  refused cell (_unseen_reverse_choke_step ignores avoid/refused cells), _step_toward WAITs
+  and policy.py turns the WAIT into None while the prompt is on the board -> no-key.
+- 033006 town-blocked-departure-unsatisfiable: town, ~150k turns earlier -> unrelated.
+
+CHANGES
+- policy_identification.py: _in_unseen_attack_area(snapshot, position) (the one predicate:
+  attack continues = retreat armed on this floor or last hit inside the existing
+  UNSEEN_LOOT_QUIET_TURNS; area = half plane behind the last hit cell along the retreat
+  direction), _unseen_attack_area_cells, _record_unseen_attack, _apply_unseen_attack_restore;
+  _loot_step drops area candidates and does not route through the area.
+- policy_navigation.py: _explore_step avoid set, _global_frontier_path (candidates + BFS),
+  _plan_explore_path_pass consult the predicate.
+- policy_observation.py: records the hit cell; applies the restart record on the first board.
+- policy_supply.py: the retreat records {floor, turn, position, direction} on each eligible
+  hit.  Retreat stepping unchanged.
+- cli.py: _configure_policy_output_paths sets _unseen_attack_path = <decision log dir>/
+  unseen-attack.json.  runtime_paths.py: registered in POLICY_RUNTIME_PATH_ATTRIBUTES.
+- Bookkeeping: town_work_review.json / town_producer_baseline.json entries for the two pure
+  helpers; manifest + town_work_sites.json regenerated.  No new constant/threshold, no new
+  reason.  New policy attributes (no __init__ default; every read uses getattr, so restored
+  checkpoints need no default): _unseen_last_hit_position, _unseen_attack_path,
+  _unseen_attack_read.
+
+PINS (tests/test_unseen_reapproach_recorded.py; fixture tests/fixtures/unseen-reapproach-
+dl30-20261020.{jsonl.gz,recorded.json})
+- test_explore_does_not_walk_back_into_the_attack: e8ae2b19 9647 ('4','explore') = live;
+  fix ('8','explore') (first divergence); declared board 9712 live/e8ae2b19 ('4','explore')
+  -> fix ('6','explore'); retreat boards 9645/9646/9713/9714 equal live.
+- test_restarted_process_still_knows_the_attack: record {floor [1,30,0], turn 2564969,
+  position [22,61], direction [0,1]}; restarted board 1:1 live/e8ae2b19 ('4','seek-loot'
+  target (23,61)) -> fix ('9','explore').  e8ae2b19: no record file (error).
+- Declared consumer pins: loot target in area, loot route through area, explore planner,
+  global frontier prefers outside, global frontier route; checkpoint path isolation.
+  All fail on e8ae2b19 (revert-proof run: 7 failures + 1 error of 11; the 3 that pass on
+  e8ae2b19 are the incident-row check and the two controls).
+- Controls: no record -> ('4','seek-loot') target (23,61); record older than the quiet window
+  -> same; loot-route control without the hit walks the route.
+
+EXISTING TESTS (single modules, all OK): test_choke_hold_loop_recorded, test_lethal_unseen_
+caster_recorded, test_low_hp_no_unchecked_walk, test_reverse_choke_loot_loop_recorded,
+test_status_threat_latch_unseen_hit_constructed, test_town_unseen_travel_recorded,
+test_unseen_caster_death_recorded, test_unseen_loot_deferral_recorded, test_unseen_retreat_
+visible_attacker_recorded, test_unseen_spell_scratch_decision, test_heal_vs_teleport_decision,
+test_summoner_reach_decision, test_own_grid_visible, test_runtime_file_isolation,
+test_flight_recorder, test_policy_navigation, test_policy_combat, test_cli,
+test_town_work_contract.  No existing test changed.
+
+GUARDS (after 0e75f087)
+[preflight] PREFLIGHT OK: 14 changed files, 0 findings (unseen-reapproach-1020 vs e8ae2b19)
+[mutation] MUTATION OK: 0 of 12 hunks are not pinned by a test (recorded for 0e75f087)
+  (policy_navigation.py:1588 global-frontier candidate filter is caught by "timeout": with it
+  reverted the declared all-neighbours board makes the area-avoiding BFS search an unbounded
+  plane)
+[fast] 3779 tests, Failures: none, Crashed shards: none, Errors: 1 -
+  tests.test_light_radius_rank_recorded (import) ModuleNotFoundError: the module list comes
+  from the cache measured at e5359652 (not an ancestor of e8ae2b19); the module does not
+  exist on this branch.  Not related to this change.
+
+OPEN (not fixed, by instruction "keep the retreat unchanged")
+- The retreat's step chooser can pick a warning-refused cell, which yields WAIT -> None on a
+  prompt-bearing board (no-key).  With this fix the recorded restart no longer walks into the
+  attack, but the producer itself remains.
