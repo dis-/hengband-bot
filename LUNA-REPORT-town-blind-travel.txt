@@ -1,0 +1,159 @@
+LUNA-REPORT town-blind-travel (#79)  branch town-blind-travel-1019, base 8a1f6bba
+
+DIAGNOSIS (measured; details in LUNA-DIAG-town-blind-travel.txt)
+- The player was NOT blind. Both captures: player.status.blind False, status_bar [],
+  can_see_own_grid False, light_radius 0. Worn torch "松明(0ターンの寿命)" (light_turns 0), pack
+  lantern also 0 turns, no oil or spare torch; town at day 10 22:22 (night).
+- Game: can_see_own_grid = !no_lite() (bot-json-output.cpp:1584); no_lite is also true while
+  blind (geometry.cpp:50). travel-execution.cpp:134 decide_travel_step_dir refuses every step
+  when blind || no_lite ("目が見えない！"), then "道筋が見つかりません！"; no turn passes, so no new
+  board follows the refused macro.
+- Bot: _town_travel_key (policy_town.py, shared by every native-travel leg: shop:travel,
+  equipment-transaction:travel-home, town:travel-entrance, interrupted replan) never looked at
+  can_see_own_grid. _shopping_approach_key walks only when no light item is equipped at all
+  (a 0-turn torch counts as equipped). Darkness recovery (_is_dark) is dungeon-only.
+- Empty key: policy.py:8318-8331, the first decision after a travel post treats its board as the
+  lagged entry surface and returns "" (store:entry-await-observation); the refused travel never
+  produces another board -> <no-key-exhausted> (capture A decision 26, B decision 8).
+- Live f9afbaa7 vs 8a1f6bba: #76/#77/#78 touch policy.py (idstaff), policy_home.py, policy_quest.py
+  only, none of the travel gate or the entry wait; the 8a1f6bba replay reproduces the recorded
+  keys, so the difference does not matter.
+
+FIX (src/hengbot/policy_town.py, _town_travel_key, +7 lines)
+- If snapshot.can_see_own_grid is False: no_route("own-grid-unseen"); return None.
+  Every caller already falls back to its existing walking step (the recorded '4' walk moved the
+  player 103 -> 102 in the dark), so travel is never posted where the game refuses it and the
+  entry wait that yielded "" is never armed by a refused travel. Blindness is the same field;
+  on a blind board the existing status producer cures first (control below).
+- No new constant, threshold, policy attribute (no restored-checkpoint defaults needed), or reason.
+- Bookkeeping: scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json regenerated
+  (only the ast_sha256 of _town_travel_key changed). No census change.
+- NOTE vs task wording: the task said "blind"; measured cause is darkness (fuel-less light at
+  night). Cure/wait does not end darkness, so the fix walks (the existing no-light rule's action).
+
+PINS (tests/test_town_unseen_travel_recorded.py; fixture tests/fixtures/
+town-unseen-travel-20261019.jsonl.gz = capture B state rows 93..101 unchanged, + .decisions.json,
+extractor tests/extract_town_unseen_travel_fixture.py). Fresh policy (the process had just
+restarted), enforce_crossarea_fundraising=True as recorded, live response path.
+- Recorded decisions 0..2 reproduced: '~f\x1b', '~9\x1b\x1b', then on the unseen board:
+    8a1f6bba: ('\x1b`n%.', 'shop:travel')   [fails test_unseen_grid_walks_instead_of_native_travel]
+    fix:      ('4', 'shop:approach')
+- CONTROL (DECLARED CONSTRUCTED wall: only can_see_own_grid set True): ('\x1b`n%.', 'shop:travel'),
+  i.e. an ordinary lit arrival travels as before.
+- CONTROL (DECLARED CONSTRUCTED wall: only status.blind set True): ('qc', 'item:cure-critical') --
+  the existing cure producer acts before any travel.
+- Related modules run single: test_declarations_r4, test_entrance_travel_retired_recorded,
+  test_execution_declaration, test_home_light_alternation, test_lantern_lost_recorded,
+  test_light_pingpong_recorded, test_newchar_light_loop_recorded, test_ownership_s2a1_closure,
+  test_q34_opening_oil_recorded, test_quest34_target_dead_recorded: all OK.
+
+GUARDS
+preflight:
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (town-blind-travel-1019 vs 8a1f6bba)
+mutation_check --tests test_town_unseen_travel_recorded --record:
+  [mutation] 1 source hunks, tests: test_town_unseen_travel_recorded
+  [mutation] caught     src/hengbot/policy_town.py:5068 (if snapshot.can_see_own_grid is False:): test_unseen_grid_walks_instead_of_native_travel
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for 141f236d
+fast_tier --shards 4 (exit 1):
+  [fast] 3904 fast tests (<2.0s in ac9ed592) + 1 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: tests.test_q2_breeder_sweep_recorded, tests.test_idstaff_poor_depart_recorded,
+          tests.test_home_leave_suppressed_recorded -- (import) ModuleNotFoundError
+  Total: 3905 tests, 206.7s
+  The three errors are not regressions: those modules belong to the #76/#77/#78 branches; the
+  timing cache comes from ac9ed592 (which has them) and they do not exist at 8a1f6bba / this branch.
+
+======================================================================
+ROUND 2 (soak 11:10:25, bot 6c6e4a25 = ac9ed592 + round 1)  base now ac9ed592
+======================================================================
+Merge: main ac9ed592 merged (94c13b19); manifest conflict resolved by regenerating.
+
+MEASURED (C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-111025-no-key-exhausted)
+- state rows 9-10 (turn 1068238, (33,104)): can_see_own_grid True (lit cell); decision 6 posted
+  '\x1b`n(.' equipment-transaction:travel-home there -- through _shopping_approach_key ->
+  _town_travel_key; the round-1 gate correctly allowed it (the own grid was seen).
+- row 11 (turn 1068268, (34,107)): travel moved 3 cells into the night and stopped,
+  can_see_own_grid False, message "目が見えない！"; decision 7 '' store:entry-await-observation
+  (store_visit phase entering, posted_sequence 6) -> no further board -> <no-key-exhausted>.
+- Why the existing interrupted-travel release (policy.py interrupted_travel_entry) did not fire:
+  it requires the own cell (here is not None and here.store_number != owner); the emitter omits
+  the unseen own cell, so here is None (replay: grid_at((34,107)) is None), with or without the
+  executor's _completed_operation_sequence. The coordinator's hypothesis (travel-home bypasses
+  _town_travel_key) is not what the data shows.
+
+PRODUCERS THAT CAN EMIT THE TOWN TRAVEL MACRO (grep '`n', TOWN_TRAVEL_STORE_SYMBOLS,
+ENTRANCE_TRAVEL_MACRO over src/hengbot)
+- Emitted to the game only via policy_town.py _town_travel_key, whose callers are:
+  policy_shop.py _shopping_approach_key (shop:travel, equipment-transaction:travel-home,
+  store:entry-interrupted-replan, town-progress-invariant:boxed-breakout-travel via
+  _commit_boxed_town_breakout_key, every other caller of _shopping_approach_key);
+  policy.py route.resume (entrance) ~6559; holder entrance route ~6652; short-travel replan ~8278;
+  _entrance_travel_key ~16163 (town:travel-entrance).
+- policy_town.py _boxed_town_breakout_key builds "\x1b`n{sym}." itself, but its only caller
+  (policy_town.py:1738) discards the return value (a probe); the emitted breakout key comes from
+  _commit_boxed_town_breakout_key -> _shopping_approach_key -> _town_travel_key. Not changed
+  (a change there could not reach the game nor be pinned).
+- Recognisers only (no emission): cli.py macro->control-key tables, emit_ownership.py:66,
+  policy_town.py:584/619/1290/1658.
+
+FIX (one shared predicate)
+- policy_town.py: new @staticmethod _native_travel_sightless(snapshot) =
+  snapshot.can_see_own_grid is False (the game's no_lite(), also true while blind).
+  _town_travel_key uses it (round-1 gate, now via the predicate).
+- policy.py interrupted_travel_entry: also true when the store visit has a posted travel
+  (posted_sequence set, wait key '\x1b`...') and _native_travel_sightless(board): the game can
+  neither travel nor enter from an unseen own grid, so that board is the route's end, not a lagged
+  surface. The existing branch releases the posted entry, returns the visit to APPROACHING,
+  releases the travel claim and replans; the replan's _town_travel_key declines (unseen) and walks.
+- No new constant/threshold/attribute/reason. Manifest + town_work_sites.json regenerated.
+
+PINS (tests/test_town_unseen_travel_recorded.py, class TownTravelEndsUnseenRecordedTest; fixture
+tests/fixtures/town-unseen-travel-111025.jsonl.gz = all 12 rows of the 111025 capture, unchanged,
++ .decisions.json with recorded decisions 0..7). Whole restarted process from a fresh policy.
+DECLARED walls: CLI timer save/dump fired before decision 2 as recorded; the equipment optimizer's
+background result is not replayed, so the replayed errand is the Alchemist trip '\x1b`n%.'
+instead of Home '\x1b`n(.' (same _shopping_approach_key/_town_travel_key path, same store visit
+phase entering / posted_sequence 6); executor provenance variant adds _completed_operation_sequence.
+- decisions 0..3 equal the recorded keys; decision 6 on the lit (33,104) board: travel macro.
+- decision 7 on the unseen (34,107) board:
+    ac9ed592 + round 1: ('', 'store:entry-await-observation')  (both provenance variants)
+    fix:                ('7', 'store:entry-interrupted-replan') (a walking step)
+- Round-1 pins and controls unchanged and passing.
+- Related modules run single, all OK: test_store_entry_travel_interrupted_relabelled,
+  test_cli_empty_key, test_shop_one_shot, test_stop_shape_recorded,
+  test_town_approach_retired_recorded, test_alchemist_observed_shop_alternation,
+  test_pattern_a_owner_retired_recorded, test_quest_travel_progress, test_declarations_r12,
+  test_declarations_r14.
+
+WHY THE CHARACTER HAD NO LIGHT (measured, no fix)
+- 08:04-08:38 captures: brass lantern + 1 flask of oil (+4 torches at 08:38).
+- 10:17 capture (101730): decision 4644 'rhb' town:recall-to-yeek-cave at turn 994876 departs with
+  the lantern at ~3900 turns, no oil and no torch; procurement_requirements = [] (no oil row).
+- Cause of the missing oil row: policy_supply.py:343 zeroes the oil departure target when
+  _owns_usable_permanent_light, which also counts the Home catalogue (policy_supply.py:124-129).
+  Home held a Lamp of Feanor (111025 home knowledge row: 'フェアノールのランプ' sval 2, plus torches
+  2500/621/1477 and a 2500 infravision torch). At decision 4644 the optimizer kept the lantern:
+  equipment_optimization transaction_actions 0, home_route_projection home_blocked True,
+  home_unsatisfied_passes 3 = home_visit_limit 3, catalog light candidates 6.
+- So the oil requirement was waived for a permanent light that stayed in Home; the lantern ran dry in
+  the dungeon (DL13 -> DL2 by 22:02, light_radius 0) and the recall arrived at night with no light.
+  The 111025 equipment transaction was withdrawing that Home light (target_slot light).
+  Not fixed here (needs a decision: either count only carried permanent lights for the oil waiver,
+  or require the Home lamp to be equipped before the waiver applies).
+
+ROUND 2 GUARDS (after commit 3bacb0a4; base ac9ed592)
+preflight:
+  [preflight] PREFLIGHT OK: 12 changed files, 0 findings (town-blind-travel-1019 vs ac9ed592)
+mutation_check --tests test_town_unseen_travel_recorded --record:
+  [mutation] 3 source hunks, tests: test_town_unseen_travel_recorded
+  [mutation] caught     src/hengbot/policy.py:8135 (and (): test_unseen_end_of_travel_releases_entry_wait_and_walks
+  [mutation] caught     src/hengbot/policy_town.py:5043 (@staticmethod): (all pins)
+  [mutation] caught     src/hengbot/policy_town.py:5077 (if self._native_travel_sightless(snapshot):): test_unseen_grid_walks_instead_of_native_travel, ...
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for 3bacb0a4
+fast_tier --shards 4 (run after gate-dark-1019 finished):
+  [fast] 3949 fast tests (<2.0s in 4e34499f) + 1 changed modules, 4 shards
+  Crashed shards: none / Failures: none / Errors: none
+  Total: 3964 tests, 319.0s

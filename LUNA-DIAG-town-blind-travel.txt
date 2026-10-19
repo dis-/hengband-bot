@@ -1,0 +1,41 @@
+LUNA-DIAG town-blind-travel (#79) -- measured facts
+
+Captures: C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-103845-no-key-exhausted (A)
+          C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-103907-no-key-exhausted (B, after restart)
+
+1. The player was NOT blind; the own grid was unlit.
+   - B state.jsonl.gz rows 92..110 (and A's decision rows): player.status.blind = False,
+     player.status_bar = [], player.can_see_own_grid = False, player.light_radius = 0.
+   - Equipment light: "松明(0ターンの寿命)" light_turns 0; pack m: "真鍮のランタン(0ターンの寿命)";
+     no flask of oil, no other torch. clock day 10 22:22 (night), town (dungeon 0), position (33,103).
+   - Game emitter: src/bot/bot-json-output.cpp:1584 can_see_own_grid = !no_lite(player);
+     grid.cpp:312 no_lite = !player_can_see_bold(pos); geometry.cpp:50 player_can_see_bold is
+     false while blind.  So can_see_own_grid False covers both darkness and blindness.
+
+2. What the game answers to `n while unseen:
+   - action/travel-execution.cpp:134-136 decide_travel_step_dir: blindness.is_active() || no_lite()
+     -> msg "目が見えない！" and Direction::none(); Travel::step (:270-273) then prints
+     "道筋が見つかりません！" and resets the goal.  No turn passes after the refusal, so no new board.
+   - A: decision 25 '\x1b`n%.' shop:travel (turn 1068196, (33,104)); next board turn 1068208 at
+     (33,103) with messages ['目が見えない！'] (state row 92).
+   - B: decision 2 '\x1b`n%.' -> board msgs ['トラベルを継続しますか？[y/n]','目が見えない！',
+     '道筋が見つかりません！'], decision 7 '\x1b`n(.' equipment-transaction:travel-home -> row 110
+     ['目が見えない！','道筋が見つかりません！'].
+
+3. Why travel was chosen: policy_town.py _town_travel_key (the gate shared by every native-travel
+   leg) checks goal disclosure, distance, fallback latch and stall progress, never the board's
+   can_see_own_grid.  policy_shop.py _shopping_approach_key only walks when no light is equipped
+   at all (_has_light_equipped: any item.is_light, policy.py:13059) -- a worn 0-turn torch counts.
+   Darkness recovery (_is_dark, policy.py:13252) is dungeon_level >= 1 only.
+
+4. Why store:entry-await-observation posted no key: policy.py:8318-8331 -- the first decision after
+   the travel post (entry_observation_pending: decision_sequence == posted_sequence + 1) treats
+   its board as the lagged surface paired with the entry and returns "" (awaiting).  The refused
+   travel produced no further board, so cli stopped with <no-key-exhausted> after 1.5 s
+   (A decision 26, B decision 8).
+
+5. Replay (fresh policy, B rows 93..101, enforce_crossarea_fundraising=True) on 8a1f6bba
+   reproduces recorded decisions 0..2 exactly: '~f\x1b', '~9\x1b\x1b', '\x1b`n%.' shop:travel
+   (and 3: '\x1b`n%.' store:entry-interrupted-replan, 4: '4').  Branches #76/#77/#78 (merged into
+   the live f9afbaa7) do not touch _town_travel_key or the entry wait; the replay on 8a1f6bba
+   matches the live keys, so the difference does not matter here.

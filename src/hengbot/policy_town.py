@@ -5043,6 +5043,15 @@ class TownMixin:
                 return store_type
         return None
 
+    @staticmethod
+    def _native_travel_sightless(snapshot: Snapshot) -> bool:
+        """Whether the game refuses every native-travel step on this board.
+
+        The board's ``can_see_own_grid`` is the game's ``!no_lite()``, which is
+        also false while blind; travel-execution.cpp ``decide_travel_step_dir``
+        then stops travel with "目が見えない！" (darkness or blindness)."""
+        return snapshot.can_see_own_grid is False
+
     def _town_travel_key(
         self, snapshot: Snapshot, goal: Position, macro: str, reason: str
     ) -> str | None:
@@ -5067,6 +5076,10 @@ class TownMixin:
             # point_target's live candidate vector; a disclosed goal may still
             # be rejected.  That failure is handled after the recovery nudge.
             no_route("goal-undisclosed")
+            return None
+        if self._native_travel_sightless(snapshot):
+            # The refused macro produces no new board, so walk instead.
+            no_route("own-grid-unseen")
             return None
         position = snapshot.player.position
         distance = position.distance_to(goal)
