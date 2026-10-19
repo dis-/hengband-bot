@@ -1,44 +1,53 @@
 LUNA-REPORT quest-cell-confirmed (#84 question 9) -- base 4e34499f, branch quest-cell-confirmed-1019
 
-STATUS: STOPPED (rule: an existing test must change). Source change NOT committed; it is committed as
-LUNA-PATCH-quest-cell-confirmed.diff (applies cleanly to 4e34499f: `git apply LUNA-PATCH-quest-cell-confirmed.diff`).
-Diagnosis: LUNA-DIAG-quest-cell-confirmed.txt.
+History: first pass STOPPED because tests/test_q2_choke_loop_recorded.py had to change (commit 0f15a077, patch
+LUNA-PATCH-quest-cell-confirmed.diff). Supervisor authorized on 2026-10-19 (owner decision: one predicate); the
+patch was applied and the recorded pin's expected reasons updated. Diagnosis: LUNA-DIAG-quest-cell-confirmed.txt.
 
 Inventory (policy_quest.py at 4e34499f): 6 divergent sites -- Q2 survey :2283 (in_view|d<=1), Q2 breeder :2472
 (in_view|d<=1), Q2 residual :2538 (in_view), Q2 final patrol :2619 (in_view), placement sweep :3800 (in_view|d<=1),
-Q34 final-source :3872 (in_view|d<=1). Throw-point clearing / newly-defeated / recovery cells already use
-`_player_can_see_empty_cell` via fixed_target_cell_visible; the Q34 stand-only gate (:3676) is untouched.
-Game source: no adjacency clause in player_can_see_bold (floor/geometry.cpp:47); adjacent grids always get
-CAVE_VIEW (player/player-view.cpp:99), so d<=1 only admits remembered or unlit unseen cells. Distance 0 is valid
-(one creature per grid).
+Q34 final source :3872 (in_view|d<=1). fixed_target_cell_visible sites already used the shared predicate; Q34
+stand-only gate (:3676) untouched. Game source: player_can_see_bold (floor/geometry.cpp:47) has no adjacency
+clause; update_view (player/player-view.cpp:99) always flags adjacent grids CAVE_VIEW, so d<=1 only admitted
+remembered or unlit unseen cells. Distance 0 is valid (one creature per grid).
 
-Proposed change (in the patch): new `_quest_cell_confirmed_empty(snapshot, position, *, race_id=None)` in
-policy_quest.py = own grid -> True, else `_player_can_see_empty_cell`. All 6 sites call it (race_id passed at the
-Q2 survey and Q2 residual where the placement race is known; no Q2 race is INVISIBLE; other sites None).
-No new constant, threshold, or policy attribute (method only; no checkpoint defaults needed).
+Change (de0ff008): `_quest_cell_confirmed_empty(snapshot, position, *, race_id=None)` = own grid -> True, else
+`_player_can_see_empty_cell`; all 6 sites call it (race_id at Q2 survey and residual). No new constant,
+threshold or policy attribute. Town work manifest regenerated (town_work_manifest.json.gz, town_work_sites.json).
 
-New pin (in the patch): tests/test_quest_cell_confirmed_dark.py (real Q2 map, dark corridor, placement at d=1 not in view)
-  4e34499f: test_dark_adjacent_placement_is_not_surveyed FAIL (survey marks it: True is not false);
-            the other two ERROR (helper absent).
-  patch:    3/3 OK. Controls: lit adjacent -> surveyed and residual-confirmed; own grid in the dark -> both confirmed.
+Existing test changed (authorized): tests/test_q2_choke_loop_recorded.py -- expected reason on rows
+1,7,8,14,15,21,22 'quest-strategy:q2-post-blue-nether-worm' -> 'quest-strategy:q2-post-blue-upper-left-puddle';
+keys unchanged (verified: every compared row's key equals the recorded key). Comment cites #84, the owner
+decision and the measured cause (capture sends no view flag, 0/351 grids; (11,60) at distance 2 inside light
+radius 3 with LOS from (12,62)). Hold-owned rows 6/13/20 unchanged.
 
-Existing tests with the patch (single modules): test_policy_quest (334, 7 skipped), test_q2_residual_sweep_recorded,
-test_q31_survey_sweep_recorded, test_q2_breeder_sweep_recorded, test_quest34_target_dead_recorded,
-test_q34_opening_oil_recorded, test_quest_strategies, test_quest_navigator: all green
-(a first draft without the own-grid case failed test_policy_quest ...test_q2_real_map_phase_replay_clears_every_placement_via_breach
- '5' != 'aw2'; the own-grid rule from the game's one-creature-per-grid fixes it without touching the test).
+Pins: tests/test_quest_cell_confirmed_dark.py (10 tests; 6e28834d)
+  Q2 survey: dark adjacent unseen placement not surveyed (4e34499f: surveyed=True, measured); lit control; own grid.
+  Q2 breeder: dark adjacent last-seen cell -> recommit (4e34499f cleared it); lit control -> cleared.
+  Q2 residual: placement at d=2 inside lit radius 2 without view flag -> 202 clear; dark adjacent stays unconfirmed.
+  Q2 final patrol: lit cells within radius 2 without view flag recorded as visited, d=3 not.
+  Q34 final source at d=2 inside lit radius -> final-source-cleared; Q34 sweep marks lit (3,17) at d=2.
+Affected modules (with change): test_policy_quest, test_q2_residual_sweep_recorded, test_q31_survey_sweep_recorded,
+test_q2_breeder_sweep_recorded, test_q2_choke_loop_recorded, test_quest34_target_dead_recorded,
+test_q34_opening_oil_recorded, test_quest_strategies, test_quest_navigator, test_quest_cell_confirmed_dark:
+Ran 384, OK (skipped=7) [before the extra 7 pins]; new module 10/10 OK.
 
-THE TEST THAT MUST CHANGE (not changed): tests/test_q2_choke_loop_recorded.py
-  - test_quest_strategy_alone_owns_every_recorded_board: row 1
-      old ('7', 'quest-strategy:q2-post-blue-nether-worm')  new ('7', 'quest-strategy:q2-post-blue-upper-left-puddle')
-  - test_pre_fix_reproduces_every_live_key: same reason change at rows 1, 7, 8, 14, 15, ... (every recorded
-      'q2-post-blue-nether-worm' row); keys unchanged at row 1.
-  Cause (measured): the 2026-10-02 capture sends no view flag (0/351 grids in_view) but can_see_own_grid True,
-  light_radius 3. At (12,62) the shared predicate certifies placement (11,60) at distance 2 through its lit-radius
-  + LOS branch; 4e34499f's survey (in_view OR d<=1) did not, so the route proceeds to the next phase. This is the
-  single source's answer, not a special case; avoiding it would mean not using the single source at the Q2 survey.
-  Classification: not (R) -- an intended consequence of adopting the single predicate; needs owner decision
-  (accept new reason for row 1/... in that recorded pin, or keep it and narrow scope).
-
-Guards: not run (preflight / mutation_check / fast_tier apply to a committed source change; the branch carries only
-report files because of the STOP). Bookkeeping (manifest/baseline/review json) not touched.
+Guards (after the last source/test commit 6e28834d):
+preflight:
+  [preflight] NOTE existing-test MODIFIED: tests/test_q2_choke_loop_recorded.py::Q2ChokeLoopRecordedTest.test_pre_fix_reproduces_every_live_key
+  [preflight] NOTE existing-test MODIFIED: tests/test_q2_choke_loop_recorded.py::Q2ChokeLoopRecordedTest.test_quest_strategy_alone_owns_every_recorded_board
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (quest-cell-confirmed-1019 vs 4e34499f)
+mutation_check --tests tests/test_quest_cell_confirmed_dark.py --record:
+  first run (pins for the Q2 survey only): 5 of 7 hunks NOT CAUGHT -> repair round 1 added breeder/residual/
+  patrol/Q34 source/sweep pins.
+  [mutation] caught 1906 helper, 2301 Q2 survey, 2493 breeder, 2557 residual, 2636 final patrol, 3822 sweep, 3891 Q34 source
+  [mutation] MUTATION OK: 0 of 7 hunks are not pinned by a test
+  [mutation] recorded for 6e28834d
+fast_tier --shards 4 (run after gate-blind-1019b finished, 14:54):
+  [fast] 3762 fast tests (<2.0s in 68b8510a) + 2 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: ['tests.test_verified_destroy_refusal_terminates (import) ModuleNotFoundError']
+  Total: 3777 tests, 244.5s
+  The one error is not ours: that module was added by 52bb1340 (#80) after base 4e34499f; the fast-tier timing
+  cache (suite 68b8510a) lists it, this branch does not contain it.
