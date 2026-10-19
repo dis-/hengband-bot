@@ -397,6 +397,13 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
                 raw['messages']=['Your home is full']
             elif key.startswith('\x1b'):
                 raw.pop('store',None); raw['type']='player_turn'
+                # #79: rows[index] may be an in-store row, whose
+                # can_see_own_grid is the store screen's False; the recorded
+                # outside rows (134416: rows 39/41/79) are True.  Use the
+                # nearest recorded outside row's value for this outside board.
+                raw['player']['can_see_own_grid'] = next(
+                    r for r in reversed(rows[:index+1]) if r['type']=='player_turn'
+                )['player'].get('can_see_own_grid')
                 if key.startswith('\x1b`n'):
                     store = ord(key[key.index('`n')+2])-33
                     self.assertIn(store, pages, (stamp,key,reason))

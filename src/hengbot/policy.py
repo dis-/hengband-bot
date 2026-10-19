@@ -8135,11 +8135,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot.store is None
                 and self._store_visit is not None
                 and (self._store_entry_wait_key or "").startswith("\x1b`")
-                and snapshot.completed_operation_sequence is not None
-                and snapshot.completed_operation_sequence
-                    == self._store_visit.posted_sequence
-                and here is not None
-                and here.store_number != posted_entry_owner
+                and (
+                    snapshot.completed_operation_sequence is not None
+                    and snapshot.completed_operation_sequence
+                        == self._store_visit.posted_sequence
+                    and here is not None
+                    and here.store_number != posted_entry_owner
+                    # The game cannot travel or enter from an unseen own grid,
+                    # so such a board after the post is the route's end, not a
+                    # lagged surface (the emitter omits the unseen own cell).
+                    or self._store_visit.posted_sequence is not None
+                    and self._native_travel_sightless(snapshot)
+                )
             )
             travel_continue_prompt = snapshot.store is None and any(
                 "トラベルを継続しますか" in message
