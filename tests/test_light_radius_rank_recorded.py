@@ -258,6 +258,18 @@ class RadiusInTheComparisonTest(unittest.TestCase):
         self.assertTrue(equipment_optimizer._prefer(stone, lamp, current))
         self.assertFalse(equipment_optimizer._prefer(lamp, stone, current))
 
+    def test_field_selection_takes_the_wider_permanent_light(self):
+        current = frozenset({LAMP_ITEM.id})
+        best = equipment_optimizer._stable_operational_best(
+            [
+                EvaluatedLoadout(_light_only(LAMP_ITEM), METRICS),
+                EvaluatedLoadout(_light_only(STONE_ITEM), METRICS),
+            ],
+            current,
+        )
+        # 30d4bba7: the current lamp (equal light rank, current set first).
+        self.assertEqual(best.loadout.item_at("light").id, STONE_ITEM.id)
+
     def test_control_pairwise_survival_difference_is_decided_first(self):
         current = frozenset({LAMP_ITEM.id})
         stone = EvaluatedLoadout(_light_only(STONE_ITEM), METRICS)
