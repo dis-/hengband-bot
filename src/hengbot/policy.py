@@ -1765,6 +1765,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_last_hit_floor: tuple[int, int, int] | None = None
         self._unseen_last_hit_turn: int | None = None
         self._unseen_loot_direction: tuple[int, int] | None = None
+        # Where the last unseen hit of this floor landed.  With the retreat
+        # direction it anchors the area a continuing unseen attack keeps
+        # every walker out of (_in_unseen_attack_area); the record is kept
+        # beside the decision log so a restarted bot still knows it.
+        self._unseen_last_hit_position: Position | None = None
+        self._unseen_attack_path: Path | None = None
+        self._unseen_attack_restore: dict | None = None
         self._safety_deferred_loot: set[Position] = set()
         # Of the deferred positions, the ones the navigation ledger expired
         # (blocker "navigation-ledger:loot"), and positions that already used

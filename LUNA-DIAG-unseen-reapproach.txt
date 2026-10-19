@@ -1,0 +1,67 @@
+LUNA-DIAG unseen-reapproach (branch unseen-reapproach-1020, base e8ae2b19)
+
+Evidence: c4-a life-014, Angband DL30 floor (1, 30, 0), recall landing (22, 64) at decision 9604.
+Only 43 known / 9 visited cells, no stairs known; the only open frontier direction is west,
+past the cells where an unseen caster (悪臭雲 / 矢 / ファイア・ボルト, "何か") hits.
+
+MEASURED (replay of the recorded boards 9604..9714 + post-restart board through a fresh
+policy on e8ae2b19: every key 9605..9714 equals live except 9629 (probe vs seek-loot); the
+whole loop 9630..9714 and the restart's seek-loot '4' are reproduced):
+
+1. Who re-approaches
+   - Retreat (policy_supply.py:1751-1875 _unseen_retreat_key) arms on each hit and walks
+     '6'/'9' east (direction = reverse of the last step), e.g. hits at 9645 (22,62),
+     9680/9698/9707/9713 (22,61), 9652 (23,61), 9691/9706 (23,60).
+   - At (22,64) the retreat retires: _unseen_choke_hold_active (policy_supply.py:1713-1736)
+     is False with no hostile (predicted damage 0 < hp*ratio) -> _clear_unseen_retreat.
+   - Then explore (policy_navigation.py:1399 _explore_step) re-plans to the frontier goal
+     (24, 59) (decision row claim goal Reach [24,59], rung _explore_step#2) and walks '4'
+     back onto the hit cells: 9662, 9677-9678, 9683-9684, 9688-9690, 9695-9697, 9702-9704,
+     9710-9712; breakout:seek-frontier (policy.py:12250, also _explore_step) at 9643, 9655,
+     9675, 9687, 9701.  Loop detector at 9714: cells (21,64),(22,61..64),(23,60).
+2. Why explore ignores loot.deferred / the attack area
+   - The only "do not re-approach" predicate is loot-only: _refresh_unseen_loot_deferral
+     (policy_identification.py:1190-1218) adds known loot in the half plane behind the
+     CURRENT player position along the retreat direction to _unseen_deferred_loot while the
+     retreat is armed or the last hit is < UNSEEN_LOOT_QUIET_TURNS (200, line 63) old;
+     _loot_step (1127-1145) subtracts it.  loot.deferred in the rows (8 cells incl. (23,61),
+     (22,61), (22,60)) is _deferred_loot | _unseen_deferred_loot (policy.py:17657).
+   - Explore's avoid set is _engagement_avoid_cells | _warning_refused_cells
+     (policy_navigation.py:1409-1410); _plan_explore_path_pass and _global_frontier_path
+     skip only _engagement_avoid_cells.  Nothing in explore knows the unseen attack, so the
+     frontier behind the hit cells stays its goal.
+   - The underfoot pickups at 9679 (22,61) and 9705 (23,60) come from
+     _current_floor_item_key, which does not consult any deferral (not changed).
+3. Why the deferral is lost on restart
+   - _unseen_last_hit_floor/_turn, _unseen_loot_direction, _unseen_deferred_loot are plain
+     policy attributes (policy.py:1764-1767); nothing persists them (the flight-recorder
+     checkpoints are replay-only).  The restarted process starts with _floor_key None, so
+     the first board runs the floor-change branch (policy_observation.py ~900-923,
+     _clear_unseen_retreat) and the board itself carries no message history (state row
+     messages [] at turn 2564990).  Replay: fresh policy on board 1:1 -> seek-loot '4',
+     target (23, 61) = live.
+4. 'warning:blocked-step' + no key
+   - Rows 1:5-1:7 and 2:2-2:4: seek-loot onto (23,61), fire bolt, retreat '9' to (22,62),
+     retreat '6' to (22,63) -> the weapon warning prompt ('(防衛者)六尺棒が鋭く震えた！',
+     '本当にこのまま進むか？[y/n]'); the refusal latches (22,63) in _warning_refused_cells
+     (policy_helpers.py:539).  On the prompt-bearing board the retreat picks '6' again:
+     _unseen_reverse_choke_step (policy_supply.py:1671-1711) walks _walkable_neighbors
+     without the avoid/refused cells; _step_toward refuses the latched cell with WAIT
+     (policy_navigation.py:1859-1888, "warning:blocked-step") and policy.py:2869-2885 turns
+     that WAIT into None while the prompt is on the board -> CLI no-key-exhausted.
+     Code reading proves the path; the rows show reason and None.  NOT fixed here (the
+     retreat stays unchanged by the 2026-10-03/10-06 decisions); see STOP note in the report.
+5. 20261020-033006-town-blocked-departure-unsatisfiable: town (0,0,0), turn 2413581, decision
+   2553, ~150k game turns before this floor -> unrelated.
+
+FIX (one predicate, no new constant)
+   IdentificationMixin._in_unseen_attack_area(snapshot, position): the attack continues
+   (retreat armed on this floor, or last unseen hit of this floor inside the existing
+   UNSEEN_LOOT_QUIET_TURNS window) and position lies in the half plane behind the cell of the
+   last unseen hit along the retreat direction (retreat direction, else the last one).
+   Consumers: _explore_step avoid set, _plan_explore_path_pass, _global_frontier_path
+   (candidates and BFS), _loot_step (candidates and BFS).  The hit cell is recorded in
+   _observe; the retreat writes {floor, turn, position, direction} to unseen-attack.json
+   beside the decision log on each eligible hit; the CLI loads it at start and the first
+   observed board applies it only for the same floor inside the quiet window (information
+   the player saw earlier, no hidden state).  The retreat's own stepping is unchanged.

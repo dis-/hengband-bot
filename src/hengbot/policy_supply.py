@@ -1826,6 +1826,8 @@ class SupplyMixin:
             self._unseen_choke_position = None
             self._unseen_choke_started_turn = None
             self._escape_state.enter("unseen", "unseen:reverse-choke")
+        if eligible_hit:
+            self._record_unseen_attack(snapshot)
 
         if self._unseen_choke_position is not None:
             if eligible_hit:

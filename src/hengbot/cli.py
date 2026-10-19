@@ -3724,6 +3724,21 @@ def _configure_in_store_shop_ops(policy, args) -> None:
     )
 
 
+def _configure_unseen_attack_memory(policy, args) -> None:
+    """The unseen attack the previous process saw, beside the decision log.
+
+    Auto-resume restarts the bot on the same board; without this record the
+    restarted policy walked straight back into the attack (Angband 30F
+    2026-10-20 04:01:22/04:01:34, seek-loot '1' onto the hit cell twice).
+    """
+    decision_log = getattr(args, "decision_log", None)
+    policy.load_unseen_attack(
+        Path(decision_log).with_name("unseen-attack.json")
+        if decision_log is not None
+        else None
+    )
+
+
 def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     policy._character_dump_path = getattr(args, "character_dump_file", None)
     policy._departure_dump_enabled = (
@@ -4003,6 +4018,7 @@ def main(argv: list[str] | None = None) -> int:
     policy._recorder_log_generations = args.recorder_log_generations
     posting_contract = PostingContract()
     home_entry_capture = _configure_policy_output_paths(policy, args)
+    _configure_unseen_attack_memory(policy, args)
 
     def accepted_segment(operation: Operation, segment: str) -> None:
         posting_contract.accepted(operation, segment)
