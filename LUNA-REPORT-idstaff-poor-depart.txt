@@ -1,0 +1,79 @@
+LUNA-REPORT #76 idstaff-poor-depart (branch idstaff-poor-depart-1019, base 35b1cf2d)
+
+DIAGNOSIS (measured; details in LUNA-DIAG-idstaff-poor-depart.txt)
+- Magic page (state row 28, turn 658699): Identify staff 18 charges 936 gold, 14 charges 873 gold.
+  Row 97 wanted that 936 staff (rejection "preempted"); Magic was never routed again. Gold
+  3,579 -> 435 (Alchemist/Temple purchases) -> gold-trigger fundraising prepare (row 132) -> sales
+  -> 2,708 (row 147). 936 <= 2,708; no reserve involved.
+- Row 148 departure_block.failed == ["identify_staff_ready"] (13/20 charges); row 150 hard stop.
+- Replay of the row-150 board on 35b1cf2d (walls below) == recorded ("1",
+  "town:blocked:departure-unsatisfiable"); trace policy_town.py 6750 -> 6754 -> 6757 -> 6798.
+- Cause: _identify_staff_procurement_impossible (policy.py) judged affordability on
+  dict(self._town_supplier_stock), i.e. any remembered page, while the identify-staff need registry
+  (add_identify_staff_suppliers) routes only _identify_staff_offer_pages (this town's observed pages).
+  The remembered 936 page kept procurement "possible", no need routed to it (Magic and Black latched),
+  so neither the procurement route nor the identify-staff stockout run (policy_town.py:6761-6771)
+  owned the leaf -> departure-unsatisfiable.
+- Fundraising: mode already "prepare"; its kit is at Home (5 Treasure Detection, 2 shovels) and Home
+  is latched; the plan is empty, so nothing acts before the departure leaf.
+- A0 method=none: _departure_minimum includes identify_staff_ready (fails), so minimum.holds is
+  False; _supply_stockout_mining_dispatch_key labels do not cover identify_staff_ready -> None;
+  no-safe-destination fundraising -> False -> hard_stop, method none.
+- NOT MEASURED: how the live process lost the Magic observation provenance (or which latch hid the
+  Magic route) between rows 97 and 111; provenance is not logged.
+
+FIX (src/hengbot/policy.py, one hunk, no new constant/threshold/attribute)
+_identify_staff_procurement_impossible builds supplier_pages from _identify_staff_offer_pages(snapshot)
+(the same pages the need registry routes; it already includes the current store page) instead of the
+raw remembered stock. Effect on the pinned board: the identify-staff stockout key installs the one-run
+Yeek mining time-pass (fundraising, _identify_staff_mining_plan True, 1 run), which re-arms the
+supplier latches; the board then travels to the Magic Shop to retry the staff.
+No new policy attributes (no restored-checkpoint defaults needed).
+
+PINS (tests/test_idstaff_poor_depart_recorded.py; fixture tests/fixtures/idstaff-poor-depart-20261019.json.gz,
+extractor tests/extract_idstaff_poor_depart_fixture.py; public path _consume_response_sequence/choose_key)
+DECLARED CONSTRUCTED walls: fundraising mode "prepare" (recorded); store-attempted latches Home, Magic,
+Black Market (constructed); recorded Magic page of state row 28 as remembered supplier stock without
+this town's observation provenance (constructed). Recorded Home list (state row 79) and ~f list.
+- test_captured_rows: recorded rows 148-150, failed ["identify_staff_ready"], gold 2,708, page staves.
+- test_unrouted_remembered_page_starts_the_stockout_mining_run:
+    35b1cf2d: ("1", "town:blocked:departure-unsatisfiable") -> FAILS ("'departure-unsatisfiable' is not None")
+    fix:      ("\x1b`n&.", "shop:travel") to Magic, _town_blocked_reason None,
+              _identify_staff_mining_plan True, _planned_mining_runs 1, mode "prepare".
+- test_control_unlatched_magic_still_buys_the_staff (control, passes before and after): Magic not
+  latched -> plan {Magic: identify-staff}, ("\x1b`n&.", "shop:travel"), no stockout run.
+
+CONTROLS (single modules, after the fix): test_identify_staff_stockout_recorded,
+test_town_cure_supplier_recorded (#50), test_fundraise_kit_home/retired/route_recorded (#64/#66):
+Ran 20 tests OK. test_policy_supply: Ran 208 tests OK. No existing test edited.
+
+BOOKKEEPING: scripts/town_work_manifest.json.gz regenerated (832 candidates, zero unmapped).
+
+INCIDENT (my mistake, repaired): I used `git stash` for a before/after run. The stash stack is shared
+by all worktrees; another implementer (home-leave-suppressed-1019, #77) stashed at the same time, so my
+pop applied their policy_home.py hunk here and they popped my policy.py hunk. I swapped the two diffs
+back (their worktree again holds only their policy_home.py #77 hunk; mine only the policy.py hunk);
+no commits of theirs were touched. Before/after runs afterwards used `git apply -R` on my own patch.
+Also: my first fast_tier was started while gate-rubble-1019 was running; I stopped my own fast_tier
+processes and reran it after that gate logged MERGED.
+
+GUARD OUTPUTS
+preflight:
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (idstaff-poor-depart-1019 vs 35b1cf2d)
+
+mutation_check --tests test_idstaff_poor_depart_recorded --record:
+[mutation] 1 source hunks, tests: test_idstaff_poor_depart_recorded
+[mutation] caught     src/hengbot/policy.py:15498 (# Judge the shelf on the same current-town pages the identify-staff): test_unrouted_remembered_page_starts_the_stockout_mining_run
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for c2f4f14c
+
+fast_tier --shards 4:
+[fast] 3956 fast tests (<2.0s in 8a1f6bba) + 1 changed modules, 4 shards
+[fast] excluded 24 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-wy6pjxi6)
+Failures: none
+Errors: ['tests.test_store_entry_budget_recorded (import) ModuleNotFoundError("No module named 'tests.test_store_entry_budget_recorded'")']
+Total: 3965 tests, 325.3s
+Classification of the one error: not a regression. The module list comes from main 8a1f6bba, which
+contains tests/test_store_entry_budget_recorded.py; that file is absent at base 35b1cf2d (git cat-file
+checked), so this branch cannot import it. It clears on rebase onto current main.
