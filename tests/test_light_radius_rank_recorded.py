@@ -16,7 +16,7 @@ DECLARED CONSTRUCTED:
   - the Home lamp row (Home list item 28) worn in the light slot in place of
     the 0-turn torch, and removed from the Home list;
   - in its Home position the ★知識の石 row of the 10-03 capture
-    (live-logs-20261003-1215/bot-state-fixed.jsonl, last ~9 Home list, Home
+    (state log of live-logs-20261003-1215, last ~9 Home list, Home
     slot 101), copied below as STONE_OF_LORE with only the slot renumbered.
 """
 
