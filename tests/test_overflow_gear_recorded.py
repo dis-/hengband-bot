@@ -56,12 +56,20 @@ class OverflowGearRecordedTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
 
-    def _policy(self, *, calibration_rejected=True):
+    def _policy(self, *, calibration_rejected=True, stale_reason=None):
         policy = _policy(self.directory, self.monrace)
         policy._crossarea_fundraising_enforced = True
         if calibration_rejected:
-            # DECLARED CONSTRUCTED: the recorded rejection reason.
+            # DECLARED CONSTRUCTED: the recorded rejection reason, held as
+            # the dump publication holds a rejected sheet (the reason and
+            # the rejection together; the posted dump itself is not part of
+            # the capture).
             policy._calibration_unavailable_reason = "unsupported-mutation"
+            policy._calibration_rejection = (None, "unsupported-mutation")
+        elif stale_reason is not None:
+            # Constructed control: a cached calibration went stale and its
+            # re-dump is awaited; no sheet was rejected.
+            policy._calibration_unavailable_reason = stale_reason
         policy._home_knowledge_scan_inflight = True
         policy._home_knowledge_scan_epoch = None
         self._consume(policy, self.lines[0])
@@ -125,6 +133,20 @@ class OverflowGearRecordedTest(unittest.TestCase):
         policy = self._policy(calibration_rejected=False)
         _decisions, home = self._drive(policy, HOME_PAGE)
         self.assertFalse(policy._target_loadout_known())
+        for slot in GEAR_SLOTS:
+            item = next(item for item in home.inventory if item.slot == slot)
+            self.assertFalse(policy._home_deposit_candidate(item, home))
+
+    def test_control_stale_calibration_keeps_the_target_gate(self):
+        # Round 2 (merge gate 941c319b): a stale calibration ("stat_cur", as
+        # on the overweight-Home replay at index 3713) awaits its re-dump,
+        # so the target loadout is still coming and spare gear waits for it
+        # even under the free-slot shortage.
+        policy = self._policy(calibration_rejected=False, stale_reason="stat_cur")
+        _decisions, home = self._drive(policy, HOME_PAGE)
+        self.assertEqual(policy._calibration_unavailable_reason, "stat_cur")
+        self.assertIsNone(policy._calibration_rejection)
+        self.assertTrue(policy._town_pack_space_shortage(home))
         for slot in GEAR_SLOTS:
             item = next(item for item in home.inventory if item.slot == slot)
             self.assertFalse(policy._home_deposit_candidate(item, home))

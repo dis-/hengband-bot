@@ -2554,12 +2554,14 @@ class HomeMixin:
             and not good_weapon
             and (
                 self._target_loadout_known()
-                # Issue #87: an unavailable calibration skips the optimizer
+                # Issue #87: a rejected character sheet skips the optimizer
                 # (R1), so no target loadout will arrive to release spare
-                # gear; a free-slot shortage is handled first (A0).
+                # gear; a free-slot shortage is handled first (A0).  A stale
+                # calibration awaiting its re-dump is not rejected: its
+                # target loadout is still coming.
                 or (
                     snapshot is not None
-                    and self._calibration_unavailable_reason is not None
+                    and self._calibration_rejection is not None
                     and self._town_pack_space_shortage(snapshot)
                 )
             )
