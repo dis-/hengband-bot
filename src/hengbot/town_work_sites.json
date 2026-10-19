@@ -3713,7 +3713,7 @@
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "7d345f408819067aa794044b8d44c672c893b35f08a3e07663c86420f6b81269"
+    "ast_sha256": "b8279b8568462184d0afdf70ea64826712d5c98868459bfe0a11b7e5f35ce072"
   },
   "policy.py:HengbotPolicy._verified_destroy_key": {
     "classification": "adapter",
