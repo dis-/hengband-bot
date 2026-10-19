@@ -35,7 +35,7 @@ from hengbot.equipment_optimizer import (
 )
 from hengbot.model import StoreItem
 import test_optimizer_lamp_recorded as lamp_recorded
-from test_optimizer_lamp_recorded import LAMP_NAME, TRAVEL_HOME
+from test_optimizer_lamp_recorded import APPROACH_HOME, LAMP_NAME, TRAVEL_HOME
 
 
 # ★知識の石 {明} of the 10-03 Home list: fully known, LITE_3 (123), IGNORE_*.
@@ -120,7 +120,7 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
         # 30d4bba7: ('\x1b`n%.', 'shop:travel'), no equipment transaction;
         # the lamp (radius 2) and the stone (radius 3) both rank 2 and the
         # worn set wins the tie.
-        self.assertEqual(decisions[-1], TRAVEL_HOME)
+        self.assertEqual(decisions[-1], APPROACH_HOME)
         stone = self._stone_id()
         self.assertEqual(
             self._transaction_actions(),
@@ -135,7 +135,7 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
     def test_worn_lamp_is_replaced_by_the_home_phial(self):
         # 30d4bba7: ('\x1b`n%.', 'shop:travel'), no equipment transaction.
         decisions = self._replay(self._lamp_worn_rows(PHIAL))
-        self.assertEqual(decisions[-1], TRAVEL_HOME)
+        self.assertEqual(decisions[-1], APPROACH_HOME)
         phial = next(
             item.id for item in self.policy._equipment_catalog.items
             if item.item.name == PHIAL["name"]
@@ -157,7 +157,7 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
         decisions = self._replay(
             self._lamp_worn_rows(STONE_OF_LORE, worn_lamp_extra_flags=(62,))
         )
-        self.assertNotEqual(decisions[-1][1], TRAVEL_HOME[1])
+        self.assertNotIn(decisions[-1][1], {TRAVEL_HOME[1], APPROACH_HOME[1]})
         self.assertIsNone(self._transaction_actions())
 
     def test_control_unidentified_artifact_light_does_not_reveal_its_radius(self):
@@ -170,7 +170,7 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
             name="知識の石",
         )
         decisions = self._replay(self._lamp_worn_rows(unknown))
-        self.assertNotEqual(decisions[-1][1], TRAVEL_HOME[1])
+        self.assertNotIn(decisions[-1][1], {TRAVEL_HOME[1], APPROACH_HOME[1]})
         self.assertIsNone(self._transaction_actions())
 
     def test_control_lamp_worn_with_only_fuel_lights_at_home_is_kept(self):
@@ -188,7 +188,7 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
         decisions = self._replay(
             [json.dumps(row, ensure_ascii=False) for row in rows]
         )
-        self.assertNotEqual(decisions[-1][1], TRAVEL_HOME[1])
+        self.assertNotIn(decisions[-1][1], {TRAVEL_HOME[1], APPROACH_HOME[1]})
         self.assertIsNone(self._transaction_actions())
         self.assertEqual(
             self._catalog_light(WORN_LAMP).item.name, LAMP_NAME
