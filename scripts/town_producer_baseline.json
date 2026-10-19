@@ -680,5 +680,6 @@
   "policy_home.py:HomeMixin._compute_retention_surplus": "pure helper: Compute carried surplus after the active transaction reservation.",
   "item_reservation.py:decision_memo": "pure helper: Return an immutable value memoized only inside the current public decision.",
   "item_reservation.py:reservation_query_memo": "pure helper: Return a value memoized only inside the current read-only query.",
-  "policy_quest.py:QuestMixin._build_fixed_quest_head.supported": "pure helper: supported returns bool used as input/observation, not an independently selected game action"
+  "policy_quest.py:QuestMixin._build_fixed_quest_head.supported": "pure helper: supported returns bool used as input/observation, not an independently selected game action",
+  "policy_town.py:TownMixin._town_pack_space_shortage": "pure helper: Whether the pack lacks the existing reserve for upcoming town work."
 }
