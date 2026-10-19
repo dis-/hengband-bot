@@ -1113,7 +1113,7 @@ class ShoppingTest(unittest.TestCase):
         self.assertIsNotNone(refill)
         self.assertEqual((refill.tval, refill.count), (TVAL_FLASK, 5))
 
-    def test_home_owned_permanent_light_makes_all_pack_oil_depositable(self):
+    def test_home_only_permanent_light_keeps_the_lantern_oil(self):
         oil = item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500)
         feanorian = store_item(
             "f", TVAL_LITE, SV_LITE_FEANOR,
@@ -1137,10 +1137,15 @@ class ShoppingTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._equipment_catalog.observe_home_page(snap.store.items)
 
-        self.assertEqual(policy._supply_ledger(snap, 18)["oil"].required_departure, 0)
-        self.assertEqual(policy._retention_reservation(snap, oil), 0)
-        self.assertTrue(policy._home_deposit_candidate(oil, snap))
-        self.assertEqual(policy._home_deposit_key(snap, oil), "do5\r")
+        # #82, owner decision 2026-10-19 (fix the light supply first): a lamp
+        # kept in Home lights nothing; the worn lantern still needs its oil.
+        # Old (name test_home_owned_permanent_light_makes_all_pack_oil_depositable):
+        # required_departure 0, retention 0, deposit candidate True, key "do5\r".
+        # New: required_departure 5, retention 5, not a deposit candidate (the
+        # deposit key is not reached).
+        self.assertEqual(policy._supply_ledger(snap, 18)["oil"].required_departure, 5)
+        self.assertEqual(policy._retention_reservation(snap, oil), 5)
+        self.assertFalse(policy._home_deposit_candidate(oil, snap))
 
 class WieldLightTest(unittest.TestCase):
     @staticmethod
@@ -5163,10 +5168,37 @@ class IdentifyStaffLiveCatalogueTest(unittest.TestCase):
         self.assertEqual(live_staff.name, "鑑定の杖 (2x 21回分)")
         self.assertEqual(recorded_home_page.store.items[15].letter, "p")
         self.assertEqual(recorded_home_page.store.items[15].name, live_staff.name)
+        # #82, owner decision 2026-10-19 (fix the light supply first): a lamp
+        # kept in Home no longer waives oil for a character with no light in
+        # hand, so the recorded Home's oil is queued first.  Old: the first
+        # queue was "home:queue-withdraw-identify-staff-reserve"; new:
+        # "home:queue-catalogue-shortage" for the oil, withdrawn with
+        # "5pa5\r\x1b".  The Identify staff follows on the next Home visit.
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:queue-catalogue-shortage")
+        home_oil = next(it for it in parsed_knowledge if it.is_oil)
+        self.assertEqual(pol._home_pending_item, pol._item_signature(home_oil))
+        oil_entrance = replace(inside, store=None, turn=inside.turn + 1)
+        self.assertEqual(pol.choose_key(oil_entrance), "5pa5\r\x1b")
+        oil_page = replace(inside, turn=oil_entrance.turn + 1)
+        self.assertEqual(pol.choose_key(oil_page), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:leave-after-one-operation")
+        carried_oil = replace(home_oil, slot="j", count=5)
+        inside = replace(
+            inside, inventory=[carried, carried_oil], turn=oil_page.turn + 1
+        )
+        pol.choose_key(replace(inside, store=None))
+        inside = replace(inside, turn=inside.turn + 1)
+
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
         self.assertEqual(pol.last_reason, "home:queue-withdraw-identify-staff-reserve")
         self.assertEqual(pol._home_pending_item, pol._item_signature(live_staff))
 
+        # The oil withdrawal changed Home, so its list is read again (~9).
+        rescan = replace(inside, store=None, turn=inside.turn + 1)
+        self.assertEqual(pol.choose_key(rescan), "~9\x1b")
+        self.assertTrue(pol.consume_home_knowledge(parsed_knowledge))
+        inside = replace(inside, turn=rescan.turn)
         entrance = replace(inside, store=None, turn=inside.turn + 1)
         self.assertEqual(pol.choose_key(entrance), "5pp1\r\x1b")
         page = replace(inside, turn=entrance.turn + 1)

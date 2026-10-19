@@ -547,7 +547,7 @@
   "policy_supply.py:SupplyMixin._missing_destruction_uses": "pure helper: _missing_destruction_uses returns int used as input/observation, not an independently selected game action",
   "policy_supply.py:SupplyMixin._nearest_goal_route": "pure helper: Return the nearest emitted goal, first step, and exact BFS rank.",
   "policy_supply.py:SupplyMixin._nearest_goal_step": "pure helper: Uniform-cost BFS returning the first step toward the nearest goal.",
-  "policy_supply.py:SupplyMixin._owns_usable_permanent_light": "pure helper: Return whether carried gear or the known Home catalog has permanent light.",
+  "policy_supply.py:SupplyMixin._owns_usable_permanent_light": "pure helper: Return whether a usable permanent light is in hand (worn or carried).",
   "policy_supply.py:SupplyMixin._procurement_equivalence": "pure helper: _procurement_equivalence returns selector/diagnostic/state data, not an independently selected action",
   "policy_supply.py:SupplyMixin._required_destruction_uses": "pure helper: _required_destruction_uses returns int used as input/observation, not an independently selected game action",
   "policy_supply.py:SupplyMixin._required_remove_curse_kind": "pure helper: Choose a cure for worn gear; failed strong removal proves permanence.",
