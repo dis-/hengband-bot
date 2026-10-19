@@ -177,3 +177,17 @@ can_see_own_grid False, so _native_travel_sightless declines native travel and t
 around it all carry can_see_own_grid True, so the False is the store-row value carried into a
 DECLARED CONSTRUCTED board. Not changed: needs a decision (the existing test's constructed
 board, or the predicate on boards derived from store rows).
+
+ROUND 4 (supervisor decision: fix the test, not src)
+- Merged main 3cb276a3 (108eebc6; manifest regenerated on conflict).
+- tests/test_equipment_homefull_step15a.py, constructed store-exit step ('\x1b' branch): the outside
+  board now takes can_see_own_grid from the nearest recorded outside (player_turn) row at or before
+  rows[index] instead of keeping the in-store row's False (comment cites #79). No assertion changed.
+- test_pin1_recorded_134416_from_process_start: 14 choose_key calls on both, identical (key, reason)
+  sequence (diffed). unittest, run one after the other: main 3cb276a3 (+ this test edit) 54.73 s OK,
+  branch 54.75 s OK (before the edit the branch was 42 decisions, ~2.7x slower).
+  Whole module + test_town_unseen_travel_recorded on the branch: 26 tests OK.
+- preflight vs 3cb276a3: PREFLIGHT OK: 13 changed files, 0 findings
+- mutation_check vs 3cb276a3: 3 source hunks, all caught; MUTATION OK (recorded for 87017383)
+- fast_tier vs 3cb276a3 (after gate-stepkey-1019 finished): 3788 tests, Failures none, Errors none,
+  Crashed shards none, 478.5 s.
