@@ -1906,6 +1906,26 @@ class QuestMixin:
         self.last_reason = "quest-strategy:q2-breach-dig"
         return TUNNEL_KEY + direction
 
+    def _quest_cell_confirmed_empty(
+        self,
+        snapshot: Snapshot,
+        position: Position,
+        *,
+        race_id: int | None = None,
+    ) -> bool:
+        """Answer "is fixed-quest cell P confirmed empty?" for every quest site.
+
+        The player's own grid holds no monster (one creature per grid), light
+        or not.  Every other cell needs the shared live-sight certificate; an
+        adjacent cell in the dark is not seen (player_can_see_bold needs torch
+        light, perma-light or noctovision, not adjacency).
+        """
+        if position == snapshot.player.position:
+            return True
+        return self._player_can_see_empty_cell(
+            snapshot, position, race_id=race_id
+        )
+
     def _q2_cell_perceived(
         self, snapshot: Snapshot, position: Position
     ) -> bool:
@@ -2281,13 +2301,12 @@ class QuestMixin:
                     placement, RANGED_MAX_DISTANCE
                 )
                 if (
-                    (
-                        snapshot.player.position.distance_to(placement) <= 1
-                        or grid is not None and grid.in_view
-                    )
-                    and grid is not None
+                    grid is not None
                     and grid.known
                     and not grid.has_monster
+                    and self._quest_cell_confirmed_empty(
+                        snapshot, placement, race_id=race_id
+                    )
                 ):
                     self._q2_surveyed_placements.add(placement)
             unsurveyed = [
@@ -2474,10 +2493,7 @@ class QuestMixin:
                 target_grid is not None
                 and target_grid.known
                 and not target_grid.has_monster
-                and (
-                    target_grid.in_view
-                    or snapshot.player.position.distance_to(breeder_target) <= 1
-                )
+                and self._quest_cell_confirmed_empty(snapshot, breeder_target)
             )
             if target_confirmed_clear:
                 self._q2_breeder_last_seen = None
@@ -2541,7 +2557,9 @@ class QuestMixin:
                     grid is not None
                     and grid.known
                     and not grid.has_monster
-                    and grid.in_view
+                    and self._quest_cell_confirmed_empty(
+                        snapshot, placement, race_id=race_id
+                    )
                 ):
                     unconfirmed.append(placement)
             if not unconfirmed:
@@ -2618,7 +2636,8 @@ class QuestMixin:
         self._q2_final_patrol_visited.update(
             position
             for position, grid in snapshot.grids.items()
-            if grid.in_view and navigator._static_walkable(position)
+            if self._quest_cell_confirmed_empty(snapshot, position)
+            and navigator._static_walkable(position)
         )
         self._q2_final_patrol_visited.add(snapshot.player.position)
         target = self._q2_final_patrol_target
@@ -3803,10 +3822,7 @@ class QuestMixin:
                     candidate is not None
                     and candidate.known
                     and not candidate.has_monster
-                    and (
-                        candidate.in_view
-                        or snapshot.player.position.distance_to(position) <= 1
-                    )
+                    and self._quest_cell_confirmed_empty(snapshot, position)
                 ):
                     surveyed.add(position)
             unsurveyed = sweep_targets - surveyed
@@ -3875,10 +3891,7 @@ class QuestMixin:
                     and target_grid is not None
                     and target_grid.known
                     and not target_grid.has_monster
-                    and (
-                        target_grid.in_view
-                        or snapshot.player.position.distance_to(target_position) <= 1
-                    )
+                    and self._quest_cell_confirmed_empty(snapshot, target_position)
                 ):
                     self._quest_strategy_surveyed_placements.setdefault(
                         34, set()

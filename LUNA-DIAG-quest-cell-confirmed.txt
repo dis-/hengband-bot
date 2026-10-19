@@ -1,0 +1,44 @@
+LUNA-DIAG quest-cell-confirmed (#84, PREDICATE-AUDIT-1019 question 9) -- base 4e34499f
+
+Single source: policy.py:13216 `_player_can_see_empty_cell` = known, currently_observed, no monster on the
+cell / in visible_monsters, not blind, race not INVISIBLE, and (in_view, or own grid lit + distance <=
+light_radius + LOS over known grids).
+
+Sites answering "is quest cell / placement P confirmed (empty/checked)?" in src/hengbot/policy_quest.py (4e34499f lines):
+ 1. :2283 Q2 placement survey (_q2_surveyed_placements)   known, no monster, (in_view OR d<=1)     DIFFERS
+ 2. :2472 Q2 breeder last-seen clear                       known, no monster, (in_view OR d<=1)     DIFFERS
+ 3. :2538 Q2 residual sweep (unconfirmed list)             known, no monster, in_view              DIFFERS (no lit-radius branch, no blind/visible-monster/currently_observed check)
+ 4. :2619 Q2 final patrol visited                          in_view (+ own position added at :2622)  DIFFERS (coverage set; same "seen" question)
+ 5. :3800 generic placement sweep (_quest_strategy_surveyed_placements)  known, no monster, (in_view OR d<=1)  DIFFERS
+ 6. :3872 Q34 final-source cleared                         known, no monster, (in_view OR d<=1)     DIFFERS
+ 7. :3147 fixed_target_cell_visible (survey throw-point clearing :3673-3735, newly-defeated :3161,
+    recovery cells :3275)                                   = _player_can_see_empty_cell            SAME. Q34 stand-only rule at :3676
+    (`profile.quest_id == 34` -> clear only at the reviewed stand) is a separate gate, untouched.
+ Not this question: :1909 `_q2_cell_perceived` (blue recovery cells, note_spot terrain perception, not emptiness);
+ :2307 light-scroll gate (`not in_view` -> read Light), an action trigger, not a certificate.
+
+Why sites 1,2,5,6 differ: `d<=1` accepts a cell the player does not see. Two concrete holes:
+ (a) remembered grids are merged with has_monster=False, in_view=False, currently_observed=False
+     (policy.py:2575-2586); the d<=1 clause certifies such a remembered cell as empty without any sight.
+ (b) a live adjacent cell on a dark floor (own grid unlit) with no view flag.
+
+Game rules (C:\hengband\src):
+ - floor/geometry.cpp:47 player_can_see_bold: blind -> false; CAVE_LITE|CAVE_MNLT -> true; else needs LOS and
+   (noctovision or CAVE_GLOW without CAVE_MNDK). There is NO adjacency clause: an adjacent unlit grid is not seen.
+ - player/player-view.cpp:99 update_view: the player grid and the first grid in each of the 8 directions are always
+   set_view_at (CAVE_VIEW) before the LOS-terrain break, so a live adjacent grid already carries the view flag
+   when the wire sends it; d<=1 adds nothing for such grids and only admits (a)/(b).
+ - One creature per grid: the player's own grid cannot hold a monster, lit or not. So distance 0 IS a valid
+   certificate by the game rules; distance 1 is not. The new helper keeps exactly that (own grid, else the
+   shared predicate). The bot's in_view comes from the wire "view" flag (model.py:1203).
+
+Measured (pin board, real Q2 map, dark corridor, placement at d=1, in_view False, can_see_own_grid False):
+ 4e34499f: Q2 survey marks it surveyed (True); residual (in_view only) leaves it unconfirmed -> disagree.
+ patch:    survey False, residual False -> agree. Lit control (own grid lit, radius 1): both True.
+ Own-grid control in the dark: both True.
+
+Side effect measured on a recorded capture (tests/test_q2_choke_loop_recorded.py, 2026-10-02 capture, protocol
+without view flags: 0 of 351 grids in_view, can_see_own_grid True, light_radius 3): at board 1 (player (12,62))
+the shared predicate certifies the nether-worm placement (11,60) at distance 2 through the lit-radius + LOS branch,
+which 4e34499f's survey (in_view OR d<=1) did not, so the post-blue route moves on to the next phase:
+reason 'quest-strategy:q2-post-blue-nether-worm' -> 'quest-strategy:q2-post-blue-upper-left-puddle' (key '7' same).

@@ -1,0 +1,50 @@
+[
+  {
+    "decision_sequence": 0,
+    "turn": 1068217,
+    "key": "~f\u001b",
+    "reason": "periodic:skill-exp-knowledge"
+  },
+  {
+    "decision_sequence": 1,
+    "turn": 1068217,
+    "key": "~9\u001b\u001b",
+    "reason": "home:request-knowledge-scan"
+  },
+  {
+    "decision_sequence": 2,
+    "turn": 1068217,
+    "key": "\u0013",
+    "reason": "periodic:game-save"
+  },
+  {
+    "decision_sequence": 3,
+    "turn": 1068217,
+    "key": "Cf\ry\u001b\u001b",
+    "reason": "periodic:character-dump"
+  },
+  {
+    "decision_sequence": 4,
+    "turn": 1068217,
+    "key": "6",
+    "reason": "equipment-transaction:approach-home"
+  },
+  {
+    "decision_sequence": 5,
+    "turn": 1068229,
+    "key": "6",
+    "reason": "equipment-transaction:approach-home"
+  },
+  {
+    "decision_sequence": 6,
+    "turn": 1068238,
+    "key": "\u001b`n(.",
+    "reason": "equipment-transaction:travel-home"
+  },
+  {
+    "decision_sequence": 7,
+    "turn": 1068268,
+    "key": "",
+    "reason": "store:entry-await-observation"
+  }
+]

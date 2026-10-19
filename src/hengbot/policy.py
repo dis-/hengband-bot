@@ -8135,11 +8135,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot.store is None
                 and self._store_visit is not None
                 and (self._store_entry_wait_key or "").startswith("\x1b`")
-                and snapshot.completed_operation_sequence is not None
-                and snapshot.completed_operation_sequence
-                    == self._store_visit.posted_sequence
-                and here is not None
-                and here.store_number != posted_entry_owner
+                and (
+                    snapshot.completed_operation_sequence is not None
+                    and snapshot.completed_operation_sequence
+                        == self._store_visit.posted_sequence
+                    and here is not None
+                    and here.store_number != posted_entry_owner
+                    # The game cannot travel or enter from an unseen own grid,
+                    # so such a board after the post is the route's end, not a
+                    # lagged surface (the emitter omits the unseen own cell).
+                    or self._store_visit.posted_sequence is not None
+                    and self._native_travel_sightless(snapshot)
+                )
             )
             travel_continue_prompt = snapshot.store is None and any(
                 "トラベルを継続しますか" in message
@@ -10217,7 +10224,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         for cell in neighbors:
             if not exposed_to(cell):
                 self.last_reason = "no-wait:flee"
-                return self._direction_key(here, cell)
+                # The walkable neighbours include orthogonal rubble, which the
+                # game refuses as a plain step; the router tunnels it.
+                return self._step_toward(snapshot, cell)
         # Nearest cover by walking distance, against the nearest attacker.
         queue = deque((cell, cell, 1) for cell in neighbors)
         seen = {here, *neighbors}
@@ -10238,10 +10247,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             cover is None or enemy.position.distance_to(here) <= cover[0]
         ):
             self.last_reason = "no-wait:flee"
-            return self._direction_key(here, enemy.position)
+            # The adjacent square toward the attacker is unchecked terrain;
+            # post it through the router like every other step.
+            toward = Position(
+                here.y + max(-1, min(1, enemy.position.y - here.y)),
+                here.x + max(-1, min(1, enemy.position.x - here.x)),
+            )
+            return self._step_toward(snapshot, toward)
         if cover is not None:
             self.last_reason = "no-wait:flee"
-            return self._direction_key(here, cover[1])
+            return self._step_toward(snapshot, cover[1])
         return None
 
     def _walk_step_target(self, snapshot: Snapshot, key: str | None) -> Position | None:
