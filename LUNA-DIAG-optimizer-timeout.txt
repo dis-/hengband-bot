@@ -1,0 +1,41 @@
+ISSUE #80 diagnosis (optimizer timeout on c4-a life-014, turn 996646)
+
+Replay input
+- The 128-board capture (20261019-101730-exit-no-marker) alone does not reproduce: it lacks the
+  Home scan and the look-floor responses, so the replay chooses return:recall in < 0.2 s.
+- Full reconstruction: the crashed bot run (10:00:54 start, turn 941406 '~f') from the flight
+  recorder snapshot generations on the soak machine (snapshots-20261019-101224-53aca4 from line
+  9176 + snapshots-current, deduplicated, 5018 response rows incl. store/knowledge/look/character),
+  replayed through cli._consume_response_sequence on 8a1f6bba with the live calibration file.
+  The replay is not identical to live in town (store screens are absent), but its last 40
+  decisions match the live tail exactly (996600 'ulr', 996613 '01kd' exchange-cheapest-surplus,
+  996623 '6', 996631 'gaa', 996637 'ukr').
+
+Measured
+- 8a1f6bba: the replay never returns on board 996274 (watchdog 100 s, two runs). A policy
+  checkpoint taken just before the live crash board 996646 (from the fixed replay) also never
+  returns at 8a1f6bba (> 100 s). Same top frame as live: equipment_optimizer.py
+  (_catalog_digest / equipment_identity / equipment_move_identity).
+- Stack (sampled every 25 s, unchanged):
+  _victory_loot_key -> _full_pack_loot_triage_key (policy_identification.py:624) ->
+  _verified_destroy_key -> _verified_destroy_dispatch_key (policy.py:12857, the
+  replace() after the superior-item refusal) -> finder lambda -> _entire_stack_is_surplus ->
+  _retention_surplus -> ... -> equipment_identity -> _catalog_digest.
+
+Cause (not a search-size explosion; an unbounded loop)
+- _full_pack_loot_triage_key passes a finder bound to one carried stack
+  (lambda current, selected=carried: selected if surplus(current, selected) else None).
+- In _verified_destroy_dispatch_key, _destroy_would_discard_superior_item refuses it, the stack is
+  removed from candidate_snapshot, and finder(candidate_snapshot) returns the SAME object again.
+  Every later pass has identical inputs (the refusal reads the original snapshot), so the
+  refusal repeats forever. Each pass re-hashes item identities through the retention/reservation
+  code, which is why the watchdog dump showed equipment_optimizer.py on top.
+- The unavailable-item branch of the same loop already stops on "finder returned the skipped
+  object"; the refusal branch lacks that check.
+- Pack full of floor items is the trigger (victory loot with a full pack -> exchange-cheapest
+  triage); the equipment optimizer search itself was ~50 single-slot candidates per run
+  (loadout-report.jsonl around 10:14-10:15) and is not the cost.
+
+Merged branches (#76 idstaff-poor-depart, #77 home-leave-suppressed, #78 q2-breeder-sweep): none
+touches _verified_destroy_*, _full_pack_loot_triage_key, _entire_stack_is_surplus or
+_destroy_would_discard_superior_item; the difference does not matter for this hang.
