@@ -72,7 +72,30 @@ GUARDS (after 0e75f087)
   from the cache measured at e5359652 (not an ancestor of e8ae2b19); the module does not
   exist on this branch.  Not related to this change.
 
-OPEN (not fixed, by instruction "keep the retreat unchanged")
-- The retreat's step chooser can pick a warning-refused cell, which yields WAIT -> None on a
-  prompt-bearing board (no-key).  With this fix the recorded restart no longer walks into the
-  attack, but the producer itself remains.
+ROUND 2 (supervisor decision: the refused-cell step is a defect, not the retreat decision)
+Commits: dc305580 (fix + recorded pin, fixture remapped), 9e51df3a (choke-search pin)
+- policy_supply.py _unseen_reverse_choke_step: first steps and the choke search skip cells in
+  _warning_refused_cells (the avoidance explore uses).  With no retreat cell left the retreat
+  retires and the next legal action decides.  Retreat direction/arming unchanged.
+- Fixture: each decision now maps to the state row carrying its own messages (the first
+  version never marked rows used, so 1:7 got a later prompt-less row).  Earlier pins still
+  hold unchanged.
+- test_retreat_does_not_step_onto_a_warning_refused_cell: restarted process without a
+  record, boards 1:1..1:6 equal live; 1:7 live/e8ae2b19 (None, 'warning:blocked-step') ->
+  fix ('4', 'explore'); (22,63) latched as refused.  Control: same board with (22,63) not
+  refused -> _unseen_reverse_choke_step returns (22,63).
+- test_retreat_choke_search_skips_a_warning_refused_cell (declared corridor): unrefused
+  control targets the nearer choke (10,12); refused -> the other choke (11,12).
+- Existing single modules re-run OK: test_reverse_choke_loot_loop_recorded, test_unseen_loot_
+  deferral_recorded, test_unseen_retreat_visible_attacker_recorded, test_low_hp_no_unchecked_
+  walk, test_lethal_unseen_caster_recorded, test_choke_hold_loop_recorded, test_unseen_spell_
+  scratch_decision, test_unseen_caster_death_recorded, test_town_unseen_travel_recorded,
+  test_status_threat_latch_unseen_hit_constructed, test_summoner_reach_decision,
+  test_policy_combat, test_policy_navigation.  No existing test changed.
+- Guards after 9e51df3a:
+  [preflight] PREFLIGHT OK: 15 changed files, 0 findings (unseen-reapproach-1020 vs e8ae2b19)
+  [mutation] MUTATION OK: 0 of 14 hunks are not pinned by a test (recorded for 9e51df3a)
+    (first round 2 run: policy_supply.py:1708 NOT CAUGHT -> declared choke-search pin added)
+  [fast] 3797 tests, Failures: none, Crashed shards: none, Errors: 1 -
+    tests.test_light_radius_rank_recorded (import) ModuleNotFoundError (cache from 26138946,
+    module absent on this branch; unrelated)
