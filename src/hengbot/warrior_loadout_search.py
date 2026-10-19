@@ -21,6 +21,7 @@ from hengbot.equipment_optimizer import (
     current_loadout,
     hand_configurations,
     light_source_quality,
+    permanent_light_radius,
     slot_for,
 )
 from hengbot.warrior_defense_evaluator import PROTECTOR_TVALS, TR_SPEED
@@ -105,6 +106,7 @@ def _item_dominance_parts(
     flags = _evaluator_flags(item)
     melee_weapon = item.item.tval in {21, 22, 23}
     launcher = item.item.tval == 19
+    light = signature[0] == SLOT_LIGHT
     return (
         (
             signature[0],  # slot
@@ -112,7 +114,9 @@ def _item_dominance_parts(
             # Short Bow with larger enchantments must not prune a Light Crossbow
             # before the launcher's explicit policy preference is evaluated.
             signature[1] if melee_weapon or launcher else None,
-            signature[2] if launcher else None,
+            # The light subtype is the selection's light-quality rank: a +1
+            # infravision torch must not prune a Feanorian lamp (#86).
+            signature[2] if launcher or light else None,
             signature[10] if melee_weapon else None,
             flags - BENEFICIAL_GEAR_FLAGS,
             signature[13],  # exploration legality
@@ -126,6 +130,7 @@ def _item_dominance_parts(
             int(signature[8]) if melee_weapon else 0,
             int(signature[9]),
             int(signature[11]) if melee_weapon else 0,
+            permanent_light_radius(item),
         ),
         flags.intersection(BENEFICIAL_GEAR_FLAGS),
     )
@@ -292,6 +297,7 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
         launcher_item.to_h if launcher_item is not None else 0,
         launcher_item.to_d if launcher_item is not None else 0,
         light_source_quality(loadout),
+        permanent_light_radius(loadout.item_at(SLOT_LIGHT)),
         # 「空いた鎧の欄は必ず埋める」: a worn outer/head/arms/feet piece whose
         # AC nets to zero (e.g. [1,-1]) must not be compressed away as
         # equivalent to the empty slot before the optimizer's fill rule sees it.

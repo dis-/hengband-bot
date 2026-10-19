@@ -125,6 +125,7 @@ from hengbot.policy_types import StoreVisitPhase
 from hengbot.warrior_optimization import load_character_calibration
 
 from unseen_scratch_walls import pre_unseen_scratch_bound_rule
+from recorded_loadout import pre_light_radius_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 from test_input_executor import (
     FaithfulHookGame, command_screen, prompt_screen, store_screen,
@@ -265,6 +266,7 @@ class _Unpickler(pickle.Unpickler):
 
 class StoreReentryRecordedTest(unittest.TestCase):
     @classmethod
+    @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     def setUpClass(cls):
         global _RECORDS
         for path, digest in SHA256.items():
