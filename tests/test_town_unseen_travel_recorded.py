@@ -44,6 +44,8 @@ DECISIONS = FIXTURE.with_suffix(".decisions.json")
 # Input rows consumed before each recorded decision 0, 1, 2.
 GROUPS = (4, 2, 3)
 TRAVEL_KEY = "\x1b`n%."
+# #82: the replayed errand is the Home oil trip (see the comments below).
+HOME_TRAVEL_KEY = "\x1b`n(."
 
 
 def _rows(mode=None):
@@ -110,12 +112,18 @@ class TownUnseenTravelRecordedTest(unittest.TestCase):
             decided[:2],
             [(row["key"], row["reason"]) for row in self.recorded[:2]],
         )
-        self.assertEqual(decided[2], ("4", "shop:approach"))
+        # #82, owner decision 2026-10-19 (light supply first): the Home lamp no
+        # longer waives the lantern's oil, so the errand is the Home oil
+        # withdrawal (Home holds the flasks); old ("4", Alchemist), new ("6", Home).
+        self.assertEqual(decided[2], ("6", "shop:approach"))
 
     def test_control_lit_arrival_travels_as_recorded(self):
         decided, boards = self.replay("lit")
         self.assertIs(boards[2].can_see_own_grid, True)
-        self.assertEqual(decided[2], (TRAVEL_KEY, "shop:travel"))
+        # #82, owner decision 2026-10-19 (light supply first): the Home lamp no
+        # longer waives the lantern's oil, so the errand is the Home oil
+        # withdrawal (Home holds the flasks); old TRAVEL_KEY (Alchemist), new HOME_TRAVEL_KEY.
+        self.assertEqual(decided[2], (HOME_TRAVEL_KEY, "shop:travel"))
 
     def test_control_blind_arrival_cures_first(self):
         decided, boards = self.replay("blind")
@@ -204,7 +212,10 @@ class TownTravelEndsUnseenRecordedTest(unittest.TestCase):
         self.assertEqual(
             decided[:4], [(row["key"], row["reason"]) for row in self.recorded[:4]])
         self.assertIs(boards[6].can_see_own_grid, True)
-        self.assertEqual(decided[6], (TRAVEL_KEY, "shop:travel"))
+        # #82, owner decision 2026-10-19 (light supply first): the Home lamp no
+        # longer waives the lantern's oil, so the errand is the Home oil
+        # withdrawal (Home holds the flasks); old TRAVEL_KEY (Alchemist), new HOME_TRAVEL_KEY.
+        self.assertEqual(decided[6], (HOME_TRAVEL_KEY, "shop:travel"))
         self.assertIs(boards[7].can_see_own_grid, False)
         self.assertEqual(boards[7].player.position.y, 34)
         self.assertEqual(boards[7].player.position.x, 107)
@@ -214,7 +225,10 @@ class TownTravelEndsUnseenRecordedTest(unittest.TestCase):
         for provenance in (False, True):
             with self.subTest(provenance=provenance):
                 decided, _boards = self.replay(provenance)
-                self.assertEqual(decided[7], ("7", "store:entry-interrupted-replan"))
+                # #82, owner decision 2026-10-19 (light supply first): the Home lamp no
+                # longer waives the lantern's oil, so the errand is the Home oil
+                # withdrawal (Home holds the flasks); old step "7" (toward the Alchemist), new "3" (toward Home).
+                self.assertEqual(decided[7], ("3", "store:entry-interrupted-replan"))
 
 
 if __name__ == "__main__":

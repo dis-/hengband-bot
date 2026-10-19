@@ -1,0 +1,156 @@
+#82 light supply (branch light-in-hand-1019, base 4e34499f)
+
+STATUS
+- Fix and pins are committed (162d1abb). STOPPED before fast_tier: two existing tests at 4e34499f
+  assert the old Home-lamp behaviour and would need changes; per the rules they are not edited (see
+  EXISTING TESTS THAT MUST CHANGE). Also a merge gate (gate-optimizer-1019.run.log) was active.
+
+DIAGNOSIS (measured; details in LUNA-DIAG-light-in-hand.txt)
+- Board: 101730 state row 0 (first row after decision 4644; worn lantern 3898 turns, no oil, no
+  torch) moved to town, Home = the 111025 ~9 list (Feanorian lamp, 4 flasks of oil, 4 torches).
+  On 4e34499f the replay reproduces the recorded decision 4644 procurement_requirements [] exactly.
+- _owns_usable_permanent_light returned True only through the Home catalogue. Every caller decides
+  what to carry, keep, buy or shelve for the next floor, so each needs "worn or carried":
+  oil ledger target 0 -> should be 5; spare-torch target (#69) 0 -> 5; carried oil retention 0 ->
+  kept (supply-ledger:oil); carried oil Home deposit True -> False; BM resupply reserve 13658 ->
+  13675; _light_ready / _owns_lantern / _empty_lantern_to_restore: same value on this board.
+- Home held 4 flasks of oil at 11:10 and the health log shows pack oil 0 from 10:06. On base the
+  obsolete-oil deposit branch is True on this board, so the Home lamp also made the bot shelve its
+  own oil (inferred; no capture covers 10:02-10:06).
+- No call site needs the Home view (the equipment optimizer reads _equipment_catalog itself), so no
+  Home-inclusive predicate is kept.
+
+FIX
+- src/hengbot/policy_supply.py: _owns_usable_permanent_light counts only worn or carried lights
+  (one predicate, every site). A Home lamp counts once it is equipped or withdrawn. No new constant,
+  threshold or policy attribute (no restored-checkpoint defaults needed).
+- Bookkeeping: town_work_sites.json + town_work_manifest.json.gz regenerated; the helper text in
+  scripts/town_producer_baseline.json and scripts/town_work_review.json updated.
+
+PINS (tests/test_light_in_hand_recorded.py, fixture tests/fixtures/light-in-hand-20261019.jsonl.gz)
+                                                       4e34499f            fix
+  departure board: owns permanent light                True                False
+    oil ledger (count, required_departure)             (0, 0)              (0, 5)
+    procurement_requirements                           []                  [Flasks of oil 0/5]
+    _oil_below_departure_target / oil purchase rung    False / []          True / ['legacy:oil']
+  carried flask: Home deposit / retention              True / (0, None)    False / (4, supply-ledger:oil)
+  spare torch carry requirement                        (0, 0)              (5, 0)
+  Results on 4e34499f: 3 FAIL (the three pins); on the fix: 5/5 OK.
+  Controls (pass on both): Home lamp worn, or carried -> oil targets 0/0, requirements [], torch
+  target (0, 0), carried oil depositable with reservation (0, None).
+- #69 pins test_overflow_torches_recorded OK; #65 pins test_lantern_lost_recorded OK.
+
+EXISTING TESTS THAT MUST CHANGE (not edited)
+1. test_policy_supply.ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable
+   (tests/test_policy_supply.py:1116). It pins the overruled behaviour: lantern worn, Feanorian lamp
+   only on the Home page, 5 flasks carried.
+     line 1140 _supply_ledger(...)["oil"].required_departure: old 0, new 5
+     (measured, following asserts: retention old 0, new 5; deposit candidate old True, new False;
+      _home_deposit_key called directly old "do5\r", new "do0\r" - zero quantity because nothing
+      is surplus; production only calls it for a deposit candidate)
+2. test_policy_supply.IdentifyStaffLiveCatalogueTest.
+   test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed (line 5167).
+   Constructed board with NO light worn or carried; the recorded r9 Home holds a Feanorian lamp,
+   a lantern and oil. The Home lamp no longer waives oil, so the Home queues the oil first.
+     last_reason: old "home:queue-withdraw-identify-staff-reserve",
+                  new "home:queue-catalogue-shortage" (pending item ('油つぼ', 77, 0))
+   Both are direct consequences of the owner decision, not src regressions.
+
+OTHER MODULES RUN (single, on the fix): all OK
+  test_overflow_torches_recorded, test_lantern_lost_recorded, test_supply_shortfall_owner_recorded,
+  test_black_market_optional_quantity, test_home_light_alternation (36), test_home_light_alternation_cli,
+  test_fundraise_light_block, test_light_pingpong_recorded, test_newchar_light_churn_recorded,
+  test_newchar_light_loop_recorded, test_q34_opening_oil_recorded, test_torch_predicate_recorded,
+  test_policy_home (171), test_policy_shop (275), test_equipment_optimizer (93),
+  test_policy_equipment (197), test_policy_fundraising (53).
+  test_policy_supply: 208 run, the 2 failures above.
+
+GUARDS
+preflight:
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (light-in-hand-1019 vs 4e34499f)
+mutation_check --tests test_light_in_hand_recorded --record:
+  [mutation] 2 source hunks, tests: test_light_in_hand_recorded
+  [mutation] caught     src/hengbot/policy_supply.py:112 ("""Return whether a usable permanent light is in hand (worn or carried): test_recorded_carried_oil_stays_with_the_lamp_in_home, test_recorded_departure_board_requires_oil_for_the_lantern, test_recorded_spare_torches_back_the_lantern
+  [mutation] TEXT ONLY  src/hengbot/policy_supply.py:340 (# expedition stock as soon as a usable permanent light is in): docstring/comment change, nothing to pin
+  [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+  [mutation] recorded for 162d1abb
+fast_tier: NOT RUN (stopped on the two existing tests above; it would fail on them).
+
+ROUND 2 (supervisor authorized updating exactly the two tests; commit 0fb29508)
+1. ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable RENAMED to
+   test_home_only_permanent_light_keeps_the_lantern_oil (the old name stated the opposite). Same
+   board; asserts required_departure 0 -> 5, retention 0 -> 5, deposit candidate True -> False; the
+   deposit-key assert ("do5\r") is dropped because no deposit is reached. Comment cites #82 + the
+   owner decision with old/new values.
+2. IdentifyStaffLiveCatalogueTest.test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed:
+   first reason 'home:queue-withdraw-identify-staff-reserve' -> 'home:queue-catalogue-shortage'
+   (pending = the Home oil, withdrawn with "5pa5\r\x1b", then leave-after-one-operation). Keeping
+   the rest of its assertions needed the oil round played out first: the oil is then carried
+   (constructed), one outside decision ends the visit, the next Home visit queues the staff
+   ('home:queue-withdraw-identify-staff-reserve', pending = the staff), the entrance asks '~9\x1b'
+   (Home changed), the recorded list is consumed again, and the original asserts follow unchanged
+   ("5pp1\r\x1b", leave-after-one-operation, staff ready, no failed atomic withdraw).
+Runs: test_policy_supply 208 OK; test_light_in_hand_recorded 5 OK; test_lantern_lost_recorded (#65)
+9 OK; test_overflow_torches_recorded (#69) 3 OK.
+
+GUARDS (after 0fb29508)
+preflight:
+  [preflight] NOTE existing-test MODIFIED: tests/test_policy_supply.py::IdentifyStaffLiveCatalogueTest.test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed
+  [preflight] NOTE existing-test REMOVED or renamed: tests/test_policy_supply.py::ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable
+  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (light-in-hand-1019 vs 4e34499f)
+mutation_check --tests test_light_in_hand_recorded --record:
+  [mutation] caught     src/hengbot/policy_supply.py:112 (3 pins)
+  [mutation] TEXT ONLY  src/hengbot/policy_supply.py:340
+  [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+  [mutation] recorded for 0fb29508
+fast_tier --shards 4 (run after gate-optimizer-1019 left the 70-minute window):
+  [fast] 3894 fast tests (<2.0s in 3cb276a3) + 2 changed modules, 4 shards
+  [fast] excluded 24 modules measured over 60s
+  Crashed shards: none
+  Failures: none
+  Errors: ['tests.test_verified_destroy_refusal_terminates (import) ModuleNotFoundError(...)']
+  Total: 3922 tests, 314.9s
+  The one error is environmental: the timing list comes from 3cb276a3 (newer main, #80), which adds
+  tests/test_verified_destroy_refusal_terminates.py; 3cb276a3 is not an ancestor of the base
+  4e34499f, so the module does not exist on this branch. No failure from this change.
+
+ROUND 3 (merge main 1b923f84 + #79 town-blind-travel-1019 53f4f803; commits 25ccd146, c4b62bf3, 10c2c3b2)
+- Merges: both conflicted only on scripts/town_work_manifest.json.gz; regenerated with
+  town_work_manifest.py --write each time (832 candidates, 21179 sites, zero unmapped; a later
+  --write gives no diff).
+- Cause verified: replaying test_town_unseen_travel_recorded with the old Home-inclusive predicate
+  patched in reproduces every old value (Alchemist '\x1b`n%.', steps '4' / '7'); with the fix the
+  router's store visit is Home (store 7) and procurement_requirements starts with
+  "Flasks of oil 0/5" (Home holds the lamp and the flasks). Nothing else differs.
+- tests/test_town_unseen_travel_recorded.py, only the destination/first step changed (comment cites
+  #82 and the owner decision with old/new values; new constant HOME_TRAVEL_KEY = "\x1b`n(."):
+    TownUnseenTravelRecordedTest.test_unseen_grid_walks_instead_of_native_travel: ("4", shop:approach) -> ("6", shop:approach)
+    TownUnseenTravelRecordedTest.test_control_lit_arrival_travels_as_recorded: ("\x1b`n%.", shop:travel) -> ("\x1b`n(.", shop:travel)
+    TownTravelEndsUnseenRecordedTest.test_recorded_travel_from_lit_grid_then_empty_entry_wait: decided[6] same change
+    TownTravelEndsUnseenRecordedTest.test_unseen_end_of_travel_releases_entry_wait_and_walks: ("7", store:entry-interrupted-replan) -> ("3", same reason), both provenance variants
+  Every reason, the recorded-row asserts and the travel-vs-walk asserts are unchanged.
+- The report's control bytes from round 2 (raw CR/ESC) were replaced by escapes.
+Runs: test_town_unseen_travel_recorded 6 OK; test_light_in_hand_recorded 5 OK; test_policy_supply
+208 OK; test_lantern_lost_recorded (#65) 9 OK; test_overflow_torches_recorded (#69) 3 OK.
+
+GUARDS ROUND 3 (base main 1b923f84; the old base 4e34499f no longer applies after the merges)
+preflight:
+  [preflight] NOTE existing-test MODIFIED: tests/test_policy_supply.py::IdentifyStaffLiveCatalogueTest.test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed
+  [preflight] NOTE existing-test REMOVED or renamed: tests/test_policy_supply.py::ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable
+  [preflight] PREFLIGHT OK: 21 changed files, 0 findings (light-in-hand-1019 vs 1b923f84)
+mutation_check --tests test_light_in_hand_recorded test_town_unseen_travel_recorded --record:
+  [mutation] 5 source hunks (#82 + #79)
+  [mutation] caught     src/hengbot/policy.py:8135 (#79)
+  [mutation] caught     src/hengbot/policy_supply.py:112 (#82: 3 light-in-hand pins + #79 replays)
+  [mutation] TEXT ONLY  src/hengbot/policy_supply.py:340
+  [mutation] caught     src/hengbot/policy_town.py:5043 (#79)
+  [mutation] caught     src/hengbot/policy_town.py:5077 (#79)
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+  [mutation] recorded for 04f7d23a
+fast_tier --shards 4 (after gate-blind-1019c reported MERGED: main is now b742206d):
+  [fast] 3752 fast tests (<2.0s in b742206d) + 4 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 4010 tests, 420.4s
+Note: main has since moved to b742206d (the gate's #79 merge); this branch holds 1b923f84 + 53f4f803.
