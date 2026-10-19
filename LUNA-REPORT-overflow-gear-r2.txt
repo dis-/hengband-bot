@@ -1,0 +1,44 @@
+#87 round 2 - report (branch overflow-gear-1019)
+
+MERGE: main e5359652 merged (0551cf02); only conflict scripts/town_work_manifest.json.gz, regenerated
+(town_work_manifest.py --write: 835 candidates, 21284 sites, zero unmapped).
+Gate failures reproduced on 0551cf02: test_overweight_home_unreachable_recorded ...before_the_strip
+(index 3713 'dqde1\r\x1b' != 'de1\r\x1b') and test_declarations_r14 ...at_3715 (overweight OFF hash b64e7624...).
+
+DIAGNOSIS (measured; LUNA-DIAG-overflow-gear-r2.txt)
+- Overweight-Home replay, indices 3712-3715: pack 19 (real shortage, free 4 < 5), _target_loadout_known False,
+  _calibration_unavailable_reason "stat_cur" (stale cached calibration, policy_calibration.py:212-216),
+  _calibration_rejection None, _calibration_dump_pending set (re-dump sequence 4 in flight).
+- Round 1 keyed the release on the unavailable reason, so the stale state released 'q' 麻痺知らずの指輪
+  (Ring of Free Action, the ring the live process later deposited via the equipment transaction 'do\r'
+  after recalibrating) -> 'dq' before main's 'de1\r'.
+- Over-reach, not required: A0 shortage is already handled by main's 'de1\r' deposit of the surplus;
+  2026-10-10 (overweight + Home full -> sell) is not engaged (Home not full). A stale calibration's target
+  loadout is still coming, which contradicts round 1's own premise.
+
+FIX (8a77b7b6, src/hengbot/policy_home.py _home_deposit_candidate)
+  _calibration_unavailable_reason is not None -> _calibration_rejection is not None (existing record, set only
+  by the dump publication for a rejected sheet, cleared on a valid one). No new attribute/constant/threshold.
+  Bookkeeping: town_work_sites.json ast hash + manifest regenerated.
+Test changes (branch-new module only; no test at e5359652 edited):
+  tests/test_overflow_gear_recorded.py: the DECLARED CONSTRUCTED rejection now holds the reason together
+  with _calibration_rejection (as the publication path does); new control
+  test_control_stale_calibration_keeps_the_target_gate ("stat_cur", no rejection, shortage -> gear waits).
+
+PINS / CONTROLS (after 8a77b7b6)
+  tests.test_overflow_gear_recorded                    6 OK
+  tests.test_overweight_home_unreachable_recorded + tests.test_declarations_r14   11 OK (both gate failures fixed)
+  test_policy_home.UnknownTargetLoadoutSurplusTest, test_overflow_torches_recorded,
+  test_full_pack_store_unreachable_recorded, test_home_junk_bones_recorded       21 OK
+REVERT-PROOF (git apply -R of the round-2 hunk only): test_control_stale_calibration_keeps_the_target_gate
+  FAIL (True is not false); the other 5 OK. Re-applied.
+
+GUARDS (after 8a77b7b6)
+  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (overflow-gear-1019 vs e5359652)
+  [mutation] 1 source hunks, tests: test_overflow_gear_recorded
+  [mutation] caught     src/hengbot/policy_home.py:2552 (and (): test_control_reserved_and_kept_items_are_never_deposited, test_recorded_home_visit_deposits_spare_rings, test_recorded_session_no_longer_ends_in_the_stop
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for 8a77b7b6
+  [fast] 3774 fast tests (<2.0s in e5359652) + 1 changed modules, 4 shards
+  [fast] excluded 29 modules measured over 60s
+  Crashed shards: none / Failures: none / Errors: none / Total: 3782 tests, 276.3s

@@ -1,0 +1,34 @@
+#87 round 2 diagnosis (merged tree: overflow-gear-1019 + main e5359652 = 0551cf02)
+
+Gate 941c319b failures reproduced on 0551cf02 (single modules):
+  test_overweight_home_unreachable_recorded ...before_the_strip: index 3713 'dqde1\r\x1b' != 'de1\r\x1b'
+  test_declarations_r14 ...keeps_its_operation_at_3715: overweight OFF hash b64e7624... != 8f46fb35...
+
+MEASURED (replay of tests.test_overweight_home_unreachable_recorded._replay, wrapper on
+HengbotPolicy._home_deposit_candidate logging every call where the round-1 branch decides):
+  index 3712/3713/3714/3715, in town, pack 19 entries (free 4 < MIN_FREE_PACK_SLOTS 5 -> real shortage):
+    _target_loadout_known()            False
+    _calibration_unavailable_reason    "stat_cur"   (policy_calibration.py:212-216: the cached calibration's
+                                                     stale_reason, after the Restore Constitution quaff)
+    _calibration_rejection             None         (no character sheet was rejected)
+    _calibration_dump_pending          {'baseline': None, 'started_ns': ..., 'sequence': 4}  (re-dump in flight)
+    round-1 branch -> candidate True for q 麻痺知らずの指輪 (Ring of Free Action) and r シャベル
+    (r is still excluded from _find_home_deposit as the only digger), so index 3713 posts 'dq' before 'de1\r'.
+  'q' is the Ring of Free Action: the very ring the live process deposited later through the equipment
+  transaction (sequence 3778 'do\r') once the recalibration produced a target loadout.
+
+CAUSE: round 1 keyed "the optimizer is skipped for good" on _calibration_unavailable_reason is not None.
+That attribute is also set by a stale cached calibration (policy_calibration.py:212-216, which requests the
+re-dump); there the optimizer is only waiting for the next C sheet and its target loadout is coming.
+Round 1's own justification ("no target loadout will arrive") holds only for a rejected sheet, which the
+dump publication records in _calibration_rejection together with the reason (policy_calibration.py:149-155,
+cleared on success at :161).
+
+OWNER DECISIONS: A0 (2026-10-14) handles a free-slot shortage first, and it is: main's key 'de1\r' already
+deposits the existing surplus (e) on this board; 2026-10-10 (overweight + Home full -> sell carried surplus)
+is not engaged (Home not full, the round-1 branch deposits, it does not sell). Neither requires releasing
+gear the pending optimizer has not yet ruled on -> an over-reach of round 1, not required behaviour.
+
+FIX: the round-1 condition uses the existing rejection record (_calibration_rejection is not None) instead
+of the unavailable reason. Both replays return to main's result; the round-1 incident (a rejected sheet,
+recorded reason unsupported-mutation) still releases the spare rings.

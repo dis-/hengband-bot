@@ -1,0 +1,46 @@
+#87 diagnosis (replay on 10698a77)
+
+Capture: c4a-loops-20261016/20261019-202913-town-blocked-overflow-no-legal-disposal (life-014, Level 26, town,
+gold 3,106). Last bot session = state rows 54-76 (decisions 0-12). Replay: real policy, state rows 59 (~9 Home
+knowledge, 158 entries) .. 76 through _consume_response_sequence + choose_key on every board (DECLARED CONSTRUCTED:
+the calibration rejection reason, the ~9 inflight flag, the ~f cache). Replay reproduces the live sequence:
+row 63 '\x1b' home:route-claim-unfulfilled, row 67/75 shop:observe-and-leave, row 76
+'1' town:blocked:overflow-no-legal-disposal (live '2', same WAIT family).
+
+MEASURED
+1. Root: the character has a mutation (state row 57 character.mutations == [12]); character_sheet.py:259-261
+   raises unsupported-mutation, so the calibration is None (decision rows: calibration.unavailable_reason
+   "unsupported-mutation", result_source "calibration-required-return", blockers ["calibration-required"]).
+   policy_equipment.py:835-850 then stores a preparation with result None, so _target_loadout_known()
+   (policy.py:14671-14678) is False for the whole visit, and stays False: R1 skips the optimizer.
+2. Deposit: _home_deposit_candidate's spare-equipment branch requires _target_loadout_known()
+   (policy_home.py:2551-2556 at 10698a77). Per item (pack slot: reservation / retention surplus / candidate):
+     j 耐火の指輪, k 耐冷の指輪, l ローブ[2,+0], m 厚布よろい[5,+0], n 金属製スモール・シールド[5,+0],
+     o 鉄冠[0,+0], p 革グローブ[1,+0], q 軟革ブーツ[2,+0], r ルツェルン・ハンマー(2d5)(+0,+0):
+       reservation 0, surplus 1, not procurement-protected, no identification guard (dpi False, idflow False),
+       not wanted jewelry, not a pending transaction -> excluded ONLY by the target gate (candidate False).
+     s シャベル (+6,+4)(+1): candidate True (mining gear off duty) but _find_home_deposit excludes digging tools
+       that are not _is_surplus_digging_tool (policy_home.py:4001; the only digger is kept, policy.py:14691-14715).
+     a-e, g, t: retention reservations (speed 10, CCW, heal, teleport, recall, Stinking Cloud mana-device 3,
+       bolts ammo:carry-plan 99). f Stone to Mud and h/i Identify staves: reservation 0 but no Home branch
+       (useful devices within the staff cap).
+   So _find_home_deposit None -> _town_space_deposit_actionable False; the town plan still routed the Home
+   (home_candidate_waiting True), whose page had nothing to deposit -> home:route-claim-unfulfilled.
+3. Sale: organization sale takes its equipment candidates from _home_deposit_candidate (policy_town.py:4977), so
+   the same gate; _find_weapon_sale needs a high-grade wielded weapon and a calibration for the DPS comparison
+   (policy_equipment.py:3191-3215, fails closed). The shops actually visited were the Alchemist (launcher-enchant
+   shopping) and the Black Market (shopping): rejection_reason observed-page-nothing-wanted, no sale finder for
+   gear there -> shop:observe-and-leave.
+4. Destruction: _overflow_disposal_item (policy.py:14768-14805): no cursed item, _find_disposable_item None
+   (no pseudo average/cursed, no junk), and the fallback excludes every equipment item by
+   _has_town_economic_path (policy.py:14744-14750, "equipment goes to the Home") - the path that refused it.
+5. Dominance: _is_disposable_dominated_armour (R1 prune, calibration-independent) is True only for q (boots
+   [2,+0] vs worn [2,+3]); j/k rings carry resistances the worn rings lack, r is another melee kind, the other
+   armour is not fully known. It is used only by the Home-full relief (Home here is not full). #86 changed the
+   dominance key only for the light slot (signature[2] for lights); the pack holds no light, so the pack's
+   disposable set ({q}) is the same before and after #86.
+
+FIX: in the spare-equipment branch, a skipped optimizer (calibration unavailable: _calibration_unavailable_reason
+set) under a town free-slot shortage (_town_pack_space_shortage, A0) no longer waits for a target loadout that
+cannot come. Same predicate for deposit and organization; Home items stay optimizer inputs.
+After the fix the first Home visit posts 'dkdj\x1b' home:atomic-deposit (rings k and j): free 3 -> 5.

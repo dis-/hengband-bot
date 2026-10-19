@@ -5008,7 +5008,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2784107050ab3bd2b9b814f815fa435d071d7b51ee2bb4e847d47fe2acbe2365"
+    "ast_sha256": "82f18729d4a2255ba7b3421a3a4c413dc169a1bd0c5483519286f459c696f6ff"
   },
   "policy_home.py:HomeMixin._home_deposit_key": {
     "classification": "producer",
@@ -7483,6 +7483,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "4b8b1f6d73eeb1f9bf048fe68771cfbc44ef81ce8bdb880557b326b2811d2a64"
+  },
+  "policy_town.py:TownMixin._town_pack_space_shortage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "a23aa451751aac345be4cafd31858ebc4dd1e4d106b68cead25fab0dbfc35bd2"
   },
   "policy_town.py:TownMixin._town_procurement_decision": {
     "classification": "producer",

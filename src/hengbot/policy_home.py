@@ -2552,7 +2552,19 @@ class HomeMixin:
             equipment_deposit_shape
             and not item.is_digging_tool
             and not good_weapon
-            and self._target_loadout_known()
+            and (
+                self._target_loadout_known()
+                # Issue #87: a rejected character sheet skips the optimizer
+                # (R1), so no target loadout will arrive to release spare
+                # gear; a free-slot shortage is handled first (A0).  A stale
+                # calibration awaiting its re-dump is not rejected: its
+                # target loadout is still coming.
+                or (
+                    snapshot is not None
+                    and self._calibration_rejection is not None
+                    and self._town_pack_space_shortage(snapshot)
+                )
+            )
         )
         protected_unknown_consumable = (
             self._deepest_level >= 20
