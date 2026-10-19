@@ -26,6 +26,7 @@ from hengbot.model import (
     SV_LITE_LANTERN,
     TVAL_ARROW,
     TVAL_BOLT,
+    TVAL_LITE,
     TVAL_SHOT,
     InventoryItem,
     StoreItem,
@@ -93,6 +94,13 @@ TR_SELF_FIRE = 158
 TR_SELF_ELEC = 159
 TR_SELF_COLD = 160
 TR_PERSISTENT_CURSE = 161
+
+# Light radius, as ItemEntity::get_lite_radius() (item-entity.cpp) adds it up
+# from the light flags of src/object-enchant/tr-types.h.  Only the item's known
+# flags are read: an artifact that is not fully known does not reveal its own.
+LIGHT_RADIUS_BY_FLAG = ((77, 1), (122, 2), (123, 3))  # TR_LITE_1/2/3
+DARKNESS_RADIUS_BY_FLAG = ((124, 1), (125, 2), (126, 3))  # TR_LITE_M1/M2/M3
+TR_DARK_SOURCE = 146
 
 # Flags whose behavior makes an exploration loadout unusable for the present
 # bot.  Temporary curse state is handled separately: such an item is held for
@@ -306,6 +314,25 @@ def light_source_quality(loadout: Loadout) -> int:
     if light.item.sval == SV_LITE_LANTERN:
         return 1
     return 0
+
+
+def permanent_light_radius(item: OwnedEquipment | None) -> int:
+    """Known light radius of a permanent (fuel-free) light; 0 for others.
+
+    USER DECISION 2026-10-19 「照らせる範囲も比べる」: among permanent lights
+    the wider radius is preferred, below every modeled combat result.
+    """
+    if (
+        item is None
+        or item.item.tval != TVAL_LITE
+        or item.item.sval < SV_LITE_FEANOR
+    ):
+        return 0
+    flags = item.flags
+    radius = -sum(value for flag, value in DARKNESS_RADIUS_BY_FLAG if flag in flags)
+    if TR_DARK_SOURCE not in flags:
+        radius += sum(value for flag, value in LIGHT_RADIUS_BY_FLAG if flag in flags)
+    return radius
 
 
 @dataclass(frozen=True)
@@ -1010,8 +1037,14 @@ def _prefer(
     # torch when every modeled combat result is identical. Keep this separate
     # from combat metrics so light quality cannot trade against defense or DPS.
     if cm == im:
-        candidate_light = light_source_quality(candidate.loadout)
-        incumbent_light = light_source_quality(incumbent.loadout)
+        candidate_light = (
+            light_source_quality(candidate.loadout),
+            permanent_light_radius(candidate.loadout.item_at(SLOT_LIGHT)),
+        )
+        incumbent_light = (
+            light_source_quality(incumbent.loadout),
+            permanent_light_radius(incumbent.loadout.item_at(SLOT_LIGHT)),
+        )
         if candidate_light != incumbent_light:
             return candidate_light > incumbent_light
     # When every defensive/utility result is identical, offense is the whole
@@ -1125,6 +1158,7 @@ def _selection_equivalence_key(
         entry.loadout.flags.intersection(ABILITY_FLAG.values()),
         bow_policy,
         light_source_quality(entry.loadout),
+        permanent_light_radius(entry.loadout.item_at(SLOT_LIGHT)),
         len(entry.loadout.slots),
     )
 
@@ -1276,6 +1310,7 @@ def _stable_operational_best(
             entry.metrics.secondary_value,
             entry.metrics.speed_bonus,
             light_source_quality(entry.loadout),
+            permanent_light_radius(entry.loadout.item_at(SLOT_LIGHT)),
             len(entry.loadout.slots),
             entry.loadout.item_ids == current_item_ids,
             entry.metrics.combat_margin,
