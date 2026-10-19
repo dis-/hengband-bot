@@ -113,3 +113,44 @@ fast_tier --shards 4 (run after gate-optimizer-1019 left the 70-minute window):
   The one error is environmental: the timing list comes from 3cb276a3 (newer main, #80), which adds
   tests/test_verified_destroy_refusal_terminates.py; 3cb276a3 is not an ancestor of the base
   4e34499f, so the module does not exist on this branch. No failure from this change.
+
+ROUND 3 (merge main 1b923f84 + #79 town-blind-travel-1019 53f4f803; commits 25ccd146, c4b62bf3, 10c2c3b2)
+- Merges: both conflicted only on scripts/town_work_manifest.json.gz; regenerated with
+  town_work_manifest.py --write each time (832 candidates, 21179 sites, zero unmapped; a later
+  --write gives no diff).
+- Cause verified: replaying test_town_unseen_travel_recorded with the old Home-inclusive predicate
+  patched in reproduces every old value (Alchemist '\x1b`n%.', steps '4' / '7'); with the fix the
+  router's store visit is Home (store 7) and procurement_requirements starts with
+  "Flasks of oil 0/5" (Home holds the lamp and the flasks). Nothing else differs.
+- tests/test_town_unseen_travel_recorded.py, only the destination/first step changed (comment cites
+  #82 and the owner decision with old/new values; new constant HOME_TRAVEL_KEY = "\x1b`n(."):
+    TownUnseenTravelRecordedTest.test_unseen_grid_walks_instead_of_native_travel: ("4", shop:approach) -> ("6", shop:approach)
+    TownUnseenTravelRecordedTest.test_control_lit_arrival_travels_as_recorded: ("\x1b`n%.", shop:travel) -> ("\x1b`n(.", shop:travel)
+    TownTravelEndsUnseenRecordedTest.test_recorded_travel_from_lit_grid_then_empty_entry_wait: decided[6] same change
+    TownTravelEndsUnseenRecordedTest.test_unseen_end_of_travel_releases_entry_wait_and_walks: ("7", store:entry-interrupted-replan) -> ("3", same reason), both provenance variants
+  Every reason, the recorded-row asserts and the travel-vs-walk asserts are unchanged.
+- The report's control bytes from round 2 (raw CR/ESC) were replaced by escapes.
+Runs: test_town_unseen_travel_recorded 6 OK; test_light_in_hand_recorded 5 OK; test_policy_supply
+208 OK; test_lantern_lost_recorded (#65) 9 OK; test_overflow_torches_recorded (#69) 3 OK.
+
+GUARDS ROUND 3 (base main 1b923f84; the old base 4e34499f no longer applies after the merges)
+preflight:
+  [preflight] NOTE existing-test MODIFIED: tests/test_policy_supply.py::IdentifyStaffLiveCatalogueTest.test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed
+  [preflight] NOTE existing-test REMOVED or renamed: tests/test_policy_supply.py::ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable
+  [preflight] PREFLIGHT OK: 21 changed files, 0 findings (light-in-hand-1019 vs 1b923f84)
+mutation_check --tests test_light_in_hand_recorded test_town_unseen_travel_recorded --record:
+  [mutation] 5 source hunks (#82 + #79)
+  [mutation] caught     src/hengbot/policy.py:8135 (#79)
+  [mutation] caught     src/hengbot/policy_supply.py:112 (#82: 3 light-in-hand pins + #79 replays)
+  [mutation] TEXT ONLY  src/hengbot/policy_supply.py:340
+  [mutation] caught     src/hengbot/policy_town.py:5043 (#79)
+  [mutation] caught     src/hengbot/policy_town.py:5077 (#79)
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+  [mutation] recorded for 04f7d23a
+fast_tier --shards 4 (after gate-blind-1019c reported MERGED: main is now b742206d):
+  [fast] 3752 fast tests (<2.0s in b742206d) + 4 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 4010 tests, 420.4s
+Note: main has since moved to b742206d (the gate's #79 merge); this branch holds 1b923f84 + 53f4f803.
