@@ -1,0 +1,68 @@
+#86 DIAGNOSIS - Home Feanorian lamp never equipped (measured on the captured boards)
+
+Captures: C:\hengband-backups\state-logs\c4a-loops-20261016\
+  101730 = 20261019-101730-exit-no-marker, 111025 = 20261019-111025-no-key-exhausted
+  (both life 14, Level 24; the 101730 town visit has decision rows only, no town board/Home list;
+  111025 state rows 0-7 are the town board at turn 1068217 with the ~f, ~9 Home and C responses).
+
+(a) Is the Home lamp in the catalogue / candidate set?
+  - Catalogue: yes. 111025 state row 3 (~9 Home list) item 28 'フェアノールのランプ' tval 39 sval 2,
+    known True, fully_known False, known_flags [86 IGNORE_FIRE, 122 LITE_2], pval 0, not ego/artifact.
+    Built through OwnedEquipmentCatalog it is home:ff2b3ffaa208a881:0, exploration_legal True, not in
+    incomplete_item_details (101730 decision 4644: incomplete 4 = tval 45/37/21/21).
+    101730 decision 4644 search_slot_candidate_counts.light 6 = worn lantern + 5 Home lights
+    (111025: light 5 = the same 5 Home lights; worn torch and pack lantern are 0-fuel, excluded by
+    equipment_optimizer.py:251 operational_equipment_candidate).
+  - Search candidate: NO. warrior_loadout_search.py:686 (single-slot search, threshold crossed:
+    61 > 44 at 4644) and :579 (exact search) run _prune_dominated_catalog (:149). Its dominance key
+    _item_dominance_parts (:100) dropped the subtype (sval) for lights - only launchers kept it
+    (old :115 'signature[2] if launcher else None'). The Home 暗視の松明 (+1赤外線視力)
+    (home:6e94dd272b55f172:0, sval 0, pval 1, flags [10,77,127]) has the same exact part as the lamp
+    (light, None, None, None, {}, True: no light flag is in WARRIOR_EVALUATOR_FLAGS) and vector
+    (0,0,0,0,0,0,pval 1,0) >= (0,...,0) strictly, so _catalog_dominates(torch, lamp) is True and the
+    lamp (not protected: not worn) is pruned. The torch also "dominates" every lantern and torch, but
+    the worn light is protected (current_item_ids).
+  - The prune claim "cannot improve any Warrior metric" is true for combat metrics but false for the
+    selection: light_source_quality (equipment_optimizer.py:299; lamp 2 > lantern 1 > torch 0) is a
+    tie breaker in _prefer (:1009-1016) and _stable_operational_best (:1278).
+
+(b) Scoring if it is a candidate (measured with the evaluator on the recorded dual-wield fixture,
+    lamp row and +1 infravision torch row of 111025 added to its Home list):
+  - Lantern, lamp, torches and the infravision torch loadouts have identical LoadoutMetrics
+    (expected_dps 15.194, survival 7.330, margin 0.1791, ranged 24.50, speed 0, secondary -13.099,
+    traits {}): light items carry no evaluator flag and _speed_bonus reads only TR_SPEED.
+  - Lamp alone at Home: best = lamp (light quality 2 > 1). Lamp + infravision torch at Home: best =
+    worn lantern (the lamp was pruned; lantern 1 > torch 0). So the comparison rule itself is sensible
+    (permanent light > fuel light at equal metrics); the defect is the prune removing the lamp first.
+
+(c) Why the swap was never executed / what happened afterwards
+  - 101730 decision 4644 'town:recall-to-yeek-cave' (turn 994876): result_source signature-cache-hit,
+    transaction_actions 0, chosen_ratio 1.0, equipment_work_need_present False,
+    outstanding_equipment_work False, home_visit_limit 3, home_unsatisfied_passes 3, home_blocked True.
+    The optimizer's best was the worn lantern, so no equipment work existed; home_visit_limit is 3 only
+    because of that (policy_town.py:4543: 300 while equipment work is outstanding). The visit limit
+    is a consequence, not the cause. The bot departed with the lantern (3898 turns, 101730 state row
+    0), no oil (the oil waiver for the Home permanent light is #82), and ran dry (DL13 -> DL2).
+  - 111025 (after the bot restarts, turn 1068217, worn 0-turn torch, 0-turn lantern in pack): decision
+    7 'equipment-transaction:travel-home' key '\x1b`n(.' target loadout 4767118d3bb15871,
+    transaction_next withdraw home:6e94dd272b55f172:0 = the +1 infravision torch (not the lamp; the
+    #79 report read it as the lamp). home_visit_limit 300, home_blocked False there.
+  - Replay of 111025 rows 0-4 through HengbotPolicy (constructed calibration only) reproduces decision
+    ('\x1b`n(.', 'equipment-transaction:travel-home') and the same target loadout id 4767118d3bb15871
+    with [withdraw 6e94dd.., equip 6e94dd.. light] on 3cb276a3.
+
+(d) 10-03 "inferior light equipped": NOT the same mechanism.
+  live-logs-20261003-1215\bot-state-fixed.jsonl last ~9 row (turn 6485057): worn フェアノールのランプ
+  [86,122]; Home holds ★ガラドリエルの玻璃瓶 (sval 4, LITE_3 flag 123, pval 1) and ★知識の石 (sval 7,
+  LITE_3). The Phial dominates the lamp in the prune but the worn lamp is protected, so the Phial
+  stays a candidate; light_source_quality ranks every sval >= 2 as 2 (equipment_optimizer.py:304), so
+  lamp and Phial tie and the current set wins the last tie breaker. Cause: the light rank ignores the
+  radius (LITE_3 vs LITE_2). Changing the rank is a separate rule (radius / artifact light ordering),
+  not part of this fix.
+
+Fix (smallest, no new constant): warrior_loadout_search.py _item_dominance_parts keeps the light
+subtype in the exact dominance part, as it already does for launchers. Lights of different svals no
+longer prune each other; torch-vs-torch (and lantern-vs-lantern) dominance is unchanged. The same key
+feeds disposable_dominated_item_ids: on the 111025 catalogue (worn ids protected) 3cb276a3 lists the
+lamp home:ff2b3ffaa208a881:0 and the pack lantern pack:cf9cbd9f667b29b6:0 as disposable (dominated by
+the +1 infravision torch); after the fix only the three plain Home torches remain disposable.

@@ -105,6 +105,7 @@ def _item_dominance_parts(
     flags = _evaluator_flags(item)
     melee_weapon = item.item.tval in {21, 22, 23}
     launcher = item.item.tval == 19
+    light = signature[0] == SLOT_LIGHT
     return (
         (
             signature[0],  # slot
@@ -112,7 +113,9 @@ def _item_dominance_parts(
             # Short Bow with larger enchantments must not prune a Light Crossbow
             # before the launcher's explicit policy preference is evaluated.
             signature[1] if melee_weapon or launcher else None,
-            signature[2] if launcher else None,
+            # The light subtype is the selection's light-quality rank: a +1
+            # infravision torch must not prune a Feanorian lamp (#86).
+            signature[2] if launcher or light else None,
             signature[10] if melee_weapon else None,
             flags - BENEFICIAL_GEAR_FLAGS,
             signature[13],  # exploration legality
