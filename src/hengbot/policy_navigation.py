@@ -1407,7 +1407,11 @@ class NavigationMixin:
             return None
         start = snapshot.player.position
         self._engagement_avoid_cells |= self._warning_refused_cells
-        avoided = self._engagement_avoid_cells | self._warning_refused_cells
+        avoided = (
+            self._engagement_avoid_cells
+            | self._warning_refused_cells
+            | self._unseen_attack_area_cells(snapshot)
+        )
         oscillating = self._is_oscillating()
         identity = self._explore_goal_identity
         if identity is not None:
@@ -1584,6 +1588,7 @@ class NavigationMixin:
             if Position(y, x) not in self._probed_frontiers
             and Position(y, x) not in self._unenterable_explore_goals
             and self._is_remembered_frontier(snapshot, Position(y, x))
+            and not self._in_unseen_attack_area(snapshot, Position(y, x))
         }
         candidates.discard(snapshot.player.position)
         if not candidates:
@@ -1630,7 +1635,11 @@ class NavigationMixin:
                 break
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
-                if neighbor in parent or neighbor in self._engagement_avoid_cells:
+                if (
+                    neighbor in parent
+                    or neighbor in self._engagement_avoid_cells
+                    or self._in_unseen_attack_area(snapshot, neighbor)
+                ):
                     continue
                 grid = snapshot.grids.get(neighbor)
                 walkable = neighbor in self._walkable_neighbors(snapshot, position)
@@ -1702,7 +1711,10 @@ class NavigationMixin:
             for neighbor in self._walkable_neighbors(
                 snapshot, pos, allow_damaging=allow_damaging
             ):
-                if neighbor in self._engagement_avoid_cells:
+                if (
+                    neighbor in self._engagement_avoid_cells
+                    or self._in_unseen_attack_area(snapshot, neighbor)
+                ):
                     continue
                 penalty = VISIT_PENALTY * self._visit_counts[neighbor]
                 if neighbor == previous:

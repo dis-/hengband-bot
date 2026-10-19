@@ -2,6 +2,8 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
+import json
+from pathlib import Path
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -1143,6 +1145,11 @@ class IdentificationMixin:
         candidates -= self._deferred_loot
         candidates -= getattr(self, "_unseen_deferred_loot", set())
         candidates -= self._engagement_avoid_cells
+        candidates = {
+            position
+            for position in candidates
+            if not self._in_unseen_attack_area(snapshot, position)
+        }
         if candidates and self._loot_defer_blocker == "navigation-ledger:loot":
             self._loot_defer_blocker = None
         if not candidates:
@@ -1175,7 +1182,11 @@ class IdentificationMixin:
             if max_path_distance is not None and distance >= max_path_distance:
                 continue
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if (
+                    neighbor in seen
+                    or neighbor in self._engagement_avoid_cells
+                    or self._in_unseen_attack_area(snapshot, neighbor)
+                ):
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -1186,6 +1197,96 @@ class IdentificationMixin:
                     )
                 )
         return None
+
+    def _in_unseen_attack_area(self, snapshot: Snapshot, position: Position) -> bool:
+        """Is ``position`` in the area of an unseen attack that continues?
+
+        User 2026-10-06 「後ずさりは今のまま・拾いを諦める」: while the attack
+        continues (the retreat is armed on this floor, or its last hit is
+        inside the quiet window that also defers loot), nothing in the
+        direction retreated from is approached again -- not an item, not an
+        exploration frontier.  The area is the half plane behind the cell
+        where the last unseen hit landed, seen along the retreat direction.
+        Angband 30F 2026-10-20 04:01: explore walked '4' back onto the hit
+        cells after every retreat until the loop detector stopped the bot.
+        """
+        floor_key = getattr(snapshot, "floor_key", None)
+        if floor_key is None:
+            return False
+        origin = getattr(self, "_unseen_last_hit_position", None)
+        if origin is None or getattr(self, "_unseen_last_hit_floor", None) != floor_key:
+            return False
+        last_hit_turn = getattr(self, "_unseen_last_hit_turn", None)
+        continuing = getattr(self, "_unseen_retreat_floor", None) == floor_key or (
+            last_hit_turn is not None
+            and 0 <= snapshot.turn - last_hit_turn < UNSEEN_LOOT_QUIET_TURNS
+        )
+        if not continuing:
+            return False
+        direction = (
+            getattr(self, "_unseen_retreat_direction", None)
+            or getattr(self, "_unseen_loot_direction", None)
+        )
+        if direction is None:
+            return False
+        dy, dx = direction
+        return (position.y - origin.y) * dy + (position.x - origin.x) * dx <= 0
+
+    def _unseen_attack_area_cells(self, snapshot: Snapshot) -> set[Position]:
+        return {
+            position
+            for position in snapshot.grids
+            if self._in_unseen_attack_area(snapshot, position)
+        }
+
+    def _record_unseen_attack(self, snapshot: Snapshot) -> None:
+        """Keep the attack's area beside the decision log for a restart."""
+        path = getattr(self, "_unseen_attack_path", None)
+        origin = getattr(self, "_unseen_last_hit_position", None)
+        direction = getattr(self, "_unseen_retreat_direction", None)
+        if path is None or origin is None or direction is None:
+            return
+        record = {
+            "floor": list(snapshot.floor_key),
+            "turn": getattr(self, "_unseen_last_hit_turn", None),
+            "position": [origin.y, origin.x],
+            "direction": list(direction),
+            "decision_sequence": getattr(self, "_decision_sequence", None),
+        }
+        try:
+            path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+
+    def _apply_unseen_attack_restore(self, snapshot: Snapshot) -> None:
+        """First board of a process: the previous process's unseen attack.
+
+        Applied only for the same floor inside the quiet window -- the hit
+        the player saw before the restart, never hidden information.
+        """
+        if getattr(self, "_unseen_attack_read", False):
+            return
+        self._unseen_attack_read = True
+        path = getattr(self, "_unseen_attack_path", None)
+        if path is None:
+            return
+        try:
+            record = json.loads(Path(path).read_text(encoding="utf-8"))
+            floor_key = tuple(record["floor"])
+            turn = int(record["turn"])
+            position = Position(int(record["position"][0]), int(record["position"][1]))
+            direction = (int(record["direction"][0]), int(record["direction"][1]))
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            return
+        if (
+            floor_key != tuple(snapshot.floor_key)
+            or not 0 <= snapshot.turn - turn < UNSEEN_LOOT_QUIET_TURNS
+        ):
+            return
+        self._unseen_last_hit_floor = snapshot.floor_key
+        self._unseen_last_hit_turn = turn
+        self._unseen_last_hit_position = position
+        self._unseen_loot_direction = direction
 
     def _refresh_unseen_loot_deferral(self, snapshot: Snapshot) -> None:
         floor_key = getattr(snapshot, "floor_key", None)

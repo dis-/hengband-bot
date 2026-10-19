@@ -1028,13 +1028,18 @@ class ObservationMixin:
             self._unseen_hit_pending_floor = snapshot.floor_key
             self._unseen_last_hit_floor = snapshot.floor_key
             self._unseen_last_hit_turn = snapshot.turn
+            self._unseen_last_hit_position = snapshot.player.position
         elif getattr(self, "_unseen_hit_pending_floor", None) != snapshot.floor_key:
             self._unseen_hit_pending_floor = None
         if getattr(self, "_unseen_last_hit_floor", None) != snapshot.floor_key:
             self._unseen_last_hit_floor = None
             self._unseen_last_hit_turn = None
+            self._unseen_last_hit_position = None
             stale = getattr(self, "_unseen_deferred_loot", set())
             stale.clear()
+        # A restarted bot learns the attack its previous process observed on
+        # this floor (the record beside the decision log), once.
+        self._apply_unseen_attack_restore(snapshot)
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from

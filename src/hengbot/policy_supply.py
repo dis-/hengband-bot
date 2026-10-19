@@ -1686,6 +1686,10 @@ class SupplyMixin:
                 neighbor
                 for neighbor in self._walkable_neighbors(snapshot, origin)
                 if projection(neighbor) > 0
+                # A cell the weapon warning already refused is walked as
+                # WAIT -> no key (Angband 30F 2026-10-20 04:01:22/34):
+                # the same avoidance explore and loot apply.
+                and neighbor not in self._warning_refused_cells
             ),
             key=lambda position: (
                 -projection(position),
@@ -1704,7 +1708,11 @@ class SupplyMixin:
                 self._unseen_retreat_target = position
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, position):
-                if neighbor in seen or projection(neighbor) <= 0:
+                if (
+                    neighbor in seen
+                    or projection(neighbor) <= 0
+                    or neighbor in self._warning_refused_cells
+                ):
                     continue
                 seen.add(neighbor)
                 queue.append((neighbor, first_step))
@@ -1826,6 +1834,8 @@ class SupplyMixin:
             self._unseen_choke_position = None
             self._unseen_choke_started_turn = None
             self._escape_state.enter("unseen", "unseen:reverse-choke")
+        if eligible_hit:
+            self._record_unseen_attack(snapshot)
 
         if self._unseen_choke_position is not None:
             if eligible_hit:
