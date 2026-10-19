@@ -1,0 +1,66 @@
+LUNA-REPORT town-blind-travel (#79)  branch town-blind-travel-1019, base 8a1f6bba
+
+DIAGNOSIS (measured; details in LUNA-DIAG-town-blind-travel.txt)
+- The player was NOT blind. Both captures: player.status.blind False, status_bar [],
+  can_see_own_grid False, light_radius 0. Worn torch "松明(0ターンの寿命)" (light_turns 0), pack
+  lantern also 0 turns, no oil or spare torch; town at day 10 22:22 (night).
+- Game: can_see_own_grid = !no_lite() (bot-json-output.cpp:1584); no_lite is also true while
+  blind (geometry.cpp:50). travel-execution.cpp:134 decide_travel_step_dir refuses every step
+  when blind || no_lite ("目が見えない！"), then "道筋が見つかりません！"; no turn passes, so no new
+  board follows the refused macro.
+- Bot: _town_travel_key (policy_town.py, shared by every native-travel leg: shop:travel,
+  equipment-transaction:travel-home, town:travel-entrance, interrupted replan) never looked at
+  can_see_own_grid. _shopping_approach_key walks only when no light item is equipped at all
+  (a 0-turn torch counts as equipped). Darkness recovery (_is_dark) is dungeon-only.
+- Empty key: policy.py:8318-8331, the first decision after a travel post treats its board as the
+  lagged entry surface and returns "" (store:entry-await-observation); the refused travel never
+  produces another board -> <no-key-exhausted> (capture A decision 26, B decision 8).
+- Live f9afbaa7 vs 8a1f6bba: #76/#77/#78 touch policy.py (idstaff), policy_home.py, policy_quest.py
+  only, none of the travel gate or the entry wait; the 8a1f6bba replay reproduces the recorded
+  keys, so the difference does not matter.
+
+FIX (src/hengbot/policy_town.py, _town_travel_key, +7 lines)
+- If snapshot.can_see_own_grid is False: no_route("own-grid-unseen"); return None.
+  Every caller already falls back to its existing walking step (the recorded '4' walk moved the
+  player 103 -> 102 in the dark), so travel is never posted where the game refuses it and the
+  entry wait that yielded "" is never armed by a refused travel. Blindness is the same field;
+  on a blind board the existing status producer cures first (control below).
+- No new constant, threshold, policy attribute (no restored-checkpoint defaults needed), or reason.
+- Bookkeeping: scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json regenerated
+  (only the ast_sha256 of _town_travel_key changed). No census change.
+- NOTE vs task wording: the task said "blind"; measured cause is darkness (fuel-less light at
+  night). Cure/wait does not end darkness, so the fix walks (the existing no-light rule's action).
+
+PINS (tests/test_town_unseen_travel_recorded.py; fixture tests/fixtures/
+town-unseen-travel-20261019.jsonl.gz = capture B state rows 93..101 unchanged, + .decisions.json,
+extractor tests/extract_town_unseen_travel_fixture.py). Fresh policy (the process had just
+restarted), enforce_crossarea_fundraising=True as recorded, live response path.
+- Recorded decisions 0..2 reproduced: '~f\x1b', '~9\x1b\x1b', then on the unseen board:
+    8a1f6bba: ('\x1b`n%.', 'shop:travel')   [fails test_unseen_grid_walks_instead_of_native_travel]
+    fix:      ('4', 'shop:approach')
+- CONTROL (DECLARED CONSTRUCTED wall: only can_see_own_grid set True): ('\x1b`n%.', 'shop:travel'),
+  i.e. an ordinary lit arrival travels as before.
+- CONTROL (DECLARED CONSTRUCTED wall: only status.blind set True): ('qc', 'item:cure-critical') --
+  the existing cure producer acts before any travel.
+- Related modules run single: test_declarations_r4, test_entrance_travel_retired_recorded,
+  test_execution_declaration, test_home_light_alternation, test_lantern_lost_recorded,
+  test_light_pingpong_recorded, test_newchar_light_loop_recorded, test_ownership_s2a1_closure,
+  test_q34_opening_oil_recorded, test_quest34_target_dead_recorded: all OK.
+
+GUARDS
+preflight:
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (town-blind-travel-1019 vs 8a1f6bba)
+mutation_check --tests test_town_unseen_travel_recorded --record:
+  [mutation] 1 source hunks, tests: test_town_unseen_travel_recorded
+  [mutation] caught     src/hengbot/policy_town.py:5068 (if snapshot.can_see_own_grid is False:): test_unseen_grid_walks_instead_of_native_travel
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for 141f236d
+fast_tier --shards 4 (exit 1):
+  [fast] 3904 fast tests (<2.0s in ac9ed592) + 1 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: tests.test_q2_breeder_sweep_recorded, tests.test_idstaff_poor_depart_recorded,
+          tests.test_home_leave_suppressed_recorded -- (import) ModuleNotFoundError
+  Total: 3905 tests, 206.7s
+  The three errors are not regressions: those modules belong to the #76/#77/#78 branches; the
+  timing cache comes from ac9ed592 (which has them) and they do not exist at 8a1f6bba / this branch.
