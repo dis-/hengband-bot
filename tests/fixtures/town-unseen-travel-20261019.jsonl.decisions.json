@@ -1,0 +1,20 @@
+[
+  {
+    "decision_sequence": 0,
+    "turn": 1068208,
+    "key": "~f\u001b",
+    "reason": "periodic:skill-exp-knowledge"
+  },
+  {
+    "decision_sequence": 1,
+    "turn": 1068208,
+    "key": "~9\u001b\u001b",
+    "reason": "home:request-knowledge-scan"
+  },
+  {
+    "decision_sequence": 2,
+    "turn": 1068208,
+    "key": "\u001b`n%.",
+    "reason": "shop:travel"
+  }
+]

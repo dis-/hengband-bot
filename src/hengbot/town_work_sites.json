@@ -7659,7 +7659,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "42bb5200c2eabe40125675c4e2d300c647578c0edf03cff5a81f039691ef7ef8"
+    "ast_sha256": "7d4f5a2c42b12e9ab3641779e0ae19d629de3a3e613754965796b5d31f0454bc"
   },
   "policy_town.py:TownMixin._town_travel_key.no_route": {
     "classification": "producer",

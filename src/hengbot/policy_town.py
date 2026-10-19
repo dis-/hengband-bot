@@ -5068,6 +5068,13 @@ class TownMixin:
             # be rejected.  That failure is handled after the recovery nudge.
             no_route("goal-undisclosed")
             return None
+        if snapshot.can_see_own_grid is False:
+            # The board's can_see_own_grid is the game's !no_lite(), which is
+            # also false while blind.  travel-execution.cpp
+            # decide_travel_step_dir refuses every step then ("目が見えない！")
+            # and no new board follows the refused macro, so walk instead.
+            no_route("own-grid-unseen")
+            return None
         position = snapshot.player.position
         distance = position.distance_to(goal)
         if distance < TOWN_TRAVEL_MIN_DISTANCE:
