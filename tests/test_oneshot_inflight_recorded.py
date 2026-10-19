@@ -73,14 +73,19 @@ class OneShotInFlightRecordedTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.temporary.cleanup()
 
+    @staticmethod
+    def _await_recorded_knowledge(policy):
+        # DECLARED CONSTRUCTED: the fresh policy awaits the recorded ~9, as
+        # the posted request the capture does not include would leave it.
+        policy._home_knowledge_scan_inflight = True
+        policy._home_knowledge_scan_epoch = None
+
     @classmethod
     def _feed(cls, line):
         policy = cls.policy
         knowledge = json.loads(line).get("type") == "knowledge"
         if knowledge:
-            # DECLARED CONSTRUCTED: the fresh policy awaits the recorded ~9.
-            policy._home_knowledge_scan_inflight = True
-            policy._home_knowledge_scan_epoch = None
+            cls._await_recorded_knowledge(policy)
         _decoded, snapshots = _consume_response_sequence(
             [line], policy, lambda _key: True, cls.monrace,
             knowledge_ledger_path=cls.directory / "knowledge.jsonl",
