@@ -1,0 +1,72 @@
+LUNA-REPORT lantern-rewield (#85) - branch lantern-rewield-1019, base 7e695504
+Commits: 61592abf (fix + pins + manifest + DIAG), this report.
+Measured diagnosis with file:line in LUNA-DIAG-lantern-rewield.txt.
+
+DIAGNOSIS (MEASURED)
+ Capture 20261019-134916-dark-locomotion-exhausted: worn 暗視の松明 burns 54 -> 0 turns (state rows
+ 0-55), pack a 油つぼ x5, o 真鍮のランタン known fuel 0 throughout.  Row 55 (turn 1113689, own grid
+ visible, light_radius 0): decision 4402 '3' return:seek-upstairs; row 56 (turn 1113700, dark):
+ 4403 '2' dark:backtrack, then dark walking until <dark:locomotion-exhausted>.
+ - _light_refill_item (policy_supply.py:129) for a worn torch only looks for a pack torch -> None;
+   _light_to_wield / _darkness_torch -> None (no fuelled light in the pack).
+ - _empty_lantern_to_restore (policy.py:13168) DOES answer slot o from row 55 on, but its only
+   caller is the ordinary upkeep (policy.py:11722-11729).  The dungeon dark dispatch
+   (policy.py:10780-10785: _darkness_recovery_key None -> _dark_locomotion_key) and the latched
+   return (policy_town.py:7488-7520) both run first and never ask it.
+ - Town: equipment_optimizer.py:251-261 operational_equipment_candidate drops the empty lantern
+   even with oil carried (policy_equipment.py:887-891); replay of row 55 moved to town: 0 light
+   candidates, so the torch stays worn and the lantern is never re-wielded.
+ Replay on 7e695504: row 55 latched 'rj' return:recall; row 56 '7' dark:backtrack (latched and
+ unlatched); row 110 '<' return:ascend.
+
+CHANGES (shared answer = existing _empty_lantern_to_restore; no new predicate/constant/threshold/
+reason/policy attribute)
+ A policy.py _darkness_recovery_key: after refill and spare torch, wield the lantern answered by
+   _empty_lantern_to_restore (reason restore-lantern, existing).  The existing refill (worn
+   lantern <= LANTERN_REFILL_FUEL + oil) lights it on the next decision.
+ B policy_town.py _return_to_town_key darkness-recovery block: when nothing else restores light
+   (own grid still visible, so the dark rule is silent), the same restore-lantern wield.
+ C equipment_optimizer.py operational_equipment_candidate(owned, *, oil_carried=False): an empty
+   known lantern stays a candidate when oil is carried; policy_equipment.py passes carried oil
+   (fuel > 0) when building the operational catalogue.  Other callers keep the default.
+ Bookkeeping: town_work_manifest --write (town_work_sites.json, manifest .gz).  No baseline/review
+ entries needed (no new helper), no census/STUCK_FAMILY change.
+ Not changed: row 110 — standing on '<' the return ascends before the light step; on the next
+ floor the darkness rule now restores the lantern before any walk.
+
+PINS  tests/test_lantern_rewield_recorded.py, fixture tests/fixtures/lantern-rewield-20261019.jsonl.gz
+  (state rows 55 and 56 as-is).  DECLARED CONSTRUCTED: return latch, ~f cache, post-wield board,
+  town move + esp calibration fixture (patched _validated_character_calibration) for the optimizer,
+  oil removed in controls.
+  7e695504 -> fix:
+   row 56 dark (latched and unlatched):  '7' dark:backtrack      -> 'wo' restore-lantern
+   row 55 lit, return latched:           'rj' return:recall      -> 'wo' restore-lantern
+   post-wield board (rows 55/56):        '\Fa' refill-light (both; the follow-up step)
+   optimizer, row 55 in town:            light candidates 0, lantern not surviving -> 1, surviving
+  Controls in the module: dark board without oil keeps dark:*; optimizer without oil -> (0, False).
+
+EXISTING TESTS (single modules, all OK, none edited)
+ lantern_lost_recorded, overflow_torches_recorded, light_in_hand_recorded, light_pingpong_recorded,
+ home_light_alternation (56 tests OK); equipment_optimizer, optimizer_purity,
+ q34_opening_oil_recorded, policy_supply, dark_backtrack_loop_recorded, darkwalk,
+ newchar_light_churn_recorded, newchar_light_loop_recorded, fundraise_light_block,
+ home_light_alternation_cli (372 tests OK).
+
+GUARDS (after the last source commit 61592abf)
+[preflight] PREFLIGHT OK: 9 changed files, 0 findings (lantern-rewield-1019 vs 7e695504)
+
+[mutation] 5 source hunks, tests: test_lantern_rewield_recorded
+[mutation] caught     src/hengbot/equipment_optimizer.py:248 (def operational_equipment_candidate(): test_control_optimizer_drops_the_empty_lantern_without_oil, test_optimizer_counts_the_lantern_while_oil_is_carried
+[mutation] caught     src/hengbot/equipment_optimizer.py:264 (and not (oil_carried and item.is_lantern)): test_optimizer_counts_the_lantern_while_oil_is_carried
+[mutation] caught     src/hengbot/policy.py:13353 (# The worn light is exhausted and no torch is left, but a carried): test_recorded_dark_board_wields_the_lantern
+[mutation] caught     src/hengbot/policy_equipment.py:884 (oil_carried = self._first_item(): test_optimizer_counts_the_lantern_while_oil_is_carried
+[mutation] caught     src/hengbot/policy_town.py:7509 (if darkness_recovery is None:): test_recorded_lit_return_board_wields_the_lantern
+[mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+[mutation] recorded for 61592abf
+
+[fast] 3762 fast tests (<2.0s in 68b8510a) + 1 changed modules, 4 shards
+[fast] excluded 25 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-qpx4z3dt)
+Failures: none
+Errors: none
+Total: 3775 tests, 251.7s
