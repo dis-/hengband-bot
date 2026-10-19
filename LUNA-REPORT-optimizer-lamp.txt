@@ -1,0 +1,78 @@
+#86 REPORT - optimizer never chose the Home Feanorian lamp (branch optimizer-lamp-1019, base 3cb276a3)
+
+DIAGNOSIS (measured; details with file:line in LUNA-DIAG-optimizer-lamp.txt)
+- Cause: catalog dominance pruning, not scoring and not the Home visit limit.
+  warrior_loadout_search.py _item_dominance_parts dropped the subtype (sval) for lights. The Home
+  暗視の松明 (+1赤外線視力) (home:6e94dd272b55f172:0, pval 1) therefore "dominated" the Home
+  フェアノールのランプ (home:ff2b3ffaa208a881:0, pval 0) and _prune_dominated_catalog removed the lamp
+  before the search. Only the worn light is protected from the prune.
+- (a) The lamp was in the catalogue (111025 ~9 row item 28; legal, evaluable, not incomplete) but
+  never reached the search candidates.
+- (b) Lamp, lantern and torch loadouts have identical LoadoutMetrics; at equal metrics the selection
+  ranks permanent > lantern > torch (light_source_quality). Measured: lamp alone at Home -> lamp chosen;
+  lamp + infravision torch at Home -> worn lantern kept. The comparison rule is sensible; the prune
+  removed the lamp first.
+- (c) 101730 decision 4644 (departure, turn 994876): best = worn lantern, transaction_actions 0,
+  outstanding_equipment_work False, so home_visit_limit stayed 3 (it is 300 only while equipment
+  work is outstanding, policy_town.py:4543); home_blocked True was a consequence. The bot departed
+  with the lantern (3898 turns) and no oil (#82 oil waiver) and ran dry. 111025 (turn 1068217, worn
+  0-turn torch): the recorded transaction 4767118d3bb15871 withdraws the +1 infravision torch, not
+  the lamp. The #79 report's reading ("withdrawing that Home light") was the torch.
+- (d) 10-03 is NOT the same mechanism: the worn lamp tied the Home ★ガラドリエルの玻璃瓶 / ★知識の石
+  (LITE_3), because light_source_quality ranks every sval >= 2 as 2 (radius ignored) and the current
+  set wins the tie. A radius-aware rank is a separate rule (owner decision on artifact light
+  ordering). Not changed here.
+- Side effect of the same key: disposable_dominated_item_ids on the 111025 catalogue listed the Home
+  lamp and the pack lantern as disposable on 3cb276a3; after the fix only the 3 plain Home torches.
+
+FIX (commit 056b3386; manifest 6e04af7f)
+- src/hengbot/warrior_loadout_search.py _item_dominance_parts: keep the light subtype in the exact
+  dominance part (as launchers already do): `signature[2] if launcher or light else None`.
+  No new constant, threshold or policy attribute. Same-sval dominance (torch vs torch) unchanged.
+- #82's oil rule is not duplicated.
+
+PINS: tests/test_optimizer_lamp_recorded.py (fixture tests/fixtures/optimizer-lamp-20261019.jsonl.gz =
+111025 state rows 0-4 + 101730 state row 0, raw). HengbotPolicy replay of the town rows; DECLARED
+CONSTRUCTED: calibration constants (dump file not captured; light selection does not read them), the
+101730 lantern worn on the town board, a Home list without the lamp for the controls.
+  test_recorded_town_board_withdraws_the_home_lamp: decision ('\x1b`n(.', equipment-transaction:travel-home)
+    3cb276a3: actions [withdraw 6e94dd.. (infravision torch), equip 6e94dd.. light], target
+              4767118d3bb15871 = the recorded one          -> FAIL
+    fix:      [withdraw ff2b3f.. (lamp), equip ff2b3f.. light]  -> OK
+  test_worn_lantern_withdraws_the_home_lamp_before_departure:
+    3cb276a3: ('\x1b`n%.', 'shop:travel'), no equipment transaction (lantern kept) -> FAIL
+    fix:      travel-home; [withdraw lamp, takeoff lantern, equip lamp light, deposit lantern] -> OK
+  Controls (green before and after): no lamp at Home -> infravision torch withdrawn for the empty
+    torch; no lamp + worn lantern -> no transaction; fixture facts.
+
+CONTROLS (single modules, after the fix): test_light_pingpong_recorded 3 OK, test_home_light_alternation
+36 OK, test_home_light_alternation_cli 7 OK, test_lantern_lost_recorded (#65) 9 OK,
+test_overflow_torches_recorded (#69) 3 OK, test_supply_shortfall_owner_recorded (#69) 5 OK,
+test_newchar_light_churn_recorded 3 OK, test_newchar_light_loop_recorded 4 OK,
+test_fundraise_light_block 6 OK, test_warrior_loadout_search 19 OK, test_home_equipment_disposal 7 OK,
+test_equipment_optimizer 93 OK, test_policy_equipment OK. #82 pins are not on this base (being merged).
+No existing test changed; no failing existing test.
+
+GUARDS
+preflight (after 6e04af7f; the first run regenerated the stale manifest, committed as 6e04af7f):
+  [preflight] PREFLIGHT OK: 5 changed files, 0 findings (optimizer-lamp-1019 vs 3cb276a3)
+mutation_check --tests test_optimizer_lamp_recorded --record:
+  [mutation] 2 source hunks, tests: test_optimizer_lamp_recorded
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:105 (light = signature[0] == SLOT_LIGHT): test_control_without_the_lamp_the_infravision_torch_is_withdrawn, test_control_without_the_lamp_the_worn_lantern_is_kept, test_recorded_town_board_withdraws_the...
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:113 (# The light subtype is the selection's light-quality rank: a +1): test_recorded_town_board_withdraws_the_home_lamp, test_worn_lantern_withdraws_the_home_lamp_before_departure
+  [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+  [mutation] recorded for 6e04af7f
+fast_tier --shards 4 (started 16:04, after the gate-stepkey-1019 window):
+  [fast] 3751 fast tests (<2.0s in 34b923e8) + 1 changed modules, 4 shards
+  [fast] excluded 25 modules measured over 60s (cache C:\hengback-backups\fast-tier-module-seconds.json)
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 3767 tests, 276.8s
+
+NOTES
+- Process slip (no effect on results): while the control loop was running I briefly copied the base
+  warrior_loadout_search.py into the worktree (about 2 s) to measure the disposal side effect. Only
+  test_home_light_alternation was running then, and it had imported the module minutes earlier.
+  Every later module ran on the fixed file.
+- Follow-up for the owner: (d) radius-aware light ranking (LITE_3 artifact light vs the LITE_2 lamp).

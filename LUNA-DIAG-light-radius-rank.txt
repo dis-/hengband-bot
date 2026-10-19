@@ -1,0 +1,47 @@
+#86 part 2 DIAGNOSIS - permanent lights tie regardless of radius (base 30d4bba7)
+
+Where the light rank is computed (30d4bba7)
+- src/hengbot/equipment_optimizer.py:299 light_source_quality(loadout): no light -1, torch 0,
+  lantern 1, every sval >= SV_LITE_FEANOR (2) -> 2. The radius is not read.
+- Users of that rank:
+  equipment_optimizer.py:1013-1016 _prefer: only when every modeled metric is equal (cm == im),
+    the higher light rank wins ("light quality cannot trade against defense or DPS").
+  equipment_optimizer.py:1127 _selection_equivalence_key: the rank keeps distinct representatives.
+  equipment_optimizer.py:1278 _stable_operational_best: tie breaker after ranged/secondary/speed,
+    before "current set" (entry.loadout.item_ids == current_item_ids).
+  warrior_loadout_search.py:297 _gear_state vector (state compression / dominance).
+  warrior_loadout_search.py:100 _item_dominance_parts (catalog prune; since #86 part 1 the light
+    sval is in the exact part, so lights of different svals never prune each other).
+- policy.py:13094 _light_rank (pack light wield outside the optimizer) has the same 0/1/2 rank; it
+  only swaps when the candidate ranks strictly higher, so it never undoes an optimizer choice
+  between two permanent lights. Not changed.
+
+How the radius is known
+- Game: ItemEntity::get_lite_radius() (src/system/item/item-entity.cpp:1261): +1 TR_LITE_1 (77),
+  +2 TR_LITE_2 (122), +3 TR_LITE_3 (123) unless TR_DARK_SOURCE (146); -1/-2/-3 TR_LITE_M1/M2/M3
+  (124-126); +1 for the ego LITE_SHINE. Flag numbers: src/object-enchant/tr-types.h.
+- lib/edit/BaseitemDefinitions.jsonc: torch (sval 0) LITE + LITE_FUEL, lantern (sval 1) LITE_2 +
+  LITE_FUEL, Feanorian lamp (sval 2) LITE_2; the artifact light kinds (sval 3..11, INSTA_ART) carry
+  no light flag - their radius comes from ArtifactDefinitions.jsonc.
+- Protocol: item known_flags = ItemEntity::get_flags_known() (bot-json-output.cpp:1098). That
+  returns the base kind flags once aware, ego flags once known, and the artifact's own flags only
+  when fully known (item-entity.cpp:893-918). So the bot reads exactly what the player knows: an
+  unidentified artifact light shows no light flag and its radius stays unknown (counted 0).
+  Measured: 10-03 capture (live-logs-20261003-1215/bot-state-fixed.jsonl, last ~9 row): worn
+  フェアノールのランプ known_flags [86,122] (radius 2); Home ★ガラドリエルの玻璃瓶 [9,84..88,123] and
+  ★知識の石 [84..88,123] (radius 3), both fully_known. #86 fixture Home lamp [86,122] (radius 2,
+  fully_known False: base flags are enough for a lamp).
+- Not visible: the ego index (LITE_SHINE +1) is not in the protocol; such a light counts its flag
+  radius only. Not inferred from the name.
+
+How the radius enters without overriding survival
+- Same places as the existing rank, as a second component after it: (light_source_quality,
+  permanent radius) - except _selection_equivalence_key: entries sharing that key are decided by
+  _prefer, which now reads the radius, so the key needs no radius (the mutation check showed the
+  key hunk was redundant; it was dropped). In _prefer this is still under `cm == im`, i.e. only when every modeled
+  combat metric (DPS, survival, margin, ranged, speed, secondary, traits) is identical; a light
+  with a resistance that changes survival is decided by the existing comparison first.
+  Lamp > lantern > torch ordering is unchanged because the class rank stays first; the radius is
+  counted only for permanent lights (0 for torch/lantern), so fuel lights compare as before.
+- The catalog prune and the state compression vector get the same radius component, so a
+  same-sval light with a smaller radius cannot prune/compress away a wider one.

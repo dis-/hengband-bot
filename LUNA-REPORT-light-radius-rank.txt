@@ -1,0 +1,86 @@
+#86 part 2 REPORT - permanent lights compare by radius (branch light-radius-rank-1019, base 30d4bba7)
+
+DIAGNOSIS (measured; details in LUNA-DIAG-light-radius-rank.txt)
+- equipment_optimizer.py:299 light_source_quality ranks torch 0 / lantern 1 / every sval >= 2 as 2.
+  It is the only light term in _prefer (:1013, only when all modeled metrics are equal),
+  _stable_operational_best (:1278), the selection equivalence key (:1127) and the search's
+  _gear_state vector (warrior_loadout_search.py:297). The radius is read nowhere.
+- 10-03 capture (live-logs-20261003-1215 state log, last ~9 Home list): worn フェアノールのランプ
+  known_flags [86,122] = radius 2; Home ★ガラドリエルの玻璃瓶 [9,84..88,123] and ★知識の石 [84..88,123]
+  = radius 3, fully known. All rank 2, so the current set wins the tie.
+- The radius is the game's get_lite_radius (item-entity.cpp:1261) over the item's known_flags
+  (= get_flags_known: base kind flags when aware, artifact flags only when fully known), so an
+  unidentified artifact light shows no light flag and its radius is not revealed (counted 0).
+  Ego LITE_SHINE (+1) is not in the protocol and is not inferred.
+
+CHANGE (commits efafcfc2, 551ba54e, 10d0d6ee, 21d5de00, f18cf69f)
+- equipment_optimizer.py: permanent_light_radius(item): 0 unless tval 39 and sval >= SV_LITE_FEANOR;
+  otherwise known radius = +1/+2/+3 for TR_LITE_1/2/3 (77/122/123) unless TR_DARK_SOURCE (146),
+  -1/-2/-3 for TR_LITE_M1/M2/M3 (124-126). These are the game's flag ids and radius values
+  (mirrored from tr-types.h), no tuned constant or threshold.
+- The radius follows light_source_quality as a second component in _prefer (still only under
+  cm == im, so a real survival/DPS difference is decided first), in _stable_operational_best, in
+  _gear_state (state compression) and in _item_dominance_parts (catalog prune vector).
+  _selection_equivalence_key is NOT changed (redundant with _prefer; mutation check showed it).
+- Lamp > lantern > torch is unchanged: the class rank stays first and fuel lights have radius 0.
+- No new policy attribute (no restored-checkpoint defaults needed). policy.py _light_rank (pack
+  light wield, 0/1/2) is unchanged; it only swaps on a strictly higher rank, so it cannot undo the
+  optimizer's choice between two permanent lights.
+- Bookkeeping: town_producer_baseline.json / town_work_review.json entries for
+  equipment_optimizer.py:permanent_light_radius and equipment_optimizer.py:Loadout.item_at (newly a
+  town candidate through the new calls); manifest regenerated.
+
+PINS: tests/test_light_radius_rank_recorded.py (new; no new fixture file)
+  Board = #86 fixture rows 0-4 (111025 town, turn 1068217) through HengbotPolicy. DECLARED
+  CONSTRUCTED: calibration (as in #86), the Home lamp row worn in the light slot, and in its Home
+  place the 10-03 ★知識の石 / ★ガラドリエルの玻璃瓶 row (copied, slot renumbered).
+  test_worn_lamp_is_replaced_by_the_radius_3_home_artifact_light
+    30d4bba7: ('\x1b`n%.', 'shop:travel'), no transaction (tie)          -> FAIL
+    after:    travel-home; [withdraw stone, takeoff lamp, equip stone light, deposit lamp] -> OK
+  test_worn_lamp_is_replaced_by_the_home_phial: same before/after with the Phial.
+  Unit pins (constructed items/metrics), 30d4bba7 -> after:
+    _prefer(stone, lamp) False -> True; _stable_operational_best lamp -> stone;
+    _compress_states kept only the lamp -> stone kept; _catalog_dominates(+1 infravision lamp,
+    radius-3 lamp of the same sval) True -> False; permanent_light_radius values (2 unit tests).
+  Controls (green before and after):
+    unidentified stone (no known light flag) -> lamp kept (fair play);
+    worn lamp resisting chaos (flag 62) vs radius-3 stone -> lamp kept (survival first);
+    only fuel lights at Home -> lamp kept; _prefer survival difference beats radius.
+
+CONTROLS (single modules, after the last src change): test_optimizer_lamp_recorded 5 OK,
+test_home_light_alternation 36 OK, test_home_light_alternation_cli 7 OK, test_lantern_lost_recorded
+(#65) 9 OK, test_supply_shortfall_owner_recorded (#69) 5 OK, test_overflow_torches_recorded (#69) 3 OK,
+test_light_pingpong_recorded 3 OK. Earlier in the session (with the equivalence-key hunk, since
+removed): test_newchar_light_churn 3, newchar_light_loop 4, fundraise_light_block 6,
+warrior_loadout_search 19, home_equipment_disposal 7, equipment_optimizer 93, policy_equipment 197 OK;
+test_equipment_optimizer + test_warrior_loadout_search re-run OK after the removal.
+No existing test changed. No failing existing test of this branch.
+
+GUARDS (after f18cf69f)
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (light-radius-rank-1019 vs 30d4bba7)
+  [mutation] 8 source hunks, tests: test_light_radius_rank_recorded
+  [mutation] caught     equipment_optimizer.py:26 (TVAL_LITE,)
+  [mutation] caught     equipment_optimizer.py:95 (# Light radius ...)
+  [mutation] caught     equipment_optimizer.py:316 (def permanent_light_radius ...)
+  [mutation] caught     equipment_optimizer.py:1037 (candidate_light = ()
+  [mutation] caught     equipment_optimizer.py:1309 (permanent_light_radius(entry.loadout.item_at(SLOT_LIGHT)),)
+  [mutation] caught     warrior_loadout_search.py:21 (permanent_light_radius,)
+  [mutation] caught     warrior_loadout_search.py:130 (permanent_light_radius(item),)
+  [mutation] caught     warrior_loadout_search.py:297 (permanent_light_radius(loadout.item_at(SLOT_LIGHT)),)
+  [mutation] MUTATION OK: 0 of 8 hunks are not pinned by a test
+  [mutation] recorded for f18cf69f
+  fast_tier --shards 4 (started 17:24 after the gate-qcell-1019 window):
+  [fast] 3761 fast tests (<2.0s in 1b923f84) + 1 changed modules, 4 shards
+  [fast] excluded 26 modules measured over 60s
+  Crashed shards: none
+  Failures: none
+  Errors: ['tests.test_quest_cell_confirmed_dark (import) ModuleNotFoundError']
+  Total: 3787 tests, 226.5s
+  The one error is not from this branch: the module was added on main by #84 (6e28834d, in
+  1b923f84 = the fast-tier timing cache's commit) and does not exist on this base (3cb276a3 lineage).
+
+REPAIR ROUNDS
+  1. mutation: 4 hunks not caught (prefer / equivalence key / gear vector / item dominance) ->
+     dropped the redundant equivalence-key hunk, added unit pins.
+  2. mutation: field-selection hunk not caught -> unit pin. fast tier: test_no_live_state_artifact
+     flagged the live state file name in my test docstring -> reworded (no behavior change).
