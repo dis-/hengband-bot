@@ -5091,7 +5091,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2625d88cdeaab7e8e7158e862f34a26808f233c7e810580b9bd693d7f6037b97"
+    "ast_sha256": "1ce4763a5081ed0a120eb649ecf5cf613dec27b6d85c4cb24dfdcc0753a547eb"
   },
   "policy_home.py:HomeMixin._home_full_leave_key": {
     "classification": "producer",
@@ -5959,7 +5959,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d0164e2bad090ae9b7301bb56dd40c2457a57ed564c48f1bdda2dd9a003e9bce"
+    "ast_sha256": "42863b8315400c1f3d97c9ff640845df187aa5e65f81904ea89db6b38ceda875"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.light_after_opening": {
     "classification": "dungeon-only",

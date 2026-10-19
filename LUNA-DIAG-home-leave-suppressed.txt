@@ -1,0 +1,48 @@
+ISSUE #77 diagnosis (measured), base 35b1cf2d
+
+Capture: C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-081331-store-leave-key-suppressed
+(219 decision rows, 116 state rows; gold 9,982; pack used 23 / free 0).
+
+Recorded tail (bot-decisions.jsonl.gz):
+  3679 turn 765684 store None  '\x1b`n(.'  shop:travel
+  3680 turn 766012 store 7     '\x1b'      home:scan-incomplete-open-page  (message "やせこけた猫の骨がある。")
+       store_visit after: owner shop-handler, phase leaving, posted_sequence 3680, posted_turn 766012
+  3681 turn 766016 store None  '\x1b'      home:scan-leave-store
+       store_visit after: unchanged (phase leaving, posted 3680 / 766012)
+  bot-stdout.log ends with "<store-leave-key:suppressed>".
+
+Who suppresses:
+  cli.py:4588 store_leave_was_inflight = policy._store_leave_inflight is not None (before choose_key)
+  cli.py:4648 suppress_unconfirmed_store_leave = was_inflight and policy._store_leave_inflight is not None (after)
+  cli.py:4854 prints "<store-leave-key:suppressed>"; cli.py:2648 returns DESIGNED_WAIT without posting.
+  _store_leave_inflight is the derived view of a LEAVING StoreVisit (town_arbiter.py:1012).
+  At 3681 the visit armed by 3680's ESC was still LEAVING after the decision, so whatever key was chosen
+  was suppressed; no new board followed and the run stopped.
+
+Why it stayed LEAVING:
+  The 3681 board is outside (store None, turn 766016 > posted 766012) -- the exit already took effect.
+  "home:scan-leave-store" is produced only by policy_home.py:1258-1266 (_home_full_knowledge_key):
+      if (self._store_leave_inflight is not None or (snapshot.store is not None and ...)):
+          last_reason = "home:scan-leave-store"; return LEAVE_STORE_KEY
+  It treats the in-flight leave as "still inside" even on the outside board, posts another ESC and
+  never releases the LEAVING view.  The release of an outside board normally happens in the
+  inflight-leave branch of _choose_key (policy.py:9019-9030: snapshot.store is None ->
+  _store_leave_inflight = None), and in the knowledge-exit branch (policy.py:7993-8021, which
+  clears the view and then calls _home_full_knowledge_key).  Callers that reach
+  _home_full_knowledge_key before those branches (e.g. _shopping_approach_key policy_shop.py:5839,
+  the "home:await-fresh-knowledge" prerequisite with a pending Home take) keep it LEAVING.
+
+What the policy expected next:
+  The claim of 3680/3681 is home-scan with continuation "home.knowledge.request"
+  (execution.next_step store.leave.send, expected_effect outside-store): after the exit the next
+  step is the Home knowledge request (~9) from outside -- i.e. a scan, not a deposit.
+  The full pack is not what blocks: the stop is the unreleased exit.
+
+Replay (recorded state rows, fresh policy, skill wall; segmentation gives row 3674 the Home page
+after the composed withdrawal, state row 104): row 3675 (state row 105, outside, turn 765348 >
+posted 765340) reproduces the same shape on 35b1cf2d:
+  key '\x1b', reason home:scan-leave-store, _store_leave_inflight (9, 765340, 7) before and after.
+
+Sibling seen in the same replay (constructed state, NOT the live path, not fixed here):
+  row 3667 (outside) '~9\x1b' equipment-transaction:catalogue-request-knowledge with the leave
+  still in flight before and after -- also a suppression shape.
