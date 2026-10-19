@@ -5959,7 +5959,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d0164e2bad090ae9b7301bb56dd40c2457a57ed564c48f1bdda2dd9a003e9bce"
+    "ast_sha256": "42863b8315400c1f3d97c9ff640845df187aa5e65f81904ea89db6b38ceda875"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.light_after_opening": {
     "classification": "dungeon-only",

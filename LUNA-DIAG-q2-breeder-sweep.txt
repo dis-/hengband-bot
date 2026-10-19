@@ -1,0 +1,58 @@
+Q2 breeder / residual-sweep stops (#78) - diagnosis on 35b1cf2d
+
+Captures (Linux soak c4-a life-014, Level 23, floor (0, 15, 2)):
+  A = 20261019-083824-loop-detected, B = 20261019-083936-loop-detected.
+Replay: player_turn boards matched to bot-decisions rows by turn, parsed with
+parse_snapshot, fed in order through HengbotPolicy._q2_phase_key with one
+persistent QuestFloorNavigator (as policy_quest.py:3753-3758 does).
+
+(a) Capture A - corpse-mass fight stopped as a "loop"
+- 死体の塊 is race 202; MonraceDefinitions gives can_multiply=True, speed 110.
+  It is in Q2_BREEDER_RACES and first in Q2_RESIDUAL_SWEEP_RACES
+  (policy_constants.py:592-594).
+- Guard window = decisions 5120..5159 (40 rows): q2-fire x30,
+  q2-breeder-recommit x4, summoner:ranged-kill x3, q2-quaff-speed x2,
+  q2-approach-residual-multiplier x1. Cells (3,23),(4,24),(5,25),(6,26),
+  (7,27),(8,26) = 6 = LOOP_MAX_DISTINCT (loop_detection.py:6).
+- Visible hostiles 15 (5124) -> 5 (5159); board race counts {202: 15} at 5124
+  -> {202: 4} at 5153/5159. 15 "死体の塊を倒した" messages in the window, plus a
+  wererat and a centipede killed. Ammo 98 -> 58 bolts. Kill rate exceeded the
+  breeding rate: this was a progressing fight, not a stall.
+- Replay of the window boards through _q2_phase_key reproduces the recorded
+  key and reason on 24/40 rows, including every pure-202 board
+  (e.g. 5153 'fq*p336666666t5\x1b' quest-strategy:q2-fire); the other 16 were
+  decided by encounter/summoner layers above it (other races on the board).
+- Why no fallback: none was needed - the strategy was winning. The stop came
+  from the driver: cli.py:398-404 exempts stationary quest combat
+  QUEST_COMBAT_REASON_PREFIXES = ("quest-strategy:melee",
+  "quest-strategy:ranged-fire"), but the same ranged core labels its Q2 shots
+  "quest-strategy:q2-fire" (policy_quest.py:1746-1750). cli.py:741 therefore
+  counted every stationary Q2 shot as a confined cell, and _is_looping stopped
+  at 5159 (reproduced by feeding the recorded rows to _cell_loop_guard_applies
+  + _is_looping).
+- Existing bounds on the fight are unchanged: finite ammunition (no-ammo
+  melee path policy_quest.py:2082-2124), RANGED_TARGET_FAILURE_LIMIT for
+  cursor shots, and the stalled-command guard for zero-energy commands.
+
+(b) Capture B - quest:blocked:q2-residual-202-sweep waits forever
+- Target race 202; placements (7,35), (7,36), (8,36) (QUEST_2 battlefield).
+  On every one of the 129 captured boards (decisions 718..845) all three are
+  known, has_monster False, in_view False; no race-202 monster is visible.
+- Decisions 811..845: '5' quest:blocked:q2-residual-202-sweep x35 at (9,46).
+  (9,46) is a live-opened cell at distance 10 of (8,36), i.e. the last
+  observation goal the live route walked to (801..810 north along x=46).
+- policy_quest.py:2537-2546 confirms placements only from the current board;
+  goals are the walkable cells within RANGED_MAX_DISTANCE not yet in
+  _q2_phase_visited_goals (2552-2568). 2607-2608 returns WAIT with the blocked
+  reason when no stored route target and no unvisited goal is routable.
+  WAIT changes none of these inputs (visited set is monotonic, routes are
+  static, the player stays), so the state repeats until the CLI stops it.
+- The capture holds only the process tail (decisions 625..845); the visits
+  that exhausted the goals precede it. Replaying from 718 without them routes
+  on; restoring "every race-202 observation goal visited" on the 811 board
+  reproduces the recorded ('5', quest:blocked:q2-residual-202-sweep) exactly,
+  repeatedly, on 35b1cf2d.
+- The #61 DIAG states the existing bound: the residual phase visits a finite
+  set of observation goals per race, then marks the race surveyed. The code
+  only marked it surveyed when all placements were in view in one board, so
+  an exhausted goal set ended in the blocked wait instead.
