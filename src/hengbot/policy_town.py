@@ -7518,7 +7518,19 @@ class TownMixin:
         recall = self._find_recall_scroll(snapshot)
         if (
             allow_recall
-            and snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
+            and (
+                snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
+                # A walk out explores by revealing cells. With no light of its
+                # own and nothing to refill or wield, each step into an unlit
+                # corridor reveals nothing and the darkness owner above walks
+                # it back (issue #81); the readable cell it returns to is
+                # where the carried scroll ends the walk instead.
+                or (
+                    snapshot.light_radius == 0
+                    and self._light_refill_item(snapshot) is None
+                    and self._darkness_torch(snapshot) is None
+                )
+            )
             and recall is not None
             and not player.blind
             and not player.confused

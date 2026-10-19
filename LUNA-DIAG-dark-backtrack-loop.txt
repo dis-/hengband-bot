@@ -1,0 +1,54 @@
+#81 dark:backtrack / return:explore alternation -- diagnosis (MEASURED)
+
+Capture: C:\hengband-backups\state-logs\c4a-loops-20261016\20261019-103828-loop-detected
+(state.jsonl.gz 116 rows, bot-decisions.jsonl.gz 210 rows, decisions 7122..7190).
+Floor (1, 2, 0) = 鉄獄 level 2, objective "Return to town" (latched walk-out).
+
+Light state (state rows 75 = turn 1067563 at (17,67) and 76 = turn 1067571 at (17,66)):
+- worn light: 松明(0ターンの寿命), fuel 0; snapshot.light_radius = 0 on both rows
+  (decision rows 7150..7184 all record light_radius 0).
+- _light_refill_item = None, _darkness_torch = None (no oil, no spare torch).
+- row 75 (17,67): can_see_own_grid True -> _is_dark False, _can_read_scrolls True.
+  row 76 (17,66): can_see_own_grid False -> _is_dark True, _can_read_scrolls False;
+  (17,66) and everything west of it ((17,65)...) are absent from the grid map
+  (never mapped: there is no light to map them).
+- pack: 帰還の詔の巻物 x10 in slot f (_find_recall_scroll).
+- map memory: up_stairs [], down_stairs [[37,63]].
+
+What each producer steps toward:
+- return:explore (policy_town.py:7666-7679, _explore_step): recorded claim goal
+  Reach (62,94) (decisions 7151/7153/..., distance 45), first step '4' from the
+  readable cell (17,67) into the unmapped dark corridor cell (17,66).
+- dark:backtrack (policy_navigation.py:323-393, _dark_locomotion_key, rung at
+  policy.py:10768 before the return): in the dark it routes over remembered floor
+  to the nearest goal; recorded goals (17,67), (16,68), (17,68), (18,68), (15,68),
+  (15,69), (16,69), (17,69), (18,69), each distance 1-3, every first step '6'
+  back into the lit room.
+- In the lit cell _dark_locomotion_key returns None at once (not dark), so the
+  route's expected step is never confirmed; the next dark board counts the goal
+  as missed (policy_navigation.py:353-361) and after PROBE_LIMIT=2 misses moves to
+  the next room cell (policy_navigation.py:436).  The room has dozens of cells,
+  so the alternation is bounded only by 2 x (room cells) -- far beyond the loop
+  detector's 40 decisions.
+
+Why they alternate:
+- The return walk may only walk out at this depth: the recall rung in
+  _return_to_town_key (policy_town.py:7517-7535) requires
+  dungeon_level > WALK_OUT_MAX_DEPTH (= RECALL_MIN_DEPTH - 1 = 4); level 2 fails,
+  so it falls to return:explore.
+- Exploring needs light to reveal cells; with light radius 0 and nothing to
+  refill or wield, stepping into the dark corridor reveals nothing, and the
+  darkness owner (which outranks the return) walks straight back to the readable
+  room.  Each producer undoes the other's step: '4' / '6' x23 until
+  livelock:recall-escape (7185) and the loop detector (7190).
+- The only way out the bot owns is the recall scroll, and it is readable exactly
+  on the cell the dark backtrack returns to.
+
+Replay on 8a1f6bba (fresh policy, DECLARED CONSTRUCTED return latch):
+rows 75..99 reproduce dark:backtrack '6' with the same goal sequence
+(17,67) -> (16,68) -> (17,68) -> (18,68) -> (15,68) -> (15,69); the return
+explore goal (62,94) is not routable from one board (the live policy's
+remembered map is larger), so the pins construct the committed explore path.
+Live bot f9afbaa7 adds #76/#77/#78 (identify staff departure, Home leave,
+Q2 breeder sweep); none touches darkness, the return walk or recall, so the
+difference does not matter for these boards.
