@@ -56,3 +56,22 @@ cases, key stays WAIT): STOPPED.  The new behaviour changes more than last_reaso
     Home for the kit), 17..20 WAIT 'wait', 21..39 WAIT 'town:blocked:owner-retired';
     _town_blocked_reason None throughout (old: the terminal name), mode "prepare".
 Only the docstring of tests/test_no_safe_destination_recorded.py was updated (doc text).
+
+ROUND 4 (supervisor: (1) and (2) as decided): done.
+  test_no_town_work_latches_visible_terminal: key WAIT, last_reason
+    fundraising:no-safe-destination:depth-gate:destination-30:missing-resist_acid,resist_elec,
+    _town_blocked_reason None, _fundraising_mode "prepare".
+  test_drive_ending_town_terminals_survive_decision_rederivation: the two changed terminals pin
+    decision 0 only (WAIT, "fundraising:no-safe-destination", blocked None, mode prepare);
+    no-safe-recall-destination keeps its full loop.  Board construction unchanged.
+  Bookkeeping: town work manifest regenerated; scripts/item_sink_adapters.json pin of the
+    _fundraising_key gold-return call site updated to the new condition text; the raw ESC in
+    tests/test_no_safe_destination_recorded.py written as \x1b (preflight control-chars);
+    the redundant policy_state.py setdefault removed (normalize_policy_state fills every fresh
+    attribute; mutation NOT CAUGHT); shop fixture base bound through its module (structure lint).
+  test_policy_town full: 592 tests OK.
+  preflight: PREFLIGHT OK, 14 changed files, 0 findings.
+  mutation_check: MUTATION OK, 0 of 9 hunks unpinned (recorded for 9ce5fbea).
+  fast_tier: 4349 tests, Failures none; Errors: import of tests.test_own_grid_visible and
+    tests.test_mutation_calibration (modules absent from this branch; listed by the shared
+    timing cache), not regressions.
