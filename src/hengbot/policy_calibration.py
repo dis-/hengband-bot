@@ -187,9 +187,11 @@ class CalibrationMixin:
         if reason is None and calibration.schema_version == 2:
             from hengbot.warrior_equipment_evaluator import modify_stat_value
             from hengbot.character_sheet import temporary_bonuses, CharacterSheetUnavailable
+            from hengbot.warrior_loadout_evaluator import constitution_hp_bonus
             effects = frozenset(snapshot.player.status_bar or ())
+            hp_bonus = 0
             try:
-                temporary_bonuses(effects)
+                hp_bonus, _ = temporary_bonuses(effects)
             except CharacterSheetUnavailable as exc:
                 reason = str(exc)
             for index in (0, 3, 4):
@@ -201,6 +203,14 @@ class CalibrationMixin:
                 if (predicted < 238 if shown >= 238 else predicted != shown):
                     reason = "visible-current-changed"
                     break
+            else:
+                # The calibration's own HP inverse, forward: a max-HP reroll
+                # (new-life potion, polymorph, chaos) changes nothing else.
+                # ``predicted`` is the CON (index 4) the loop ended on.
+                if reason is None and (calibration.base_hp
+                                       + constitution_hp_bonus(predicted, snapshot.player.level)
+                                       + hp_bonus != snapshot.player.max_hp):
+                    reason = "visible-max-hp-changed"
         if reason is not None:
             self._character_calibration = None
             self._calibration_unavailable_reason = reason

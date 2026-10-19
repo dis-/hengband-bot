@@ -1,0 +1,4 @@
+Source: C:\hengband\lib\user\bot-test_Autodump_2026-07-25_054022.txt (game auto-dump, not tracked by git)
+Copied byte-for-byte (CP932, CRLF) on 2026-10-19 for Issue #88.
+Character: level-25 Zombie Warrior; [突然変異] lists only BR_FIRE (mutation id 1).
+sha256: 4fe24c93fafdb277553c9b38a114bf13bf55f1a4f345b719ca2023f38346e622
