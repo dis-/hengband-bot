@@ -307,6 +307,16 @@ class RadiusInTheComparisonTest(unittest.TestCase):
             warrior_loadout_search._catalog_dominates(wide_lamp, infravision_lamp)
         )
 
+    def test_catalog_prune_keeps_a_lantern_against_an_infravision_torch(self):
+        # DECLARED CONSTRUCTED: a +1 infravision torch (flag 10, pval 1) and a
+        # plain lantern; both have no permanent radius, so only the light
+        # subtype (the light-quality rank) keeps them apart (#86 part 1).
+        infravision_torch = _owned(39, 0, [10], item_id="home:torch", pval=1)
+        lantern = _owned(39, 1, [], item_id="home:lantern")
+        self.assertFalse(
+            warrior_loadout_search._catalog_dominates(infravision_torch, lantern)
+        )
 
-if __name__ == "__main__":
+
+if __name__== "__main__":
     unittest.main()
