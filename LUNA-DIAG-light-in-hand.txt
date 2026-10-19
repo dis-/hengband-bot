@@ -1,0 +1,35 @@
+#82 light supply: which view of a permanent light each call site needs (measured on 4e34499f)
+
+Board: 101730 state row 0 (first row after decision 4644 'rhb' town:recall-to-yeek-cave; worn Brass
+lantern 3898 turns, no oil, no torch) moved to town, Recall 10 / Teleport 15 restored, Home = the
+111025 '~9' list (Feanorian lamp, 4 flasks of oil, 4 torches; decision 4644 catalog_tval_counts
+39:6 = worn lantern + 5 Home lights), _equipment_optimization_last_depth 19, target dungeon 2.
+Base replay reproduces the recorded decision 4644 procurement_requirements [] exactly.
+
+Predicate _owns_usable_permanent_light (policy_supply.py:114): base True only through the Home
+catalogue (nothing worn or carried). Every call site below decides what to carry / keep / buy /
+shelve for the NEXT floor, so each needs "in hand" (worn or carried); none needs the Home view.
+The equipment optimizer plans from _equipment_catalog directly and does not call this predicate.
+
+site                                   decision                        base (Home lamp)   should (in hand)
+policy_supply.py:343  supply ledger    oil departure/return target     0 / 0              5 / 0 (OIL_TARGET)
+  -> procurement_requirements          departure board row             []                 [Flasks of oil 0/5]
+  -> _oil_below_departure_target       legacy:oil purchase rung        False / no rung    True / ['legacy:oil']
+policy_supply.py:404  _light_ready     departure light gate            True (lamp)        True (lantern 3898 > 1000
+                                                                                          refill fuel) - same value
+policy_supply.py:1132 torch target     spare-torch carry (#69)         (0, 0)             (5, 0) FOOD_STOCK_TARGET
+policy.py:13150 _empty_lantern_to_restore  equip carried empty lantern None (gated)       in-hand view; board has no
+                                                                                          carried empty lantern -> None
+policy.py:15994 _owns_lantern          lantern requirement/purchase    True               True (lantern worn)
+policy_home.py:1976 obsolete oil       retention of carried oil        (0, None)          (4, 'supply-ledger:oil')
+policy_home.py:2617 obsolete oil       Home deposit of carried oil     True (shelve it)   False (keep it)
+policy_shop.py:300  BM reserve         full resupply money reserve     13658              13675 (oil + light kept)
+
+Measured: Home held 4 flasks of oil at 11:10 while the health log shows the pack oil 4-6 until 10:02
+and 0 from 10:06. On base the carried-oil deposit branch (policy_home.py:2617) returns True on this
+board, i.e. the Home lamp made the bot shelve its own oil as obsolete (inferred: no capture covers
+10:02-10:06), and the ledger then waived buying any (decision 4644). With a lamp worn or carried
+the base and the fix agree (oil/torch targets 0; controls).
+
+Fix: _owns_usable_permanent_light counts only worn or carried lights (one predicate, all sites);
+no Home-inclusive predicate is kept because no site needs it.

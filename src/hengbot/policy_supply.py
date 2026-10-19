@@ -112,20 +112,18 @@ class SupplyMixin:
                    for page in pages.values() for item in page.items)
 
     def _owns_usable_permanent_light(self, snapshot: Snapshot) -> bool:
-        """Return whether carried gear or the known Home catalog has permanent light."""
-        if any(
+        """Return whether a usable permanent light is in hand (worn or carried).
+
+        A lamp catalogued only in Home lights nothing on the next floor: it
+        counts once it is equipped or withdrawn (#82: oil was waived for a
+        Home lamp the optimizer kept there, and the lantern ran dry).
+        """
+        return any(
             item.tval == TVAL_LITE
             and item.sval >= SV_LITE_FEANOR
             and not item.is_cursed
             and not item.is_broken
             for item in (*snapshot.inventory, *snapshot.equipment)
-        ):
-            return True
-        return any(
-            owned.item.tval == TVAL_LITE
-            and owned.item.sval >= SV_LITE_FEANOR
-            and owned.exploration_legal
-            for owned in self._equipment_catalog.items
         )
 
     def _light_refill_item(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -342,8 +340,8 @@ class SupplyMixin:
                 )
             if kind == "oil" and self._owns_usable_permanent_light(snapshot):
                 # Permanent lights consume no fuel. Oil therefore stops being
-                # expedition stock as soon as a usable permanent light is owned,
-                # including one already catalogued in Home during this visit.
+                # expedition stock as soon as a usable permanent light is in
+                # hand; one left in Home does not light the dungeon (#82).
                 required_return = required_departure = 0
             elif kind == "food" and mana_food:
                 required_return = required_departure = MANA_FOOD_CHARGE_TARGET
