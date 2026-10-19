@@ -192,7 +192,7 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
         again = policy.choose_key(board)
         self.assertEqual(
             (str(again), policy.last_reason),
-            (f"`n{TOWN_TRAVEL_STORE_SYMBOLS[STORE_HOME]}.", "shop:travel"))
+            (f"\x1b`n{TOWN_TRAVEL_STORE_SYMBOLS[STORE_HOME]}.", "shop:travel"))
         self.assertNotEqual(WAIT_KEY, again)
 
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
