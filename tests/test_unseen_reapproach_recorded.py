@@ -299,6 +299,26 @@ class UnseenAttackAreaConsumersTest(unittest.TestCase):
         policy._unseen_last_hit_position = Position(11, 11)
         self.assertEqual(policy._global_frontier_path(self._board(Position(10, 12))), [])
 
+    def test_retreat_choke_search_skips_a_warning_refused_cell(self):
+        # Declared corridor east of the hit: two chokes ahead, the nearer one
+        # refused by the weapon warning.  The retreat aims at the other.
+        policy = self._policy()
+        policy._unseen_retreat_floor = FLOOR
+        policy._unseen_retreat_direction = (0, 1)
+        start, ahead = Position(10, 10), Position(10, 11)
+        refused, other = Position(10, 12), Position(11, 12)
+        graph = {start: [ahead], ahead: [refused, other]}
+        policy._walkable_neighbors = lambda snapshot, pos, **_: graph.get(pos, [])
+        policy._open_neighbor_count = lambda snapshot, pos: (
+            1 if pos in (refused, other) else 8
+        )
+        board = self._board(start)
+        self.assertEqual(policy._unseen_reverse_choke_step(board), ahead)
+        self.assertEqual(policy._unseen_retreat_target, refused)
+        policy._warning_refused_cells.add(refused)
+        self.assertEqual(policy._unseen_reverse_choke_step(board), ahead)
+        self.assertEqual(policy._unseen_retreat_target, other)
+
     def test_restored_checkpoint_moves_the_record_with_the_runtime_dir(self):
         policy = SimpleNamespace(_unseen_attack_path=Path("jsonlog") / "unseen-attack.json")
         with TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {RUNTIME_DIR_ENV: tmp}):
