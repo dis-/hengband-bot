@@ -1,0 +1,27 @@
+LUNA-REPORT no-safe-dest (branch no-safe-dest-1019, base main 653c1bb6)
+
+STATUS: STOPPED before step 2 (an existing test must change).
+
+Diagnosis: see LUNA-DIAG-no-safe-dest.txt.  Summary: gold 20238 >=
+FUNDRAISING_GOLD_TARGET 15000 makes _start_no_safe_destination_fundraising
+(policy.py:15913) return False, so policy_town.py:6927 returns the named
+depth-gate stop.  Replayed on 653c1bb6 from capture 231644 (decisions 0..6
+reproduce the live keys); the same board with gold 14999 takes
+town:entrance-step-off:fundraising:no-safe-destination:...  The quest path is
+not available (quest 18 not approved, verdict three-turn-threat).
+
+Existing test that would change:
+  tests/test_no_safe_destination_recorded.py
+  NoSafeDestinationRecordedTest.test_unsafe_alternate_target_stops_like_angband_when_no_fallback
+  old: ("1", "town:blocked:depth-gate:destination-22:missing-resist_conf") and
+       ("1", "town:blocked:depth-gate:destination-21:missing-resist_conf") at gold 15000
+  new: ("2", "town:entrance-step-off:fundraising:no-safe-destination:depth-gate:destination-22:missing-resist_conf")
+       and the same with destination-21.
+
+Decision needed: whether the no-safe-destination set may open at gold >=
+FUNDRAISING_GOLD_TARGET, and what ends it there (the gold end would close it
+on the next board).
+
+Changes: none to src/ or tests/.  Commit holds only this report and the
+diagnosis.  Guards (preflight / mutation_check / fast_tier) not run: no source
+change to check.
