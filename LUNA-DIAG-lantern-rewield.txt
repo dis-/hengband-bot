@@ -1,0 +1,48 @@
+LUNA-DIAG lantern-rewield (#85) - base 7e695504
+Capture: c4a-loops-20261016/20261019-134916-dark-locomotion-exhausted (state 115 rows, decisions 224).
+Line numbers are 7e695504.
+
+BOARD (MEASURED, state rows)
+ rows 0-54  (turn 1113145-1113679): worn 暗視の松明 54 -> 1 turns, light_radius 1; pack a 油つぼ x5,
+            o 真鍮のランタン(0ターンの寿命) (known, fuel 0).  Return already latched since decision 4308
+            (return:seek-upstairs, rung _return_to_town_key#3).
+ row 55 (turn 1113689): torch 0 turns, light_radius 0, can_see_own_grid True -> decision 4402 '3'
+            return:seek-upstairs.
+ row 56 (turn 1113700): torch 0, can_see_own_grid False -> decision 4403 '2' dark:backtrack
+            (_dark_locomotion_key); then 44 dark/return decisions, '<' return:ascend, and
+            <dark:locomotion-exhausted>.
+ Replay on 7e695504 (choose_key, return latch constructed): row 55 'rj' return:recall,
+ row 56 '7' dark:backtrack, row 110 '<' return:ascend; unlatched the same keys.
+
+PRODUCERS (MEASURED by replay on rows 0/50/55/56/110)
+ _light_refill_item policy_supply.py:129: worn torch branch (155-161) wants a pack TORCH with fuel;
+   none -> None on every row (the pack lantern is never looked at; oil only feeds a worn lantern).
+ _light_to_wield policy.py:13123: candidate = _find_light(include_unknown=False) -> None (the
+   lantern has 0 fuel, the torch is worn) -> None on every row.
+ _darkness_torch policy.py:13307: no pack torch -> None.
+ _darkness_recovery_key policy.py:13330: dark on row 56 but refill None and torch None -> None
+   (13345-13356); it never considers the carried lantern.
+ _empty_lantern_to_restore policy.py:13168: returns slot o from row 55 on (worn light unusable,
+   oil carried) but its only caller is the ordinary light upkeep policy.py:11722-11729, which is
+   below both the dungeon dark dispatch (policy.py:10780-10785: _darkness_recovery_key None ->
+   _dark_locomotion_key) and the latched return (policy_town.py:7488-7520 darkness-recovery
+   block: _darkness_recovery_key None; the #65 refill only for a worn LANTERN).
+ _dark_locomotion_key policy_navigation.py:324-335: refill None and darkness torch None ->
+   walks dark:probe / dark:backtrack until exhausted.
+ Rows 0-54 (torch still lit): _empty_lantern_to_restore None by design (worn light usable,
+   policy.py:13177-13182), so nothing acts before the torch burns out.
+ Row 110: standing on '<', return:ascend (policy_town.py:7435) precedes the light step; the next
+   floor is dark again (repeat).
+
+TOWN (MEASURED, #65 report link 3a + replay)
+ equipment_optimizer.py:251-261 operational_equipment_candidate drops a pack/equipped known light
+   with fuel <= 0 regardless of carried oil; policy_equipment.py:887-891 builds the operational
+   catalogue with it.  Replay of row 55 moved to town (calibration patched): light slot candidates 0,
+   the lantern id not among the search survivors -> the optimizer never chooses the lantern, and
+   the town upkeep keeps the working torch (_empty_lantern_to_restore refuses while it burns).
+
+CAUSE
+ The "carried lantern can be lit from carried oil" answer (_empty_lantern_to_restore) is consulted
+ only by the ordinary upkeep, which the dark dispatch and the latched return both pre-empt; the
+ optimizer treats the same lantern as exhausted.  So the empty torch stays worn and the bot walks
+ blind.

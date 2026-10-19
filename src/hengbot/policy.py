@@ -13353,6 +13353,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._equipment_wield(
                 snapshot, "light-loadout", torch, "light"
             )
+        # The worn light is exhausted and no torch is left, but a carried
+        # lantern can be oiled from the pack: wield it so the refill above
+        # lights it on the next decision instead of walking blind (#85).
+        lantern = self._empty_lantern_to_restore(snapshot)
+        if lantern is not None:
+            self.last_reason = "restore-lantern"
+            return self._equipment_wield(
+                snapshot, "light-loadout", lantern, "light"
+            )
         return None
 
 

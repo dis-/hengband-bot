@@ -7509,6 +7509,16 @@ class TownMixin:
                     darkness_recovery = reserved_item_command(
                         self, snapshot, "refill", refill
                     )
+            if darkness_recovery is None:
+                # An exhausted worn light beside a carried lantern and oil:
+                # another source can keep the own grid visible, so the dark
+                # rule does not run; wield the lantern for the refill (#85).
+                lantern = self._empty_lantern_to_restore(snapshot)
+                if lantern is not None:
+                    self.last_reason = "restore-lantern"
+                    darkness_recovery = self._equipment_wield(
+                        snapshot, "light-loadout", lantern, "light"
+                    )
             if darkness_recovery is not None:
                 self._offer_execution(
                     darkness_recovery, producer="departure",

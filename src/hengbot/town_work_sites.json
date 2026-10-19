@@ -515,7 +515,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "02d8f152cde05ba30db42ec2113c46fd95eb9bcb06658966bb5962999eda504e"
+    "ast_sha256": "e4f7e14acbb5756661b03ff8903037249f3a9830e44e7a42876f653fd541a94c"
   },
   "equipment_optimizer.py:optimize_loadout": {
     "classification": "data",
@@ -1994,7 +1994,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ff0a50d0d2b22f9aff6d7c4573960fa8c0d8501c28d57c204e4c6facc88441fa"
+    "ast_sha256": "b6b41e73c38c377fb02664374f8e79c0d39985821870f8943dca3c4161348eef"
   },
   "policy.py:HengbotPolicy._darkness_torch": {
     "classification": "data",
@@ -4548,7 +4548,7 @@
       "equipment-optimization"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c6b36945547eae80780e68d4b392e0a7f469ae72997965ea46fcb14a3bbe104f"
+    "ast_sha256": "e6a392b7f24f82e4a4d6f8cf7fdadb58d8c013a149987dbf8aedd6668001ef10"
   },
   "policy_equipment.py:EquipmentMixin._prepare_equipment_transaction_command": {
     "classification": "producer",
@@ -7259,7 +7259,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d6e254051c1f1ca308e54badadc5cb5c08627fd335a1f09ea7beecdf76482aef"
+    "ast_sha256": "6a47539333a6acda0e9bc99529d942a55e444d4d1985cedd4411a2dfe9fe98b2"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_dispatch_key": {
     "classification": "producer",
