@@ -1,0 +1,78 @@
+ISSUE #77 report -- branch home-leave-suppressed-1019 (base main 35b1cf2d)
+
+Diagnosis (measured; details in LUNA-DIAG-home-leave-suppressed.txt)
+  Capture 20261019-081331-store-leave-key-suppressed, rows 3680-3681:
+    3680 Home page (store 7, turn 766012) '\x1b' home:scan-incomplete-open-page -> visit LEAVING, posted 3680/766012
+    3681 outside board (store None, turn 766016) '\x1b' home:scan-leave-store -> visit still LEAVING
+  cli.py:4588/4648: leave in flight before AND after the decision -> "<store-leave-key:suppressed>",
+  DESIGNED_WAIT (cli.py:2648), nothing posted, run stopped.
+  "home:scan-leave-store" comes only from policy_home.py _home_full_knowledge_key, which treated
+  `_store_leave_inflight is not None` as "still in a store" even on the outside board, so it posted
+  another ESC and never released the LEAVING view (the release normally happens in the inflight-leave
+  branch of _choose_key, policy.py:9019-9030, reached later). The policy expected next: the home-scan
+  claim's continuation "home.knowledge.request" (~9 from outside), not a deposit; the full pack is not
+  what blocked.
+
+Fix (src/hengbot/policy_home.py, _home_full_knowledge_key, +5 lines)
+  On an outside board with a leave in flight, release the derived leave view
+  (`self._store_leave_inflight = None`, the same release as policy.py:9019-9030 / 7993-8021) and
+  continue to the existing knowledge request. Inside a store the exit is posted as before.
+  No new constant, threshold, policy attribute or reason.
+  Bookkeeping: scripts/town_work_manifest.json.gz and src/hengbot/town_work_sites.json rewritten by
+  town_work_manifest.py --write (ast_sha256 of _home_full_knowledge_key only).
+
+Pins (tests/test_home_leave_suppressed_recorded.py; fixture tests/fixtures/home-leave-suppressed-20261019.json.gz,
+extractor tests/extract_home_leave_suppressed_fixture.py)
+  Recorded state rows of decision rows 3666-3675, fresh policy, public response path, live argv flags.
+  DECLARED CONSTRUCTED walls: ~f skill list (state row 67) on every board; the fixture segmentation gives
+  row 3674 the Home page after the composed withdrawal (state row 104) instead of the outside row 101.
+  Under these walls row 3675 (outside, turn 765348 > posted 765340) is the live 3681 shape.
+  - test_outside_board_releases_the_posted_home_exit
+      35b1cf2d: ('\x1b', 'home:scan-leave-store'), leave still in flight (suppressed)   [verified FAIL pre-fix]
+      fix:      ('~9\x1b', 'home:request-knowledge-scan'), _store_leave_inflight None (not suppressed)
+  - test_captured_rows: recorded facts (3681 ESC home:scan-leave-store outside, visit LEAVING posted
+      before the board's turn, pack 23/0, gold 9,982).
+  Control:
+  - test_control_open_home_page_still_leaves: on the recorded Home page (row 3674) with the replayed
+      leave of 3673 in flight, _home_full_knowledge_key still returns ('\x1b', 'home:scan-leave-store')
+      and keeps the leave in flight (passes before and after).
+
+Existing tests run (single modules, all OK): test_home_catalogue_take_sequence, test_home_knowledge_scan,
+  test_home_relief_progress_recorded, test_home_scan_owner_priority, test_ownership_s3a_record,
+  test_posted_effect_unobserved, test_sale_inscribe_buy_recorded, test_policy_home, test_policy_supply,
+  test_policy_equipment. No existing test edited.
+
+Not fixed (sibling, constructed state only, report for a follow-up):
+  In the same replay, row 3667 (outside, after a Home exit) chooses '~9\x1b'
+  equipment-transaction:catalogue-request-knowledge with the leave still in flight before and after --
+  the same suppression shape through the equipment catalogue producer. A fresh-policy replay from 3679
+  with the Home list wall reproduces it at 3681 as well. Not the live path of #77.
+
+Incident during the work (process note):
+  I used `git stash` for the revert-proof check. The stash list is shared by all worktrees of
+  bot-client; the implementer in worktree idstaff-poor-depart-1019 stashed at the same time, and the two
+  pops swapped changes (my #77 hunk landed in their worktree, their #76 policy.py hunk in mine). Their
+  side restored both worktrees; I discarded the foreign policy.py hunk from mine. A copy of that hunk
+  is kept at C:\hengband-backups\foreign-76-policy-stash-race-20261019.diff. Both worktrees were verified
+  afterwards (each holds only its own change). Revert checks from now on should not use git stash.
+
+Guard outputs (after the last source edit and commit 7a92d769)
+  preflight:
+    [preflight] PREFLIGHT OK: 7 changed files, 0 findings (home-leave-suppressed-1019 vs 35b1cf2d)
+    (first run flagged private-state-injected in the control; the control now uses the replayed
+     in-flight leave instead of assigning it -- commit 7a92d769)
+  mutation_check --tests test_home_leave_suppressed_recorded --record:
+    [mutation] 1 source hunks, tests: test_home_leave_suppressed_recorded
+    [mutation] caught     src/hengbot/policy_home.py:1255 (if snapshot.store is None and self._store_leave_inflight is not None:): test_outside_board_releases_the_posted_home_exit
+    [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+    [mutation] recorded for 7a92d769
+  fast_tier --shards 4 (run after gate-rubble-1019 MERGED at 09:52):
+    [fast] 3956 fast tests (<2.0s in 8a1f6bba) + 1 changed modules, 4 shards
+    [fast] excluded 24 modules measured over 60s
+    Crashed shards: none
+    Failures: none
+    Errors: ['tests.test_store_entry_budget_recorded (import) ModuleNotFoundError(...)']
+    Total: 3965 tests, 323.6s
+    The one error is not from this branch: fast_tier took its module list from current main 8a1f6bba,
+    and tests/test_store_entry_budget_recorded.py was added on main after this branch's base 35b1cf2d
+    (6f1022ed, #74), so it does not exist here. No test failed.
