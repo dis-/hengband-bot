@@ -1,4 +1,4 @@
-#82 light supply (branch light-in-hand-1019, base 4e34499f) - STOPPED: two existing tests must change
+#82 light supply (branch light-in-hand-1019, base 4e34499f)
 
 STATUS
 - Fix and pins are committed (162d1abb). STOPPED before fast_tier: two existing tests at 4e34499f
@@ -75,3 +75,41 @@ mutation_check --tests test_light_in_hand_recorded --record:
   [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
   [mutation] recorded for 162d1abb
 fast_tier: NOT RUN (stopped on the two existing tests above; it would fail on them).
+
+ROUND 2 (supervisor authorized updating exactly the two tests; commit 0fb29508)
+1. ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable RENAMED to
+   test_home_only_permanent_light_keeps_the_lantern_oil (the old name stated the opposite). Same
+   board; asserts required_departure 0 -> 5, retention 0 -> 5, deposit candidate True -> False; the
+   deposit-key assert ("do5") is dropped because no deposit is reached. Comment cites #82 + the
+   owner decision with old/new values.
+2. IdentifyStaffLiveCatalogueTest.test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed:
+   first reason 'home:queue-withdraw-identify-staff-reserve' -> 'home:queue-catalogue-shortage'
+   (pending = the Home oil, withdrawn with "5pa5", then leave-after-one-operation). Keeping
+   the rest of its assertions needed the oil round played out first: the oil is then carried
+   (constructed), one outside decision ends the visit, the next Home visit queues the staff
+   ('home:queue-withdraw-identify-staff-reserve', pending = the staff), the entrance asks '~9'
+   (Home changed), the recorded list is consumed again, and the original asserts follow unchanged
+   ("5pp1", leave-after-one-operation, staff ready, no failed atomic withdraw).
+Runs: test_policy_supply 208 OK; test_light_in_hand_recorded 5 OK; test_lantern_lost_recorded (#65)
+9 OK; test_overflow_torches_recorded (#69) 3 OK.
+
+GUARDS (after 0fb29508)
+preflight:
+  [preflight] NOTE existing-test MODIFIED: tests/test_policy_supply.py::IdentifyStaffLiveCatalogueTest.test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed
+  [preflight] NOTE existing-test REMOVED or renamed: tests/test_policy_supply.py::ShoppingTest.test_home_owned_permanent_light_makes_all_pack_oil_depositable
+  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (light-in-hand-1019 vs 4e34499f)
+mutation_check --tests test_light_in_hand_recorded --record:
+  [mutation] caught     src/hengbot/policy_supply.py:112 (3 pins)
+  [mutation] TEXT ONLY  src/hengbot/policy_supply.py:340
+  [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+  [mutation] recorded for 0fb29508
+fast_tier --shards 4 (run after gate-optimizer-1019 left the 70-minute window):
+  [fast] 3894 fast tests (<2.0s in 3cb276a3) + 2 changed modules, 4 shards
+  [fast] excluded 24 modules measured over 60s
+  Crashed shards: none
+  Failures: none
+  Errors: ['tests.test_verified_destroy_refusal_terminates (import) ModuleNotFoundError(...)']
+  Total: 3922 tests, 314.9s
+  The one error is environmental: the timing list comes from 3cb276a3 (newer main, #80), which adds
+  tests/test_verified_destroy_refusal_terminates.py; 3cb276a3 is not an ancestor of the base
+  4e34499f, so the module does not exist on this branch. No failure from this change.
