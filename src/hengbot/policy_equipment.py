@@ -884,10 +884,13 @@ class EquipmentMixin:
                 )
                 return preparation
         optimization_depth = depth_override
+        oil_carried = self._first_item(
+            snapshot, lambda item: item.is_oil and item.fuel > 0
+        ) is not None
         operational_catalog = tuple(
             item
             for item in self._equipment_catalog.items
-            if operational_equipment_candidate(item)
+            if operational_equipment_candidate(item, oil_carried=oil_carried)
         )
         eligible_catalog = tuple(
             item

@@ -248,8 +248,14 @@ class OwnedEquipment:
         return TR_TELEPORT not in self.flags or self.random_teleport_suppressed
 
 
-def operational_equipment_candidate(owned: OwnedEquipment) -> bool:
-    """Reject a carried, visibly exhausted consumable light from loadout search."""
+def operational_equipment_candidate(
+    owned: OwnedEquipment, *, oil_carried: bool = False
+) -> bool:
+    """Reject a carried, visibly exhausted consumable light from loadout search.
+
+    An empty lantern stays a candidate while oil is carried: the refill
+    restores it, so it is not exhausted (#85).
+    """
     item = owned.item
     return not (
         owned.origin in {"pack", "equipped"}
@@ -258,6 +264,7 @@ def operational_equipment_candidate(owned: OwnedEquipment) -> bool:
         and item.sval <= SV_LITE_LANTERN
         and item.known
         and item.fuel <= 0
+        and not (oil_carried and item.is_lantern)
     )
 
 
