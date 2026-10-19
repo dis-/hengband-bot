@@ -157,3 +157,23 @@ fast_tier --shards 4 (run after gate-dark-1019 finished):
   [fast] 3949 fast tests (<2.0s in 4e34499f) + 1 changed modules, 4 shards
   Crashed shards: none / Failures: none / Errors: none
   Total: 3964 tests, 319.0s
+
+======================================================================
+ROUND 3: test_equipment_homefull_step15a ... test_pin1_recorded_134416_from_process_start slowdown
+======================================================================
+STOPPED (behaviour changed in that replay; no source change in this round).
+Measured under cProfile, same machine, run in parallel: ac9ed592 78.7 s / 14 choose_key calls;
+branch (25cf440a) 222.8 s / 42 calls -> ~5.5 s per decision on both: no extra per-call cost; the
+slowdown is 28 extra decisions.
+First differing decision (4th choose_key; 3rd of the constructed post-prefix loop):
+  old ('\x1b`n#.', 'shop:travel')   new ('\x13', 'periodic:game-save')
+then new: ('Cf\ry\x1b\x1b','periodic:character-dump'), '9'/'7'... 'periodic:character-dump',
+~30 x shop:approach walking steps ('4','7','1'), loop ends at its limit path.
+Cause: the constructed loop starts from rows[43] of capture 20261008-134416, a "store" row
+(player.can_see_own_grid False, light_radius 3, Lamp of Feanor, 05:09, (45,123)); the harness
+turns it into a surface board on '\x1b' (pop store, type player_turn) but keeps that row's
+can_see_own_grid False, so _native_travel_sightless declines native travel and the approach walks
+(the stationary harness models walking one cell per key). The recorded surface rows 39/41/79
+around it all carry can_see_own_grid True, so the False is the store-row value carried into a
+DECLARED CONSTRUCTED board. Not changed: needs a decision (the existing test's constructed
+board, or the predicate on boards derived from store rows).
