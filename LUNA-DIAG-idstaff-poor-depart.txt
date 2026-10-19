@@ -1,0 +1,41 @@
+LUNA-DIAG #76 (idstaff-poor-depart-1019, base 35b1cf2d)
+
+Capture: 20261019-080433-town-blocked-departure-unsatisfiable (151 decision rows, 103 state rows).
+
+MEASURED (capture)
+- Magic Shop page, state row 28 (turn 658699, gold 3,579): Identify staff 18 charges 936 gold,
+  14 charges 873 gold. Decision row 97 (in Magic): shop_selector.wanted_purchase = the 18-charge
+  staff at 936, rejection_reason "preempted"; reason town-progress-invariant:continue-observed-shop.
+  Rows 98-110 identify/equipment work; row 111 plan rebuilt as [Alchemist, Weapon Smiths, Temple,
+  General Store] (no Magic Shop, no Black Market). Gold 3,579 -> 671 at the Alchemist (rows 116-118),
+  -> 435 at the Temple (row 121).
+- Row 132: fundraising {"mode":"prepare","gold_trigger":true} (435 < FUNDRAISING_START_GOLD 3000,
+  policy_constants.py:713). Rows 137-147 sales in General Store / Weapon Smiths / Armoury: gold 2,708.
+- Row 148 departure_block.failed == ["identify_staff_ready"] (charges 13/20: carried 5+4+4, Home 1);
+  town_ledger store_visits {Magic 1, Home 9, ...}, Black Market 0 visits, blocked_stores [].
+  Procurement requirements carry no blocked_reason. Home holds 5 Treasure Detection, 2 shovels.
+- Row 150 ("1", town:blocked:departure-unsatisfiable); stdout "<keep-running> hard_stop
+  cause=departure-unsatisfiable free=8 method=none".
+- Reserves: none involved; 936 <= 2,708 (the 18-charge staff is affordable and worthwhile).
+
+REPLAY (35b1cf2d, fresh policy, board of row 150; walls: mode prepare, Home list state row 79,
+store-attempted Home/Magic/Black, Magic page of state row 28 in _town_supplier_stock without
+_town_supplier_stock_observations): ("1", "town:blocked:departure-unsatisfiable") == recorded.
+Line trace policy_town.py: 6750 -> 6754 (_departure_supplier_counterfactual None) -> 6757
+(_supply_stockout_mining_key None) -> 6761 condition false -> 6798 terminal.
+- Why the identify-staff stockout (fundraising) does not start: policy.py:15501-15520 (35b1cf2d)
+  _identify_staff_procurement_impossible builds supplier_pages = dict(self._town_supplier_stock) with
+  no observation check, finds the 936 staff <= 2,708 gold and returns False. The need registry
+  (policy_town.py:2838-2873 add_identify_staff_suppliers) routes only _identify_staff_offer_pages
+  (policy_supply.py:673, current-town observation required) -> no Magic need (Magic attempted, page not
+  routed), no Black need (Black attempted) -> no owner. Same board with the observation provenance
+  added routes to Magic (shop:travel), i.e. the mismatch is page provenance.
+- Why gold-trigger fundraising does not act: mode is already "prepare"; the prepare kit is at Home
+  and Home is latched; the town errand plan is empty, so nothing is posted before the departure leaf.
+- Why A0 finds no method: force_visit_departure (policy_town.py:5747) -> _departure_minimum
+  (5650) includes identify_staff_ready (_identify_staff_ready fails) -> minimum.holds False;
+  _supply_stockout_mining_dispatch_key (6906) requires every failed leaf in its labels, which do
+  not include identify_staff_ready -> None; _start_no_safe_destination_fundraising -> False
+  (destination exists) -> outcome hard_stop, method none.
+NOT MEASURED: how the live process lost the Magic observation provenance (or which other latch hid
+the Magic route) between rows 97 and 111; provenance is not logged.
