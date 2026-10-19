@@ -55,7 +55,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "unseen-reapproach-dl30-20261020.jsonl.gz"
 RECORDED = FIXTURES / "unseen-reapproach-dl30-20261020.recorded.json"
 SHA256 = {
-    FIXTURE: "52caf86c5ae00828551f47bfda508e1bf647c518256b802373eb2c7cf8aa4de1",
+    FIXTURE: "af8f1a26790a60ee579c0140a6b1adca51bfda014abb3dbaa51b241ecc4c7c1f",
     RECORDED: "eb07809b7239635c87be42b0110e6e59863e2b5dd82fcb8adaaafa3e8ba9cfdb",
 }
 FLOOR = (1, 30, 0)
@@ -102,8 +102,9 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
         )
         board = snapshots[-1]
         key = policy.choose_key(board)
-        policy.confirm_key_posted(key)
-        return str(key), policy.last_reason, board
+        if key is not None:
+            policy.confirm_key_posted(key)
+        return key, policy.last_reason, board
 
     def _replay_floor(self, policy, directory: Path, last: int):
         rows = {}
@@ -163,6 +164,30 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
         # the retreat onto a warning-refused cell and no key, three times.
         self.assertEqual((key, reason), ("9", "explore"))
         self.assertNotEqual(restarted._loot_target, ITEM_IN_ATTACK)
+
+    def test_retreat_does_not_step_onto_a_warning_refused_cell(self):
+        # The restarted process as live ran it (no record): seek-loot onto
+        # (23, 61), fire bolt, retreat '9' then '6' toward (22, 63), whose
+        # weapon warning prompt is on board 1:7.
+        refused = Position(22, 63)
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            policy = self._process(directory)
+            for tag in ("1:1", "1:2", "1:3", "1:4", "1:5", "1:6"):
+                with self.subTest(tag=tag):
+                    self.assertEqual(self._decide(policy, directory, tag)[:2],
+                                     self._live(tag))
+            key, reason, board = self._decide(policy, directory, "1:7")
+            # Live (and e8ae2b19): (None, 'warning:blocked-step') -> no key.
+            self.assertEqual(self._live("1:7"), (None, "warning:blocked-step"))
+            self.assertEqual((key, reason), ("4", "explore"))
+            self.assertIn(refused, policy._warning_refused_cells)
+            # Control: the same board with the cell not refused keeps the
+            # retreat's own step.
+            policy._warning_refused_cells.discard(refused)
+            policy._unseen_retreat_floor = FLOOR
+            policy._unseen_retreat_direction = (0, 1)
+            self.assertEqual(policy._unseen_reverse_choke_step(board), refused)
 
     def test_control_no_attack_record_still_loots_the_item(self):
         with TemporaryDirectory() as tmp:
