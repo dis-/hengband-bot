@@ -1,0 +1,89 @@
+LUNA-DIAG step-key-unify (issue #83, predicate audit question 8: "Can the player step into cell C, and with which key?")
+Base 4e34499f. Line numbers are at the base.
+
+Method: grep `_direction_key(` over src/hengbot (35 call sites) plus direction-key composition (`DIRECTION_KEYS[`,
+`DIRECTION_KEYS.get`, `_cursor_delta_keys`). The single step predicate is `_step_toward`
+(policy_navigation.py:1753): trap -> disarm, closed door -> 'o', rubble -> 'T' with RUBBLE_REJECT_LIMIT /
+RUBBLE_DIG_LIMIT -> _blocked_rubble, diggable wall with a digger -> tunnel, paralyzer/warning gates -> WAIT,
+plain floor -> the bare direction key (unchanged).
+
+Classes:
+  S = goes through _step_toward (the key is built inside it)
+  M = attack into an occupied monster cell (moving into a monster attacks it whatever the terrain; 'T' into a
+      monster cell attacks too, cmd-tunnel.cpp:59-62) -- not a step into terrain
+  N = not a movement into a cell (a suffix/direction for another command, or a comparison)
+  P = provably never rubble / a refused cell (reason cited)
+  B = bare post that can hit rubble or another refused cell
+
+policy_navigation.py
+  1807  S  _step_toward itself (key composition for every routed step)
+  953   M  combat:disengage-melee, weakest adjacent hostile
+policy.py
+  6574  P  town declaration route.resume (town map step / _nearest_goal_step); town maps contain no rubble
+           (lib/edit/towns/*.jsonc: no rubble feature) and town routes are town-only
+  6665  P  store-router entrance route step, town only (same reason)
+  6701  P  store-router store route step, town only (same reason)
+  10068 P  livelock breakout: _breakout_step (19435) admits only grid.passable, not a door, no monster
+  10194 N  ALTER_KEY + dir (do_cmd_alter attack into a passable cell), not a walk
+  10220 B  _low_hp_no_kit_hit_key unseen ranged: first uncovered neighbour from _walkable_neighbors (includes
+           orthogonal rubble, 19393-19395) -- posted bare. FIXED.
+  10241 B  same function: one step toward the named attacker; the adjacent square is not checked at all (rubble or
+           wall). FIXED (rubble/door/trap now via _step_toward; a wall would still be bumped -- see below).
+  10244 B  same function: first step of the cover BFS over _walkable_neighbors -- may be rubble. FIXED.
+  10330 M  _low_hp_walk_gate melee, weakest adjacent
+  11124 M  flee:cornered-attack, weakest adjacent
+  11216 M  melee, weakest adjacent combat hostile
+  19262 M  _blocking_escape_melee_key: candidates have distance <= 1 (19213-19217)
+  19448 N  comparison inside _breakout_step
+  19903     definition
+policy_combat.py
+  481   M  no-wait:melee (town contact), weakest adjacent
+  507   B  _forbid_wait_while_damaged no-wait:least-visited: _least_visited_neighbor (policy.py:19767) draws from
+           _walkable_neighbors (orthogonal rubble included) -- posted bare. FIXED.
+  516   M  no-wait:melee, weakest adjacent
+  526   M  no-wait:attack nearest hostile (boxed player: every neighbour refused/occupied, the ladder's last
+           resort; a non-adjacent target is a bump by design and unchanged)
+  1013  M  melee:esp-threat-hunt, adjacent
+  1299  N  fire suffix (target direction)
+  2223  M  emergency:cornered-attack, adjacent
+  3443  M  melee:choke, adjacent
+  3639  M  melee:choke, adjacent
+policy_supply.py
+  1759  M  melee:choke, adjacent
+policy_fundraising.py
+  792   N  mining tunnel: TUNNEL_KEY + dir into a diggable wall (requires grid.tunnel and not enterable)
+policy_identification.py
+  273   N  chest disarm/open direction (CHEST_DISARM_KEY + dir etc.), not a walk
+policy_quest.py
+  1784  N  fire suffix
+  1980  M  quest-strategy:melee, adjacent
+  2096  M  q2 melee on an adjacent breeder (distance == 1)
+  2122  B? q2-close-residual-multiplier-no-ammo fallback after the static route failed: a bare step toward a
+           possibly distant breeder. The Sewer (lib/edit/quests/002_TheSewer.jsonc) uses only FLOOR / SHALLOW_WATER
+           / DEEP_WATER plus map walls, no rubble, so it cannot meet rubble; it can bump a wall, which _step_toward
+           would not change either. Not changed.
+  3448  M  quest-strategy:melee, adjacent
+  3575/3591/3995  N  throw suffixes
+  3904  N  OPEN_KEY + dir on the final door (open, not a walk)
+policy_town.py
+  2050  P  boxed town breakout step: town only (no rubble in towns)
+  5173  N  '+' + dir + 'y' attack on a friendly town monster (alter, not a walk)
+quest_navigator.py
+  180   M  quest-strategy:melee, adjacent
+policy.py:6970  N  DIRECTION_KEYS.get comparison of a recorded offer
+policy.py:12676 N  _cursor_delta_keys: targeting-cursor movement, not a player step
+
+Result: the bare posts that can hit rubble are policy_combat.py:507 and policy.py:10220/10241/10244 (all four
+are measured below on boards where 4e34499f posts the bare key into rubble). No other producer posts a bare key
+into a cell that can be rubble.
+
+Measured at 4e34499f (tests/test_step_key_unify_rubble.py with the src diff reversed by git apply -R):
+  least-visited, #75 board, serpents removed, south floor visited once  ('8', 'no-wait:least-visited')
+  unseen caster, nothing in view, uncovered neighbour = rubble           ('8', 'no-wait:flee')
+  unseen caster, cover route through the (exposed) rubble                ('8', 'no-wait:flee')
+  named caster at (16,38), step toward it = rubble at (13,38)            ('2', 'no-wait:flee')
+Each '8'/'2' is the plain move the game refuses with "岩石が行く手をはばんでいる。" (the #75 failure shape).
+
+Residual (noted, not changed): policy.py:10241 and policy_quest.py:2122 step toward an attacker without checking
+the adjacent square; after this change rubble/door/trap are handled by _step_toward, but an outright wall is still
+bumped. Choosing a different square would change the approved rule (追加決定2, 10-03 05:1x) and is out of scope.
