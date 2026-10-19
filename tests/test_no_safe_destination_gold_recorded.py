@@ -62,7 +62,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_state import normalize_policy_state
 from policy_fixtures import grid, item, player
-from policy_shop_fixture import _TownShopFixtureBase
+import policy_shop_fixture as shop_fixture
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures/no-safe-dest-gold-20261019.json.gz"
@@ -207,7 +207,7 @@ class NoSafeDestinationGoldRecordedTest(unittest.TestCase):
         self.assertTrue(policy._char_dump_done_this_visit)
 
 
-class NoSafeDestinationSetRunTest(_TownShopFixtureBase):
+class NoSafeDestinationSetRunTest(shop_fixture._TownShopFixtureBase):
     """The set's gold objective and run count on synthetic boards."""
 
     def _yeek_board(self, *, gold, detection=3):
