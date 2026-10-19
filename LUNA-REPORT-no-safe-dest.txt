@@ -43,3 +43,16 @@ Three OTHER existing tests now fail (tests/test_policy_town.py, gold 22412 board
     old "town:blocked:depth-gate:destination-30:missing-resist_acid,resist_elec",
     new "fundraising:no-safe-destination:depth-gate:destination-30:missing-resist_acid,resist_elec"
 Guards not run (existing tests fail by design of the decision; awaiting a ruling).
+
+ROUND 3 (supervisor: update only the last_reason of the three NoSafeRecallDestinationTest
+cases, key stays WAIT): STOPPED.  The new behaviour changes more than last_reason:
+  test_no_town_work_latches_visible_terminal: key '5' (WAIT, unchanged), last_reason as listed,
+    but also _town_blocked_reason: old "depth-gate:destination-30:missing-resist_acid,resist_elec",
+    new None (_fundraising_mode "prepare").
+  test_drive_ending_town_terminals_survive_decision_rederivation (departure-unsatisfiable and
+    equipment-work-home-route-exhausted; no-safe-recall-destination unchanged): over the 40
+    decisions decision 0 is WAIT 'fundraising:no-safe-destination', decisions 1..16 are
+    probe keys '8','2','4','6','7','9','1','3' (not WAIT; the one-cell fixture has no route to
+    Home for the kit), 17..20 WAIT 'wait', 21..39 WAIT 'town:blocked:owner-retired';
+    _town_blocked_reason None throughout (old: the terminal name), mode "prepare".
+Only the docstring of tests/test_no_safe_destination_recorded.py was updated (doc text).

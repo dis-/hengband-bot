@@ -38,8 +38,10 @@ ITEM 4, USER DECISION 2026-10-02 17:4x (verbatim answer: 「1 ただし、クエ
 正常に進行すれば混乱耐性は獲得できる」; option 1: 停止せず、イークの洞穴（町から
 歩いて入れる）で資金稼ぎを続けながら、町に戻るたびに店と闇市で耐混乱の付いた装備
 を探して買う。手に入ったら通常の潜行に戻る): with no safe landing the town enters
-the ordinary fundraising set (``prepare``) instead of the named stop, below the
-fundraising gold target; the gate is not relaxed.  The first changed key is
+the ordinary fundraising set (``prepare``) instead of the named stop, whatever
+the gold (owner decision 2026-10-19 「金額に関係なく資金稼ぎ」, #90: the set is
+not ended by the gold target and ends by the run count); the gate is not
+relaxed.  The first changed key is
 pinned; the set's next owner is shown by re-deciding the SAME board (no later
 recorded board is the effect of the new key, R4).
 
