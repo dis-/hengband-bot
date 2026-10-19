@@ -7518,19 +7518,7 @@ class TownMixin:
         recall = self._find_recall_scroll(snapshot)
         if (
             allow_recall
-            and (
-                snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
-                # A walk out explores by revealing cells. With no light of its
-                # own and nothing to refill or wield, each step into an unlit
-                # corridor reveals nothing and the darkness owner above walks
-                # it back (issue #81); the readable cell it returns to is
-                # where the carried scroll ends the walk instead.
-                or (
-                    snapshot.light_radius == 0
-                    and self._light_refill_item(snapshot) is None
-                    and self._darkness_torch(snapshot) is None
-                )
-            )
+            and snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
             and recall is not None
             and not player.blind
             and not player.confused
@@ -7680,6 +7668,33 @@ class TownMixin:
                     expected_effect="wall-observation",
                 )
         step = self._explore_step(snapshot)
+        if (
+            step is not None
+            # Exploring reveals cells only by light. With no light of its own
+            # and nothing to refill or wield, each step into an unlit corridor
+            # reveals nothing and the darkness owner above walks it back
+            # (issue #81); on this readable cell the carried scroll ends the
+            # walk instead.
+            and snapshot.light_radius == 0
+            and self._light_refill_item(snapshot) is None
+            and self._darkness_torch(snapshot) is None
+            and allow_recall
+            and recall is not None
+            and not player.blind
+            and not player.confused
+            and self._can_read_scrolls(snapshot)
+            and self._owner_may_select(snapshot, "return:recall")
+        ):
+            self.last_reason = "return:recall"
+            key = self._read_dungeon_recall_scroll_key(snapshot, recall)
+            self._offer_execution(
+                key, producer="departure", work_id="return:recall",
+                next_step="recall.scroll.send",
+                arguments=(recall.slot,),
+                expected_effect="recall-activated",
+                continuation="recall.observe-arrival",
+            )
+            return key
         if step is not None:
             self.last_reason = "return:explore"
             self._declare_explore_goal()
