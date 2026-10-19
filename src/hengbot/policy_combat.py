@@ -504,7 +504,9 @@ class CombatMixin:
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "no-wait:least-visited"
-            return self._direction_key(snapshot.player.position, step)
+            # The walkable neighbours include orthogonal rubble, which the
+            # game refuses as a plain step; the router tunnels it.
+            return self._step_toward(snapshot, step)
 
         adjacent = [
             monster

@@ -2575,7 +2575,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b92d8d0df4ac251376710fb5c98b49c382c9f694eb8c21a5b47f055ad02bdf5f"
+    "ast_sha256": "092ad53c358c29f7fea6a988f1c9e31e0198bd9a739ff9e6a52edc26ef0e8540"
   },
   "policy.py:HengbotPolicy._low_hp_walk_gate": {
     "classification": "producer",
@@ -4132,7 +4132,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "bade02cacf4932b6dbce9a6100842219b83c5f03eb36e269d493c7a4d771ad53"
+    "ast_sha256": "91c6e02415a723c6b4ed88e8a67270b4e7090fdb0206164c32a56c1877db7288"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",

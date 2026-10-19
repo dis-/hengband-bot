@@ -1,0 +1,66 @@
+LUNA-REPORT step-key-unify (issue #83, predicate audit question 8)
+
+Branch step-key-unify-1019, base 4e34499f.
+Commits: 78b805c7 (fix + pins + bookkeeping + LUNA-DIAG), this report.
+
+MEASURED DIAGNOSIS (inventory in LUNA-DIAG-step-key-unify.txt)
+- 35 `_direction_key(` call sites plus DIRECTION_KEYS[...] / .get / _cursor_delta_keys composition were classified:
+  routed through _step_toward; attack into an occupied monster cell; not a walk (suffix, alter, open, tunnel,
+  disarm, comparison); provably no rubble (town-only routes: no town map has rubble; _breakout_step admits only
+  passable non-door floor); bare post that can hit rubble.
+- Bare posts that can hit rubble, all measured at 4e34499f (src diff reversed with git apply -R):
+    policy_combat.py:507  _forbid_wait_while_damaged no-wait:least-visited   -> '8' into rubble
+    policy.py:10220       _low_hp_no_kit_hit_key uncovered neighbour          -> '8' into rubble
+    policy.py:10244       _low_hp_no_kit_hit_key cover-route first step       -> '8' into rubble
+    policy.py:10241       _low_hp_no_kit_hit_key step toward named attacker   -> '2' into rubble
+  The cells of 507/10220/10244 come from _walkable_neighbors (orthogonal rubble included); 10241 does not check
+  the adjacent square at all. A plain step into rubble is refused ("岩石が行く手をはばんでいる。"), the #75 shape.
+- Residual, noted only: 10241 and policy_quest.py:2122 (Q2 no-ammo fallback; the Sewer map has no rubble) can still
+  bump an outright wall; choosing another square would change the approved rule.
+
+CHANGE
+- The four producers now post self._step_toward(snapshot, cell) (10241: the adjacent square toward the attacker).
+  Rubble -> 'T'+dir with the existing refused-dig accounting (RUBBLE_REJECT_LIMIT / RUBBLE_DIG_LIMIT ->
+  _blocked_rubble); closed door / trap / paralyzer / warning gates as for every routed step; plain floor keeps the
+  identical key. No new constant, threshold, reason or policy attribute (no restored-checkpoint defaults needed).
+- Bookkeeping: scripts/item_sink_adapters.json -- removed the four pinned expressions that no longer exist
+  (_low_hp_no_kit_hit_key: "_direction_key(here, cell) @ For:neighbors / ...", "_direction_key(here, cover[1])
+  ...", "_direction_key(here, enemy.position) ..."; _forbid_wait_while_damaged: "_direction_key(
+  snapshot.player.position, step) @ If:body:step is not None"); town work manifest + town_work_sites.json
+  regenerated (832 candidates, 21184 sites, zero unmapped). No STUCK_FAMILY_REASONS change.
+
+PINS tests/test_step_key_unify_rubble.py (fixture: the existing #75 board tests/fixtures/flee-into-rubble-20261019,
+row 0; all boards DECLARED CONSTRUCTED as listed in the module docstring)
+                                                               4e34499f (measured)            after fix
+  least-visited, serpents removed, south floor visited once     ('8','no-wait:least-visited')  ('T8','no-wait:least-visited')
+  unseen caster, uncovered neighbour = rubble                   ('8','no-wait:flee')           ('T8','no-wait:flee')
+  unseen caster, cover route through exposed rubble             ('8','no-wait:flee')           ('T8','no-wait:flee')
+  named caster (16,38), step toward it = rubble (13,38)         ('2','no-wait:flee')           ('T2','no-wait:flee')
+  controls (rubble -> floor): least-visited '8', uncovered '8', cover route '8', toward attacker '2' -- same at
+  both commits (open-floor keys unchanged).
+
+EXISTING TESTS (single modules, after the fix; no assertion changed):
+  test_flee_into_rubble_recorded 4 OK, test_policy_combat 303 OK (5 skipped), test_low_hp_no_unchecked_walk 11 OK,
+  test_item_sink_lint 18 OK (after the bookkeeping above; before it 3 failures on the stale pinned expressions),
+  test_town_work_contract 9 OK, test_town_cat_no_wait_recorded 5 OK, test_owner_retirement_slice1 16 OK.
+
+GUARD OUTPUTS
+preflight.py:
+  [preflight] PREFLIGHT OK: 7 changed files, 0 findings (step-key-unify-1019 vs 4e34499f)
+mutation_check.py --tests test_step_key_unify_rubble --record:
+  [mutation] 3 source hunks, tests: test_step_key_unify_rubble
+  [mutation] caught     src/hengbot/policy.py:10217 (# The walkable neighbours include orthogonal rubble, which the): test_unseen_uncovered_neighbour_tunnels_the_rubble
+  [mutation] caught     src/hengbot/policy.py:10240 (# The adjacent square toward the attacker is unchecked terrain;): test_unseen_cover_route_tunnels_the_rubble, test_unseen_step_toward_the_attacker_tunnels_the_rubble
+  [mutation] caught     src/hengbot/policy_combat.py:504 (# The walkable neighbours include orthogonal rubble, which the): test_least_visited_step_tunnels_the_rubble
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for 78b805c7
+fast_tier.py --shards 4:
+  [fast] 3894 fast tests (<2.0s in 3cb276a3) + 1 changed modules, 4 shards
+  [fast] excluded 24 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-1ic7tyhp)
+  Failures: none
+  Errors: ['tests.test_verified_destroy_refusal_terminates (import) ModuleNotFoundError("No module named \'tests.test_verified_destroy_refusal_terminates\'")']
+  Total: 3908 tests, 281.5s
+  (run 13:28 after gate-optimizer-1019 logged STOP.) The single error is not a regression: the module was added
+  by #80 (commit 52bb1340) on another branch and is in the fast list from green state 3cb276a3, but does not
+  exist at base 4e34499f.
