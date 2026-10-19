@@ -36,7 +36,9 @@ How the radius is known
 
 How the radius enters without overriding survival
 - Same places as the existing rank, as a second component after it: (light_source_quality,
-  permanent radius). In _prefer this is still under `cm == im`, i.e. only when every modeled
+  permanent radius) - except _selection_equivalence_key: entries sharing that key are decided by
+  _prefer, which now reads the radius, so the key needs no radius (the mutation check showed the
+  key hunk was redundant; it was dropped). In _prefer this is still under `cm == im`, i.e. only when every modeled
   combat metric (DPS, survival, margin, ranged, speed, secondary, traits) is identical; a light
   with a resistance that changes survival is decided by the existing comparison first.
   Lamp > lantern > torch ordering is unchanged because the class rank stays first; the radius is
