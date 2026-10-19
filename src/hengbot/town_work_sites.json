@@ -1791,7 +1791,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "400ae07755914280083ff4f2a6ddd21f81053c5f113045eb8d7c6d32946e397d"
+    "ast_sha256": "26aa7695e12b711d504e6d9515d5b033f510b53f539d671485fe704466fa5249"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -7659,7 +7659,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "7d4f5a2c42b12e9ab3641779e0ae19d629de3a3e613754965796b5d31f0454bc"
+    "ast_sha256": "77c671434c3ee7b3786b41910f7ac415c4afef7537b518dafcd98a9d5cc90f06"
   },
   "policy_town.py:TownMixin._town_travel_key.no_route": {
     "classification": "producer",
