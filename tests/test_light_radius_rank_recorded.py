@@ -112,7 +112,7 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
 
     def test_worn_lamp_is_replaced_by_the_radius_3_home_artifact_light(self):
         decisions = self._replay(self._lamp_worn_rows(STONE_OF_LORE))
-        # 30d4bba7: ('`n%.', 'shop:travel'), no equipment transaction;
+        # 30d4bba7: ('\x1b`n%.', 'shop:travel'), no equipment transaction;
         # the lamp (radius 2) and the stone (radius 3) both rank 2 and the
         # worn set wins the tie.
         self.assertEqual(decisions[-1], TRAVEL_HOME)
@@ -128,7 +128,7 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
         )
 
     def test_worn_lamp_is_replaced_by_the_home_phial(self):
-        # 30d4bba7: ('`n%.', 'shop:travel'), no equipment transaction.
+        # 30d4bba7: ('\x1b`n%.', 'shop:travel'), no equipment transaction.
         decisions = self._replay(self._lamp_worn_rows(PHIAL))
         self.assertEqual(decisions[-1], TRAVEL_HOME)
         phial = next(

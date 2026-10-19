@@ -413,6 +413,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "44b9066f0be869c65781ba10c225d4a1e38cb653942422f534959027147b06b8"
   },
+  "equipment_optimizer.py:Loadout.item_at": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "9f418a5a13b61d0c9af0d6a18008c065b043a8947f06cdebf55970a725c5b6a3"
+  },
   "equipment_optimizer.py:Loadout.item_ids": {
     "classification": "data",
     "rows": [
@@ -467,7 +475,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3e861625863729deb7f3263db4d3dde1ac241177293b1fcc2a1db202487ed33c"
+    "ast_sha256": "6a6391e2f2667a14254bd4e997eb414fe1f5b7e27827c6e95e6c76df83f6246e"
   },
   "equipment_optimizer.py:current_loadout": {
     "classification": "data",
@@ -540,6 +548,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "3c75415b4f11f6fdb4677a5615437fc89635c11da333ee69b1832ed4c9fb3f4b"
+  },
+  "equipment_optimizer.py:permanent_light_radius": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "8e1f12387cdc9fd0763ddcc1c1eda17c5e8f5c99d74989dd2af1e8589a6cd591"
   },
   "equipment_optimizer.py:required_abilities": {
     "classification": "data",
