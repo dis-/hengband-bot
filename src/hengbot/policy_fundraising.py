@@ -236,7 +236,9 @@ class FundraisingMixin:
             hungry=snapshot.player.hungry,
             light_ready=self._fundraising_light_ready(snapshot),
             pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
-            objective_achieved=snapshot.player.gold >= self._fundraising_gold_target(),
+            # A no-safe-destination set has no gold objective (2026-10-19).
+            objective_achieved=(snapshot.player.gold >= self._fundraising_gold_target()
+                                and not getattr(self, "_no_safe_destination_set", False)),
             procurement_exhausted=exhausted,
             first_run=(first_departure_proven if snapshot.in_town
                        else runs_started == 1),
@@ -1260,6 +1262,7 @@ class FundraisingMixin:
             return self._leave_fundraising_floor(snapshot)
         if (
             snapshot.player.gold >= self._fundraising_gold_target()
+            and not getattr(self, "_no_safe_destination_set", False)
             and (
                 getattr(self, "_supply_stockout_gold_target", None) is not None
                 or self._fundraising_mode == "scavenge"
