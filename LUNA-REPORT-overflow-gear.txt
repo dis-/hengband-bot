@@ -1,0 +1,63 @@
+#87 overflow with spare gear - report (branch overflow-gear-1019, base 10698a77)
+
+DIAGNOSIS (measured; details in LUNA-DIAG-overflow-gear.txt)
+- The Level 26 character has a mutation (state row 57 character.mutations [12]); every calibration is rejected
+  unsupported-mutation (character_sheet.py:259-261), so the optimizer is skipped (R1): preparation blockers
+  ("calibration-required",), result None -> _target_loadout_known() False for good.
+- _home_deposit_candidate's spare-equipment branch requires _target_loadout_known() (policy_home.py:2551-2556):
+  the nine plain gear items (j,k rings; l,m,n,o,p,q armour; r Lucerne hammer (+0,+0)) have reservation 0 /
+  surplus 1 and no other guard (identification, procurement, wanted jewelry, transaction) - only this gate
+  excluded them. The shovel (s) is the only digger and is kept by _is_surplus_digging_tool.
+- Sale: organization sale draws gear from the same predicate (policy_town.py:4977); _find_weapon_sale fails
+  closed without a calibration; the visited Alchemist/Black Market have no gear sale -> observe-and-leave.
+  Home: nothing to deposit -> route-claim-unfulfilled.
+- Destroy: _overflow_disposal_item excludes equipment via _has_town_economic_path ("equipment goes to the Home").
+- Dominance (R1 prune) marks only q; used only by Home-full relief. #86 changed the key only for lights; the pack
+  has no light, so the pack's disposable set is unchanged by #86.
+
+FIX (src/hengbot/policy_home.py, _home_deposit_candidate spare-equipment branch)
+  _target_loadout_known() OR (calibration unavailable [_calibration_unavailable_reason set] AND
+  _town_pack_space_shortage(snapshot)). No new constant/threshold, no new predicate: the existing
+  surplus/deposit predicate (_home_deposit_candidate) serves Home deposit and organization alike. With a known
+  target nothing changes; with an unknown target for any other reason (timeout, Home scan pending, valid
+  calibration not yet computed) or without a shortage, spare gear still waits.
+  No new policy attribute (restored-checkpoint defaults: none needed).
+Bookkeeping: town_work_review.json + town_producer_baseline.json entries for policy_town.py:
+  TownMixin._town_pack_space_shortage (now reachable from the deposit predicate); manifest regenerated.
+
+PINS (tests/test_overflow_gear_recorded.py, fixture tests/fixtures/overflow-gear-20261019.jsonl.gz = state rows
+59-76 as-is; DECLARED CONSTRUCTED: recorded calibration rejection reason, ~9 inflight flag, ~f cache)
+                                                        10698a77                                after
+  test_recorded_home_visit_deposits_spare_rings         FAIL ('\x1b', home:route-claim-unfulfilled) OK ('dkdj\x1b', home:atomic-deposit)
+  test_recorded_session_no_longer_ends_in_the_stop      FAIL (last = overflow-no-legal-disposal)   OK
+  test_control_reserved_and_kept_items_are_never_deposited  FAIL (no candidates)                   OK (j-r + s only; reserved a-e,g,t never)
+  test_control_valid_calibration_keeps_the_target_gate  OK                                          OK
+  test_control_no_shortage_keeps_the_target_gate        OK                                          OK
+  After the deposit of rings k and j the pack has 5 free slots (the minimum).
+
+CONTROLS
+- test_policy_home.UnknownTargetLoadoutSurplusTest (calibration-required -> not a deposit candidate, no shortage): 8 OK.
+- #69 test_overflow_torches_recorded, #73 test_full_pack_store_unreachable_recorded, #70 test_home_junk_bones_recorded:
+  all OK.
+- #86 pins: test_light_radius_rank_recorded (2) and test_optimizer_lamp_recorded (3) FAIL identically on 10698a77
+  (measured in a detached worktree of 10698a77, same 5 failures, e.g. ('6', equipment-transaction:approach-home)
+  != ('\x1b`n(.', equipment-transaction:travel-home)). NOT a regression of this change: the merged base
+  (#82+#85+#86) already fails them; reported for the merge of #86.
+- Existing tests: none edited.
+
+GUARDS (after the last source commit b10a26ea)
+preflight:
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (overflow-gear-1019 vs 10698a77)
+  (first round: FAIL manifest unmapped _town_pack_space_shortage + item-sink lint "new unregistered" -> fixed by
+  the review/baseline entries and manifest regeneration)
+mutation_check --tests test_overflow_gear_recorded --record:
+  [mutation] 1 source hunks, tests: test_overflow_gear_recorded
+  [mutation] caught     src/hengbot/policy_home.py:2552 (and (): test_control_reserved_and_kept_items_are_never_deposited, test_recorded_home_visit_deposits_spare_rings, test_recorded_session_no_longer_ends_in_the_stop
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for b10a26ea
+fast_tier --shards 4 (after the gate-rewield-1019 suite finished):
+  [fast] 3709 fast tests (<2.0s in 653c1bb6) + 1 changed modules, 4 shards
+  [fast] excluded 27 modules measured over 60s
+  Crashed shards: none / Failures: none / Errors: none / Total: 3722 tests, 256.7s
+
+NOTE: the new module takes ~100 s (the session test drives 17 recorded boards).
