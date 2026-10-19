@@ -26,8 +26,13 @@ import tests  # noqa: F401 -- live runtime-file isolation
 import json
 import unittest
 
-from hengbot import equipment_optimizer
-from hengbot.equipment_optimizer import OwnedEquipment
+from hengbot import equipment_optimizer, warrior_loadout_search
+from hengbot.equipment_optimizer import (
+    EvaluatedLoadout,
+    Loadout,
+    LoadoutMetrics,
+    OwnedEquipment,
+)
 from hengbot.model import StoreItem
 import test_optimizer_lamp_recorded as lamp_recorded
 from test_optimizer_lamp_recorded import LAMP_NAME, TRAVEL_HOME
@@ -190,14 +195,15 @@ class LightRadiusRankRecordedTest(lamp_recorded.OptimizerLampRecordedTest):
         )
 
 
-def _owned(tval, sval, flags):
+def _owned(tval, sval, flags, *, item_id="test:light", pval=0, origin="home"):
     return OwnedEquipment(
-        id="test:light",
+        id=item_id,
         item=StoreItem(
             letter="a", name="light", count=1, tval=tval, sval=sval,
-            price=0, fully_known=True, known_flags=frozenset(flags),
+            price=0, fully_known=True, known_flags=frozenset(flags), pval=pval,
         ),
-        origin="home",
+        origin=origin,
+        equipped_slot="light" if origin == "equipped" else None,
     )
 
 
@@ -229,6 +235,65 @@ class PermanentLightRadiusTest(unittest.TestCase):
         self.assertEqual(_radius(_owned(39, 1, [TR_LITE_2])), 0)
         # A weapon (tval 23, sval 7) with a light flag is not a light.
         self.assertEqual(_radius(_owned(23, 7, [TR_LITE_1])), 0)
+
+
+
+# DECLARED CONSTRUCTED: a worn plain lamp (LITE_2) and a Home artifact light
+# (LITE_3) on otherwise empty loadouts with identical modeled metrics.
+LAMP_ITEM = _owned(39, 2, [TR_LITE_2], item_id="equipped:lamp", origin="equipped")
+STONE_ITEM = _owned(39, 7, [TR_LITE_3], item_id="home:stone")
+METRICS = LoadoutMetrics(expected_dps=10.0, survival_turns=5.0, combat_margin=0.5)
+
+
+def _light_only(item):
+    return Loadout(((equipment_optimizer.SLOT_LIGHT, item),), "one_handed")
+
+
+class RadiusInTheComparisonTest(unittest.TestCase):
+    def test_pairwise_preference_takes_the_wider_permanent_light(self):
+        current = frozenset({LAMP_ITEM.id})
+        stone = EvaluatedLoadout(_light_only(STONE_ITEM), METRICS)
+        lamp = EvaluatedLoadout(_light_only(LAMP_ITEM), METRICS)
+        # 30d4bba7: equal light rank 2; the current lamp is preferred.
+        self.assertTrue(equipment_optimizer._prefer(stone, lamp, current))
+        self.assertFalse(equipment_optimizer._prefer(lamp, stone, current))
+
+    def test_control_pairwise_survival_difference_is_decided_first(self):
+        current = frozenset({LAMP_ITEM.id})
+        stone = EvaluatedLoadout(_light_only(STONE_ITEM), METRICS)
+        sturdier = LoadoutMetrics(
+            expected_dps=10.0, survival_turns=6.0, combat_margin=0.6
+        )
+        lamp = EvaluatedLoadout(_light_only(LAMP_ITEM), sturdier)
+        self.assertTrue(equipment_optimizer._prefer(lamp, stone, current))
+        self.assertFalse(equipment_optimizer._prefer(stone, lamp, current))
+
+    def test_state_compression_keeps_the_wider_permanent_light(self):
+        states, _truncated = warrior_loadout_search._compress_states(
+            [_light_only(LAMP_ITEM), _light_only(STONE_ITEM)],
+            processed_slots=(equipment_optimizer.SLOT_LIGHT,),
+            current_by_slot={equipment_optimizer.SLOT_LIGHT: LAMP_ITEM.id},
+            current_item_ids=frozenset({LAMP_ITEM.id}),
+        )
+        # 30d4bba7: both states had the same gear key; only the current lamp
+        # was kept as the representative.
+        self.assertIn(
+            STONE_ITEM.id,
+            {item.id for state in states for _slot, item in state.slots},
+        )
+
+    def test_catalog_prune_keeps_a_wider_same_kind_light(self):
+        # DECLARED CONSTRUCTED: a +1 infravision lamp (flag 10, pval 1) and a
+        # plain-numbered lamp of radius 3 (a random-artifact lamp).
+        infravision_lamp = _owned(39, 2, [10, TR_LITE_2], item_id="home:a", pval=1)
+        wide_lamp = _owned(39, 2, [TR_LITE_3], item_id="home:b")
+        # 30d4bba7: True (the pval-1 lamp "dominated" the radius-3 lamp).
+        self.assertFalse(
+            warrior_loadout_search._catalog_dominates(infravision_lamp, wide_lamp)
+        )
+        self.assertFalse(
+            warrior_loadout_search._catalog_dominates(wide_lamp, infravision_lamp)
+        )
 
 
 if __name__ == "__main__":

@@ -1158,7 +1158,6 @@ def _selection_equivalence_key(
         entry.loadout.flags.intersection(ABILITY_FLAG.values()),
         bow_policy,
         light_source_quality(entry.loadout),
-        permanent_light_radius(entry.loadout.item_at(SLOT_LIGHT)),
         len(entry.loadout.slots),
     )
 
