@@ -13563,8 +13563,35 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    def _own_grid_visible(self, snapshot: Snapshot) -> bool:
+        """Whether the player can see their own grid (issue #89, question 6).
+
+        The game's ``player_can_see_bold(own grid)``: false while blind
+        (geometry.cpp) and false when the grid is unlit (grid.cpp ``no_lite``),
+        at any depth, the town at night included.  Protocol 3 reports it
+        directly as ``can_see_own_grid``; older boards keep the dungeon-only
+        unlit-grid inference of ``_is_dark``."""
+        if snapshot.player.blind:
+            return False
+        if snapshot.can_see_own_grid is not None:
+            return snapshot.can_see_own_grid
+        return not self._is_dark(snapshot)
+
+    def _can_read_now(self, snapshot: Snapshot) -> bool:
+        """The game's read rule: ``cmd_limit_blind`` (blind or ``no_lite``)
+        and ``cmd_limit_confused`` (cmd-read.cpp, cmd-item.cpp)."""
+        return (
+            not snapshot.player.blind
+            and not snapshot.player.confused
+            and self._can_read_scrolls(snapshot)
+        )
+
     def _can_read_scrolls(self, snapshot: Snapshot) -> bool:
         """Return whether Hengband permits reading on the current grid now."""
+        if snapshot.can_see_own_grid is not None:
+            # The reported own grid is the game's answer at every depth: an
+            # unlit town street at night refuses the read like a dark room.
+            return self._own_grid_visible(snapshot)
         if not self._is_dark(snapshot):
             return True
         equipped = next((item for item in snapshot.equipment if item.is_light), None)

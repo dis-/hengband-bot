@@ -1,0 +1,63 @@
+LUNA-REPORT own-grid-visible (#89, predicate audit question 6) -- branch own-grid-visible-1019, base 653c1bb6
+
+Commits: bb5c62bd (fix + pins + diag), f2f0db80 (town work manifest regenerated), this report.
+
+1. Diagnosis (measured; full site inventory in LUNA-DIAG-own-grid-visible.txt)
+ - Game rule: read = not blind, not no_lite (cmd_limit_blind), not confused (cmd_limit_confused);
+   travel = not blind, not no_lite (travel-execution.cpp:134). no_lite is the own grid, any depth.
+ - _can_read_scrolls went through the dungeon-only _is_dark: always True in town (and while blind;
+   in a dark dungeon True with a fueled worn light). The town departure Recall read
+   (policy_town.py:6698 at base) checked only blind/confused.
+ - Scratch replay on 653c1bb6 (tests/test_star_identify_departure_recorded.py board): with the worn
+   light replaced by an empty Brass Lantern + 5 flasks of oil, can_see_own_grid False, light_radius 0,
+   _town_special_key returned 'ric' town:recall-to-alt-dungeon -> the game refuses
+   ("明かりがないので見えない。"). On the full decision choose_key refills first ('\Fw' refill-light),
+   so the latent defect sits in the departure producer itself.
+ - _native_travel_sightless counted only can_see_own_grid is False; a legacy (None) blind board let
+   travel through (game refuses while blind).
+
+2. Change
+ - policy.py: new _own_grid_visible(snapshot) = False when blind; can_see_own_grid when reported (any
+   depth); legacy fallback not _is_dark (today's). new _can_read_now(snapshot) = not blind, not
+   confused, _can_read_scrolls. _can_read_scrolls: on protocol-3 boards returns _own_grid_visible
+   (drops the dungeon-only restriction and the fueled-light shortcut that contradicted the reported
+   no_lite); legacy branch unchanged.
+ - policy_town.py: departure Recall read gated by _can_read_now; _native_travel_sightless =
+   not _own_grid_visible (instance method; both callers unchanged).
+ - Every _can_read_scrolls caller (~20 read sites incl. _escape_scroll and the #81 composite) inherits
+   the rule. Not routed (pure refactor or no measured incident, each would need its own dark pin):
+   redundant ad-hoc blind/confused guards, identification:506 (already equal in the dungeon),
+   dungeon-only quest/fundraising/identify reads, _has_light_equipped walk choice, _is_dark darkness
+   recovery, _player_can_see_empty_cell. Listed in the DIAG.
+ - No new constant, threshold, policy attribute (no restored-checkpoint defaults needed) or stuck reason.
+
+3. Pins (tests/test_own_grid_visible.py, new; 5 tests)
+ - test_dark_town_departure_does_not_read_recall: 653c1bb6 'ric' -> now None (no read).
+ - test_dark_town_decision_lights_the_lantern: full decision = refill-light (legal action).
+ - controls: lit board still reads 'ric'; confused lit board does not read.
+ - test_blind_board_without_own_grid_report_is_sightless (#79 recorded board, legacy+blind):
+   653c1bb6 False -> True.
+ Existing tests: none changed. Green: test_town_unseen_travel_recorded (#79),
+ test_dark_backtrack_loop_recorded (#81), test_flee_into_rubble_recorded, test_star_identify_departure_
+ recorded, test_quest_cell_confirmed_dark, test_policy_supply, test_darkwalk, test_breeder_refill_escape_
+ recorded, test_equipment_homefull_step15a, test_home_light_alternation, test_lantern_lost_recorded,
+ test_lantern_rewield_recorded, test_light_pingpong_recorded, test_newchar_light_loop_recorded,
+ test_q34_opening_oil_recorded, test_quest34_target_dead_recorded.
+
+4. Guard outputs
+preflight:
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (own-grid-visible-1019 vs 653c1bb6)
+mutation_check (--tests tests.test_own_grid_visible --record):
+[mutation] 3 source hunks, tests: tests.test_own_grid_visible
+[mutation] caught     src/hengbot/policy.py:13563 (def _own_grid_visible(self, snapshot: Snapshot) -> bool:): test_control_confused_lit_town_departure_does_not_read, test_control_lit_town_departure_reads_recall, test_dark_town_departure_does_not_read_recall, test_blind_
+[mutation] caught     src/hengbot/policy_town.py:5043 (def _native_travel_sightless(self, snapshot: Snapshot) -> bool:): test_blind_board_without_own_grid_report_is_sightless
+[mutation] caught     src/hengbot/policy_town.py:6693 (if self._can_read_now(snapshot):): test_dark_town_departure_does_not_read_recall
+[mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+[mutation] recorded for f2f0db80
+fast_tier (--shards 4, run after the merge gates were idle):
+[fast] 3709 fast tests (<2.0s in 653c1bb6) + 1 changed modules, 4 shards
+[fast] excluded 28 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 3722 tests, 231.7s
