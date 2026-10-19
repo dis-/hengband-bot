@@ -75,3 +75,19 @@ ROUND 4 (supervisor: (1) and (2) as decided): done.
   fast_tier: 4349 tests, Failures none; Errors: import of tests.test_own_grid_visible and
     tests.test_mutation_calibration (modules absent from this branch; listed by the shared
     timing cache), not regressions.
+
+ROUND 5 (merge gate stop: test_latch_onset_capture window [-1,0,1]): done.
+  Cause: the board of NoSafeRecallDestinationTest._fixture now opens the no-safe-destination
+    set on the installing decision; the depth-gate latch onset moved one decision later
+    (the second start is refused while the set is open), leaving two records after onset.
+  Setup change only: before the installing decision the set is declared open
+    (_fundraising_mode "prepare", _no_safe_destination_set True, the state its start writes),
+    so the existing "already in a set" refusal installs the same latch on the installing board.
+    Every assertion kept; after-value unchanged
+    ("depth-gate:destination-30:missing-resist_acid,resist_elec").
+  Other users of the board, each module alone: test_latch_onset_capture 7 OK,
+    test_runtime_file_isolation 13 OK, test_policy_equipment 197 OK, test_absorbing_states 22 OK,
+    test_efficiency_tooling 12 OK, test_experience_potion 14 OK, test_golden_trajectory 2 OK,
+    test_policy 57 OK.
+  preflight OK (15 files, 0 findings); mutation OK (0 of 9 unpinned, recorded b81a9478);
+  fast_tier 4356 tests, Failures none, Errors only the two absent-module imports.
