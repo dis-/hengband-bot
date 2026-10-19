@@ -1,6 +1,6 @@
 """Keep recorded replays on the equipment path of their recorded boards.
 
-Two declared walls; production optimization and dedicated optimizer tests
+Three declared walls; production optimization and dedicated optimizer tests
 remain untouched.
 
 ``recorded_loadout_replay``: the captures predate speed-adjusted survival.
@@ -19,6 +19,17 @@ maximum" (2026-07-24).  Without the floor the tour capture's index-2 choice
 moved from the recorded ★更正せるセオデン王のビークド・アックス set to a
 殺戮の野太刀 (9d4) set and broke its sale-path revert proof.  Replays whose
 subject IS an equipment choice pin the new divergence instead.
+
+``pre_light_radius_rule`` / ``pre_light_radius_replay``: replays whose subject
+is not the light (equipment) choice and that were recorded under the light
+comparison before the user decision 「照らせる範囲も比べる」 (2026-10-19, #86)
+compare permanent lights by ``light_source_quality`` only, as before: the
+radius term of ``_prefer`` and ``_stable_operational_best`` is 0.  Without it
+the tour character's worn フェアノールのランプ (radius 2) is replaced by the
+Home ★ガラドリエルの玻璃瓶 (radius 3) on its first Home board, a transaction
+the recorded boards never confirm.  Replays whose subject IS the light choice
+pin the new divergence instead.  The walls compose: a replay may need this
+one and ``pre_ratio_optimizer_replay`` / ``recorded_loadout_replay``.
 """
 
 from contextlib import ExitStack, contextmanager
@@ -91,6 +102,23 @@ def recorded_loadout_replay(replay):
     @wraps(replay)
     def wrapped(*args, **kwargs):
         with pre_ratio_optimizer_rule(recorded_survival=True):
+            return replay(*args, **kwargs)
+
+    return wrapped
+
+
+@contextmanager
+def pre_light_radius_rule():
+    """Compare permanent lights as before 2026-10-19 (see the module text)."""
+    with patch.object(optimizer, "permanent_light_radius", lambda _item: 0):
+        yield
+
+
+def pre_light_radius_replay(replay):
+    """Run ``replay`` under ``pre_light_radius_rule``."""
+    @wraps(replay)
+    def wrapped(*args, **kwargs):
+        with pre_light_radius_rule():
             return replay(*args, **kwargs)
 
     return wrapped
