@@ -5959,7 +5959,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "42863b8315400c1f3d97c9ff640845df187aa5e65f81904ea89db6b38ceda875"
+    "ast_sha256": "85ca4fe4f93640913c705ed30c050dfec303fc870bdb04f31f0c6438d342607f"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.light_after_opening": {
     "classification": "dungeon-only",
@@ -5983,7 +5983,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0f2124c42db677c06ae1019e1bfb9198ad3d7dbe8d62c27496371a863de9b94f"
+    "ast_sha256": "dc9eebe89b67e915e406f093773b385258175c8440a8717b30c52e4046cd7439"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.route_phase_placements.phase_step": {
     "classification": "dungeon-only",
@@ -6047,7 +6047,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a83dcf38e07a999b66e341e13c672756c8160883392172d25531016cb29967bb"
+    "ast_sha256": "1456b5c130089f3c475edfa0af040c5475880b91d61da2d9d1754a47c8529917"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",

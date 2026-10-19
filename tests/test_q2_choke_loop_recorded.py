@@ -62,6 +62,15 @@ LAST = 22
 FIRST_CHANGED = 2
 GREMLIN = 153
 GENERIC = ("detected:", "summoner:")
+# #84 (owner decision 2026-10-19: one predicate answers "is quest cell P
+# confirmed empty?").  The 10-02 capture sends no in_view flag (0 of 351
+# grids), but the own grid is lit with light radius 3: from (12,62) the
+# nether-worm placement (11,60), distance 2 with line of sight, is confirmed
+# by _player_can_see_empty_cell, so the post-blue route already names the next
+# phase on these rows.  Keys are the recorded ones; only the reason changes.
+REASON_84_ROWS = frozenset({1, 7, 8, 14, 15, 21, 22})
+REASON_84 = ("quest-strategy:q2-post-blue-nether-worm",
+             "quest-strategy:q2-post-blue-upper-left-puddle")
 
 
 def _sha(path: Path) -> str:
@@ -128,6 +137,13 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
         row = self.recorded[index]
         return row["key"], row["reason"]
 
+    def _expected(self, index):
+        key, reason = self._live(index)
+        if index in REASON_84_ROWS:
+            self.assertEqual(reason, REASON_84[0], index)
+            return key, REASON_84[1]
+        return key, reason
+
     # ------------------------------------------------------------ recorded
     def test_recorded_process_alternates_two_owners(self):
         reasons = [self._live(index)[1] for index in range(1, LAST + 1)]
@@ -162,7 +178,7 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
         hold_owned = {6, 13, 20}
         self.assertEqual(
             [row for index, row in enumerate(rows) if index not in hold_owned],
-            [self._live(index) for index in range(LAST + 1) if index not in hold_owned])
+            [self._expected(index) for index in range(LAST + 1) if index not in hold_owned])
         self.assertEqual({index: rows[index] for index in hold_owned},
                          {index: ("5", "summoner:hold-choke") for index in hold_owned})
         self.assertEqual({self._live(index) for index in hold_owned},
@@ -174,7 +190,7 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
     def test_quest_strategy_alone_owns_every_recorded_board(self):
         rows = self._replay()
         for index in range(FIRST_CHANGED):
-            self.assertEqual(rows[index], self._live(index), index)
+            self.assertEqual(rows[index], self._expected(index), index)
         # First changed decision: the phase strategy keeps the turn at the
         # cell where the generic detected choke had taken it.
         self.assertNotEqual(rows[FIRST_CHANGED], self._live(FIRST_CHANGED))
