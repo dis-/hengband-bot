@@ -435,6 +435,13 @@ class InStoreMixin:
         ):
             self._in_store_entry_ledger = None
             return None
+        if visit.operation_posted and not visit.operation_released:
+            # An outside one-shot composed this visit's operation (a Home
+            # relief sale commits it on the observed page while outside), but
+            # only its entry key has been sent.  Its bound tail is released
+            # on this page, so the ledger's pending operation was never
+            # posted and its missing effect proves nothing yet.
+            return None
         breaker = getattr(self, "_in_store_breaker", None)
         if breaker is not None:
             return self._in_store_leave(

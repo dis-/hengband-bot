@@ -1,0 +1,45 @@
+LUNA-DIAG oneshot-inflight (base 544ce4d1, flags enforce_crossarea_fundraising=True, in_store_shop_ops=True)
+
+Captures: C:\hengband-backups\state-logs\c4a-loops-20261016\20261020-082800-no-key-exhausted (A)
+          C:\hengband-backups\state-logs\c4a-loops-20261016\20261020-082847-no-key-exhausted (B, after restart)
+Replay: fresh policy fed state rows 60-91 of A (the ~9 answer at row 74 marked as awaited) reproduces the recorded
+tail exactly: row 88 '5' shop:one-shot-sell, row 90 (Alchemist page) '\x1b' shop:in-store-done, row 91 ''
+shop:one-shot-in-flight.
+
+MEASURED
+1. Why '5' while town_work offered 'd0y'.  By design: the one-shot is composed outside
+   (policy_shop.py:6045 _atomic_shop_transaction_key) and sends WAIT_KEY '5' (entry) first; the tail
+   'd0y\x1b' is bound to the visit (operation_posted=True, operation_released=False, operation_key='d0y\x1b')
+   and only released on the next store page by _release_staged_store_operation (policy_shop.py:507).
+   Recorded 5262 store_visit: owner shop-one-shot, posted=true, released=false, posted_turn 2626674.
+   The 'd0y' offer in town_work came from policy_instore.py:_in_store_commit_operation: the outside
+   composition runs _shop on the observed page (policy_shop.py:6108) -> _shop_core -> _home_full_relief_key
+   (policy_shop.py:4424) -> policy_home.py:915, which commits the Home-relief sale to the in-store entry
+   ledger as if it were sent on a page.  Replay at row 88: ledger {store 4, opened_sequence = the new
+   one-shot visit, pending {kind sell, key 'd0y', sequence 27}}.
+2. The sale did not happen.  State rows 88-91: gold 10214 -> 10214, pack 23 -> 23, '*解呪*の巻物 {@0}' (slot k)
+   still carried at row 91; no sale message.  Posted characters: '5', then '\x1b' (no 'd').
+3. Why the one-shot stays in flight.  On the entry page (row 90) policy.py:_decide calls _in_store_entry_key
+   (policy_instore.py:424) before _release_staged_store_operation.  The ledger matches the visit, its pending
+   'sell' has sequence < current, so policy_instore.py:458 marks ended=True ("posted, no effect") and
+   _in_store_leave emits '\x1b' shop:in-store-done, clearing visit.operation_posted; the visit then closes.
+   The never-sent tail is dropped, but _batch_sell_pending stays phase 'await-sale' (replay rows 90-91).
+4. Why '' instead of a key.  Row 91 is outside with _store_visit None and _batch_sell_pending await-sale:
+   policy.py:10527-10540 (the "legacy/orphaned watch" branch) returns '' shop:one-shot-in-flight.  Its
+   comment relies on the outside confirmation budget (policy.py:8486-8525, wait_count per board up to
+   STORE_STUCK_LIMIT), but nothing is queued in the game, so '' yields no new board and the driver's
+   1.5 s no-key bound stops the bot before the budget can count.  In B the same mechanism (decision 21 one-shot
+   visit posted/not released for the Fire Bolt rod, 22 '\x1b' shop:in-store-done) ended with '' inside the
+   store (policy.py:10612-10624 branch, decision 26).
+   Side note (not changed): the first Alchemist entry (row 82-83) inscribed the scroll but left without the
+   sale because _in_store_selection answers op 'disposal' (would_key None) while the Home relief is pending;
+   that costs one extra trip, it does not stop the board.
+
+Owner decisions in play: 10-04/10-18 Home full -> sell surplus / destroy junk first (this is that sale);
+A0 10-14 stops are not the default; operation-succeeded-but-unobserved class: the effect must be confirmed,
+not waited for blind - here the operation was never sent, so no wait could ever confirm it.
+
+FIX (smallest): policy_instore.py _in_store_entry_key: when the matched visit's operation is posted but not
+released (an outside one-shot whose entry key only has been sent), return None so the staged tail is
+released on this page.  The ledger's pending operation was never posted, so its missing effect proves
+nothing.  No new constant, attribute or reason.
