@@ -5043,14 +5043,12 @@ class TownMixin:
                 return store_type
         return None
 
-    @staticmethod
-    def _native_travel_sightless(snapshot: Snapshot) -> bool:
+    def _native_travel_sightless(self, snapshot: Snapshot) -> bool:
         """Whether the game refuses every native-travel step on this board.
 
-        The board's ``can_see_own_grid`` is the game's ``!no_lite()``, which is
-        also false while blind; travel-execution.cpp ``decide_travel_step_dir``
-        then stops travel with "目が見えない！" (darkness or blindness)."""
-        return snapshot.can_see_own_grid is False
+        travel-execution.cpp ``decide_travel_step_dir`` stops travel with
+        "目が見えない！" when blind or ``no_lite()``: the own grid is unseen."""
+        return not self._own_grid_visible(snapshot)
 
     def _town_travel_key(
         self, snapshot: Snapshot, goal: Position, macro: str, reason: str
@@ -6695,7 +6693,7 @@ class TownMixin:
                     continuation="recall.read",
                 )
                 return CHARACTER_DUMP_MACRO
-            if not snapshot.player.blind and not snapshot.player.confused:
+            if self._can_read_now(snapshot):
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None and guardian_blocked:
                     # The recall would be read now and would land on a
