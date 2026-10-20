@@ -38,6 +38,7 @@ from hengbot.cli import _parse_items
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_junk_scope_replay
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sale-inscribe-buy-20261018.jsonl.gz"
@@ -121,6 +122,8 @@ class HomeFullSaleKeepsRecallRecordedTest(unittest.TestCase):
                 _carried_recall(self.approach, carried),
                 _carried_recall(_recall_at_home(self.inside, home_recall), carried))
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_recall_below_standing_target_is_not_sold_while_scavenging(self):
         # 99c2fa87 picked the Recall stack here (the live 14:09 sale).
         self.assertEqual(
@@ -142,11 +145,15 @@ class HomeFullSaleKeepsRecallRecordedTest(unittest.TestCase):
                 self.assertIsNone(policy._home_full_sale_candidate(snapshot, stack))
                 self.assertIsNone(policy._home_full_discard_candidate(snapshot, stack))
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_control_recall_outside_fundraising_is_unchanged(self):
         # The ordinary retention already keeps the carried Recall.
         self.assertEqual(
             self._relief_pick(*self._boards(), None)[0], "厚布よろい [5,+0]")
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_control_recall_above_standing_target_is_still_sold(self):
         # A second Home Recall stack (inscribed, so it does not merge) keeps
         # 9 = the standing target after the 3 are sold with the carried 7.

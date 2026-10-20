@@ -1,0 +1,114 @@
+LUNA-REPORT junk-scope step 1a (branch junk-scope-1020, base main d2b0553b)
+Implementer: Claude Opus 5.5 (Agent).  Status: implemented + committed; STOPPED on existing tests (section 5).
+
+1. 測った診断（記録の盤面で _junk_class を流した結果）
+- life-013 の自宅（home-junk-bones-20261018, 240/240, ライト・クロスボウ装備）: remains 109、cursed 29
+  （呪いの指輪9・防具6・武器12・呪いの矢2）、harmful-consumable 5（塩水・酔っ払い・記憶喪失・脆弱・不器用）、残り 97 は None。
+- 帰還開始の盤面（lantern-lost-20261018 0 行目）: 持ち物の junk は q-w の remains 7 件だけ。装備・油・薬・巻物・鑑定の杖・
+  ボルト 84 本（装備に合う）は None。
+- 気づいた事実: 売値 0 の消耗品（塩水など）はゲームが is_broken を立てて出す。そのため cursed は「装備・弾で known かつ
+  is_cursed/is_broken」に絞り、消耗品は harmful-consumable で分ける。
+- 毒キノコ 80:0-9 は lib/edit の基本価格 0（ZERO_BASE_KINDS と lib/edit は完全一致: 差 0 件）→ harmful に含めた。
+- 記録の自宅の矢には特別製（聖なる矢・アニマルキラーの矢など）が混じる → 設計 2.1 どおり「呪われていないエゴは残す」を入れた。
+
+2. 変更（コミット d0a9de33 本体、c3029624 テストの追い込み＝修正 1 回目）
+- policy_helpers.py: `_junk_class(snapshot, item)`（唯一の判定）。順に: アーティファクト・賞金首・3/4 冊目の本・破壊拒否の品 → None、
+  盤面ありなら 装備中・`_equipment_disposal_reserved`・`_item_is_procurement_protected` → None、
+  remains（tval 1/3/10・空の箱）、cursed（装備/弾で known かつ cursed/broken、呪いのエゴを含む Q6）、呪いでないエゴ → None、
+  harmful-consumable（aware、tval 55/65/66/70/75/80、読み込んだ基本価格 ≤0。無ければ ZERO_BASE_KINDS）、
+  盤面ありなら unusable-book（戦士・狂戦士、1/2 冊目）、unused-ammo（Q7: 装備中の射撃具と合わない かつ `_entire_stack_is_surplus`。射撃具なしは全部残す）。
+  `_is_worthless_junk(item)` は薄い包み（自宅満杯の処理が用意した盤面 `_junk_board` で `_junk_class` を呼ぶ）。
+  `_floor_pile_is_junk(snapshot, grid)`: `_floor_pile_is_worthless` か、山の tval が全部 unused-ammo（tval だけの代表品で `_junk_class` に聞く、decision_memo）。
+  `_find_worthless_junk` は `_junk_class(snapshot, ...)` を使う（#70 の帰還前の破壊）。
+- policy.py: `_overflow_disposal_item` の呪い優先の lambda を `_junk_class(...) == "cursed"` から導く（M4）。
+  `_destroy_would_discard_superior_item` は junk なら拒まない（呪いの品は最適化の対象外。較正の無い呪いの武器が「優れた品」として拒まれていた）。
+  足元で拾う判定は `_floor_pile_is_junk`。
+- policy_observation.py / policy_identification.py: 拾い先の記録と include_unsafe の拾い先を `_floor_pile_is_junk` に。
+- policy_home.py: 自宅満杯の junk 先の一覧で盤面を用意（`self._junk_board = snapshot` → 一覧の直後に del。一時の属性で、復元の既定値は不要）。
+  `_home_full_discard_candidate`: junk は装備の優越の証明を要らない（M2。保持・所有権・keep・購入の段の門は残る）、3/4 冊目の本は None。
+  `_home_full_discard_rank`: autodestroy を `_junk_class` から導く（tval 9 と基本価格 0 以下・`_is_disposable_item` は残す）、
+  同じ売値の junk の中で remains を先に（既存の 10-18 の盤面で、呪いの武器が骨より先に選ばれたため）。
+- policy_shop.py: `_cheapest_exchange_item` は 3/4 冊目の本を出さない（2.4 の「どこでも残す」）。
+- 帳簿: scripts/town_work_review.json と scripts/town_producer_baseline.json に `_junk_class`（data / pure helper）、manifest を再生成。
+- 新しい定数・閾値なし。新しい恒久の方策属性なし（`_junk_board` は一覧の間だけ）。
+
+M4 の `_is_disposable_item`: 重なりは睡眠の薬（75:11、DISPOSABLE_POTION_SVALS と harmful の両方）だけ。
+`_is_disposable_item` に `_junk_class` を足す案を試したが、既存の test_full_pack_store_unreachable_recorded の
+2 本（町で持ち物満杯の破壊が先に出る）を壊したので外した。表から睡眠の薬を消すだけの変更は振る舞いが変わらず
+変異検査で拾えない（pure refactor）ので行っていない。S4 のとおり {並}{呪い} の感じの破壊は既存のまま。
+
+3. テスト（新規 tests/test_junk_scope_recorded.py、16 本、すべて OK。test_home_junk_bones_recorded・test_homefull3_recorded・
+   test_home_full_await_knowledge_recorded・test_town_approach_retired_recorded・test_item_sink_lint も OK）
+- 各種類の判定（記録の帰還盤面＋構成品）と対照（アーティファクト・呪いでないエゴ・3/4 冊目・未知の薬・メイジの本・
+  装備に合うボルト・射撃具なし・特別製のボルト・クエスト予約のボルト）
+- ZERO_BASE_KINDS と lib/edit の一致（無ければ skip）、80:0-9 を含む
+- 不変条件: 装備中・_survival_essential・_is_useful_device・購入/保持の予約の品、最適化の選んだ組の品は None（帰還盤面と自宅盤面）
+- 帰還開始で各種類を壊す（呪いの防具・呪いのエゴ・呪いの長柄武器・塩水・1 冊目）、スリング装備でボルトを壊す、対照は壊さない
+- 床: スリング装備でボルトの山を拾い先にしない（_known_loot・_loot_step・include_unsafe・足元）
+- 自宅満杯: 呪いの防具を売却より先に壊す（M2）、1 冊目を壊す、3 冊目は壊さない／全店が断っても discard 候補にならない、
+  呪いのガントレットと塩水がどちらも auto-destroy（売値 0）に並ぶ
+- 町の溢れ: 呪いのアーティファクトを飛ばして呪いの防具、交換の選択は 3 冊目を出さない
+- 既存の M3 の対照 test_control_recorded_bolt_pile_is_still_sought_and_picked_up は変更なしで緑。
+
+4. 外すと落ちる確認・ガード → 末尾 6 に貼る。
+
+5. STOP: 変更が要る既存テスト（自分では直していない。いずれも「自宅満杯で junk を先に壊す」「溢れで呪いを先に壊す」の
+   範囲が所有者の決定どおり広がったための変化。#70 の時と同じ DECLARED CONSTRUCTED の壁（_is_worthless_junk を偽に
+   する patch、または記録の品を賞金首にする）を足すか、期待値を変えるかの判断が要る）
+ a. test_home_full_sale_keeps_recall_recorded（3 本）
+    test_recall_below_standing_target_is_not_sold_while_scavenging: 旧 ('厚布よろい [5,+0]', 'sale') → 新 ('つよしスペシャルの薬', 'destroy')
+    test_control_recall_above_standing_target_is_still_sold: 旧 '帰還の詔の巻物'（売却）→ 新 'つよしスペシャルの薬'（破壊）
+    test_control_recall_outside_fundraising_is_unchanged: 旧 '厚布よろい [5,+0]' → 新 'つよしスペシャルの薬'
+    （記録の自宅に harmful（つよしスペシャル・のろま・サモン・モンスター・不器用・暗闇の杖など）・呪いの品・合わない小石がある）
+ b. test_home_discard_followup_recorded
+    test_recorded_no_surplus_now_selects_sale_or_destroy: relief mode 旧 'sale' → 新 'destroy'（refused=False の時）
+    test_captured_expired_torch_withdraw_destroy_observe_then_deposit: 旧 燃え尽きた松明を取り出して壊す → 新 合わない矢（unused-ammo）が先
+    （記録の自宅に矢・細矢・束矢 26 束、ライト・クロスボウ装備）
+ c. test_full_pack_store_unreachable_recorded.test_full_pack_relief_walks_to_the_adjacent_store:
+    last_reason 旧 'shop:approach' → 新 'home:full-destroy-surplus'（Lv2 秘術の魔法書＝unusable-book、エキサイト・モンスターの巻物・
+    クローン・モンスターの魔法棒・スピード・モンスターの杖・毒の薬＝harmful）
+ d. test_sale_inscribe_buy_recorded.test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell (12:38):
+    旧 巻物の売却の保留（_batch_sell_pending あり）→ 新 None（junk の破壊が先）。既存の壁は remains と空き箱を賞金首にするだけで、
+    新しい種類（つよしスペシャル・のろま・サモン・不器用・合わない小石）を覆わない。
+ e. test_town_overflow_disposal_candidates_recorded.test_constructed_torch_surplus_uses_existing_carry_target:
+    旧 'o'（松明）→ 新 'p'（暗闇の真鍮のランタン {闇}、鑑定済みで is_broken）。呪い優先の lambda を _junk_class の cursed から導いた
+    （M4）ため、壊れた品も含む（設計 2.2 の cursed の定義）。
+ （全体ではなく関係 49 モジュール＋新規を流した結果。全体スイートは流していない）
+
+6. ガードの出力（最後のソース変更 d0a9de33・テスト c3029624 のコミット後）
+- preflight: [preflight] PREFLIGHT OK: 11 changed files, 0 findings (junk-scope-1020 vs d2b0553b)
+- mutation_check（--tests test_junk_scope_recorded test_home_junk_bones_recorded --record）:
+  1 回目（d0a9de33）: MUTATION FAIL 3 of 13（policy_home.py:472 3 冊目の門／:516 rank／policy_identification.py:1140）
+    → 原因はテスト側（relief の後で本が保留中だった／rank の確認が無かった／前の _loot_step の目標が残っていた）。c3029624 で直した（修正 1 回目）。
+  2 回目（c3029624）: 13 hunk すべて caught。[mutation] MUTATION OK: 0 of 13 hunks are not pinned by a test / recorded for c3029624
+    policy.py:12934 superior-gate→test_return_start_destroys_each_carried_junk_class、:14834 overflow→test_overflow_cursed_first_skips_a_cursed_artifact、
+    :16925 足元→test_floor_bolt_pile_is_not_loot_with_a_sling_worn、policy_helpers.py:18/286/359→複数、policy_home.py:472→test_control_full_home_never_discards_a_third_book、
+    :489 M2→test_full_home_destroys_a_cursed_armour_before_any_sale、:516→test_full_home_ranks_every_junk_class_as_auto_destroy、
+    :1117 盤面の用意→test_full_home_destroys_an_unusable_book_before_any_sale、policy_identification.py:1140・policy_observation.py:1153→床のテスト、
+    policy_shop.py:471→test_exchange_never_offers_a_third_book
+- fast_tier: 未実行。12:47 から merge gate（gate-warnstep-1020.run.log、全体スイート実行中）が動いており、規則どおり待った（13:21 時点でも
+  MERGED/FAILED/STOP なし）。作業時間の上限に達したので待ちを打ち切った。5 の既存テスト 8 本（＋manifest は再生成済み）は fast_tier でも
+  落ちる見込み（関係 49 モジュールの単独実行で確認済み: grp00 6 件・grp02 2 件、それ以外 OK）。
+
+7. 監督の決定（壁）を受けた続き（0eb52f83・5e9c3a3c）
+- tests/recorded_junk_scope.py: pre_junk_scope_rule / pre_junk_scope_replay（_junk_class を 10-18 の #70 の答え＝remains と空き箱だけ、
+  賞金首・アーティファクトは None、に戻す）。3/4 冊目の残す決まりは壁の中では発火しない（本は remains にならない。8 本の実行中に
+  _is_high_value_book が真になった品は 0 件と測定）。
+- 壁を付けた既存テスト（期待値は変えていない、各メソッドに "# declared wall: pre-2026-10-20 junk scope"）:
+  test_home_full_sale_keeps_recall_recorded 3 本、test_home_discard_followup_recorded 2 本、
+  test_full_pack_store_unreachable_recorded.test_full_pack_relief_walks_to_the_adjacent_store、
+  test_town_overflow_disposal_candidates_recorded.test_constructed_torch_surplus_uses_existing_carry_target、
+  test_sale_inscribe_buy_recorded.test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell。
+- sale_inscribe の TypeError の測定: 例外はテストの 220 行目（policy._batch_sell_pending["entries"]）で出る。製品コードは例外を出していない。
+  12:38 の決定は ('', 'shop:one-shot-in-flight') で、Home-full relief は mode='destroy'、対象は ('つよしスペシャルの薬', 75, 65)。
+  売却の保留が作られないので、テストが None を読んでいた → 壁を付けた。
+- fast_tier で 1 モジュール追加で見つかった: test_oneshot_inflight_recorded（7 本、TypeError はテストの 154 行目の _batch_sell_pending["phase"]、
+  製品コードの例外なし）。主題は店内の one-shot 売却。記録の自宅（life-014）に呪いの品・害のある薬・合わない弾があり、junk を先に壊すので
+  *解呪* の売却が組み立てられない。setUpClass で再生するため、クラス単位で壁を張った（addClassCleanup で必ず外す）。壁の下で 8 本 OK。
+- 壁が空振りでない確認: test_pre_junk_scope_wall_restores_the_recorded_overflow_choice（溢れの盤面で、壁なし→ p の壊れたランタン、
+  壁あり→ o の松明）。
+- ガード（最後のコミット 5e9c3a3c、src は c3029624 から変わっていないので mutation_check は c3029624 の記録のまま: MUTATION OK 0 of 13）:
+  preflight: [preflight] PREFLIGHT OK: 19 changed files, 0 findings (junk-scope-1020 vs d2b0553b)（既存テスト変更の NOTE 9 件）
+  fast_tier（1 回目 13:41、gate-warnstep-1020 が MERGED の後）: oneshot 7 件の失敗＋ test_warning_refused_step_recorded の import エラー
+    （main b8401802 で入ったモジュールで、このブランチの基 d2b0553b に無い。自分の変更とは無関係）
+  fast_tier（2 回目、gate-warnstep2-1020 の終了を待った後）: Crashed shards: none / Failures: none / Errors: none / Total: 4010 tests, 420.4s

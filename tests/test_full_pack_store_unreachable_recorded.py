@@ -31,6 +31,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_MAGIC, Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_junk_scope_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -97,6 +98,8 @@ class FullPackStoreUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(board.grid_at(MAGIC_ENTRANCE).store_number, STORE_MAGIC)
         self.assertTrue(policy._home_is_full(board))
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_full_pack_relief_walks_to_the_adjacent_store(self):
         policy, board = self._arrival()
         key = policy.choose_key(board)

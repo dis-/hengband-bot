@@ -1,0 +1,78 @@
+LUNA-REPORT junk-scope perf (#95, step 1a regression).  Branch junk-scope-1020.  Implementer: Claude Opus 5.5 (Agent).
+Status: fixed + committed; main merged (838e185b, then dce3c120 as the supervisor asked).  One open point in section 4.
+
+1. 測った原因（詳細は LUNA-DIAG-junk-scope-perf.txt）
+- 記録の盤面（home-deposit-hang-20261004、自宅 240 品）で choose_key 1 回: main 838e185b 0.43-0.57 s、枝（1135da29 = gate c5c3c063）2.64-2.71 s。
+  決定は両方 home:full-queue-surplus-withdraw（キーは ESC）。
+- _junk_class が先に盤面の門（保持・所有権・購入の段）を全 240 品に流していた: _item_is_procurement_protected 268 回 1.70 s。
+  junk の種類が無い品が 220 品（unused-ammo 14・harmful 5・remains 1）。
+- 購入の段は段ごとに _supply_ledger を呼び、捕捉の外ではメモが無いので毎回計算: _compute_supply_ledger 1145 回（main 108）2.53 s。
+
+2. 直したこと（ac84e68f、振る舞いは変えていない）
+- policy_helpers.py `_junk_class`: 品自身の種類を先に決め、種類がある品だけ門（装備中・_equipment_disposal_reserved・
+  _item_is_procurement_protected）を通す。答えは同じ（門は None にするだけ）。門の中は supply_ledger_observer_memo で包み、
+  1 回の判定で盤面の帳簿を 1 回だけ計算する。
+- policy_home.py: 自宅満杯の junk の走査（一覧の内包表記）を supply_ledger_observer_memo で包む（盤面ごとに帳簿 1 回）。
+- policy_supply.py `supply_ledger_observer_memo`: 入れ子のブロックは外側のメモを共有する（以前は入れ子が無かったので観測側は不変）。
+- 新しい定数・閾値・方策属性なし。新しい関数なし。帳簿: town_work_sites.json の ast_sha256 2 件と manifest を再生成。
+- 同値の確認: 変更前（1135da29）と後で、記録の盤面 4 つ（帰還開始・帰還開始スリング・life-013 の自宅 240 品・hang の自宅 240 品）の
+  （盤面あり/なし × 持ち物・装備・自宅・構成品）1292 組の _junk_class が完全一致（None 894・remains 248・cursed 90・harmful 37・unused-ammo 15・unusable-book 8）。
+
+3. 測定（交互に 3 回ずつ、同じ機械）
+- 対 main 838e185b（負荷の軽い時）: テストの壁時計 main 5.34/4.93/5.01 s、枝 5.40/5.19/5.32 s（+4%）。choose_key は main 0.43/0.40/0.41、枝 0.68/0.80/0.64。
+- 対 main 838e185b（merge gate の全体スイート実行中）: main 6.27/6.09/6.09 s、枝 6.51/6.56/6.66 s（+7%）、直す前の枝 8.78/8.57 s（+41%）。
+- 対 main dce3c120（merge 後、最終）: main 4.49/4.29/4.29 s、枝 4.63/4.53/4.66 s（+6%）。choose_key は main 0.32/0.33/0.32、枝 0.58/0.59/0.61。
+- 落ちていたテスト test_post_purchase_decision_returns_under_hard_timeout は dce3c120 と merge した枝で OK（子の elapsed 0.6 s 前後、上限 3 s）。
+
+4. 残っている差（直していない・判断が要る）
+- テスト全体では main の +4〜7% に戻ったが、決定そのもの（choose_key）は main の約 1.6〜1.8 倍のまま。
+- 原因（測定）: junk が 20 品になったため、main のままのコード _home_full_discard_candidate が 20 回（main は 1 回）走る。
+  各回が自分の probe 盤面（replace(snapshot, inventory=...)）を作るので、盤面の同一性で持つ既存のキャッシュが外れる:
+  _build_fixed_quest_head 5→24 回、_fixed_quest_is_offered 15→72 回（記憶した町の地図を毎回走査、+0.22 s）、_retention_reservation 142→248 回。
+- 新しい判定の繰り返し計算ではなく、「junk が discard 候補の道に乗る」という新しい振る舞いの分の main のコストである。
+  これを縮めるには共通のクエストのキャッシュ（決定入力の盤面と probe の区別）を変える必要があり、junk の範囲外なので手を付けていない。
+
+5. テスト（新規 tests/test_junk_scope_perf_recorded.py、3 本。記録の盤面だけ、構成なし）
+- test_a_ware_without_a_junk_class_never_consults_the_purchase_ladder: 種類の無い自宅の品は購入の段を引かない（対照: 種類のある品は全部門を通る）
+- test_one_junk_class_computes_its_board_ledger_once: 1 回の判定で帳簿は 1 回（直す前は同じ盤面で 8 回）
+- test_home_full_junk_scan_computes_each_board_ledger_once: 自宅満杯の走査で盤面ごとに帳簿 1 回、決定は home:full-queue-surplus-withdraw のまま
+- 直す前の木（1135da29）では 3 本とも FAIL。
+- 関係モジュール（すべて OK、既存の期待値は変更なし）: test_supply_ledger_observer_memo 5、test_junk_scope_recorded 17（3 冊目の対照
+  test_control_full_home_never_discards_a_third_book を含む）、test_home_junk_bones_recorded 7、test_home_deposit_hang_recorded 5、
+  test_homefull3_recorded 8、test_home_full_await_knowledge_recorded 2、test_home_full_sale_keeps_recall_recorded 4、
+  test_home_discard_followup_recorded 12、test_town_overflow_disposal_candidates_recorded 2、test_oneshot_inflight_recorded 8、
+  test_full_pack_store_unreachable_recorded 3、test_sale_inscribe_buy_recorded 3、（dce3c120 の merge 後）test_idstaff_fundraise_recorded 3。
+
+6. 監督からの連絡（17:21-17:27 の fast_tier で 3 冊目の対照が落ちた件）
+- その時刻は私の mutation_check（基準 838e185b）の実行中で、ツールが各 hunk を作業ツリー上で一時的に戻していた
+  （policy_home.py:473 の `or self._is_high_value_book(item)` を戻す変異は test_control_full_home_never_discards_a_third_book が捕まえる。
+  mutation2 の記録どおり）。コミット済みの状態ではこの対照は OK（上の 5）。
+- 私が最初に起動した mutation_check（基準 d2b0553b）は main の merge 分の hunk まで数えたので自分で止めた。止めた時に
+  policy.py に変異（main の warning_step_refused の hunk）が残っていたので git checkout -- で戻した（コミット済みの内容に戻しただけ）。
+
+7. ガードの出力 → 末尾に貼る。
+
+7. Guard outputs (after the last source commit; HEAD 043baf6c = ac84e68f + merge of main dce3c120)
+- preflight:  [preflight] PREFLIGHT OK: 36 changed files, 0 findings (junk-scope-1020 vs d2b0553b)  (NOTE 9 = the declared walls of the previous round)
+- mutation_check (base dce3c120: d2b0553b would count the merged main hunks as mine; with --tests test_junk_scope_perf_recorded test_junk_scope_recorded test_home_junk_bones_recorded --record):
+    [mutation] 15 source hunks, tests: test_junk_scope_perf_recorded test_junk_scope_recorded test_home_junk_bones_recorded
+    [mutation] caught     src/hengbot/policy.py:12942 (if self._junk_class(snapshot, item) is not None:): test_return_start_destroys_each_carried_junk_class
+    [mutation] caught     src/hengbot/policy.py:14842 (and self._junk_class(snapshot, item) == "cursed",): test_overflow_cursed_first_skips_a_cursed_artifact, test_pre_junk_scope_wall_restores_the_recorded_overflow_choic
+    [mutation] caught     src/hengbot/policy.py:16933 (if self._floor_pile_is_junk(snapshot, here):): test_floor_bolt_pile_is_not_loot_with_a_sling_worn
+    [mutation] caught     src/hengbot/policy_helpers.py:18 (TVAL_STAFF, TVAL_SWORD, TVAL_WAND, TVAL_POTION, PLAYER_CLASS_WARRIOR,): test_a_ware_without_a_junk_class_never_consults_the_purchase_ladder, test_home_full_junk
+    [mutation] caught     src/hengbot/policy_helpers.py:287 (def _junk_class(self, snapshot: Snapshot | None, item: InventoryItem) ): test_a_ware_without_a_junk_class_never_consults_the_purchase_ladder, test_home_full_ju
+    [mutation] caught     src/hengbot/policy_helpers.py:368 (def _floor_pile_is_junk(self, snapshot: Snapshot, grid) -> bool:): test_control_quest_reserved_bolts_stay_with_a_sling, test_control_return_start_keeps_non_jun
+    [mutation] caught     src/hengbot/policy_home.py:21 (from hengbot.policy_supply import supply_ledger_observer_memo): test_home_full_junk_scan_computes_each_board_ledger_once, test_control_full_home_never_discards_a_t
+    [mutation] caught     src/hengbot/policy_home.py:473 (or self._is_high_value_book(item)): test_control_full_home_never_discards_a_third_book
+    [mutation] caught     src/hengbot/policy_home.py:490 (# Junk needs no equipment dominance proof (cursed gear is never a): test_full_home_destroys_a_cursed_armour_before_any_sale
+    [mutation] caught     src/hengbot/policy_home.py:517 (junk = self._junk_class(snapshot, item)): test_full_home_ranks_every_junk_class_as_auto_destroy
+    [mutation] caught     src/hengbot/policy_home.py:1118 (# Junk on the shelf or pack is destroyed before any sale of other): test_home_full_junk_scan_computes_each_board_ledger_once, test_full_home_destroys_an_unusable
+    [mutation] caught     src/hengbot/policy_identification.py:1140 (and not self._floor_pile_is_junk(snapshot, grid)): test_floor_bolt_pile_is_not_loot_with_a_sling_worn
+    [mutation] caught     src/hengbot/policy_observation.py:1153 (if grid.object_count > 0 and self._floor_pile_is_junk(snapshot, grid):): test_floor_bolt_pile_is_not_loot_with_a_sling_worn
+    [mutation] caught     src/hengbot/policy_shop.py:471 (and not self._is_high_value_book(item)): test_exchange_never_offers_a_third_book
+    [mutation] caught     src/hengbot/policy_supply.py:53 (decisions or observations.  A read-only scan of one decision (the junk): test_home_full_junk_scan_computes_each_board_ledger_once
+    [mutation] MUTATION OK: 0 of 15 hunks are not pinned by a test
+    [mutation] recorded for 043baf6c
+- fast_tier (19:0x, after gate-churn-1020 MERGED; main is now b3899a96, not merged here):
+    [fast] 3786 fast tests (<2.0s in b3899a96) + 11 changed modules, 4 shards
+    Crashed shards: none / Failures: none / Errors: none / Total: 3842 tests, 335.2s

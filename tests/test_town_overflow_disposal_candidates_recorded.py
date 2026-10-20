@@ -11,6 +11,7 @@ import unittest
 
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
+from recorded_junk_scope import pre_junk_scope_replay
 
 
 FIXTURE = (
@@ -85,6 +86,8 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
             self.assertTrue(policy._item_is_procurement_protected(board, carried))
             self.assertNotEqual(candidate.slot, slot)
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_constructed_torch_surplus_uses_existing_carry_target(self):
         record, = self.records
         board = parse_snapshot(record["board"])
