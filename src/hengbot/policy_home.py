@@ -2241,10 +2241,19 @@ class HomeMixin:
                 # deposited and sold for 152 G, and the short ledger bought
                 # again).
                 reserve_slot = self._device_food_reserve_slot(snapshot)
-                # An item asked about outside the pack ranks by its own
-                # charges after the pack stacks of equal charges.
+                # The reserve device and the Identify staves (kept by their
+                # own authority, and food the ledger counts) are carried
+                # whatever this branch says, so they rank first (recorded
+                # 2026-09-25 Outpost: a 6-charge Curing staff ranked before a
+                # 5-charge Identify staff was kept although the ledger stood
+                # at 18 of 15 charges without it).  An item asked about
+                # outside the pack ranks by its own charges after the pack
+                # stacks of equal charges.
                 rank = lambda candidate, index: (
-                    candidate.slot != reserve_slot, -candidate.charges, index
+                    candidate.slot != reserve_slot
+                    and not (candidate.tval == TVAL_STAFF
+                             and candidate.sval == SV_STAFF_IDENTIFY),
+                    -candidate.charges, index,
                 )
                 position = next((
                     index for index, candidate in enumerate(snapshot.inventory)

@@ -363,5 +363,65 @@ class PurchaseRetentionRootRecordedTest(unittest.TestCase):
         self.assertIsNotNone(
             policy._home_full_discard_candidate(snapshot, stack))
 
+
+OVERWEIGHT_FIXTURE = (Path(__file__).parent / "fixtures"
+                      / "overweight-home-unreachable-20260925.jsonl.gz")
+CURING_SALE_BOARD = 3718  # sequence 3717: shop:batch-inscribe of the staff
+
+
+class ManaFoodIdentifyStavesRecordedTest(unittest.TestCase):
+    """Recorded board: the Outpost visit of 2026-09-25 (a MANA eater).
+
+    The pack holds the reserve Stone to Mud wand (k, 5 charges), three
+    Identify staves (l 7, m 6, n 5) and a 6-charge Curing staff (o); the food
+    ledger asks 15 charges in 2 devices and stands at 18 in 4 without the
+    Curing staff, which the live process inscribed and sold (3718-3720).
+    The Identify staves are carried under their own authority, so they come
+    before the Curing staff in the food allocation.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        boundaries = json.loads(OVERWEIGHT_FIXTURE.with_suffix(
+            ".boundaries.json").read_text(encoding="utf-8"))
+        start = sum(boundaries["input_rows"][:CURING_SALE_BOARD + 1]) - 1
+        with gzip.open(OVERWEIGHT_FIXTURE, "rt", encoding="utf-8") as stream:
+            for index, line in enumerate(stream):
+                if index == start:
+                    cls.board = json.loads(line)
+                    break
+        cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def _policy_and_snapshot(self, board):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        policy = _policy(Path(directory.name), self.monrace)
+        snapshot = parse_snapshot(board, self.monrace)
+        policy.prime(snapshot)
+        return policy, snapshot
+
+    def _slot(self, snapshot, slot):
+        return next(item for item in snapshot.inventory if item.slot == slot)
+
+    def test_curing_staff_beyond_the_food_target_is_sold(self):
+        policy, snapshot = self._policy_and_snapshot(self.board)
+        curing = self._slot(snapshot, "o")
+        self.assertTrue(curing.name.startswith("癒しの杖"))
+        # 23c1d1dd: (1, 'supply-ledger:mana-food').
+        self.assertEqual(policy._retention_reservation_detail(snapshot, curing),
+                         (0, None))
+        self.assertEqual(policy._find_device_sale(snapshot).slot, "o")
+
+    def test_control_curing_staff_is_kept_while_the_staves_leave_it_short(self):
+        # DECLARED CONSTRUCTED: the Identify staves l and m are removed, so
+        # the pack without the Curing staff holds 5 + 5 - 5 charges.
+        board = copy.deepcopy(self.board)
+        board["inventory"] = [item for item in board["inventory"]
+                              if item.get("slot") not in ("l", "m")]
+        policy, snapshot = self._policy_and_snapshot(board)
+        self.assertEqual(policy._retention_reservation_detail(
+            snapshot, self._slot(snapshot, "o")),
+            (1, "supply-ledger:mana-food"))
+
 if __name__ == "__main__":
     unittest.main()
