@@ -1,0 +1,60 @@
+LUNA-REPORT warning-refused-step2 (#93 round 2; branch warning-refused-step2-1020 on 11ae11da, base d2b0553b)
+
+Commits: ea8a409b (fix + pins + manifest), this report.
+
+MEASURED DIAGNOSIS (declared boards, tests/test_warning_refused_step_producers.py; "before" = the src diff
+reverted with git apply -R on 11ae11da, "after" = ea8a409b; key in quotes, '5' = WAIT)
+Each producer below chose the refused grid on its board without reading _warning_refused_cells:
+  producer                                   board / refused grid      before (11ae11da)                    after
+  _descent_step BFS                          (10,10)->'>'(10,13), (10,11)  (10,11) -> _step_toward '5' warning:blocked-step  (11,10) seek-downstairs, '2'
+  _descent_step committed ledger path        path[0]=(10,11) then latched  (10,11) -> '5' warning:blocked-step    (11,10) seek-downstairs, '2'
+  _summoner_retreat_route BFS                summoner (10,5), (9,11)   first step (9,11) -> '5'                (10,11) -> '6'
+  _break_positional_oscillation neighbour    5x5 room, 2-cell window, (9,9)  '5' warning:blocked-step       '8' nav:break-oscillation
+  _low_hp_no_kit_hit_key (a) neighbour       archer (10,15), (9,10)    '5' warning:blocked-step            '2' no-wait:flee
+  _low_hp_no_kit_hit_key (b) toward shooter  archer (10,13), (10,11)   '5' warning:blocked-step            '1' no-wait:flee (cover walk)
+  _low_hp_no_kit_hit_key (c) cover BFS       "Something mumbles.", (9,9)  '5' warning:blocked-step         '1' no-wait:flee (choke 13,10)
+  _flee_step fallback (all neighbours avoided)  brute (10,8), (10,11)  (10,11) -> '5'                      (9,11) -> '9'
+  _breakout_step                             3x3 room, failing '6', (9,10)  (9,10) (walked by _break_livelock  (10,9)
+                                                                        with a bare key, no gate)
+All producers are reachable by a constructed board; none was left unpinned.
+
+CHANGE (no new predicate, constant, threshold, reason or policy attribute; no restored-checkpoint defaults needed)
+- _descent_step: the committed ledger step must also pass _warning_step_refused; the BFS does not expand a refused grid.
+- _summoner_retreat_route: the BFS does not expand a refused grid (the _flee_step fallback is covered below).
+- _break_positional_oscillation: a refused neighbour is not a candidate.
+- _low_hp_no_kit_hit_key: refused grids are not neighbours, not BFS cells; the step toward the shooter is skipped
+  when refused, so the cover step (if any) is chosen, else None (falls through).
+- _flee_step: the fallback keeps relaxing the engagement veto but excludes refused grids.
+- _breakout_step: a refused neighbour is skipped (same predicate).  With no movement supply left the predicate is
+  False and the grid stays a candidate as before (the forced-walk rule is unchanged; _break_livelock still posts
+  _direction_key, as before).
+- The reachability comment at the warning gate (policy_navigation.py ~1903) now lists the producers that ask the
+  predicate; the remaining WAIT routes are the quest-floor navigator static route and the out-of-scope town case.
+- Bookkeeping: town work manifest regenerated (837 candidates, 21318 sites, zero unmapped): 6 ast_sha256 updates in
+  src/hengbot/town_work_sites.json + scripts/town_work_manifest.json.gz.  No census count changed.
+
+CONTROLS (same tests module, pass before and after)
+- Without the refusal each producer keeps the old choice (the refused grid / its key).
+- Forced walk (no teleport/phase/recall scroll): every producer still picks the grid and _step_toward posts
+  '6y' (descent, flee), '9y' (summoner), '7y' (oscillation), '8y'/'6y'/'7y' (low-HP a/b/c); _breakout_step keeps it.
+- Before the fix: 9 pins FAIL, 16 controls pass.  After: 25 OK.
+
+EXISTING TESTS (single modules, no assertion changed): test_warning_refused_step_recorded 5 OK,
+test_unseen_reapproach_recorded 13 OK, test_policy_navigation 129 OK, test_navigation 91 OK (3 skipped),
+test_step_key_unify_rubble 8 OK, test_policy_combat 303 OK (5 skipped), test_exploration_commitment_observation 7 OK,
+test_flee_into_rubble_recorded 4 OK, test_low_hp_no_unchecked_walk 11 OK, test_owner_retirement_slice1 16 OK,
+test_q31_survey_sweep_recorded 2 OK, test_reverse_choke_loot_loop_recorded 12 OK, test_town_cat_no_wait_recorded 5 OK,
+test_town_work_contract OK, test_item_sink_lint OK.
+
+GUARDS
+  [preflight] PREFLIGHT OK: 12 changed files, 0 findings (warning-refused-step2-1020 vs d2b0553b)
+  [mutation] 14 source hunks (round 1 + round 2), tests: test_warning_refused_step_producers
+  test_warning_refused_step_recorded; 13 caught, 1 TEXT ONLY (policy_navigation.py:1900 the gate comment);
+  MUTATION OK: 0 of 14 hunks are not pinned by a test; recorded for ea8a409b
+    round-2 hunks -> pin: policy.py:10223 neighbour+cover / :10241 cover BFS / :10254 toward / :19420 summoner /
+    :19541 breakout; policy_combat.py:4141 flee fallback; policy_navigation.py:678 oscillation / :1292 descent
+    ledger / :1358 descent BFS
+  [fast] 3792 fast tests (<2.0s in b8401802) + 2 changed modules, 4 shards; Crashed shards: none; Failures: none;
+  Errors: none; Total: 3822 tests, 272.7s (run after gate-warnstep-1020 reported MERGED: main b8401802)
+
+STOPS: none.  No existing test changed.
