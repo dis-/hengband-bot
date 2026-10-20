@@ -158,6 +158,7 @@ from hengbot.quest_knowledge import (
 )
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
 from hengbot.ammo_carry import ammo_carry_plan
+from recorded_junk_scope import pre_junk_scope_replay
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.equipment_mutation import progress_core
@@ -1375,6 +1376,10 @@ class RetentionAuthorityTest(unittest.TestCase):
                 [69, 0, 30],
             )
 
+    # declared wall: pre-2026-10-20 junk scope (the bolts of the deselected
+    # crossbow are unused-ammo junk since 2026-10-20 and are never deposited;
+    # this pin is about the retention authority of the deselected system).
+    @pre_junk_scope_replay
     def test_inferior_crossbow_system_is_deposited_when_sling_is_selected(self):
         sling = item(
             "bow", TVAL_BOW, SV_BOW_SLING, name="artifact sling",

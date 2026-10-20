@@ -10426,6 +10426,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # the first town board after a recall it still held the previous
             # floor's cells, so an adjacent store was "unreachable" (#73).
             self._build_grid_index(snapshot)
+        # Junk is destroyed in town, never deposited (#95 step 1b, owner
+        # 2026-10-20): under weight or pack-slot pressure, or whenever the
+        # Home cannot take a deposit, carried junk goes first through the
+        # verified destroy path, before any deposit or sale of other items.
+        if (snapshot.in_town and snapshot.store is None
+                and not self._physical_hostiles(snapshot)
+                and self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and self._store_buy_inflight is None
+                and self._batch_sell_pending is None
+                and (self._inventory_overweight(snapshot)
+                     or self._town_pack_space_shortage(snapshot)
+                     or not self._home_available(snapshot)
+                     or self._home_is_full(snapshot)
+                     or STORE_HOME in self._town_visit_ledger.blocked_stores)):
+            junk_key = self._town_producer_entry(
+                "_worthless_junk_destroy_key",
+                lambda: self._worthless_junk_destroy_key(snapshot),
+                family="identification")
+            if junk_key is not None:
+                return junk_key
         if snapshot.in_town and self._overweight_surplus_disposal is not None:
             surplus_key = self._town_producer_entry("_overweight_surplus_sale_key",
                 lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")

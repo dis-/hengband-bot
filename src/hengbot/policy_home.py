@@ -2493,7 +2493,7 @@ class HomeMixin:
         candidates = [
             item
             for item in snapshot.inventory
-            if (include_ammo or not item.is_ammo) and item.weight > 0 and (self._retention_surplus(snapshot, item) > 0) and (not (self._identification_flow_owns(item) and self._find_identification_source(snapshot, full=bool(item.known and item_requires_full_identification(item) and (not item.fully_known)), reliable_only=True, reservation_target=self._item_signature(item)) is not None)) and (not unreserved_required_supply(item)) and (not item.is_bounty) and (not self._is_wanted_jewelry(snapshot, item)) and (self._item_signature(item) not in self._home_rejected_deposits) and (self._item_signature(item) not in []) and (self._item_signature(item) not in self._home_pending_batch) and (item.slot != self._home_pending_slot) and (item.slot != self._pending_disposal_slot)
+            if (include_ammo or not item.is_ammo) and item.weight > 0 and (self._retention_surplus(snapshot, item) > 0) and (self._junk_class(snapshot, item) is None) and (not (self._identification_flow_owns(item) and self._find_identification_source(snapshot, full=bool(item.known and item_requires_full_identification(item) and (not item.fully_known)), reliable_only=True, reservation_target=self._item_signature(item)) is not None)) and (not unreserved_required_supply(item)) and (not item.is_bounty) and (not self._is_wanted_jewelry(snapshot, item)) and (self._item_signature(item) not in self._home_rejected_deposits) and (self._item_signature(item) not in []) and (self._item_signature(item) not in self._home_pending_batch) and (item.slot != self._home_pending_slot) and (item.slot != self._pending_disposal_slot)
         ]
         launcher = self._equipped_launcher(snapshot)
         ordinary = [item for item in candidates
@@ -2546,6 +2546,9 @@ class HomeMixin:
     ) -> bool:
         if self._home_reserve_deposit_item(item):
             return True
+        # Junk is destroyed, never shelved (#95 step 1b, owner 2026-10-20).
+        if snapshot is not None and self._junk_class(snapshot, item) is not None:
+            return False
         full = bool(
             item.known
             and item_requires_full_identification(item)
