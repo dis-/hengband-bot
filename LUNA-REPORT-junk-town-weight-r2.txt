@@ -89,3 +89,21 @@ All other assertions unchanged ('026ka', town:overweight-surplus-destroyed:home-
 rollback of both sidecars).  Passes on 51a0d8f6 and on this branch.  test_overweight_homefull_step15b 8 OK +
 tests.test_junk_town_weight_recorded 7 OK.  preflight: PREFLIGHT OK: 16 changed files, 0 findings.  src unchanged,
 so no mutation_check rerun.
+
+Addendum 2 (merge gate 06d8dd91 STOP, slow recorded modules) - measured alone on this branch and on 51a0d8f6
+(src of 51a0d8f6 via git apply -R): all 14 tests pass on main; on the branch 3 F + 2 E.  No src/test change made:
+every failure is the town junk-first step destroying tval 10 REMAINS (corpse/bones) carried in town under
+pack-slot pressure; remains are junk under both scopes, so the pre_junk_scope wall cannot apply (measured: the
+walled run fails identically).  Not (R): the destroyed item is the remains, never the lantern; no in-flight owner is
+pre-empted (equipment mutation IDLE).  STOP for the supervisor:
+  - test_lantern_lost_recorded.test_recorded_town_board_keeps_the_empty_lantern: old ('~9\x1b',
+    equipment-transaction:catalogue-request-knowledge) -> new ('01kp', inventory:destroy-worthless-junk) on slot p
+    土ヘビの死体 (tval 10, remains); the empty lantern (slot n, 真鍮のランタン 0 turns) has _junk_class None and
+    _find_disposable_item None - it is kept.  Fails on assertFalse(key.startswith("01k")).
+  - test_supply_shortfall_owner_recorded (recorded replay): teleport-0316 prefix row 121 recorded ('R&\r',
+    town:recover) -> new '01kd' destroy of サモン・モンスターの巻物 (harmful-consumable; walled: '01kq' 土ヘビの骨);
+    the pinned key itself is unchanged ('5', shop:one-shot-buy).  idstaff-0353 row 103 recorded ('\x1b`n(.',
+    shop:travel) -> new '01kd' サモン・アンデッドの巻物 (walled: '01kr' ポイズン・コボルドの骨); the replay's
+    recorded boards still carry the destroyed stack, so it diverges from row 104 on and the pin ends in
+    '3' town-progress-invariant:defect:inventory:destroy-worthless-junk=>town:kill-mob-approach (expected
+    "\x1b`n&." ...approach); the two controls ERROR because _town_errand_plan is None.
