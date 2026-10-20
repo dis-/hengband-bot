@@ -281,6 +281,7 @@ class JunkScopeRecordedTest(unittest.TestCase):
         policy._loot_target = None
         policy._loot_step(board)
         self.assertNotEqual(policy._loot_target, BOLT_PILE)
+        policy._loot_target = None
         policy._loot_step(board, include_unsafe=True)
         self.assertNotEqual(policy._loot_target, BOLT_PILE)
         underfoot = replace(board, grids={
@@ -314,8 +315,25 @@ class JunkScopeRecordedTest(unittest.TestCase):
         policy, board, relief = self._relief(BOOKS[2])
         self.assertNotEqual((relief.get("mode"), (relief.get("sale") or (None,))[0]),
                             ("destroy", policy._item_signature(BOOKS[2])))
+        # Before any relief decision (no pending sale of the book yet), the
+        # third book is no discard candidate even with every store refusing it.
+        policy, board = self._home(BOOKS[2])
+        policy._store_sale_refused.update(range(7))
         self.assertIsNone(policy._home_full_discard_candidate(
             board, replace(BOOKS[2], slot="home")))
+        self.assertIsNotNone(policy._home_full_discard_candidate(
+            board, replace(BOOKS[0], slot="home")))
+
+    def test_full_home_ranks_every_junk_class_as_auto_destroy(self):
+        policy, board = self._home()
+        # DECLARED CONSTRUCTED: a zero-value cursed gauntlet and Salt Water.
+        gauntlet = _gear("home", "ガントレット [2,-2] {呪われている}", 31, 2,
+                         is_cursed=True, ac=2, to_a=-2)
+        salt = replace(SALT_WATER, slot="home")
+        ranks = {item.name: policy._home_full_discard_rank(board, item)
+                 for item in (gauntlet, salt)}
+        self.assertEqual([rank[:2] for rank in ranks.values()], [(False, 0), (False, 0)])
+        self.assertLess(ranks[gauntlet.name], ranks[salt.name])
 
     # --- town overflow and the exchange selector -----------------------
 
