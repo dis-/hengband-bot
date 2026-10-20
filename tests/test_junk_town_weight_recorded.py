@@ -293,8 +293,12 @@ class TownJunkStepInFlightTest(unittest.TestCase):
         _, session = captured_session(
             pin["stamp"], {"234018": 224, "234047": 223, "234116": 219}[pin["stamp"]])
         policy._equipment_transaction_session = session
+        # The asserted stationary waits of the recorded episode (as in
+        # HomeRouteReleaseTest): each is the refused deposit's await.
         for count in range(1, STORE_STUCK_LIMIT):
-            policy.choose_key(replace(after, turn=after.turn + count))
+            board = replace(after, turn=after.turn + count)
+            self.assertEqual(policy.choose_key(board), "5")
+            self.assertEqual(policy.last_reason, "home:atomic-deposit-await-confirmation")
         return policy, session, replace(after, turn=after.turn + STORE_STUCK_LIMIT)
 
     def test_equipment_transaction_session_keeps_the_junk_step_out(self):
