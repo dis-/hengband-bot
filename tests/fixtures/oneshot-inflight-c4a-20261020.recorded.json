@@ -1,0 +1,288 @@
+{
+  "provenance": {
+    "capture": "c4a-loops-20261016/20261020-082800-no-key-exhausted",
+    "state_rows": "60-91 (copied as-is; fixture line 0 = state row 60)",
+    "second_capture": "c4a-loops-20261016/20261020-082847-no-key-exhausted (decision rows only)",
+    "bot": "main 544ce4d1, enforce_crossarea_fundraising=True, in_store_shop_ops=True"
+  },
+  "decisions": {
+    "5248": {
+      "turn": 2626258,
+      "key": "~f\u001b",
+      "reason": "periodic:skill-exp-knowledge",
+      "store_visit": null
+    },
+    "5249": {
+      "turn": 2626258,
+      "key": "1",
+      "reason": "shop:approach",
+      "store_visit": {
+        "owner": "equipment-transaction",
+        "store_type": 7,
+        "opened_sequence": 5249,
+        "phase": "entering",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "5250": {
+      "turn": 2626258,
+      "key": "\u001b",
+      "reason": "equipment-transaction:deposit-home-full",
+      "store_visit": null
+    },
+    "5251": {
+      "turn": 2626271,
+      "key": "~9\u001b",
+      "reason": "home:request-knowledge-scan",
+      "store_visit": null
+    },
+    "5252": {
+      "turn": 2626271,
+      "key": "5    pA\u001b",
+      "reason": "home-errand:atomic-withdraw:full-home-discard",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 7,
+        "opened_sequence": 5252,
+        "phase": "entering",
+        "operation_posted": true,
+        "operation_released": true
+      }
+    },
+    "5253": {
+      "turn": 2626279,
+      "key": "01kv",
+      "reason": "home:full-destroy-surplus",
+      "store_visit": null
+    },
+    "5254": {
+      "turn": 2626291,
+      "key": "~9\u001b",
+      "reason": "home:request-knowledge-scan",
+      "store_visit": null
+    },
+    "5255": {
+      "turn": 2626291,
+      "key": "5pH\u001b",
+      "reason": "home-errand:atomic-withdraw:full-home-sale",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 7,
+        "opened_sequence": 5255,
+        "phase": "entering",
+        "operation_posted": true,
+        "operation_released": true
+      }
+    },
+    "5256": {
+      "turn": 2626300,
+      "key": "\u001b`n%.",
+      "reason": "shop:travel",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 4,
+        "opened_sequence": 5256,
+        "phase": "entering",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "5257": {
+      "turn": 2626651,
+      "key": "{k@0\r",
+      "reason": "shop:in-store-inscribe",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 4,
+        "opened_sequence": 5256,
+        "phase": "operating",
+        "operation_posted": true,
+        "operation_released": true
+      }
+    },
+    "5258": {
+      "turn": 2626651,
+      "key": "\u001b",
+      "reason": "shop:in-store-done",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 4,
+        "opened_sequence": 5256,
+        "phase": "leaving",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "5259": {
+      "turn": 2626661,
+      "key": "{r.\r",
+      "reason": "equipment:suppress-random-teleport",
+      "store_visit": null
+    },
+    "5260": {
+      "turn": 2626661,
+      "key": "5",
+      "reason": "shop:travel:await-entry",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 4,
+        "opened_sequence": 5260,
+        "phase": "entering",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "5261": {
+      "turn": 2626661,
+      "key": "\u001b",
+      "reason": "town-progress-invariant:continue-observed-shop",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 4,
+        "opened_sequence": 5260,
+        "phase": "leaving",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "5262": {
+      "turn": 2626674,
+      "key": "5",
+      "reason": "shop:one-shot-sell",
+      "store_visit": {
+        "owner": "shop-one-shot",
+        "store_type": 4,
+        "opened_sequence": 5262,
+        "phase": "entering",
+        "operation_posted": true,
+        "operation_released": false
+      }
+    },
+    "5263": {
+      "turn": 2626674,
+      "key": "\u001b",
+      "reason": "shop:in-store-done",
+      "store_visit": {
+        "owner": "shop-one-shot",
+        "store_type": 4,
+        "opened_sequence": 5262,
+        "phase": "leaving",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "5264": {
+      "turn": 2626690,
+      "key": "",
+      "reason": "shop:one-shot-in-flight",
+      "store_visit": null
+    }
+  },
+  "second_decisions": {
+    "19": {
+      "turn": 2627351,
+      "key": "5",
+      "reason": "shop:travel:await-entry",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 5,
+        "opened_sequence": 19,
+        "phase": "entering",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "20": {
+      "turn": 2627351,
+      "key": "\u001b",
+      "reason": "shop:observe-and-leave",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 5,
+        "opened_sequence": 19,
+        "phase": "leaving",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "21": {
+      "turn": 2627362,
+      "key": "5",
+      "reason": "shop:travel:await-entry",
+      "store_visit": {
+        "owner": "shop-one-shot",
+        "store_type": 5,
+        "opened_sequence": 21,
+        "phase": "entering",
+        "operation_posted": true,
+        "operation_released": false
+      }
+    },
+    "22": {
+      "turn": 2627362,
+      "key": "\u001b",
+      "reason": "shop:in-store-done",
+      "store_visit": {
+        "owner": "shop-one-shot",
+        "store_type": 5,
+        "opened_sequence": 21,
+        "phase": "leaving",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "23": {
+      "turn": 2627370,
+      "key": "5",
+      "reason": "shop:travel:await-entry",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 5,
+        "opened_sequence": 23,
+        "phase": "entering",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "24": {
+      "turn": 2627370,
+      "key": "\u001b",
+      "reason": "shop:one-shot-in-flight",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 5,
+        "opened_sequence": 23,
+        "phase": "operating",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "25": {
+      "turn": 2627379,
+      "key": "5",
+      "reason": "shop:travel:await-entry",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 5,
+        "opened_sequence": 23,
+        "phase": "entering",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    },
+    "26": {
+      "turn": 2627379,
+      "key": "",
+      "reason": "shop:one-shot-in-flight",
+      "store_visit": {
+        "owner": "town-errand",
+        "store_type": 5,
+        "opened_sequence": 23,
+        "phase": "operating",
+        "operation_posted": false,
+        "operation_released": false
+      }
+    }
+  }
+}

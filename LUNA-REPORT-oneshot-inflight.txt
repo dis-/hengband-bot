@@ -1,0 +1,92 @@
+LUNA-REPORT oneshot-inflight (branch oneshot-inflight-1020, base 544ce4d1)
+
+Diagnosis: see LUNA-DIAG-oneshot-inflight.txt (measured by replaying state rows 60-91 of
+c4a-loops-20261016/20261020-082800-no-key-exhausted with a fresh policy; the tail reproduces exactly).
+Short: the outside one-shot composition runs the Home-relief seller on the observed page
+(policy_shop.py:6108 -> 4424 -> policy_home.py:915), which commits 'd0y' to the in-store entry ledger.
+Only the entry key '5' is sent.  On the Alchemist page the ledger (policy_instore.py _in_store_entry_key)
+judged that never-sent sale as "posted, no effect" and left ('\x1b' shop:in-store-done) before
+_release_staged_store_operation could send 'd0y\x1b'.  The sale never happened (gold 10214, pack 23,
+scroll {@0} still carried).  _batch_sell_pending stayed 'await-sale' with no visit, and policy.py:10527-10540
+returned '' shop:one-shot-in-flight; nothing was queued, so no board came and the driver stopped.
+Capture 082847 is the same mechanism (Fire Bolt rod; decision 21 posted/unreleased one-shot, 22 in-store-done,
+26 '' inside the store).
+
+Change (991bb59f): policy_instore.py _in_store_entry_key returns None while the matched visit's operation is
+posted but not released (an outside one-shot whose entry key only has been sent), so the staged tail is
+released on that page.  No new constant, threshold, attribute or reason.  Manifest refreshed
+(town_work_sites.json ast hash, town_work_manifest.json.gz).
+9784e37f: test helper split (recorded ~9 priming outside the deciding helper; fakery lint).
+
+Pins (tests/test_oneshot_inflight_recorded.py; fixtures oneshot-inflight-c4a-20261020.jsonl.gz = state rows
+60-91 as-is, .recorded.json = recorded decision rows 5248-5264 of 082800 and 19-26 of 082847):
+- test_recorded_rows_left_the_entry_page_without_the_sale: data pin (recorded '5'/'\x1b'/'' sequence, gold
+  and pack unchanged, second capture same signature).
+- test_replay_composes_the_recorded_one_shot_sale: row 28 ('5', shop:one-shot-sell) before and after.
+- test_entry_page_releases_the_staged_sale: row 30.  544ce4d1: ('\x1b', 'shop:in-store-done') -> then row 31
+  '' shop:one-shot-in-flight.  After: ('d0y\x1b', 'shop:one-shot-sell').
+Controls:
+- test_control_an_operation_posted_on_the_page_still_ends_the_entry: the inscription sent on the first
+  Alchemist page ('{k@0\r') still ends that entry with '\x1b' shop:in-store-done.
+- test_control_observed_sale_completes_and_town_work_continues (DECLARED CONSTRUCTED post-sale board = stop
+  board without the sold scroll): sale watch cleared, visit closed, next key ('~9\x1b',
+  'home:request-knowledge-scan').
+Revert-proof: with the src hunk reversed (git apply -R) only test_entry_page_releases_the_staged_sale fails
+(('\x1b', 'shop:in-store-done') != ('d0y\x1b', 'shop:one-shot-sell')); the other four pass on both.
+
+Existing tests run (single modules, all OK): test_shop_one_shot (54, 1 skip), test_store_reentry_recorded (36),
+test_home_surplus_inscription_recorded (2), test_home_surplus_sale_screen_recorded (18),
+test_home_full_relief_recorded (6), test_home_full_sale_keeps_recall_recorded (4), test_step15d2_f3 (9),
+test_shop_uncomposable_recorded (4), test_posted_effect_unobserved (7), test_alchemist_observed_shop_alternation,
+test_home_full_destroy_posted_confirm (2).  No existing test changed.
+
+Guards (after the last source edit and commit 9784e37f):
+  preflight:  [preflight] PREFLIGHT OK: 7 changed files, 0 findings (oneshot-inflight-1020 vs 544ce4d1)
+  mutation:   [mutation] 1 source hunks, tests: test_oneshot_inflight_recorded
+              [mutation] caught     src/hengbot/policy_instore.py:435 (if visit.operation_posted and not visit.operation_released:): test_entry_page_releases_the_staged_sale
+              [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+              [mutation] recorded for 9784e37f
+  fast_tier:  [fast] 3790 fast tests (<2.0s in 544ce4d1) + 1 changed modules, 4 shards
+              Crashed shards: none / Failures: none / Errors: none / Total: 3795 tests, 185.5s
+
+Not changed (reported): the '' branches themselves (policy.py:10527-10540 outside with no visit,
+policy.py:10612-10624 in store) still emit '' for an orphaned buy/sale watch whose operation was never queued;
+after this fix the recorded board no longer reaches them.  Also the first Alchemist entry left after the
+inscription without selling (_in_store_selection answers op 'disposal' while the Home relief is pending),
+costing one extra trip; not a stop.
+
+ROUND 2 (coordinator: close the two '' branches)
+Change (0c8f40ee, f0ae5f06): policy.py new helper _release_unposted_store_watch(snapshot), called right before
+the outside branch (store None) and before the in-store one-shot wait branch.  One answer to "is this watch
+live": live only while self._store_visit holds the posted operation (visit is not None and
+visit.operation_posted) - the same rule _close_store_visit uses when it drops a posted visit's watches.
+Otherwise the watch is settled through the release its confirmation budget already uses: buy ->
+_store_buy_inflight = None + _close_store_visit("one-shot-buy-unconfirmed"); sale (await-sale) ->
+_batch_sell_key(replace(snapshot, store=StoreState(store, []))) judged on this board.  The decision then
+continues.  No new constant, threshold or reason string.  Bookkeeping: town_work manifest refreshed,
+scripts/item_sink_adapters.json entry for the helper's _batch_sell_key call.
+Pins (DECLARED CONSTRUCTED: the page after the posted d0y shows no sale -> in-store-done, visit closed, sale
+watch await-sale):
+- test_unposted_sale_watch_outside_is_settled: stop board.  544ce4d1-equivalent (round-2 hunks reverted):
+  ('', 'shop:one-shot-in-flight'); after: ('9', 'equipment-transaction:acquire-home-catalog'), watch None.
+- test_unposted_sale_watch_on_a_store_page_is_settled: the Alchemist page again without the outside board
+  (as 082847 decisions 23-26).  Reverted: _decide returns '' shop:one-shot-in-flight (the arbiter then
+  rewrites it to '5' town:blocked:owner-retired because the page repeats a no-progress vector) and the watch
+  stays await-sale; next outside board ''.  After: _decide returns '\x1b' shop:observe-and-leave, watch None,
+  next outside board ('5', 'shop:one-shot-sell') (the sale is composed again).  The final key on the repeated
+  page is '5' town:blocked:owner-retired in both, so this pin asserts the settled watch and the next board.
+- test_control_posted_sale_watch_still_waits: after the released d0y, the stop board still waits
+  ('', 'shop:one-shot-in-flight') with the visit posted/released and the watch await-sale (unchanged).
+Not separately pinned: the buy half of the helper (no recorded buy watch); the helper definition hunk is
+caught through its callers.
+Existing tests: unchanged and green (test_shop_one_shot, test_policy_shop 275, test_store_reentry_recorded,
+test_posted_effect_unobserved, test_live8, test_live11, test_idw_block_recorded, test_owner_retirement_slice1,
+home-full/home-surplus modules, test_item_sink_lint).
+Guards after f0ae5f06:
+  preflight:  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (oneshot-inflight-1020 vs 544ce4d1)
+              (first run: raw ESC byte in the test and item-sink adapter missing; fixed in f0ae5f06)
+  mutation:   4 source hunks; caught policy.py:10523 (outside call) by test_unposted_sale_watch_outside_is_settled,
+              policy.py:10610 (in-store call) by test_unposted_sale_watch_on_a_store_page_is_settled,
+              policy.py:14159 (helper) by setUpClass, policy_instore.py:435 by test_entry_page_releases_the_staged_sale
+              and others; MUTATION OK: 0 of 4 hunks are not pinned; recorded for f0ae5f06
+  fast_tier:  3798 tests, 193.4s, Crashed shards: none, Failures: none, Errors: none

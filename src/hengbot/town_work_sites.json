@@ -2059,7 +2059,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0ecbfb4f1b216f75988b008df9ca1b7e1f0f51e0b0aa9c984c2d3136a905efe3"
+    "ast_sha256": "d25cb1d17d8b52a433c8ea9a8c8d3152b05958e694c3e3825fc260e07a8d1ac4"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5544,7 +5544,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "bb2a02ecb84d99438f85765dca6e7f6f488bab35d9caf49a6d9b3265917941f9"
+    "ast_sha256": "7835dc9e5b1d351314721dc7f53cb3581296edc09f89b9bf01f29cf5d8658b3d"
   },
   "policy_instore.py:InStoreMixin._in_store_inscription_observed": {
     "classification": "data",
