@@ -2288,7 +2288,28 @@ class ShopMixin(InStoreMixin):
         latched = (store_type, item.tval, item.sval) in getattr(
             self._town_visit_ledger, "purchase_churn_class_exclusions", set()
         )
-        return (sold_class or latched) and not self._identify_staff_swap_purchase(item)
+        return (
+            (sold_class or latched)
+            and not self._identify_staff_swap_purchase(item)
+            and not self._mining_kit_detection_rebuy(item)
+        )
+
+    def _mining_kit_detection_rebuy(self, item: StoreItem) -> bool:
+        """Whether ``item`` restocks the detection of an active mining plan.
+
+        While a fundraising set is planned the retention authority keeps
+        Treasure Detection up to the same stock target the buyer fills
+        (``mining:detection``), so no sale in that set can be undone by this
+        purchase.  A sale earlier in the visit was made for an older plan:
+        live 2026-10-20 14:00 (c4-a life-014) sold six scrolls as Home-full
+        surplus, then the Identify-staff stockout time-pass needed one, and
+        the refused rebuy left its kit with no supplier
+        (town:blocked:departure-unsatisfiable).
+        """
+        return (
+            item.is_treasure_detection_scroll
+            and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+        )
 
     def _purchase_churn_rows(self, snapshot: Snapshot) -> tuple[StoreItem, ...]:
         store = snapshot.store

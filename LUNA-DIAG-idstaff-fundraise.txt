@@ -1,0 +1,48 @@
+LUNA-DIAG idstaff-fundraise (base b8401802, capture c4-a life-014 2026-10-20 14:00)
+
+MEASURED (capture 20261020-140000-town-blocked-departure-unsatisfiable, decision rows filtered on decision_sequence):
+- seq 52 messages: "6巻の 財宝感知の巻物 {@1}を $48で売却しました。" -- six Treasure Detection scrolls sold
+  to the Alchemist (store 4) as home-errand:atomic-withdraw:full-home-sale surplus, fundraising mode null.
+  The sale adds (TVAL_SCROLL, 26) to _town_visit_sale_signatures (policy_shop.py:4195).
+- seq 78/79: Black Market observed, then town:identify-staff-stockout-mining (#76 path) installed the one-run
+  time-pass: fundraising {"mode":"prepare","planned_runs":1}; carried staves 3x5 + 1x3 = 18 charges at the
+  4-staff cap; the current-town Magic page (seen at turn 3087327, same shelf as capture 135723 state row 95:
+  2x 3-charge 683G, 4x 2-charge 668G) has no staff fuller than the emptiest carried one, so 20 is unreachable.
+- seq 82..113 in_store.shelf_evidence_skips: store 4 "fundraising-detection" and "mining-detection",
+  observed_turn 3088237, absent=true. The Alchemist was never routed again.
+- seq 115: departure_block.failed == ["identify_staff_ready"], procurement Treasure Detection 0/1,
+  Identify staff charges 18/20, gold 10,595; key '9' town:blocked:departure-unsatisfiable.
+- Home list at state row 71 (turn 3089994): no Treasure Detection, no Identify staff (the 08:29
+  HOME-BREAKDOWN snapshot is stale: six scrolls were withdrawn at seq 48 ('5ps6') and sold at seq 52;
+  the fate of the other four is not in this capture).
+
+Which departure kind / is identify_staff_ready a condition of it:
+- The planned departure is the fundraising mining run. Its gates are _fundraising_supplies_ready
+  (policy_fundraising.py:370: food, Treasure Detection >= runs, digging tool) for prepare->mine and
+  _fundraising_departure_ready (policy_fundraising.py:452) for the walk-out; neither reads
+  identify_staff_ready.
+- identify_staff_ready (policy_supply.py:435-454, 18 < STAFF_IDENTIFY_MIN_CHARGES) is a conjunct of the
+  recall departure (policy_town.py:5737). The board reached it only because prepare could not promote to
+  mine (detection 0/1), the exhausted-plan fallback is skipped while a recall destination exists
+  (policy_town.py:6284), and the stockout install is refused once installed (policy_town.py:6825), so
+  policy_town.py:6859 set departure-unsatisfiable.
+
+Why the kit (not the 18/20 charges) could not be completed here:
+- Replay (public path, walls in the test docstring) on b8401802: ('9', town:blocked:departure-unsatisfiable),
+  shelf skips store 4 absent=true -- reproduces the record.
+- Same replay without the sold-class signature: the plan routes to the Alchemist ('\x1b`n%.', shop:travel).
+- _shelf_dry_run_absent (policy_instore.py:971-986) calls _next_purchase on the remembered page; the
+  sell-rebuy churn guard _purchase_churn_rejected (policy_shop.py:2286-2291) refuses the sold class, so the
+  page "offers nothing" and both detection needs are skipped (policy_town.py:2879, 3218, 3248).
+- The 18/20 charges themselves cannot be topped up in this town: shelf staves 3 and 2 charges vs emptiest
+  carried 3 (swap not worthwhile), so the approved path is the stockout time-pass, which was correctly
+  installed; it then starved on its own kit.
+
+Should #76 have covered it: no. #76 (08119399) fixed the install of the time-pass (remembered vs routed
+pages in _identify_staff_procurement_impossible). Here the install happened (seq 79); the stall is the
+time-pass kit purchase being refused as churn of a sale made for the earlier plan.
+
+Earlier capture 20261020-135723 (note only, not fixed here): the same terminal with the time-pass kit
+short of a digging tool (procurement "Digging tool 0/2"), Home in blocked_stores [7] (unsatisfied_passes
+7:4) while the diggers were in Home; the resumed process (14:00 capture, seq 83-87) withdrew them normally.
+A different mechanism (Home blocked under its bound) -- reported, not changed.
