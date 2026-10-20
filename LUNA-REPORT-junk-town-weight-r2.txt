@@ -80,3 +80,12 @@ Guard outputs (after the last source commit 8b6e3166):
     Total 3837 tests, 378.5s  (test_overweight_homefull_step15b is a slow module excluded from the fast tier).
 
 Not fixed (separate issue, as instructed): *鑑定* purchase for an already known-cursed item.
+
+Addendum (supervisor decision on the step15b pin8 STOP): 4b71a548 changes only
+test_overweight_homefull_step15b ...test_pin8_partial_destroy_sink_retains_counts_and_files_are_isolated:
+the constructed sink tval 1 remains ('declared unbuyable junk', 26) -> tval 8 figurine ('declared unbuyable
+figurine', 26, asserted _junk_class None), comment cites owner decisions 2026-10-18 (#70) and 2026-10-20 (#95).
+All other assertions unchanged ('026ka', town:overweight-surplus-destroyed:home-full, record (26,0,0), byte-for-byte
+rollback of both sidecars).  Passes on 51a0d8f6 and on this branch.  test_overweight_homefull_step15b 8 OK +
+tests.test_junk_town_weight_recorded 7 OK.  preflight: PREFLIGHT OK: 16 changed files, 0 findings.  src unchanged,
+so no mutation_check rerun.
