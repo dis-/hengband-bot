@@ -107,3 +107,15 @@ pre-empted (equipment mutation IDLE).  STOP for the supervisor:
     recorded boards still carry the destroyed stack, so it diverges from row 104 on and the pin ends in
     '3' town-progress-invariant:defect:inventory:destroy-worthless-junk=>town:kill-mob-approach (expected
     "\x1b`n&." ...approach); the two controls ERROR because _town_errand_plan is None.
+
+Addendum 3 (supervisor option 1): declared wall pre_town_junk_step_rule / pre_town_junk_step_replay in
+tests/recorded_junk_scope.py (patches HengbotPolicy._town_producer_entry to answer None for the rung
+"_worthless_junk_destroy_key", whose only town-entry caller is the new _decide step; the before-return disposal calls
+_worthless_junk_destroy_key directly and is untouched; composable with pre_junk_scope_rule).  Applied with
+"# declared wall: pre-2026-10-21 town junk step" to test_lantern_lost_recorded.test_recorded_town_board_keeps_the_
+empty_lantern and to the shared replay() of test_supply_shortfall_owner_recorded; expectations unchanged.
+Non-vacuity pins (tests/test_junk_town_weight_recorded.py TownJunkStepWallTest): without the wall ('01kp',
+inventory:destroy-worthless-junk) destroys slot p corpse (tval 10, remains) and the empty lantern n is not junk;
+with the wall ('~9\x1b', equipment-transaction:catalogue-request-knowledge).  f0f0142c + 377761d6.
+tests.test_lantern_lost_recorded + tests.test_supply_shortfall_owner_recorded + tests.test_junk_town_weight_recorded:
+23 OK.  preflight: PREFLIGHT OK: 19 changed files, 0 findings.  src unchanged since 8b6e3166 (no mutation rerun).
