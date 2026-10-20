@@ -89,3 +89,26 @@ M4 の `_is_disposable_item`: 重なりは睡眠の薬（75:11、DISPOSABLE_POTI
 - fast_tier: 未実行。12:47 から merge gate（gate-warnstep-1020.run.log、全体スイート実行中）が動いており、規則どおり待った（13:21 時点でも
   MERGED/FAILED/STOP なし）。作業時間の上限に達したので待ちを打ち切った。5 の既存テスト 8 本（＋manifest は再生成済み）は fast_tier でも
   落ちる見込み（関係 49 モジュールの単独実行で確認済み: grp00 6 件・grp02 2 件、それ以外 OK）。
+
+7. 監督の決定（壁）を受けた続き（0eb52f83・5e9c3a3c）
+- tests/recorded_junk_scope.py: pre_junk_scope_rule / pre_junk_scope_replay（_junk_class を 10-18 の #70 の答え＝remains と空き箱だけ、
+  賞金首・アーティファクトは None、に戻す）。3/4 冊目の残す決まりは壁の中では発火しない（本は remains にならない。8 本の実行中に
+  _is_high_value_book が真になった品は 0 件と測定）。
+- 壁を付けた既存テスト（期待値は変えていない、各メソッドに "# declared wall: pre-2026-10-20 junk scope"）:
+  test_home_full_sale_keeps_recall_recorded 3 本、test_home_discard_followup_recorded 2 本、
+  test_full_pack_store_unreachable_recorded.test_full_pack_relief_walks_to_the_adjacent_store、
+  test_town_overflow_disposal_candidates_recorded.test_constructed_torch_surplus_uses_existing_carry_target、
+  test_sale_inscribe_buy_recorded.test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell。
+- sale_inscribe の TypeError の測定: 例外はテストの 220 行目（policy._batch_sell_pending["entries"]）で出る。製品コードは例外を出していない。
+  12:38 の決定は ('', 'shop:one-shot-in-flight') で、Home-full relief は mode='destroy'、対象は ('つよしスペシャルの薬', 75, 65)。
+  売却の保留が作られないので、テストが None を読んでいた → 壁を付けた。
+- fast_tier で 1 モジュール追加で見つかった: test_oneshot_inflight_recorded（7 本、TypeError はテストの 154 行目の _batch_sell_pending["phase"]、
+  製品コードの例外なし）。主題は店内の one-shot 売却。記録の自宅（life-014）に呪いの品・害のある薬・合わない弾があり、junk を先に壊すので
+  *解呪* の売却が組み立てられない。setUpClass で再生するため、クラス単位で壁を張った（addClassCleanup で必ず外す）。壁の下で 8 本 OK。
+- 壁が空振りでない確認: test_pre_junk_scope_wall_restores_the_recorded_overflow_choice（溢れの盤面で、壁なし→ p の壊れたランタン、
+  壁あり→ o の松明）。
+- ガード（最後のコミット 5e9c3a3c、src は c3029624 から変わっていないので mutation_check は c3029624 の記録のまま: MUTATION OK 0 of 13）:
+  preflight: [preflight] PREFLIGHT OK: 19 changed files, 0 findings (junk-scope-1020 vs d2b0553b)（既存テスト変更の NOTE 9 件）
+  fast_tier（1 回目 13:41、gate-warnstep-1020 が MERGED の後）: oneshot 7 件の失敗＋ test_warning_refused_step_recorded の import エラー
+    （main b8401802 で入ったモジュールで、このブランチの基 d2b0553b に無い。自分の変更とは無関係）
+  fast_tier（2 回目、gate-warnstep2-1020 の終了を待った後）: Crashed shards: none / Failures: none / Errors: none / Total: 4010 tests, 420.4s
