@@ -467,5 +467,8 @@
   },
   "policy_shop.py:_atomic_shop_transaction_key": {
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:not self._can_compose_shop_observation(snapshot) / If:body:self._can_resume_magic_shelf(snapshot) / If:body:step is not None": 1
+  },
+  "policy.py:_release_unposted_store_watch": {
+    "self._batch_sell_key(replace(snapshot, store=StoreState(int(pending['store_type']), []))) @ If:body:pending is not None and pending.get('phase') == 'await-sale'": 1
   }
 }

@@ -177,7 +177,7 @@ class OneShotInFlightRecordedTest(unittest.TestCase):
         # watch outlives the visit that held its operation.
         policy = copy.deepcopy(self.released)
         _board, key, reason = self._feed(self.lines[ENTRY_PAGE], policy)
-        self.assertEqual((key, reason), ("", "shop:in-store-done"))
+        self.assertEqual((key, reason), ("\x1b", "shop:in-store-done"))
         self.assertIsNone(policy._store_visit)
         self.assertEqual(policy._batch_sell_pending["phase"], "await-sale")
         return policy
