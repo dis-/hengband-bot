@@ -25,6 +25,7 @@ from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
 from hengbot.policy_town import VISIT_CLOSABLE_REASONS
 from hengbot.protocol import snapshot_protocol_version
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_town_junk_step_replay
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "weight-relief-root-20261021.jsonl.gz"
@@ -99,6 +100,8 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
         self.assertEqual((policy._inventory_weight(snapshot),
                           policy._inventory_weight_limit(snapshot)), (1761, LIMIT))
 
+    # declared wall: pre-2026-10-21 town junk step
+    @pre_town_junk_step_replay
     def test_stale_relief_releases_to_the_weight_deposit(self):
         policy, snapshot = self._stale_relief_board()
         needs = [(need.store_type, need.category)

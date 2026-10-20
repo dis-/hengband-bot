@@ -54,6 +54,7 @@ from recorded_junk_scope import pre_town_junk_step_rule
 import test_lantern_lost_recorded as lantern_recorded
 import test_home_route_release_recorded as home_route_recorded
 import test_destroy_superior_item_guard as destroy_superior
+import test_weight_relief_root_recorded as weight_relief_root
 from hengbot.equipment_mutation import EquipmentMutationState
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -348,6 +349,49 @@ class TownJunkStepInFlightTest(unittest.TestCase):
         key = policy.choose_key(board)
         self.assertFalse(str(key).startswith("0"))
         self.assertNotEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+
+class TownJunkStepBeforeWeightReliefTest(unittest.TestCase):
+    """The town junk step runs before the #98 weight-relief selector.
+
+    Recorded soak c4-a life-014 05:00 board (tests/test_weight_relief_root_
+    recorded.py, its DECLARED stale-relief state): 1761 > 1750 with a free
+    Home slot.  The carried 暗闇の巻物 (slot f, harmful-consumable) is junk:
+    it is destroyed first and is never one of the selector's deposits; on the
+    DECLARED CONSTRUCTED effect board (slot f gone, 1756) the selector's
+    weight-overload deposit of the pickaxe follows.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        weight_relief_root.WeightReliefRootRecordedTest.setUpClass.__func__(cls)
+
+    def _board(self):
+        return weight_relief_root.WeightReliefRootRecordedTest._stale_relief_board(self)
+
+    def _policy_for(self, capture, index):
+        return weight_relief_root.WeightReliefRootRecordedTest._policy_for(
+            self, capture, index)
+
+    def test_junk_goes_first_then_the_selector_deposits(self):
+        policy, board = self._board()
+        scroll = next(item for item in board.inventory if item.slot == "f")
+        self.assertEqual(policy._junk_class(board, scroll), "harmful-consumable")
+        policy._town_need_candidates(board)
+        relief = policy._weight_relief_selection(board)
+        self.assertEqual(relief.route, "deposit")
+        self.assertNotIn("f", [item.slot for item in relief.deposits])
+        self.assertEqual((policy.choose_key(board), policy.last_reason),
+                         ("01kf", "inventory:destroy-worthless-junk"))
+
+        policy, board = self._board()
+        after = replace(board, turn=board.turn + 10,
+                        inventory=[item for item in board.inventory if item.slot != "f"])
+        self.assertTrue(policy._inventory_overweight(after))
+        policy._town_need_candidates(after)
+        self.assertEqual((policy.choose_key(after), policy.last_reason),
+                         ("5", "home:weight-overload-deposit"))
+        self.assertEqual(policy._weight_relief_selection(after).deposits[0].slot, "o")
+
 
 if __name__ == "__main__":
     unittest.main()
