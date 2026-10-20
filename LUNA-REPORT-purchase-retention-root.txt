@@ -1,0 +1,69 @@
+LUNA-REPORT purchase-retention-root (issue #96 part 2, branch purchase-retention-root-1020 from 26c5dc27, base dce3c120)
+
+Measured diagnosis: LUNA-DIAG-purchase-retention-root.txt (full rung -> retention table, soak rows).
+ tail:mana-food: the Home stack is probed as the last pack slot; it is never the pack reserve slot
+   (_device_food_reserve_slot prefers wands) and its own charges make the probed food ledger "ready", so neither
+   the retention nor the live rung kept it (10:48:51 buy, 10:51:47 deposit, 10:56:40/42 sold).
+ mining kit after a restart: linux_soak.py start_bot launches a fresh `python -m hengbot` (no checkpoint);
+   cli.main builds a new policy (_fundraising_mode None); the identify-staff stockout plan lives only in the
+   process and re-armed at 13:58:56 seq 79, after the Home-full relief sold the 13:57:03 scrolls (13:58:23-27).
+   Both pre-restart guards (mining:detection, visit-purchase) were in-process only.
+
+Changes (commits 2359a986, 3d60dd30, aa29bbb0, 3835c527):
+ - policy_home.py _retention_reservation_baseline_detail:
+   * MANA devices: besides the reserve slot, a known charged device (not an Identify staff) is kept while the
+     devices before it in pack order leave the food ledger short (_count_mana_food_uses < required_departure or
+     _count_mana_food_devices < MANA_FOOD_DEVICE_TARGET) -> branch "supply-ledger:mana-food".
+   * Stone to Mud: the first charged stack in pack order -> "utility:stone-to-mud" (black-market:stone-to-mud
+     target; shop/destroy selectors skipped useful devices, the Home-full relief did not).
+   * _carry_town_visit_purchases_across_restart (called once per board from _observe): writes this visit's
+     observed purchases beside the decision log; the first board of a process restores them only on the same
+     town floor at a turn >= the record's.  Feeds the existing visit-purchase branch; no plan state restored.
+ - cli.py: policy._town_visit_purchase_path = <decision log dir>/town-visit-purchases.json (live only; tests and
+   policies without the attribute do not persist).  runtime_paths.py: isolated for restored checkpoints.
+ - purchase_rungs.py: PURCHASE_RUNG_RETENTION (rung -> retention branch / consumed-on-use / always-live-rung),
+   purchase_rung_retention(); PurchaseRung.retention filled by _purchase_rungs (policy_shop.py).
+ - No new constant or threshold (MANA_FOOD_* and the ledger are reused; the Stone to Mud unit is the rung's
+   "no charged Stone to Mud carried").  New policy attributes: _town_visit_purchase_path,
+   _town_visit_purchase_record (both read with getattr; no restored-checkpoint default needed).
+ - Bookkeeping: town_work_review.json + town_producer_baseline.json entry for purchase_rung_retention,
+   ITEM_RESERVATION_SOURCES entry for _town_visit_purchase_record, manifest regenerated.
+
+Pins (tests/test_purchase_retention_root_recorded.py, fixture sale-inscribe-buy-20261018 rows 4-6, a MANA eater;
+DECLARED CONSTRUCTED walls in the module docstring).  Base = src of dce3c120 hunks reverted (git apply -R):
+ test_home_mana_food_staff_is_kept_while_the_pack_is_short: base (0, None) -> (1, 'supply-ledger:mana-food'),
+   destroy candidate -> None.
+ test_mining_kit_bought_this_visit_survives_a_restart: base (0, None) -> (5, 'visit-purchase'); sale/destroy None.
+ test_home_stone_to_mud_is_kept_when_none_is_carried: base (0, None) -> (1, 'utility:stone-to-mud').
+ test_every_live_rung_declares_its_retention: 37 rungs (31 + 6 restore:<stat>), none without retention
+   (fails on base: retention None); test_an_undeclared_rung_has_no_retention.
+ Controls: test_control_home_staff_beyond_the_mana_food_target_is_surplus (unconstructed pack: (0, None), destroy
+   candidate); test_control_second_stone_to_mud_is_surplus; test_control_a_record_from_a_later_turn_is_not_restored;
+   test_control_a_record_from_another_floor_is_not_restored; test_control_home_full_relief_still_makes_room_after_a_restart
+   (base picks 財宝感知の巻物 = the live 13:58 sale; after: another stack, mode sale).
+ Wiring: test_cli_points_the_record_beside_the_decision_log, test_a_restored_checkpoint_writes_the_isolated_record,
+   test_the_written_record_is_a_registered_retention_source.
+
+Existing tests: none edited.  One regression found and fixed in src: test_classC2_departure_recorded
+ test_recorded_deposit_and_residual_supply_quantities (Identify staves (5x 4) became supply-ledger:mana-food;
+ Identify staves now excluded from the new MANA branch -> OK).  Single modules OK at 3835c527: test_classC2_departure_recorded,
+ test_policy_home (171), test_policy_shop (275), test_policy_supply (208), test_policy_fundraising (53),
+ test_policy_helpers, test_policy_identification, test_cli (240), test_star_remove_curse_reserve_sale_recorded,
+ test_oneshot_inflight_recorded, test_home_full_sale_keeps_recall_recorded, test_homefull3_recorded,
+ test_home_surplus_sale_screen_recorded, test_town_plan_exhausted_wander, test_town_progress_invariant,
+ test_weight_deposit_loop_20261018, test_manafood_departure_recorded, test_experience_potion, test_store_reentry_recorded,
+ test_town_decision_speed_caches and 30 more related modules (all OK).
+
+Guards (after 3835c527):
+ preflight: [preflight] PREFLIGHT OK: 18 changed files, 0 findings (purchase-retention-root-1020 vs dce3c120)
+ mutation:  [mutation] 12 source hunks, tests: test_purchase_retention_root_recorded test_star_remove_curse_reserve_sale_recorded
+            all 12 caught (incl. policy_home.py:2068 remove-curse:reserve of part 1, pinned by its own module)
+            [mutation] MUTATION OK: 0 of 12 hunks are not pinned by a test / recorded for 3835c527
+            (round 1 with only the new module: 2 NOT CAUGHT -- item_reservation.py:67 -> lint pin added;
+             policy_home.py:2068 is part 1's hunk -> its module added to --tests)
+ fast_tier: [fast] 3786 fast tests (<2.0s in b3899a96) + 3 changed modules, 4 shards
+            Crashed shards: none / Failures: none / Errors: none / Total: 3812 tests, 291.4s
+
+Not done / notes: no plan state (fundraising mode) is persisted across restarts -- only the visit purchases; a kit
+carried out of town is retained again only by mining_planned.  tail:identify-staff keeps "identify-staff-cap"
+(applies only while a release plan exists) as in the predecessor's table; not changed.

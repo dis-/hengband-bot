@@ -7670,7 +7670,11 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(policy._device_food_reserve_slot(snap), "b")
         self.assertEqual(policy._find_device_sale(snap).slot, "a")
 
-    def test_mana_race_keeps_highest_staff_only_without_wands(self):
+    def test_mana_race_keeps_staves_while_the_mana_food_target_is_short(self):
+        # User 2026-09-17 (departure-conditions-carried-only): the MANA food
+        # departure target (15 charges, 2 devices) is met by carried devices.
+        # 3 + 9 charges in 2 staves are short, so selling the small staff only
+        # forces a re-buy (#96); no device is sold while the target is short.
         devices = [
             item("a", TVAL_STAFF, 8, charges=3, name="small staff"),
             item("b", TVAL_STAFF, 9, charges=9, name="large staff"),
@@ -7686,6 +7690,30 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy._device_food_reserve_slot(snap), "b")
+        self.assertEqual(policy._retention_reservation_detail(snap, devices[0]),
+                         (1, "supply-ledger:mana-food"))
+        self.assertIsNone(policy._find_device_sale(snap))
+
+    def test_control_mana_race_sells_lowest_staff_once_the_target_is_met(self):
+        # A third staff brings the larger two to 19 charges in 2 devices, so
+        # the smallest staff is surplus and sold again.
+        devices = [
+            item("a", TVAL_STAFF, 8, charges=3, name="small staff"),
+            item("b", TVAL_STAFF, 9, charges=9, name="large staff"),
+            item("c", TVAL_STAFF, 10, charges=10, name="third staff"),
+        ]
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=devices,
+            store=StoreState(store_type=STORE_MAGIC, items=[]),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._retention_reservation_detail(snap, devices[0]),
+                         (0, None))
         self.assertEqual(policy._find_device_sale(snap).slot, "a")
 
     def test_mana_race_sells_identify_staff_when_both_reserves_survive(self):
