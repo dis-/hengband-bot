@@ -18,7 +18,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from hengbot.cli import _parse_items
+from hengbot.cli import _parse_items, _policy_final_stop_banner
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
@@ -178,6 +178,8 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
                           record["excess"]),
                          ("town:blocked:overweight-retained-only", 1908, LIMIT, 158))
         self.assertIn("town:blocked:overweight-retained-only", POLICY_FINAL_STOP_REASONS)
+        self.assertIn("only retained items remain above the weight limit",
+                      _policy_final_stop_banner("town:blocked:overweight-retained-only"))
         self.assertIn("overweight-retained-only", VISIT_CLOSABLE_REASONS)
 
     def test_generic_departure_block_is_named_when_only_retained_weight_remains(self):
