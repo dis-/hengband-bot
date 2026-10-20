@@ -338,9 +338,14 @@ print(json.dumps({'epoch':p._town_visit_epoch,'sold':getattr(p,'_overweight_surp
         normalize_policy_state(restored)
         self.assertIsNone(restored._overweight_surplus_disposal)
         self.assertEqual(restored._overweight_surplus_ledger, {'epoch':None,'sold':[]})
-        # DECLARED CONSTRUCTED unbuyable junk in the recorded speed slot. The
+        # DECLARED CONSTRUCTED unbuyable item in the recorded speed slot. The
         # real store acceptance gates prove that every store refuses it.
-        junk = replace(item, tval=1, sval=1, name='declared unbuyable junk', count=26)
+        # A non-junk figurine (tval 8, _junk_class None) since the owner
+        # decisions 2026-10-18 (#70: remains are never carried home) and
+        # 2026-10-20 (#95: junk is never deposited in the Home) made the
+        # former tval 1 remains stack no Home deposit.
+        junk = replace(item, tval=8, sval=0, name='declared unbuyable figurine', count=26)
+        self.assertIsNone(policy._junk_class(home, junk))
         outside = replace(home, store=None, inventory=(junk,*home.inventory[1:]))
         self.relief(policy, outside)
         key = policy._home_full_relief_key(outside)
