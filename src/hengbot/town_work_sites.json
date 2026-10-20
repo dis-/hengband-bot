@@ -5273,7 +5273,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "1f29698436babe1056cfd6355747e340fe55475e0d1a342b694ddd134da7395c"
+    "ast_sha256": "808df238b1cb30e583cd036d071d51f6eb006d0422dd0fb332716abae01fdd8b"
   },
   "policy_home.py:HomeMixin._retention_reservation_detail": {
     "classification": "data",
@@ -5306,6 +5306,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "a329c6b05203462855d089f28d59d2163072b2c7e90c253603cfdb63ee43495d"
+  },
+  "policy_home.py:HomeMixin._star_remove_curse_reserve_retained": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "462e631d5e6c90b1682729c9ebe626e45da7cc4e256ea73e97920d4a3062f049"
   },
   "policy_home.py:HomeMixin._weight_deposit_candidates": {
     "classification": "data",
