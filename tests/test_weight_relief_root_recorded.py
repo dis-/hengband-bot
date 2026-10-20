@@ -58,7 +58,10 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
         """DECLARED wall: the process state after the recorded 2147 skip.
 
         Home catalogue = recorded knowledge board 81 (239 items); capacity =
-        recorded Home page 82 (239/240); relief = pending, its take skipped.
+        recorded Home page 82 (239/240); relief = pending, its take skipped,
+        begun on the overweight pack as _home_full_relief_key begins it and
+        with no ware taken (measured: the capture's decisions 2107..2146 hold
+        no relief take; 239 is the 2115 catalogue withdrawal).
         """
         policy, snapshot = self._policy_for("20261021-050011", 86)
         town = policy._effective_town_id(snapshot)
@@ -73,7 +76,8 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
                         if item.weight > 0
                         and (count := policy._retention_surplus(snapshot, item)) > 0)
         policy._home_full_relief = {
-            "deposits": entries, "remaining": 1, "sale": None, "withdrawn": False,
+            "deposits": entries, "remaining": max(1, len(entries)),
+            "sale": None, "withdrawn": False,
             "town": town, "skipped": {SKIPPED: "surplus-target-unobserved"},
         }
         return policy, snapshot
@@ -123,6 +127,28 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
         self.assertEqual(relief.route, "sell-or-destroy")
         self.assertFalse(policy._release_home_full_relief_for_weight(snapshot, relief))
         self.assertIsNotNone(policy._home_full_relief)
+
+    def test_relief_that_took_a_ware_keeps_its_freed_slot(self):
+        # DECLARED: the same relief after one take (as C4-A 2026-10-20 decision
+        # 15 of the one-shot replay: the relief's own take freed the slot).
+        policy, snapshot = self._stale_relief_board()
+        policy._home_full_relief["remaining"] -= 1
+        relief = policy._weight_relief_selection(snapshot)
+        self.assertEqual((relief.route, relief.home_room), ("deposit", True))
+        self.assertFalse(policy._release_home_full_relief_for_weight(snapshot, relief))
+        self.assertIsNotNone(policy._home_full_relief)
+        self.assertIsNone(policy._find_home_deposit(snapshot))
+
+    def test_selector_gate_is_the_overweight_test_of_the_deposits(self):
+        # The selector asks the overweight test the deposit candidates own
+        # (a caller holding that answer gets the same deposit order).
+        policy, snapshot = self._policy_for("20261021-050011", 57)
+        self.assertFalse(policy._inventory_overweight(snapshot))
+        with patch.object(policy, "_inventory_overweight", return_value=True):
+            expected = tuple(policy._weight_deposit_candidates(snapshot))
+            deposits = policy._weight_relief_selection(snapshot, plan=False).deposits
+        self.assertTrue(expected)
+        self.assertEqual(deposits, expected)
 
     def test_control_unobserved_home_capacity_keeps_the_relief(self):
         policy, snapshot = self._stale_relief_board()

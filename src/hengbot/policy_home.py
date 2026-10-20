@@ -2663,7 +2663,8 @@ class HomeMixin:
         limit = self._inventory_weight_limit(snapshot)
         weight = self._inventory_weight(snapshot)
         excess = 0 if limit is None else weight - limit
-        if excess <= 0:
+        # The overweight test is the one the deposit candidates own.
+        if not self._inventory_overweight(snapshot):
             return WeightRelief(weight, limit, 0, (), (), False, "none", ())
         deposits = tuple(self._weight_deposit_candidates(
             snapshot, include_ammo=include_ammo))
@@ -2712,12 +2713,15 @@ class HomeMixin:
         deposit while it is pending.  When the selector deposits the carried
         surplus (a free slot is observed) and no take is in flight, the
         relief's premise is gone (live 2026-10-21 05:00, Home 239/240,
-        1761 > 1750: the pending relief hid the weight deposit).
+        1761 > 1750: the pending relief hid the weight deposit).  A relief
+        that already took a ware made that slot for its own deposits and
+        keeps it (C4-A 2026-10-20 one-shot sale).
         """
         relief = self._home_full_relief
         if (weight_relief is None or weight_relief.route != "deposit"
                 or relief is None or relief.get("sale") is not None
-                or relief.get("withdrawn")):
+                or relief.get("withdrawn")
+                or relief["remaining"] != max(1, len(relief["deposits"]))):
             return False
         self._home_full_relief = None
         self._home_full_retry_deposits = None
