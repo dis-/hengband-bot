@@ -1762,6 +1762,21 @@ class NavigationMixin:
             and self._wall_search_counts[key] < SEARCH_LIMIT
         ]
 
+    def _warning_step_refused(self, snapshot: Snapshot, cell: Position) -> bool:
+        """Whether _step_toward's warning gate would refuse a step onto ``cell``.
+
+        One answer to "may the bot step onto this cell now?" for the warning
+        latch: a grid whose TR_WARNING prompt was refused is not a step while
+        a movement supply remains (or while the engagement owner also claims
+        it); only the all-supplies-exhausted forced walk may take it.  A step
+        producer asks this while choosing, so a refused grid is never its
+        answer and the decision falls through to another candidate or the
+        next producer instead of the gate's WAIT."""
+        return cell in self._warning_refused_cells and (
+            not self._warning_supplies_exhausted(snapshot)
+            or cell in self._engagement_owned_avoid_cells
+        )
+
     def _step_toward(
         self,
         snapshot: Snapshot,

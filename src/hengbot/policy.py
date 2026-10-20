@@ -18675,7 +18675,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         )
                     )
             for neighbor in self._walkable_neighbors(snapshot, position):
-                if neighbor not in previous:
+                if neighbor not in previous and not self._warning_step_refused(
+                    snapshot, neighbor
+                ):
                     previous[neighbor] = position
                     queue.append(neighbor)
         if not candidates:

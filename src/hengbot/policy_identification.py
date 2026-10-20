@@ -1478,6 +1478,9 @@ class IdentificationMixin:
                 continue
             if not snapshot.in_bounds(Position(ny, nx)):
                 continue
+            if self._warning_step_refused(snapshot, Position(ny, nx)):
+                # The weapon warning refused this grid: probe elsewhere.
+                continue
             count = self._probe_counts[key]
             if count >= PROBE_LIMIT:
                 continue
