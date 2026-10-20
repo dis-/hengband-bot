@@ -67,6 +67,7 @@ ITEM_RESERVATION_SOURCES = {
     '_store_sell_attempt': ('selection', 'store sell attempt; selection/observation intent, no additional exclusive owner'),
     '_town_visit_purchase_quantities': ('retention', 'Observed purchased quantities protect existing retention, without an exclusive owner'),
     '_town_visit_purchases': ('retention', 'Observed purchased signatures protect existing retention, without an exclusive owner'),
+    '_town_visit_purchase_record': ('retention', 'The written copy of the observed visit purchases, restored after a restart, without an exclusive owner'),
 }
 
 @dataclass(frozen=True)
