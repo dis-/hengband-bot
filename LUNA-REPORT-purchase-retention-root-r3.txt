@@ -1,0 +1,48 @@
+LUNA-REPORT purchase-retention-root r3 (issue #96 part 2, branch purchase-retention-root-1020, base main 51a0d8f6,
+gate eab31acc failed on 4 tests)
+
+Measured diagnosis: LUNA-DIAG-purchase-retention-root-r3.txt.
+ (R) test_overweight_home_unreachable_recorded replay 3718-3721 and test_declarations_r14 OFF hash: one cause --
+     supply-ledger:mana-food kept the 6-charge Curing staff (slot o) on the 2026-09-25 Outpost board because the
+     5-charge Identify staff ranked after it; the pack meets the food target (15 / 2) without it (18 uses,
+     4 devices), so the live sale is what the 2026-09-17 owner decision allows.  Fixed in src; no wall.
+ (load) test_home_deposit_hang_recorded hard timeout: no slowdown (cProfile 972,863 vs 967,558 calls, best
+     decision 0.589 s on both); main's own worker took 8.12 s once under the same load.
+ (flake) test_input_executor ...post_ack_observation_grace: main failed 1 of 9 alone, branch 0 of 9; the branch
+     does not touch the executor.
+
+Change (commit 087af9a2): policy_home.py _retention_reservation_baseline_detail, the MANA food allocation rank:
+ the Identify staves rank with the reserve device ahead of the other devices (both are carried whatever this
+ branch decides; the ledger counts Identify charges above IDENTIFY_CHARGE_FLOOR).  No new constant, no new
+ policy attribute.  Manifest regenerated (town_work_manifest.json.gz, town_work_sites.json).
+
+Pins (tests/test_purchase_retention_root_recorded.py, new class ManaFoodIdentifyStavesRecordedTest, recorded
+board 3718 of overweight-home-unreachable-20260925, fresh policy):
+ test_curing_staff_beyond_the_food_target_is_sold: 23c1d1dd (1, 'supply-ledger:mana-food') -> (0, None),
+   _find_device_sale slot 'o'.  Measured with git apply -R of the src hunk: FAIL before, OK after.
+ test_control_curing_staff_is_kept_while_the_staves_leave_it_short (DECLARED CONSTRUCTED: Identify staves l, m
+   removed): (1, 'supply-ledger:mana-food') before and after.
+
+Existing tests: none edited in this round.  preflight notes the earlier round's rename (23c1d1dd)
+ tests/test_policy_town.py::test_mana_race_keeps_highest_staff_only_without_wands ->
+ test_mana_race_keeps_staves_while_the_mana_food_target_is_short (old: _find_device_sale slot 'a';
+ new: retention (1, 'supply-ledger:mana-food') and no sale) + new control test -- left as committed then.
+
+Re-runs at 087af9a2 working tree (alone, while gate suites ran):
+ test_overweight_home_unreachable_recorded OK (9 tests, 412.6 s); test_declarations_r14 OK (2, 511.6 s);
+ test_home_deposit_hang_recorded OK (5, 10.3 s); test_input_executor OK (73, 3.9 s);
+ test_purchase_retention_root_recorded OK (16, 151.3 s); test_policy_town OK (593, 453.9 s);
+ test_policy_home OK (171, skipped 4); test_policy_supply OK (208); test_manafood_departure_recorded OK (13);
+ test_classC2_departure_recorded OK.
+
+Guards: see below.
+ preflight: [preflight] NOTE existing-test REMOVED or renamed: tests/test_policy_town.py::TownAndFundraisingPolicyTest.test_mana_race_keeps_highest_staff_only_without_wands
+            [preflight] PREFLIGHT OK: 16 changed files, 0 findings (purchase-retention-root-1020 vs 51a0d8f6)
+ mutation:  [mutation] 11 source hunks, tests: test_purchase_retention_root_recorded -- all 11 caught
+            (policy_home.py:2220 MANA/Stone to Mud branch incl. this round's rank: test_control_curing_staff_is_kept...,
+             test_curing_staff_beyond_the_food_target_is_sold among others)
+            [mutation] MUTATION OK: 0 of 11 hunks are not pinned by a test / recorded for 087af9a2
+ fast_tier: [fast] 3637 fast tests (<2.0s in 51a0d8f6) + 2 changed modules, 4 shards (36 modules >60s excluded)
+            Crashed shards: none / Failures: none / Errors: none / Total: 4251 tests, 567.6s
+ (fast_tier waited until gate-junkweight-1021 ended with STOP at 03:32; that gate's own failures are in
+  test_supply_shortfall_owner_recorded on another branch, not touched here.)
