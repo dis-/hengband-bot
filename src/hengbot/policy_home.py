@@ -2236,24 +2236,14 @@ class HomeMixin:
                     < MANA_FOOD_DEVICE_TARGET
                 ):
                     return item.count, "supply-ledger:mana-food"
-        elif (
-            item.tval == TVAL_WAND
-            and item.sval == SV_WAND_STONE_TO_MUD
-            and item.charges > 0
-        ):
-            # The black-market:stone-to-mud rung buys while no charged Stone
-            # to Mud is carried; that one stack is its target.  The shop and
-            # destroy selectors skip useful devices, the Home-full relief did
-            # not, so a stored wand was surplus and the rung bought again.
-            # Further charged stacks stay surplus.
-            first = next((
-                candidate for candidate in snapshot.inventory
-                if candidate.tval == TVAL_WAND
-                and candidate.sval == SV_WAND_STONE_TO_MUD
-                and candidate.charges > 0
-            ), item)
-            if first.slot == item.slot:
-                return item.count, "utility:stone-to-mud"
+
+        if item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD:
+            # User 2026-10-20: every Stone to Mud wand is kept, picked up or
+            # bought, charged or empty -- the recharge facility recharges by
+            # the number of wands, so they are never sold, destroyed or
+            # offered to the Home-full relief.  The MANA branch above keeps
+            # its own labels; whatever it leaves falls here, not to surplus.
+            return item.count, "utility:stone-to-mud"
 
         if strategy is not None:
             force = strategy.required_force

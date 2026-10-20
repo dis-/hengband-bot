@@ -32,7 +32,9 @@ DECLARED CONSTRUCTED:
   Detection stack (5; the live purchase was 6) is set directly, then written
   by an ordinary board; the second policy is the restarted process.
 * Stone to Mud: the player is made a ration eater and the Home Darkness staff
-  a charged Stone to Mud wand; the pin removes the carried wands (j).
+  a charged Stone to Mud wand; the pin removes the carried wands (j).  The
+  every-wand pin keeps the carried wands (j, 5 wands) and also makes the Home
+  wand an empty one; the control makes the Home staff a Magic Missile wand.
 """
 
 from __future__ import annotations
@@ -65,6 +67,7 @@ DETECTION_NAME = "財宝感知の巻物"
 DARKNESS_PREFIX = "暗闇の杖"
 STAFF_NAME = "財宝感知の杖 (19回分)"
 STM_NAME = "岩石溶解の魔法棒 (12回分)"
+MM_NAME = "マジック・ミサイルの魔法棒 (12回分)"
 
 
 def _home_items(board):
@@ -84,8 +87,15 @@ def _treasure_staff(board):
     return _home_device(board, name=STAFF_NAME, sval=10, charges=19, pval=19)
 
 
-def _stone_to_mud(board):
-    board = _home_device(board, name=STM_NAME, tval=65, sval=6, charges=12,
+def _stone_to_mud(board, charges=12):
+    board = _home_device(board, name=f"岩石溶解の魔法棒 ({charges}回分)",
+                         tval=65, sval=6, charges=charges, pval=charges)
+    board["player"]["food_type"] = 0
+    return board
+
+
+def _magic_missile(board):
+    board = _home_device(board, name=MM_NAME, tval=65, sval=15, charges=12,
                          pval=12)
     board["player"]["food_type"] = 0
     return board
@@ -308,17 +318,47 @@ class PurchaseRetentionRootRecordedTest(unittest.TestCase):
                          (1, "utility:stone-to-mud"))
         self.assertIsNone(policy._home_full_discard_candidate(snapshot, stack))
 
-    def test_control_second_stone_to_mud_is_surplus(self):
+    def test_every_stone_to_mud_wand_is_kept(self):
+        # User 2026-10-20: every Stone to Mud wand is kept (the recharge
+        # facility recharges by the number of wands), carried or in Home,
+        # charged or empty.
         policy = self._policy_on(_stone_to_mud(self.home),
                                  _ration(self.approach))
         snapshot = parse_snapshot(_stone_to_mud(self.inside), self.monrace)
         self.assertTrue(policy._has_charged_stone_to_mud(snapshot))
+        carried = next(item for item in snapshot.inventory if item.slot == "j")
+        self.assertEqual(carried.count, 5)
+        # 72e85c6d: the carried stack (5, 'utility:stone-to-mud'), the Home
+        # wand (0, None) and a destroy candidate.
+        self.assertEqual(policy._retention_reservation_detail(
+            snapshot, carried), (5, "utility:stone-to-mud"))
         stack = self._stack(policy, STM_NAME)
+        self.assertEqual(self._home_reservation(policy, snapshot, stack),
+                         (1, "utility:stone-to-mud"))
+        self.assertIsNone(policy._home_full_sale_candidate(snapshot, stack))
+        self.assertIsNone(policy._home_full_discard_candidate(snapshot, stack))
+
+        policy = self._policy_on(_stone_to_mud(self.home, charges=0),
+                                 _ration(self.approach))
+        snapshot = parse_snapshot(_stone_to_mud(self.inside, charges=0),
+                                  self.monrace)
+        stack = self._stack(policy, "岩石溶解の魔法棒 (0回分)")
+        self.assertEqual(self._home_reservation(policy, snapshot, stack),
+                         (1, "utility:stone-to-mud"))
+        self.assertIsNone(policy._home_full_sale_candidate(snapshot, stack))
+        self.assertIsNone(policy._home_full_discard_candidate(snapshot, stack))
+
+    def test_control_another_wand_kind_is_still_surplus(self):
+        # A wand no retention branch targets stays Home-full stock beside the
+        # kept Stone to Mud wands.
+        policy = self._policy_on(_magic_missile(self.home),
+                                 _ration(self.approach))
+        snapshot = parse_snapshot(_magic_missile(self.inside), self.monrace)
+        stack = self._stack(policy, MM_NAME)
         self.assertEqual(self._home_reservation(policy, snapshot, stack),
                          (0, None))
         self.assertIsNotNone(
             policy._home_full_discard_candidate(snapshot, stack))
-
 
 if __name__ == "__main__":
     unittest.main()
