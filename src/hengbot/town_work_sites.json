@@ -1750,7 +1750,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "419def84b1d95298d847aec3c53ff115eb0bb391133e0ab944c0109f396fec1b"
+    "ast_sha256": "53345197e0308032227a5fd671e04405454cf8f81e7e5236f49e1dbcbb6944e1"
   },
   "policy.py:HengbotPolicy._build_known_fixed_quests": {
     "classification": "data",
@@ -2591,7 +2591,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "092ad53c358c29f7fea6a988f1c9e31e0198bd9a739ff9e6a52edc26ef0e8540"
+    "ast_sha256": "93076f08a4ac4262388bb88d05a5709aaecd68924f07b3fceace28792c84c7d4"
   },
   "policy.py:HengbotPolicy._low_hp_walk_gate": {
     "classification": "producer",
@@ -3158,7 +3158,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fab5e8463da447a8a6305f34ff820db40f6d6cb0cf6f14893b4686abd37c5605"
+    "ast_sha256": "aa55a956383f918f756843ade0ebe397c1013da44b4df67dd10136eadbfbd866"
   },
   "policy.py:HengbotPolicy._summoner_retreat_step": {
     "classification": "data",
@@ -4124,7 +4124,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "7581927d6eaeb2574f67ade455b28a4b05329a41a52efe6dbe84d1a34058869b"
+    "ast_sha256": "06742693dec445129a0a7fd958b22bef555d14e0dbff72fb684471cfb9b0ff3b"
   },
   "policy_combat.py:CombatMixin._flee_sustain_key": {
     "classification": "producer",
@@ -5476,7 +5476,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c5284c9c6fa024cad1bd12b1be21b6d9f2308d968ec772a150035dd84de8ec64"
+    "ast_sha256": "b26860297c87e9f82ce3d39741bbb59e251ab8a2a8fb0055847b9c90e4c15f17"
   },
   "policy_identification.py:IdentificationMixin._unseen_attack_area_cells": {
     "classification": "data",
@@ -5632,7 +5632,7 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "bb3b95cbbbf5b58bedda1270ef2d8c505787e4a05f16a07239feb8e95628c839"
+    "ast_sha256": "caebab83cf15736e345dc74e8c5ca805ec7550298876e47be2f8789f011c8ff4"
   },
   "policy_navigation.py:NavigationMixin._dark_locomotion_key": {
     "classification": "producer",
@@ -5648,7 +5648,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5367ca38d8713206c578e4fdd7a9b022aeea2ef40fca1fc2418343d7fd3d2230"
+    "ast_sha256": "146697bfcba6a12a8a91ed91fa0f0af496799a5845cde7457c5dd3e199e6b55f"
   },
   "policy_navigation.py:NavigationMixin._disengage_move_or_escalate": {
     "classification": "producer",
