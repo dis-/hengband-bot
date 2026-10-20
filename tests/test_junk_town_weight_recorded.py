@@ -52,6 +52,13 @@ from hengbot.policy_constants import STORE_HOME
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_junk_scope import pre_town_junk_step_rule
 import test_lantern_lost_recorded as lantern_recorded
+import test_home_route_release_recorded as home_route_recorded
+import test_destroy_superior_item_guard as destroy_superior
+from hengbot.equipment_mutation import EquipmentMutationState
+from hengbot.model import parse_snapshot
+from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import STORE_STUCK_LIMIT
+from test_s33_batch_context import captured_session
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "junk-town-weight-20261020.jsonl.gz"
@@ -268,6 +275,75 @@ class TownJunkStepWallTest(unittest.TestCase):
             (key, policy.last_reason),
             ("~9\x1b", "equipment-transaction:catalogue-request-knowledge"))
 
+
+class TownJunkStepInFlightTest(unittest.TestCase):
+    """The town junk step does not pre-empt an in-flight equipment operation.
+
+    Merge gate 0749c6be (round 3): on the recorded 234018/234047/234116 Home
+    route boards (tests/test_home_route_release_recorded.py, DECLARED
+    CONSTRUCTED checkpoint there) the refused weight-overload deposit hands
+    off to the captured equipment transaction session (two Home deposits of
+    the swords l and m).  The carried 28 unused arrows (slot o) are junk and
+    the pack is overweight, so before the fix the town step destroyed them
+    ('028ko') ahead of the session's 'equipment-transaction:travel-home'.
+    """
+
+    def _handoff_board(self, pin):
+        policy, _before, after, _entries = home_route_recorded.reconstructed(pin, False)
+        _, session = captured_session(
+            pin["stamp"], {"234018": 224, "234047": 223, "234116": 219}[pin["stamp"]])
+        policy._equipment_transaction_session = session
+        for count in range(1, STORE_STUCK_LIMIT):
+            policy.choose_key(replace(after, turn=after.turn + count))
+        return policy, session, replace(after, turn=after.turn + STORE_STUCK_LIMIT)
+
+    def test_equipment_transaction_session_keeps_the_junk_step_out(self):
+        pins = json.loads(gzip.decompress(home_route_recorded.FIXTURE.read_bytes()))
+        for pin in pins:
+            with self.subTest(stamp=pin["stamp"]):
+                policy, session, board = self._handoff_board(pin)
+                arrows = next(item for item in board.inventory if item.slot == "o")
+                self.assertEqual((arrows.tval, arrows.count,
+                                  policy._junk_class(board, arrows)),
+                                 (17, 28, "unused-ammo"))
+                self.assertTrue(policy._inventory_overweight(board))
+                self.assertIsNone(session.pending_action)
+                key = policy.choose_key(board)
+                self.assertIs(policy._equipment_transaction_session, session)
+                self.assertEqual(policy.last_reason, "equipment-transaction:travel-home")
+                self.assertFalse(str(key).startswith("0"))
+
+    def test_posted_wield_defers_the_junk_destroy(self):
+        """Recorded destroy-superior-digger boards 2105-2107 (pack-slot pressure).
+
+        Replayed under the declared ``pre_town_junk_step_rule`` the combat
+        re-wield 'woa' is posted at 2105 and still unobserved at 2107; on the
+        2107 board (unused arrows carried, pack below the departure minimum)
+        the town step's destroy defers on the posted mutation and the decision
+        is not a destroy.
+        """
+        rows = destroy_superior.captured_rows()
+        policy = HengbotPolicy()
+        board = None
+        with pre_town_junk_step_rule():
+            for row in rows:
+                snapshot = parse_snapshot(row["snapshot"], {})
+                if row["decision"]["decision_sequence"] == 2107:
+                    board = snapshot
+                    break
+                key = policy.choose_key(snapshot)
+                if key:
+                    policy.confirm_key_posted(key)
+        self.assertEqual(policy._equipment_mutation.state, EquipmentMutationState.POSTED)
+        self.assertTrue(policy._town_pack_space_shortage(board))
+        junk = policy._find_worthless_junk(board)
+        self.assertEqual((junk.slot, policy._junk_class(board, junk)), ("r", "unused-ammo"))
+        self.assertIsNone(policy._worthless_junk_destroy_key(board))
+        self.assertEqual(policy.last_reason,
+                         "inventory:destroy-deferred-equipment-mutation")
+        key = policy.choose_key(board)
+        self.assertFalse(str(key).startswith("0"))
+        self.assertNotEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
 if __name__ == "__main__":
     unittest.main()

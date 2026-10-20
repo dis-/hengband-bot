@@ -10438,6 +10438,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._store_buy_inflight is None
                 and self._batch_sell_pending is None
                 and self._home_full_relief is None
+                and self._equipment_transaction_session is None
                 and (self._inventory_overweight(snapshot)
                      or self._town_pack_space_shortage(snapshot))):
             junk_key = self._town_producer_entry(

@@ -10,6 +10,7 @@ import unittest
 from hengbot.equipment_mutation import EquipmentMutationState
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
+from recorded_junk_scope import pre_town_junk_step_replay
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "destroy-superior-digger-20260910.json.gz"
@@ -92,6 +93,8 @@ class DestroySuperiorItemGuardTest(unittest.TestCase):
             "inventory:destroy-after-superior-item-refusal",
         )
 
+    # declared wall: pre-2026-10-21 town junk step
+    @pre_town_junk_step_replay
     def test_posted_equipment_mutation_does_not_run_destroy_finder(self):
         rows = captured_rows()
         policy = HengbotPolicy()
