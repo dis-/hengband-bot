@@ -1,0 +1,54 @@
+LUNA-REPORT idstaff-fundraise (branch idstaff-fundraise-1020, base b8401802)
+
+Measured cause (details and file:line in LUNA-DIAG-idstaff-fundraise.txt):
+- The #76 Identify-staff stockout time-pass WAS installed (seq 79; 18/20 charges on four staves, Magic shelf
+  staves 3 and 2 charges cannot raise it). Its prepare kit lacked one Treasure Detection scroll.
+- Six scrolls had been sold to the Alchemist at seq 52 (Home-full surplus, before the plan existed). The
+  sell-rebuy churn guard (_purchase_churn_rejected, policy_shop.py:2286) refused the sold class for the rest
+  of the visit, so the in-store shelf dry run (_shelf_dry_run_absent -> _next_purchase) marked the
+  Alchemist's fundraising-detection / mining-detection needs absent (recorded shelf_evidence_skips seq 82-115).
+- With prepare unable to promote to mine, a recall destination present (no exhausted-plan fallback,
+  policy_town.py:6284) and the time-pass already installed (policy_town.py:6825), the board fell to the
+  recall gate's identify_staff_ready and policy_town.py:6859 set departure-unsatisfiable.
+- identify_staff_ready is not a condition of the mining departure (_fundraising_supplies_ready /
+  _fundraising_departure_ready). #76 covered the install, not this kit starvation.
+
+Change (commit 3d9f9d8e):
+- src/hengbot/policy_shop.py: _purchase_churn_rejected exempts _mining_kit_detection_rebuy(item): a Treasure
+  Detection scroll while fundraising mode is prepare/mine/scavenge. In those modes the retention authority
+  keeps detection up to the same stock target the buyer fills (policy_home.py "mining:detection"), so the
+  rebuy cannot undo a sale of this plan. No new constant/threshold, no new policy attribute (no restored-
+  checkpoint defaults needed). The 20-charge rule and normal dives are untouched.
+- scripts/town_work_manifest.json.gz regenerated (837 candidates, zero unmapped; the helper is not a
+  manifest candidate, so no baseline/review entry).
+- tests/test_idstaff_fundraise_recorded.py, tests/extract_idstaff_fundraise_fixture.py,
+  tests/fixtures/idstaff-fundraise-20261020.json.gz (sha256 c14b4855...230a9).
+
+Pins (recorded board seq 115, DECLARED walls in the test docstring):
+- b8401802: ('9', 'town:blocked:departure-unsatisfiable'), shelf skips store 4 absent=true (scratch replay);
+  test_stockout_kit_rebuys_the_sold_detection_scroll FAILS ('departure-unsatisfiable' is not None),
+  test_control_churn_guard_kept_without_a_mining_plan FAILS.
+- fix: ('\x1b`n%.', 'shop:travel') to the Alchemist, plan kept (prepare, Identify-staff mining plan); on the
+  Alchemist page _next_purchase selects 財宝感知の巻物 (90 @ 24G).
+Controls:
+- test_control_churn_guard_kept_without_a_mining_plan: with fundraising mode None the sold class is still
+  refused (guard unchanged outside a mining plan).
+- #76 pins: test_idstaff_poor_depart_recorded OK (3), incl. test_control_unlatched_magic_still_buys_the_staff
+  (an ordinary 13/20 departure still routes to the Magic Shop staff first).
+- Related modules OK: test_identify_staff_swap_churn_recorded 5, test_recall_churn_stockout_recorded 5,
+  test_newchar_light_churn_recorded 3, test_store_reentry_recorded 36, test_step15d2_f2 6,
+  test_crosstown_alt_recorded 5, test_town_restock_trajectory 21, test_live23_home_cycle 10,
+  test_policy_shop 275 (1 skip), test_policy_home 171 (4 skips). No existing test changed.
+
+Guards:
+- preflight: PREFLIGHT OK: 6 changed files, 0 findings (idstaff-fundraise-1020 vs b8401802)
+- mutation: caught src/hengbot/policy_shop.py:2288 by both new tests; MUTATION OK: 0 of 1 hunks are not
+  pinned; recorded for 3d9f9d8e
+- fast_tier (--shards 4): 3810 tests, Failures: none, Crashed shards: none; Errors: 1 =
+  tests.test_warning_refused_step_producers (import) ModuleNotFoundError -- that module exists only in the new
+  main 838e185b (merged by gate-warnstep2 during this task), not in b8401802/this branch; the tool selected
+  it from 838e185b timings. Not a regression of this change; no repair round taken.
+
+Not fixed (reported): capture 20261020-135723 hit the same terminal with the time-pass kit short of a
+digging tool while Home was in blocked_stores [7] (unsatisfied_passes 7:4) and held the diggers -- a
+different mechanism (Home blocked under its bound); the resumed process withdrew them normally.
