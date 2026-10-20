@@ -1040,6 +1040,9 @@ class ObservationMixin:
         # A restarted bot learns the attack its previous process observed on
         # this floor (the record beside the decision log), once.
         self._apply_unseen_attack_restore(snapshot)
+        # The same for this town visit's purchases (visit-purchase retention).
+        self._carry_town_visit_purchases_across_restart(
+            snapshot, previous_floor is None)
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from

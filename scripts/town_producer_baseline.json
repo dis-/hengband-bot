@@ -685,5 +685,6 @@
   "policy_town.py:TownMixin._town_pack_space_shortage": "pure helper: Whether the pack lacks the existing reserve for upcoming town work.",
   "policy_identification.py:IdentificationMixin._in_unseen_attack_area": "pure helper: _in_unseen_attack_area returns bool used as input/observation, not an independently selected game action",
   "policy_identification.py:IdentificationMixin._unseen_attack_area_cells": "pure helper: _unseen_attack_area_cells returns set[Position] used as input/observation, not an independently selected game action",
-  "policy_home.py:HomeMixin._star_remove_curse_reserve_retained": "pure helper: Whether item is a scroll the one-scroll reserve may keep."
+  "policy_home.py:HomeMixin._star_remove_curse_reserve_retained": "pure helper: Whether item is a scroll the one-scroll reserve may keep.",
+  "purchase_rungs.py:purchase_rung_retention": "pure helper: purchase_rung_retention returns str | None (the declared retention of a purchase rung) used as input/observation, not an independently selected game action"
 }

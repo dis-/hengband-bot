@@ -30,6 +30,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_latch_capture_path",
     "_in_store_breaker_path",
     "_unseen_attack_path",
+    "_town_visit_purchase_path",
 )
 
 
