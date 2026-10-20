@@ -1140,7 +1140,7 @@ class IdentificationMixin:
                 grid.position
                 for grid in snapshot.grids.values()
                 if grid.object_count > 0 and grid.passable
-                and not self._floor_pile_is_worthless(grid)
+                and not self._floor_pile_is_junk(snapshot, grid)
             }
         candidates -= self._deferred_loot
         candidates -= getattr(self, "_unseen_deferred_loot", set())

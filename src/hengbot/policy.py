@@ -12934,6 +12934,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Fail closed when destruction would discard the best comparable gear."""
         if self._item_is_procurement_protected(snapshot, item):
             return True
+        if self._junk_class(snapshot, item) is not None:
+            # Junk is never a loadout candidate (cursed gear is not evaluated).
+            return False
         counterparts = [
             candidate
             for candidate in (*snapshot.equipment, *snapshot.inventory)
@@ -14831,11 +14834,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         cursed = self._first_item(
             snapshot,
             lambda item: self._entire_stack_is_surplus(snapshot, item)
-            and not self._item_is_procurement_protected(snapshot, item)
-            and item.known
-            and item.is_cursed
-            and not item.is_bounty
-            and self._item_signature(item) not in self._undestroyable_sigs,
+            and self._junk_class(snapshot, item) == "cursed",
         )
         if cursed is not None:
             return cursed
@@ -16926,7 +16925,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:
             return None
-        if self._floor_pile_is_worthless(here):
+        if self._floor_pile_is_junk(snapshot, here):
             return None
         if here.position in self._deferred_loot:
             return None

@@ -471,6 +471,7 @@ class ShopMixin(InStoreMixin):
             item
             for item in snapshot.inventory
             if not item.is_recall_scroll
+            and not self._is_high_value_book(item)
             and self._entire_stack_is_surplus(snapshot, item)
             and not (
                 item.is_digging_tool

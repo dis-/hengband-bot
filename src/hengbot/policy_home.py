@@ -472,6 +472,7 @@ class HomeMixin:
                                   and max(item.charges, item.pval) == 0)
         if (not item_available(self, snapshot, item, "home-visit", "destroy")
                 or item.is_artifact or item.is_bounty
+                or self._is_high_value_book(item)
                 or signature in self._undestroyable_sigs
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
@@ -488,7 +489,10 @@ class HomeMixin:
             return item if identify else None
         if identify:
             return None
-        if not self._home_full_equipment_surplus(probe, item):
+        # Junk needs no equipment dominance proof (cursed gear is never a
+        # loadout candidate); the retention and ownership gates above apply.
+        if (self._junk_class(probe, item) is None
+                and not self._home_full_equipment_surplus(probe, item)):
             return None
         # Equipment surplus already has a full-catalogue proof (or is junk /
         # unused ammunition). A pack-only comparison would discard that proof
@@ -512,14 +516,17 @@ class HomeMixin:
         # The recorded pickup editor's unconditional destruction rules include
         # bones/corpses, junk, statues and worthless items. Keep those kinds
         # ahead of other surplus, along with the bot's existing junk predicate.
+        junk = self._junk_class(snapshot, item)
         autodestroy = (
-            item.tval in {1, 3, 9, 10}
+            item.tval == 9
+            or junk is not None
             or (not item.is_equipment
                 and item_base_cost(item, self._baseitem_costs) is not None
                 and item_base_cost(item, self._baseitem_costs) <= 0)
             or self._is_disposable_item(item, food_type=snapshot.player.food_type))
+        # Remains (#70) go first among equally worthless junk.
         return (not autodestroy,
-                max(0, value), self._item_signature(item))
+                max(0, value), junk != "remains", self._item_signature(item))
 
     @claims(ClaimOwner.IDENTIFICATION)
     def _home_full_identify_carried_key(self, snapshot: Snapshot, target: InventoryItem) -> str | None:
@@ -1110,13 +1117,16 @@ class HomeMixin:
                     carried for carried in snapshot.inventory if carried is not item))
                     if id(item) in pack_ids else snapshot) for item in stock}
             self._prime_disposable_armour_scan(snapshot)
-            # Worthless remains/junk on the shelf are destroyed before any
-            # sale of other stock (#70; owner 2026-10-04 auto-destroy target).
+            # Junk on the shelf or pack is destroyed before any sale of other
+            # stock (#70; owner 2026-10-04 auto-destroy target).  The board
+            # carries the character-dependent junk classes (2026-10-20).
+            self._junk_board = snapshot
             junk = [(candidate, item) for item in stock
                     if self._is_worthless_junk(
                         item if isinstance(item, InventoryItem)
                         else self._inventory_item_from_store_item(item))
                     and (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
+            del self._junk_board
             candidates = [] if junk else [
                 (result, item) for item in sale_stock
                 if not item.is_equipment
