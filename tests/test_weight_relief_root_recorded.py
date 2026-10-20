@@ -124,6 +124,14 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
         self.assertFalse(policy._release_home_full_relief_for_weight(snapshot, relief))
         self.assertIsNotNone(policy._home_full_relief)
 
+    def test_control_unobserved_home_capacity_keeps_the_relief(self):
+        policy, snapshot = self._stale_relief_board()
+        policy._home_capacity_observation = None  # CONSTRUCTED: no capacity fact
+        relief = policy._weight_relief_selection(snapshot)
+        self.assertEqual((relief.route, relief.home_room), ("sell-or-destroy", False))
+        self.assertFalse(policy._release_home_full_relief_for_weight(snapshot, relief))
+        self.assertIsNotNone(policy._home_full_relief)
+
     def test_control_retained_items_are_never_shed(self):
         policy, snapshot = self._stale_relief_board()
         relief = policy._weight_relief_selection(snapshot)

@@ -2671,7 +2671,17 @@ class HomeMixin:
             return WeightRelief(weight, limit, excess, deposits, (), False,
                                 "unplanned", ())
         home = self._home_available(snapshot)
-        home_room = home and not self._home_is_full(snapshot)
+        # A free Home slot is an observation (page or capacity fact), never
+        # the absence of a "full" fact.
+        store = snapshot.store
+        fact = getattr(self, "_home_capacity_observation", None)
+        if (store is not None and store.store_type == STORE_HOME
+                and isinstance(store.stock_num, int)
+                and isinstance(store.capacity, int) and store.capacity > 0):
+            home_room = store.stock_num < store.capacity
+        else:
+            home_room = bool(home and fact and fact[1] > 0 and fact[0] < fact[1]
+                             and fact[2] == self._effective_town_id(snapshot))
         surplus = tuple(self._overweight_surplus_candidates(snapshot))
         if deposits and home_room:
             route = "deposit"
