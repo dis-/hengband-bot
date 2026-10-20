@@ -5273,7 +5273,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "808df238b1cb30e583cd036d071d51f6eb006d0422dd0fb332716abae01fdd8b"
+    "ast_sha256": "e70b78c966122c914784bdde1a022745952c394a86cda42daed419f1392b4bd6"
   },
   "policy_home.py:HomeMixin._retention_reservation_detail": {
     "classification": "data",
@@ -6577,7 +6577,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "74c97f35b449d08a8fa60f2d8f52ee9dc8572ba014c8037bf9f44049f6c1f99d"
+    "ast_sha256": "3d086b64b55fee5d62e76d5f3605f34ae98fe017d0f93956050c59d14f0d16c8"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.rung.match": {
     "classification": "data",
@@ -7870,6 +7870,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "0ec448fd67d0a1c0b22a29cd2eaf4281cb44bd995ea1b868f379cee8b1b99f6f"
+  },
+  "purchase_rungs.py:purchase_rung_retention": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "a34c0fdbef6e633d95f3d62afa5425a587be49f4345f2e084adf0e4105b5111b"
   },
   "quest_navigator.py:QuestFloorNavigator._exit": {
     "classification": "dungeon-only",

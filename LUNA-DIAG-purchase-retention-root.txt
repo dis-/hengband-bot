@@ -1,0 +1,67 @@
+LUNA-DIAG purchase-retention-root (issue #96 part 2, branch purchase-retention-root-1020, base dce3c120)
+Source: soak c4-a life-014 jsonlog/bot-decisions.jsonl.4 and bot-decisions.jsonl (read-only, 2026-10-20),
+guard-tools/linux_soak.py (start_bot), src/hengbot/cli.py main, policy.py _identify_staff_stockout_key.
+
+A. Rung -> retention table (single declared table: src/hengbot/purchase_rungs.py PURCHASE_RUNG_RETENTION;
+   every PurchaseRung built by policy_shop.py _purchase_rungs carries it as .retention).  Branches are those of
+   _retention_reservation_baseline_detail (policy_home.py; line numbers after this branch).  Every rung is ALSO
+   a retention guard while live (_item_matches_purchase_rung, policy_shop.py:2971); visit-purchase (policy_home.py
+   ~1983/2229) covers the current town visit and, after this branch, a restart inside it.
+     curse:required (shop 2781) ............ consumed-on-use (read by _town_remove_curse_key)
+     legacy:lantern (2788) .................. equipment-catalogue (_home_full_equipment_surplus / _is_spare_lantern, home 446)
+     legacy:oil (2789) ...................... supply-ledger:oil (home 2066)
+     legacy:ration (2790) ................... supply-ledger:food (home 2082)
+     mining:digger (2792) ................... mining:digging-tool (home 2169, while mining_planned) + visit-purchase across a restart
+     mining:treasure-detection (2793) ....... mining:detection (home 2165, while mining_planned) + visit-purchase across a restart
+     mandatory:recall/food/teleport/cure .... supply-ledger:recall/food/teleport/cure (home 2045/2082/2053/2058)
+     mandatory:destruction (2818) ........... destruction-gate (home 2025)
+     identify:normal / identify:full ........ consumed-on-use (read by the identification errand that set _identification_need)
+     restore:<stat> (2832) .................. consumed-on-use (quaffed by _stat_restore_quaff_key, shop 734)
+     restore:proactive (2833) ............... always-live-rung (active ``lambda: True``; the live-rung guard keeps it)
+     experience:restore-life-levels (2834) .. experience-restore (home 2015)
+     quest:carry / quest:speed / quest:healing carry-strategy (home 2102 potion target, 2209 carry target)
+     tail:recall / tail:teleport / tail:cure  supply-ledger:*
+     tail:mana-food (2845) .................. supply-ledger:mana-food (NEW, home 2209-2229; was: pack reserve slot only)
+     tail:torch (2846) ...................... torch-carry (home 2094)
+     tail:ammo (2850) ....................... ammo:carry-plan / retained-ammo (home 1966 / 2140)
+     tail:identify-staff (2851) ............. identify-staff-cap (home 2033)
+     black-market:speed / :healing .......... emergency-potion caps (capped_emergency_potion, shop/home emergency branch)
+     black-market:stone-to-mud (2865) ....... utility:stone-to-mud (NEW, home 2230-2246; was: none)
+     curse:normal (2866) .................... consumed-on-use (read by _town_remove_curse_key)
+     curse:star-reserve (2867) .............. remove-curse:reserve (home 2071, #96 part 1)
+     tail:launcher-enchant (2868) ........... consumed-on-use (read at once; _observe_launcher_enchant, policy.py 16537)
+   Purchase sites outside the ladder and the rung whose retention they share:
+     _quest_carry_purchase (_mandatory_purchase) -> quest:carry; _black_market_optional_purchase (shop 2685) ->
+     black-market:*; _affordable_star_remove_curse (policy_fundraising.py 422) -> curse:star-reserve;
+     _destruction_purchase (shop 2653) -> mandatory:destruction; _required_remove_curse_purchase (shop 2729) ->
+     curse:required; _restore_potion_purchase (shop 712) -> restore:<stat>; _restore_life_levels_purchase (shop 835)
+     -> experience:restore-life-levels; _launcher_enchant_purchase (policy_equipment.py 3736) -> tail:launcher-enchant;
+     the Magic Identify-staff purchase -> tail:identify-staff; equipment-transaction purchases -> equipment catalogue.
+
+B. tail:mana-food Home staff -- MEASURED
+   10:48:51 seq 2821: retention rows: 'クローン・モンスターの魔法棒 (4回分)' reservation 1 branch mana-device (the
+   _device_food_reserve_slot: wands first), '財宝感知の杖 (19回分)' reservation 1 branch visit-purchase only.
+   10:49:10 seq 2833 town:repetition-depart:recall -> floor change clears the visit purchases.
+   10:51:47 seq 3390 home:weight-overload-deposit: only the wand is retained (mana-device) -> the staff is deposited.
+   10:56:40 seq 4187 home-errand:atomic-withdraw:full-home-sale '5pF\x1b', 10:56:42 seq 4190 'd0y' sold.
+   Why neither guard kept it: the Home stack is probed as the last pack slot, so (1) it is not the pack reserve slot
+   and (2) the probe adds its 19 charges to the food ledger, which then reads "ready", so tail:mana-food is not live.
+   The ledger target (MANA_FOOD_CHARGE_TARGET charges with MANA_FOOD_DEVICE_TARGET devices) is the rung's target.
+
+C. mining kit after a restart -- MEASURED
+   13:56:56 seq 6639 town:entrance-step-off:town:identify-staff-stockout-mining -> mode prepare, planned_runs 1
+   (_identify_staff_stockout_key, policy.py 15636: needs _identify_staff_procurement_impossible, which reads this
+   visit's _town_store_attempted and observed Magic/Black Market pages).
+   13:57:01-03 seq 6641/6642 bought 6 財宝感知の巻物 (mining:treasure-detection); 13:57:19 seq 6650
+   town:blocked:departure-unsatisfiable; events.jsonl 13:57:25 restart (reason town:blocked:departure-unsatisfiable).
+   Restart cause of mode None: linux_soak.py start_bot launches a NEW `python -m hengbot` process (no checkpoint
+   argument); cli.main constructs a fresh ConservativePolicy (_fundraising_mode = None, policy.py 2224); the plan
+   lives only in the process and is not persisted.  13:57:31 seq 0 mode None.  The plan's trigger needs this
+   visit's supplier observations again, so it re-armed only at 13:58:56 seq 79 (mode prepare, planned_runs 1),
+   after the Home-full relief: 13:58:23 seq 48 full-home-sale withdraw '5ps6\r\x1b', 13:58:27 seq 52 sold.
+   Before the restart the scrolls were retained twice (mining:detection and visit-purchase); both were in-process.
+   Root fix chosen: the visit-purchase record (the observed purchases of this town visit) is written beside the
+   decision log and restored by the first board of the next process when it is the same town floor at a turn not
+   earlier than the record (the game does not advance between the two processes).  No plan state is restored, so
+   the restarted bot does not re-enter the stop that caused the restart; the purchase stays retained until the plan
+   re-arms (or the visit ends).

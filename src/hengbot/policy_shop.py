@@ -31,6 +31,7 @@ from hengbot.purchase_rungs import (
     PurchaseMatch,
     PurchaseRung,
     PurchaseSelection,
+    purchase_rung_retention,
 )
 
 
@@ -2772,7 +2773,8 @@ class ShopMixin(InStoreMixin):
                     rung_id, category, self._purchase_item_identity(item),
                     cur, goal, shortage, rationale or rung_id,
                 )
-            return PurchaseRung(rung_id, category, match)
+            return PurchaseRung(rung_id, category, match,
+                            purchase_rung_retention(rung_id))
 
         rungs = []
         add = rungs.append

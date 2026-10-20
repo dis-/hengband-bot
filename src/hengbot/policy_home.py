@@ -8,12 +8,12 @@ from hengbot.item_reservation import (
 from hengbot.claim_register import ClaimOwner, claims, terminal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
-from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
+from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
 from hengbot.policy_types import StoreVisit, StoreVisitPhase, ProcurementHomeGate
 from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.equipment_optimizer import AMMUNITION_TVALS, equipment_identity, equipment_move_identity
@@ -26,6 +26,7 @@ from hengbot.model import STORE_ARMOURY, STORE_TEMPLE, STORE_BLACK
 import re
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 class HomeMixin:
 
@@ -2205,6 +2206,54 @@ class HomeMixin:
                 and item.slot == self._device_food_reserve_slot(snapshot)
             ):
                 return item.count, "mana-device"
+            if (
+                item.known
+                and item.charges > 0
+                # Identify staves keep their own carry authority (the
+                # identify-staff-cap branch and its surplus selector).
+                and not (
+                    item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+                )
+            ):
+                # The MANA food target of the supply ledger (the tail:mana-food
+                # purchase rung) is charges AND devices.  Allocate it in pack
+                # order like every other supply: a device stays while the
+                # devices before it leave the ledger short.  A Home stack is
+                # probed as the last slot, so the pack-only reserve slot never
+                # covered it (live 2026-10-20 10:48-10:56: a 471 G Treasure
+                # Detection staff beside one 4-charge wand was deposited and
+                # sold for 152 G, and the short ledger bought again).
+                before = []
+                for candidate in snapshot.inventory:
+                    if candidate.slot == item.slot:
+                        break
+                    before.append(candidate)
+                preceding = replace(snapshot, inventory=tuple(before))
+                food = self._supply_ledger(snapshot, self._planned_depth())["food"]
+                if (
+                    self._count_mana_food_uses(preceding) < food.required_departure
+                    or self._count_mana_food_devices(preceding)
+                    < MANA_FOOD_DEVICE_TARGET
+                ):
+                    return item.count, "supply-ledger:mana-food"
+        elif (
+            item.tval == TVAL_WAND
+            and item.sval == SV_WAND_STONE_TO_MUD
+            and item.charges > 0
+        ):
+            # The black-market:stone-to-mud rung buys while no charged Stone
+            # to Mud is carried; that one stack is its target.  The shop and
+            # destroy selectors skip useful devices, the Home-full relief did
+            # not, so a stored wand was surplus and the rung bought again.
+            # Further charged stacks stay surplus.
+            first = next((
+                candidate for candidate in snapshot.inventory
+                if candidate.tval == TVAL_WAND
+                and candidate.sval == SV_WAND_STONE_TO_MUD
+                and candidate.charges > 0
+            ), item)
+            if first.slot == item.slot:
+                return item.count, "utility:stone-to-mud"
 
         if strategy is not None:
             force = strategy.required_force
@@ -2238,6 +2287,61 @@ class HomeMixin:
         purchased_still_needed = min(purchased, ledger_reservation)
         reservation = max(ledger_reservation, purchased_still_needed)
         return reservation, (branch or "unlabelled") if reservation > 0 else None
+
+    def _carry_town_visit_purchases_across_restart(
+        self, snapshot: Snapshot, first_board: bool,
+    ) -> None:
+        """Keep this town visit's observed purchases beside the decision log.
+
+        The ``visit-purchase`` retention protects what this visit bought, but
+        it lived only in the process: a bot restart inside the same visit
+        forgot it before the purchase's own plan was rebuilt (live soak
+        2026-10-20 13:57:03 six Treasure Detection scrolls bought for the
+        identify-staff stockout mining plan; the 13:57:25 restart started a
+        fresh policy with no fundraising mode, and the Home-full relief sold
+        them at 13:58:27, before the same plan re-armed at 13:58:56).  The
+        first board of a process restores the record of the previous one only
+        on the same town floor at a later turn (the game does not advance
+        between the two processes); any other board rewrites the record.
+        """
+        path = getattr(self, "_town_visit_purchase_path", None)
+        if path is None:
+            return
+        if first_board:
+            try:
+                record = json.loads(Path(path).read_text(encoding="utf-8"))
+                floor_key = tuple(record["floor"])
+                turn = int(record["turn"])
+                purchases = [
+                    (tuple(signature), quantity)
+                    for signature, quantity in record["purchases"]
+                ]
+            except (OSError, ValueError, KeyError, TypeError):
+                purchases = []
+            else:
+                if (not snapshot.in_town or floor_key != tuple(snapshot.floor_key)
+                        or snapshot.turn < turn):
+                    purchases = []
+            for signature, quantity in purchases:
+                self._town_visit_purchases.add(signature)
+                if quantity is not None:
+                    self._town_visit_purchase_quantities[signature] = int(quantity)
+        state = [
+            [list(signature), self._town_visit_purchase_quantities.get(signature)]
+            for signature in sorted(self._town_visit_purchases)
+        ]
+        if not first_board and state == getattr(
+            self, "_town_visit_purchase_record", None
+        ):
+            return
+        self._town_visit_purchase_record = state
+        record = {"floor": list(snapshot.floor_key), "turn": snapshot.turn,
+                  "purchases": state}
+        try:
+            Path(path).write_text(json.dumps(record, ensure_ascii=False) + "\n",
+                                  encoding="utf-8")
+        except OSError:
+            pass
 
     @staticmethod
     def _star_remove_curse_reserve_retained(item: InventoryItem) -> bool:

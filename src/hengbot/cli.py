@@ -3752,6 +3752,10 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     # The unseen attack this process saw, for the restarted one (Angband 30F
     # 2026-10-20 04:01: the restart walked seek-loot back onto the hit cell).
     policy._unseen_attack_path = args.decision_log.with_name("unseen-attack.json")
+    # This town visit's purchases, for a restart inside the same visit.
+    policy._town_visit_purchase_path = args.decision_log.with_name(
+        "town-visit-purchases.json"
+    )
     policy._character_calibration_path = args.decision_log.with_name(
         "character-calibration.json"
     )
