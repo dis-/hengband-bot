@@ -15,6 +15,10 @@ Recorded inputs:
   (slots q-w), and the floor shows a bolt (tval 18) pile at (11,59).
 * ``home-junk-bones-20261018.jsonl.gz``: the full Home of capture 164159 (the
   same character; 240/240, light crossbow worn).
+* ``town-overflow-disposal-candidates-20261017.jsonl.gz``: the town overflow
+  board whose pack carries a broken 暗闇の真鍮のランタン (slot p); it checks
+  that the declared wall ``pre_junk_scope_rule`` (tests/recorded_junk_scope.py)
+  is not vacuous.
 
 DECLARED CONSTRUCTED (each named again where it is built): the worn lantern
 fuel above the refill threshold, the pack without its recorded remains, one
@@ -30,6 +34,7 @@ from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
 import gzip
+import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -39,12 +44,15 @@ from unittest.mock import patch
 
 from hengbot.baseitem_knowledge import find_baseitem_definitions, load_baseitem_costs
 from hengbot.cli import _consume_response_sequence
-from hengbot.model import InventoryItem, Position
+from hengbot.model import InventoryItem, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import LANTERN_REFILL_FUEL
 from hengbot.store_sale import ZERO_BASE_KINDS
+from recorded_junk_scope import pre_junk_scope_rule
 from test_esp_threat_rest_recorded import EDIT, _policy
+from test_town_overflow_disposal_candidates_recorded import (
+    FIXTURE as OVERFLOW_FIXTURE)
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -347,6 +355,23 @@ class JunkScopeRecordedTest(unittest.TestCase):
         board = replace(board, inventory=type(board.inventory)(
             (replace(BOOKS[2], slot="a"),)))
         self.assertIsNone(policy._cheapest_exchange_item(board))
+
+    # --- the declared wall is not vacuous ------------------------------
+
+    def test_pre_junk_scope_wall_restores_the_recorded_overflow_choice(self):
+        with gzip.open(OVERFLOW_FIXTURE, "rt", encoding="utf-8") as stream:
+            record, = [json.loads(line) for line in stream if line.strip()]
+        board = parse_snapshot(record["board"])
+        # DECLARED CONSTRUCTED (as in that module): two torches per stack.
+        board = replace(board, inventory=[
+            replace(item, count=2) if item.is_torch else item
+            for item in board.inventory])
+        policy = HengbotPolicy()
+        policy.prime(board)
+        lantern = policy._overflow_disposal_item(board)
+        self.assertEqual((lantern.slot, lantern.is_broken), ("p", True))
+        with pre_junk_scope_rule():
+            self.assertEqual(policy._overflow_disposal_item(board).slot, "o")
 
 
 if __name__ == "__main__":
