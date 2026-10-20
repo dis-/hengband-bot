@@ -1,0 +1,93 @@
+LUNA-REPORT junk-town-weight round 3 (#95 step 1b, merge gate 0749c6be) - base main 3019cd45
+
+Merge: 3aff184d merges main 3019cd45 (conflict only in scripts/town_work_manifest.json.gz; regenerated with
+town_work_manifest.py --write: 840 candidates, 21392 sites, zero unmapped).
+
+Each failing test measured alone on the merged branch and on main 3019cd45 (temporary detached worktree, removed):
+main 3019cd45: all three OK.  Branch (before this round's fix): all three fail as in the gate.
+
+1. tests.test_home_route_release_recorded ...test_failed_deposit_observes_before_equipment_and_hands_off_once (6 subtests)
+   Measured: after the refused weight-overload deposit (STORE_STUCK_LIMIT) the captured EquipmentTransactionSession
+   (plan: home_prepare deposits of the swords m 32746a00.. and l 65b2acee.., pending_action None) is in flight; the
+   pack is overweight and carries 28 unused arrows (slot o, tval 17, _junk_class "unused-ammo").  Branch: ('028ko',
+   inventory:destroy-worthless-junk); main: equipment-transaction:travel-home.
+   -> (R) the town junk step pre-empted an in-flight equipment transaction.  Fix: the step also requires
+   self._equipment_transaction_session is None (existing ownership state, like its other in-flight guards; a posted
+   equipment mutation / pending transaction action is already deferred inside _verified_destroy_dispatch_key).
+   After the fix the module is 5 OK.
+
+2. tests.test_destroy_superior_item_guard ...test_posted_equipment_mutation_does_not_run_destroy_finder
+   Measured: at decision 2105 (first town board after the ascent, main hand a shovel) equipment mutation IDLE and no
+   equipment transaction session: nothing is in flight.  The pack is below the departure minimum
+   (_town_pack_space_shortage True, not overweight); slot s 矢 (1d4) (+2,+1) x1 is "unused-ammo" (new 2026-10-20
+   scope).  Branch: ('01ks', inventory:destroy-worthless-junk) at 2105/2106, ('01kr') at 2107/2108, never the wield;
+   main: 'woa' town:restore-combat-weapon at 2105, POSTED through 2109.  The step does not destroy while the mutation
+   is in flight: with the wield posted (replayed under the wall to 2107) _worthless_junk_destroy_key answers None,
+   'inventory:destroy-deferred-equipment-mutation', and choose_key is not a destroy (new pin below).
+   -> (W) recorded replay whose subject is not junk; the new decision (destroy unused-launcher ammo in town under
+   pack-slot pressure) follows the owner decisions 2026-10-20.  Declared wall pre_town_junk_step_replay
+   ("# declared wall: pre-2026-10-21 town junk step"), expectations unchanged.  Module 4 OK.
+
+3. tests.test_town_cure_supplier_recorded ...test_walled_prefix_reproduces_live_except_declared_boards  -> STOP
+   Measured: the LIVE-KEY WALL prefix diverges on 18 more boards, all inside the declared Home equipment-work region
+   (1-97); every other board, and every other assertion of the test, is unchanged (measured by running the test with
+   only PREFIX_DIVERGENCES extended in memory: OK).  The step destroys carried 森蜘蛛の骨 (tval 10, "remains" under
+   both scopes) under weight pressure (overweight True) where live made the weight-overload deposit:
+     1  ('5', home:weight-overload-deposit) -> ('01ku', inventory:destroy-worthless-junk)
+     2  ('dsdrdpdm\x1b', home:weight-overload-deposit) -> ('\x1b', home:scan-incomplete-open-page)
+     3  ('\x13', periodic:game-save) -> ('~9\x1b', home:request-knowledge-scan)
+     4  ('Cf\ry\x1b\x1b', periodic:character-dump) -> ('\x13', periodic:game-save)
+     5  ('ri', town:remove-curse) -> ('Cf\ry\x1b\x1b', periodic:character-dump)
+     10 ('~9\x1b\x1b', home:request-knowledge-scan) -> ('3', town-progress-invariant:defect:home:request-knowledge-scan=>
+        home:request-knowledge-scan)  (wall artefact: the policy's scan request at 3 was not posted, the live key was)
+     78 ('3', town:entrance-step-off:home:process-next-batch-item) -> ('01kp', inventory:destroy-worthless-junk)
+     79 ('7', shop:approach) -> ('01kp', inventory:destroy-worthless-junk)
+     80 ('~9\x1b', home:request-knowledge-scan) -> ('\x1b', home:scan-incomplete-open-page)
+     81 ('dl\x1b', home:weight-overload-deposit) -> ('\r', shop:await-leave-confirmation)
+     82 ('\x1b`n%.', shop:travel) -> ('6', town:entrance-step-off:home:process-next-batch-item)
+     86 ('\x1b`n(.', shop:travel) -> ('01ko', inventory:destroy-worthless-junk)
+     87 ('~9\x1b', home:request-knowledge-scan) -> ('\x1b', home:leave-for-pending-withdraw)
+     88 ('\x1b', home:queue-catalogue-shortage) -> ('\r', shop:await-leave-confirmation)
+     89 ('5pl1\r\x1b', home:atomic-withdraw) -> ('01ko', inventory:destroy-worthless-junk)
+     90 ('5', home:weight-overload-deposit) -> ('01ko', inventory:destroy-worthless-junk)
+     91 ('do\x1b', home:weight-overload-deposit) -> ('\x1b', home:leave-for-pending-withdraw)
+     97 ('~9\x1b\x1b', home:request-knowledge-scan) -> ('9', town:kill-mob-approach)
+   No existing wall keeps the expectation: the bones are remains under both scopes (pre_junk_scope cannot apply), and
+   pre_town_junk_step_rule makes it worse: at 91 live deposited the bones ('do\x1b'); with the step disabled the
+   policy deposits 'dn4\r' instead (junk is never a Home deposit, policy_home hunk), its atomic deposit then awaits a
+   confirmation the live key never gives, and the prefix diverges on ~300 more boards (91-393, 837-838, 1061-1062,
+   1271-1272, 1362-1380; 1377/1378 reconverge).  Not (R): no in-flight owner is pre-empted (the destroys happen
+   outside the store with no atomic deposit/withdraw pending, as the live-key wall's boards allow), the subject
+   (cure supplier, 1388) is unchanged.
+   Old -> new needed: PREFIX_DIVERGENCES gains 1, 2, 3, 4, 5, 10, 78, 79, 80, 81, 82, 86, 87, 88, 89, 90, 91, 97.
+   Not edited; awaiting the supervisor's decision.
+
+Changes (commits on junk-town-weight-1020):
+  3aff184d merge main 3019cd45 (+ manifest regenerated)
+  aa0d2973 [Fix] policy.py _decide town junk step: + self._equipment_transaction_session is None; manifest --write;
+           declared wall on test_destroy_superior_item_guard ...posted_equipment_mutation...; new pins
+           TownJunkStepInFlightTest in tests/test_junk_town_weight_recorded.py:
+             test_equipment_transaction_session_keeps_the_junk_step_out (3 recorded pins; fails without the guard with
+               'inventory:destroy-worthless-junk' != 'equipment-transaction:travel-home', measured via git apply -R)
+             test_posted_wield_defers_the_junk_destroy (control: posted mutation defers the step's destroy at 2107)
+  a3bcbe72 [Test] the new session pin asserts its recorded waits (fakery lint frozen-drive-state)
+  No new constant / threshold / reason / policy attribute (restored-checkpoint defaults: none).
+
+Tests (single modules, after aa0d2973):
+  test_town_cure_supplier_recorded 7 tests, 1 failure (STOP above); test_destroy_superior_item_guard 4 OK;
+  test_home_route_release_recorded 5 OK; test_junk_town_weight_recorded 11 OK; test_lantern_lost_recorded 9 OK;
+  test_supply_shortfall_owner_recorded 5 OK; test_oneshot_inflight_recorded 8 OK; test_home_full_relief_recorded 6 OK;
+  test_home_discard_followup_recorded 12 OK; test_destroy_procurement_guard 7 OK; test_overweight_homefull_step15b 8 OK;
+  test_weight_deposit_loop_20261018 7 OK; test_purchase_retention_root_recorded 16 OK; test_test_fakery_lint OK.
+
+Guard outputs (after the last commit a3bcbe72):
+  preflight: [preflight] PREFLIGHT OK: 20 changed files, 0 findings (junk-town-weight-1020 vs 3019cd45)
+  mutation_check --tests tests.test_junk_town_weight_recorded tests.test_home_route_release_recorded --record:
+    caught src/hengbot/policy.py:10426 (test_closed_home_destroys_the_cursed_armour_then_departs,
+      test_junk_is_never_a_home_deposit, test_lantern_board_destroys_the_corpse_and_keeps_the_lantern)
+    caught src/hengbot/policy_home.py:2608 (test_junk_is_never_a_home_deposit)
+    caught src/hengbot/policy_home.py:2661 (test_unused_ammo_is_not_a_home_deposit_candidate)
+    MUTATION OK: 0 of 3 hunks are not pinned by a test; recorded for a3bcbe72
+  fast_tier: (waited until the running gate logs ended) 3799 fast tests (<2.0s in 43872194) + 11 changed
+    modules, 4 shards; excluded 35 modules measured over 60s; Crashed shards: none; Failures: none; Errors: none;
+    Total: 3870 tests, 367.6s  (test_town_cure_supplier_recorded, ~170s, is a slow module outside the fast tier)
