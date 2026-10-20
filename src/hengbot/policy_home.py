@@ -21,6 +21,7 @@ from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import fields, replace
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.store_sale import known_sale_value
+from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.model import STORE_ARMOURY, STORE_TEMPLE, STORE_BLACK
 import re
@@ -1121,11 +1122,14 @@ class HomeMixin:
             # stock (#70; owner 2026-10-04 auto-destroy target).  The board
             # carries the character-dependent junk classes (2026-10-20).
             self._junk_board = snapshot
-            junk = [(candidate, item) for item in stock
-                    if self._is_worthless_junk(
-                        item if isinstance(item, InventoryItem)
-                        else self._inventory_item_from_store_item(item))
-                    and (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
+            # A read-only scan: each board's supply ledger is computed once
+            # for the purchase ladders it asks per ware (#95).
+            with supply_ledger_observer_memo():
+                junk = [(candidate, item) for item in stock
+                        if self._is_worthless_junk(
+                            item if isinstance(item, InventoryItem)
+                            else self._inventory_item_from_store_item(item))
+                        and (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
             del self._junk_board
             candidates = [] if junk else [
                 (result, item) for item in sale_stock

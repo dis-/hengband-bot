@@ -27,6 +27,7 @@ from hengbot.policy_constants import (
     FOOD_TYPE_MANA, HEAVY_CURSE_TAG, PLAYER_CLASS_BERSERKER, SPEED_ENERGY_90,
     WAIT_KEY,
 )
+from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.store_sale import ZERO_BASE_KINDS
 
 
@@ -304,49 +305,57 @@ class PolicyHelpersMixin:
         if (item.is_bounty or item.is_artifact or self._is_high_value_book(item)
                 or self._item_signature(item) in self._undestroyable_sigs):
             return None
-        if snapshot is not None and (
-                any(item is worn for worn in snapshot.equipment)
-                or self._equipment_disposal_reserved(snapshot, item)
-                or self._item_is_procurement_protected(snapshot, item)):
-            return None
+        # The item's class comes first; the board's retention / ownership
+        # gates (the costly purchase ladder) run only for an item that has
+        # one (#95: they ran for every Home ware).
+        junk = None
+        cost = item_base_cost(item, self._baseitem_costs)
         # tval 1 skeleton, 3 junk and 10 corpse ("~の骨"/"~の死体") from
         # src/object/tval-types.h, and emptied chests.
         if item.tval in {1, 3, 10} or (
                 item.is_chest and self._is_disposable_item(item)):
-            return "remains"
+            junk = "remains"
         # Gear with sale value 0 (store_sale.py) that the optimizer never
         # evaluates.  Zero-value consumables are exported broken as well;
         # they are the harmful class below.
-        if ((item.is_equipment or item.is_ammo) and item.known
+        elif ((item.is_equipment or item.is_ammo) and item.known
                 and (item.is_cursed or item.is_broken)):
-            return "cursed"
+            junk = "cursed"
         # Identified egos that are not cursed stay (owner Q6 widened only the
         # cursed ones); a fine ego quiver is sale loot, not junk.
-        if item.is_ego:
+        elif item.is_ego:
             return None
         # Consumable kinds whose base value is 0 in lib/edit (poisonous
         # mushrooms included): no shop buys them and using them only harms.
         # The loaded definitions decide; ZERO_BASE_KINDS is their static copy.
-        cost = item_base_cost(item, self._baseitem_costs)
-        if (item.aware
+        elif (item.aware
                 and item.tval in {TVAL_STAFF, TVAL_WAND, TVAL_ROD, TVAL_SCROLL,
                                   TVAL_POTION, TVAL_FOOD}
                 and (cost <= 0 if cost is not None
                      else (item.tval, item.sval) in ZERO_BASE_KINDS)):
-            return "harmful-consumable"
-        if snapshot is None:
+            junk = "harmful-consumable"
+        elif snapshot is None:
             return None
-        if item.is_spellbook and snapshot.player.class_id in {
+        elif item.is_spellbook and snapshot.player.class_id in {
                 PLAYER_CLASS_WARRIOR, PLAYER_CLASS_BERSERKER}:
-            return "unusable-book"
+            junk = "unusable-book"
         # Supervisor Q7: only the launcher worn now counts; with none worn
         # every ammunition stays, and a quest reservation keeps its stack.
-        launcher = self._equipped_launcher(snapshot)
-        if (item.is_ammo and launcher is not None
+        elif (item.is_ammo
+                and (launcher := self._equipped_launcher(snapshot)) is not None
                 and item.tval != launcher.ammo_tval
                 and self._entire_stack_is_surplus(snapshot, item)):
-            return "unused-ammo"
-        return None
+            junk = "unused-ammo"
+        if junk is None or snapshot is None:
+            return junk
+        # One read-only predicate on one board: its purchase ladder asks the
+        # supply ledger once per rung otherwise.
+        with supply_ledger_observer_memo():
+            if (any(item is worn for worn in snapshot.equipment)
+                    or self._equipment_disposal_reserved(snapshot, item)
+                    or self._item_is_procurement_protected(snapshot, item)):
+                return None
+        return junk
     def _is_worthless_junk(self, item: InventoryItem) -> bool:
         """Thin wrapper over `_junk_class` on the board a caller primed."""
         return self._junk_class(self.__dict__.get("_junk_board"), item) is not None
