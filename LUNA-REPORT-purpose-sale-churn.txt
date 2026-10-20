@@ -61,3 +61,40 @@ STOP: existing test test_oneshot_inflight_recorded (all 5 replay cases; 8 tests,
  re-pin that test on its second recorded restart (Fire Bolt rod one-shot sale, rows kept in its recorded json), or
  declare a wall there (a second *Remove Curse* or the reserve already in Home). Not done here: existing tests are
  not edited by this task. Repair rounds used: 0 (the only repair is an existing-test change).
+
+== Round 2 (supervisor decisions after the STOP; main dce3c120 merged, d95c164a) ==
+1. Wall: tests/recorded_star_reserve.py pre_star_reserve_retention_rule / pre_star_reserve_retention_replay patches
+   only HengbotPolicy._star_remove_curse_reserve_retained (the predicate of the remove-curse:reserve branch) to False,
+   for setUpClass..tearDownClass of test_oneshot_inflight_recorded (class decorator with the one-line comment).
+   Expectations unchanged; that module 8/8 OK. Non-vacuity: test_star_remove_curse_reserve_sale_recorded.
+   OneShotReserveSaleWallTest -- without the wall the compose board (line 28) is not ("5", "shop:one-shot-sell").
+2. ROOT-FIX: NOT DONE -- the task's 250k-token hard limit was reached after the wall. Enumeration (static, from
+   policy_shop.py _purchase_rungs 2758-2867; retention = branch of _retention_reservation_baseline_detail that keeps
+   the bought item once the rung is no longer live; every rung is ALSO a retention guard while live via
+   _item_matches_purchase_rung, and visit-purchase covers the current visit only):
+     curse:required (2780) ............ read at once by _town_remove_curse_key; no retention after (star: remove-curse:reserve)
+     legacy:lantern (2787) ............ equipment R1 catalogue (_home_full_equipment_surplus / _is_spare_lantern)
+     legacy:oil (2788) ................ supply-ledger:oil
+     legacy:ration (2789) ............. supply-ledger:food
+     mining:digger (2791) ............. mining:digging-tool (only while mining_planned) -- GAP after restart (mode None)
+     mining:treasure-detection (2792) . mining:detection (only while mining_planned) -- GAP after restart (13:58)
+     mandatory:recall/food/teleport/cure (2793-2796) supply-ledger:*
+     mandatory:destruction (2817) ..... destruction-gate
+     identify:normal / identify:full (2826-2827) NONE (consumed at once; Home leftovers surplus) -- unmapped
+     restore:<stat> / restore:proactive (2831-2832) NONE beyond the live rung -- unmapped
+     experience:restore-life-levels (2833) experience-restore
+     quest:carry / quest:speed / quest:healing (2840-2842) carry-strategy:* / carry-strategy potion target
+     tail:recall / tail:teleport / tail:cure (2843,2846,2847) supply-ledger:*
+     tail:mana-food (2844) ............ mana-device (pack _device_food_reserve_slot only) -- GAP for the Home copy (10:56)
+     tail:torch (2845) ................ torch-carry
+     tail:ammo (2849) ................. retained-ammo / ammo:carry-plan
+     tail:identify-staff (2850) ....... identify-staff-cap
+     black-market:speed / :healing (2862-2863) emergency-potion caps
+     black-market:stone-to-mud (2864) . NONE -- unmapped
+     curse:normal (2865) .............. read at once; NONE after
+     curse:star-reserve (2866) ........ remove-curse:reserve (this branch)
+     tail:launcher-enchant (2867) ..... NONE (read at once) -- unmapped
+   Other buy owners outside the ladder: _quest_carry_purchase (policy_shop.py _mandatory_purchase), the Black Market
+   optional pick, _affordable_star_remove_curse (policy_fundraising.py:422) -- same retention as their rung above.
+   Restart cause of mode None (13:58): not measured (budget). Remaining work: mana-food Home copy, mining kit across a
+   restart, and the structural rung->retention table test.
