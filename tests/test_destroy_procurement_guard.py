@@ -11,6 +11,7 @@ from hengbot.model import (
 from hengbot.policy import HengbotPolicy, WAIT_KEY
 from hengbot.cli import POLICY_FINAL_STOP_REASONS, _policy_final_stop_banner
 from policy_fixtures import grid, item, player
+from recorded_junk_scope import pre_junk_scope_replay
 from tests.test_destroy_superior_item_guard import captured_rows, snapshot_at
 
 
@@ -112,6 +113,8 @@ class DestroyProcurementGuardTest(unittest.TestCase):
             floor_key=(0, 0, 0), town_flag=True, inventory=inventory,
         )
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_p3c_public_choose_key_protected_overflow_and_controls(self):
         """PUBLIC constructed response-free producer: free=3 stops; free=4 certifies; legal item destroys."""
         policy = HengbotPolicy()

@@ -1,0 +1,50 @@
+LUNA-DIAG junk-town-weight (#95 step 1b, town disposal under pack/weight pressure) - base 51a0d8f6
+
+Captures (C:\hengband-backups\state-logs\c4a-loops-20261016\):
+  A = 20261020-221131-town-blocked-departure-unsatisfiable (decision 17790)
+  B = 20261020-221304-town-blocked-departure-unsatisfiable (bot restarted at decision 0; stop at decision 51)
+  B state.jsonl.gz sha256 32b5f2be1e7ab68b74027402d1d7bc3fa08fba816de1a39d77fcf2e14c42785b (76 rows, starts at
+  decision 15, turn 3445131), bot-decisions.jsonl.gz sha256 b046df9991357f22ef7e82c49069a8ce085780012dad22675b4a81f0a6578ba1.
+
+MEASURED on B decision 51 (state row 75, turn 3446290), replayed through the 51a0d8f6 policy:
+  - departure_block.failed == ["inventory_weight_ready"]; free pack slots 9 (minimum 5); town_ledger
+    blocked_stores [7], unsatisfied_passes {7: 3}, need_attempts weight-overload 4.
+  - weight 1809 > limit 1750 (policy_home.py:2326 _inventory_weight_limit), excess 59.
+  - slot m "金属製スケイル・メイル (-2) [13,-5] {呪われている}" weight 250, known, is_cursed=True,
+    _junk_class(board, m) == "cursed", _retention_surplus == 1 (= count).
+  - Slot j 岩石溶解の魔法棒 _junk_class None (never junk); every other carried item _junk_class None.
+
+Why the town weight relief did not destroy the armour (base line numbers):
+  1. The weight relief picker is Home-only: _find_home_deposit (policy_home.py:4009) ->
+     _overweight_home_deposit (:2515) -> _weight_deposit_candidates (:2408).  Its priority puts
+     "item.is_equipment and item.is_cursed" first (:2505), a parallel cursed predicate whose action is a Home
+     DEPOSIT.  Measured: _find_home_deposit(board) returned slot m (the junk armour).
+  2. The Home is closed for this visit (blocked_stores [7]; live decision 44
+     equipment-transaction:deposit-home-full, 47 policy:none-store-exit inside Home), so the weight-overload
+     need (policy_town.py:3089) has no deliverable store; replayed with the recorded ledger plus the installed
+     weight-overload work signature of the armour, the base ends in town:blocked:overweight-home-unreachable
+     (key '7', the live key) - the sibling of the live departure-unsatisfiable (policy_town.py:6859): both are
+     "no owner for inventory_weight_ready"; which one is written depends on the unrecorded Home-block owner.
+  3. The Home-full surplus disposal (shop-sell, policy_home.py:129) is armed only when
+     _find_home_deposit(snapshot) is None (policy_town.py:3056) - it is not (the armour), so it never arms;
+     and its picker _overweight_surplus_candidates (policy_home.py:63) drops equipment that fails
+     _home_full_equipment_surplus (:79): measured candidates g/d/f/h (scrolls/potions) weigh 39 < excess 59.
+  4. The only junk-aware town destroy, _overflow_disposal_item (policy.py:14835, "cursed" first), runs only
+     under pack-slot shortage (policy.py:11873, PACK_CAPACITY - len < MIN_FREE_PACK_SLOTS): 9 free >= 5,
+     so it is never reached.
+  => No owner can shed weight; the departure leaf inventory_weight_ready stays false -> terminal.
+
+Gold drop 8,166 -> 699 (B decisions 40 and 49):
+  - decision 40 shop:in-store-buy 'pj3\r\r' at the Alchemist (store 4): 3 x *鑑定*の巻物 at 2409 = 7227
+    (messages "3巻の *鑑定*の巻物を $7227で購入しました。"); shop_selector winning_rung shop:in-store-buy,
+    wanted_purchase category "star-identify"; identification_need "full" (decisions 38-40).  The full
+    identification target was the pack armour: home_scan incomplete_item_details "pack ... tval 37 sval 3
+    known true fully_known false"; decision 42 identify:full 'rhl...' (rung _town_equipped_identification_key,
+    work_id identify:town-item:('金属製スケイル・メイル (-2) [13,-5] {呪われている}', 37, 3)).  The armour was
+    already known cursed (its name carried {呪われている}) when the 7227 were spent to *identify* it.
+  - decision 49 'pq10\r\r' at the Alchemist: 10 x 財宝感知の巻物 at 24 = 240, category treasure-detection
+    (fundraising-detection; the second capture is in fundraising prepare, Digging tool 0/2).
+  NOT FIXED here (out of this task's step): a known-cursed (junk) item still raises a full-identification need
+  and buys *Identify*.  Reported for a separate decision.
+
+Fix (this branch): see LUNA-REPORT-junk-town-weight.txt.

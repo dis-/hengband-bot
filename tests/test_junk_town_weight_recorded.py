@@ -1,0 +1,397 @@
+"""Junk is destroyed in town under weight pressure, never deposited (#95 step 1b).
+
+Live stop (Linux soak C4-A life-014, Level 32, bot 51a0d8f6): capture
+``20261020-221304-town-blocked-departure-unsatisfiable`` decision 51,
+``town:blocked:departure-unsatisfiable`` with ``departure_block.failed ==
+["inventory_weight_ready"]`` only.  The pack weighed 1809 against the limit
+1750 (STR index from the board); the heaviest item was the identified
+"金属製スケイル・メイル (-2) [13,-5] {呪われている}" (slot m, 250), whose
+``_junk_class`` is "cursed".  The town weight relief only knew Home deposits
+(``_weight_deposit_candidates`` put cursed gear first, i.e. into the Home)
+and the Home-full surplus disposal, which the Home deposit candidate (the
+armour) kept unarmed; with the Home closed no owner was left.
+
+Owner decisions 2026-10-20: junk is destroyed in town and never deposited
+(design step 1b); stone-to-mud wands, artifacts and the 3rd/4th realm books
+are never junk.
+
+Recorded input ``junk-town-weight-20261020.jsonl.gz``: line 0 the recorded
+decision row's reason/key/departure_block; lines 1-4 the capture's
+state.jsonl rows 55, 56 (the Home knowledge answer), 57 and 75 (the stop
+board), read unchanged (state.jsonl.gz sha256 32b5f2be1e7ab68b...).
+
+DECLARED CONSTRUCTED (the capture's state log starts at decision 15, so the
+visit's earlier policy state is not recorded):
+* the town ledger of the recorded ``departure_block.town_ledger`` (visits,
+  need attempts, unsatisfied passes, Home blocked) plus the Home block's work
+  signature, the weight-overload deposit of the armour (installed and
+  already rearmed once).  With it the pre-fix policy ends in the sibling
+  terminal ``town:blocked:overweight-home-unreachable`` (key '7', the live
+  key) instead of ``departure-unsatisfiable``: both are the "no owner for
+  inventory_weight_ready" terminal; the unrecorded Home-block owner decides
+  which one is written;
+* the effect board after the destroy (the stop board without slot m);
+* control items replacing slot m: the same armour uncursed, a cursed
+  artifact, and a third realm book.
+"""
+
+from __future__ import annotations
+
+import tests  # noqa: F401 -- live runtime-file isolation
+import gzip
+import hashlib
+import json
+import unittest
+from dataclasses import replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from hengbot.cli import _consume_response_sequence
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy_constants import STORE_HOME
+from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_town_junk_step_rule
+import test_lantern_lost_recorded as lantern_recorded
+import test_home_route_release_recorded as home_route_recorded
+import test_destroy_superior_item_guard as destroy_superior
+import test_weight_relief_root_recorded as weight_relief_root
+from hengbot.equipment_mutation import EquipmentMutationState
+from hengbot.model import parse_snapshot
+from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import STORE_STUCK_LIMIT
+from test_s33_batch_context import captured_session
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "junk-town-weight-20261020.jsonl.gz"
+SHA256 = "c02bda2459f6482244418d03125a50e185bc5cea8064304a51c1e038ae0335f7"
+ARMOUR = "金属製スケイル・メイル (-2) [13,-5] {呪われている}"
+
+
+class JunkTownWeightRecordedTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        data = FIXTURE.read_bytes()
+        assert hashlib.sha256(data).hexdigest() == SHA256
+        lines = gzip.decompress(data).decode("utf-8").splitlines()
+        cls.header = json.loads(lines[0])
+        cls.lines = lines[1:]
+        cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def setUp(self):
+        self.temporary = TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+
+    def _consume(self, policy, line):
+        return _consume_response_sequence(
+            [line], policy, lambda _key: True, self.monrace,
+            knowledge_ledger_path=self.directory / "knowledge.jsonl",
+        )[1]
+
+    def _home_census(self, policy):
+        # The posted ~9 request whose answer is line 2 (as in the #70 pins).
+        policy._home_knowledge_scan_inflight = True
+        policy._home_knowledge_scan_epoch = None
+        self._consume(policy, self.lines[1])
+        self._consume(policy, self.lines[2])
+
+    def _stop(self, *, closed_home=True, slot_m=None):
+        """The recorded stop board on a policy that began the visit."""
+        policy = _policy(self.directory, self.monrace)
+        policy._crossarea_fundraising_enforced = True
+        first = self._consume(policy, self.lines[0])[-1]
+        policy._skill_exp_cache = (0, 0, first.player.level, policy._town_visit_epoch)
+        policy.choose_key(first)
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        self._home_census(policy)
+        board = self._consume(policy, self.lines[3])[-1]
+        policy._skill_exp_cache = (0, 0, board.player.level, policy._town_visit_epoch)
+        if slot_m is not None:
+            board = replace(board, inventory=[
+                slot_m if item.slot == "m" else item for item in board.inventory])
+        if closed_home:
+            # DECLARED CONSTRUCTED: the recorded town ledger (module docstring).
+            ledger = policy._town_visit_ledger
+            ledger.store_visits.update({7: 5, 4: 3})
+            ledger.need_attempts.update({
+                "weight-overload": 4, "equipment-catalog": 3,
+                "identification-source": 2, "identification-withdrawal": 2,
+                "fundraising-kit": 1, "fundraising-detection": 1})
+            ledger.unsatisfied_passes.update({7: 3})
+            ledger.blocked_stores.add(STORE_HOME)
+            armour = next(item for item in board.inventory if item.slot == "m")
+            signature = ("weight-overload", *policy._item_signature(armour))
+            ledger.blocked_store_work_signatures[STORE_HOME] = signature
+            ledger.rearmed_work_signatures.add(signature)
+        return policy, board
+
+    def test_recorded_stop_facts(self):
+        self.assertEqual(self.header["reason"], "town:blocked:departure-unsatisfiable")
+        self.assertEqual(self.header["key"], "7")
+        block = self.header["departure_block"]
+        self.assertEqual(block["failed"], ["inventory_weight_ready"])
+        self.assertEqual(block["town_ledger"]["blocked_stores"], [STORE_HOME])
+        policy, board = self._stop(closed_home=False)
+        self.assertEqual(board.turn, self.header["turn"])
+        self.assertEqual(
+            (policy._inventory_weight(board), policy._inventory_weight_limit(board)),
+            (1809, 1750))
+        armour = next(item for item in board.inventory if item.slot == "m")
+        self.assertEqual((armour.name, armour.weight), (ARMOUR, 250))
+        self.assertEqual(policy._junk_class(board, armour), "cursed")
+        # Stone-to-mud wands (slot j) are never junk (owner 2026-10-20).
+        wand = next(item for item in board.inventory if item.slot == "j")
+        self.assertIn("岩石溶解", wand.name)
+        self.assertIsNone(policy._junk_class(board, wand))
+
+    def test_closed_home_destroys_the_cursed_armour_then_departs(self):
+        policy, board = self._stop()
+        key = policy.choose_key(board)
+        # Pre-fix: '7' town:blocked:overweight-home-unreachable.
+        self.assertEqual((key, policy.last_reason),
+                         ("01km", "inventory:destroy-worthless-junk"))
+        self.assertIsNone(policy._town_blocked_reason)
+        # DECLARED CONSTRUCTED effect board: the stop board without slot m.
+        after = replace(board, inventory=[
+            item for item in board.inventory if item.slot != "m"])
+        self.assertFalse(policy._inventory_overweight(after))
+        policy.choose_key(after)
+        self.assertFalse(policy.last_reason.startswith("town:blocked:"),
+                         policy.last_reason)
+        self.assertNotEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+
+    def test_junk_is_never_a_home_deposit(self):
+        policy, board = self._stop(closed_home=False)
+        armour = next(item for item in board.inventory if item.slot == "m")
+        # Pre-fix the weight relief chose the armour first (cursed gear first).
+        self.assertNotIn(armour, policy._weight_deposit_candidates(board))
+        self.assertFalse(policy._home_deposit_candidate(armour, board))
+        self.assertIsNot(policy._find_home_deposit(board), armour)
+        # With the Home open the junk is destroyed before any Home trip.
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("01km", "inventory:destroy-worthless-junk"))
+
+    def test_unused_ammo_is_not_a_home_deposit_candidate(self):
+        policy, board = self._stop(closed_home=False)
+        armour = next(item for item in board.inventory if item.slot == "m")
+        # DECLARED CONSTRUCTED: iron shots (sling ammunition) in slot m while
+        # the recorded light crossbow is worn.
+        shots = replace(armour, name="鉄の弾 (1d4) (+0,+0)", count=20, tval=16,
+                        sval=1, weight=4, is_cursed=False, to_h=0, to_a=0, ac=0)
+        policy, board = self._stop(closed_home=False, slot_m=shots)
+        shots = next(item for item in board.inventory if item.slot == "m")
+        self.assertEqual(policy._junk_class(board, shots), "unused-ammo")
+        # Pre-fix the general Home deposit took the unused shots.
+        self.assertFalse(policy._home_deposit_candidate(shots, board))
+
+    def test_control_non_junk_heavy_item_keeps_the_home_relief(self):
+        policy, board = self._stop(closed_home=False)
+        armour = next(item for item in board.inventory if item.slot == "m")
+        # DECLARED CONSTRUCTED: the same armour without its curse.
+        plain = replace(armour, name="金属製スケイル・メイル (-2) [13,-5]",
+                        is_cursed=False)
+        policy, board = self._stop(closed_home=False, slot_m=plain)
+        plain = next(item for item in board.inventory if item.slot == "m")
+        self.assertIsNone(policy._junk_class(board, plain))
+        self.assertIsNone(policy._find_worthless_junk(board))
+        self.assertIs(policy._find_home_deposit(board), plain)
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
+
+    def test_control_closed_home_without_pressure_keeps_the_junk(self):
+        # Round 2 (supervisor option a): only weight or pack-slot pressure
+        # runs the junk-first step; a closed Home alone is not a reason.
+        policy, board = self._stop()
+        # DECLARED CONSTRUCTED: the stop board without its heavier non-junk
+        # stacks (largest first) until the pack is within the weight limit.
+        inventory = list(board.inventory)
+        for heavy in sorted((item for item in board.inventory if item.slot != "m"),
+                            key=lambda item: -item.weight):
+            if not policy._inventory_overweight(replace(board, inventory=inventory)):
+                break
+            inventory.remove(heavy)
+        board = replace(board, inventory=inventory)
+        self.assertFalse(policy._inventory_overweight(board))
+        self.assertFalse(policy._town_pack_space_shortage(board))
+        self.assertEqual(policy._find_worthless_junk(board).name, ARMOUR)
+        policy.choose_key(board)
+        self.assertNotEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+
+    def test_control_protected_items_are_never_destroyed(self):
+        policy, board = self._stop()
+        armour = next(item for item in board.inventory if item.slot == "m")
+        # DECLARED CONSTRUCTED: a cursed artifact and a third realm book.
+        artifact = replace(armour, name="★呪われたスケイル・メイル", is_artifact=True)
+        book = replace(armour, name="[魔術の第三巻]", tval=90, sval=2,
+                       is_equipment=False, is_cursed=False, weight=30)
+        for control in (artifact, book):
+            with self.subTest(control=control.name):
+                policy, board = self._stop(slot_m=control)
+                carried = next(item for item in board.inventory if item.slot == "m")
+                self.assertIsNone(policy._junk_class(board, carried))
+                self.assertIsNone(policy._find_worthless_junk(board))
+                policy.choose_key(board)
+                self.assertNotEqual(policy.last_reason,
+                                    "inventory:destroy-worthless-junk")
+
+
+class TownJunkStepWallTest(unittest.TestCase):
+    """Non-vacuity of the declared ``pre_town_junk_step_rule`` wall.
+
+    On the recorded lantern-lost town board (pack-slot pressure) the town
+    junk step destroys the carried corpse and keeps the empty lantern
+    (#65); under the wall the pre-step decision of 51a0d8f6 returns.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        lantern_recorded.LanternLostRecordedTest.setUpClass.__func__(cls)
+
+    def setUp(self):
+        self.temporary = TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+
+    def _board(self):
+        return lantern_recorded.LanternLostRecordedTest._board(self, 1)
+
+    def test_lantern_board_destroys_the_corpse_and_keeps_the_lantern(self):
+        policy, board = self._board()
+        self.assertTrue(policy._town_pack_space_shortage(board))
+        lantern = next(item for item in board.inventory if item.is_lantern)
+        self.assertEqual((lantern.slot, lantern.fuel), ("n", 0))
+        self.assertIsNone(policy._junk_class(board, lantern))
+        corpse = next(item for item in board.inventory if item.slot == "p")
+        self.assertEqual((corpse.tval, policy._junk_class(board, corpse)), (10, "remains"))
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("01kp", "inventory:destroy-worthless-junk"))
+
+    def test_wall_restores_the_pre_step_decision(self):
+        policy, board = self._board()
+        with pre_town_junk_step_rule():
+            key = policy.choose_key(board)
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("~9\x1b", "equipment-transaction:catalogue-request-knowledge"))
+
+
+class TownJunkStepInFlightTest(unittest.TestCase):
+    """The town junk step does not pre-empt an in-flight equipment operation.
+
+    Merge gate 0749c6be (round 3): on the recorded 234018/234047/234116 Home
+    route boards (tests/test_home_route_release_recorded.py, DECLARED
+    CONSTRUCTED checkpoint there) the refused weight-overload deposit hands
+    off to the captured equipment transaction session (two Home deposits of
+    the swords l and m).  The carried 28 unused arrows (slot o) are junk and
+    the pack is overweight, so before the fix the town step destroyed them
+    ('028ko') ahead of the session's 'equipment-transaction:travel-home'.
+    """
+
+    def _handoff_board(self, pin):
+        policy, _before, after, _entries = home_route_recorded.reconstructed(pin, False)
+        _, session = captured_session(
+            pin["stamp"], {"234018": 224, "234047": 223, "234116": 219}[pin["stamp"]])
+        policy._equipment_transaction_session = session
+        # The asserted stationary waits of the recorded episode (as in
+        # HomeRouteReleaseTest): each is the refused deposit's await.
+        for count in range(1, STORE_STUCK_LIMIT):
+            board = replace(after, turn=after.turn + count)
+            self.assertEqual(policy.choose_key(board), "5")
+            self.assertEqual(policy.last_reason, "home:atomic-deposit-await-confirmation")
+        return policy, session, replace(after, turn=after.turn + STORE_STUCK_LIMIT)
+
+    def test_equipment_transaction_session_keeps_the_junk_step_out(self):
+        pins = json.loads(gzip.decompress(home_route_recorded.FIXTURE.read_bytes()))
+        for pin in pins:
+            with self.subTest(stamp=pin["stamp"]):
+                policy, session, board = self._handoff_board(pin)
+                arrows = next(item for item in board.inventory if item.slot == "o")
+                self.assertEqual((arrows.tval, arrows.count,
+                                  policy._junk_class(board, arrows)),
+                                 (17, 28, "unused-ammo"))
+                self.assertTrue(policy._inventory_overweight(board))
+                self.assertIsNone(session.pending_action)
+                key = policy.choose_key(board)
+                self.assertIs(policy._equipment_transaction_session, session)
+                self.assertEqual(policy.last_reason, "equipment-transaction:travel-home")
+                self.assertFalse(str(key).startswith("0"))
+
+    def test_posted_wield_defers_the_junk_destroy(self):
+        """Recorded destroy-superior-digger boards 2105-2107 (pack-slot pressure).
+
+        Replayed under the declared ``pre_town_junk_step_rule`` the combat
+        re-wield 'woa' is posted at 2105 and still unobserved at 2107; on the
+        2107 board (unused arrows carried, pack below the departure minimum)
+        the town step's destroy defers on the posted mutation and the decision
+        is not a destroy.
+        """
+        rows = destroy_superior.captured_rows()
+        policy = HengbotPolicy()
+        board = None
+        with pre_town_junk_step_rule():
+            for row in rows:
+                snapshot = parse_snapshot(row["snapshot"], {})
+                if row["decision"]["decision_sequence"] == 2107:
+                    board = snapshot
+                    break
+                key = policy.choose_key(snapshot)
+                if key:
+                    policy.confirm_key_posted(key)
+        self.assertEqual(policy._equipment_mutation.state, EquipmentMutationState.POSTED)
+        self.assertTrue(policy._town_pack_space_shortage(board))
+        junk = policy._find_worthless_junk(board)
+        self.assertEqual((junk.slot, policy._junk_class(board, junk)), ("r", "unused-ammo"))
+        self.assertIsNone(policy._worthless_junk_destroy_key(board))
+        self.assertEqual(policy.last_reason,
+                         "inventory:destroy-deferred-equipment-mutation")
+        key = policy.choose_key(board)
+        self.assertFalse(str(key).startswith("0"))
+        self.assertNotEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+
+class TownJunkStepBeforeWeightReliefTest(unittest.TestCase):
+    """The town junk step runs before the #98 weight-relief selector.
+
+    Recorded soak c4-a life-014 05:00 board (tests/test_weight_relief_root_
+    recorded.py, its DECLARED stale-relief state): 1761 > 1750 with a free
+    Home slot.  The carried 暗闇の巻物 (slot f, harmful-consumable) is junk:
+    it is destroyed first and is never one of the selector's deposits; on the
+    DECLARED CONSTRUCTED effect board (slot f gone, 1756) the selector's
+    weight-overload deposit of the pickaxe follows.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        weight_relief_root.WeightReliefRootRecordedTest.setUpClass.__func__(cls)
+
+    def _board(self):
+        return weight_relief_root.WeightReliefRootRecordedTest._stale_relief_board(self)
+
+    def _policy_for(self, capture, index):
+        return weight_relief_root.WeightReliefRootRecordedTest._policy_for(
+            self, capture, index)
+
+    def test_junk_goes_first_then_the_selector_deposits(self):
+        policy, board = self._board()
+        scroll = next(item for item in board.inventory if item.slot == "f")
+        self.assertEqual(policy._junk_class(board, scroll), "harmful-consumable")
+        policy._town_need_candidates(board)
+        relief = policy._weight_relief_selection(board)
+        self.assertEqual(relief.route, "deposit")
+        self.assertNotIn("f", [item.slot for item in relief.deposits])
+        self.assertEqual((policy.choose_key(board), policy.last_reason),
+                         ("01kf", "inventory:destroy-worthless-junk"))
+
+        policy, board = self._board()
+        after = replace(board, turn=board.turn + 10,
+                        inventory=[item for item in board.inventory if item.slot != "f"])
+        self.assertTrue(policy._inventory_overweight(after))
+        policy._town_need_candidates(after)
+        self.assertEqual((policy.choose_key(after), policy.last_reason),
+                         ("5", "home:weight-overload-deposit"))
+        self.assertEqual(policy._weight_relief_selection(after).deposits[0].slot, "o")
+
+
+if __name__ == "__main__":
+    unittest.main()

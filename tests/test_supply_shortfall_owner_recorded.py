@@ -46,6 +46,7 @@ from hengbot.model import _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.protocol import snapshot_protocol_version
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_town_junk_step_replay
 
 FIXTURE = Path(__file__).parent / "fixtures/supply-shortfall-owner-20261018.json.gz"
 SHA256 = "4e2f33cc2a75914484c750cd04dc5704a8d72d873ccad90b507080562902c9c6"
@@ -90,6 +91,8 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
         cls.results = {}
 
+    # declared wall: pre-2026-10-21 town junk step
+    @pre_town_junk_step_replay
     def replay(self, name):
         """Replay to the pinned board; return (policy, board, key, prefix)."""
         capture = self.pin["captures"][name]

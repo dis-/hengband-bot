@@ -47,3 +47,43 @@ def pre_junk_scope_replay(replay):
             return replay(*args, **kwargs)
 
     return wrapped
+
+
+# The town junk-destroy-first step of ``HengbotPolicy._decide`` is the only
+# caller of the town producer entry under this rung name (the before-return
+# disposal calls ``_worthless_junk_destroy_key`` directly).
+TOWN_JUNK_STEP_RUNG = "_worthless_junk_destroy_key"
+
+
+@contextmanager
+def pre_town_junk_step_rule():
+    """Disable only the town junk-destroy-first step (#95 step 1b).
+
+    For recorded replays whose subject is not junk disposal.  The owner
+    decisions 2026-10-18 (#70: remains are never carried home, disposed before
+    the return) and 2026-10-20 (#95: junk is destroyed in town and never
+    deposited) make the town step destroy carried remains / junk under weight
+    or pack-slot pressure, ahead of the recorded decision these replays pin.
+    Tests whose subject is junk disposal pin the new behaviour instead
+    (tests/test_junk_town_weight_recorded.py).  Composable with
+    ``pre_junk_scope_rule`` (it patches a different seam).
+    """
+    entry = HengbotPolicy._town_producer_entry
+
+    def without_town_junk_step(self, rung_name, call, *args, **kwargs):
+        if rung_name == TOWN_JUNK_STEP_RUNG:
+            return None
+        return entry(self, rung_name, call, *args, **kwargs)
+
+    with patch.object(HengbotPolicy, "_town_producer_entry", without_town_junk_step):
+        yield
+
+
+def pre_town_junk_step_replay(replay):
+    """Run ``replay`` under ``pre_town_junk_step_rule``."""
+    @wraps(replay)
+    def wrapped(*args, **kwargs):
+        with pre_town_junk_step_rule():
+            return replay(*args, **kwargs)
+
+    return wrapped

@@ -2059,7 +2059,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d25cb1d17d8b52a433c8ea9a8c8d3152b05958e694c3e3825fc260e07a8d1ac4"
+    "ast_sha256": "d3ed58764b806bccab0d01362e58047284e3258f88c945f7d6f91beac1fd8a56"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5016,7 +5016,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "82f18729d4a2255ba7b3421a3a4c413dc169a1bd0c5483519286f459c696f6ff"
+    "ast_sha256": "c187ee0adf43a28f36e58737c7fc4d8eeb7c01c36d8cd698835c70c39ebd7406"
   },
   "policy_home.py:HomeMixin._home_deposit_key": {
     "classification": "producer",
@@ -5337,7 +5337,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "67b78b9f8e824a09d34f9f1de261a271c28d8d6512c95f3ec8873ff4a9074fd4"
+    "ast_sha256": "a436b71fc5fe1761db03d06a0b557922223449a372ad5e987d41014e377030eb"
   },
   "policy_home.py:HomeMixin._weight_deposit_candidates.priority": {
     "classification": "data",

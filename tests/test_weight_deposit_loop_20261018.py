@@ -11,6 +11,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_ALCHEMIST, STORE_HOME
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_junk_scope_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -86,6 +87,10 @@ class WeightDepositLoopRecordedTest(unittest.TestCase):
         self.assertIn("weight-overload", {need.category for need in needs})
         self.assertIsNone(policy._overweight_surplus_disposal)
 
+    # declared wall: pre-2026-10-20 junk scope (the pack's four cursed
+    # weapons/armours are junk since 2026-10-20 and are destroyed first; this
+    # pin is about the surplus sale route of the recorded board).
+    @pre_junk_scope_replay
     def test_no_deposit_candidate_admits_existing_surplus_sale_route(self):
         policy, snapshot = self._policy_for(self.boards[2])
         self.assertEqual(

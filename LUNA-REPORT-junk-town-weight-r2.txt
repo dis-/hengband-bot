@@ -1,0 +1,121 @@
+LUNA-REPORT junk-town-weight round 2 (#95 step 1b, town disposal under pack/weight pressure) - base 51a0d8f6
+
+Supervisor decision (option a): the junk-first step runs in town only under weight pressure (departure leaf
+inventory_weight_ready would fail = _inventory_overweight) or pack-slot pressure (_town_pack_space_shortage, below
+the departure minimum).  The "Home absent / full / closed" arm is dropped.  Junk is still never a Home deposit.
+
+Measured diagnosis (round-2 failures after narrowing only):
+  - Narrowing alone left the failures (they were pack-short boards, not Home-availability boards); reverting only
+    the policy.py hunk made test_home_full_relief_recorded + test_destroy_procurement_guard green, reverting only
+    the policy_home.py hunks did not -> the junk-first step is the cause.
+  - test_oneshot_inflight_recorded (already walled at the pre-junk scope): replay row 12.  Base: '01kv'
+    home:full-destroy-surplus (the Home-full relief destroys the remains it withdrew, 醜い浮浪者の死体 tval 10);
+    round 1: the same key under inventory:destroy-worthless-junk, so the relief lost its follow-up
+    (row 18 home:full-skip:surplus-target-unobserved, rows 19-28 ~9 home:request-knowledge-scan x10).
+    -> (R) regression: the junk-first step pre-empted an in-flight Home-full relief.  Fix: the step also requires
+    self._home_full_relief is None (an existing ownership state, like the other in-flight guards).
+    The same fix cleared test_home_discard_followup_recorded (4 F + 2 E) and 6 of 7 in test_home_full_relief_recorded.
+
+Changes:
+  30044649 [Fix] policy.py _decide junk-first block: trigger = _inventory_overweight or _town_pack_space_shortage;
+           added guard self._home_full_relief is None.  Manifest --write (town_work_sites.json,
+           town_work_manifest.json.gz).  The round-1 wall on test_policy_town ...test_alchemist_refuses_sleep_and_
+           buys_detect_invisible is removed (file restored to 51a0d8f6; passes without it now).
+  8b6e3166 [Test] declared pre_junk_scope_replay walls (W) + new control
+           test_control_closed_home_without_pressure_keeps_the_junk (Home closed, constructed board within the
+           weight limit with 10 free slots: the junk-first step does not fire; fails on the round-1 code with
+           'inventory:destroy-worthless-junk').
+  No new constant / threshold / reason / policy attribute (restored-checkpoint defaults: none).
+
+Classification of the round-1 failures (old -> new on this branch without a wall):
+  (R) fixed in src (in-flight Home-full relief pre-empted):
+    test_oneshot_inflight_recorded (6 F + 1 E), test_home_discard_followup_recorded (4 F + 2 E),
+    test_home_full_relief_recorded (6 of 7: pending_sale_skips..., unknown_surplus_requires..., pending_sale_
+    refiles..., refusal_withdraws... x2, unidentified_excellent...).
+  (W) wall pre_junk_scope_replay, expectations unchanged (subject not junk disposal; pack-short boards whose
+      new-scope junk - zero-value staves (e.g. TVAL_STAFF sval 0/3), harmful consumables - is taken first):
+    test_destroy_procurement_guard.test_p3c_public_choose_key_protected_overflow_and_controls
+      ('inventory:destroy-worthless-junk' -> expected 'town:destroy-overflow')
+    test_home_full_relief_recorded.test_observed_capacity_triggers_relief_without_refusal_message
+      (_home_errand.request None -> expected full-home-sale request)
+    test_stuck_prompt_staged_tail_recorded._replay (shared by the class; test_replay_reproduces_the_window_decisions
+      got '023ku' inventory:destroy-worthless-junk where the record has 'R&\r' town:recover)
+    test_policy_equipment.OverflowDisposalTest (7 methods / 10 incl. subtests):
+      test_destroys_a_device_but_never_the_recall_scroll, test_preserves_charged_identify_staff_during_overflow_
+      disposal, test_destroys_junk_until_departure_free_slot_requirement_is_met (name says "junk" but it pins the
+      overflow reason town:destroy-overflow), test_town_compacts_surplus_diggers_before_departure ('01kd'->'01kb'),
+      test_town_compacts_ammo_when_no_launcher_is_owned ('01kb'->'014ka'), test_full_pack_destroys_new_disposable_
+      items x4 ('01kb'->'01ka'), test_full_pack_discards_average_or_cursed_pseudo_identified_items x2.
+  Round-1 walls kept (still needed, policy_home hunks / overweight board): test_policy_home ...test_inferior_crossbow_
+    system_is_deposited_when_sling_is_selected, test_weight_deposit_loop_20261018 ...test_no_deposit_candidate_admits_
+    existing_surplus_sale_route.
+
+STOP (unchanged from round 1, not edited, still failing):
+  test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.test_pin8_partial_destroy_sink_retains_counts_and_
+  files_are_isolated: its DECLARED CONSTRUCTED "declared unbuyable junk" (tval 1, count 26) is junk under both scopes,
+  so the wall cannot apply; helper relief() asserts _overweight_home_deposit(outside) is not None: old = the remains
+  stack (26), new = None (junk is never a weight deposit).  Expectation change needs an owner decision.
+
+Tests run (single modules):
+  tests.test_junk_town_weight_recorded 7 OK (round-1 pins green + new control).
+  test_destroy_procurement_guard, test_home_full_relief_recorded, test_home_discard_followup_recorded,
+  test_stuck_prompt_staged_tail_recorded, test_oneshot_inflight_recorded, test_policy_equipment,
+  test_overweight_homefull_step15b, test_policy_town, test_policy_home, test_weight_deposit_loop_20261018:
+  1018 tests, 1 failure (step15b pin8, STOP above).
+  test_junk_scope_recorded, test_home_junk_bones_recorded, test_departure_unsatisfiable_weight_recorded,
+  test_overweight_home_unreachable_recorded, test_overweight_home_hold_recorded, test_live36_weight,
+  test_equipment_homefull_step15a, test_town_overflow_recorded, test_overflow_gear_recorded,
+  test_home_full_sale_keeps_recall_recorded, test_equipment_deposit_owner_recorded, test_home_deposit_hang_recorded,
+  test_buy_deposit_loop_recorded, test_classC2_departure_recorded: 119 OK.
+
+Guard outputs (after the last source commit 8b6e3166):
+  preflight: [preflight] PREFLIGHT OK: 14 changed files, 0 findings (junk-town-weight-1020 vs 51a0d8f6)
+    (NOTE existing-test MODIFIED for the 10 walled tests listed above + the 2 round-1 walls)
+  mutation_check --tests tests.test_junk_town_weight_recorded test_oneshot_inflight_recorded --record:
+    caught policy.py:10426 (test_closed_home_destroys_the_cursed_armour_then_departs, test_junk_is_never_a_home_deposit)
+    caught policy_home.py:2493 (test_junk_is_never_a_home_deposit)
+    caught policy_home.py:2546 (test_unused_ammo_is_not_a_home_deposit_candidate)
+    MUTATION OK: 0 of 3 hunks are not pinned by a test; recorded for 8b6e3166
+  fast_tier --shards 4: 3637 fast tests + 7 changed modules; crashed shards none; Failures: none; Errors: none;
+    Total 3837 tests, 378.5s  (test_overweight_homefull_step15b is a slow module excluded from the fast tier).
+
+Not fixed (separate issue, as instructed): *鑑定* purchase for an already known-cursed item.
+
+Addendum (supervisor decision on the step15b pin8 STOP): 4b71a548 changes only
+test_overweight_homefull_step15b ...test_pin8_partial_destroy_sink_retains_counts_and_files_are_isolated:
+the constructed sink tval 1 remains ('declared unbuyable junk', 26) -> tval 8 figurine ('declared unbuyable
+figurine', 26, asserted _junk_class None), comment cites owner decisions 2026-10-18 (#70) and 2026-10-20 (#95).
+All other assertions unchanged ('026ka', town:overweight-surplus-destroyed:home-full, record (26,0,0), byte-for-byte
+rollback of both sidecars).  Passes on 51a0d8f6 and on this branch.  test_overweight_homefull_step15b 8 OK +
+tests.test_junk_town_weight_recorded 7 OK.  preflight: PREFLIGHT OK: 16 changed files, 0 findings.  src unchanged,
+so no mutation_check rerun.
+
+Addendum 2 (merge gate 06d8dd91 STOP, slow recorded modules) - measured alone on this branch and on 51a0d8f6
+(src of 51a0d8f6 via git apply -R): all 14 tests pass on main; on the branch 3 F + 2 E.  No src/test change made:
+every failure is the town junk-first step destroying tval 10 REMAINS (corpse/bones) carried in town under
+pack-slot pressure; remains are junk under both scopes, so the pre_junk_scope wall cannot apply (measured: the
+walled run fails identically).  Not (R): the destroyed item is the remains, never the lantern; no in-flight owner is
+pre-empted (equipment mutation IDLE).  STOP for the supervisor:
+  - test_lantern_lost_recorded.test_recorded_town_board_keeps_the_empty_lantern: old ('~9\x1b',
+    equipment-transaction:catalogue-request-knowledge) -> new ('01kp', inventory:destroy-worthless-junk) on slot p
+    土ヘビの死体 (tval 10, remains); the empty lantern (slot n, 真鍮のランタン 0 turns) has _junk_class None and
+    _find_disposable_item None - it is kept.  Fails on assertFalse(key.startswith("01k")).
+  - test_supply_shortfall_owner_recorded (recorded replay): teleport-0316 prefix row 121 recorded ('R&\r',
+    town:recover) -> new '01kd' destroy of サモン・モンスターの巻物 (harmful-consumable; walled: '01kq' 土ヘビの骨);
+    the pinned key itself is unchanged ('5', shop:one-shot-buy).  idstaff-0353 row 103 recorded ('\x1b`n(.',
+    shop:travel) -> new '01kd' サモン・アンデッドの巻物 (walled: '01kr' ポイズン・コボルドの骨); the replay's
+    recorded boards still carry the destroyed stack, so it diverges from row 104 on and the pin ends in
+    '3' town-progress-invariant:defect:inventory:destroy-worthless-junk=>town:kill-mob-approach (expected
+    "\x1b`n&." ...approach); the two controls ERROR because _town_errand_plan is None.
+
+Addendum 3 (supervisor option 1): declared wall pre_town_junk_step_rule / pre_town_junk_step_replay in
+tests/recorded_junk_scope.py (patches HengbotPolicy._town_producer_entry to answer None for the rung
+"_worthless_junk_destroy_key", whose only town-entry caller is the new _decide step; the before-return disposal calls
+_worthless_junk_destroy_key directly and is untouched; composable with pre_junk_scope_rule).  Applied with
+"# declared wall: pre-2026-10-21 town junk step" to test_lantern_lost_recorded.test_recorded_town_board_keeps_the_
+empty_lantern and to the shared replay() of test_supply_shortfall_owner_recorded; expectations unchanged.
+Non-vacuity pins (tests/test_junk_town_weight_recorded.py TownJunkStepWallTest): without the wall ('01kp',
+inventory:destroy-worthless-junk) destroys slot p corpse (tval 10, remains) and the empty lantern n is not junk;
+with the wall ('~9\x1b', equipment-transaction:catalogue-request-knowledge).  f0f0142c + 377761d6.
+tests.test_lantern_lost_recorded + tests.test_supply_shortfall_owner_recorded + tests.test_junk_town_weight_recorded:
+23 OK.  preflight: PREFLIGHT OK: 19 changed files, 0 findings.  src unchanged since 8b6e3166 (no mutation rerun).
