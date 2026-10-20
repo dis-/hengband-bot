@@ -278,6 +278,11 @@ class PurchaseRetentionRootRecordedTest(unittest.TestCase):
         self.assertEqual(policy._town_visit_purchase_path,
                          Path(directory.name) / "town-visit-purchases.json")
 
+    def test_the_written_record_is_a_registered_retention_source(self):
+        from item_sink_lint import analyze_repository
+        self.assertEqual([finding for finding in analyze_repository()
+                          if "_town_visit_purchase_record" in finding], [])
+
     def test_a_restored_checkpoint_writes_the_isolated_record(self):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
