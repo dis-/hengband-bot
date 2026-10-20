@@ -54,3 +54,39 @@ policy.py:10612-10624 in store) still emit '' for an orphaned buy/sale watch who
 after this fix the recorded board no longer reaches them.  Also the first Alchemist entry left after the
 inscription without selling (_in_store_selection answers op 'disposal' while the Home relief is pending),
 costing one extra trip; not a stop.
+
+ROUND 2 (coordinator: close the two '' branches)
+Change (0c8f40ee, f0ae5f06): policy.py new helper _release_unposted_store_watch(snapshot), called right before
+the outside branch (store None) and before the in-store one-shot wait branch.  One answer to "is this watch
+live": live only while self._store_visit holds the posted operation (visit is not None and
+visit.operation_posted) - the same rule _close_store_visit uses when it drops a posted visit's watches.
+Otherwise the watch is settled through the release its confirmation budget already uses: buy ->
+_store_buy_inflight = None + _close_store_visit("one-shot-buy-unconfirmed"); sale (await-sale) ->
+_batch_sell_key(replace(snapshot, store=StoreState(store, []))) judged on this board.  The decision then
+continues.  No new constant, threshold or reason string.  Bookkeeping: town_work manifest refreshed,
+scripts/item_sink_adapters.json entry for the helper's _batch_sell_key call.
+Pins (DECLARED CONSTRUCTED: the page after the posted d0y shows no sale -> in-store-done, visit closed, sale
+watch await-sale):
+- test_unposted_sale_watch_outside_is_settled: stop board.  544ce4d1-equivalent (round-2 hunks reverted):
+  ('', 'shop:one-shot-in-flight'); after: ('9', 'equipment-transaction:acquire-home-catalog'), watch None.
+- test_unposted_sale_watch_on_a_store_page_is_settled: the Alchemist page again without the outside board
+  (as 082847 decisions 23-26).  Reverted: _decide returns '' shop:one-shot-in-flight (the arbiter then
+  rewrites it to '5' town:blocked:owner-retired because the page repeats a no-progress vector) and the watch
+  stays await-sale; next outside board ''.  After: _decide returns '\x1b' shop:observe-and-leave, watch None,
+  next outside board ('5', 'shop:one-shot-sell') (the sale is composed again).  The final key on the repeated
+  page is '5' town:blocked:owner-retired in both, so this pin asserts the settled watch and the next board.
+- test_control_posted_sale_watch_still_waits: after the released d0y, the stop board still waits
+  ('', 'shop:one-shot-in-flight') with the visit posted/released and the watch await-sale (unchanged).
+Not separately pinned: the buy half of the helper (no recorded buy watch); the helper definition hunk is
+caught through its callers.
+Existing tests: unchanged and green (test_shop_one_shot, test_policy_shop 275, test_store_reentry_recorded,
+test_posted_effect_unobserved, test_live8, test_live11, test_idw_block_recorded, test_owner_retirement_slice1,
+home-full/home-surplus modules, test_item_sink_lint).
+Guards after f0ae5f06:
+  preflight:  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (oneshot-inflight-1020 vs 544ce4d1)
+              (first run: raw ESC byte in the test and item-sink adapter missing; fixed in f0ae5f06)
+  mutation:   4 source hunks; caught policy.py:10523 (outside call) by test_unposted_sale_watch_outside_is_settled,
+              policy.py:10610 (in-store call) by test_unposted_sale_watch_on_a_store_page_is_settled,
+              policy.py:14159 (helper) by setUpClass, policy_instore.py:435 by test_entry_page_releases_the_staged_sale
+              and others; MUTATION OK: 0 of 4 hunks are not pinned; recorded for f0ae5f06
+  fast_tier:  3798 tests, 193.4s, Crashed shards: none, Failures: none, Errors: none
