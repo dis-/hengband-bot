@@ -1,0 +1,55 @@
+LUNA-REPORT weight-relief-root r2 (branch weight-relief-root-1021, base main 3019cd45; gate round 2)
+
+Gate fast tier (gate-weight-relief-root-1021-fast.log): 4 failures + 1 error.  Measured alone:
+ branch 4ac081c5: test_buy_deposit_loop_recorded 1 FAIL, test_oneshot_inflight_recorded 6 FAIL + 1 ERROR (11 tests).
+ main 3019cd45 (temporary detached worktree): both modules OK (11 tests).
+ (r1's own fast tier passed because its fast set was timed at 51a0d8f6 and did not contain these tests.)
+
+Per failure, measured cause and class
+ 1. test_buy_deposit_loop_recorded.test_required_count_and_only_excess_can_be_deposited -- (R) regression.
+    The test patches _inventory_overweight=True on a one-item board.  _weight_relief_selection returned
+    "none" on weight - limit <= 0 and so _overweight_home_deposit returned None (expected the 3 excess
+    scrolls); _weight_deposit_candidates owns the overweight test (_inventory_overweight).
+    Fix: the selector gates on _inventory_overweight (same answer live; same deposits for a caller holding it).
+ 2. test_oneshot_inflight_recorded (all 7: replay_composes, entry_page_releases, control_an_operation_posted,
+    control_observed_sale (ERROR), unposted_sale_watch x2, control_posted_sale_watch) -- (R) regression,
+    one cause.  Replay decision 15: main '5pH\x1b' home-errand:atomic-withdraw:full-home-sale (*Remove Curse*);
+    branch '5' home:weight-overload-deposit, then 'dvdrdq' deposits and no one-shot sale.  Probe: the relief
+    had taken the corpse at 4/12 (remaining 3 -> 2 of 3 deposits), capacity fact (239, 240) -- the slot its own
+    take freed -- route "deposit", sale None, withdrawn False, so _release_home_full_relief_for_weight released
+    a relief that was progressing.  Fix: release only a relief that took no ware
+    (remaining == max(1, len(deposits)), as _begin_home_full_relief sets it).
+ Not (W): neither replay's subject is weight relief and both new decisions broke owner-decided flows, so no wall.
+
+05:00 still released (measured in the 050011 capture): the 2105 relief took D and ended with the 2109 deposit;
+ decisions 2107..2146 hold no relief take (2115 is 'home:atomic-withdraw', the catalogue withdrawal that left
+ 239/240).  So the 2147 relief took no ware.  The DECLARED wall of my 05:00 pins had "remaining": 1 with ~9
+ deposits (not a state _begin_home_full_relief produces); it now begins the relief as _home_full_relief_key
+ does (remaining = max(1, len(entries))).  Only my own new test module changed; no existing test edited.
+
+Commit 39031f33 [Fix] A Home-full relief that took a ware is released and the selector gates on its own weight
+ policy_home.py: _weight_relief_selection gate -> _inventory_overweight; _release_home_full_relief_for_weight
+ adds the took-no-ware condition.  Manifest regenerated (842 candidates, town_work_sites.json hash entry).
+ No new constant, threshold, reason or policy attribute.
+ New pins (tests/test_weight_relief_root_recorded.py, 13 tests):
+  test_relief_that_took_a_ware_keeps_its_freed_slot: before (4ac081c5 src) FAIL "True is not false" (released);
+   after relief kept, _find_home_deposit None.
+  test_selector_gate_is_the_overweight_test_of_the_deposits (board 57, _inventory_overweight patched):
+   before FAIL "() != (pickaxe o, ...)"; after deposits == _weight_deposit_candidates.
+  (revert-proof by git apply -R of the src diff, re-applied.)
+
+Module runs after 39031f33: test_buy_deposit_loop_recorded OK (3), test_oneshot_inflight_recorded OK (8),
+ test_weight_relief_root_recorded OK (13), test_weight_deposit_loop_20261018 OK (7),
+ test_overweight_homefull_step15b OK (8), test_home_full_relief_recorded OK (6),
+ test_home_full_identification_procurement_recorded OK (3), test_policy_home OK (171, skipped 4).
+
+Guards (after 39031f33)
+ preflight: [preflight] PREFLIGHT OK: 12 changed files, 0 findings (weight-relief-root-1021 vs 3019cd45)
+ mutation:  [mutation] 10 source hunks, tests: test_weight_relief_root_recorded -- all 10 caught
+            [mutation] MUTATION OK: 0 of 10 hunks are not pinned by a test / recorded for 39031f33
+ fast_tier: [fast] 3816 fast tests (<2.0s in 3019cd45) + 1 changed modules, 4 shards (35 modules >60s excluded)
+            Crashed shards: none / Failures: none / Errors: none / Total: 3832 tests, 251.1s
+ Not run: test_policy_town, test_overweight_home_unreachable_recorded (slow) -- left to the gate.
+
+Open from r1 (unchanged): the one-shot Speed purchase has no weight check (owner 2026-10-21: "buy only what
+ fits" stays for ammo only; not changed); 04:53 retained-only stop; 221131/221304 not re-measured.

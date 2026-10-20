@@ -1,0 +1,82 @@
+LUNA-REPORT weight-relief-root (branch weight-relief-root-1021, base main 3019cd45)
+
+Measured diagnosis: LUNA-DIAG-weight-relief-root.txt (enumeration S1-S15 with file:line; capture numbers).
+ 05:00 (20261021-050011): 1761 > 1750 (excess 11) after the 2145 one-shot buy of 3 Speed potions (1749 -> 1761;
+   no weight check on that purchase path).  Home page 239/240.  Sheddable surplus existed (pickaxe 200, shovel 120,
+   Speed 3, recall 4, ...).  The Home-full relief left pending by 2147 'home:full-skip:surplus-target-unobserved'
+   made _find_home_deposit return None (no weight-overload need) and gated the overweight-surplus arming
+   (_home_full_relief is None), so no site shed weight -> 2152 generic departure-unsatisfiable.
+ 04:53 (20261021-045344): 1928 > 1750 (excess 178), Home 238/240.  Only recall f (4 x 5) is sheddable; weapons
+   m/n/o (560) are held by the identification flow, Identify staves as required identification supply.
+
+Changes
+ 56546dbd [Fix] An overweight pack has no shedding owner while a Home-full relief is pending
+   policy_home.py: WeightRelief + _weight_relief_selection (one selector: Home deposit while a free Home slot is
+     observed -> sale/destroy (S6 order) -> home-relief -> retained-only, with excess and the retained items and
+     their retention reasons); _release_home_full_relief_for_weight (relief pending, no take in flight, selector
+     route deposit -> relief and retry released); _record_weight_relief_retained_only (record in
+     overweight-surplus-disposal.jsonl).  Sites rerouted through the selector: _overweight_home_deposit (S2, and
+     via it S3/S13), _ammo_procurement_target for_retention (S10), _overweight_surplus_sale_key (S7),
+     _home_full_relief_key (S9: releases first), _town_need_candidates (S4/S5).
+   policy_town.py: _town_blocked_key names a generic departure-unsatisfiable 'overweight-retained-only' when the
+     selector's route is retained-only (all three generic sites pass through it); VISIT_CLOSABLE_REASONS gets the
+     new reason (A0: same visit-close attempt as the generic one).
+   policy_constants.py POLICY_FINAL_STOP_REASONS + cli.py banner: town:blocked:overweight-retained-only.
+   scripts: town_work_review.json / town_producer_baseline.json entries for _weight_relief_selection and
+     _overweight_surplus_candidates (now reached from a candidate); manifest regenerated (842 candidates).
+ 5e54d86e [Fix] A Home-full relief is released on an unobserved Home capacity
+   (R) regression of 56546dbd in test_home_full_relief_recorded (6 tests: 3 errors, 2 failures) and
+   test_home_full_identification_procurement_recorded (2 failures): "room" was the absence of a full fact.  Now
+   a free slot must be observed (Home page or this town's capacity fact).  Both modules OK after.
+ No new constant or threshold.  No new policy attribute (no restored-checkpoint default needed).
+ Junk (#95, branch junk-town-weight-1020) is not duplicated: its step runs before the surplus producers.
+
+Pins (tests/test_weight_relief_root_recorded.py, fixture tests/fixtures/weight-relief-root-20261021.jsonl.gz:
+ boards 57/81/82/86 of 050011, 70 of 045344, decision rows 2144-2152)
+ test_capture_pins_the_skip_and_the_generic_block: recorded rows 2147..2152, failed [inventory_weight_ready],
+   Home 239/240, 1761/1750 -- OK before and after.
+ test_stale_relief_releases_to_the_weight_deposit (DECLARED wall: relief pending after the skip, catalogue =
+   knowledge board 81, capacity = page 82): 3019cd45 FAIL -- needs [identification-withdrawal, equipment-catalog,
+   black-market], no weight need; after: weight-overload need, relief released, choose_key '5'
+   home:weight-overload-deposit, selector route deposit, excess 11, first deposit pickaxe o.
+ test_stale_relief_releases_at_the_relief_producer: before FAIL ('5' from the relief producer), after None,
+   relief released, _find_home_deposit = o.
+ test_generic_departure_block_is_named_when_only_retained_weight_remains (DECLARED: 04:53 board after recall f
+   deposited, capacity 238/240): before 'town:blocked:departure-unsatisfiable', after
+   'town:blocked:overweight-retained-only'; test_retained_only_weight_is_named_with_numbers: 1908 / 1750 /
+   excess 158, m/n/o 'identification-flow', record row written.
+ test_every_shedding_site_selects_through_the_selector (structural, runtime caller check of
+   _weight_deposit_candidates / _overweight_surplus_candidates over the need list, the deposit finder, the ammo
+   retention target, the sale key and choose_key): before FAIL (direct calls from _ammo_procurement_target,
+   _overweight_home_deposit, _town_need_candidates, _overweight_surplus_sale_key), after [].
+ Controls: test_control_retained_items_are_never_shed (cure c, teleport h, Stone to Mud j, bolts p never in a
+   shed list; Speed 3 and recall 4 only); test_control_full_home_keeps_the_relief (240/240: sell-or-destroy,
+   relief kept); test_control_unobserved_home_capacity_keeps_the_relief; test_control_not_overweight_board_is_
+   unchanged (board 57, 1646: route none, no weight need); test_control_sheddable_weight_is_not_named_retained.
+ Revert-proof (git apply -R of the src diff, measured): the four behaviour pins above FAIL with the stated old
+   values; the controls ERROR (AttributeError: no _weight_relief_selection); the capture pin OK.  Re-applied: OK.
+ a89da06f [Test]: banner pin added after the mutation check found cli.py:693 NOT CAUGHT (repair round 1).
+
+Existing tests: none edited.  Re-runs after 5e54d86e: test_weight_deposit_loop_20261018 OK (7),
+ test_overweight_homefull_step15b OK (8), test_home_full_relief_recorded OK (6),
+ test_home_full_identification_procurement_recorded OK (3), test_policy_home OK (171, skipped 4).
+
+STOP / not done (owner decision needed, numbers above):
+ 1. The overload itself came from a purchase: the one-shot buy of 3 Speed potions (2145) has no weight check
+    (_can_add_item_without_overweight has one call site, the Home spare-weapon withdrawal), and those 3 are
+    retention surplus the moment they are bought (Speed retention 10, carried 13).  "Buy only what fits" exists
+    for ammunition only (S10/S11).  Extending it to every purchase is a new purchase policy -- not done.
+ 2. 04:53: 560 weight of weapons held by the identification flow while overweight; after the one sheddable
+    stack the bot now stops with the named reason and numbers (no retained item is chosen to drop).
+ 3. 20261020-221131/221304 (cursed armour, Home closed) were not re-measured (budget).
+ 4. Commit 56546dbd alone fails the two Home-full relief modules; 5e54d86e fixes them (keep both together).
+
+Guards (after a89da06f, last source edit 5e54d86e):
+ preflight: [preflight] PREFLIGHT OK: 11 changed files, 0 findings (weight-relief-root-1021 vs 3019cd45)
+ mutation:  [mutation] 10 source hunks, tests: test_weight_relief_root_recorded -- all 10 caught
+            (round 1: cli.py:693 banner NOT CAUGHT -> pinned in a89da06f)
+            [mutation] MUTATION OK: 0 of 10 hunks are not pinned by a test / recorded for a89da06f
+ fast_tier: [fast] 3637 fast tests (<2.0s in 51a0d8f6) + 7 changed modules, 4 shards (34 modules >60s excluded)
+            Crashed shards: none / Failures: none / Errors: none / Total: 3837 tests, 378.5s
+            (the gate-junkweight2-1021 log was in its suite phase; the wait loop found its tail marked and ran.)
+ Not run: test_policy_town (~450 s), test_overweight_home_unreachable_recorded (~410 s) -- left to the gate.
