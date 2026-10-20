@@ -25,6 +25,7 @@ from hengbot.policy import HengbotPolicy
 from policy_fixtures import grid
 from test_home_route_release_recorded import reconstructed
 from test_s33_batch_context import captured_session
+from recorded_junk_scope import pre_junk_scope_replay
 
 FIXTURE = Path(__file__).parent / "fixtures/home-route-release-20261003.json.gz"
 
@@ -192,6 +193,8 @@ class HomeFullReliefTest(unittest.TestCase):
             self.assertNotIn(policy._home_errand.request.signature[0],
                              ("excellent unknown", "special unknown", catalogue[3].name))
 
+    # declared wall: pre-2026-10-20 junk scope (subject: Home-full relief, not junk)
+    @pre_junk_scope_replay
     def test_observed_capacity_triggers_relief_without_refusal_message(self):
         _checkpoint, board, catalogue, _entries = relief_scene(self.pins[0], True)
         from hengbot.model import parse_snapshot

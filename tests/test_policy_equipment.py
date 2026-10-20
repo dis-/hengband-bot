@@ -30,6 +30,7 @@ from policy_fixtures import (
     seed_character_calibration,
     hostile,
 )
+from recorded_junk_scope import pre_junk_scope_replay
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 import test_policy as fixture
@@ -280,6 +281,8 @@ class OverflowDisposalTest(unittest.TestCase):
             for i in range(count)
         ]
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_destroys_a_device_but_never_the_recall_scroll(self):
         # Essentials (here the Word of Recall at slot 'a') are never the overflow
         # victim — the first non-essential device is dropped instead.
@@ -293,6 +296,8 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
         self.assertEqual(key, "01kb")
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_preserves_charged_identify_staff_during_overflow_disposal(self):
         identify = item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
@@ -341,6 +346,8 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertIsNone(key)
         self.assertNotEqual(policy.last_reason, "town:destroy-overflow")
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_destroys_junk_until_departure_free_slot_requirement_is_met(self):
         used = PACK_CAPACITY - MIN_FREE_PACK_SLOTS + 1
         staves = [
@@ -547,6 +554,8 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "01ka")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_town_compacts_surplus_diggers_before_departure(self):
         # Live regression: Home batching left 21/23 slots occupied, including
         # three shovels and a pick. Shed weaker diggers before any town departure.
@@ -572,6 +581,8 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "01kb")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_town_compacts_ammo_when_no_launcher_is_owned(self):
         ammo = item("a", TVAL_ARROW, 4, name="arrows", count=14)
         filler = [
@@ -605,6 +616,8 @@ class OverflowDisposalTest(unittest.TestCase):
 
         self.assertIsNone(HengbotPolicy()._find_disposable_item(snap))
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_full_pack_destroys_new_disposable_items(self):
         cases = [
             item("a", TVAL_POTION, 11, name="Sleep"),
@@ -649,6 +662,8 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "03ka")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
+    # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
+    @pre_junk_scope_replay
     def test_full_pack_discards_average_or_cursed_pseudo_identified_items(self):
         for feeling in ("average", "cursed"):
             with self.subTest(feeling=feeling):

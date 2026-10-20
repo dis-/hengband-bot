@@ -189,6 +189,25 @@ class JunkTownWeightRecordedTest(unittest.TestCase):
         key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
 
+    def test_control_closed_home_without_pressure_keeps_the_junk(self):
+        # Round 2 (supervisor option a): only weight or pack-slot pressure
+        # runs the junk-first step; a closed Home alone is not a reason.
+        policy, board = self._stop()
+        # DECLARED CONSTRUCTED: the stop board without its heavier non-junk
+        # stacks (largest first) until the pack is within the weight limit.
+        inventory = list(board.inventory)
+        for heavy in sorted((item for item in board.inventory if item.slot != "m"),
+                            key=lambda item: -item.weight):
+            if not policy._inventory_overweight(replace(board, inventory=inventory)):
+                break
+            inventory.remove(heavy)
+        board = replace(board, inventory=inventory)
+        self.assertFalse(policy._inventory_overweight(board))
+        self.assertFalse(policy._town_pack_space_shortage(board))
+        self.assertEqual(policy._find_worthless_junk(board).name, ARMOUR)
+        policy.choose_key(board)
+        self.assertNotEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+
     def test_control_protected_items_are_never_destroyed(self):
         policy, board = self._stop()
         armour = next(item for item in board.inventory if item.slot == "m")
