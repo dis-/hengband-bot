@@ -162,6 +162,19 @@ class JunkTownWeightRecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason),
                          ("01km", "inventory:destroy-worthless-junk"))
 
+    def test_unused_ammo_is_not_a_home_deposit_candidate(self):
+        policy, board = self._stop(closed_home=False)
+        armour = next(item for item in board.inventory if item.slot == "m")
+        # DECLARED CONSTRUCTED: iron shots (sling ammunition) in slot m while
+        # the recorded light crossbow is worn.
+        shots = replace(armour, name="鉄の弾 (1d4) (+0,+0)", count=20, tval=16,
+                        sval=1, weight=4, is_cursed=False, to_h=0, to_a=0, ac=0)
+        policy, board = self._stop(closed_home=False, slot_m=shots)
+        shots = next(item for item in board.inventory if item.slot == "m")
+        self.assertEqual(policy._junk_class(board, shots), "unused-ammo")
+        # Pre-fix the general Home deposit took the unused shots.
+        self.assertFalse(policy._home_deposit_candidate(shots, board))
+
     def test_control_non_junk_heavy_item_keeps_the_home_relief(self):
         policy, board = self._stop(closed_home=False)
         armour = next(item for item in board.inventory if item.slot == "m")
