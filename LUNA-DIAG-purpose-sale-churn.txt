@@ -1,0 +1,50 @@
+LUNA-DIAG purpose-sale-churn (branch purpose-sale-churn-1020, base 838e185b)
+Source: soak c4-a life-014 jsonlog/bot-decisions.jsonl.4 .. .2 and bot-decisions.jsonl (read-only, 2026-10-20).
+
+A. *Remove Curse* (*解呪*の巻物) cycle -- MEASURED
+ 1. Buyer: the Temple purchase rung "curse:star-reserve" (policy_shop.py:2845) via
+    _affordable_star_remove_curse (policy_fundraising.py:422) and
+    _star_remove_curse_reserve_purchase_needed (policy_shop.py:6335: gold >= FUNDRAISING_GOLD_TARGET 15000,
+    Home count 0, carried 0, no deposit pending). Row 10:30:55 seq 17 'pn1\r\r' store 3, gold 20038 -> 13784
+    ("*解呪*の巻物を $6028で購入しました").  shop:buy-star-remove-curse sets _star_remove_curse_reserve_deposit_pending
+    only when _required_remove_curse_kind() is None (policy_shop.py:5334-5343), i.e. no cursed target.
+ 2. No cursed target during the cycle: no town:remove-curse row 10:25-11:57 except 11:15:49 seq 9810 'rf' (a NORMAL
+    解呪の巻物 bought 11:15:46 for 152 G for another worn item). The Light Crossbow curse became known only at
+    13:48:39 seq 3015 (identify:normal-equipped, work id "identify:equipped:('ライト・クロスボウ (x3) {呪われている}', 19, 23)");
+    before that the equipment fingerprint shows "ライト・クロスボウ (x3) (0.75turn) (+10,+10)" without {呪われている}.
+    So the scroll was the one-scroll Home RESERVE, not a read-now purchase; nothing to read.
+ 3. Why it ends in Home: _home_reserve_deposit_item / _home_deposit_quantity (policy_home.py:2512-2527) deposit it
+    (10:31:21 seq 38 home:atomic-deposit 'de\x1b' -> "*解呪*の巻物を置いた").
+ 4. Who sells it: the Home-full relief. _home_full_sale_candidate (policy_home.py:333) admits a Home stack unless
+    _retention_reservation(probe, item) > 0 (line 362) or a live purchase rung matches (_item_matches_purchase_rung).
+    _retention_reservation_baseline_detail (policy_home.py:1971) had no *Remove Curse* branch -> reservation 0, and
+    the curse:star-reserve rung is not live once the reserve is in Home (Home count 1) -> candidate.
+    10:35:45 seq 2393 home-errand:atomic-withdraw:full-home-sale '5pH\x1b' -> seq 2395 shop:in-store-inscribe '{g@0\r'
+    -> seq 2396 'd0y' -> seq 2397 home:scan-leave-store "*解呪*の巻物 {@0}を $1944で売却しました".
+    The {@0}/{@1} tag is the sale inscription of that same selected stack (shop-sell owner), not a separate predicate.
+    Repeated: 11:15:58 buy 6116 / 11:19:35 sell 1872; 11:29:57 / 11:34:23 ({@1}); 11:44:22 / 11:47:29; 11:55:12 / 11:57:05.
+    _home_full_discard_candidate (policy_home.py:459, line 477) has the same gap (destroy path).
+ 5. Why the predicate ignores the purpose: the reserve purpose lives only in the purchase gate (count == 0) and the
+    deposit flag; the single retention authority (_retention_reservation) never learned it.
+
+B. Treasure detection -- MEASURED, not changed here
+ - 財宝感知の巻物 x6: 13:57:03 seq 6642 bought, fundraising mode 'prepare', retention row branch "mining:detection"
+   reservation 6 (policy_home.py:2172, mining_planned). 13:57:19 seq 6650 town:blocked:departure-unsatisfiable (#94 stop);
+   after the restart (13:58, seq 38+) fundraising mode None -> mining_planned False -> no reservation -> 13:58:23 seq 48
+   full-home-sale withdraw, 13:58:27 seq 52 sold for 48 G. The mining purpose ended with the restart (mode not
+   restored); #94 (branch idstaff-fundraise-1020) owns that stop.
+ - 財宝感知の杖: 10:48:51 seq 2821 bought 471 G with shop_selector wanted_purchase category "device" (rung
+   "tail:mana-food", policy_shop.py:2823, MANA food type), deposited 10:51:49, sold 10:56:43 for 152 G after a
+   home-full withdraw. Retention for MANA devices keeps only _device_food_reserve_slot (policy.py:15110) of the pack;
+   a Home device is not that slot. Not changed (task scope: one predicate for the *Remove Curse* reserve; reported).
+
+C. "Is this surplus / sellable" sites -- all ask _retention_reservation (directly or through
+   _retention_surplus / _entire_stack_is_surplus), so a purpose missing from that authority is missing everywhere:
+   policy_home.py:333 _home_full_sale_candidate, :418 _home_full_merge_reserved, :459 _home_full_discard_candidate,
+   :2652 (pack deposit/sale), policy_shop.py:474 (shop sale), policy_town.py:4998, policy_helpers.py:310/331,
+   policy.py:12877/14841/14858, policy_identification.py:631.
+   Purposes the authority already covers: supply targets (supply-ledger:recall/teleport/cure/oil/food), quest carry
+   (carry-strategy:*), mining kit (mining:detection / mining:digging-tool, only while mining_planned), destruction gate,
+   Identify-staff cap, experience potions, visit purchases (visit-purchase, current visit only).
+   Purposes it did NOT cover: the *Remove Curse* reserve (fixed); MANA device food held in Home (B, reported);
+   mining kit after a restart drops fundraising mode (B, reported).
