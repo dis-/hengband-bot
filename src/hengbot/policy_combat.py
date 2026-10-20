@@ -4141,8 +4141,13 @@ class CombatMixin:
             # status monster in a narrow passage rings every neighbour). Waiting
             # here forever until the loop guard stops the bot is worse than
             # stepping onto a previously-vetoed square, so relax the veto to the
-            # least-bad walkable neighbour and keep the retreat moving.
-            candidates = walkable
+            # least-bad walkable neighbour and keep the retreat moving -- but
+            # never onto a grid the weapon warning refused.
+            candidates = [
+                candidate
+                for candidate in walkable
+                if not self._warning_step_refused(snapshot, candidate)
+            ]
         if not candidates:
             return None
 

@@ -678,6 +678,7 @@ class NavigationMixin:
                 and grid.passable
                 and not grid.is_door
                 and not grid.has_monster
+                and not self._warning_step_refused(snapshot, neighbor)
             ):
                 candidates.append(neighbor)
         self._osc_positions.clear()
@@ -1291,6 +1292,7 @@ class NavigationMixin:
                 origin.distance_to(nxt) == 1
                 and nxt not in avoided_store_cells
                 and self._is_step_open(snapshot, origin, nxt)
+                and not self._warning_step_refused(snapshot, nxt)
             ):
                 # Both metrics bottom out at one before arrival: committed paths
                 # use remaining length, while fresh BFS uses distance from origin.
@@ -1355,6 +1357,9 @@ class NavigationMixin:
                         best_frontier = pos
             for neighbor in self._walkable_neighbors(snapshot, pos):
                 if neighbor in seen or neighbor in avoided_store_cells:
+                    continue
+                if self._warning_step_refused(snapshot, neighbor):
+                    # A grid the weapon warning refused is not a route cell.
                     continue
                 seen.add(neighbor)
                 parent[neighbor] = pos
@@ -1895,15 +1900,20 @@ class NavigationMixin:
                 # fallback: warning.cpp:501's old_damage suppression lets a
                 # repeated attempt enter silently.
                 #
-                # Reachability of this WAIT, honestly: dungeon routing is
-                # avoid-aware everywhere a picker can re-select statically
-                # (loot/goal/mining/dig/device BFS, the loot wiggle, the
-                # chest step-off), so a dungeon repeat requires one of the
-                # windowed one-shot breakers (oscillation breakout,
-                # _breakout_step) or a quest-floor navigator static route —
-                # the former re-arm only after a fresh no-progress window,
-                # the latter terminates at the CLI loop-detector visible
-                # stop, the navigator's pre-existing terminal for its own
+                # Reachability of this WAIT, honestly: every dungeon step
+                # producer excludes a refused grid while choosing.  The
+                # avoid-aware BFS pickers (loot/goal/mining/dig/device, the
+                # loot wiggle, the chest step-off) read the avoid set the
+                # latch also fills; the probe, the descent route, the choke
+                # and summoner retreat routes, the breeder breakthrough, the
+                # flee fallback, the low-HP no-kit step, the positional
+                # oscillation breaker and _breakout_step ask
+                # _warning_step_refused (this gate's own condition).  So the
+                # decision falls through to another candidate or the next
+                # producer instead of reaching this WAIT.  A dungeon repeat
+                # requires a quest-floor navigator static route, which
+                # terminates at the CLI loop-detector visible stop, the
+                # navigator's pre-existing terminal for its own
                 # quest:blocked states.  The reachable-in-principle
                 # unbounded route is a TOWN composed caller re-selecting a
                 # latched special tile (e.g. a fixed-quest entrance) every

@@ -10223,6 +10223,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         neighbors = [
             cell for cell in self._walkable_neighbors(snapshot, here)
             if not next_to_hostile(cell)
+            and not self._warning_step_refused(snapshot, cell)
         ]
         for cell in neighbors:
             if not exposed_to(cell):
@@ -10240,7 +10241,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 cover = (depth, first)
                 break
             for neighbor in self._walkable_neighbors(snapshot, cell):
-                if neighbor not in seen and not next_to_hostile(neighbor):
+                if (
+                    neighbor not in seen
+                    and not next_to_hostile(neighbor)
+                    and not self._warning_step_refused(snapshot, neighbor)
+                ):
                     seen.add(neighbor)
                     queue.append((neighbor, first, depth + 1))
         enemy = min(
@@ -10249,14 +10254,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if enemy is not None and (
             cover is None or enemy.position.distance_to(here) <= cover[0]
         ):
-            self.last_reason = "no-wait:flee"
             # The adjacent square toward the attacker is unchecked terrain;
             # post it through the router like every other step.
             toward = Position(
                 here.y + max(-1, min(1, enemy.position.y - here.y)),
                 here.x + max(-1, min(1, enemy.position.x - here.x)),
             )
-            return self._step_toward(snapshot, toward)
+            # A grid the weapon warning refused is not a choice: the cover
+            # (if any) is.
+            if not self._warning_step_refused(snapshot, toward):
+                self.last_reason = "no-wait:flee"
+                return self._step_toward(snapshot, toward)
         if cover is not None:
             self.last_reason = "no-wait:flee"
             return self._step_toward(snapshot, cover[1])
@@ -19412,7 +19420,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         )
                     )
             for neighbor in self._walkable_neighbors(snapshot, position):
-                if neighbor in seen:
+                if neighbor in seen or self._warning_step_refused(snapshot, neighbor):
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -19532,6 +19540,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if grid is None or grid.has_monster or not grid.passable or grid.is_door:
                 continue
             if self._direction_key(origin, neighbor) == avoid_key:
+                continue
+            if self._warning_step_refused(snapshot, neighbor):
+                # The weapon warning refused this grid; only the sanctioned
+                # forced walk (predicate False) may still pick it.
                 continue
             (orthogonal if (dy == 0 or dx == 0) else diagonal).append(neighbor)
         pool = orthogonal or diagonal
