@@ -28,6 +28,25 @@ import re
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
+
+class WeightRelief(NamedTuple):
+    """The one answer to "what is shed to get under the departure weight limit".
+
+    Junk goes first through the town junk step (#95).  Then the carried
+    retention surplus: a Home deposit while the Home has a free slot, else a
+    sale, else a destruction (owner 2026-10-10).  When neither covers the
+    excess, only retained weight remains and the route names it.
+    """
+    weight: int
+    limit: int | None
+    excess: int
+    deposits: tuple
+    surplus: tuple
+    home_room: bool
+    route: str
+    retained: tuple
+
 
 class HomeMixin:
 
@@ -165,7 +184,7 @@ class HomeMixin:
         if state["town"] != self._effective_town_id(snapshot):
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
-        candidates = self._overweight_surplus_candidates(snapshot)
+        candidates = list(self._weight_relief_selection(snapshot).surplus)
         limit = self._inventory_weight_limit(snapshot)
         if (sum(i.weight*n for _, _, i, n, _ in candidates)
                 < self._inventory_weight(snapshot)-limit):
@@ -770,6 +789,11 @@ class HomeMixin:
                 entries = ()
             if entries or self._inventory_overweight(snapshot):
                 self._begin_home_full_relief(snapshot, entries)
+        if self._release_home_full_relief_for_weight(
+                snapshot, self._weight_relief_selection(snapshot)
+                if self._home_full_relief is not None
+                and self._inventory_overweight(snapshot) else None):
+            return None
         relief = self._home_full_relief
         if relief is None:
             return None
@@ -2480,7 +2504,8 @@ class HomeMixin:
             # the residual overload, rather than displacing the other excess.
             weight -= sum(
                 max(0, i.weight) * self._retention_surplus(snapshot, i)
-                for i in self._weight_deposit_candidates(snapshot, include_ammo=False)
+                for i in self._weight_relief_selection(
+                    snapshot, include_ammo=False, plan=False).deposits
             )
             # The ordinary two-stack plan already releases excess ammunition.
             # Remove that excess before asking whether its reserved ammunition
@@ -2627,8 +2652,104 @@ class HomeMixin:
                       if item_available(self, snapshot, item, "home-visit", "weight-deposit")]
         return sorted(candidates, key=priority)
 
+    def _weight_relief_selection(
+        self, snapshot: Snapshot, *, include_ammo: bool = True, plan: bool = True,
+    ) -> WeightRelief:
+        """Select what every town site sheds to get under the weight limit.
+
+        ``plan=False`` returns only the Home deposit order (the retention
+        callers need no route).  The sale/destroy order is the Home-full one.
+        """
+        limit = self._inventory_weight_limit(snapshot)
+        weight = self._inventory_weight(snapshot)
+        excess = 0 if limit is None else weight - limit
+        # The overweight test is the one the deposit candidates own.
+        if not self._inventory_overweight(snapshot):
+            return WeightRelief(weight, limit, 0, (), (), False, "none", ())
+        deposits = tuple(self._weight_deposit_candidates(
+            snapshot, include_ammo=include_ammo))
+        if not plan:
+            return WeightRelief(weight, limit, excess, deposits, (), False,
+                                "unplanned", ())
+        home = self._home_available(snapshot)
+        # A free Home slot is an observation (page or capacity fact), never
+        # the absence of a "full" fact.
+        store = snapshot.store
+        fact = getattr(self, "_home_capacity_observation", None)
+        if (store is not None and store.store_type == STORE_HOME
+                and isinstance(store.stock_num, int)
+                and isinstance(store.capacity, int) and store.capacity > 0):
+            home_room = store.stock_num < store.capacity
+        else:
+            home_room = bool(home and fact and fact[1] > 0 and fact[0] < fact[1]
+                             and fact[2] == self._effective_town_id(snapshot))
+        surplus = tuple(self._overweight_surplus_candidates(snapshot))
+        if deposits and home_room:
+            route = "deposit"
+        elif sum(item.weight * count for _, _, item, count, _ in surplus) >= excess:
+            route = "sell-or-destroy"
+        elif deposits and home:
+            route = "home-relief"
+        else:
+            route = "retained-only"
+        shed = {item.slot for item in deposits} | {entry[2].slot for entry in surplus}
+        retained = tuple(
+            (item.slot, item.name, max(0, item.weight) * max(1, item.count),
+             self._retention_reservation_detail(snapshot, item)[1]
+             or ("identification-flow" if self._identification_flow_owns(item)
+                 else None))
+            for item in snapshot.inventory
+            if item.weight > 0 and item.slot not in shed
+        )
+        return WeightRelief(weight, limit, excess, deposits, surplus, home_room,
+                            route, retained)
+
+    def _release_home_full_relief_for_weight(
+        self, snapshot: Snapshot, weight_relief: WeightRelief | None,
+    ) -> bool:
+        """Release a Home-full relief whose full Home now has a free slot.
+
+        The relief reclaims stack slots in a full Home and hides every Home
+        deposit while it is pending.  When the selector deposits the carried
+        surplus (a free slot is observed) and no take is in flight, the
+        relief's premise is gone (live 2026-10-21 05:00, Home 239/240,
+        1761 > 1750: the pending relief hid the weight deposit).  A relief
+        that already took a ware made that slot for its own deposits and
+        keeps it (C4-A 2026-10-20 one-shot sale).
+        """
+        relief = self._home_full_relief
+        if (weight_relief is None or weight_relief.route != "deposit"
+                or relief is None or relief.get("sale") is not None
+                or relief.get("withdrawn")
+                or relief["remaining"] != max(1, len(relief["deposits"]))):
+            return False
+        self._home_full_relief = None
+        self._home_full_retry_deposits = None
+        return True
+
+    def _record_weight_relief_retained_only(self, snapshot: Snapshot) -> bool:
+        """Name a departure blocked by retained weight alone, with its numbers.
+
+        No retained item is chosen here: the record shows which retention
+        reasons hold the weight over the limit (owner 2026-10-10: always record).
+        """
+        relief = self._weight_relief_selection(snapshot)
+        if relief.route != "retained-only":
+            return False
+        record = dict(
+            time=datetime.now(timezone.utc).isoformat(),
+            reason="town:blocked:overweight-retained-only",
+            weight=relief.weight, limit=relief.limit, excess=relief.excess,
+            retained=[list(entry) for entry in relief.retained],
+            visit_epoch=self._town_visit_epoch,
+        )
+        self._overweight_surplus_record_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._overweight_surplus_record_path.open("a", encoding="utf8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return True
+
     def _overweight_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
-        candidates = self._weight_deposit_candidates(snapshot)
+        candidates = list(self._weight_relief_selection(snapshot, plan=False).deposits)
         excess = (
             self._inventory_weight(snapshot)
             - (self._inventory_weight_limit(snapshot) or 0)

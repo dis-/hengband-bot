@@ -69,6 +69,7 @@ from hengbot.runtime_paths import runtime_path
 
 VISIT_CLOSABLE_REASONS = frozenset({
     "departure-unsatisfiable", "no-actionable-claim-owner",
+    "overweight-retained-only",
     "retired-equipment-transaction-failed", "equipment-work-home-route-exhausted",
     "equipment-departure-incomplete", "home-known-empty-withdrawal",
     "procurement-home-unavailable", "procurement-home-unroutable",
@@ -3049,20 +3050,22 @@ class TownMixin:
         book_sale = self._find_book_sale(snapshot)
         if book_sale is not None:
             add(self._book_sale_store_type(book_sale), "book-sale")
+        weight_relief = (self._weight_relief_selection(snapshot)
+                         if self._inventory_overweight(snapshot) else None)
+        self._release_home_full_relief_for_weight(snapshot, weight_relief)
         if (self._overweight_surplus_disposal is None
                 and self._home_full_relief is None
-                and self._inventory_overweight(snapshot)
+                and weight_relief is not None
                 and self._home_available(snapshot)
                 and self._find_home_deposit(snapshot) is None):
-            candidates = self._overweight_surplus_candidates(snapshot)
-            excess = (self._inventory_weight(snapshot)
-                      - (self._inventory_weight_limit(snapshot) or 0))
+            candidates = weight_relief.surplus
+            excess = weight_relief.excess
             if sum(item.weight * count for _, _, item, count, _ in candidates) >= excess:
                 self._overweight_surplus_disposal = {
                     "town": self._effective_town_id(snapshot),
                 }
-        if self._overweight_surplus_disposal is not None and self._inventory_overweight(snapshot):
-            candidates = self._overweight_surplus_candidates(snapshot)
+        if self._overweight_surplus_disposal is not None and weight_relief is not None:
+            candidates = weight_relief.surplus
             store = candidates[0][4][0] if candidates and candidates[0][4] else STORE_HOME
             add(store, "overweight-surplus")
         organization = self._find_town_organization_surplus(snapshot)
@@ -5861,6 +5864,12 @@ class TownMixin:
         issue WAIT forever outside a store, so the CLI could only stop the bot.
         Other blocked reasons remain visible terminal waits.
         """
+        if (self._town_blocked_reason == "departure-unsatisfiable"
+                and self._inventory_overweight(snapshot)
+                and self._record_weight_relief_retained_only(snapshot)):
+            # Only retained weight is left over the limit: name it, with the
+            # numbers in the record, instead of the generic departure block.
+            self._town_blocked_reason = "overweight-retained-only"
         if (self._town_blocked_reason in VISIT_CLOSABLE_REASONS
                 and not self._visit_departure_committed):
             departure = self.force_visit_departure(snapshot, self._town_blocked_reason)

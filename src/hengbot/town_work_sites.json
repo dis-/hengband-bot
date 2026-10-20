@@ -4880,7 +4880,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "edf59c0fa420841231f252d66cca9f23fd5d273eb67a4dc4e8abf8e78434f38b"
+    "ast_sha256": "5205b99219ae150d85bdf47c1cfc9d8b3c17d73e994a8adc71a56a21ff64599a"
   },
   "policy_home.py:HomeMixin._atomic_home_deposit_dispatch_key": {
     "classification": "producer",
@@ -5131,7 +5131,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "19661709e0f28731761d29decb57371636f1f91d22a6b213334a4771c050925b"
+    "ast_sha256": "6bbe66984047c2b099ebfa592361ed19e2d1ee86c7981ebe1ae66e0e66b9561b"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
@@ -5230,7 +5230,15 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c1ed8543e80ad938b6357855d75f3b89db9294119555a29b038f5d6f152391b9"
+    "ast_sha256": "8da6fa914524dce546fa4fb8992323b82fed188e77f921013bcd48fb3ad29717"
+  },
+  "policy_home.py:HomeMixin._overweight_surplus_candidates": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "c2750e58b3717b2c605a209e81375b3b33e4cdb41f8413283fadb0a9e6f65a86"
   },
   "policy_home.py:HomeMixin._overweight_surplus_sale_key": {
     "classification": "producer",
@@ -5238,7 +5246,7 @@
       "overweight-surplus"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c90b4d3369adf9b88b1b9b1637a328127eb735b0506e72a46ec067594c744d7f"
+    "ast_sha256": "e099987455460e25c64ee93433607f83ea0959c35c8c9ecd3a27ba3c3d5bd223"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
     "classification": "data",
@@ -5338,6 +5346,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "edf18af42eb8ad03ce386d67623c416a01f263b76f5e8809b4bfc0f205ccf9ca"
+  },
+  "policy_home.py:HomeMixin._weight_relief_selection": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5520a8de8b58af34b9c196b301131b8137bb9a7c8c95bcb30081d947cc62cb29"
   },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {
     "classification": "producer",
@@ -7332,7 +7348,7 @@
       "plan-routing"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "252177d2ec588be471690bee477a6d0adb0d451ae209bc3ac734c7a1acdb6cf4"
+    "ast_sha256": "37c71ef091f5252c0923e2e59c9a4c201ed33bdec1d6a0929860b579892c1824"
   },
   "policy_town.py:TownMixin._town_cancel_unsafe_recall_key": {
     "classification": "producer",

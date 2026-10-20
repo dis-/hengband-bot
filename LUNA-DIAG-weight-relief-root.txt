@@ -1,0 +1,76 @@
+LUNA-DIAG weight-relief-root (branch weight-relief-root-1021, base 3019cd45)
+Question: how does the bot get under the weight limit before departing?
+
+1. Static enumeration at 3019cd45: every town site that sheds weight or decides "overweight"
+   (limit = ADJ_STR_WEIGHT_LIMIT[str index] * 50, x1.5 berserker: policy_home.py:2441 _inventory_weight_limit;
+    overweight = pack+equipment weight > limit: policy_home.py:2452 _inventory_overweight)
+
+ site (file:line at 3019cd45)                              | sheds by                 | picks what to shed with                                   | "overweight" decided by
+ ----------------------------------------------------------+--------------------------+-----------------------------------------------------------+------------------------
+ S1 policy_home.py:2523 _weight_deposit_candidates          | Home deposit (list)      | _retention_surplus > 0, minus identification-flow items,  | _inventory_overweight (early [] )
+                                                            |                          | unreserved required supply, bounty, wanted jewelry,       |
+                                                            |                          | rejected/pending deposits, item_available(weight-deposit);|
+                                                            |                          | order cursed > unplanned digger > other > required supply |
+ S2 policy_home.py:2630 _overweight_home_deposit            | Home deposit (one item)  | S1, first item that clears the excess                     | excess = weight - limit
+ S3 policy_home.py:4124 _find_home_deposit (via S2)         | Home deposit             | S2 -- but returns None while _home_full_relief is pending | (S2)
+ S4 policy_town.py:3052-3069 _town_need_candidates          | arms overweight-surplus  | _overweight_surplus_candidates (S6) sum >= excess, only   | _inventory_overweight
+                                                            | sale; adds the need      | when no Home deposit and _home_full_relief is None        |
+ S5 policy_town.py:3085-3089 _town_need_candidates          | weight-overload need     | _find_home_deposit (S3) is not None                       | _inventory_overweight
+ S6 policy_home.py:64 _overweight_surplus_candidates        | sale, else destroy list  | _retention_surplus, known, not artifact/bounty/standard   | (caller)
+                                                            | (Home full, 10-10)       | digger/_overweight_mining_kit_reserved/identification/    |
+                                                            |                          | keep/item_available(shop-sell)/_carried_disposal_preserves|
+                                                            |                          | _departure/_home_full_equipment_surplus; stores accepting |
+ S7 policy_home.py:130 _overweight_surplus_sale_key         | sale or destroy (record) | S6 (sum < excess -> overweight-home-full-no-legal-relief) | _inventory_overweight
+ S8 policy_home.py:303 _defer_home_full_deposit             | hands relief to S7       | --                                                        | _inventory_overweight
+ S9 policy_home.py:687 _home_full_relief_key (~760-772)     | Home-full relief entries | overweight: every weight>0 item with retention surplus    | _inventory_overweight
+                                                            | (withdraw+sell Home stock|                                                           |
+                                                            |  to make room)           |                                                           |
+ S10 policy_home.py:2456 _ammo_procurement_target           | "buy/keep only what      | S1(include_ammo=False) removed first, then the ammo plan  | for_retention + overweight
+     (for_retention, retention of launcher ammo)            |  fits" for ammunition    | fitting the remaining room                                |
+ S11 policy_shop.py:2852/2877 tail:ammo + _ammo_purchase_  | buy only what fits (ammo)| S10 target                                                | limit room
+     preserves_plan; policy_shop.py:3664                    |                          |                                                           |
+ S12 policy_home.py:2506 _can_add_item_without_overweight   | buy/withdraw only fitting| one call site: policy_shop.py:4974 (Home spare-weapon     | current+added <= limit
+                                                            |                          | withdrawal).  No other purchase path checks weight.       |
+ S13 policy_town.py:3771/3831/4515 (Home blocked bounds)    | re-arm Home for weight   | S2 signature                                              | _inventory_overweight
+ S14 junk (#95, branch junk-town-weight-1020, not in base)  | destroy                  | _junk_class, before every deposit/sale                    | _inventory_overweight / pack
+ S15 kit acquisition (fundraising digger/detection/light)   | -- (adds weight)         | protected from S1 by required_supply(fundraising-*),      | --
+                                                            |                          | from S6 by _overweight_mining_kit_reserved                |
+ Departure gate: policy_town.py:2239 inventory_weight_ready = not _inventory_overweight; visit minimum
+ policy_town.py:5752 the same.  The generic terminal: policy_town.py:6859/6955/7004 departure-unsatisfiable.
+
+2. Measured on the captures (fresh policy on the recorded boards; scratch replay, numbers from the code at 3019cd45)
+
+ 05:00 capture (20261021-050011, board 86 = decision 2152):
+  weight 1761 (pack 889 + equipment 872), limit 1750 (str index 29), excess 11.  Home page 82: 239/240 (one free slot).
+  Weight history (state boards): 1646 -> Alchemist buy Identify staff +50 = 1696 -> Armoury 19 bolts +57 = 1749
+  -> decision 2145 one-shot buy of 3 Speed potions +12 = 1761 > 1750.  The one-shot buy has no weight check (S12 is
+  not on that path); retention keeps Speed 10 (emergency-potion:speed) of the 13 carried, so the 3 bought are
+  retention surplus at once.
+  Retention on the board: cure c 10/10, heal d 3/3, teleport h 15/15, recall i 7 of 11, Stone to Mud j 6/6, bolts p
+  19/19; surplus: Speed b 3, recall i 4, pickaxe o (200), shovel n (120), Identify staves k/l/m, a, e, f, g.
+  The mining kit is not retained here (fundraising mode None, gold 20048): S1 = [o, n, b, f, g, a, m, i],
+  S2 = pickaxe o (200 >= 11); S6 = [f, g, a, b, e, l, i, m, n] (sum >> 11).  So a deposit (and a sale) existed.
+  Why none fired: decision 2147 'home:full-skip:surplus-target-unobserved' is the Home-full relief (S9) retiring
+  its take (sale target absent from the observed Home stock); _home_full_skip_key sets relief["sale"] = None but
+  leaves the relief pending.  While it is pending: S3 returns None (so S5 adds no weight-overload need), and S4 is
+  gated on _home_full_relief is None (no overweight-surplus need).  2148 knowledge scan (Home 239), 2149
+  policy:none-store-exit, 2150 departure failed == ["inventory_weight_ready"], 2152 generic
+  departure-unsatisfiable.  Replayed with the DECLARED wall (relief pending after the skip, catalogue = knowledge
+  board 81, capacity 239/240): 3019cd45 needs = [identification-withdrawal, equipment-catalog, black-market] -- no
+  weight need; without the wall a fresh policy chooses '5' home:weight-overload-deposit and at Home 'dodb3'.
+  (The relief's take signature is not in the capture; the wall uses an absent name.  Inferred, not measured: the
+  relief was begun at 2103 when the Home page showed 240/240.)
+
+ 04:53 capture (20261021-045344, board 70 = decision 30): weight 1928, limit 1750, excess 178, Home 238/240.
+  failed = [inventory_weight_ready, equipment_departure_ready].  S1 = [recall f] (4 surplus, 20); S6 =
+  [g, d, f, h] = 39 < 178.  The heavy carried weight, weapons m 200 / n 180 (artifact) / o 180, are retention
+  surplus but excluded from S1 by the identification flow (_identification_flow_owns + a reliable source:
+  'identification-flow'), from S6 by _home_full_equipment_surplus = False; Identify staves k/l excluded as
+  required identification supply.  So after f only weight held by its owners remains -> the selector's
+  'retained-only' route (named reason below), not a new shedding choice.
+
+ Earlier captures 20261020-221131/221304 (cursed armour overweight, Home closed): not re-measured in this round
+ (budget); the selector's sell-or-destroy route is the existing S7 path for them.
+
+3. Root (one type, 3rd+ time): each site asks its own candidate list and its own gate; a Home-full relief state
+   (S9) silently gates S3/S4/S5, so an overweight pack with a Home that has room has no shedding owner.
