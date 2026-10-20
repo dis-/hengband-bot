@@ -78,6 +78,13 @@ class JunkTownWeightRecordedTest(unittest.TestCase):
             knowledge_ledger_path=self.directory / "knowledge.jsonl",
         )[1]
 
+    def _home_census(self, policy):
+        # The posted ~9 request whose answer is line 2 (as in the #70 pins).
+        policy._home_knowledge_scan_inflight = True
+        policy._home_knowledge_scan_epoch = None
+        self._consume(policy, self.lines[1])
+        self._consume(policy, self.lines[2])
+
     def _stop(self, *, closed_home=True, slot_m=None):
         """The recorded stop board on a policy that began the visit."""
         policy = _policy(self.directory, self.monrace)
@@ -86,11 +93,7 @@ class JunkTownWeightRecordedTest(unittest.TestCase):
         policy._skill_exp_cache = (0, 0, first.player.level, policy._town_visit_epoch)
         policy.choose_key(first)
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
-        # The posted ~9 request whose answer is line 2 (as in the #70 pins).
-        policy._home_knowledge_scan_inflight = True
-        policy._home_knowledge_scan_epoch = None
-        self._consume(policy, self.lines[1])
-        self._consume(policy, self.lines[2])
+        self._home_census(policy)
         board = self._consume(policy, self.lines[3])[-1]
         policy._skill_exp_cache = (0, 0, board.player.level, policy._town_visit_epoch)
         if slot_m is not None:
