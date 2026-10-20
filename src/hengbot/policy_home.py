@@ -2067,11 +2067,7 @@ class HomeMixin:
             target = ledger["oil"].required_departure
             matches = lambda candidate: candidate.is_oil
             branch = "supply-ledger:oil"
-        elif (
-            item.tval == TVAL_SCROLL
-            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
-            and item.aware
-        ):
+        elif self._star_remove_curse_reserve_retained(item):
             # The purchase owner stocks exactly one *Remove Curse* (pack or
             # Home, _star_remove_curse_reserve_purchase_needed) for a later
             # heavy curse; a live target reads it (_town_remove_curse_key).
@@ -2080,11 +2076,7 @@ class HomeMixin:
             # 10:25-11:57: five 6,028-6,116 G buys sold for 1,872-1,944 G).
             # Further scrolls stay ordinary surplus.
             target = 1
-            matches = lambda candidate: (
-                candidate.tval == TVAL_SCROLL
-                and candidate.sval == SV_SCROLL_STAR_REMOVE_CURSE
-                and candidate.aware
-            )
+            matches = self._star_remove_curse_reserve_retained
             branch = "remove-curse:reserve"
         elif (
             item.is_food
@@ -2246,6 +2238,15 @@ class HomeMixin:
         purchased_still_needed = min(purchased, ledger_reservation)
         reservation = max(ledger_reservation, purchased_still_needed)
         return reservation, (branch or "unlabelled") if reservation > 0 else None
+
+    @staticmethod
+    def _star_remove_curse_reserve_retained(item: InventoryItem) -> bool:
+        """Whether ``item`` is a scroll the one-scroll reserve may keep."""
+        return (
+            item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+            and item.aware
+        )
 
     def retention_reservation_state(self, snapshot: Snapshot) -> dict[str, object]:
         """Describe pack retention and an active deposit collision, read-only."""

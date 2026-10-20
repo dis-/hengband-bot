@@ -38,6 +38,7 @@ from hengbot.model import (SV_SCROLL_STAR_REMOVE_CURSE, TVAL_SCROLL,
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_esp_threat_rest_recorded import EDIT, _policy
 from test_home_full_sale_keeps_recall_recorded import _without_home_junk
+import test_oneshot_inflight_recorded as oneshot
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sale-inscribe-buy-20261018.jsonl.gz"
@@ -155,6 +156,35 @@ class StarRemoveCurseReserveSaleRecordedTest(unittest.TestCase):
         stack = self._home_stack(policy, DETECTION_NAME)
         self.assertEqual(stack.count, 5)
         self.assertIsNotNone(policy._home_full_sale_candidate(snapshot, stack))
+
+
+class OneShotReserveSaleWallTest(unittest.TestCase):
+    """Non-vacuity of the declared wall in test_oneshot_inflight_recorded."""
+
+    def test_without_the_wall_the_recorded_reserve_sale_is_not_composed(self):
+        # The 2026-10-20 08:28 capture withdrew the *Remove Curse* reserve
+        # for the Home-full sale; without the wall it is retained, so the
+        # outside board no longer composes ("5", "shop:one-shot-sell").
+        recorded = oneshot.OneShotInFlightRecordedTest
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        holder = type("Replay", (), {})
+        holder.lines = gzip.decompress(
+            oneshot.FIXTURE.read_bytes()).decode("utf-8").splitlines()
+        holder.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        holder.directory = Path(directory.name)
+        holder.policy = _policy(holder.directory, holder.monrace)
+        holder.policy._crossarea_fundraising_enforced = True
+        holder.policy._in_store_ops_enabled = True
+        holder._await_recorded_knowledge = staticmethod(
+            recorded._await_recorded_knowledge)
+        decision = None
+        for index in range(oneshot.COMPOSE_BOARD + 1):
+            decision = recorded._feed.__func__(holder, holder.lines[index])
+        self.assertIsNotNone(decision)
+        self.assertNotEqual(decision[1:], ("5", "shop:one-shot-sell"))
+        self.assertIn("*解呪*の巻物 {@0}", [
+            item.name for item in decision[0].inventory])
 
 
 if __name__ == "__main__":
