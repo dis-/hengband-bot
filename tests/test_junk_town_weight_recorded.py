@@ -266,7 +266,7 @@ class TownJunkStepWallTest(unittest.TestCase):
             key = policy.choose_key(board)
         self.assertEqual(
             (key, policy.last_reason),
-            ("~9", "equipment-transaction:catalogue-request-knowledge"))
+            ("~9\x1b", "equipment-transaction:catalogue-request-knowledge"))
 
 
 if __name__ == "__main__":
