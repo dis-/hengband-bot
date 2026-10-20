@@ -2068,6 +2068,25 @@ class HomeMixin:
             matches = lambda candidate: candidate.is_oil
             branch = "supply-ledger:oil"
         elif (
+            item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+            and item.aware
+        ):
+            # The purchase owner stocks exactly one *Remove Curse* (pack or
+            # Home, _star_remove_curse_reserve_purchase_needed) for a later
+            # heavy curse; a live target reads it (_town_remove_curse_key).
+            # That standing unit is never surplus, or a Home-full sale sells
+            # the reserve and the owner buys it again (live 2026-10-20
+            # 10:25-11:57: five 6,028-6,116 G buys sold for 1,872-1,944 G).
+            # Further scrolls stay ordinary surplus.
+            target = 1
+            matches = lambda candidate: (
+                candidate.tval == TVAL_SCROLL
+                and candidate.sval == SV_SCROLL_STAR_REMOVE_CURSE
+                and candidate.aware
+            )
+            branch = "remove-curse:reserve"
+        elif (
             item.is_food
             and item.aware
             and item.sval >= FOOD_MIN_SVAL
