@@ -50,10 +50,10 @@ STOP: existing test test_oneshot_inflight_recorded (all 5 replay cases; 8 tests,
  Its fixture (soak c4-a life-014 2026-10-20 08:28, gold 10,214, no cursed target) is the same churn: the Home-full
  relief withdraws the *Remove Curse* reserve, inscribes it {@0} and sells it; the test uses that sale to pin the
  one-shot sale ledger. With the reserve retained the sale is no longer composed:
-  test_replay_composes_the_recorded_one_shot_sale: old ('5', 'shop:one-shot-sell') -> new ('~9', 'home:request-knowledge-scan')
-  test_entry_page_releases_the_staged_sale: old ('d0y', 'shop:one-shot-sell') -> new ('~9', 'home:request-knowledge-scan')
-  test_control_an_operation_posted_on_the_page_still_ends_the_entry: old ('{k@0', 'shop:in-store-inscribe')
-    -> new ('~9', 'home:request-knowledge-scan')
+  test_replay_composes_the_recorded_one_shot_sale: old ('5', 'shop:one-shot-sell') -> new ('~9\x1b', 'home:request-knowledge-scan')
+  test_entry_page_releases_the_staged_sale: old ('d0y\x1b', 'shop:one-shot-sell') -> new ('~9\x1b', 'home:request-knowledge-scan')
+  test_control_an_operation_posted_on_the_page_still_ends_the_entry: old ('{k@0\r', 'shop:in-store-inscribe')
+    -> new ('~9\x1b', 'home:request-knowledge-scan')
   test_control_posted_sale_watch_still_waits: old ('', 'shop:one-shot-in-flight') -> new ('7', 'shop:approach')
   test_control_observed_sale_completes_and_town_work_continues: TypeError 'NoneType' object is not subscriptable
     (no staged sale to observe).
