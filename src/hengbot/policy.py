@@ -10523,6 +10523,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self.last_reason = "shop:one-shot-in-flight"
                     return ""
                 self._close_store_visit("one-shot-entry-unconfirmed")
+        if snapshot.store is None:
+            self._release_unposted_store_watch(snapshot)
         if (
             snapshot.store is None
             and (
@@ -10608,6 +10610,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if snapshot.store.store_type != STORE_HOME:
                     self._in_store_best_effort("_in_store_shadow_agreement", snapshot, staged_operation)
                 return staged_operation
+            self._release_unposted_store_watch(snapshot)
             if (
                 (self._store_visit is not None
                  and self._store_visit.operation_posted
@@ -14155,6 +14158,29 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+
+    def _release_unposted_store_watch(self, snapshot: Snapshot) -> None:
+        """End a buy/sale watch whose operation no visit holds as posted.
+
+        A watch is live only while its store visit holds the posted operation
+        (``_close_store_visit`` drops a posted visit's watches with it).  A
+        watch left behind after the visit stopped holding it -- an entry that
+        left without sending the staged tail, or a closed visit -- has no
+        queued input that could ever produce its effect, so waiting on it with
+        an empty key ends the run.  It is settled now through the same release
+        its confirmation budget uses, judged on this board.
+        """
+        visit = self._store_visit
+        if visit is not None and visit.operation_posted:
+            return
+        if self._store_buy_inflight is not None:
+            self._store_buy_inflight = None
+            self._close_store_visit("one-shot-buy-unconfirmed")
+        pending = self._batch_sell_pending
+        if pending is not None and pending.get("phase") == "await-sale":
+            self._batch_sell_key(
+                replace(snapshot, store=StoreState(int(pending["store_type"]), []))
+            )
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""

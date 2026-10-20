@@ -26,6 +26,7 @@ board after a posted sale because the sale was never sent).
 from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
+import copy
 import gzip
 import hashlib
 import json
@@ -68,6 +69,9 @@ class OneShotInFlightRecordedTest(unittest.TestCase):
             decision = cls._feed(cls.lines[index])
             if decision is not None:
                 cls.decisions[index] = decision
+        # The policy right after the staged sale was released on the entry
+        # page; each watch test continues from its own copy.
+        cls.released = copy.deepcopy(cls.policy)
 
     @classmethod
     def tearDownClass(cls):
@@ -81,8 +85,8 @@ class OneShotInFlightRecordedTest(unittest.TestCase):
         policy._home_knowledge_scan_epoch = None
 
     @classmethod
-    def _feed(cls, line):
-        policy = cls.policy
+    def _feed(cls, line, policy=None):
+        policy = cls.policy if policy is None else policy
         knowledge = json.loads(line).get("type") == "knowledge"
         if knowledge:
             cls._await_recorded_knowledge(policy)
@@ -160,6 +164,49 @@ class OneShotInFlightRecordedTest(unittest.TestCase):
         self.assertIsNone(policy._store_visit)
         self.assertNotEqual(key, "")
         self.assertEqual((key, reason), ("~9\x1b", "home:request-knowledge-scan"))
+
+
+    def _later(self, index, turns):
+        row = json.loads(self.lines[index])
+        row["turn"] += turns
+        return json.dumps(row, ensure_ascii=False)
+
+    def _left_without_effect(self):
+        # DECLARED CONSTRUCTED: the page after the posted d0y shows no sale
+        # (the entry page again), so the entry ends and leaves; the sale
+        # watch outlives the visit that held its operation.
+        policy = copy.deepcopy(self.released)
+        _board, key, reason = self._feed(self.lines[ENTRY_PAGE], policy)
+        self.assertEqual((key, reason), ("", "shop:in-store-done"))
+        self.assertIsNone(policy._store_visit)
+        self.assertEqual(policy._batch_sell_pending["phase"], "await-sale")
+        return policy
+
+    def test_unposted_sale_watch_outside_is_settled(self):
+        policy = self._left_without_effect()
+        _board, key, reason = self._feed(self.lines[STOP_BOARD], policy)
+        self.assertEqual((key, reason),
+                         ("9", "equipment-transaction:acquire-home-catalog"))
+        self.assertIsNone(policy._batch_sell_pending)
+
+    def test_unposted_sale_watch_on_a_store_page_is_settled(self):
+        policy = self._left_without_effect()
+        # DECLARED CONSTRUCTED: the next observed board is the Alchemist page
+        # again, without the outside board in between (as the restart
+        # 20261020-082847 re-entered with the watch set, decisions 23-26).
+        self._feed(self._later(ENTRY_PAGE, 5), policy)
+        self.assertIsNone(policy._batch_sell_pending)
+        _board, key, reason = self._feed(self._later(STOP_BOARD, 10), policy)
+        self.assertEqual((key, reason), ("5", "shop:one-shot-sell"))
+
+    def test_control_posted_sale_watch_still_waits(self):
+        policy = copy.deepcopy(self.released)
+        _board, key, reason = self._feed(self.lines[STOP_BOARD], policy)
+        self.assertEqual((key, reason), ("", "shop:one-shot-in-flight"))
+        visit = policy._store_visit
+        self.assertEqual((visit.operation_posted, visit.operation_released),
+                         (True, True))
+        self.assertEqual(policy._batch_sell_pending["phase"], "await-sale")
 
 
 if __name__ == "__main__":
