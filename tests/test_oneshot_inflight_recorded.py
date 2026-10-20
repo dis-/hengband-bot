@@ -31,11 +31,13 @@ import gzip
 import hashlib
 import json
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from recorded_junk_scope import pre_junk_scope_rule
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 
@@ -52,6 +54,12 @@ STOP_BOARD = 31
 class OneShotInFlightRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # declared wall: pre-2026-10-20 junk scope
+        # (the replay below and every test decide under it; the class cleanup
+        # also lifts it when this setup fails)
+        wall = ExitStack()
+        wall.enter_context(pre_junk_scope_rule())
+        cls.addClassCleanup(wall.close)
         payload = FIXTURE.read_bytes()
         assert hashlib.sha256(payload).hexdigest() == SHA256
         cls.lines = gzip.decompress(payload).decode("utf-8").splitlines()
