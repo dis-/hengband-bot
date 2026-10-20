@@ -2230,19 +2230,31 @@ class HomeMixin:
                 )
             ):
                 # The MANA food target of the supply ledger (the tail:mana-food
-                # purchase rung) is charges AND devices.  Allocate it in pack
-                # order like every other supply: a device stays while the
-                # devices before it leave the ledger short.  A Home stack is
-                # probed as the last slot, so the pack-only reserve slot never
-                # covered it (live 2026-10-20 10:48-10:56: a 471 G Treasure
-                # Detection staff beside one 4-charge wand was deposited and
-                # sold for 152 G, and the short ledger bought again).
-                before = []
-                for candidate in snapshot.inventory:
-                    if candidate.slot == item.slot:
-                        break
-                    before.append(candidate)
-                preceding = replace(snapshot, inventory=tuple(before))
+                # purchase rung) is charges AND devices, met by carried items
+                # (user 2026-09-17).  Allocate it from the reserve device down
+                # in descending charges: a device stays while the devices
+                # ranked before it leave the ledger short, so the low-charge
+                # devices are the surplus once the target is met.  A Home
+                # stack is probed as an extra slot, so the pack-only reserve
+                # slot never covered it (live 2026-10-20 10:48-10:56: a 471 G
+                # Treasure Detection staff beside one 4-charge wand was
+                # deposited and sold for 152 G, and the short ledger bought
+                # again).
+                reserve_slot = self._device_food_reserve_slot(snapshot)
+                # An item asked about outside the pack ranks by its own
+                # charges after the pack stacks of equal charges.
+                rank = lambda candidate, index: (
+                    candidate.slot != reserve_slot, -candidate.charges, index
+                )
+                position = next((
+                    index for index, candidate in enumerate(snapshot.inventory)
+                    if candidate.slot == item.slot
+                ), len(snapshot.inventory))
+                preceding = replace(snapshot, inventory=tuple(
+                    candidate
+                    for index, candidate in enumerate(snapshot.inventory)
+                    if rank(candidate, index) < rank(item, position)
+                ))
                 food = self._supply_ledger(snapshot, self._planned_depth())["food"]
                 if (
                     self._count_mana_food_uses(preceding) < food.required_departure
