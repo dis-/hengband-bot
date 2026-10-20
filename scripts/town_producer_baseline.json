@@ -334,6 +334,7 @@
   "policy_helpers.py:PolicyHelpersMixin._is_destruction_item": "pure helper: Either carrier of the 50F+ *Destruction* gate, shelf or pack.",
   "policy_helpers.py:PolicyHelpersMixin._is_destruction_scroll": "pure helper: _is_destruction_scroll returns bool used as input/observation, not an independently selected game action",
   "policy_helpers.py:PolicyHelpersMixin._is_destruction_staff": "pure helper: _is_destruction_staff returns bool used as input/observation, not an independently selected game action",
+  "policy_helpers.py:PolicyHelpersMixin._junk_class": "pure helper: The one junk predicate: the class of an item never kept, or None.",
   "policy_helpers.py:PolicyHelpersMixin._profile_resistance_name": "pure helper: _profile_resistance_name returns selector/diagnostic/state data, not an independently selected action",
   "policy_helpers.py:PolicyHelpersMixin._total_destruction_uses": "pure helper: _total_destruction_uses returns int used as input/observation, not an independently selected game action",
   "policy_helpers.py:PolicyHelpersMixin._transaction_retain_identities": "pure helper: Project displaced worn items through takeoff before asking retention.",

@@ -16,6 +16,7 @@ import tests  # noqa: F401
 from hengbot.model import parse_snapshot, _parse_items, STORE_HOME, StoreItem, InventoryItem, TVAL_BOTTLE
 from hengbot.policy import HengbotPolicy
 from hengbot.home_errand import HomeErrandRequest
+from recorded_junk_scope import pre_junk_scope_replay
 
 FIXTURE = Path(__file__).parent / 'fixtures/home-nosurplus-20261005-2356.json.gz'
 assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == (
@@ -52,6 +53,8 @@ class FollowupRecordedTest(unittest.TestCase):
             p.confirm_key_posted(key)
         return key
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_recorded_no_surplus_now_selects_sale_or_destroy(self):
         historical = [e['row'] for e in PIN['decisions']]
         self.assertTrue(any(r.get('reason') == 'town:blocked:home-full-no-sellable-surplus'
@@ -125,6 +128,8 @@ class FollowupRecordedTest(unittest.TestCase):
         probe = replace(after, inventory=b.inventory)
         self.assertIsNotNone(p._home_full_discard_candidate(probe, carried))
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_captured_expired_torch_withdraw_destroy_observe_then_deposit(self):
         for enforced in (False, True):
             p, b = setup(enforced)

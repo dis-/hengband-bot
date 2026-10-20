@@ -18,12 +18,17 @@ from hengbot.model import (
     TVAL_CROWN, TVAL_DIGGING, TVAL_DRAG_ARMOR, TVAL_FOOD, TVAL_GLOVES,
     TVAL_HAFTED, TVAL_HARD_ARMOR, TVAL_HELM, TVAL_LITE, TVAL_POLEARM,
     TVAL_RING, TVAL_ROD, TVAL_SCROLL, TVAL_SHIELD, TVAL_SHOT, TVAL_SOFT_ARMOR,
-    TVAL_STAFF, TVAL_SWORD,
+    TVAL_STAFF, TVAL_SWORD, TVAL_WAND, TVAL_POTION, PLAYER_CLASS_WARRIOR,
 )
+from hengbot.baseitem_knowledge import item_base_cost
+from hengbot.item_reservation import decision_memo
 from hengbot.policy_constants import (
     DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, ExplorationPathOutcome,
-    FOOD_TYPE_MANA, HEAVY_CURSE_TAG, SPEED_ENERGY_90, WAIT_KEY,
+    FOOD_TYPE_MANA, HEAVY_CURSE_TAG, PLAYER_CLASS_BERSERKER, SPEED_ENERGY_90,
+    WAIT_KEY,
 )
+from hengbot.policy_supply import supply_ledger_observer_memo
+from hengbot.store_sale import ZERO_BASE_KINDS
 
 
 class PolicyHelpersMixin:
@@ -282,18 +287,78 @@ class PolicyHelpersMixin:
             # poison gamble worth almost nothing — shed them instead of hoarding.
             or (item.is_food and not item.aware)
         )
-    def _is_worthless_junk(self, item: InventoryItem) -> bool:
-        """Remains, skeletons, junk and emptied chests: no use, no sale value.
+    def _junk_class(self, snapshot: Snapshot | None, item: InventoryItem) -> str | None:
+        """The one junk predicate: the class of an item never kept, or None.
 
-        tval 1 skeleton, 3 junk and 10 corpse ("~の骨"/"~の死体") from
-        src/object/tval-types.h, the kinds the Home-full discard rank already
-        ranks as auto-destroy targets. A wanted monster's remains are a
-        bounty, never junk (#70).
+        Owner 2026-10-18 (#70: remains are not picked up / are destroyed before
+        the return) widened 2026-10-20 to cursed items (identified cursed or
+        broken, cursed egos included, Q6), harmful consumables, spellbooks a
+        warrior cannot read and ammunition for an unused launcher.  Fair play:
+        ``is_cursed``/``is_broken`` are exported for known items only, ``sval``
+        for aware kinds only, tval always.  Third and fourth realm books are
+        always carried home and sold (owner 2026-10-20), never junk.
+
+        Without a board only the item's own classes apply (remains, cursed,
+        harmful-consumable); a board adds the retention / ownership gates and
+        the classes that depend on the character.
         """
-        if item.is_bounty or item.is_artifact:
-            return False
-        return item.tval in {1, 3, 10} or (
-            item.is_chest and self._is_disposable_item(item))
+        if (item.is_bounty or item.is_artifact or self._is_high_value_book(item)
+                or self._item_signature(item) in self._undestroyable_sigs):
+            return None
+        # The item's class comes first; the board's retention / ownership
+        # gates (the costly purchase ladder) run only for an item that has
+        # one (#95: they ran for every Home ware).
+        junk = None
+        cost = item_base_cost(item, self._baseitem_costs)
+        # tval 1 skeleton, 3 junk and 10 corpse ("~の骨"/"~の死体") from
+        # src/object/tval-types.h, and emptied chests.
+        if item.tval in {1, 3, 10} or (
+                item.is_chest and self._is_disposable_item(item)):
+            junk = "remains"
+        # Gear with sale value 0 (store_sale.py) that the optimizer never
+        # evaluates.  Zero-value consumables are exported broken as well;
+        # they are the harmful class below.
+        elif ((item.is_equipment or item.is_ammo) and item.known
+                and (item.is_cursed or item.is_broken)):
+            junk = "cursed"
+        # Identified egos that are not cursed stay (owner Q6 widened only the
+        # cursed ones); a fine ego quiver is sale loot, not junk.
+        elif item.is_ego:
+            return None
+        # Consumable kinds whose base value is 0 in lib/edit (poisonous
+        # mushrooms included): no shop buys them and using them only harms.
+        # The loaded definitions decide; ZERO_BASE_KINDS is their static copy.
+        elif (item.aware
+                and item.tval in {TVAL_STAFF, TVAL_WAND, TVAL_ROD, TVAL_SCROLL,
+                                  TVAL_POTION, TVAL_FOOD}
+                and (cost <= 0 if cost is not None
+                     else (item.tval, item.sval) in ZERO_BASE_KINDS)):
+            junk = "harmful-consumable"
+        elif snapshot is None:
+            return None
+        elif item.is_spellbook and snapshot.player.class_id in {
+                PLAYER_CLASS_WARRIOR, PLAYER_CLASS_BERSERKER}:
+            junk = "unusable-book"
+        # Supervisor Q7: only the launcher worn now counts; with none worn
+        # every ammunition stays, and a quest reservation keeps its stack.
+        elif (item.is_ammo
+                and (launcher := self._equipped_launcher(snapshot)) is not None
+                and item.tval != launcher.ammo_tval
+                and self._entire_stack_is_surplus(snapshot, item)):
+            junk = "unused-ammo"
+        if junk is None or snapshot is None:
+            return junk
+        # One read-only predicate on one board: its purchase ladder asks the
+        # supply ledger once per rung otherwise.
+        with supply_ledger_observer_memo():
+            if (any(item is worn for worn in snapshot.equipment)
+                    or self._equipment_disposal_reserved(snapshot, item)
+                    or self._item_is_procurement_protected(snapshot, item)):
+                return None
+        return junk
+    def _is_worthless_junk(self, item: InventoryItem) -> bool:
+        """Thin wrapper over `_junk_class` on the board a caller primed."""
+        return self._junk_class(self.__dict__.get("_junk_board"), item) is not None
     @staticmethod
     def _floor_pile_is_worthless(grid) -> bool:
         """A visible pile of only skeletons / junk is not loot (#70).
@@ -303,10 +368,26 @@ class PolicyHelpersMixin:
         """
         return bool(grid.object_tvals) and all(
             tval in {1, 3} for tval in grid.object_tvals)
+    def _floor_pile_is_junk(self, snapshot: Snapshot, grid) -> bool:
+        """A visible pile whose tvals alone are junk is not loot.
+
+        The board shows only tvals, so beyond remains only the unused-ammo
+        class can be decided before a pickup (2026-10-20, step 1a); the probe
+        stands for any stack of that tval, whatever its unseen quality.
+        """
+        if self._floor_pile_is_worthless(grid):
+            return True
+        return bool(grid.object_tvals) and all(
+            decision_memo(self, "floor-unused-ammo", snapshot, tval, lambda tval=tval: (
+                probe := InventoryItem(slot="floor", name="", count=1, tval=tval,
+                                       sval=-1, aware=True, known=True,
+                                       is_equipment=True)).is_ammo
+                and self._junk_class(snapshot, probe) == "unused-ammo")
+            for tval in grid.object_tvals)
     def _find_worthless_junk(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
-            lambda it: self._is_worthless_junk(it)
+            lambda it: self._junk_class(snapshot, it) is not None
             and self._entire_stack_is_surplus(snapshot, it)
             and not self._item_is_procurement_protected(snapshot, it)
             and self._item_signature(it) not in self._undestroyable_sigs,

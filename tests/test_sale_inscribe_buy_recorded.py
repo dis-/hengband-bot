@@ -38,6 +38,7 @@ from hengbot.cli import _parse_items
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_junk_scope_replay
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sale-inscribe-buy-20261018.jsonl.gz"
@@ -208,6 +209,8 @@ class SaleInscribeBuyRecordedTest(unittest.TestCase):
                     board = _bought(board, key)
                 self.assertEqual(keys[-1], expected[name], keys)
 
+    # declared wall: pre-2026-10-20 junk scope
+    @pre_junk_scope_replay
     def test_control_ambiguous_tag_not_made_by_this_visit_does_not_sell(self):
         # Control: the captured post-inscription board with the pre-fix
         # pending tag 0 -- two different pack items carry @0, one of them

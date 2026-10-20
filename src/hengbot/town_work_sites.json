@@ -1993,7 +1993,7 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "40f943b8b778b5a267e8439b0a159bf9558b872d2724133772c8e89e4346075e"
+    "ast_sha256": "7f4d81b7dd67f54fed1b87e39dd3bb22c5a280cdbd385106ba9b123fbe2db5c2"
   },
   "policy.py:HengbotPolicy._cursor_delta_keys": {
     "classification": "adapter",
@@ -4826,6 +4826,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "a7f60c53b192445f371ac1920515eebd3f63608c0b8de856688806e15a7a8915"
   },
+  "policy_helpers.py:PolicyHelpersMixin._junk_class": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "ae364da978b743a1b69697370d336721bc8e2f7540f1b2bfd6c37d66ad766d1d"
+  },
   "policy_helpers.py:PolicyHelpersMixin._profile_resistance_name": {
     "classification": "data",
     "rows": [
@@ -5081,7 +5089,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0f96eab1c8e2717f9528b183f58242bdeec8fbed9c3b10b18346ab3eee7c5dc0"
+    "ast_sha256": "b37c051fa62949b1939f7ea6e73537c7f1b5504214a1cc503b715641424eedbf"
   },
   "policy_home.py:HomeMixin._home_full_identify_carried_key": {
     "classification": "producer",
@@ -5123,7 +5131,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "2ba0963db1075f55206bfac753898fec09dd98c2b14987fa9b20c5de3fbf99b2"
+    "ast_sha256": "19661709e0f28731761d29decb57371636f1f91d22a6b213334a4771c050925b"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
@@ -5444,7 +5452,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3cffa7d5daf8837473df61d88e2a0ba3acbd2620b1c47d08da1a716c09e0bbcb"
+    "ast_sha256": "07b1fbff825f1ebaae9f122ac9e79508a8e15247b39cfe991f45d793b3fda8f1"
   },
   "policy_identification.py:IdentificationMixin._normal_loot_key": {
     "classification": "producer",
@@ -6343,7 +6351,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "301f8b5b21e28ee03910956d64c7b1aef0394e9485b40235ebb54bc5f83eced0"
+    "ast_sha256": "660364b9e0b8e8e3c2465185b9dce7d471060a642a10e1a423da1784c9005cb0"
   },
   "policy_shop.py:ShopMixin._cross_town_shopping_key": {
     "classification": "producer",

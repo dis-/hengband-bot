@@ -36,6 +36,7 @@ from hengbot.cli import _parse_items
 from hengbot.model import (SV_SCROLL_STAR_REMOVE_CURSE, TVAL_SCROLL,
                            parse_snapshot)
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from recorded_junk_scope import pre_junk_scope_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 from test_home_full_sale_keeps_recall_recorded import _without_home_junk
 import test_oneshot_inflight_recorded as oneshot
@@ -123,6 +124,9 @@ class StarRemoveCurseReserveSaleRecordedTest(unittest.TestCase):
         self.assertIsNone(policy._home_full_sale_candidate(snapshot, stack))
         self.assertIsNone(policy._home_full_discard_candidate(snapshot, stack))
 
+    # declared wall: pre-2026-10-20 junk scope (the subject is the reserve, not
+    # junk; under #95 the relief first destroys the Home's base-value-0 potion)
+    @pre_junk_scope_replay
     def test_home_full_relief_sells_other_stock_not_the_reserve(self):
         # 838e185b picked the reserve here (the live 10:35:45 withdrawal).
         # Control: the relief still makes room, from the other sale stock

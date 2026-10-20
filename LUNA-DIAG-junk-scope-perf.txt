@@ -1,0 +1,33 @@
+LUNA-DIAG junk-scope perf (#95, step 1a regression).  Branch junk-scope-1020 after merging main 838e185b (1135da29 = gate tree c5c3c063, no diff).
+Board: tests/fixtures/home-deposit-hang-20261004.json.gz restored as the test restores it; one public choose_key; same machine, in process.
+
+MEASURED (cProfile + call counters, choose_key only)
+- main 838e185b: 0.43-0.57 s; branch 1135da29: 2.64-2.71 s.  Same decision on both: home:full-queue-surplus-withdraw (key ESC).
+- Home knowledge = 240 wares; _junk_class classes on that shelf: None 220, unused-ammo 14, harmful-consumable 5, remains 1.
+- _junk_class: 286 calls, 2.20 s cumulative (branch).  By caller (top-level time):
+    _is_worthless_junk <- _home_full_relief_key (junk scan, 240 wares)  1.085 s
+    _home_full_discard_candidate (20 junk wares, own probe board)        0.282 s
+    _home_full_discard_rank (20)                                         0.233 s
+    _destroy_would_discard_superior_item (6)                             0.076 s
+- Inside it: the board gates ran FIRST for every ware: _item_is_procurement_protected 268 calls 1.70 s
+  -> _item_matches_purchase_rung -> _matching_live_purchase_rungs (152 calls vs 4 on main) -> rung.match evaluates
+  every rung's active() -> _recall_ready / _teleport_ready / _cure_critical_ready / _food_ready / _oil_below_departure_target ...
+  each calls _supply_ledger, which outside an observer capture recomputes: _compute_supply_ledger 1145 calls (108 on main),
+  2.53 s; the hot loop is the Home-shelf scan _store_item_is_supply (1.15 M calls).
+- So the cost is: (a) the ownership gates for the 220 wares that have no junk class at all, and (b) about 8 ledger
+  computations per purchase ladder (one per rung that asks), the same board each time.
+
+AFTER THE FIX (same measurement)
+- class first, gates only for a ware that has a class: 2.7 -> 1.6 s
+- + one ledger per _junk_class evaluation (supply_ledger_observer_memo around its gates): -> 1.02 s
+- + one ledger per board for the whole Home-full junk scan (nested blocks share the outer memo): -> 0.70 s
+- _compute_supply_ledger 1145 -> 128 calls; _matching_live_purchase_rungs 152 -> 93; _item_is_procurement_protected 268 -> 73.
+
+REMAINING DIFFERENCE (decision 0.64-0.80 s vs main 0.40-0.43 s, measured; not changed here)
+- Main code, now reached for 20 junk wares instead of 1: each _home_full_discard_candidate builds its own probe board
+  (replace(snapshot, inventory=...)), and the per-board caches keyed on board identity miss for each probe:
+  _build_fixed_quest_head 5 -> 24 builds, _fixed_quest_is_offered 15 -> 72 calls (+0.22 s; it rescans the remembered town
+  grids, 287k generator steps, because a probe is not the decision input snapshot), _retention_reservation 142 -> 248.
+- This is the cost of the new behaviour (junk now reaches the discard candidate path) inside unchanged main code, not a
+  repeated computation of the new predicate.  Making the quest-offer cache survive probe boards would be a separate change
+  to shared quest code (not done: outside the junk scope, and the decision-input / probe distinction there is deliberate).

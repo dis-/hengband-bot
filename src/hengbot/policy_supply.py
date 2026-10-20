@@ -53,8 +53,13 @@ def supply_ledger_observer_memo():
     the policy and board object identities, the depth argument and the ledger
     inputs the observer itself can write (_supply_ledger_observer_inputs), and
     the memo is dropped when the block exits: nothing carries across
-    decisions or observations.
+    decisions or observations.  A read-only scan of one decision (the junk
+    predicate's gates, the Home-full junk scan, #95) uses the same block; a
+    nested block shares the outer one's memo.
     """
+    if _SUPPLY_LEDGER_OBSERVER_MEMO.get() is not None:
+        yield
+        return
     token = _SUPPLY_LEDGER_OBSERVER_MEMO.set({})
     try:
         yield
