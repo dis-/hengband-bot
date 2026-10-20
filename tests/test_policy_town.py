@@ -1,5 +1,4 @@
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
-from recorded_junk_scope import pre_junk_scope_replay
 
 import ast
 
@@ -1638,10 +1637,6 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
                 self.assertEqual(_public_shop_inner(self, policy, snap), "{a@0\r")
                 self.assertEqual(policy.last_reason, "shop:batch-inscribe")
 
-    # declared wall: pre-2026-10-20 junk scope (Sleep has base value 0, a
-    # harmful consumable since 2026-10-20, destroyed in a town without Home;
-    # this pin is about the Alchemist's sale refusal).
-    @pre_junk_scope_replay
     def test_alchemist_refuses_sleep_and_buys_detect_invisible(self):
         for tval, sval in ((TVAL_POTION, 11), (TVAL_SCROLL, 30)):
             with self.subTest(tval=tval, sval=sval):
