@@ -1,0 +1,81 @@
+LUNA-REPORT junk-town-weight (#95 step 1b, town-side disposal under pack/weight pressure) - base 51a0d8f6
+
+Measured diagnosis: LUNA-DIAG-junk-town-weight.txt (file:line + values).  Short form: the town weight relief
+was Home-only (_weight_deposit_candidates put "is_equipment and is_cursed" FIRST, as a Home deposit); with the
+Home closed for the visit the identified cursed scale mail (250, _junk_class "cursed") had no owner, and its
+presence as a deposit candidate kept the Home-full surplus disposal unarmed (policy_town.py:3056); the only
+junk-aware town destroy (_overflow_disposal_item) needs a pack-slot shortage (9 free >= 5).  Gold 8166 -> 699:
+3 x *鑑定* = 7227 (star-identify for full identification of the already known-cursed armour) + 10 x 財宝感知
+= 240 (fundraising-detection).  The *Identify* spend on known junk is NOT fixed here (separate decision).
+
+Changes (commits 44993dfd, 2 test follow-ups; see git log):
+  src/hengbot/policy.py   _decide, before the Home-full surplus/relief producers: in town, outside a store,
+      no physical hostile and no Home/store operation in flight, under weight pressure
+      (_inventory_overweight), pack-slot pressure (_town_pack_space_shortage) or whenever the Home cannot take
+      a deposit (not _home_available, _home_is_full, or Home in the visit ledger's blocked_stores), the existing
+      _worthless_junk_destroy_key (finder _find_worthless_junk -> _junk_class, verified destroy path, reason
+      inventory:destroy-worthless-junk) runs first.  No new constant/threshold/reason/policy attribute.
+  src/hengbot/policy_home.py  _weight_deposit_candidates and _home_deposit_candidate skip items whose
+      _junk_class is not None (never deposit junk; the pack-space relief uses _find_home_deposit too).
+  Bookkeeping: town_work_manifest --write (src/hengbot/town_work_sites.json ast hashes,
+      scripts/town_work_manifest.json.gz).  No new helper, so no baseline/review entries.
+  Restored-checkpoint defaults: none (no new attribute).
+
+New pins: tests/test_junk_town_weight_recorded.py (fixture tests/fixtures/junk-town-weight-20261020.jsonl.gz,
+  capture B state rows 55/56/57/75 + the decision-51 row; DECLARED CONSTRUCTED ledger/effect board/controls
+  as listed in the module docstring).
+  - test_closed_home_destroys_the_cursed_armour_then_departs: base ('7', town:blocked:overweight-home-
+    unreachable) [the sibling of the live departure-unsatisfiable: same failing leaf; the unrecorded
+    Home-block owner picks the label]; fix ('01km', inventory:destroy-worthless-junk); effect board
+    (no slot m): not overweight, next key is a non-terminal progress key (shop:travel to the remaining
+    Home needs), not town:blocked.
+  - test_junk_is_never_a_home_deposit: base _weight_deposit_candidates contained the armour and
+    _find_home_deposit returned it; fix excludes it and destroys it first ('01km') with the Home open.
+  - test_unused_ammo_is_not_a_home_deposit_candidate: base _home_deposit_candidate(shots) True; fix False.
+  - controls: test_control_non_junk_heavy_item_keeps_the_home_relief (uncursed armour -> old relief
+    '\x1b`n(.' shop:travel, _find_home_deposit is the armour); test_control_protected_items_are_never_
+    destroyed (cursed artifact, 3rd realm book: _junk_class None, never destroyed); test_recorded_stop_facts
+    (stone-to-mud wand slot j _junk_class None; weights 1809/1750).
+  Revert-proof (git apply -R of the src diff): the two decision pins fail with the base values above;
+  mutation_check catches each of the 3 hunks.
+
+Existing tests changed (declared wall pre_junk_scope_replay, subject not junk):
+  - test_policy_home.RetentionAuthorityTest.test_inferior_crossbow_system_is_deposited_when_sling_is_selected
+    (bolts of the deselected crossbow = unused-ammo junk: _find_home_deposit old bolts, new None)
+  - test_weight_deposit_loop_20261018.WeightDepositLoopRecordedTest.test_no_deposit_candidate_admits_existing_
+    surplus_sale_route (four cursed weapons/armour now destroyed first: old ('\x1b`n%.', shop:travel), new
+    ('01kn', inventory:destroy-worthless-junk))
+  - test_policy_town.TownAndFundraisingPolicyTest.test_alchemist_refuses_sleep_and_buys_detect_invisible
+    (Potion of Sleep base value 0 = harmful-consumable, board has no Home: old 'R300\r', new '01ka')
+STOP (not changed, failing): test_overweight_homefull_step15b.OverweightHomeFullStep15bTest.
+  test_pin8_partial_destroy_sink_retains_counts_and_files_are_isolated - its DECLARED CONSTRUCTED
+  "declared unbuyable junk" is tval 1 (remains, junk under both scopes, so the wall cannot apply); its helper
+  asserts _overweight_home_deposit(outside) is not None: old = the remains stack (26), new = None (junk is
+  never a weight deposit; the junk-first destroy would remove it directly).  Needs an owner decision.
+
+Related modules run singly: test_policy_home, test_junk_scope_recorded, test_home_junk_bones_recorded,
+test_departure_unsatisfiable_weight_recorded, test_overweight_home_unreachable_recorded,
+test_overweight_home_hold_recorded, test_weight_deposit_loop_20261018, test_live36_weight,
+test_equipment_homefull_step15a, test_town_overflow_recorded, test_overflow_gear_recorded,
+test_home_full_sale_keeps_recall_recorded, test_equipment_deposit_owner_recorded, test_policy_town,
+test_home_deposit_hang_recorded, test_buy_deposit_loop_recorded, test_classC2_departure_recorded: OK after
+the walls, except test_overweight_homefull_step15b (STOP above).
+
+Guards: see the end of this file.
+
+Guard outputs (after the last source commit):
+  preflight: [preflight] PREFLIGHT OK: 10 changed files, 0 findings (junk-town-weight-1020 vs 51a0d8f6)
+  mutation_check --tests tests.test_junk_town_weight_recorded: MUTATION OK: 0 of 3 hunks are not pinned
+    (policy.py:10426 caught by the two decision pins; policy_home.py:2493 by test_junk_is_never_a_home_deposit;
+    policy_home.py:2546 by test_unused_ammo_is_not_a_home_deposit_candidate); recorded for 465e223b.
+  fast_tier --shards 4: 4434 tests, 680.2s, crashed shards none; FAILURES 20 + ERRORS 2 (NOT repaired - STOP,
+    token budget reached):
+    test_destroy_procurement_guard (p3c overflow controls); test_home_discard_followup_recorded
+    (free_pack_carried_junk); test_home_full_relief_recorded (3 F + 1 E); test_stuck_prompt_staged_tail_recorded
+    (replay window); test_policy_equipment.OverflowDisposalTest (10 incl. subtests); test_oneshot_inflight_
+    recorded (3 F + 1 E).
+    Probable cause (not yet measured per test): the new junk-first destroy fires on synthetic town boards
+    without a Home grid (not _home_available) and on recorded Home-full boards (_home_is_full), ahead of the
+    overflow destroy / Home-full relief / one-shot sale those tests pin.  Classification (R vs intended) is
+    open; repair options: narrow the trigger (e.g. drop the "Home unavailable" arm and keep weight/pack
+    pressure only), or wall the non-junk subjects - both need the caller's decision.
