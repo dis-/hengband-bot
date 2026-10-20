@@ -144,13 +144,21 @@ HOME_UNFULFILLED = 1387
 FIRST_CHANGED = 1388
 STOP = 1390
 PREFIX_DIVERGENCES = (
-    9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    # Town junk step (#95 step 1b): owner decisions 2026-10-18 (#70: remains
+    # are never carried home or deposited) and 2026-10-20 (#95: junk is never
+    # a Home deposit; it is destroyed in town under weight / pack-slot
+    # pressure).  The carried 森蜘蛛の骨 (tval 10) is destroyed where live made
+    # the weight-overload deposit, inside this LIVE-KEY WALL (1-5, 10,
+    # 78-82, 86-91, 97); every later board is still the live one.
+    1, 2, 3, 4, 5,
+    9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
     53,
     # Step 3 D4: the stale-address prerequisite of a named take is requested
     # in place (59); 60 and 61 are wall-only (see the module docstring).
     59, 60, 61,
     69, 70, 71, 72, 73,
+    78, 79, 80, 81, 82, 86, 87, 88, 89, 90, 91, 97,
     # 2026-10-12 owner decision (protocol-3 visibility fallbacks, item 1): a
     # remembered paralyzer cell seen empty under the player's own light is
     # released, so the loot its ring deferred is collected before digging to
