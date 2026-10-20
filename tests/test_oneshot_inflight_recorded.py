@@ -36,6 +36,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from recorded_star_reserve import pre_star_reserve_retention_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 
@@ -49,6 +50,8 @@ ENTRY_PAGE = 30  # the Alchemist page opened by the one-shot entry key
 STOP_BOARD = 31
 
 
+# declared wall: pre-2026-10-20 *Remove Curse* reserve retention
+@pre_star_reserve_retention_replay
 class OneShotInFlightRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
