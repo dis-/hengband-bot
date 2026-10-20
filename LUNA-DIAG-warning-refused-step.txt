@@ -1,0 +1,51 @@
+LUNA-DIAG warning-refused-step (base d2b0553b)
+
+Replay: fresh process, every state row of each capture (state.jsonl.gz, gzip JSONL, UTF-8), keys compared with
+bot-decisions.jsonl.gz rows by turn; a spy on HengbotPolicy._step_toward recorded (step, reason, key, caller line).
+
+Common shape (all three): the last board carries the TR_WARNING prompt message ("(防衛者)六尺棒が鋭く震えた！",
+"本当にこのまま進むか？[y/n]").  _warning_prompt_response_key (policy.py:19923) attributes it to the previous
+_step_toward walk (player back on the origin) and latches the target (_latch_warning_refusal, policy_helpers.py:539:
+_warning_refused_cells + _engagement_avoid_cells), then lets the decision continue.  A producer whose step source
+reads neither set selects a refused grid again; _step_toward's gate (policy_navigation.py:1871-1900) returns WAIT with
+warning:blocked-step, and choose_key (policy.py:2870-2885) turns that WAIT into None because the board still holds the
+prompt message -> CLI "<no-key-exhausted>".
+
+1. 20261020-120239-no-key-exhausted (probe) -- REPRODUCED by the fresh replay (rows 107-110 = decisions 276-279):
+   276 '2' probe -> (24,47) refused; 277 '4' probe -> (23,46) refused; 278 '1' probe -> (24,46) refused;
+   279: caller policy.py:12223 (_decide, oscillation branch, _probe_unknown_step) step (24,47), which is in
+   _warning_refused_cells = {(19,52),(19,54),(20,54),(21,54),(23,46),(24,46),(24,47)} -> '5'/warning:blocked-step
+   -> None (live None).  _probe_unknown_step (policy_identification.py:1440-1492) filters marked/blocked/occupied and
+   PROBE_LIMIT only; it never reads _warning_refused_cells or _engagement_avoid_cells.
+2. 20261020-104109-no-key-exhausted (breeder-breakthrough:seek-frontier) -- live claim row 3439: owner escape, rung
+   _breeder_breakthrough_escape_key.  The fresh process needs the latch (armed before the window) and the live
+   emergency-return state; with them it runs seek-frontier through the window (its frontier goal differs from live) and
+   ends in the same terminal: row 119 (decision 3440 board) its own pending step (19,38)->(18,38) is latched, then
+   caller policy_combat.py:3771 (_breeder_breakthrough_escape_key) steps (18,38) again -> None.  Live: the same on
+   (20,37) (3439 '1').  Step source _breeder_breakthrough_step / _breeder_breakthrough_frontier_step
+   (policy_combat.py:3799/3833), traversal _breeder_route_traversable (policy_combat.py:3773): remembered floor/door/
+   rubble or a monster cell; neither set is read.
+3. 20261020-120202-no-key-exhausted (melee:choke) -- live 3513 melee:choke '9' (39,14)->(38,15) starts a reposition plan
+   (decision row choke_engagement: phase reposition, destination (12,22), covered_retreat_direction [-1,1],
+   decisions_consumed 1); 3514 prompt board, the same plan shape again (decisions_consumed 1) and None.  The plan's
+   first step comes from _validated_choke_route (policy.py:18643-18690, plain _walkable_neighbors BFS, neither set);
+   the continuing reposition walk (_nearest_goal_step) skips _engagement_avoid_cells and cannot return (38,15).
+   Measured on the recorded 3514 board (fresh process warmed on the window): _validated_choke_route(board, visible
+   monsters) = (destination, (38,15)) with (38,15) refused.  The fresh process does not itself re-arm the choke at
+   3513 (it answers melee '2'), so the whole-decision live sequence is not reproduced; the route is the measured pin.
+
+Step producers reaching _step_toward without the warning check (audit of the 147 call sites; dungeon-reachable):
+  - _probe_unknown_step (policy_identification.py:1440) -> policy.py:12223, :12308, policy_fundraising.py:691,
+    policy_navigation.py:389, policy_town.py:7681                                              [fixed]
+  - _breeder_breakthrough_step / _frontier_step via _breeder_route_traversable -> policy_combat.py:3771 [fixed]
+  - _validated_choke_route (policy.py:18643) -> policy_combat.py:3402 (melee:choke)                  [fixed]
+  - _descent_step (policy_navigation.py:1197; ledger path + BFS) -> policy.py:12125                   [not changed]
+  - _summoner_retreat_route/_step (policy.py:19374/19429) -> policy.py:11205, :18888, policy_navigation.py:909
+                                                                                                     [not changed]
+  - _break_positional_oscillation inline neighbour (policy_navigation.py:671-692) -> :694           [not changed]
+  - _low_hp_no_kit_hit_key inline neighbour / toward-vector / cover BFS (policy.py:10223-10262)      [not changed]
+  - _flee_step relaxes to all walkable neighbours when all are avoided (policy_combat.py:4136-4142); 8 sites.
+  - _breakout_step (policy.py:19519) bypasses _step_toward entirely (_break_livelock -> _direction_key).
+  Quest static routes (30 sites) and town routes are outside (town ruling 2026-08-03 unchanged).
+  The "not changed" ones were not observed in these captures; each needs its own pin (mutation check), left for a
+  follow-up.

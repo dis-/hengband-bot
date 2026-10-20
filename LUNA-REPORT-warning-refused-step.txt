@@ -1,0 +1,57 @@
+LUNA-REPORT warning-refused-step (branch warning-refused-step-1020, base d2b0553b)
+
+Commits: d173393a (fix + pins + fixtures + manifest + LUNA-DIAG), this report.
+
+MEASURED DIAGNOSIS (details and the full producer list in LUNA-DIAG-warning-refused-step.txt)
+Each stop happens on a board that still shows the warning prompt. First the refused step is latched
+(policy.py:19976 -> _latch_warning_refusal). Then, in the same decision, a step source that does not read
+_warning_refused_cells picks the latched grid again. The gate (policy_navigation.py:1871) returns WAIT
+warning:blocked-step, and policy.py:2870-2885 turns that WAIT into None.
+- 120239 probe: reproduced by a fresh replay. 276/277/278 = probe '2','4','1' (each refused); 279 is
+  policy.py:12223 _probe_unknown_step -> (24,47), which is refused -> None.
+- 104109 breeder-breakthrough:seek-frontier: policy_combat.py:3771 via _breeder_route_traversable. Fresh replay
+  (latch declared): the same terminal on its own step (18,38). Live: the same on (20,37).
+- 120202 melee:choke: _validated_choke_route (policy.py:18643). On the recorded 3514 board its first step is (38,15)
+  (the live 3513 '9'), and (38,15) is refused.
+
+CHANGE
+- New predicate HengbotPolicy._warning_step_refused(snapshot, cell) (policy_navigation.py). It uses the gate's own
+  condition: refused, and either a movement supply remains or the cell is engagement-owned.
+- The predicate is asked while choosing in _probe_unknown_step (skip the candidate), _breeder_route_traversable
+  (not traversable) and _validated_choke_route (BFS does not expand the cell).
+- _step_toward is unchanged: forced walk 'y' and WAIT backstop. The town ruling is unchanged. No new constant,
+  threshold, reason or policy attribute (no restored-checkpoint defaults needed).
+- Bookkeeping: town work manifest regenerated (837 candidates, 21318 sites, zero unmapped):
+  scripts/town_work_manifest.json.gz, src/hengbot/town_work_sites.json.
+
+PINS tests/test_warning_refused_step_recorded.py
+Fixtures: tests/fixtures/warning-refused-step-dl30-20261020.jsonl.gz and .recorded.json. The ~f knowledge row comes
+from unseen-reapproach-dl30-20261020 with the level patched (declared).
+                                                   d2b0553b (measured)            after fix
+  probe 120239, board 279                          (None,'warning:blocked-step')  ('s','search')
+  breakthrough 104109, board 3440 (refused 18,38)  (None,'warning:blocked-step')  ('1','breeder-breakthrough:seek-frontier')
+  choke route 120202, board 3514 (refused 38,15)   first step (38,15)             route avoids (38,15)
+  (whole 3514 decision = control: ('2','melee') at both; the fresh process holds no choke plan)
+Controls: forced walk (no teleport/phase/recall) -> _step_toward = '2y' and the predicate is False. Without the
+refusal, the breakthrough step is (18,38) and the choke route step is (38,15). 276-278 equal live.
+tests/test_unseen_reapproach_recorded stays green.
+
+EXISTING TESTS (single modules, no assertion changed): test_unseen_reapproach_recorded 13 OK,
+test_policy_navigation 129 OK, test_policy_combat 303 OK (5 skipped), test_step_key_unify_rubble 8 OK,
+test_policy.WarningConfirmExecutorSeamTest OK, test_policy_quest.WarningGridComposedWalkTest OK,
+test_breeder_refill_escape_recorded + test_dungeon_idle_wait_recorded + test_navigation +
+test_quest_leave_confirm_recorded + test_declarations_r12 110 OK (3 skipped),
+test_town_work_contract + test_item_sink_lint 27 OK.
+
+GUARDS
+  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (warning-refused-step-1020 vs d2b0553b)
+  [mutation] 4 source hunks, tests: test_warning_refused_step_recorded; all 4 caught; MUTATION OK: 0 of 4 hunks are
+  not pinned by a test; recorded for d173393a
+  [fast] 3791 fast tests + 1 changed module, 4 shards; Crashed shards: none; Failures: none; Errors: none;
+  Total: 3799 tests, 215.2s (no gate run log was active in the last 70 minutes)
+
+NOT CHANGED (dungeon-reachable producers without the check; not seen in these captures, each needs its own pin):
+_descent_step, _summoner_retreat_route/_step, the _break_positional_oscillation inline neighbour, and the three
+_low_hp_no_kit_hit_key picks.
+_flee_step falls back to all neighbours when every neighbour is avoided. _breakout_step bypasses _step_toward.
+The comment at policy_navigation.py:1883-1898 ("dungeon routing is avoid-aware everywhere...") is still inaccurate.

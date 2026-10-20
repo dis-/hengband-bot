@@ -3780,6 +3780,9 @@ class CombatMixin:
         wall.  Ordinary routing deliberately excludes occupied cells, which
         is exactly what blinds it when the swarm seals the pocket.
         """
+        if self._warning_step_refused(snapshot, neighbor):
+            # A grid the weapon warning refused is not a route cell.
+            return False
         grid = snapshot.grid_at(neighbor)
         key = (neighbor.y, neighbor.x)
         return (
