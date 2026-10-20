@@ -91,3 +91,28 @@ Guard outputs (after the last commit a3bcbe72):
   fast_tier: (waited until the running gate logs ended) 3799 fast tests (<2.0s in 43872194) + 11 changed
     modules, 4 shards; excluded 35 modules measured over 60s; Crashed shards: none; Failures: none; Errors: none;
     Total: 3870 tests, 367.6s  (test_town_cure_supplier_recorded, ~170s, is a slow module outside the fast tier)
+
+Addendum (supervisor decision: approved; then merge main 43872194 = #98 weight-relief selector):
+  300e10f6 [Test] PREFIX_DIVERGENCES of test_town_cure_supplier_recorded gains 1-5, 10, 78-82, 86-91, 97 with a
+        comment citing owner decisions 2026-10-18 (#70) / 2026-10-20 (#95) and the town junk step; no other change.
+  fa2bdba3 merge main 43872194 (conflict only in the manifest; regenerated: 842 candidates, 21430 sites, zero unmapped).
+  Junk step vs #98 selector: no src change needed.  The step in _decide (outside store, no in-flight owner, overweight
+  or pack-short) still runs before every selector caller (_overweight_surplus_sale_key, the errand planner's
+  weight_relief, the Home deposit); the selector's deposits are _weight_deposit_candidates, which exclude _junk_class
+  (this branch's hunk), so junk is never a deposit and the logic is not duplicated: the step sheds junk, the selector
+  sheds the rest.
+  test_weight_relief_root_recorded ...test_stale_relief_releases_to_the_weight_deposit (new on main):
+    old ('5', home:weight-overload-deposit) -> new ('01kf', inventory:destroy-worthless-junk) on slot f 暗闇の巻物
+    (harmful-consumable).  (W) subject is the released relief: declared wall pre_town_junk_step_replay, expectations
+    unchanged.  New pin TownJunkStepBeforeWeightReliefTest.test_junk_goes_first_then_the_selector_deposits (junk
+    first and not among the selector's deposits; on the DECLARED CONSTRUCTED effect board without f (1756 > 1750)
+    the selector's '5' deposit of pickaxe o).  f34de56a.
+  Tests: test_town_cure_supplier_recorded 7 OK, test_junk_town_weight_recorded 12 OK, test_weight_relief_root_recorded
+    13 OK, test_home_route_release_recorded 5 OK, test_destroy_superior_item_guard 4 OK, test_oneshot_inflight_recorded
+    8 OK, test_test_fakery_lint OK.
+  preflight (base 43872194): PREFLIGHT OK: 23 changed files, 0 findings
+  mutation_check (base 43872194, --tests tests.test_junk_town_weight_recorded tests.test_home_route_release_recorded
+    --record): caught policy.py:10426, policy_home.py:2633, policy_home.py:2782; MUTATION OK: 0 of 3 hunks are not
+    pinned by a test; recorded for f34de56a
+  fast_tier (base 43872194): 3799 fast tests + 13 changed modules, 4 shards; Crashed shards none; Failures: none;
+    Errors: none; Total: 3891 tests, 453.9s
