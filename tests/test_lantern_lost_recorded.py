@@ -31,6 +31,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import LANTERN_REFILL_FUEL, TORCH_REFILL_FUEL
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_town_junk_step_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -161,6 +162,8 @@ class LanternLostRecordedTest(unittest.TestCase):
             f"\\F{torch.slot}",
         )
 
+    # declared wall: pre-2026-10-21 town junk step
+    @pre_town_junk_step_replay
     def test_recorded_town_board_keeps_the_empty_lantern(self):
         policy, board = self._board(1)
         lantern = next(item for item in board.inventory if item.is_lantern)

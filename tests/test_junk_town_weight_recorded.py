@@ -50,6 +50,8 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_HOME
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_junk_scope import pre_town_junk_step_rule
+import test_lantern_lost_recorded as lantern_recorded
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "junk-town-weight-20261020.jsonl.gz"
@@ -224,6 +226,47 @@ class JunkTownWeightRecordedTest(unittest.TestCase):
                 policy.choose_key(board)
                 self.assertNotEqual(policy.last_reason,
                                     "inventory:destroy-worthless-junk")
+
+
+class TownJunkStepWallTest(unittest.TestCase):
+    """Non-vacuity of the declared ``pre_town_junk_step_rule`` wall.
+
+    On the recorded lantern-lost town board (pack-slot pressure) the town
+    junk step destroys the carried corpse and keeps the empty lantern
+    (#65); under the wall the pre-step decision of 51a0d8f6 returns.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        lantern_recorded.LanternLostRecordedTest.setUpClass.__func__(cls)
+
+    def setUp(self):
+        self.temporary = TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+
+    def _board(self):
+        return lantern_recorded.LanternLostRecordedTest._board(self, 1)
+
+    def test_lantern_board_destroys_the_corpse_and_keeps_the_lantern(self):
+        policy, board = self._board()
+        self.assertTrue(policy._town_pack_space_shortage(board))
+        lantern = next(item for item in board.inventory if item.is_lantern)
+        self.assertEqual((lantern.slot, lantern.fuel), ("n", 0))
+        self.assertIsNone(policy._junk_class(board, lantern))
+        corpse = next(item for item in board.inventory if item.slot == "p")
+        self.assertEqual((corpse.tval, policy._junk_class(board, corpse)), (10, "remains"))
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("01kp", "inventory:destroy-worthless-junk"))
+
+    def test_wall_restores_the_pre_step_decision(self):
+        policy, board = self._board()
+        with pre_town_junk_step_rule():
+            key = policy.choose_key(board)
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("~9", "equipment-transaction:catalogue-request-knowledge"))
 
 
 if __name__ == "__main__":
