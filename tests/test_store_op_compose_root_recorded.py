@@ -81,6 +81,12 @@ class StoreItemComposerRecordedTest(unittest.TestCase):
                 self.assertEqual(store_item_key(policy, snapshot, "sell", item, "shop-sell",
                                                 quantity=1, address="0"), "d0y")
 
+    def test_recorded_magic_shop_sale_entry_is_the_recorded_key(self):
+        policy, snapshot = self._on(self.rows[2])
+        item = next(i for i in snapshot.inventory if i.slot == "g")
+        sale = policy._batch_sale_entry(snapshot, item, "0")
+        self.assertEqual((sale["count"], sale["sell"]), (1, "d0y"))
+
     def test_stack_sale_answers_the_quantity_before_the_price_prompt(self):
         row = copy.deepcopy(self.rows[2])
         next(i for i in row["inventory"] if i["slot"] == "g")["count"] = 3

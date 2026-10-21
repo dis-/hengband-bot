@@ -20,7 +20,7 @@ Home (Phase 2) is not part of this module.
 """
 
 from __future__ import annotations
-from hengbot.item_reservation import reserved_item_command, store_item_key
+from hengbot.item_reservation import reserved_item_command
 
 from collections import Counter
 from contextlib import contextmanager
@@ -219,6 +219,7 @@ class InStoreMixin:
                 if required is not None:
                     item = required.item
                     quantity = required.quantity
+                    from hengbot.item_reservation import store_item_key
                     purchase = store_item_key(self, snapshot, "buy", item, "shop-buy",
                                               quantity=quantity)
                     if purchase is not None:
@@ -248,6 +249,7 @@ class InStoreMixin:
                     return None
                 surplus = self._retention_surplus(snapshot, sale)
                 quantity = sale.count if surplus <= 0 else min(sale.count, surplus)
+                from hengbot.item_reservation import store_item_key
                 sell = store_item_key(self, snapshot, "sell", sale, "shop-sell",
                                       quantity=quantity, address=str(entry["tag"]))
                 if sell is None:
@@ -266,6 +268,7 @@ class InStoreMixin:
                 if self._item_has_sale_tag(sale, digit):
                     surplus = self._retention_surplus(snapshot, sale)
                     quantity = sale.count if surplus <= 0 else min(sale.count, surplus)
+                    from hengbot.item_reservation import store_item_key
                     key = store_item_key(self, snapshot, "sell", sale, "shop-sell",
                                          quantity=quantity, address=digit)
                     if key is None:
@@ -295,6 +298,7 @@ class InStoreMixin:
                 return {"op": "home-first", "would_key": None}
             quantity = self._purchase_quantity(snapshot, item)
             wand_stack = item.tval == TVAL_WAND and item.count > 1
+            from hengbot.item_reservation import store_item_key
             purchase = store_item_key(self, snapshot, "buy", item, "shop-buy",
                                       quantity=quantity)
             if purchase is None:
@@ -576,6 +580,7 @@ class InStoreMixin:
                 with self._in_store_pure_scope():
                     ordinary = self._next_purchase(snapshot)
                     quantity = self._purchase_quantity(snapshot, row)
+                    from hengbot.item_reservation import store_item_key
                     rebuilt_key = store_item_key(
                         self, snapshot, "buy", row, "shop-buy", quantity=quantity,
                     )
