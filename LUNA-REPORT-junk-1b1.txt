@@ -65,3 +65,10 @@ Timing (head vs 17b8907c, R1 rows 0-13, min of 4 deepcopy trials per decision):
 
 Guards: preflight OK (11 files, 0 findings); mutation_check OK (0 of 8 hunks unpinned, recorded 7448a755);
 fast_tier: 3830 tests, failures none, errors none.
+
+Addendum (supervisor decision, internal #95 perf test): 7158cfec changes only
+test_home_full_junk_scan_computes_each_board_ledger_once's guard len(set(boards)) from > 1 to >= 1
+(old 20, new 1; DESIGN-junk-1b-1022 5.3); the not-counted-twice assertion is unchanged.
+test_junk_scope_perf_recorded + test_junk_plain_gear_recorded: 15 tests OK.
+preflight OK (13 files, 0 findings; NOTE existing-test MODIFIED for that test); mutation_check OK
+(0 of 8 hunks unpinned, recorded 7158cfec). src unchanged since the fast_tier run, so fast_tier was not rerun.
