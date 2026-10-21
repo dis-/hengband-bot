@@ -1,0 +1,74 @@
+{
+  "provenance": {
+    "capture": "c4a-loops-20261016/20261021-193715-town-blocked-departure-unsatisfiable",
+    "state_rows": "17-30 (copied as-is; fixture line 0 = state row 17)",
+    "bot": "main 285b3089, enforce_crossarea_fundraising=True, in_store_shop_ops=True",
+    "first_stop": "c4a-loops-20261016/20261021-170527-town-blocked-departure-unsatisfiable (same failed conjunct)"
+  },
+  "decisions": {
+    "0": {
+      "turn": 4167691,
+      "key": "~f\u001b",
+      "reason": "periodic:skill-exp-knowledge",
+      "departure_block_failed": null
+    },
+    "1": {
+      "turn": 4167691,
+      "key": "\u001b`n(.",
+      "reason": "shop:travel",
+      "departure_block_failed": null
+    },
+    "2": {
+      "turn": 4168100,
+      "key": "\u001b",
+      "reason": "home:scan-incomplete-open-page",
+      "departure_block_failed": null
+    },
+    "3": {
+      "turn": 4168107,
+      "key": "~9\u001b",
+      "reason": "home:request-knowledge-scan",
+      "departure_block_failed": null
+    },
+    "4": {
+      "turn": 4168107,
+      "key": "\u001b`n'.",
+      "reason": "shop:travel",
+      "departure_block_failed": null
+    },
+    "5": {
+      "turn": 4168492,
+      "key": "\u001b",
+      "reason": "shop:observe-and-leave",
+      "departure_block_failed": null
+    },
+    "6": {
+      "turn": 4168500,
+      "key": "\u0013",
+      "reason": "periodic:game-save",
+      "departure_block_failed": [
+        "teleport_items_safe"
+      ]
+    },
+    "7": {
+      "turn": 4168500,
+      "key": "Cf\ry\u001b\u001b",
+      "reason": "periodic:character-dump",
+      "departure_block_failed": null
+    },
+    "8": {
+      "turn": 4168500,
+      "key": "1",
+      "reason": "town:blocked:departure-unsatisfiable",
+      "departure_block_failed": null
+    }
+  },
+  "previous_run_stop": {
+    "turn": 4167691,
+    "key": "1",
+    "reason": "town:blocked:departure-unsatisfiable",
+    "departure_block_failed": [
+      "teleport_items_safe"
+    ]
+  }
+}

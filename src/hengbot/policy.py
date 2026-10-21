@@ -15104,6 +15104,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _blocks_teleport(item: InventoryItem | StoreItem) -> bool:
         return TR_NO_TELE in item.known_flags
 
+    def _teleport_blocked_by_equipment(self, snapshot: Snapshot) -> bool:
+        """Is teleportation blocked by a worn or wielded NO_TELE item?
+
+        Hengband derives anti-teleportation only from the wielding slots
+        (has_anti_tele -> common_cause_flags -> check_equipment_flags over
+        INVEN_WIELDING_SLOTS, src/player/player-status-flags.cpp), never from
+        carried pack items, so an unequipped NO_TELE item is no departure or
+        recall hazard.
+        """
+        return any(self._blocks_teleport(item) for item in snapshot.equipment)
+
     def _equipped_weapon_high_grade(self, snapshot: Snapshot) -> bool:
         weapon = next(
             (it for it in snapshot.equipment if it.slot == "main_hand"), None

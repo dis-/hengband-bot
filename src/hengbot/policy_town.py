@@ -2232,9 +2232,8 @@ class TownMixin:
             "teleport_ready": self._teleport_ready(snapshot),
             "cure_critical_ready": self._cure_critical_ready(snapshot),
             "identify_staff_ready": self._identify_staff_ready(snapshot),
-            "teleport_items_safe": not any(
-                self._blocks_teleport(item)
-                for item in (*snapshot.inventory, *snapshot.equipment)
+            "teleport_items_safe": not self._teleport_blocked_by_equipment(
+                snapshot
             ),
             "free_pack_slots_ready": free_slots_ok,
             "inventory_weight_ready": not self._inventory_overweight(snapshot),
@@ -5314,10 +5313,7 @@ class TownMixin:
             and self._recall_selection_key(snapshot, active_destination) is not None
             and self._recall_destination_safe(snapshot, active_destination)
         )
-        blocks_teleport = any(
-            self._blocks_teleport(item)
-            for item in (*snapshot.inventory, *snapshot.equipment)
-        )
+        blocks_teleport = self._teleport_blocked_by_equipment(snapshot)
         unready_blockers = self._recall_unready_blockers(
             snapshot, pending_destination
         )
@@ -5741,8 +5737,8 @@ class TownMixin:
                 and (depth < STAFF_IDENTIFY_MIN_DEPTH or
                      self._total_identify_staff_charges(snapshot) >= STAFF_IDENTIFY_MIN_CHARGES),
             "remove_curse_ready": lambda: self._required_remove_curse_kind(snapshot) is None,
-            "teleport_items_safe": lambda: not any(self._blocks_teleport(item)
-                for item in (*snapshot.inventory, *snapshot.equipment)),
+            "teleport_items_safe": lambda: not self._teleport_blocked_by_equipment(
+                snapshot),
             "temporary_status_clear": lambda: self._temporary_status_clear(snapshot),
             "hp_full": lambda: snapshot.player.max_hp > 0
                 and snapshot.player.hp >= snapshot.player.max_hp,

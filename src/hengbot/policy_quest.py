@@ -4759,10 +4759,7 @@ class QuestMixin:
         # hazards explicit while allowing the reviewed strategy to own supplies.
         if profile is not None and self._inventory_overweight(snapshot):
             return reject("overweight")
-        if profile is not None and any(
-            self._blocks_teleport(item)
-            for item in (*snapshot.inventory, *snapshot.equipment)
-        ):
+        if profile is not None and self._teleport_blocked_by_equipment(snapshot):
             return reject("random-teleport")
         if (
             profile is None

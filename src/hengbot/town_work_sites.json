@@ -7375,7 +7375,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f4ceb53a810b837d67b4d9855c87dc0fed0e2b71aad3079e2fc1be3417a595b5"
+    "ast_sha256": "929601180aaddb6ab0be57fb714d86e79bdd7e47ac26d8d4adc2c5021272ddec"
   },
   "policy_town.py:TownMixin._town_claims_active": {
     "classification": "data",
@@ -7399,7 +7399,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "af1ce522c11a9af7f3a968247e2482c478bce9664073cbac5582aa41338302c6"
+    "ast_sha256": "1c0b0feca2c781a5bace5733ad7b89e9b250319d16619956b84b6969d95c1457"
   },
   "policy_town.py:TownMixin._town_destroy_key": {
     "classification": "producer",
