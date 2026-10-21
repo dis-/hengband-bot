@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.item_reservation import item_available, reserved_item_command
+from hengbot.item_reservation import item_available, reserved_item_command, store_item_key
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -4376,15 +4376,15 @@ class ShopMixin(InStoreMixin):
         # first asks for a quantity; a singleton does not. input_quantity's
         # default "1" is in askfor overwrite mode: the first digit replaces it,
         # so "5\r" means five, not fifteen (asking-player.cpp:44-173,326-376).
-        quantity_answer = f"{quantity}\r" if item.count > 1 else ""
-        prefix = reserved_item_command(self, snapshot, "sell", item, "shop-sell", address=tag)
-        if prefix is None:
+        sell = store_item_key(self, snapshot, "sell", item, "shop-sell",
+                              quantity=quantity, address=tag)
+        if sell is None:
             return None
         return {
             "count": item.count,
             "quantity": quantity,
             "charges": item.charges,
-            "sell": prefix + quantity_answer + "y",
+            "sell": sell,
         }
 
     def _shop(self, snapshot: Snapshot) -> str | None:
@@ -4553,14 +4553,9 @@ class ShopMixin(InStoreMixin):
                 food_item = None
             if food_item is not None:
                 quantity = self._purchase_quantity(snapshot, food_item)
-                suffix = (
-                    f"{quantity}\r\r"
-                    if food_item.count > 1
-                    else BUY_CONFIRM_SUFFIX
-                )
                 self.last_reason = "survival:buy-food"
-                prefix = reserved_item_command(self, snapshot, "buy", food_item, "survival")
-                return prefix + suffix if prefix is not None else None
+                return store_item_key(self, snapshot, "buy", food_item, "survival",
+                                      quantity=quantity)
             self._set_town_store_attempted(store.store_type, snapshot.turn, "survival-food-unavailable")
             if snapshot.player.food_type == FOOD_TYPE_MANA:
                 prices = [
@@ -5390,7 +5385,6 @@ class ShopMixin(InStoreMixin):
         # price/quantity.  Thus 'p' has a live selectable precondition; the
         # remaining Returns are prompt defaults and a final confirmation,
         # not an unchecked tail after a possibly unsupported command.
-        suffix = f"{quantity}\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
         self._store_buy_inflight = (
             store.store_type,
             signature,
@@ -5408,8 +5402,7 @@ class ShopMixin(InStoreMixin):
             )
         if item.is_digging_tool and fallback_purchase:
             self._digger_fallback_bought_this_visit = True
-        prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
-        return prefix + suffix if prefix is not None else None
+        return store_item_key(self, snapshot, "buy", item, "shop-buy", quantity=quantity)
 
 
     def _router_plan_stop_families(

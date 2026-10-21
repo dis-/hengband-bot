@@ -1424,6 +1424,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "item_reservation.py:store_item_key": {
+    "classification": "adapter",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "equipment-transaction",
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "item_reservation.py:standalone_verdict": {
     "classification": "data",
     "rows": [

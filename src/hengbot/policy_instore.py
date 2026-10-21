@@ -20,7 +20,7 @@ Home (Phase 2) is not part of this module.
 """
 
 from __future__ import annotations
-from hengbot.item_reservation import reserved_item_command
+from hengbot.item_reservation import reserved_item_command, store_item_key
 
 from collections import Counter
 from contextlib import contextmanager
@@ -219,10 +219,10 @@ class InStoreMixin:
                 if required is not None:
                     item = required.item
                     quantity = required.quantity
-                    prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
-                    if prefix is not None:
-                        suffix = f"{quantity}\r\r" if item.count > 1 else "\r"
-                        return {"op": "buy", "would_key": prefix + suffix,
+                    purchase = store_item_key(self, snapshot, "buy", item, "shop-buy",
+                                              quantity=quantity)
+                    if purchase is not None:
+                        return {"op": "buy", "would_key": purchase,
                                 "letter": item.letter, "identity": _row_identity(item),
                                 "target": {"letter": item.letter, "name": item.name,
                                            "price": item.price, "count": item.count},
@@ -248,11 +248,11 @@ class InStoreMixin:
                     return None
                 surplus = self._retention_surplus(snapshot, sale)
                 quantity = sale.count if surplus <= 0 else min(sale.count, surplus)
-                prefix = reserved_item_command(self, snapshot, "sell", sale, "shop-sell", address=str(entry["tag"]))
-                if prefix is None:
+                sell = store_item_key(self, snapshot, "sell", sale, "shop-sell",
+                                      quantity=quantity, address=str(entry["tag"]))
+                if sell is None:
                     return None
-                return {"op": "sell", "pending_sale": True,
-                        "would_key": prefix + (f"{quantity}\r" if sale.count > 1 else "") + "y"}
+                return {"op": "sell", "pending_sale": True, "would_key": sell}
             sales = (self._current_store_sale_candidates(snapshot)
                      if self._batch_sell_pending is None else [])
             if sales:
@@ -266,10 +266,10 @@ class InStoreMixin:
                 if self._item_has_sale_tag(sale, digit):
                     surplus = self._retention_surplus(snapshot, sale)
                     quantity = sale.count if surplus <= 0 else min(sale.count, surplus)
-                    prefix = reserved_item_command(self, snapshot, "sell", sale, "shop-sell", address=digit)
-                    if prefix is None:
+                    key = store_item_key(self, snapshot, "sell", sale, "shop-sell",
+                                         quantity=quantity, address=digit)
+                    if key is None:
                         return None
-                    key = prefix + (f"{quantity}\r" if sale.count > 1 else "") + "y"
                     return {"op": "sell", "would_key": key, "target": target}
                 prefix = reserved_item_command(self, snapshot, "inscribe", sale, "shop-sell")
                 if prefix is None:
@@ -294,14 +294,14 @@ class InStoreMixin:
                         and home_first not in self._town_visit_ledger.rearmed_work_signatures)):
                 return {"op": "home-first", "would_key": None}
             quantity = self._purchase_quantity(snapshot, item)
-            suffix = f"{quantity}\r\r" if item.count > 1 else "\r"
             wand_stack = item.tval == TVAL_WAND and item.count > 1
-            prefix = reserved_item_command(self, snapshot, "buy", item, "shop-buy")
-            if prefix is None:
+            purchase = store_item_key(self, snapshot, "buy", item, "shop-buy",
+                                      quantity=quantity)
+            if purchase is None:
                 return None
             return {
                 "op": "buy",
-                "would_key": prefix + suffix,
+                "would_key": purchase,
                 "letter": item.letter,
                 "identity": _row_identity(item),
                 "target": {"letter": item.letter, "name": item.name,
@@ -576,9 +576,8 @@ class InStoreMixin:
                 with self._in_store_pure_scope():
                     ordinary = self._next_purchase(snapshot)
                     quantity = self._purchase_quantity(snapshot, row)
-                    rebuilt_key = reserved_item_command(
-                        self, snapshot, "buy", row, "shop-buy",
-                        suffix=f"{quantity}\r\r" if row.count > 1 else "\r",
+                    rebuilt_key = store_item_key(
+                        self, snapshot, "buy", row, "shop-buy", quantity=quantity,
                     )
             emitted_selection = (None if row is None else {
                 "op": "buy", "letter": row.letter,

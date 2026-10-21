@@ -1121,9 +1121,12 @@ class OperationExecutor:
             # Interpret the enclosed producer for admission, preserving the
             # original owner identity for confirmation and ownership telemetry.
             producer = operation.owner.removeprefix("policy:")
+            # An in-store operation owner is a store producer whatever its
+            # family prefix (the Home-full surplus sale posts its store sale
+            # as ``town:overweight-surplus-sold:home-full``).
             store_producer = producer.startswith((
                 "shop:", "home:", "equipment-transaction:",
-            ))
+            )) or producer in _IN_STORE_OPERATION_OWNERS
             if (first in "EqruazRfvkToDFl012346789\\<>+`"
                     or first in "swtgd{}5" and not store_producer):
                 return self._terminal(operation, "admission", "map command on store screen")

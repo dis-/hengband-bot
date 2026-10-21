@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.item_reservation import reserved_item_command, reservation_verdict
+from hengbot.item_reservation import reserved_item_command, reservation_verdict, store_item_key
 from hengbot.item_reservation import item_available
 
 from hengbot.claim_register import ClaimOwner, claims
@@ -2362,15 +2362,14 @@ class EquipmentMixin:
                 # transaction so the re-arm pass retrieves the same weapon,
                 # rather than blindly wielding the first pack weapon.
                 self._normal_weapon_name = target.name
-            quantity = f"{target.count}\r" if target.count > 1 else ""
-            prefix = reserved_item_command(self, snapshot, "deposit", target, "equipment-txn")
-            if prefix is None:
+            key = store_item_key(self, snapshot, "deposit", target, "equipment-txn",
+                                 quantity=target.count)
+            if key is None:
                 self._block_equipment_transaction("deposit-reservation-refused")
                 self.last_reason = "equipment-transaction:deposit-reservation-refused"
                 return self._equipment_home_outcome(
                     LEAVE_STORE_KEY, label="deposit-reservation-refused",
                 )
-            key = prefix + quantity
             if not self._prepare_equipment_transaction_command(
                 session,
                 action,
@@ -2420,7 +2419,6 @@ class EquipmentMixin:
             if selected is not None and session.physical_context == "home":
                 index, target = selected
                 letter = self._home_page_letter(index)
-                quantity = "1\r" if target.count > 1 else ""
                 page_size = max(1, getattr(store, "page_size", 0) or 52)
                 page_top = max(0, getattr(store, "page_top", 0) or 0)
                 self._home_atomic_withdraw_telemetry = {
@@ -2434,14 +2432,14 @@ class EquipmentMixin:
                     "transaction_target_identity": action.item_identity,
                     "transaction_target_move_identity": action.move_identity,
                 }
-                prefix = reserved_item_command(self, snapshot, "withdraw", target, "equipment-txn", address=letter)
-                if prefix is None:
+                key = store_item_key(self, snapshot, "withdraw", target, "equipment-txn",
+                                     quantity=1, address=letter)
+                if key is None:
                     self._block_equipment_transaction("withdraw-reservation-refused")
                     self.last_reason = "equipment-transaction:withdraw-reservation-refused"
                     return self._equipment_home_outcome(
                         LEAVE_STORE_KEY, label="withdraw-reservation-refused",
                     )
-                key = prefix + quantity
                 if not self._prepare_equipment_transaction_command(
                     session, action, observation, key,
                     ("home", snapshot.turn, letter,

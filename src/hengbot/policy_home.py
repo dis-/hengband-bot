@@ -3,6 +3,7 @@ from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
     reserved_item_command,
+    store_item_key,
 )
 
 from hengbot.claim_register import ClaimOwner, claims, terminal as claim_terminal
@@ -3022,11 +3023,10 @@ class HomeMixin:
                 signature,
                 self._inventory_signature_count(snapshot, signature),
             )
-        quantity = f"{deposit_count}\r" if deposit.count > 1 else ""
-        prefix = reserved_item_command(self, snapshot, "deposit", deposit, "home-visit")
-        if prefix is None:
+        key = store_item_key(self, snapshot, "deposit", deposit, "home-visit",
+                             quantity=deposit_count)
+        if key is None:
             return None
-        key = prefix + quantity
         self._offer_execution(
             key, producer="home-visit",
             work_id=f"home-page-deposit:{self._decision_sequence}:{deposit.slot}",
@@ -3440,11 +3440,11 @@ class HomeMixin:
         # The completed address scan binds the shelf letter and stack count to
         # this one-shot entry.  A multi-item stack therefore proves that the
         # quantity prompt will consume this response before the leave key.
-        quantity_suffix = f"{take_count}\r" if item.count > 1 else ""
-        prefix = reserved_item_command(self, snapshot, "withdraw", item, owner, address=letter)
-        if prefix is None:
+        withdrawal = store_item_key(self, snapshot, "withdraw", item, owner,
+                                    quantity=take_count, address=letter)
+        if withdrawal is None:
             return None
-        operation_key = (" " * page) + prefix + quantity_suffix + LEAVE_STORE_KEY
+        operation_key = (" " * page) + withdrawal + LEAVE_STORE_KEY
         batch_entries = ()
         key = WAIT_KEY + operation_key
         if session is not None and action is not None and action.kind == "withdraw":
@@ -3873,11 +3873,11 @@ class HomeMixin:
                 return None
             # The one-shot transaction observation binds both the pack letter
             # and count used by the operation at this owned Home entry.
-            quantity = f"{current.count}\r" if current.count > 1 else ""
-            prefix = reserved_item_command(self, snapshot, "deposit", current, "equipment-txn")
-            if prefix is None:
+            deposit_key = store_item_key(self, snapshot, "deposit", current, "equipment-txn",
+                                         quantity=current.count)
+            if deposit_key is None:
                 return None
-            operation_key = prefix + quantity + LEAVE_STORE_KEY
+            operation_key = deposit_key + LEAVE_STORE_KEY
             key = WAIT_KEY
             observation = replace(
                 observe_equipment_transactions(snapshot), in_home=True
