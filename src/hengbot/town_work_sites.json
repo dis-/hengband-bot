@@ -2917,6 +2917,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "2e7bdcadb8d6a40b159145706ae6b6ecae779fe14b163e0f841d786892a27362"
   },
+  "policy.py:HengbotPolicy._plain_gear_armour_slot": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "c7df92879fc76720654f2002277be1958e0111fef60c14709988f539aec880e0"
+  },
   "policy.py:HengbotPolicy._planned_depth": {
     "classification": "data",
     "rows": [
@@ -4511,7 +4519,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "a3a214b3c12406026fbe83e9138e62df094eccfa7c548375e4e6e9e587695554"
+    "ast_sha256": "e45970ed55d2031ca8e3dce53693c3ccb4f0e0b2285a7f45e911558a18f667c1"
   },
   "policy_equipment.py:EquipmentMixin._find_weapon_sale.sale_quality_allows": {
     "classification": "data",
@@ -4851,7 +4859,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ae364da978b743a1b69697370d336721bc8e2f7540f1b2bfd6c37d66ad766d1d"
+    "ast_sha256": "bddc48ce143b37666ebe137cd7dadf70886690af04a4a464e7d5f635a3c85689"
   },
   "policy_helpers.py:PolicyHelpersMixin._profile_resistance_name": {
     "classification": "data",
@@ -5150,7 +5158,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6bbe66984047c2b099ebfa592361ed19e2d1ee86c7981ebe1ae66e0e66b9561b"
+    "ast_sha256": "45d1212f7545a22929fcba1b2bca4634d0717a4d5d45a1016682e06b8594fb43"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
