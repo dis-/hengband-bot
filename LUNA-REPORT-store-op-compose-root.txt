@@ -1,0 +1,116 @@
+LUNA-REPORT store-op-compose-root (branch store-op-compose-root-1021, base 95da0d01)
+
+PART A - store operation composition / quantity prompt (#67 #74 #92 + this = 4th)
+
+Measured (captures C:\hengband-backups\state-logs\c4a-loops-20261016\):
+  20261021-092009 (43872194): seq 1787 '{f@0\r' shop:in-store-inscribe, seq 1788 'd0y'
+      town:overweight-surplus-sold:home-full; state row after the inscription: f) 鑑定の巻物 {@0} count 1, store 4.
+  20261021-120701 (95da0d01): seq 11974 '{b@0\r', seq 11975 'd0y'; b) 重傷の治癒の薬 {@0} count 1, store 4.
+  20261021-130638 (95da0d01): seq 2779 '{g@0\r', seq 2780 'd0y'; g) 鑑定の巻物 {@0} count 1, store 5.
+  bot-stderr.log of each: "<stuck-prompt> owner=town:overweight-surplus-sold:home-full phase=admission
+      transport=tcp request_id=None reason=map command on store screen"; bot-posted-characters has no character
+      of 'd0y' (the last posted characters are the inscription '{?@0\r').
+  => The task premise (a STACK whose quantity prompt 'y' does not answer) does NOT hold for these three rows:
+     every sold item was a single item, and 'd0y' is exactly the game's prompt sequence for one item
+     (src/store/sell-order.cpp store_sell: input_quantity only when item->number > 1, then prompt_to_sell's
+     input_check_strict [Y/n]).  The key never reached the game.  Cause: input_executor.submit's STORE-screen
+     admission accepted 'd'/'{'/... only for owners with prefix shop:/home:/equipment-transaction:, while the
+     #98 S7 sale (policy_home._overweight_surplus_sale_key) re-labels its in-store sale with the decision reason
+     town:overweight-surplus-sold:home-full -- an owner the same module already lists in
+     _IN_STORE_OPERATION_OWNERS.  Two predicates for "may this owner post a store item command" disagreed.
+
+Enumeration (static, every site that composes a store sell/buy/deposit/withdraw item key; before -> after):
+  site (after the change)                                   kind      owner          tail composed before (ad hoc)
+  policy_equipment.py:2365 _equipment_transaction_home_key  deposit   equipment-txn  f"{count}\r" if count>1
+  policy_equipment.py:2435 _equipment_transaction_home_key  withdraw  equipment-txn  "1\r" if count>1
+  policy_home.py:3026  _home_deposit_key (Home deposits, weight-overload deposit)
+                                                            deposit   home-visit     f"{deposit_count}\r" if count>1
+  policy_home.py:3443  _atomic_home_withdraw_dispatch_key   withdraw  (caller owner) f"{take_count}\r" if count>1
+  policy_home.py:3876  _atomic_home_deposit_dispatch_key    deposit   equipment-txn  f"{count}\r" if count>1
+  policy_instore.py:222 _in_store_selection (required buy)  buy       shop-buy       f"{q}\r\r" if count>1 else "\r"
+  policy_instore.py:251 _in_store_selection (pending sale)  sell      shop-sell      f"{q}\r" if count>1, + "y"
+  policy_instore.py:269 _in_store_selection (tagged sale)   sell      shop-sell      f"{q}\r" if count>1, + "y"
+  policy_instore.py:298 _in_store_selection (buy)           buy       shop-buy       f"{q}\r\r" if count>1 else "\r"
+  policy_instore.py:579 _in_store_emit (rebuilt buy)        buy       shop-buy       suffix f"{q}\r\r" / "\r"
+  policy_shop.py:4379  _batch_sale_entry (one-shot + batch sales, _store_sell_key: S7 surplus sale, Home-full
+                       relief sale, all ordinary sales)     sell      shop-sell      f"{q}\r" if count>1, + "y"
+  policy_shop.py:4557  _shop_core (survival food buy)       buy       survival       f"{q}\r\r" if count>1 else "\r"
+  policy_shop.py:5405  _shop_purchase_key (purchases)       buy       shop-buy       f"{q}\r\r" if count>1 else "\r"
+  (No other site: item_reservation.item_command is already the only prefix serializer; raw 'd'/'p'+letter
+   compositions are rejected by the existing item_sink_lint.  policy_home.py:254 is the destroy 'k' command,
+   not a store key.)
+
+Changes:
+  * item_reservation.store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=None): the only
+    composer; prefix from reserved_item_command, then the game's sequence: "{quantity}\r" only when the offered
+    stack (item.count) is >1, then "y" (store sale), "\r" (store purchase) or nothing (Home).  No new constant.
+  * All 13 sites above route through it (byte-identical keys).
+  * scripts/item_sink_lint.py: a call of reserved_item_command / checked_item_command / item_command with a
+    literal kind sell/buy/deposit/withdraw outside item_reservation.store_item_key is a finding (runs in the
+    existing tests.test_item_sink_lint repository scan, i.e. preflight).
+  * input_executor.submit: an owner in _IN_STORE_OPERATION_OWNERS is a store producer at the STORE admission.
+  * bookkeeping: town_producer_baseline.json / town_work_review.json entries for item_reservation.py:store_item_key,
+    manifest regenerated.
+
+PART B - "is item I surplus / worth buying" (ledger 7+): STOPPED before the fix (an existing test must change)
+
+Measured (20261021-122829-town-blocked-departure-unsatisfiable, fixture row 3 = the Black Market page, turn 3846682):
+  seq 2748 'pm6\r\r' shop:in-store-buy at store 6; shop_selector wanted_purchase {category: speed, letter m, count 6,
+  price 427}; retention_reservations at that row: スピードの薬 count 10, reservation 10, branch
+  "emergency-potion:speed" (=> no carry strategy, so the rung is "black-market:speed", retention
+  "emergency-potion" in PURCHASE_RUNG_RETENTION; quest:speed needs a strategy).  seq 2751 'da6\r\x1b'
+  home:weight-overload-deposit: retention row count 16, reservation 10 -> the same 6 were surplus at once.
+  Why the target ignores the carried 10 (and the Home stock):
+    * policy_shop._black_market_optional_purchase activates the rung for any affordable Speed/Healing row; it
+      only ranks by held count (min held), it never compares held with the emergency-potion keep (10).
+    * policy_shop._purchase_quantity, Speed/Healing branch: needed = item.count ("An optional shelf is one
+      bounded opportunity. Empty the selected stack now ...") -- it reads neither the carried count nor the Home
+      stock, while the retention branch of the same rung (_carry_strategy_potion_target, shared by
+      _retention_reservation_baseline_detail and _procurement_missing_amount) keeps exactly 10.
+  The intended fix (a rung never buys beyond its own retention keep: cap the black-market potion rung and
+  quantity at _procurement_missing_amount, i.e. 10 - carried) contradicts two existing tests at 95da0d01:
+    tests.test_policy_shop.OptionalBlackMarketPotionTest.test_existing_stockpile_does_not_cap_bounded_black_market_stack
+      carried Speed 20 / Healing 20, shelf 5+5: asserts _next_purchase(town) is not None and
+      _purchase_quantity == 5.  New value: _next_purchase(town) None (both kinds at/above 10).
+    tests.test_policy_shop.OptionalBlackMarketPotionTest.test_black_market_balances_toward_less_held_kind
+      carried Speed 10 / Healing 9, shelf 5+5: asserts Healing selected (unchanged) and _purchase_quantity == 5.
+      New value: 1 (10 - 9).
+  These tests encode the earlier rule "the optional black-market shelf is emptied in one purchase"; the owner
+  must decide which rule wins.  No Part B source change was made.
+
+identify_staff_ready (measure only, #94 type): procurement_requirements throughout the capture:
+  "Identify staff charges" current 13 / target 20 / missing 7; the pack held 4 Identify staves (5+4+2x2 = 13
+  charges, the four-staff cap).  The Magic shop entry (seq 2675-2677) sold surplus but found nothing to buy
+  (shop_selector rejection "observed-page-nothing-wanted"; the capture holds no Magic-shop page to show the shelf),
+  the Home scan found no usable Identify staff (seq 2742 home:identify-staff-reserve-unavailable), and the
+  town plan never listed the Magic shop again (stops Home/General/Black Market), so departure stayed
+  unsatisfiable (seq 2754).  This is an Identify-staff supply shortage, not the rung over-buy of Part B; the
+  purchase was 2562 G of 15012 G on hand (the staff shortage is not a gold shortage).  Not fixed here.
+
+Follow-up commits: the routed equipment-withdraw and purchase sites keep their untouched quantity/suffix locals
+(no pure-refactor hunk); policy_equipment / policy_instore import store_item_key next to each call so every
+routed site is one pinned hunk.
+
+Pins (tests/test_store_op_compose_root_recorded.py, fixture tests/fixtures/store-op-compose-root-20261021.jsonl.gz):
+  SurplusSaleAdmissionRecordedTest.test_recorded_surplus_sale_owner_is_admitted_at_the_store
+    before (input_executor hunk reverted with git apply -R): FAIL, reason "<stuck-prompt>
+    owner=town:overweight-surplus-sold:home-full phase=admission ... reason=map command on store screen" (the
+    recorded stop); after: outcome completed, accepted ['d0y'].
+  control test_map_owner_is_still_refused_at_the_store: survival:map-command still refused (before and after).
+  StoreItemComposerRecordedTest: the three recorded inscribed single items compose 'd0y'; the recorded Magic-shop
+    sale entry (_batch_sale_entry) is (1, 'd0y'); stack controls 'd02\ry', 'pm6\r\r', 'pm\r', 'db4\r', 'dg',
+    'pc3\r'; test_every_store_item_site_uses_the_composer (repository lint == []); lint mutants
+    (raw reserved_item_command / checked_item_command with sell/buy/deposit/withdraw) fail; a quaff stays legal.
+  Controls: single-item sale keys unchanged ('d0y'); existing modules run: test_item_sink_lint,
+    test_home_surplus_sale_screen_recorded, test_home_surplus_inscription_recorded, test_store_entry_budget_recorded,
+    test_classA_observed_input, test_shop_one_shot (all OK).  No existing test edited; no new constant; no new
+    policy attribute (no restored-checkpoint default needed); census counts unchanged; STUCK_FAMILY_REASONS
+    unchanged.
+
+Guards (after the last source edit and commit):
+  preflight:  [preflight] PREFLIGHT OK: 14 changed files, 0 findings (store-op-compose-root-1021 vs 95da0d01)
+  mutation (round 1: 2 NOT CAUGHT -- the policy_instore / policy_shop import hunks; repaired):
+              [mutation] 17 source hunks, tests: tests.test_store_op_compose_root_recorded
+              [mutation] MUTATION OK: 0 of 17 hunks are not pinned by a test
+  fast_tier:  3813 fast tests (<2.0s in 95da0d01) + 1 changed modules, 4 shards; Crashed shards: none;
+              Failures: none; Errors: none; Total: 3828 tests, 341.5s

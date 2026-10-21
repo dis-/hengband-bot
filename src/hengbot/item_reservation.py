@@ -468,3 +468,26 @@ def reserved_item_command(policy, snapshot, kind, item, owner=None, *, address=N
     selected = (item, address) if address is not None else item
     key = checked_item_command(policy, kind, selected, verdict)
     return key + suffix if key is not None else None
+
+
+def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=None):
+    """The only composer of a store or Home item operation key.
+
+    ``kind`` is ``sell``/``buy`` (a store) or ``deposit``/``withdraw`` (the
+    Home); ``item`` is the stack the game offers (the pack stack for a sale or
+    deposit, the shelf row for a purchase or withdrawal).  After the item
+    selector the game asks, in this order (store/sell-order.cpp store_sell,
+    store/purchase-order.cpp store_purchase):
+
+    * the quantity, only when that stack holds more than one
+      (``input_quantity``: the first digit replaces the default "1", Return
+      accepts; asking-player.cpp input_quantity);
+    * a store sale: prompt_to_sell's ``[Y/n]`` (answered ``y``); a store
+      purchase: prompt_to_buy's ``[Y/n]`` (Return takes DEFAULT_Y); the Home
+      asks nothing more.
+    """
+    confirmation = {"sell": "y", "buy": "\r", "deposit": "", "withdraw": ""}[kind]
+    prefix = reserved_item_command(policy, snapshot, kind, item, owner, address=address)
+    if prefix is None:
+        return None
+    return prefix + (f"{quantity}\r" if item.count > 1 else "") + confirmation

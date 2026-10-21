@@ -1283,7 +1283,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "66e28fbf124a64e36c3221b35524a172ac7120f4162c436234d4bfebd0241da1"
+    "ast_sha256": "2fbd1f8957c78b9f5ed7fa084386f12347d365c1d21af0d58624423d245bd054"
   },
   "item_reservation.py:ReservationVerdict.reason": {
     "classification": "data",
@@ -1471,6 +1471,25 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "f1f859bde3fb038db71be7a0284ba3f6591fb7152d048312f7b486def75bccca"
+  },
+  "item_reservation.py:store_item_key": {
+    "classification": "adapter",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "equipment-transaction",
+      "survival"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "ff8f3801cbd241cb46093e4f2c520220ad8dcacdaa2ed30114d8bd9b20252b60"
   },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
@@ -4460,7 +4479,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8d8a12825c73be5e7d16df2c1a6d40f4b6fee0db71c1b14ca749c91075494f08"
+    "ast_sha256": "a3b1e5db5371df62c276bbc1cfade8207f32298c9de2c3f1f24b8f893c6e1d8d"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_key": {
     "classification": "producer",
@@ -4888,7 +4907,7 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3237fa88084eb5ca27c178f08061dd88b031fc6db10d534cabc2edb46653db00"
+    "ast_sha256": "6a4d5c32fa34850dfad63342b3c8380246da17594e89c2e36b7abf1ae9aed8c8"
   },
   "policy_home.py:HomeMixin._atomic_home_deposit_key": {
     "classification": "adapter",
@@ -4904,7 +4923,7 @@
       "home-withdraw"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ff06aa51addc66cb2818652ebe1e9184021572fa0f0e3d5c36817f5239b02a3d"
+    "ast_sha256": "0e3768edb2f033a5445a7eefc69a94b170771d1805f34242b655bea51461df76"
   },
   "policy_home.py:HomeMixin._atomic_home_withdraw_key": {
     "classification": "adapter",
@@ -5024,7 +5043,7 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6158faf821374c79f8212614e5f1e626beb60fbf4475f7951072ba00ed785531"
+    "ast_sha256": "3906e63b3d2ff9c7fa6bda682f153188c67f18b97355a0718b1126ee9ab10a5b"
   },
   "policy_home.py:HomeMixin._home_deposit_quantity": {
     "classification": "data",
@@ -5561,7 +5580,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "17206c2bfdd7af9bf90a43649c4e736346eb8bb0330029766c0176de2bb93eea"
+    "ast_sha256": "6facee2992108ea2fefe17c091295170b8f40f64a201f8d41215c007632a8c33"
   },
   "policy_instore.py:InStoreMixin._in_store_entry_key": {
     "classification": "adapter",
@@ -5609,7 +5628,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "987c7e66fa952c7e6132c6d9bba02d28c144f5c099320f19f17ea586e89a180b"
+    "ast_sha256": "d421bd8cee9d196334697d3438bc89e3c5ad3c85c2f28a1381b5bd5ec6f07129"
   },
   "policy_instore.py:InStoreMixin._in_store_try_start": {
     "classification": "adapter",
@@ -6301,7 +6320,7 @@
       "sale-address"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "81a9cfe1a25f12eeca826f28f96db9b1c87abb2c17ebdee8ee18fbe0d1247838"
+    "ast_sha256": "babe1e3c34f7c009f1d131f225ad4f83ac7517c258f3ab382d359f47a1181a5b"
   },
   "policy_shop.py:ShopMixin._batch_sell_key": {
     "classification": "producer",
@@ -6742,7 +6761,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "511d9cdb8c72ea76b0dd5e71b4877cea4c3fae153b78b6721be26b6c8f905494"
+    "ast_sha256": "0fe1e031f02532c2125eb6d513eb7cc9f278b210900afaa937df35fa4371198f"
   },
   "policy_shop.py:ShopMixin._shop_purchase_key": {
     "classification": "operation",
@@ -6750,7 +6769,7 @@
       "shop-buy"
     ],
     "delegation": "none",
-    "ast_sha256": "55e24ebc10afb88ecf351b06a148a1d4af97bf520a1820d4aece30e718d0667f"
+    "ast_sha256": "4b659de8cd6ba871a9848ed9a9db3cfd9b0c25364b96deb1cbff13504a9a837c"
   },
   "policy_shop.py:ShopMixin._shopping_approach_key": {
     "classification": "producer",

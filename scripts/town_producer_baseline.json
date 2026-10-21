@@ -76,6 +76,7 @@
   "item_reservation.py:reservation_shadow": "pure helper: reservation_shadow returns unannotated data used as input/observation, not an independently selected game action",
   "item_reservation.py:reservation_verdict": "pure helper: OFF exceptions preserve historical behavior; conflicts skip in both modes.",
   "item_reservation.py:reserved_item_command": "delegated adapter: reserved_item_command forwards/selects a declared producer or checked item operation",
+  "item_reservation.py:store_item_key": "delegated adapter: store_item_key composes the store/Home item operation (reserved_item_command prefix plus the game's quantity and confirmation answers) for a declared producer",
   "item_reservation.py:standalone_verdict": "pure helper: Compatibility for pinned low-level APIs without a policy decision.",
   "latch_onset_capture.py:_recall_candidates": "pure helper: diagnostic recall-candidate records",
   "latch_onset_capture.py:_recall_candidates.safety": "pure helper: diagnostic recall-safety assessment",

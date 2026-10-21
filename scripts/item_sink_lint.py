@@ -194,6 +194,17 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
                     (keyword.value for keyword in node.keywords if keyword.arg == 'verdict'), None)
                 if not _valid_verdict(function, verdict):
                     findings.append(f'line {node.lineno}: serializer requires a ReservationVerdict')
+            if name in {'reserved_item_command', 'checked_item_command', 'item_command',
+                        '_historical_item_command'}:
+                # A store/Home item operation answers the game's quantity and
+                # confirmation prompts; only store_item_key composes that tail.
+                index = {'reserved_item_command': 2, 'checked_item_command': 1}.get(name, 0)
+                kind = node.args[index] if len(node.args) > index else next(
+                    (keyword.value for keyword in node.keywords if keyword.arg == 'kind'), None)
+                if (isinstance(kind, ast.Constant) and kind.value in {'sell', 'buy', 'deposit', 'withdraw'}
+                        and (filename, function_name) != ('item_reservation.py', 'store_item_key')):
+                    findings.append(f'line {node.lineno}: {function_name} composes a store item key '
+                                    'outside store_item_key')
             if name == '_destroy_item_key':
                 snapshot = node.args[1] if len(node.args) > 1 else next(
                     (keyword.value for keyword in node.keywords if keyword.arg == 'snapshot'), None)
