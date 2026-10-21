@@ -86,3 +86,31 @@ identify_staff_ready (measure only, #94 type): procurement_requirements througho
   town plan never listed the Magic shop again (stops Home/General/Black Market), so departure stayed
   unsatisfiable (seq 2754).  This is an Identify-staff supply shortage, not the rung over-buy of Part B; the
   purchase was 2562 G of 15012 G on hand (the staff shortage is not a gold shortage).  Not fixed here.
+
+Follow-up commits: the routed equipment-withdraw and purchase sites keep their untouched quantity/suffix locals
+(no pure-refactor hunk); policy_equipment / policy_instore import store_item_key next to each call so every
+routed site is one pinned hunk.
+
+Pins (tests/test_store_op_compose_root_recorded.py, fixture tests/fixtures/store-op-compose-root-20261021.jsonl.gz):
+  SurplusSaleAdmissionRecordedTest.test_recorded_surplus_sale_owner_is_admitted_at_the_store
+    before (input_executor hunk reverted with git apply -R): FAIL, reason "<stuck-prompt>
+    owner=town:overweight-surplus-sold:home-full phase=admission ... reason=map command on store screen" (the
+    recorded stop); after: outcome completed, accepted ['d0y'].
+  control test_map_owner_is_still_refused_at_the_store: survival:map-command still refused (before and after).
+  StoreItemComposerRecordedTest: the three recorded inscribed single items compose 'd0y'; the recorded Magic-shop
+    sale entry (_batch_sale_entry) is (1, 'd0y'); stack controls 'd02\ry', 'pm6\r\r', 'pm\r', 'db4\r', 'dg',
+    'pc3\r'; test_every_store_item_site_uses_the_composer (repository lint == []); lint mutants
+    (raw reserved_item_command / checked_item_command with sell/buy/deposit/withdraw) fail; a quaff stays legal.
+  Controls: single-item sale keys unchanged ('d0y'); existing modules run: test_item_sink_lint,
+    test_home_surplus_sale_screen_recorded, test_home_surplus_inscription_recorded, test_store_entry_budget_recorded,
+    test_classA_observed_input, test_shop_one_shot (all OK).  No existing test edited; no new constant; no new
+    policy attribute (no restored-checkpoint default needed); census counts unchanged; STUCK_FAMILY_REASONS
+    unchanged.
+
+Guards (after the last source edit and commit):
+  preflight:  [preflight] PREFLIGHT OK: 14 changed files, 0 findings (store-op-compose-root-1021 vs 95da0d01)
+  mutation (round 1: 2 NOT CAUGHT -- the policy_instore / policy_shop import hunks; repaired):
+              [mutation] 17 source hunks, tests: tests.test_store_op_compose_root_recorded
+              [mutation] MUTATION OK: 0 of 17 hunks are not pinned by a test
+  fast_tier:  3813 fast tests (<2.0s in 95da0d01) + 1 changed modules, 4 shards; Crashed shards: none;
+              Failures: none; Errors: none; Total: 3828 tests, 341.5s
