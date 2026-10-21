@@ -5385,6 +5385,7 @@ class ShopMixin(InStoreMixin):
         # price/quantity.  Thus 'p' has a live selectable precondition; the
         # remaining Returns are prompt defaults and a final confirmation,
         # not an unchecked tail after a possibly unsupported command.
+        suffix = f"{quantity}\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
         self._store_buy_inflight = (
             store.store_type,
             signature,

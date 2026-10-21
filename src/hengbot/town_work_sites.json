@@ -4479,7 +4479,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "7ef6e4a87ac6a9180f07a40966a64fd9fa8d8e3ce00aebbb3117eb1e2ab83c09"
+    "ast_sha256": "a3b1e5db5371df62c276bbc1cfade8207f32298c9de2c3f1f24b8f893c6e1d8d"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_key": {
     "classification": "producer",
@@ -6769,7 +6769,7 @@
       "shop-buy"
     ],
     "delegation": "none",
-    "ast_sha256": "807ced5a8814fab31de6662bb66b3a83b013da20a3c5f83ea854def2e41fdecc"
+    "ast_sha256": "4b659de8cd6ba871a9848ed9a9db3cfd9b0c25364b96deb1cbff13504a9a837c"
   },
   "policy_shop.py:ShopMixin._shopping_approach_key": {
     "classification": "producer",
