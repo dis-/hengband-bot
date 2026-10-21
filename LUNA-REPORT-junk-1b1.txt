@@ -1,0 +1,67 @@
+LUNA-REPORT junk-1b1 (#95 slice 1b-1) branch junk-1b1-1022, base main 17b8907c
+Commits: f122786a (src + bookkeeping + new test), 7448a755 (checkpoint pin), this report.
+
+STATUS: STOP-AND-REPORT on one existing test (see "Existing test conflict").
+
+Measured diagnosis (R1 = tests/fixtures/teleport-items-safe-c4a-20261021.jsonl.gz rows 0-6, life-014 Lv33,
+calibration DECLARED CONSTRUCTED via seed_character_calibration, ~f cache constructed):
+- Optimizer's selected loadout on the recorded Home: body = Olog full plate (ego, Home), feet 鉄鋲底の靴 [6,+5],
+  head 闇の陣笠 (ego), outer エルフのクローク [4,+4], arms セスタス [5] {並} (unidentified -> arms slot kept),
+  no shield (empty slot keeper = 革製ラージ・シールド [6,+0]), main (防衛者)六尺棒 (ego -> melee gate open), bow
+  ライト・クロスボウ (+10,+10).
+- plain-gear on pack+Home (240 wares): 54 = launcher 3 (tval19), melee 30 (21:9, 22:9, 23:12), armour 21
+  (30:4, 32:4, 34:1, 35:2, 36:8, 37:2). Design 7 estimated ~55 (armour 22, launcher 3, melee <=30).
+  Everything else None. 1a classes 0 (as the design measured).
+
+Changes:
+- src/hengbot/policy_helpers.py: `_junk_class` gains class "plain-gear" (after unused-ammo; same final gates).
+- src/hengbot/policy.py: `_is_plain_gear` (identified, non-ego/artifact/cursed/broken, tval 19/21-23/30-38,
+  to_h+to_d<=0, to_a<=0), `_plain_gear_armour_slot`, `_plain_gear_armour_dominated` (M3: `_item_dominance_parts`
+  exact parts + flags, ac+to_a folded), `_plain_gear_baseline` / `_build_plain_gear_baseline` (M2: keyed by
+  _decision_sequence + preparation id + catalog fingerprint; None without optimizer result / calibration / complete
+  Home catalog / any selected item no longer owned by equipment_identity), `_plain_gear_weapon_dps` (memo across
+  decisions per equipment+calibration+level+skills context), `_plain_gear_surplus` (launcher -> existing
+  `_is_disposable_dominated_launcher`; melee only when the selected main weapon `_weapon_is_high_grade` (M1/Q-D),
+  dps <= weaker selected hand and evaluator flags subset; armour vs selected same slot, shield vs sub-hand
+  shield, empty slot keeps its highest-total-AC plain item; selected items, keepers and their copies by
+  `_loadout_value_signature` stay).
+- src/hengbot/policy_equipment.py: `_find_weapon_sale` inferior branch skips `_junk_class` items (S7).
+- src/hengbot/policy_home.py: Home-full junk list calls `_home_full_discard_candidate` in rank order only up to the
+  first passing ware (shelf first while the pack has room; same pick as the eager min) (design 5.3).
+- src/hengbot/latch_onset_capture.py: the two new derived caches are not checkpointed.
+- New policy attributes (getattr defaults, restored checkpoints need nothing): _plain_gear_baseline_cache,
+  _plain_gear_dps_memo.
+- Bookkeeping: scripts/town_work_review.json, scripts/town_producer_baseline.json (pure helper
+  _plain_gear_armour_slot), scripts/item_intent_baseline.json (_plain_gear_dps_memo), manifest rewritten
+  (town_work_manifest.json.gz, src/hengbot/town_work_sites.json). No new constant / threshold / reason string.
+
+Pins (tests/test_junk_plain_gear_recorded.py, 12 tests): recorded counts; controls (artifacts, egos, selected
+loadout, unidentified, positive-bonus, arms slot, staves/wands/rods, digging tools, lights, jewelry, books, worn
+items = None); M3 invariant (selected-dominated plain armour => plain-gear); empty-slot shield keeper and its copy;
+selected plain boots and copy None (constructed); plain selected main weapon -> no melee junk (constructed, M1/Q-D);
+no optimizer result -> all None; acid-lowered worn boots -> all None (S4); baseline built once over the per-ware
+probes (M2); `_find_weapon_sale` offers no junk (S7); Home-full relief pick equals the eager pick with one gate
+call (eager would pass >1); derived caches not checkpointed.
+Revert-proof (src diff reversed): 8 of 11 then-existing new tests red; green under revert were the three controls
+(controls_stay, missing_optimizer_result, lowered_worn_armour) - expected.
+
+Existing tests run (single modules): all OK except
+- test_item_sink_lint: (R) new helper/memo unregistered -> fixed by bookkeeping, now OK.
+- test_junk_scope_perf_recorded.test_home_full_junk_scan_computes_each_board_ledger_once: see below.
+
+Existing test conflict (NOT edited):
+  test_junk_scope_perf_recorded.JunkScopePerfRecordedTest.test_home_full_junk_scan_computes_each_board_ledger_once
+  asserts `len(set(boards)) > 1` ("the scan ran over several junk wares, each on its own probe board").
+  Old value (17b8907c): 20 distinct probe boards / 20 `_home_full_discard_candidate` calls.
+  New value: 1 / 1. Decision unchanged ('\x1b', home:full-queue-surplus-withdraw); the second assertion
+  (no board computed twice) still holds. Cause: design 5.3 ("call the retention gate only up to the first passing
+  ware") which the task orders for this slice. Either that control is relaxed (e.g. >= 1) or 5.3 is dropped.
+
+Timing (head vs 17b8907c, R1 rows 0-13, min of 4 deepcopy trials per decision):
+- with calibration: ratios 0.92-1.05 (e.g. home:atomic-deposit 5.891 vs 6.336 s; no-actionable-claim-owner
+  4.593 vs 4.506 s); keys identical on every decision.
+- without calibration (existing replay): ratios 0.89-1.02 over two interleaved runs; keys identical.
+- Home-full relief key on R1 (constructed relief state): head 0.032-0.033 s vs main 0.054-0.058 s.
+
+Guards: preflight OK (11 files, 0 findings); mutation_check OK (0 of 8 hunks unpinned, recorded 7448a755);
+fast_tier: 3830 tests, failures none, errors none.
