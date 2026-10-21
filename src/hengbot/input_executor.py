@@ -569,6 +569,8 @@ class OperationResult:
     transport: KeyPostOutcome | None = None
     reason: str | None = None
     timing: dict[str, object] = field(default_factory=dict)
+    # The stderr stop line: ``reason`` plus the game's input context (S0).
+    stop_line: str | None = None
 
 
 # Exact command-ending messages emitted by the device/read implementations.
@@ -970,8 +972,20 @@ class OperationExecutor:
     def __init__(self, client=None, *, drain: Callable[[], object] | None = None,
                  wm_post: Callable[[str], bool] | None = None,
                  accepted: Callable[[Operation, str], None] | None = None,
-                 work_receipt: Callable[[dict], None] | None = None) -> None:
+                 work_receipt: Callable[[dict], None] | None = None,
+                 input_context_shadow=None) -> None:
+        from hengbot.input_context import (
+            INPUT_CONTEXT_SHADOW_NAME, InputContextShadow, read_input_context,
+        )
+        from hengbot.runtime_paths import runtime_path
+
         self.client, self.drain, self.wm_post = client, drain or (lambda: None), wm_post
+        # Slice S0 (plans/DESIGN-control-context-1022.md): the game's published
+        # input context is recorded beside every classification and on every
+        # stop line (jsonlog/input-context-shadow.jsonl); no decision reads it.
+        self.input_context_shadow = input_context_shadow or InputContextShadow(
+            runtime_path(INPUT_CONTEXT_SHADOW_NAME))
+        self.last_input_context = read_input_context(None)
         self.accepted = accepted or (lambda _operation, _segment: None)
         self.work_receipt = work_receipt or (lambda _receipt: None)
         self.work_receipts = deque(maxlen=256)
@@ -1002,8 +1016,14 @@ class OperationExecutor:
         }
 
     def _classify(self, screen, state=None):
+        from hengbot.input_context import current_input_state
+
         started = time.perf_counter()
-        result = classify_screen(screen, state)
+        observed = current_input_state(screen, state)
+        result = observed.match
+        self.input_context_shadow.observe(
+            self.active.owner if self.active is not None else None,
+            observed, screen, screen_only=state is None)
         if self.active is not None:
             self.active.timing["screen_classification_ms"] += \
                 (time.perf_counter() - started) * 1000
@@ -1147,6 +1167,9 @@ class OperationExecutor:
         result = self.client.request(
             op, deadline=deadline, retry_until_deadline=True, **fields
         )
+        from hengbot.input_context import read_input_context
+
+        self.last_input_context = read_input_context(result)
         if self.active is not None:
             self.active.timing[f"{op}_wait_ms"] += (time.perf_counter() - started) * 1000
         return result
@@ -1580,6 +1603,7 @@ class OperationExecutor:
         # is dropped only when fresh effects positively establish that the
         # source command ended.  Ambiguous absence remains a visible terminal.
         if self.active.continuations:
+            self.input_context_shadow.residual(self.active.owner, screen_value)
             if not _expected_prompt_absence_is_complete(
                     self.active, screen_value, board):
                 return self._terminal(
@@ -1682,14 +1706,23 @@ class OperationExecutor:
             None, None, None, None, ExecutorState.TERMINAL)
         request_id = transport.request_id if transport is not None else None
         status = transport.status.value if transport is not None else name
-        detail = (f"<stuck-prompt> owner={active.owner} phase={phase} transport={status} "
-                  f"request_id={request_id} reason={reason}")
-        return OperationResult("stuck-prompt", active, None, screen, transport, detail)
+        from hengbot.input_context import stop_line_fields
+
+        head = (f"<stuck-prompt> owner={active.owner} phase={phase} transport={status} "
+                f"request_id={request_id}")
+        detail = f"{head} reason={reason}"
+        # The printed stop line also names the input the game waited for.
+        # ``reason`` holds spaces, so the context fields precede it.
+        stop_line = f"{head} {stop_line_fields(self.last_input_context)} reason={reason}"
+        self.input_context_shadow.stop(stop_line)
+        return OperationResult("stuck-prompt", active, None, screen, transport, detail,
+                               stop_line=stop_line)
 
     def _death(self, operation, screen):
         active = operation or self.active or Operation(None, "bootstrap", "", None)
         self.active, self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
             None, None, None, None, ExecutorState.TERMINAL)
+        self.input_context_shadow.stop(f"<player-death> feature={screen.feature}")
         return OperationResult(
             "player-death", active, None, screen,
             reason=f"<player-death> feature={screen.feature}",
