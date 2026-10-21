@@ -1150,12 +1150,30 @@ class HomeMixin:
             self._junk_board = snapshot
             # A read-only scan: each board's supply ledger is computed once
             # for the purchase ladders it asks per ware (#95).
+            # The retention gate runs in the rank order of the destruction it
+            # feeds and only up to the first junk ware that passes it (#95
+            # section 5): the pick below is the least-ranked passing entry, a
+            # shelf entry first while the pack has room.
             with supply_ledger_observer_memo():
-                junk = [(candidate, item) for item in stock
-                        if self._is_worthless_junk(
-                            item if isinstance(item, InventoryItem)
-                            else self._inventory_item_from_store_item(item))
-                        and (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
+                classed = []
+                for item in stock:
+                    taken = (item if isinstance(item, InventoryItem)
+                             else self._inventory_item_from_store_item(item))
+                    if self._is_worthless_junk(taken):
+                        classed.append((self._home_full_discard_rank(
+                            snapshot, replace(taken, slot="home-surplus")), item))
+                classed.sort(key=lambda entry: entry[0])
+                groups = ([[item for _, item in classed if id(item) not in pack_ids],
+                           [item for _, item in classed if id(item) in pack_ids]]
+                          if len(snapshot.inventory) < PACK_CAPACITY
+                          else [[item for _, item in classed]])
+                junk = []
+                for group in groups:
+                    junk = next(([(candidate, item)] for item in group
+                                 if (candidate := self._home_full_discard_candidate(
+                                     probes[id(item)], item))), [])
+                    if junk:
+                        break
             del self._junk_board
             candidates = [] if junk else [
                 (result, item) for item in sale_stock

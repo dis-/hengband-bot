@@ -97,6 +97,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_RING,
     TR_TELEPORT,
     Loadout,
+    OwnedEquipment,
     OwnedEquipmentCatalog,
     current_loadout,
     divable_depth,
@@ -530,7 +531,11 @@ from hengbot.warrior_loadout_evaluator import (
     LAUNCHER_PROPERTIES,
     STORE_AMMO_AVERAGE_DAMAGE,
 )
-from hengbot.warrior_loadout_search import disposable_dominated_item_ids
+from hengbot.warrior_loadout_search import (
+    _item_dominance_parts,
+    _loadout_value_signature,
+    disposable_dominated_item_ids,
+)
 from hengbot.warrior_equipment_evaluator import melee_hit_chance
 from hengbot.model import (
     DUNGEON_ANGBAND,
@@ -15325,6 +15330,202 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot, catalog_owner, catalog_fingerprint,
             self._decision_sequence, catalog, protected,
         )
+
+    @staticmethod
+    def _is_plain_gear(item: InventoryItem | StoreItem) -> bool:
+        """Identified melee weapon, launcher or armour with no positive bonus.
+
+        #95 slice 1b-1: only the part of plain gear the owner's Q1 settles
+        without the open questions (no {good} item, no feeling-only item).
+        Digging tools (tval 20), lights, ammunition and jewelry have owners
+        of their own.
+        """
+        return (
+            item.tval in {19, 21, 22, 23, 30, 31, 32, 33, 34, 35, 36, 37, 38}
+            and item.known
+            and not item.is_ego
+            and not item.is_artifact
+            and not item.is_cursed
+            and not item.is_broken
+            and not (item_requires_full_identification(item)
+                     and not item.fully_known)
+            and item.to_h + item.to_d <= 0
+            and item.to_a <= 0
+        )
+
+    @staticmethod
+    def _plain_gear_armour_slot(item: InventoryItem | StoreItem) -> str | None:
+        # slot_for has no shield slot; a shield is compared with the shield
+        # the selected loadout holds in its off hand.
+        return "shield" if item.tval == 34 else slot_for(item)
+
+    @staticmethod
+    def _plain_gear_armour_dominated(
+        candidate: OwnedEquipment, reference: OwnedEquipment
+    ) -> bool:
+        """R1's dominance parts with base AC and to_a folded into one sum."""
+        candidate_exact, candidate_vector, candidate_flags = (
+            _item_dominance_parts(candidate))
+        reference_exact, reference_vector, reference_flags = (
+            _item_dominance_parts(reference))
+
+        def folded(vector: tuple[int, ...]) -> tuple[int, ...]:
+            return (vector[0], vector[1], vector[2] + vector[3], *vector[4:])
+
+        return (
+            candidate_exact == reference_exact
+            and candidate_flags.issubset(reference_flags)
+            and all(a <= b for a, b in zip(folded(candidate_vector),
+                                           folded(reference_vector)))
+        )
+
+    def _plain_gear_baseline(self, snapshot: Snapshot) -> dict | None:
+        """The selected loadout plain gear is compared with, once per decision.
+
+        Keyed like ``_disposable_armour_scan_cache`` (decision sequence and
+        the catalog fingerprint), not by board: the Home relief scans build a
+        probe board per ware.  None (everything kept) without the optimizer
+        result, a valid calibration or the complete Home catalog.
+        """
+        catalog_owner = self._equipment_catalog
+        key = (
+            self._decision_sequence,
+            id(self._equipment_optimization_preparation),
+            id(catalog_owner),
+            id(catalog_owner._carried), id(catalog_owner._home),
+            len(catalog_owner._carried), len(catalog_owner._home),
+        )
+        cached = getattr(self, "_plain_gear_baseline_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        baseline = self._build_plain_gear_baseline(snapshot)
+        self._plain_gear_baseline_cache = (key, baseline)
+        return baseline
+
+    def _build_plain_gear_baseline(self, snapshot: Snapshot) -> dict | None:
+        if not self._target_loadout_known():
+            return None
+        loadout = self._equipment_optimization_preparation.result.best.loadout
+        catalog_owner = self._equipment_catalog
+        if not catalog_owner.home_scan_complete:
+            return None
+        calibration = self._validated_character_calibration(snapshot)
+        if calibration is None:
+            return None
+        # Every selected item must still be owned as selected: an old
+        # loadout naming a sold item, or worn armour whose to_a acid lowered,
+        # no longer describes this character (everything kept).
+        owned = {equipment_identity(item)
+                 for item in (*snapshot.equipment, *snapshot.inventory)}
+        owned.update(equipment_identity(entry.item)
+                     for entry in catalog_owner._home.values())
+        selected = tuple(entry for _, entry in loadout.slots)
+        if any(equipment_identity(entry.item) not in owned for entry in selected):
+            return None
+        armour_tvals = {30, 31, 32, 33, 34, 35, 36, 37, 38}
+        armour: dict[str, OwnedEquipment | None] = {}
+        for entry in selected:
+            if entry.item.tval in armour_tvals:
+                armour[self._plain_gear_armour_slot(entry.item)] = (
+                    entry if entry.item.known else None)
+        # An unidentified worn piece in a slot the loadout leaves empty keeps
+        # that whole slot.
+        for worn in snapshot.equipment:
+            slot = self._plain_gear_armour_slot(worn)
+            if worn.tval in armour_tvals and slot not in armour and not worn.known:
+                armour[slot] = None
+        # Any other empty slot keeps its best plain item (highest total AC).
+        keepers: dict[str, OwnedEquipment] = {}
+        for entry in catalog_owner.items:
+            slot = self._plain_gear_armour_slot(entry.item)
+            if (entry.item.tval not in armour_tvals or slot in armour
+                    or not self._is_plain_gear(entry.item)):
+                continue
+            keeper = keepers.get(slot)
+            if keeper is None or (
+                    entry.item.ac + entry.item.to_a,
+                    repr(_loadout_value_signature(entry))) > (
+                    keeper.item.ac + keeper.item.to_a,
+                    repr(_loadout_value_signature(keeper))):
+                keepers[slot] = entry
+        armour.update(keepers)
+        selected = (*selected, *keepers.values())
+        melee_reference = None
+        main = loadout.item_at(SLOT_MAIN_HAND)
+        # M1: melee plain gear is judged only behind `_find_weapon_sale`'s
+        # gate, here applied to the selected main weapon.
+        if main is not None and self._weapon_is_high_grade(main.item):
+            hands = [main]
+            sub = loadout.item_at(SLOT_SUB_HAND)
+            if sub is not None and sub.item.tval in {21, 22, 23}:
+                hands.append(sub)
+            values = [weapon_expected_dps(snapshot, hand.item, 100, calibration)
+                      for hand in hands]
+            if all(value is not None for value in values):
+                # R1's rule: an evaluator flag the selected hands lack keeps
+                # the weapon whatever its expected damage.
+                parts = [_item_dominance_parts(hand) for hand in hands]
+                melee_reference = (min(values), frozenset.intersection(
+                    *(exact[4] | flags for exact, _, flags in parts)))
+        return {
+            "signatures": frozenset(
+                _loadout_value_signature(entry) for entry in selected),
+            "armour": armour,
+            "melee_reference": melee_reference,
+            "calibration": calibration,
+        }
+
+    def _plain_gear_weapon_dps(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem,
+        signature: tuple, calibration,
+    ) -> float | None:
+        """`weapon_expected_dps`, remembered across decisions per context."""
+        context = (
+            tuple((worn.slot, equipment_identity(worn))
+                  for worn in snapshot.equipment),
+            calibration.natural_stats, calibration.base_stats,
+            calibration.intrinsic_adjustments,
+            snapshot.player.level, snapshot.player.melee_skill,
+            snapshot.player.two_weapon_skill,
+        )
+        memo = getattr(self, "_plain_gear_dps_memo", None)
+        if memo is None or memo[0] != context:
+            memo = (context, {})
+            self._plain_gear_dps_memo = memo
+        if signature not in memo[1]:
+            memo[1][signature] = weapon_expected_dps(
+                snapshot, item, 100, calibration)
+        return memo[1][signature]
+
+    def _plain_gear_surplus(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem
+    ) -> bool:
+        """Is this plain item worse than the optimizer's selected loadout?"""
+        baseline = self._plain_gear_baseline(snapshot)
+        if baseline is None:
+            return False
+        owned = OwnedEquipment("plain-gear-probe", item, "pack")
+        signature = _loadout_value_signature(owned)
+        # A selected item or an empty slot's keeper, and their copies in
+        # another stack, stay.
+        if signature in baseline["signatures"]:
+            return False
+        if item.tval == TVAL_BOW:
+            return self._is_disposable_dominated_launcher(snapshot, item)
+        if item.tval in {21, 22, 23}:
+            reference = baseline["melee_reference"]
+            if reference is None:
+                return False
+            exact, _, flags = _item_dominance_parts(owned)
+            if not (exact[4] | flags).issubset(reference[1]):
+                return False
+            value = self._plain_gear_weapon_dps(
+                snapshot, item, signature, baseline["calibration"])
+            return value is not None and value <= reference[0]
+        reference = baseline["armour"].get(self._plain_gear_armour_slot(item))
+        if reference is None:
+            return False
+        return self._plain_gear_armour_dominated(owned, reference)
 
 
     def _begin_pack_dominated_launcher_disposal(
