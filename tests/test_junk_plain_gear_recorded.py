@@ -31,9 +31,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
-from hengbot.equipment_optimizer import OwnedEquipment
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import InventoryItem
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import PACK_CAPACITY
 from hengbot.warrior_loadout_search import _catalog_dominates
 from policy_fixtures import seed_character_calibration
@@ -256,6 +257,17 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
                 probe = replace(self.board, inventory=(*self.board.inventory, item))
                 policy._junk_class(probe, item)
         self.assertEqual(build.call_count, 1)
+
+    def test_checkpoint_drops_derived_plain_gear_caches(self):
+        # The baseline and the expected-damage memo are derived from policy
+        # state and rebuilt on first use; a checkpoint never restores them.
+        policy = self._copy()
+        self._classes(policy, self.board)
+        self.assertIsNotNone(policy._plain_gear_baseline_cache)
+        self.assertTrue(policy._plain_gear_dps_memo[1])
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        self.assertNotIn("_plain_gear_baseline_cache", restored.__dict__)
+        self.assertNotIn("_plain_gear_dps_memo", restored.__dict__)
 
     def test_weapon_sale_offers_no_junk(self):
         # S7: the inferior-weapon sale branch no longer takes plain gear.
