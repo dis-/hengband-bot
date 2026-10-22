@@ -1,0 +1,8 @@
+Source: Linux soak life-014 (build bot-d2304637), copied read-only on 2026-10-23 for Issue #103 / #88 stage 2.
+life014-lv36-bot-test.txt.gz: user/bot-test.txt, the periodic C-screen dump written 2026-10-23 04:49:30
+  (EUC-JP, LF), gzip of the bytes. sha256 of the uncompressed bytes:
+  d5e205d2d63212bcdcadf9efd48406fc47a5a00147c01104159df0ef7564e51b
+life014-lv36-state.jsonl.gz: jsonlog state.jsonl lines 1761 (the character response, mutations [12, 65])
+  and 1762 (the next board), unchanged. sha256 of the uncompressed bytes:
+  45e03c261f74ec08f868d67da9b841d446538a187c50a86381d39ba5c456ee09
+Character: level-36 Warrior; mutations SWAP_POS 12 (class A) and PUNY 65 (STR -4, class B).
