@@ -110,3 +110,49 @@ Guards (vs 08257674):
     preflight: PREFLIGHT OK: 17 changed files, 0 findings (NOTE existing-test MODIFIED = the 4 approved 1b-1 tests + the 8 walled tests/class)
     mutation_check --record: MUTATION OK: 0 of 12 hunks are not pinned by a test; recorded for 5726702b
     fast_tier --shards 4: Failures: none, Errors: none, Total: 3901 tests, 389.3s
+
+=== GATE ROUND 2 REPAIR (2026-10-23, implementer: Claude Opus 5.5) ===
+Measured first divergence of each failing slow test (row = recorded decision; variants: none / sweep wall
+pre_home_junk_sweep_rule / Q-A wall = _is_plain_gear with the 1b-1 line to_h+to_d<=0 and to_a<=0 restored / both):
+  test_esp_threat_rest_recorded::test_e1_lifetime_replays_recorded_before_equipment_choice  (capture 2026-09-21)
+    row 3: recorded ('\x1b', home:route-claim-unfulfilled), now ('\x1b', home:junk-sweep-withdraw); row 4 now
+    ('5  pj\x1b', home-errand:atomic-withdraw:full-home-discard). Sweep wall: rows 1-3 as recorded. Q-A wall alone:
+    same divergence as none.  -> WALL (sweep start). Wall on _lifetime.
+  test_recall_stockout_set_end_recorded (both FAILs)  (capture 2026-09-21)
+    _replay and _live_loot_prefix: first extra divergence row 506 (prev row 505 home:request-knowledge-scan): recorded
+    ('\x1b', home:route-claim-unfulfilled), now ('\x1b', home:junk-sweep-withdraw); 507 now the sweep withdraw
+    ('5  pj\x1b', ...full-home-discard) vs recorded shop:travel; 650 / 461 divergent rows.
+    Sweep wall (and both walls): _replay divergent = {501,502,503,1417..1421} = KNOWN_HARNESS_DIVERGENCES exactly;
+    _live_loot_prefix divergent = {501,502,503,1141}.  Q-A wall alone: no change.  -> WALL (sweep start).
+    Wall on _replay and _live_loot_prefix.
+  test_absorbing_states (both ERRORs, RuntimeError refusing to shrink Home transaction history)  (capture 2026-09-08,
+  tests/fixtures/home-deferral-absorbing-state.json.gz)
+    _captured_home_deferral_retry replays the capture from a restored checkpoint (6813 Home history records). Without
+    the wall, capture decision 69 (row 237; the harness replay already differs from the recording from decision 28 on,
+    on main as well) decides ('\x1b', home:junk-sweep-withdraw) where the walled run decides home:route-claim-unfulfilled;
+    decision 70 takes '5pR\x1b' (sweep withdraw) and the history grows 6813 -> 6814 inside build(). The history file
+    is the session's shared one, so the next build of the same checkpoint in the same process (the two tests that drive
+    all 30 seeded states, after an earlier build) loads 6813 records against a file holding more and refuses.
+    Not an exception from new code paths: every one of the 30 states, driven once each, gives the identical DriveResult
+    with and without the sweep wall (all PASS).  Q-A not involved.  -> WALL (sweep start). Wall on
+    _captured_home_deferral_retry (tests/absorbing_state_catalog.py).
+    Revert-proof: with the catalog wall reverted (git apply -R) the module alone reproduces both ERRORs (6816/6817 vs
+    6814); with it, 22 tests OK.
+No Q-A wall was needed (no divergence traced to the Q-A widening), so tests/recorded_junk_scope.py is unchanged.
+No regressions found; no src change.  Expectations unchanged.  Commit d6305696.
+Observation (not changed, outside this round): the sweep's withdraw step still reports
+home-errand:atomic-withdraw:full-home-discard (the existing Home-full discard errand reason); round 1 (a) renamed only
+the leave step.
+
+Module runs (each alone, after the commit):
+  test_absorbing_states 22 OK | test_recall_stockout_set_end_recorded 5 OK | test_esp_threat_rest_recorded 16 OK |
+  test_junk_home_sweep_recorded 8 OK | test_junk_home_sweep_wall_recorded 3 OK | test_junk_plain_gear_recorded 12 OK |
+  test_home_ident_withdraw_recorded 5 OK | test_identify_staff_swap_churn_recorded 5 OK | test_policy_home 171 OK (4 skipped) |
+  test_protocol3_client 29 OK | test_town_cure_supplier_recorded 7 OK
+
+Guards (vs 08257674):
+  preflight: PREFLIGHT OK: 20 changed files, 0 findings (NOTE existing-test MODIFIED = the same approved/walled tests as round 1;
+             the new walls are on replay helpers, not test methods)
+  mutation_check --record (tests: junk_home_sweep, junk_home_sweep_wall, junk_plain_gear):
+             MUTATION OK: 0 of 12 hunks are not pinned by a test (2 TEXT ONLY); recorded for d6305696
+  fast_tier --shards 4: Crashed shards: none, Failures: none, Errors: none, Total: 3922 tests, 517.9s
