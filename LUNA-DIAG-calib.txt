@@ -1,0 +1,59 @@
+LUNA-DIAG calib-required (life-014, Linux soak c4-a), base d2304637, 2026-10-23
+
+RESULT: not a scheduling or staleness defect. The bot DOES request, post and read the
+C-screen dump every 180 s; every dump is REFUSED by the #88 first-step allowlist because
+life-014 gained mutation 65 (PUNY, STR -4, design class B) between 10-21 08:18 and 08:56.
+Class B support is the not-yet-implemented next stage of the #88 design, so the fix needs
+the class-B rule (a new constant table) -> STOP (options in LUNA-REPORT-calib.txt).
+
+MEASURED (soak, read-only)
+1. jsonlog/character-calibration.json (mtime 10-21 08:18): level 32, observed_turn 3503519,
+   mutation_signature [12], session_id 7e756e1a..., schema 2. confirmed-loadout.json and
+   loadout-report.jsonl last written 10-21 08:09.
+2. Decision logs, field calibration.unavailable_reason:
+     bot-decisions.jsonl   : "unsupported-mutation:65" 6187 matches, null 147, periodic:character-dump 33
+     bot-decisions.jsonl.3 : "unsupported-mutation:65" 10501 matches, null 48, periodic:character-dump 101
+   No other calibration rejection reason occurs (stale-dump-file, uncorrelated-character-response,
+   visible-*-changed, level etc.: 0). The null rows are the window after a restart before the
+   first periodic dump of the new process (session id differs, policy_calibration.py:170-175).
+3. Capture 20261021-085816-identify-staged-tail-dropped-executor-barrier (first capture after
+   08:18): state.jsonl.gz row 20 character.mutations [12, 65]; its first decision row
+   (seq 6139, 08:56:37) already carries unavailable_reason "unsupported-mutation:65", and the
+   periodic dump at seq 6299 (08:57:16) is refused the same way. The decision log covering
+   08:18-08:56 has rotated away, so the exact acquisition turn is not measured.
+4. events.jsonl: build bot-43872194 started 10-21 08:08:54 (Lv32) and wrote the 08:18
+   calibration; the current build is bot-d2304637 (since 10-23 03:46), same refusal.
+5. Live dump user/bot-test.txt (04:49:30, Lv36, HP 787, AC [44,-37]) and its character row
+   (state.jsonl line 1761, mutations [12, 65]) copied to the session scratchpad
+   (scratchpad/calib/live-bot-test.txt, live-state-1750.jsonl lines 1750-1770).
+
+CODE PATH (d2304637)
+- Request: cli.py:134-145 _request_due_dump every DUMP_INTERVAL_SECONDS=180 ->
+  policy.py:9893 request_character_dump -> policy.py:9919-9935 _periodic_character_dump_key
+  posts CHARACTER_DUMP_MACRO on a safe filler. Also policy_calibration.py:214-218 requests a
+  dump when a cached calibration turns stale (signature [12] -> [12,65] gives "mutations",
+  warrior_optimization.py:199-203).
+- Read: policy_observation.py:53-71 observe_character_snapshot -> _complete_character_dump ->
+  policy_calibration.py:110-160 _publish_character_dump -> character_sheet.py:267-275
+  derive_equipped_calibration raises CharacterSheetUnavailable("unsupported-mutation:65")
+  because 65 is outside SHEET_NEUTRAL_MUTATIONS (character_sheet.py:183-184, class A only,
+  #88 first step 1cb6ef99). The except branch (policy_calibration.py:149-157) leaves
+  _character_calibration None.
+- Effect: policy_equipment.py:834-857 _validated_character_calibration is None ->
+  preparation blockers ("calibration-required",), result_source
+  "calibration-required-return"; policy.py:13806 and policy_equipment.py:2833 treat it as
+  "skip optimization", so the worn set (incl. the degraded helmet) is kept.
+
+REPRODUCTION (real policy, recorded live row 1761 + live dump, scratch repro.py)
+  RECORDED [12,65]   -> _calibration_unavailable_reason "unsupported-mutation:65",
+                        _prepare_equipment_optimization blockers ('calibration-required',)
+  DECLARED [12]      -> "visible-modifier-mismatch" (DECLARED skill_exp cache (0,0,36))
+  DECLARED []        -> "visible-modifier-mismatch"
+  So only allowlisting 65 is not enough: the STR "装" column contains PUNY's -4.
+FEASIBILITY of the design's class-B rule (scratch feas.py, same live dump/board):
+  STR row base 65, shown modifier -3, actual 115, stat_use 115:
+    M=0  -> predicted modifier 1, predicted 155 (mismatch)
+    M=-4 -> predicted modifier -3, predicted 115 (exact match); DEX/CON rows match with M=0.
+  i.e. plans/DESIGN-mutation-calibration-1019.md 5.1/5.2 (MUTATION_STAT_BONUS[65] =
+  (-4,0,0,0,0,0), total = printed + M + equipment, displayed_modifier with printed only)
+  calibrates life-014 now.

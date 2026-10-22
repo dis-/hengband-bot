@@ -1,0 +1,74 @@
+LUNA-REPORT mut2 (#103 / #88 stage 2), branch calib-required-1023, base d2304637, 2026-10-23
+STATUS: implemented as designed; STOPPED on one existing stage-1 test that contradicts the owner decision
+(needs approval to change, see EXISTING TEST below). Commits b0f9108c (feature), b3ac9e23 (manifest).
+
+MEASURED DIAGNOSIS (LUNA-DIAG-calib.txt)
+life-014 (Lv36, mutations [12, 65]) has every periodic dump refused "unsupported-mutation:65"; the optimizer
+stays "calibration-required". Allowlisting 65 alone gives "visible-modifier-mismatch" (the STR Mod column holds
+PUNY's -4); with the design's class-B rule the STR/DEX/CON rows match exactly.
+
+CHANGES (src/hengbot/character_sheet.py only)
+- MUTATION_STAT_BONUS (15 ids, design 5.1 verbatim) and CHR_RESET_MUTATIONS {74}; 93 and >= 96 still refused
+  ("unsupported-mutation:<ids>").
+- printed = race + class + personality; adjustments = printed + sum(table); the Mod-column check subtracts printed
+  only; totals, natural stats, base_stats, CON HP, intrinsic_dex and the saved intrinsic_adjustments use
+  adjustments (design 5.2-2).
+- ILL_NORM: adjustments[5] = 0 (design 5.2-3). The design's "base_stats[5] = row.actual" is the same value
+  (the game prints stat_top = stat_max with stat_add 0, and natural[5] is the printed base), so no separate
+  line: a separate assignment would be an unpinnable no-op. Pinned by base_stats[5] == rows[5].actual.
+- '@' symbol check (design 5.2-5 with review 5): only when a table entry or ILL_NORM is present; expected =
+  |M (+4 tsuyoshi for STR/CON)|, ILL_NORM charisma 0; digit = equal, '*' = >= 10, '.' = 0, 's' skipped;
+  otherwise "mutation-symbol-mismatch". A row without a symbol string is not compared. Class-A-only sheets are
+  never compared, so stage 1 is unchanged.
+- No new policy attribute (no restored-checkpoint defaults needed). No new stuck reason. Manifest regenerated.
+
+PINS (tests/test_mutation_calibration_class_b.py, 11 tests; fixtures tests/fixtures/mutation-calibration/
+life014-lv36-bot-test.txt.gz, life014-lv36-state.jsonl.gz, provenance txt)
+- Life014RecordedTest.test_recorded_puny_character_calibrates_and_reaches_the_optimizer: RECORDED dump +
+  character row + next board through the posted-dump lifecycle (DECLARED: shield skill_exp cache, as in the
+  diagnosis repro). d2304637: "'unsupported-mutation:65' is not None" (refused; the repro showed blockers
+  ('calibration-required',)). After: reason None, signature (12, 65), intrinsic_adjustments[0] = printed - 4,
+  STR/DEX/CON predictions == printed 合計 == board stat_use, validated, prepare blockers == (), best loadout.
+- DeclaredClassBTest (L28 sheet rewritten as the game prints it): every table id restores the unmutated
+  natural stats / HP / AC constant (+5/+10/+25 for 83/84/85), adjustments = plain + M; IRON_SKIN; 64+68+69 with
+  tsuyoshi -> '8' and '*'.
+
+CONTROLS
+- test_class_a_sheet_symbols_are_not_compared: [12] with an odd '@' glyph equals the stage-1 calibration
+  (passes before and after). Existing stage-1 tests other than the one below pass unchanged.
+- 93 still refused: [12,65,93] -> unsupported-mutation:93, [65,96,93] -> unsupported-mutation:93,96.
+- Symbol contradicting the table -> mutation-symbol-mismatch (recorded STR '3' and '.', declared DEX '.', '2',
+  '*', '?', CON '9'); 's' accepted.
+- ILL_NORM: [74], [72,74], [71,74] accepted, charisma adjustment 0, base_stats[5] = printed total; [74] with
+  CHR '2' refused; [72] with '.' refused.
+- Recorded sheet with mutations [12] (PUNY removed) -> visible-modifier-mismatch: the table value is needed.
+- GameSourceTableTest: the table equals compensation_stat_by_mutation() in view/display-player-stat-info.cpp,
+  reset set {74} (skips without game source).
+
+REVERT-PROOF (git apply -R of the src diff, new module only): FAILED (failures=6, errors=22); the life-014 pin
+fails with "'unsupported-mutation:65' is not None". Passing at revert (controls by design): class-A symbol
+control, GameSourceTableTest, the [12] subtest.
+
+EXISTING TEST (stop item): tests.test_mutation_calibration.SheetNeutralMutationTest.
+test_reason_lists_only_the_ids_outside_the_allowlist (stage 1, asserts class B is refused). Not edited.
+  [12, 69]         old "unsupported-mutation:69"     new "mutation-symbol-mismatch"
+  [93, 12, 74, 1]  old "unsupported-mutation:74,93"  new "unsupported-mutation:93"
+  each of 64-73, 83, 84, 85, 90, 91 (alone)
+                   old "unsupported-mutation:<id>"   new "mutation-symbol-mismatch" (the L28 '@' column is all '.')
+  74 alone         old "unsupported-mutation:74"     new accepted (no exception)
+  ([93] and [96] keep their old values.) Proposed new assertions: drop the class-B loop and change the two
+  rows to ([12, 69], "mutation-symbol-mismatch") and ([93, 12, 74, 1], "unsupported-mutation:93").
+
+GUARD OUTPUTS (after b3ac9e23)
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings (calib-required-1023 vs d2304637)
+  (first run regenerated the stale manifest -> committed as b3ac9e23, rerun OK)
+[mutation] 4 source hunks, tests: tests.test_mutation_calibration_class_b
+[mutation] MUTATION OK: 0 of 4 hunks are not pinned by a test
+[mutation] recorded for b3ac9e23
+[fast] 3417 fast tests (<2.0s in 249dfff0) + 1 changed modules, 4 shards
+Crashed shards: none
+Failures: 18 subtests, all tests.test_mutation_calibration.SheetNeutralMutationTest.
+  test_reason_lists_only_the_ids_outside_the_allowlist (the stop item above; not (R): intended by the decision)
+Errors: tests.test_light_total_radius_recorded / tests.test_light_total_radius (import) ModuleNotFoundError -
+  the fast-tier list comes from 249dfff0, which has those modules; this branch (d2304637) does not. Not (R).
+Total: 3437 tests, 202.7s

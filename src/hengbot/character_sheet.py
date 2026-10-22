@@ -183,6 +183,21 @@ def invert_current(row: StatRow, adjustment: int) -> int:
 SHEET_NEUTRAL_MUTATIONS = frozenset(range(0, 64)) | frozenset(
     {75, 76, 77, 78, 79, 80, 81, 82, 86, 87, 88, 89, 92, 94, 95})
 
+# Issue #88 design, class B: the constant stat bonus of each stat-changing
+# mutation, (STR, INT, WIS, DEX, CON, CHR).  The numbers are the game's
+# ``mutation_bonus()`` (src/player-ability/*.cpp) and agree with the '@'
+# column's ``compensation_stat_by_mutation()`` (display-player-stat-info.cpp);
+# the player also reads them in the self-knowledge text.  The AC of 83/84/85
+# does not depend on gear, so the AC constant absorbs it.
+MUTATION_STAT_BONUS = {64: (4, 0, 0, 0, 0, 0), 65: (-4, 0, 0, 0, 0, 0), 66: (0, 4, 4, 0, 0, 0),
+                       67: (0, -4, -4, 0, 0, 0), 68: (0, 0, 0, 0, 4, 0), 69: (0, 0, 0, 0, 2, 0),
+                       70: (0, 0, 0, 0, -4, 0), 71: (0, 0, 0, 0, -2, -1), 72: (0, 0, 0, 0, 0, -4),
+                       73: (0, 0, 0, 0, 0, -1), 83: (0, 0, 0, 0, 0, -2), 84: (0, 0, 0, 0, 0, -1),
+                       85: (0, 0, 0, -1, 0, 0), 90: (0, 0, 0, 3, 0, 0), 91: (0, 0, 0, -3, 0, 0)}
+# ILL_NORM sets the whole charisma bonus to 0 (player-charisma.cpp).
+CHR_RESET_MUTATIONS = frozenset({74})
+# 93 VULN_ELEM stays refused until the evaluator models its x2 multiplier.
+
 
 def temporary_bonuses(effects: frozenset[str]) -> tuple[int, int]:
     """Subtract visible timed bonuses after the game's HP floor and AC sum."""
@@ -269,10 +284,29 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     mutations = tuple(sorted(int(value) for value in character["mutations"]))
     # A mutation outside the sheet-neutral set changes a stat, the AC or the
     # element multiplier the evaluator assumes; it still needs its own rule.
-    unsupported = sorted(set(mutations) - SHEET_NEUTRAL_MUTATIONS)
+    unsupported = sorted(set(mutations) - SHEET_NEUTRAL_MUTATIONS - set(MUTATION_STAT_BONUS)
+                         - CHR_RESET_MUTATIONS)
     if unsupported:
         raise CharacterSheetUnavailable(
             "unsupported-mutation:" + ",".join(str(value) for value in unsupported))
+    mutation_bonus = tuple(sum(MUTATION_STAT_BONUS.get(value, (0,) * 6)[index] for value in mutations)
+                           for index in range(6))
+    chr_reset = bool(CHR_RESET_MUTATIONS & set(mutations))
+    if any(mutation_bonus) or chr_reset:
+        # The '@' column prints |mutation (+ tsuyoshi)| per stat: a digit
+        # below 10, '*' from 10, '.' for none (ILL_NORM charisma is always
+        # '.'), 's' when a sustain hides it.  Only the colour carries the
+        # sign.  A disagreement means the table does not fit this sheet.
+        for row in character.get("stat_modifiers") or ():
+            index = row.get("stat_id") if isinstance(row, dict) else None
+            symbol = (row.get("player") or {}).get("symbol") if isinstance(row, dict) else None
+            if index not in range(6) or not isinstance(symbol, str) or symbol == "s":
+                continue
+            expected = 0 if index == 5 and chr_reset else abs(
+                mutation_bonus[index] + (4 if "tsuyoshi" in effects and index in (0, 4) else 0))
+            if not (symbol == "*" and expected >= 10 or symbol == "." and expected == 0
+                    or symbol.isdigit() and 0 < expected < 10 and int(symbol) == expected):
+                raise CharacterSheetUnavailable("mutation-symbol-mismatch")
     if not skill_exp_known(player, ("shield_skill",)):
         raise CharacterSheetUnavailable("skill-exp-unknown")
     if not isinstance(character.get("characteristics"), list):
@@ -300,7 +334,14 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
                                               "Quick", "Tiny", "Musashi", "Icing", "Twinkle"))
            for item in snapshot.equipment):
         raise CharacterSheetUnavailable("unsupported-ac-set")
-    adjustments = tuple(row.race + row.profession + row.personality for row in sheet.rows)
+    printed = tuple(row.race + row.profession + row.personality for row in sheet.rows)
+    # The mutation bonus is in stat_add with race, class and personality,
+    # but the sheet prints it inside the gear ("Mod") column.
+    adjustments = tuple(value + bonus for value, bonus in zip(printed, mutation_bonus))
+    if chr_reset:
+        # ILL_NORM: charisma keeps no bonus, so its base_stats entry is the
+        # printed total (stat_top = stat_max with stat_add 0).
+        adjustments = adjustments[:5] + (0,)
     equipment_modifiers = tuple(sum(owned.item.pval for _, owned in worn.slots if index in owned.flags)
                                 for index in range(6))
     natural = []
@@ -313,7 +354,7 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
         # Compare with the column the game prints, floor information loss
         # included, before the minimum-candidate inversion below.
         if index in (0, 3, 4) and row.modifier != displayed_modifier(
-            row.base, predicted, adjustments[index]
+            row.base, predicted, printed[index]
         ):
             raise CharacterSheetUnavailable("visible-modifier-mismatch")
         matches = predicted >= row.actual if row.saturated else predicted == row.actual
