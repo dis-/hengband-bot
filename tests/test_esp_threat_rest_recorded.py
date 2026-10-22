@@ -68,6 +68,7 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
+from recorded_junk_scope import pre_home_junk_sweep_replay
 
 
 GAME_ROOT = Path("C:/hengband")
@@ -166,6 +167,8 @@ class EspThreatRestTest(unittest.TestCase):
         return snapshots[-1]
 
     @classmethod
+    # declared wall: capture 2026-09-21 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def _lifetime(cls):
         """Replay decisions 1..137 as recorded, then decide 138."""
         if cls.lifetime is not None:
