@@ -7729,6 +7729,12 @@ class TownMixin:
             )
             return key
         if step is not None:
+            if self._is_oscillating():
+                # 通常の探索の抜け出し（breakout:seek-frontier）と同じく、
+                # 経路が見つかったら振動の履歴を捨てる。残すと 8 回の壁の
+                # 探索が履歴を数マスに留め、着いたマスごとにまた振動と判定され
+                # 1 マス進むたびに探索を繰り返して見張りに止められる。
+                self._recent.clear()
             self.last_reason = "return:explore"
             self._declare_explore_goal()
             return self._return_route_key(
