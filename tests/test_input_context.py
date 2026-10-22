@@ -29,9 +29,8 @@ from hengbot.input_executor import (
     Continuation, Operation, OperationExecutor, ScreenKind, classify_screen,
 )
 from hengbot.runtime_paths import runtime_path
-from tests.test_input_executor import (
-    FaithfulHookGame, ProductionHarness, command_screen, prompt_screen,
-)
+from tests import test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -164,7 +163,7 @@ class RecordedScreensKeepTheirClassification(unittest.TestCase):
         self.assertEqual(current_input_state(store).verdict, "disagree")
 
 
-class ExecutorRecordsWithoutDeciding(ProductionHarness):
+class ExecutorRecordsWithoutDeciding(executor_harness.ProductionHarness):
     def drive_unowned_confirm(self, game, shadow=None):
         client_game, client, _executor = self.make(game)
         executor = OperationExecutor(client, drain=lambda: list(client_game.jsonl),
@@ -245,7 +244,7 @@ class ExecutorRecordsWithoutDeciding(ProductionHarness):
                          'ctx=unavailable ctx_prompt="" reason=read-only request failed')
 
 
-class ShadowLog(ProductionHarness):
+class ShadowLog(executor_harness.ProductionHarness):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
