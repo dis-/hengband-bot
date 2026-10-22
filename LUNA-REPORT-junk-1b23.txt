@@ -1,0 +1,69 @@
+LUNA-REPORT junk-1b23 (#95 slices 1b-3 / 1b-2) branch junk-1b23-1022, base main 9a8888af
+
+STATUS: STOP-AND-REPORT before any source commit.
+  (1) Q-A must change four existing assertions (tests/test_junk_plain_gear_recorded.py, 1b-1).
+  (2) 1b-2 as specified ("withdraw inside Home, no leave-and-return") does not fit the existing
+      Home take owner; it needs a supervisor decision.
+  (3) Token budget: the session context reached about 220k of the 250k hard limit while reading
+      the 1b-1 code, the design and the Home relief / atomic-withdraw paths.
+No src file was committed. The only commit is this report.
+
+Measured (R1 = tests/fixtures/teleport-items-safe-c4a-20261021.jsonl.gz rows 0-6, the 1b-1 test's
+setUpClass replay incl. its DECLARED CONSTRUCTED calibration; Q-A applied in the working tree only,
+then reverted with git checkout of my own edit):
+
+(1) Q-A = drop "to_h + to_d <= 0" and "to_a <= 0" from HengbotPolicy._is_plain_gear (identified
+    {good} non-ego gear becomes plain-gear when worse than the selected loadout). Existing tests that fail:
+  - test_recorded_home_plain_gear_counts: old {19:3, 21:9, 22:9, 23:12, 30:4, 32:4, 34:1, 35:2,
+    36:8, 37:2} (54) -> new {19:7, 21:18, 22:30, 23:30, 30:6, 32:7, 34:8, 35:6, 36:13, 37:2} (127).
+    Design 3.4(b) estimated <=132 incl. feeling-only rows (consistent).
+  - test_recorded_controls_stay: asserts every item with to_a > 0 or to_h+to_d > 0 is None;
+    new: e.g. 汚れたボロ服 [1,+4] -> "plain-gear".
+  - test_empty_slot_keeps_best_plain_shield: old keeper 革製ラージ・シールド [6,+0] None; new keeper
+    is 金属製ラージ・シールド [8,+2] (highest total AC among plain shields), so [6,+0] -> "plain-gear".
+  - test_plain_selected_main_weapon_keeps_every_melee_weapon: classes.get(36) old 8 -> new 13.
+  These assertions encode the 1b-1 scope ("no positive bonus") that the owner's Q-A widens; they
+  cannot stay unchanged under Q-A. Needed: supervisor permission to update these four values
+  (or to move the positive-bonus controls into the 1b-3 test module).
+
+(2) 1b-2 (design chapter 3.1) vs the Home take owner:
+  - A Home take is only ever composed from outside: _atomic_home_withdraw_dispatch_key
+    (policy_home.py:3107, "Bind one catalogued Home take to fresh entry, operation, and exit") returns
+    None when snapshot.store is not None. The existing full-Home relief therefore always files the
+    full-home-discard errand and leaves with home:full-queue-surplus-withdraw (policy_home.py:1057/1275),
+    and the entrance then posts entry+take+exit, after which the relief destroys outside
+    (home:full-destroy-surplus, :902).
+  - The design's sweep ("自宅の中で relief["sale"] を決め ... 出て行かずに用事を出す", without
+    home:full-queue-surplus-withdraw) has no take path: with the relief filed but no leave, the errand
+    stays COMPOSABLE while inside, and the next _shop_core pass hits the :990-1058 branch, which leaves
+    with home:full-queue-surplus-withdraw anyway (errand_was_active).
+  - Implementable variant (needs approval, it is a leave + immediate entrance take, no walking):
+    keep the relief branch as is, but for "sweep" skip _rearm_town_store_for_new_work(...,
+    release_visit_bound=True) (:979, :1289) and _home_full_retry_deposits (:975), reason
+    home:junk-sweep:<class> at :902; a failed take ends the sweep for the stay. Supervisor to decide
+    whether that leave + entrance take counts as "no leave-and-return".
+  - Note: the task names _verified_destroy_key; the design (3.1) destroys in the relief's own destroy
+    branch (_destroy_item_key with destroy_posted tracking). Which one is meant also needs confirming.
+
+Findings for the 1b-3 Q-B part (not implemented):
+  - Unidentified {並} items are exported with to_h/to_d/to_a/ac/dice = 0 and known_flags empty
+    (R1: 鋲付軟革よろい [5] {並}, クローク [1] {並} x2, 革製スモール・シールド [3] {並},
+    マン・ゴーシュ (1d5) {並}, スリング (x2) {並}; worn セスタス [5] {並}). Q-B needs a lib/edit reader
+    (base_ac, base_dice, hit_bonus, damage_bonus, parameter_value, flags); flag names map to TR numbers
+    through the existing store_sale_knowledge.json "flag_numbers" (hash-pinned to tr-types.h). The
+    reader has to be wired like baseitem_costs (cli.py:3902-3906 -> HengbotPolicy kwarg).
+  - _home_full_discard_candidate sets needs_id = not item.known (policy_home.py:~509), so a {並}
+    shelf item never passes the Home-full gate; Q-B must change that line to admit feeling-only plain gear.
+  - Mutation list on R1: _mutation_signature is None at row 6; row 12 (character, same town visit
+    epoch 4167691) gives (12, 65), no BAD_LUCK 92. The design's freshness rule (signature observed in
+    this town stay) needs a new attribute recording the visit epoch of the observation
+    (restored-checkpoint default None -> {並} kept).
+  - The weapon exception is generic: a kind with base hit_bonus or damage_bonus > 0 (ダイヤモンド・エッジ
+    +10,+10) is not pinned by {並} and stays kept.
+  - Design 2.2's fold of _is_disposable_item's average/cursed feeling line (policy_helpers.py:275)
+    is not in the task's 1b-3 list and would change pack-full disposal; left for a decision.
+
+Timing / sweep counts / guards: not run (no source change committed).
+Per-class counts the sweep would remove on the recorded Home board (R1, 1a classes are 0): under
+Q-A only (identified items) plain-gear 127 = launcher 7, melee 78, armour 42 as listed in (1);
+feeling-only {並} rows (Q-B) not measured.
