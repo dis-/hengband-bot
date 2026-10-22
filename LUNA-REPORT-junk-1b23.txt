@@ -1,69 +1,88 @@
-LUNA-REPORT junk-1b23 (#95 slices 1b-3 / 1b-2) branch junk-1b23-1022, base main 9a8888af
+LUNA-REPORT junk-1b23 (#95 slices 1b-3a / 1b-2) branch junk-1b23-1022, base main 9a8888af
+(second implementer, after the supervisor decisions of 2026-10-22 17:xx; the first report is in 316b5b1c)
 
-STATUS: STOP-AND-REPORT before any source commit.
-  (1) Q-A must change four existing assertions (tests/test_junk_plain_gear_recorded.py, 1b-1).
-  (2) 1b-2 as specified ("withdraw inside Home, no leave-and-return") does not fit the existing
-      Home take owner; it needs a supervisor decision.
-  (3) Token budget: the session context reached about 220k of the 250k hard limit while reading
-      the 1b-1 code, the design and the Home relief / atomic-withdraw paths.
-No src file was committed. The only commit is this report.
+COMMITS
+1. 73e680bc [Feature] #95 1b-3a: identified {good} plain gear is plain-gear when worse than the selected loadout (Q-A).
+   src: HengbotPolicy._is_plain_gear drops "to_h + to_d <= 0" and "to_a <= 0" (unidentified items still kept:
+   item.known; feeling-only {並} = Q-B is NOT implemented, deferred). Comment in _junk_class updated. Manifest rewritten.
+   Approved existing-test value changes (tests/test_junk_plain_gear_recorded.py, R1), in the same commit:
+   - test_recorded_home_plain_gear_counts: old {19:3,21:9,22:9,23:12,30:4,32:4,34:1,35:2,36:8,37:2} (54)
+     -> new {19:7,21:18,22:30,23:30,30:6,32:7,34:8,35:6,36:13,37:2} (127).
+   - test_recorded_controls_stay: "to_a > 0 or to_h+to_d > 0" removed from the kept-control predicate; added
+     汚れたボロ服 [1,+4] == plain-gear and None for 鋼鉄ヘルメット [6,+5]/[6,+4], 金属帽子 [3,+7],
+     マン・ゴーシュ (1d5) (+3,+10), カオス・ブレード (6d5) (+3,+6).
+   - test_empty_slot_keeps_best_plain_shield: keeper old 革製ラージ・シールド [6,+0] -> new 金属製ラージ・シールド [8,+2]
+     ([6,+0] is now plain-gear; the copy-stack control uses the new keeper). Note: 革製ラージ・シールド [6,+4] also
+     totals 10; the existing tie-break (repr of the value signature) keeps [8,+2].
+   - test_plain_selected_main_weapon_keeps_every_melee_weapon: classes.get(36) old 8 -> new 13.
+2. 72ffc339 [Feature] #95 1b-2: one-time Home junk sweep.
+   - HomeMixin._begin_home_junk_sweep (policy_home.py): on a Home page, only when the catalogue is current, no Home
+     errand / pending item / pending batch / relief / retry batch / equipment session / deposit, not overweight, no
+     physical hostiles, free slots > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS), Home not blocked under its
+     bound and Home visit attempts left, and fewer than HOME_BATCH_RESERVED_SLOTS sweeps in this town stay
+     (_home_junk_sweep_count = (town visit epoch, n)): files the existing relief dict with "sweep": True,
+     deposits=(), remaining=1. Called from the LIVE Home page owner in policy.py (_choose_key Home-page chain, new elif
+     just before the "home:route-claim-unfulfilled" terminal), then the existing
+     _town_producer_entry("_home_full_relief_key"). DEVIATION FROM DESIGN 3.1/S6: the design names _shop_core's Home
+     branch after _find_home_deposit; that branch is not on the live Home path (policy.py: "Home item selection is
+     never decided in the store loop"; "The Home entry owner, unlike _shop(), is on the live path"), so a hook there
+     would be dead code.
+   - _home_full_relief_key, sweep only: junk wares only (no sale / non-junk discard / identify fallback); the first
+     ranked junk ware that passes _home_full_discard_candidate must pass _can_add_item_without_overweight, else the
+     sweep ends; relief["sweep_class"] = _junk_class of that ware; _rearm_town_store_for_new_work(HOME,
+     release_visit_bound=False); destroy reason home:junk-sweep:<class> in the existing destroy branch
+     (_destroy_item_key + destroy_posted; await stays home:full-destroy-await-effect); at remaining == 0 the relief
+     ends without _home_full_retry_deposits and without the full-Home resets/release; an unreachable entrance
+     (_shopping_approach_step None) ends the sweep instead of town:blocked; _home_full_skip_key ends the sweep.
+     _end_home_junk_sweep: relief None, errand finished, pending item cleared, count = limit for the stay.
+   - Registrations: claim_ladder _home_full_relief_key reasons += "home:junk-sweep:"; claim_goal_typing
+     ("home:junk-sweep:", O, EFFECT). STUCK_FAMILY_REASONS unchanged (no "home:full-" entry there either).
+     Manifest + src/hengbot/town_work_sites.json regenerated (no review entry needed: the sweep helper returns bool).
+   - New policy attribute: _home_junk_sweep_count, read only through getattr(..., None) (restored checkpoints: None =
+     zero sweeps this stay). No new constant or threshold (HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS reused).
 
-Measured (R1 = tests/fixtures/teleport-items-safe-c4a-20261021.jsonl.gz rows 0-6, the 1b-1 test's
-setUpClass replay incl. its DECLARED CONSTRUCTED calibration; Q-A applied in the working tree only,
-then reverted with git checkout of my own edit):
+OBSERVED FLOW (R1, DECLARED CONSTRUCTED settle of row 6's deposit, amulet and rod left out of the pack)
+   Home page (row 3): sweep starts, the relief selects クローク [1,-1] (plain-gear); the errand filing is deferred by the
+   open home-visit holder, so the page leaves with the existing home:route-claim-unfulfilled terminal.
+   Entrance (row 6): the relief files the errand and composes the atomic take at once:
+   '5 pA\x1b' home-errand:atomic-withdraw:full-home-discard (no walking). After the take: destroy key with
+   reason home:junk-sweep:plain-gear; when the cloak is gone: relief None, retry deposits None.
+   After the take the Home catalogue is invalidated (existing relief behaviour), so a later Home take of the same
+   stay (here the queued crossbow-bolt withdrawal) needs a new ~9 first.
 
-(1) Q-A = drop "to_h + to_d <= 0" and "to_a <= 0" from HengbotPolicy._is_plain_gear (identified
-    {good} non-ego gear becomes plain-gear when worse than the selected loadout). Existing tests that fail:
-  - test_recorded_home_plain_gear_counts: old {19:3, 21:9, 22:9, 23:12, 30:4, 32:4, 34:1, 35:2,
-    36:8, 37:2} (54) -> new {19:7, 21:18, 22:30, 23:30, 30:6, 32:7, 34:8, 35:6, 36:13, 37:2} (127).
-    Design 3.4(b) estimated <=132 incl. feeling-only rows (consistent).
-  - test_recorded_controls_stay: asserts every item with to_a > 0 or to_h+to_d > 0 is None;
-    new: e.g. 汚れたボロ服 [1,+4] -> "plain-gear".
-  - test_empty_slot_keeps_best_plain_shield: old keeper 革製ラージ・シールド [6,+0] None; new keeper
-    is 金属製ラージ・シールド [8,+2] (highest total AC among plain shields), so [6,+0] -> "plain-gear".
-  - test_plain_selected_main_weapon_keeps_every_melee_weapon: classes.get(36) old 8 -> new 13.
-  These assertions encode the 1b-1 scope ("no positive bonus") that the owner's Q-A widens; they
-  cannot stay unchanged under Q-A. Needed: supervisor permission to update these four values
-  (or to move the positive-bonus controls into the 1b-3 test module).
+PINS (tests/test_junk_home_sweep_recorded.py, new, 8 tests; R1 through test_junk_plain_gear_recorded's replay)
+   test_recorded_home_plain_gear_classes (Q-A), test_sweep_takes_one_ware_at_the_entrance (start, count 1, entrance
+   atomic take of the cloak, approach_fails kept = no release_visit_bound), test_sweep_destroys_with_its_reason_and_ends
+   (home:junk-sweep:plain-gear, no home:full-destroy-surplus / full-queue-surplus-withdraw, relief None, retry None,
+   ladder rung and goal typing), test_per_stay_limit, test_recorded_pack_weight_keeps_every_ware,
+   test_no_sweep_step_outside_a_home_visit, test_unreachable_entrance_ends_the_sweep, test_skipped_ware_ends_the_sweep.
+CONTROLS
+   Q-A controls stay None on R1: artifacts/egos, selected loadout, identify staves, stone-to-mud wands, digging tools,
+   flagged kinds, 鋼鉄ヘルメット [6,+5]/[6,+4], 金属帽子 [3,+7], the best plain shield (existing test module).
+   The anti-teleport amulet is not junk (no forbidden-gear class; Q-C). No sweep outside a Home page; none at the
+   per-stay limit; none when the recorded pack weight cannot carry a ware.
+   NOT done (Q-B deferred by the supervisor): {並} feeling items, mutation-list freshness.
 
-(2) 1b-2 (design chapter 3.1) vs the Home take owner:
-  - A Home take is only ever composed from outside: _atomic_home_withdraw_dispatch_key
-    (policy_home.py:3107, "Bind one catalogued Home take to fresh entry, operation, and exit") returns
-    None when snapshot.store is not None. The existing full-Home relief therefore always files the
-    full-home-discard errand and leaves with home:full-queue-surplus-withdraw (policy_home.py:1057/1275),
-    and the entrance then posts entry+take+exit, after which the relief destroys outside
-    (home:full-destroy-surplus, :902).
-  - The design's sweep ("自宅の中で relief["sale"] を決め ... 出て行かずに用事を出す", without
-    home:full-queue-surplus-withdraw) has no take path: with the relief filed but no leave, the errand
-    stays COMPOSABLE while inside, and the next _shop_core pass hits the :990-1058 branch, which leaves
-    with home:full-queue-surplus-withdraw anyway (errand_was_active).
-  - Implementable variant (needs approval, it is a leave + immediate entrance take, no walking):
-    keep the relief branch as is, but for "sweep" skip _rearm_town_store_for_new_work(...,
-    release_visit_bound=True) (:979, :1289) and _home_full_retry_deposits (:975), reason
-    home:junk-sweep:<class> at :902; a failed take ends the sweep for the stay. Supervisor to decide
-    whether that leave + entrance take counts as "no leave-and-return".
-  - Note: the task names _verified_destroy_key; the design (3.1) destroys in the relief's own destroy
-    branch (_destroy_item_key with destroy_posted tracking). Which one is meant also needs confirming.
+REVERT-PROOF
+   commit 2 src reverted (git apply -R of the src diff): the new module fails 7 of 8 (6 errors, 1 failure); the
+   remaining one (Q-A classes) is pinned against 9a8888af by the mutation check.
+   commit 1 src reverted: the four updated 1b-1 tests fail (values above) - measured before the edit.
 
-Findings for the 1b-3 Q-B part (not implemented):
-  - Unidentified {並} items are exported with to_h/to_d/to_a/ac/dice = 0 and known_flags empty
-    (R1: 鋲付軟革よろい [5] {並}, クローク [1] {並} x2, 革製スモール・シールド [3] {並},
-    マン・ゴーシュ (1d5) {並}, スリング (x2) {並}; worn セスタス [5] {並}). Q-B needs a lib/edit reader
-    (base_ac, base_dice, hit_bonus, damage_bonus, parameter_value, flags); flag names map to TR numbers
-    through the existing store_sale_knowledge.json "flag_numbers" (hash-pinned to tr-types.h). The
-    reader has to be wired like baseitem_costs (cli.py:3902-3906 -> HengbotPolicy kwarg).
-  - _home_full_discard_candidate sets needs_id = not item.known (policy_home.py:~509), so a {並}
-    shelf item never passes the Home-full gate; Q-B must change that line to admit feeling-only plain gear.
-  - Mutation list on R1: _mutation_signature is None at row 6; row 12 (character, same town visit
-    epoch 4167691) gives (12, 65), no BAD_LUCK 92. The design's freshness rule (signature observed in
-    this town stay) needs a new attribute recording the visit epoch of the observation
-    (restored-checkpoint default None -> {並} kept).
-  - The weapon exception is generic: a kind with base hit_bonus or damage_bonus > 0 (ダイヤモンド・エッジ
-    +10,+10) is not pinned by {並} and stays kept.
-  - Design 2.2's fold of _is_disposable_item's average/cursed feeling line (policy_helpers.py:275)
-    is not in the task's 1b-3 list and would change pack-full disposal; left for a decision.
+SWEEP COUNTS ON THE RECORDED HOME BOARD (R1 row 5/6 catalogue, 240 lines)
+   junk classes: plain-gear 127 (launcher 19:7; melee 21:18, 22:30, 23:30 = 78; armour 30:6, 32:7, 34:8, 35:6,
+   36:13, 37:2 = 42); 1a classes 0. All 127 pass _home_full_discard_candidate.
+   With the recorded pack (1646 of 1650 weight) NONE fits (_can_add_item_without_overweight); the sweep removes 0
+   until the pack is lighter (the lightest junk, クローク [1,-1], weighs 10).
 
-Timing / sweep counts / guards: not run (no source change committed).
-Per-class counts the sweep would remove on the recorded Home board (R1, 1a classes are 0): under
-Q-A only (identified items) plain-gear 127 = launcher 7, melee 78, armour 42 as listed in (1);
-feeling-only {並} rows (Q-B) not measured.
+TIMING (head-to-head, 5 alternating runs each, median seconds of choose_key; base = git archive of 9a8888af src)
+   row0 1.3090 -> 1.3554 (1.035), row1 0.4701 -> 0.4687, row2 0.4422 -> 0.4390, row3 (recorded Home page) 0.0760 -> 0.0761,
+   row4 0.0128 -> 0.0128, row6 6.8808 -> 6.8504; constructed Home page (sweep starts, new decision) 1.7345 -> 1.9354 (1.116);
+   constructed entrance 0.4894 -> 0.3898 (0.796). Recorded rows within 10%; the constructed Home page is +11.6% because
+   the sweep selection is new work (the base takes a different decision there).
+
+GUARDS
+   preflight: PREFLIGHT OK: 10 changed files, 0 findings (4 NOTE existing-test MODIFIED = the approved 4 tests).
+   (first run FAILed test_item_sink_lint: the sweep helper returned a key and called the relief producer directly;
+   fixed by _begin_home_junk_sweep -> bool + _town_producer_entry("_home_full_relief_key"), amended into commit 2.)
+   mutation_check: MUTATION OK: 0 of 11 hunks are not pinned by a test (2 TEXT ONLY), recorded for 72ffc339.
+   fast_tier: NOT RUN - merge gate gate-ctxs0-1022 was still running (no MERGED/FAILED/STOP) when the run ended.
