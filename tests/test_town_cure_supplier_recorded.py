@@ -127,6 +127,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 
+from recorded_junk_scope import pre_home_junk_sweep_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -425,12 +426,16 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
         }])
         self.assertEqual(stop["gold"], 11068)
 
+    # declared wall: capture 2026-10-03 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def test_pre_fix_rule_reproduces_the_live_stop(self):
         with _pre_fix_supply_rule():
             rows = self._continue(STOP)
         self.assertEqual(
             rows, [self._live(index) for index in range(CHECKPOINT + 1, STOP + 1)])
 
+    # declared wall: capture 2026-10-03 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def test_visit_page_without_the_ware_routes_to_the_stocked_temple(self):
         seen = {}
 
@@ -480,6 +485,8 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
         self.assertEqual(rows[-1], ("\x1b`n$.", "shop:travel"))
 
 
+    # declared wall: capture 2026-10-03 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def test_visit_page_of_unattempted_store_counts_an_unaffordable_ware(self):
         """DECLARED CONSTRUCTED board 1388 (review F2): ledger parity.
 
@@ -504,6 +511,8 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
         self.assertEqual(seen["ledger"]["cure"], (True, (STORE_TEMPLE, STORE_ALCHEMIST)))
         self.assertEqual(seen["stops"]["cure-critical"], [STORE_ALCHEMIST])
 
+    # declared wall: capture 2026-10-03 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def test_visit_magic_page_supplies_mana_food_with_a_charged_device(self):
         """DECLARED CONSTRUCTED board 1388 (review F1): MANA food parity.
 

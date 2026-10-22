@@ -9372,6 +9372,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                 )
             elif (
+                self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and self._begin_home_junk_sweep(snapshot)
+                and (sweep_key := self._town_producer_entry(
+                    "_home_full_relief_key",
+                    lambda: self._home_full_relief_key(snapshot),
+                    family="home-visit")) is not None
+            ):
+                # #95 slice 1b-2: no Home work is left on this page.
+                key = sweep_key
+            elif (
                 self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None
             ):
                 home_already_unfulfilled = STORE_HOME in self._town_store_attempted
@@ -15333,12 +15344,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     @staticmethod
     def _is_plain_gear(item: InventoryItem | StoreItem) -> bool:
-        """Identified melee weapon, launcher or armour with no positive bonus.
+        """Identified non-ego melee weapon, launcher or armour.
 
-        #95 slice 1b-1: only the part of plain gear the owner's Q1 settles
-        without the open questions (no {good} item, no feeling-only item).
-        Digging tools (tval 20), lights, ammunition and jewelry have owners
-        of their own.
+        #95 slice 1b-1 took the items with no positive bonus; owner Q-A
+        (2026-10-22, 「壊す」) adds identified {good} items, so a positive
+        modifier no longer keeps a plain item (it is still compared with
+        the selected loadout).  An unidentified item stays kept and goes
+        through the identify-first flow; feeling-only items (Q-B) are a
+        later slice.  Digging tools (tval 20), lights, ammunition and
+        jewelry have owners of their own.
         """
         return (
             item.tval in {19, 21, 22, 23, 30, 31, 32, 33, 34, 35, 36, 37, 38}
@@ -15349,8 +15363,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not item.is_broken
             and not (item_requires_full_identification(item)
                      and not item.fully_known)
-            and item.to_h + item.to_d <= 0
-            and item.to_a <= 0
         )
 
     @staticmethod

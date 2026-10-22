@@ -2,8 +2,9 @@
 
 Owner Q1 (2026-10-20): 「拾って鑑定したあと不要であれば壊す」.  Owner Q-D
 (2026-10-22): a melee plain weapon is judged only while the selected main
-weapon is an ego or artifact.  Slice 1b-1 classes identified plain gear with
-no positive bonus (to_h+to_d <= 0, to_a <= 0) only.
+weapon is an ego or artifact.  Slice 1b-1 classed identified plain gear with
+no positive bonus only; owner Q-A (2026-10-22, 「壊す」) adds identified {good}
+non-ego gear (slice 1b-3a), so the counts below include positive modifiers.
 
 Recorded board R1: tests/fixtures/teleport-items-safe-c4a-20261021.jsonl.gz,
 state rows 0-6 (life-014, Level 33, the 10-21 19:37 town visit; row 5 is the
@@ -134,10 +135,10 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
             if junk is not None:
                 counts[(junk, item.tval)] = counts.get((junk, item.tval), 0) + 1
         self.assertEqual(counts, {
-            ("plain-gear", 19): 3,
-            ("plain-gear", 21): 9, ("plain-gear", 22): 9, ("plain-gear", 23): 12,
-            ("plain-gear", 30): 4, ("plain-gear", 32): 4, ("plain-gear", 34): 1,
-            ("plain-gear", 35): 2, ("plain-gear", 36): 8, ("plain-gear", 37): 2,
+            ("plain-gear", 19): 7,
+            ("plain-gear", 21): 18, ("plain-gear", 22): 30, ("plain-gear", 23): 30,
+            ("plain-gear", 30): 6, ("plain-gear", 32): 7, ("plain-gear", 34): 8,
+            ("plain-gear", 35): 6, ("plain-gear", 36): 13, ("plain-gear", 37): 2,
         })
 
     def test_recorded_controls_stay(self):
@@ -150,7 +151,6 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
                 item.is_artifact or item.is_ego
                 or item.tval in {20, 31, 39, 40, 45, 55, 65, 66, 90, 91}
                 or item.tval in {16, 17, 18}
-                or item.to_a > 0 or item.to_h + item.to_d > 0
                 or not item.known or id(item) in selected
             )
             if control:
@@ -161,6 +161,15 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         # Artifacts / egos, the unidentified gauntlets' slot, identify staves
         # and stone-to-mud wands are all on this board.
         self.assertTrue({31, 55, 65}.issubset(checked))
+        # Owner Q-A: a positive modifier no longer keeps a plain item that is
+        # worse than the selected loadout; better ones and flagged kinds stay.
+        names = {item.name: policy._junk_class(self.board, item)
+                 for item in self._owned_items(policy, self.board)}
+        self.assertEqual(names["汚れたボロ服 [1,+4]"], "plain-gear")
+        for kept in ("鋼鉄ヘルメット [6,+5]", "鋼鉄ヘルメット [6,+4]",
+                     "金属帽子 [3,+7]", "マン・ゴーシュ (1d5) (+3,+10)",
+                     "カオス・ブレード (6d5) (+3,+6)"):
+            self.assertIsNone(names[kept], kept)
 
     def test_selected_dominance_implies_plain_gear(self):
         # M3: plain armour R1-dominated by the selected loadout is plain gear.
@@ -185,11 +194,13 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         shields = {item.name: policy._junk_class(self.board, item)
                    for item in self._owned_items(policy, self.board)
                    if item.tval == 34}
-        self.assertIsNone(shields["革製ラージ・シールド [6,+0]"])
+        # Owner Q-A: the keeper is the plain shield with the highest total AC.
+        self.assertIsNone(shields["金属製ラージ・シールド [8,+2]"])
+        self.assertEqual(shields["革製ラージ・シールド [6,+0]"], "plain-gear")
         self.assertEqual(shields["金属製スモール・シールド [5,+0]"], "plain-gear")
         # DECLARED CONSTRUCTED: the keeper's copy in another (pack) stack.
         keeper = next(entry.item for entry in policy._equipment_catalog._home.values()
-                      if entry.item.name == "革製ラージ・シールド [6,+0]")
+                      if entry.item.name == "金属製ラージ・シールド [8,+2]")
         copy_stack = replace(keeper, slot="z", count=1)
         self.assertIsNone(policy._junk_class(
             replace(self.board, inventory=(*self.board.inventory, copy_stack)),
@@ -228,7 +239,7 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
             if junk is not None:
                 classes[item.tval] = classes.get(item.tval, 0) + 1
         self.assertFalse({21, 22, 23}.intersection(classes))
-        self.assertEqual(classes.get(36), 8)
+        self.assertEqual(classes.get(36), 13)
 
     def test_missing_optimizer_result_keeps_everything(self):
         policy = self._copy()

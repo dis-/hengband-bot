@@ -45,6 +45,7 @@ from extraction_calibration import restore_recorded_checkpoint
 from hengbot.town_arbiter import _new_town_turn_arbiter
 
 from absorbing_state_harness import AbsorbingState
+from recorded_junk_scope import pre_home_junk_sweep_replay
 import test_policy as fixture
 import test_policy_shop as shop_fixture
 import test_policy_equipment as equipment_fixture
@@ -170,6 +171,8 @@ class CapturedHomeDeferralWorld:
         return False
 
 
+# declared wall: capture 2026-09-08 predates the Home junk sweep (2026-10-22)
+@pre_home_junk_sweep_replay
 def _captured_home_deferral_retry():
     """Build the live fully-deferred class through its real public producer."""
     with gzip.open(HOME_DEFERRAL_CAPTURE, "rt", encoding="utf-8") as stream:

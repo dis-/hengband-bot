@@ -1,0 +1,158 @@
+LUNA-REPORT junk-1b23 (#95 slices 1b-3a / 1b-2) branch junk-1b23-1022, base main 9a8888af
+(second implementer, after the supervisor decisions of 2026-10-22 17:xx; the first report is in 316b5b1c)
+
+COMMITS
+1. 73e680bc [Feature] #95 1b-3a: identified {good} plain gear is plain-gear when worse than the selected loadout (Q-A).
+   src: HengbotPolicy._is_plain_gear drops "to_h + to_d <= 0" and "to_a <= 0" (unidentified items still kept:
+   item.known; feeling-only {並} = Q-B is NOT implemented, deferred). Comment in _junk_class updated. Manifest rewritten.
+   Approved existing-test value changes (tests/test_junk_plain_gear_recorded.py, R1), in the same commit:
+   - test_recorded_home_plain_gear_counts: old {19:3,21:9,22:9,23:12,30:4,32:4,34:1,35:2,36:8,37:2} (54)
+     -> new {19:7,21:18,22:30,23:30,30:6,32:7,34:8,35:6,36:13,37:2} (127).
+   - test_recorded_controls_stay: "to_a > 0 or to_h+to_d > 0" removed from the kept-control predicate; added
+     汚れたボロ服 [1,+4] == plain-gear and None for 鋼鉄ヘルメット [6,+5]/[6,+4], 金属帽子 [3,+7],
+     マン・ゴーシュ (1d5) (+3,+10), カオス・ブレード (6d5) (+3,+6).
+   - test_empty_slot_keeps_best_plain_shield: keeper old 革製ラージ・シールド [6,+0] -> new 金属製ラージ・シールド [8,+2]
+     ([6,+0] is now plain-gear; the copy-stack control uses the new keeper). Note: 革製ラージ・シールド [6,+4] also
+     totals 10; the existing tie-break (repr of the value signature) keeps [8,+2].
+   - test_plain_selected_main_weapon_keeps_every_melee_weapon: classes.get(36) old 8 -> new 13.
+2. 72ffc339 [Feature] #95 1b-2: one-time Home junk sweep.
+   - HomeMixin._begin_home_junk_sweep (policy_home.py): on a Home page, only when the catalogue is current, no Home
+     errand / pending item / pending batch / relief / retry batch / equipment session / deposit, not overweight, no
+     physical hostiles, free slots > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS), Home not blocked under its
+     bound and Home visit attempts left, and fewer than HOME_BATCH_RESERVED_SLOTS sweeps in this town stay
+     (_home_junk_sweep_count = (town visit epoch, n)): files the existing relief dict with "sweep": True,
+     deposits=(), remaining=1. Called from the LIVE Home page owner in policy.py (_choose_key Home-page chain, new elif
+     just before the "home:route-claim-unfulfilled" terminal), then the existing
+     _town_producer_entry("_home_full_relief_key"). DEVIATION FROM DESIGN 3.1/S6: the design names _shop_core's Home
+     branch after _find_home_deposit; that branch is not on the live Home path (policy.py: "Home item selection is
+     never decided in the store loop"; "The Home entry owner, unlike _shop(), is on the live path"), so a hook there
+     would be dead code.
+   - _home_full_relief_key, sweep only: junk wares only (no sale / non-junk discard / identify fallback); the first
+     ranked junk ware that passes _home_full_discard_candidate must pass _can_add_item_without_overweight, else the
+     sweep ends; relief["sweep_class"] = _junk_class of that ware; _rearm_town_store_for_new_work(HOME,
+     release_visit_bound=False); destroy reason home:junk-sweep:<class> in the existing destroy branch
+     (_destroy_item_key + destroy_posted; await stays home:full-destroy-await-effect); at remaining == 0 the relief
+     ends without _home_full_retry_deposits and without the full-Home resets/release; an unreachable entrance
+     (_shopping_approach_step None) ends the sweep instead of town:blocked; _home_full_skip_key ends the sweep.
+     _end_home_junk_sweep: relief None, errand finished, pending item cleared, count = limit for the stay.
+   - Registrations: claim_ladder _home_full_relief_key reasons += "home:junk-sweep:"; claim_goal_typing
+     ("home:junk-sweep:", O, EFFECT). STUCK_FAMILY_REASONS unchanged (no "home:full-" entry there either).
+     Manifest + src/hengbot/town_work_sites.json regenerated (no review entry needed: the sweep helper returns bool).
+   - New policy attribute: _home_junk_sweep_count, read only through getattr(..., None) (restored checkpoints: None =
+     zero sweeps this stay). No new constant or threshold (HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS reused).
+
+OBSERVED FLOW (R1, DECLARED CONSTRUCTED settle of row 6's deposit, amulet and rod left out of the pack)
+   Home page (row 3): sweep starts, the relief selects クローク [1,-1] (plain-gear); the errand filing is deferred by the
+   open home-visit holder, so the page leaves with the existing home:route-claim-unfulfilled terminal.
+   Entrance (row 6): the relief files the errand and composes the atomic take at once:
+   '5 pA\x1b' home-errand:atomic-withdraw:full-home-discard (no walking). After the take: destroy key with
+   reason home:junk-sweep:plain-gear; when the cloak is gone: relief None, retry deposits None.
+   After the take the Home catalogue is invalidated (existing relief behaviour), so a later Home take of the same
+   stay (here the queued crossbow-bolt withdrawal) needs a new ~9 first.
+
+PINS (tests/test_junk_home_sweep_recorded.py, new, 8 tests; R1 through test_junk_plain_gear_recorded's replay)
+   test_recorded_home_plain_gear_classes (Q-A), test_sweep_takes_one_ware_at_the_entrance (start, count 1, entrance
+   atomic take of the cloak, approach_fails kept = no release_visit_bound), test_sweep_destroys_with_its_reason_and_ends
+   (home:junk-sweep:plain-gear, no home:full-destroy-surplus / full-queue-surplus-withdraw, relief None, retry None,
+   ladder rung and goal typing), test_per_stay_limit, test_recorded_pack_weight_keeps_every_ware,
+   test_no_sweep_step_outside_a_home_visit, test_unreachable_entrance_ends_the_sweep, test_skipped_ware_ends_the_sweep.
+CONTROLS
+   Q-A controls stay None on R1: artifacts/egos, selected loadout, identify staves, stone-to-mud wands, digging tools,
+   flagged kinds, 鋼鉄ヘルメット [6,+5]/[6,+4], 金属帽子 [3,+7], the best plain shield (existing test module).
+   The anti-teleport amulet is not junk (no forbidden-gear class; Q-C). No sweep outside a Home page; none at the
+   per-stay limit; none when the recorded pack weight cannot carry a ware.
+   NOT done (Q-B deferred by the supervisor): {並} feeling items, mutation-list freshness.
+
+REVERT-PROOF
+   commit 2 src reverted (git apply -R of the src diff): the new module fails 7 of 8 (6 errors, 1 failure); the
+   remaining one (Q-A classes) is pinned against 9a8888af by the mutation check.
+   commit 1 src reverted: the four updated 1b-1 tests fail (values above) - measured before the edit.
+
+SWEEP COUNTS ON THE RECORDED HOME BOARD (R1 row 5/6 catalogue, 240 lines)
+   junk classes: plain-gear 127 (launcher 19:7; melee 21:18, 22:30, 23:30 = 78; armour 30:6, 32:7, 34:8, 35:6,
+   36:13, 37:2 = 42); 1a classes 0. All 127 pass _home_full_discard_candidate.
+   With the recorded pack (1646 of 1650 weight) NONE fits (_can_add_item_without_overweight); the sweep removes 0
+   until the pack is lighter (the lightest junk, クローク [1,-1], weighs 10).
+
+TIMING (head-to-head, 5 alternating runs each, median seconds of choose_key; base = git archive of 9a8888af src)
+   row0 1.3090 -> 1.3554 (1.035), row1 0.4701 -> 0.4687, row2 0.4422 -> 0.4390, row3 (recorded Home page) 0.0760 -> 0.0761,
+   row4 0.0128 -> 0.0128, row6 6.8808 -> 6.8504; constructed Home page (sweep starts, new decision) 1.7345 -> 1.9354 (1.116);
+   constructed entrance 0.4894 -> 0.3898 (0.796). Recorded rows within 10%; the constructed Home page is +11.6% because
+   the sweep selection is new work (the base takes a different decision there).
+
+GUARDS
+   preflight: PREFLIGHT OK: 10 changed files, 0 findings (4 NOTE existing-test MODIFIED = the approved 4 tests).
+   (first run FAILed test_item_sink_lint: the sweep helper returned a key and called the relief producer directly;
+   fixed by _begin_home_junk_sweep -> bool + _town_producer_entry("_home_full_relief_key"), amended into commit 2.)
+   mutation_check: MUTATION OK: 0 of 11 hunks are not pinned by a test (2 TEXT ONLY), recorded for 72ffc339.
+   fast_tier: NOT RUN - merge gate gate-ctxs0-1022 was still running (no MERGED/FAILED/STOP) when the run ended.
+
+=== GATE ROUND 1 REPAIR (2026-10-22, implementer: Claude Opus 5.5) ===
+Merge: main 08257674 merged into the branch (398c38af; manifest regenerated to resolve the binary conflict).
+(a) Reason: the sweep's leave steps (policy_home.py, both _home_full_leave_key sites of _home_full_relief_key) now say
+    home:junk-sweep-withdraw when relief["sweep"]; the Home-full reason is unchanged otherwise. Registered in claim_ladder
+    (_home_full_relief_key rung) and claim_goal_typing (T, EFFECT, same as home:full-queue-surplus-withdraw); manifest and
+    town_work_sites.json regenerated. No other owner touched. Commit 5726702b.
+(b) Wall: tests/recorded_junk_scope.py pre_home_junk_sweep_rule / pre_home_junk_sweep_replay (patches only
+    _begin_home_junk_sweep to False). Commit e547b7dc.
+(c) Search: 95 modules from the grep (route-claim-unfulfilled / full-queue-surplus-withdraw / home-errand / ~9) + 40 modules
+    whose fixtures carry Home reasons + test_identify_staff_swap_churn_recorded, each run alone. Non-passing:
+      test_identify_staff_swap_churn_recorded (setUpClass, row 3)        capture 2026-10-03  WALL (class)
+      test_home_ident_withdraw_recorded::test_unfulfilled_home_pass...   capture 2026-10-18  WALL
+      test_policy_home::...test_restored_policy_without_procurement_probe_declines_new_owner  capture 2026-09-17  WALL
+      test_protocol3_client::test_p1_lifetime_prefix_matches_the_recording_under_v3 (seq 3-8)  capture 2026-09-21  WALL
+      test_town_cure_supplier_recorded (4 tests at row 1387)             capture 2026-10-03  WALL
+    Every divergence starts with ('\x1b', 'home:junk-sweep-withdraw') on a Home page that recorded home:route-claim-unfulfilled;
+    under the wall every one passes with unchanged assertions. Regressions found: none.
+Pins: tests/test_junk_home_sweep_wall_recorded.py (3 tests; swap-churn rows 0-3 without the wall -> row 3
+    home:junk-sweep-withdraw; repeated Home page with the take filed -> the second leave site; with the wall rows 0-3 as recorded).
+Guards (vs 08257674):
+    preflight: PREFLIGHT OK: 17 changed files, 0 findings (NOTE existing-test MODIFIED = the 4 approved 1b-1 tests + the 8 walled tests/class)
+    mutation_check --record: MUTATION OK: 0 of 12 hunks are not pinned by a test; recorded for 5726702b
+    fast_tier --shards 4: Failures: none, Errors: none, Total: 3901 tests, 389.3s
+
+=== GATE ROUND 2 REPAIR (2026-10-23, implementer: Claude Opus 5.5) ===
+Measured first divergence of each failing slow test (row = recorded decision; variants: none / sweep wall
+pre_home_junk_sweep_rule / Q-A wall = _is_plain_gear with the 1b-1 line to_h+to_d<=0 and to_a<=0 restored / both):
+  test_esp_threat_rest_recorded::test_e1_lifetime_replays_recorded_before_equipment_choice  (capture 2026-09-21)
+    row 3: recorded ('\x1b', home:route-claim-unfulfilled), now ('\x1b', home:junk-sweep-withdraw); row 4 now
+    ('5  pj\x1b', home-errand:atomic-withdraw:full-home-discard). Sweep wall: rows 1-3 as recorded. Q-A wall alone:
+    same divergence as none.  -> WALL (sweep start). Wall on _lifetime.
+  test_recall_stockout_set_end_recorded (both FAILs)  (capture 2026-09-21)
+    _replay and _live_loot_prefix: first extra divergence row 506 (prev row 505 home:request-knowledge-scan): recorded
+    ('\x1b', home:route-claim-unfulfilled), now ('\x1b', home:junk-sweep-withdraw); 507 now the sweep withdraw
+    ('5  pj\x1b', ...full-home-discard) vs recorded shop:travel; 650 / 461 divergent rows.
+    Sweep wall (and both walls): _replay divergent = {501,502,503,1417..1421} = KNOWN_HARNESS_DIVERGENCES exactly;
+    _live_loot_prefix divergent = {501,502,503,1141}.  Q-A wall alone: no change.  -> WALL (sweep start).
+    Wall on _replay and _live_loot_prefix.
+  test_absorbing_states (both ERRORs, RuntimeError refusing to shrink Home transaction history)  (capture 2026-09-08,
+  tests/fixtures/home-deferral-absorbing-state.json.gz)
+    _captured_home_deferral_retry replays the capture from a restored checkpoint (6813 Home history records). Without
+    the wall, capture decision 69 (row 237; the harness replay already differs from the recording from decision 28 on,
+    on main as well) decides ('\x1b', home:junk-sweep-withdraw) where the walled run decides home:route-claim-unfulfilled;
+    decision 70 takes '5pR\x1b' (sweep withdraw) and the history grows 6813 -> 6814 inside build(). The history file
+    is the session's shared one, so the next build of the same checkpoint in the same process (the two tests that drive
+    all 30 seeded states, after an earlier build) loads 6813 records against a file holding more and refuses.
+    Not an exception from new code paths: every one of the 30 states, driven once each, gives the identical DriveResult
+    with and without the sweep wall (all PASS).  Q-A not involved.  -> WALL (sweep start). Wall on
+    _captured_home_deferral_retry (tests/absorbing_state_catalog.py).
+    Revert-proof: with the catalog wall reverted (git apply -R) the module alone reproduces both ERRORs (6816/6817 vs
+    6814); with it, 22 tests OK.
+No Q-A wall was needed (no divergence traced to the Q-A widening), so tests/recorded_junk_scope.py is unchanged.
+No regressions found; no src change.  Expectations unchanged.  Commit d6305696.
+Observation (not changed, outside this round): the sweep's withdraw step still reports
+home-errand:atomic-withdraw:full-home-discard (the existing Home-full discard errand reason); round 1 (a) renamed only
+the leave step.
+
+Module runs (each alone, after the commit):
+  test_absorbing_states 22 OK | test_recall_stockout_set_end_recorded 5 OK | test_esp_threat_rest_recorded 16 OK |
+  test_junk_home_sweep_recorded 8 OK | test_junk_home_sweep_wall_recorded 3 OK | test_junk_plain_gear_recorded 12 OK |
+  test_home_ident_withdraw_recorded 5 OK | test_identify_staff_swap_churn_recorded 5 OK | test_policy_home 171 OK (4 skipped) |
+  test_protocol3_client 29 OK | test_town_cure_supplier_recorded 7 OK
+
+Guards (vs 08257674):
+  preflight: PREFLIGHT OK: 20 changed files, 0 findings (NOTE existing-test MODIFIED = the same approved/walled tests as round 1;
+             the new walls are on replay helpers, not test methods)
+  mutation_check --record (tests: junk_home_sweep, junk_home_sweep_wall, junk_plain_gear):
+             MUTATION OK: 0 of 12 hunks are not pinned by a test (2 TEXT ONLY); recorded for d6305696
+  fast_tier --shards 4: Crashed shards: none, Failures: none, Errors: none, Total: 3922 tests, 517.9s

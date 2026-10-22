@@ -50,6 +50,7 @@ from test_esp_threat_rest_recorded import (
     FIXTURE_SHA256,
     _policy,
 )
+from recorded_junk_scope import pre_home_junk_sweep_replay
 from recorded_loadout import pre_light_radius_replay, recorded_loadout_replay
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -236,6 +237,8 @@ class P1LifetimeTest(unittest.TestCase):
 
     @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
+    # declared wall: capture 2026-09-21 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def test_p1_lifetime_prefix_matches_the_recording_under_v3(self):
         v2, v3, starts, monrace = _Substrate.get()
         recorded = json.loads(
