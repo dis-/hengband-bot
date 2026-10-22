@@ -63,6 +63,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_LIMIT
 
 from policy_fixtures import grid, player
+from recorded_floor_knowledge import pre_seen_floor_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -275,6 +276,7 @@ class BreederBreakthroughAdjacentHostileRecordedTest(unittest.TestCase):
             [(35, 70), (35, 71), (35, 72), (35, 71), (35, 72), (35, 71)],
         )
 
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-10-02, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     def test_replay_reproduces_live_until_a_non_breeder_is_adjacent(self):
         rows, _board = self._replay_through(B_DIVERGENCE - 1)
         self.assertEqual(
