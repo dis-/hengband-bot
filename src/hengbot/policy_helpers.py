@@ -348,8 +348,8 @@ class PolicyHelpersMixin:
                 and self._entire_stack_is_surplus(snapshot, item)):
             junk = "unused-ammo"
         # Owner Q1 2026-10-20: plain gear that is not needed is destroyed
-        # after identification (#95 slice 1b-1: identified, no positive
-        # modifier, worse than the optimizer's selected loadout).
+        # after identification (#95 slice 1b-1; owner Q-A 2026-10-22 adds
+        # {good} items: identified, worse than the optimizer's selected loadout).
         elif (self._is_plain_gear(item)
                 and self._plain_gear_surplus(snapshot, item)):
             junk = "plain-gear"
