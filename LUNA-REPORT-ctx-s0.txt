@@ -1,0 +1,183 @@
+LUNA report - control-server input context, slice S0 (behaviour-neutral recording)
+Branch ctx-s0-1022: 9ac0759f (S0) + 158037f0 (merge of main 9a8888af) + bc742d53 (test fix). Guards vs 9a8888af.
+
+== Changes
+- src/hengbot/input_context.py (new): read_input_context (unavailable / absent / null / server; never raises;
+  absent only for a successful reply without the key), current_input_state (returns classify_screen's match
+  unchanged + reading + verdict agree/disagree/no-context/death), stop_line_fields, InputContextShadow
+  (per-kind agree/disagree counts, per-source no-context counts, per-owner residual continuations at a
+  command/store barrier; own log input-context-shadow.jsonl rotated at 8 MB with one predecessor; lines for
+  disagree, screen-state-mismatch, residual-continuations and a counts line at every stop; write failures
+  swallowed).
+- src/hengbot/input_executor.py: executor owns a shadow (default runtime_path("input-context-shadow.jsonl")
+  = jsonlog/ in production, HENGBOT_RUNTIME_DIR on Linux), _classify goes through current_input_state,
+  _request keeps the last screen/state reading, residual hook before the expected-prompt-absent check,
+  _terminal builds OperationResult.stop_line = "... request_id=N ctx=<kind|null|absent|unavailable>
+  ctx_prompt=<JSON string> reason=...", _death writes counts. OperationResult.reason is UNCHANGED.
+- src/hengbot/cli.py: _ExecutorInputPort prints result.stop_line (admission refusal and terminal paths).
+- Bookkeeping: scripts/town_work_manifest.json.gz + src/hengbot/town_work_sites.json regenerated (ast hashes of
+  submit_operation / OperationExecutor.__init__); the merge conflict in the manifest was resolved by regenerating.
+- tests/test_input_context.py (14 tests), tests/test_input_context_structure.py (5 tests).
+- No new policy attribute (no restored-checkpoint defaults needed). No new reason (STUCK_FAMILY_REASONS untouched).
+
+== Deviation from the design text (decided to avoid an unapproved test change)
+Design 7 put ctx= into _terminal's line (OperationResult.reason) and named 3 tests. Measured with that version:
+tests/test_input_executor.py:480 and :1272 fail as named, but tests/test_pickup_pile_prompt_recorded.py:296
+does not (it asserts the RECORDED fixture stderr), while :328
+(test_model_reproduces_the_recorded_stop_for_the_atomic_macro) fails: it compares the replayed reason with the
+recorded live stderr, old '... request_id=N reason=unowned unknown: unrecognized' vs new
+'... request_id=N ctx=absent ctx_prompt="" reason=unowned unknown: unrecognized'. That test is outside the
+approval, so instead the fields go on a new OperationResult.stop_line, which is what is printed to stderr (the
+line linux_soak / bot_autorecover parse). Result: NO existing test changed (the 3 named ones were not needed).
+Not covered: main()'s bootstrap print of observe_boundary's reason (cli.py ~4088) still prints the old line
+(only testable through main(); the soak's input_kind_after_esc covers that moment).
+Not done: design 6.2 item 16 (freeze input-context.json in incident_stop) - not in the task file's list.
+
+== Before/after replay proof (decisions and keys)
+Harness (scratch, not committed): runs the 36 test modules that drive the executor / input port / stop line
+(recorded-fixture replays through the real HengbotPolicy and the fake game), wrapping HengbotPolicy.choose_key
+(logs key, last_reason) and OperationExecutor._post_and_barrier (logs owner, role, keys posted, outcome, reason,
+screen kind). Same module list in a detached worktree at 9a8888af and in this branch:
+  before: rows 5408, tests 840 ; after: rows 5408, tests 840
+  logs byte-identical (cmp), sha256 4672adb1db639cf5... both
+  rows: 3685 decisions, 442 posted segments, 441 executor results (152 stuck-prompt), 824 ok / 8 xfail / 6 skip
+  2 town_work_contract tests fail in BOTH under the harness only (the wrapper changes sys._getframe(1) that
+  _post_and_barrier reads); without the harness tests.test_town_work_contract passes in both trees (9 tests).
+Recorded-screen pin: all 30 recorded screen replies in 17 fixtures classify exactly as classify_screen, read
+"absent", and keep the same match with an injected confirm/command/null context.
+
+== Pins and controls (tests/test_input_context.py)
+- old game: stop reason unchanged, stderr line gains 'ctx=absent ctx_prompt=""' before reason=, counters only
+  no_context["absent"]; new game: same keys/outcome/reason as old game, stderr names ctx=confirm and the prompt,
+  agreements {command:1, confirm:1}; admission refusal prints ctx=command; lost screen -> ctx=unavailable.
+- shadow: disagreement lines (owner None at bootstrap, melee) + counts at stop; residual tail
+  {"identify:normal": {"command": 1}}; death writes counts; write failures swallowed; rotation keeps .1 only;
+  default path = runtime file.
+- structure (tests/test_input_context_structure.py): classify_screen callers, input_context readers (reader
+  only), "lines" readers == the 8 functions of 17b8907c (file+function, no counts), prompt literal /
+  *_PROMPT_MESSAGE_PREFIXES sites frozen; scanner control finds planted Subscript/.get/literal/call sites.
+
+== Revert-proof (per hunk, 9 hunks)
+guard-tools/mutation_check.py crashes on this diff: reverting the new-file hunk deletes input_context.py and the
+tool then reads it (FileNotFoundError at mutation_check.py:158) after 2 hunks "caught"; it left the file
+deleted (restored with git checkout). The shared tool was not edited. The same loop (imports the tool's
+split_hunks/code_shape/run_tests, file-removed case handled) gives MUTATION OK: 0 of 9 hunks not pinned
+(cli 2596, cli 2620, input_context.py new file, input_executor 569, 972, 1016, 1167, 1603, 1706 all caught).
+No --record was written (the official tool did not finish).
+
+== Soak runner (C:\hengband-backups\guard-tools\linux_soak.py) - NOT INSTALLED
+The backup copy (cp linux_soak.py linux_soak.py.bak-20261022-ctx) was refused by the permission classifier
+("Modify Shared Resources"), so guard-tools was left untouched. The finished file and its stub test are in the
+implementer's scratchpad (soak\linux_soak.py, soak\stub_test.py); full diff below for the supervisor to apply.
+Stub test (real Instance.run() for one stop; fake TCP control server; processes, /proc and life creation stubbed):
+  old game   : restart input_kind=absent input_prompt="" input_kind_after_esc=absent, control-at-stop errors []
+  new game   : input_kind=confirm input_prompt="本当にこの階を去りますか？[y/n]" input_kind_after_esc=command
+  refused    : input_kind=unavailable (WinError 10061 recorded), runner continued, exit 0
+  silent srv : input_kind=unavailable ("timed out"), runner continued (55 s for the stop)
+  game dead  : read_control -> unavailable, errors ["game-dead"]
+  game_answers stays the existing bool. Observation (pre-existing, unchanged): game_answers is True even when the
+  port refuses, because send_keys() returns False only on an exception.
+
+--- linux_soak.orig.py
++++ linux_soak.py
+@@ -47,6 +47,27 @@
+                "loadout-report.jsonl", "bot-posted-characters.jsonl", "owner-retired-log-only.jsonl")
+ ROTATE_BYTES = 200 * 1024 ** 2
+ DEATH_TEXT = "画面を保存しますか"
++# 2026-10-22 (plans/DESIGN-control-context-1022.md section 7): at every stop the game's screen and state are read
++# once each through the control port and kept as captures/<stop>/control-at-stop.json.gz, on this machine only
++# (the 10 GB capture cleanup removes them with their capture; nothing is copied to Windows).
++CONTROL_AT_STOP = "control-at-stop.json.gz"
++CONTROL_READ_SECONDS = 5
++
++
++def input_context_of(result) -> tuple[str, str]:
++    """(kind, prompt) of one screen/state result: the published kind, "null" (the game waits without publishing
++    it), "absent" (a successful reply from a game without input_context) or "unavailable" (no reply)."""
++    if not isinstance(result, dict):
++        return "unavailable", ""
++    if "input_context" not in result:
++        return "absent", ""
++    context = result["input_context"]
++    if context is None:
++        return "null", ""
++    if not isinstance(context, dict) or not isinstance(context.get("kind"), str):
++        return "unavailable", ""
++    prompt = context.get("prompt")
++    return context["kind"], prompt if isinstance(prompt, str) else ""
+
+
+ def now() -> str:
+@@ -237,6 +258,30 @@
+         except Exception:   # noqa: BLE001 - any failure means the game does not answer
+             return False
+
++    def read_control(self) -> dict:
++        """Read screen and state once each; every failure is recorded, never raised (the runner must keep
++        capturing and restarting: 2026-10-20 19:13 an exception in preserve() stopped it)."""
++        record = {"time": now(), "port": self.args.port, "screen": None, "state": None, "errors": []}
++        try:
++            if self.game is None or self.game.poll() is not None:
++                record["errors"].append("game-dead")
++            else:
++                from hengbot.control_client import ControlClient
++                client = ControlClient(self.args.port, request_budget=CONTROL_READ_SECONDS, retries=0,
++                                       log=record["errors"].append)
++                try:
++                    for op, fields in (("screen", {"attrs": False}), ("state", {"map": False})):
++                        record[op] = client.request(op, deadline=time.monotonic() + CONTROL_READ_SECONDS,
++                                                    **fields)
++                        if record[op] is None:
++                            record["errors"].append(f"{op}: no reply")
++                finally:
++                    client.close()   # the control server serves one client; the next bot needs it
++        except Exception as error:   # noqa: BLE001 - recording must never stop the runner
++            record["errors"].append(f"{type(error).__name__}: {error}")
++        record["input_kind"], record["input_prompt"] = input_context_of(record["screen"])
++        return record
++
+     def new_life(self, why: str) -> None:
+         self.stop_processes()
+         existing = sorted(self.root.glob("life-[0-9][0-9][0-9]"))
+@@ -312,6 +357,13 @@
+         for name in ("bot-stdout.log", "bot-stderr.log"):
+             if (self.life / name).exists():
+                 shutil.copy(self.life / name, target / name)
++        control = self.read_control()
++        self.input_at_stop = {"input_kind": control["input_kind"], "input_prompt": control["input_prompt"]}
++        try:
++            with gzip.open(target / CONTROL_AT_STOP, "wt", encoding="utf-8") as out:
++                json.dump(control, out, ensure_ascii=False)
++        except (OSError, TypeError, ValueError) as error:
++            self.input_at_stop["control_write_error"] = f"{type(error).__name__}: {error}"
+         return target.name
+
+     def stop_processes(self) -> None:
+@@ -405,13 +457,16 @@
+                     self.new_life("escalate")
+                 else:
+                     answered = all(self.send_keys("\x1b") for _ in range(3))
++                    # A separate field: game_answers stays the bool that selects new_life below.
++                    after_esc = self.read_control()["input_kind"]
+                     # --dump-interval-seconds 0 also turns off the bot's periodic save; save here,
+                     # while no bot is posting, so --continue resumes this character.
+                     if answered:
+                         self.send_keys("\x13")
+                         time.sleep(2)
+                     self.log("restart", reason=reason, captured=captured, bot_uptime_s=uptime,
+-                             repeats_in_window=repeats, game_answers=answered)
++                             repeats_in_window=repeats, game_answers=answered,
++                             **getattr(self, "input_at_stop", {}), input_kind_after_esc=after_esc)
+                     if not answered:
+                         self.new_life("game-unresponsive")
+                 self.start_bot()
+
+== Guard outputs (final, after bc742d53)
+preflight : [preflight] PREFLIGHT OK: 7 changed files, 0 findings (ctx-s0-1022 vs 9a8888af)
+mutation  : official tool crashed on the new file (see above); equivalent loop: MUTATION OK: 0 of 9 hunks
+fast_tier : 3753 tests, Crashed shards: none, Failures: none, Errors: none (216.5s)
+  (round 1 had 1 failure: test_policy_structure.test_test_modules_do_not_bind_foreign_test_cases - the new module
+  bound ProductionHarness by name; fixed in bc742d53 by subclassing through the module.)
+Other: test_store_op_compose_root_recorded failed once mid-work only because the manifest was stale; after the
+regeneration item_sink_lint reports 0 findings. Baseline worktree .worktrees/ctx-s0-1022-base (detached) was
+created for the comparison.
