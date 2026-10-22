@@ -9372,6 +9372,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                 )
             elif (
+                self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and self._begin_home_junk_sweep(snapshot)
+                and (sweep_key := self._town_producer_entry(
+                    "_home_full_relief_key",
+                    lambda: self._home_full_relief_key(snapshot),
+                    family="home-visit")) is not None
+            ):
+                # #95 slice 1b-2: no Home work is left on this page.
+                key = sweep_key
+            elif (
                 self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None
             ):
                 home_already_unfulfilled = STORE_HOME in self._town_store_attempted
