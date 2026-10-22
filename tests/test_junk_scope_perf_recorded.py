@@ -101,7 +101,8 @@ class JunkScopePerfRecordedTest(unittest.TestCase):
         # Control: the recorded decision is unchanged and the scan ran over
         # several junk wares, each on its own probe board.
         self.assertEqual(policy.last_reason, "home:full-queue-surplus-withdraw")
-        self.assertGreater(len(set(boards)), 1)
+        # DESIGN-junk-1b-1022 5.3: the scan stops at the first ware passing the gate.
+        self.assertGreaterEqual(len(set(boards)), 1)
         self.assertEqual([board for board, count in Counter(boards).items() if count > 1], [])
 
 

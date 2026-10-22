@@ -43,6 +43,10 @@ _CAPTURE_STATE_NAMES = frozenset(
         # INN interruption evidence and minima are process/visit local.
         "_town_inn_accounting",
         "_disposable_armour_cache",
+        # #95 plain gear: the per-decision baseline and the expected-damage
+        # memo are rebuilt from policy state on first use.
+        "_plain_gear_baseline_cache",
+        "_plain_gear_dps_memo",
         # Static game data is reloaded at restore time.  The two grid maps are
         # identity/signature accelerators over the retained _remembered_grids
         # and rebuild lazily on the next map-bearing observation.

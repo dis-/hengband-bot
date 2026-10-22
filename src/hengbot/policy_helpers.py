@@ -300,7 +300,8 @@ class PolicyHelpersMixin:
 
         Without a board only the item's own classes apply (remains, cursed,
         harmful-consumable); a board adds the retention / ownership gates and
-        the classes that depend on the character.
+        the classes that depend on the character; plain gear also needs the
+        optimizer's selected loadout (``_plain_gear_baseline``).
         """
         if (item.is_bounty or item.is_artifact or self._is_high_value_book(item)
                 or self._item_signature(item) in self._undestroyable_sigs):
@@ -346,6 +347,12 @@ class PolicyHelpersMixin:
                 and item.tval != launcher.ammo_tval
                 and self._entire_stack_is_surplus(snapshot, item)):
             junk = "unused-ammo"
+        # Owner Q1 2026-10-20: plain gear that is not needed is destroyed
+        # after identification (#95 slice 1b-1: identified, no positive
+        # modifier, worse than the optimizer's selected loadout).
+        elif (self._is_plain_gear(item)
+                and self._plain_gear_surplus(snapshot, item)):
+            junk = "plain-gear"
         if junk is None or snapshot is None:
             return junk
         # One read-only predicate on one board: its purchase ladder asks the

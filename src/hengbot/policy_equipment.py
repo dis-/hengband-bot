@@ -3217,10 +3217,13 @@ class EquipmentMixin:
                 and candidate_dps <= wielded_dps
             )
 
+        # Owner Q1 2026-10-20: unneeded plain gear is destroyed, not walked to
+        # a store, so the junk predicate's items are no sale candidates (#95).
         return self._first_item(
             snapshot,
             lambda it: self._weapon_is_inferior(it)
             and sale_quality_allows(it)
+            and self._junk_class(snapshot, it) is None
             and self._store_accepts_sale(STORE_WEAPON, it)
             and item_available(self, snapshot, it, "shop-sell", "sell")
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
