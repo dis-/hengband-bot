@@ -100,3 +100,50 @@ No. Every way to end group A changes behaviour that no owner decision covers:
   its mechanism is inferred, not measured).
 Group B is a guard-tools runner matter (wall clock vs bot time), outside this branch.
 Per the task, STOP after the diagnosis: no source change, no pins.
+
+Addendum (coordinator follow-up: defect checks 3 and 4 under existing decisions)
+=================================================================================
+
+(3) Junk pickup - measured: by design of the #70 implementation, no fix.
+- Every remains pickup in the full windows is a tval 10 kind ("~の骨" = tval 10 sval 0, "~の死体" =
+  tval 10 sval 1, lib/edit/BaseitemDefinitions.jsonc). Pickup messages in the live logs:
+  current file 3 corpses / 5 skeletons, .1 27 / 20, .6 19 / 12; tval 1 kinds (骨の破片, 頭蓋骨の破片,
+  人間の骨, 犬の骨 ...) 0.
+- Example boards (bot-decisions.jsonl.1): 23:21:11 reason 'pickup' key 'g' on a single-object pile
+  (loot.visible count 1, message 'スケイヴンの骨がある。'), producer _normal_loot_key ->
+  _current_floor_item_key; 00:21:29 (current file) 'pickup' 'g' on '丘オークの骨がある。' (count 1).
+  Single-remains piles, not mixed.
+- Why the floor filter did not reject them: _floor_pile_is_worthless (policy_helpers.py 370-377)
+  rejects tvals {1, 3} only and says "Corpses (tval 10) stay loot: a bounty is only visible once
+  carried" (commit fec25709, #70). The board gives a floor pile only its tvals; is_bounty is exported
+  for carried items only, and the bot has no wanted-list knowledge to match the look name. So the
+  tval-10 pickup is the deliberate bounty exception; the dungeon disposal then destroys it before
+  the return (also within the 10-18 decision "拾わない または 帰還前に処理").
+- Changing it is an owner question: (a) never pick up tval 10 (gives up bounty remains), or
+  (b) pick up a tval 10 pile only when its look name matches a known wanted monster (needs the
+  wanted list as knowledge).
+
+(4) Re-walking seen floor - measured on all 10 recorded boards (state.jsonl.gz, ~100 boards each).
+- The soak runs protocol 3. model._decode_grid_map zeroes every CAVE flag in protocol 3 (only an
+  emitted TUNNEL terrain is set 'mark'), so walls are marked but NO floor cell is ever marked:
+  floor 'marked' flags = 0 in every Angband board of every capture (the forest capture has marked
+  floors only because its tree/tunnel terrain is REMEMBER).
+- _is_frontier / _is_remembered_frontier test neighbours against _marked_t, so every remembered floor
+  cell next to another floor cell stays a frontier until FRONTIER_EXHAUST_VISITS (8) visits or a probe.
+- Which cells the explore steps of the tails walked (classified against the boards of the window):
+    15:22 102 cells: 102 seen only while torch-lit (shown only within distance 1 of the player)
+    23:01 105: 104 torch-lit only, 1 game-remembered (shown away from the light)
+    00:47 103: 101 / 2      01:29 93: 89 / 4      07:11 91: 91 / 0      08:04 96: 94 / 2
+    21:29 73: 70 / 3        00:22 75: 63 / 12     (16:40: 4 steps, 4 remembered; 12:48 forest: 22 / 74)
+  Game source: a non-REMEMBER floor is drawn only with CAVE_MARK | CAVE_LITE | CAVE_MNLT or in view
+  and glowing (src/view/display-map.cpp is_terrain_visible_on_map 133-146); dark-room floor lit by
+  the radius-1 light is not memorised, it vanishes from the screen once the light moves on.
+- Conclusion: 84-100 % of the re-walked cells in the Angband tails are cells the game does NOT show
+  to the player any more (seen only while torch-lit). Treating them as explored would rest on the
+  bot's own memory of a cell the screen no longer shows - not the defect shape the follow-up asked
+  to fix ("already seen and shown by the game"). The part that does match it - game-remembered floor
+  (shown away from the light) never counted as marked under protocol 3 - is 0-16 % of the walked
+  cells, too small to end the re-sweeps. Per the follow-up: report and stop; no source change.
+- Owner question if wanted: should the frontier test count a floor cell the bot has seen (lit by its
+  own light) as explored even after the game stops showing it? (A human player does remember
+  having walked a room; the screen does not.)
