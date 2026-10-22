@@ -166,5 +166,58 @@ class SeenFloorExploredRecordedTest(unittest.TestCase):
         self.assertTrue(outside.isdisjoint(policy._marked_t))
 
 
+class RemainsPileRecordedTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.rows = _lines(REMAINS, REMAINS_SHA256)
+        assert len(cls.rows) == 2
+        cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def _rows_with_pile(self, tvals):
+        rows = []
+        for line in self.rows:
+            data = json.loads(line)
+            grid_map = data["grid_map"]
+            if tvals is not None:
+                for cell in grid_map["cells"]:
+                    if (cell["y"], cell["x"]) == (CORPSE.y, CORPSE.x):
+                        cell["o"] = len(tvals)
+                        cell["t"] = list(tvals)
+                for index, found in enumerate(grid_map["found_items"]):
+                    if found[:2] == [CORPSE.y, CORPSE.x]:
+                        grid_map["found_items"][index] = [
+                            CORPSE.y, CORPSE.x, len(tvals), *tvals]
+                for index, names in enumerate(grid_map["found_item_names"]):
+                    if names[:2] == [CORPSE.y, CORPSE.x]:
+                        grid_map["found_item_names"][index] = [
+                            CORPSE.y, CORPSE.x, *(["item"] * len(tvals))]
+            rows.append(json.dumps(data, ensure_ascii=False))
+        return rows
+
+    def _decide_both(self, tvals=None):
+        self.replay = _Replay(self, self.monrace)
+        return [self.replay.decide(line) for line in self._rows_with_pile(tvals)]
+
+    def test_single_remains_pile_is_not_targeted(self):
+        (approach, _key0, reason0), (_board, _key1, reason1) = self._decide_both()
+        self.assertEqual(approach.grid_at(CORPSE).object_tvals, (10,))
+        # Recorded: 'seek-loot' '6' then 'pickup' 'g' on the corpse.
+        self.assertNotIn(reason0, {"seek-loot", "pickup"})
+        self.assertNotIn(reason1, {"seek-loot", "pickup", "trigger-autodestroy"})
+        self.assertNotIn(CORPSE, self.replay.policy._known_loot)
+
+    def test_mixed_pile_is_still_picked_up(self):
+        decided = self._decide_both((10, 23))
+        self.assertEqual(
+            [(key, reason) for _board, key, reason in decided],
+            [("6", "seek-loot"), ("gaa", "pickup")],
+        )
+
+    def test_skeleton_fragment_pile_unchanged(self):
+        decided = self._decide_both((1, 3))
+        self.assertNotIn(decided[0][2], {"seek-loot", "pickup"})
+        self.assertNotIn(decided[1][2], {"seek-loot", "pickup"})
+
+
 if __name__ == "__main__":
     unittest.main()
