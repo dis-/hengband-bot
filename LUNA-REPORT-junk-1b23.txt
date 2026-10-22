@@ -86,3 +86,27 @@ GUARDS
    fixed by _begin_home_junk_sweep -> bool + _town_producer_entry("_home_full_relief_key"), amended into commit 2.)
    mutation_check: MUTATION OK: 0 of 11 hunks are not pinned by a test (2 TEXT ONLY), recorded for 72ffc339.
    fast_tier: NOT RUN - merge gate gate-ctxs0-1022 was still running (no MERGED/FAILED/STOP) when the run ended.
+
+=== GATE ROUND 1 REPAIR (2026-10-22, implementer: Claude Opus 5.5) ===
+Merge: main 08257674 merged into the branch (398c38af; manifest regenerated to resolve the binary conflict).
+(a) Reason: the sweep's leave steps (policy_home.py, both _home_full_leave_key sites of _home_full_relief_key) now say
+    home:junk-sweep-withdraw when relief["sweep"]; the Home-full reason is unchanged otherwise. Registered in claim_ladder
+    (_home_full_relief_key rung) and claim_goal_typing (T, EFFECT, same as home:full-queue-surplus-withdraw); manifest and
+    town_work_sites.json regenerated. No other owner touched. Commit 5726702b.
+(b) Wall: tests/recorded_junk_scope.py pre_home_junk_sweep_rule / pre_home_junk_sweep_replay (patches only
+    _begin_home_junk_sweep to False). Commit e547b7dc.
+(c) Search: 95 modules from the grep (route-claim-unfulfilled / full-queue-surplus-withdraw / home-errand / ~9) + 40 modules
+    whose fixtures carry Home reasons + test_identify_staff_swap_churn_recorded, each run alone. Non-passing:
+      test_identify_staff_swap_churn_recorded (setUpClass, row 3)        capture 2026-10-03  WALL (class)
+      test_home_ident_withdraw_recorded::test_unfulfilled_home_pass...   capture 2026-10-18  WALL
+      test_policy_home::...test_restored_policy_without_procurement_probe_declines_new_owner  capture 2026-09-17  WALL
+      test_protocol3_client::test_p1_lifetime_prefix_matches_the_recording_under_v3 (seq 3-8)  capture 2026-09-21  WALL
+      test_town_cure_supplier_recorded (4 tests at row 1387)             capture 2026-10-03  WALL
+    Every divergence starts with ('\x1b', 'home:junk-sweep-withdraw') on a Home page that recorded home:route-claim-unfulfilled;
+    under the wall every one passes with unchanged assertions. Regressions found: none.
+Pins: tests/test_junk_home_sweep_wall_recorded.py (3 tests; swap-churn rows 0-3 without the wall -> row 3
+    home:junk-sweep-withdraw; repeated Home page with the take filed -> the second leave site; with the wall rows 0-3 as recorded).
+Guards (vs 08257674):
+    preflight: PREFLIGHT OK: 17 changed files, 0 findings (NOTE existing-test MODIFIED = the 4 approved 1b-1 tests + the 8 walled tests/class)
+    mutation_check --record: MUTATION OK: 0 of 12 hunks are not pinned by a test; recorded for 5726702b
+    fast_tier --shards 4: Failures: none, Errors: none, Total: 3901 tests, 389.3s
