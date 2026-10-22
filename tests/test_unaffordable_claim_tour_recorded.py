@@ -80,6 +80,7 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
+from recorded_floor_knowledge import pre_remains_pile_replay, pre_seen_floor_replay
 from recorded_loadout import (
     pre_light_radius_replay, pre_ratio_optimizer_replay, recorded_loadout_replay,
 )
@@ -431,6 +432,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         self.fail("equipment-choice divergence was not reached")
 
     @classmethod
+    @pre_seen_floor_replay  # declared wall: tour recorded 2026-09-22, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
+    @pre_remains_pile_replay  # declared wall: tour recorded 2026-09-22, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def _replay(cls):

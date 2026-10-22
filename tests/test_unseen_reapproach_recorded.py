@@ -49,6 +49,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.runtime_paths import RUNTIME_DIR_ENV, isolate_restored_runtime_paths
 
+from recorded_floor_knowledge import pre_seen_floor_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -125,6 +126,7 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
         self.assertEqual(self._live(RESTART_BOARD), ("4", "seek-loot"))
         self.assertEqual(self._live("1:7"), (None, "warning:blocked-step"))
 
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-10-20, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     def test_explore_does_not_walk_back_into_the_attack(self):
         with TemporaryDirectory() as tmp:
             directory = Path(tmp)

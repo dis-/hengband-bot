@@ -92,6 +92,7 @@ from recorded_loadout import (
     pre_light_radius_replay, pre_ratio_optimizer_replay, recorded_loadout_replay,
 )
 from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
+from recorded_floor_knowledge import pre_remains_pile_replay, pre_seen_floor_replay
 
 
 # List indices into the recorded decisions (decision_sequence + 4).
@@ -240,6 +241,8 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         return tour._independent_copy(pre_decision if walled else decided), snapshot
 
     @classmethod
+    @pre_seen_floor_replay  # declared wall: tour recorded 2026-09-22, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
+    @pre_remains_pile_replay  # declared wall: tour recorded 2026-09-22, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def _replay(cls):
@@ -630,6 +633,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
 
 
 class ExperiencePotionProtocol2Test(unittest.TestCase):
+    @pre_seen_floor_replay  # declared wall: morivant recorded 2026-09-22, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     @pre_progressing_loot_gate_replay  # declared wall: pre-6c0910fb loot gate (tests/recorded_emergency_loot_gate.py)
     @recorded_loadout_replay
     def test_x7_protocol2_lifetime_decisions_are_unchanged(self):
