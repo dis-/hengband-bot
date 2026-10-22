@@ -87,3 +87,33 @@ def pre_town_junk_step_replay(replay):
             return replay(*args, **kwargs)
 
     return wrapped
+
+
+@contextmanager
+def pre_home_junk_sweep_rule():
+    """Disable only the one-time Home junk sweep (#95 step 1b-2, 2026-10-22).
+
+    For recorded replays whose capture predates the sweep.  The sweep starts
+    on a Home page where the Home page owner found no Home work and leaves
+    the Home (reason ``home:junk-sweep-withdraw``) ahead of the recorded exit
+    these replays pin.  Its only entry is ``_begin_home_junk_sweep``; a
+    disabled entry never files a sweep relief, so every later decision runs
+    as before the sweep.  Tests whose subject is the sweep pin the new
+    behaviour instead (tests/test_junk_home_sweep_recorded.py).  Composable
+    with the other walls of this module (it patches a different seam).
+    """
+    def without_home_junk_sweep(self, snapshot):
+        return False
+
+    with patch.object(HengbotPolicy, "_begin_home_junk_sweep", without_home_junk_sweep):
+        yield
+
+
+def pre_home_junk_sweep_replay(replay):
+    """Run ``replay`` under ``pre_home_junk_sweep_rule``."""
+    @wraps(replay)
+    def wrapped(*args, **kwargs):
+        with pre_home_junk_sweep_rule():
+            return replay(*args, **kwargs)
+
+    return wrapped
