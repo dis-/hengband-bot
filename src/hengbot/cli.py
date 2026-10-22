@@ -2596,7 +2596,7 @@ class _ExecutorInputPort:
             except ValueError as error:
                 self.last_result = self.executor._terminal(
                     operation, "admission", str(error), self.executor.ready_screen)
-                print(self.last_result.reason, file=sys.stderr, flush=True)
+                print(self.last_result.stop_line, file=sys.stderr, flush=True)
                 return SendResult.TERMINAL
             operation.keys, operation.continuations = (
                 _transport_key(prefix, self.tunnel_macros_ready), steps)
@@ -2620,7 +2620,8 @@ class _ExecutorInputPort:
                 print(self.last_result.reason, file=sys.stderr, flush=True)
             return SendResult.PLAYER_DEATH
         if self.last_result.reason:
-            print(self.last_result.reason, file=sys.stderr, flush=True)
+            print(self.last_result.stop_line or self.last_result.reason,
+                  file=sys.stderr, flush=True)
         return SendResult.TERMINAL
 
 
