@@ -1,0 +1,109 @@
+LUNA-REPORT floor-dwell-b (Issue #101) - branch floor-dwell-1023, main d2304637 merged (793bfa32)
+=============================================================================================
+
+Outcome: (1) and (2) implemented and pinned; ONE EXISTING TEST MUST CHANGE for (1) -> STOP for the
+supervisor (see "Existing test that must change").  Commits:
+  16b5aeb6 [Fix] #101 深さの上限の階で探索が終わらない（自分の明かりで見た床を未探索のままにする）
+  cd381d33 [Fix] #101 骨・死体だけの山を拾いに行っては壊す（賞金首はゲームの自動拾いで見分ける）
+
+(1) Seen floor counts as explored
+---------------------------------
+Measured: protocol 3 boards emit exactly the cells the screen draws (bot-json-output.cpp
+make_grid_map_json: is_map_terrain_visible), and model._decode_grid_map sets 'mark' only for TUNNEL
+terrain, so no floor cell is ever marked.  Dark-room floor lit by the player's light is drawn only while
+CAVE_LITE (display-map.cpp is_terrain_visible_on_map 143-145).  The frontier tests (_is_frontier,
+_is_remembered_frontier), _probe_unknown_step and the frontier score all read _marked_t, built from
+_remembered_marked_t in _build_grid_index.
+Change (one place, _build_grid_index): a cell shown on a board within the board's light radius of the
+player (game distance = Grid::calc_distance / the bot's _monster_cast_distance; the lit area of
+update_lite, torch.cpp 159-) is added to _remembered_marked_t.  Boards without light_radius (old
+formats, synthetic tests) keep the old marks.  Cells shown only away from the light (e.g. remembered
+lit-room floor, magic mapping) are known but not explored, as before.  No new attribute, constant or
+threshold.  Side effect: the coverage counters that read len(_remembered_marked_t) (nav stall,
+fruitless disengage) now also count own-light-seen floor.
+Not changed: the unvisited-floor sweep goal in _plan_explore_path_pass (visit 0 floor) - excluding
+own-light-seen cells there broke 4 existing tests that pin sweeping marked floor
+(test_policy ResistanceDepthGateTest.test_stair_refusal_explores_across_consecutive_decisions,
+test_policy_navigation ExplorationTest.test_steps_onto_lit_but_unvisited_floor_before_finishing_exploration,
+ProbeTest.test_escapes_a_searched_pocket_by_least_visited_route,
+TrapSealedFloorRegressionTest.test_longer_safe_route_to_new_coverage_wins_over_short_trap_route),
+so it was dropped.  Seen-but-never-stepped floor is still visited once (finite, not a re-sweep).
+
+Pin (fixture: all 113 state rows + the 112 decision rows of the same turns of
+c4-a/life-014 20261022-004727-stall-floor-dwell-explore, Angband 30F, light radius 1):
+  before: all 112 recorded explore goals are frontiers; 142 of 142 remembered floor cells frontier.
+  after : 51 recorded goals are no longer frontiers; the 9 of them already walked on (true re-walks)
+          are never the replayed policy's goal; frontier cells 142 -> 17, each borders a cell no
+          board of the capture ever showed (unseen ground).
+  Other captures (same replay, not pinned): 07:11 172 -> 75 frontiers, 23:01 161 -> 29.
+  "Nothing to explore" is NOT reachable from a capture: it holds only the last ~4 minutes of boards,
+  so floor seen earlier on the floor is missing from the replayed memory (the 17 remaining frontiers
+  border cells never shown in the window).
+Controls: unseen cells stay frontier (above); a cell shown only outside the own light stays out of
+_marked_t; boards with no light_radius unchanged (all existing frontier tests on such boards pass).
+
+Existing test that must change (STOP)
+-------------------------------------
+test_policy_navigation.TrapSealedFloorRegressionTest.test_live_labyrinth_floor_crosses_trap_after_safe_coverage_is_exhausted
+  (recorded labyrinth, light_radius 2)
+  safe_path = _plan_explore_path_pass(merged, allow_damaging=False)
+    old: [Position(8, 13)]   new: []   (the safe side is all seen inside the light: no safe frontier)
+  assertGreater(_visit_counts[safe_path[-1]], 0): cannot be evaluated on [] (IndexError).
+  Every later assertion holds unchanged: breakout path starts (8,13) and crosses (8,12), last cell
+  unvisited, choose_key '4' 'breakout:seek-frontier', beside the trap 'D4' 'explore', 1 disarm.
+  The test's own claim ("crosses the trap after safe coverage is exhausted") is now literally true.
+
+(2) Remains piles
+-----------------
+Game (read): WANTED keyword 賞金首の / "wanted" (autopick-keys-table.cpp 24) matches only
+ItemEntity::is_bounty() (autopick-matcher.cpp 288; item-entity.cpp 802: MONSTER_REMAINS of a
+non-achieved bounty unique, today's bounty or tsuchinoko).  carry() (player-inventory.cpp 262) runs
+autopick_pickup_items on every step onto a grid (autopick.cpp 107): pickup with no prompt for a plain
+rule, "ザックには~を入れる隙間がない。" when full, '?' rules prompt.  Auto-destroy ('!' rules) never
+asks: it marks the item and update_inventory_arrangement destroys it with "~を自動破壊します。"
+(autopick-destroyer.cpp 130-160, autopick.cpp 59); with always_pickup on, '!' destroys only if the
+destroy_items options allow.  The pref is picktype-<name>.prf, else picktype.prf, in the user dir
+(autopick-reader-writer.cpp 49-79), loaded at name processing / pref load.
+Change: _floor_pile_is_worthless treats tval 10 like tval 1/3: a pile of only remains is not loot
+(one predicate; _floor_pile_is_junk, _known_loot, _current_floor_item_key and the unsafe-loot set all
+read it).  Per the supervisor update no pref content is written (the runner copies the owner's
+lib/user/picktype.prf, which has 賞金首の死体や骨#賞金首 and !死体や骨).
+Desync check: the bot reads the next board (inventory, floor) after every key; a pickup or destroy
+done by the game during a step is the same inventory/floor delta as the bot's own 'g' or the existing
+trigger-autodestroy rung (step off and back on), which already relies on game autopick.  No prompt
+arises from these two rules.
+Windows: the skill launches Hengband.exe with -o -u BOT_PLAY and no -d user, so the user dir is
+lib\user (angband-initializer.cpp 63; PRIVATE_USER_PATH is Unix only); lib\user has no
+picktype-<name>.prf, so the Windows bot loads the same lib\user\picktype.prf.
+
+Pin (fixture: state rows 85-86 of 20261022-012932-stall-floor-dwell-explore, single
+ゾンビ・イークの死体 at (12,111)):
+  before: 'seek-loot' '6', then 'pickup' 'g' (as recorded).   after: 'explore' both, pile not in
+  _known_loot.
+Controls (DECLARED CONSTRUCTED tvals on the same rows): pile tvals (10, 23) -> 'seek-loot' '6',
+'pickup' 'gaa' (unchanged); tvals (1, 3) -> not targeted (unchanged).
+
+Revert-proof: reverting the policy_navigation hunk fails test_recorded_rewalk_targets_are_not_chosen
+and test_seen_floor_leaves_only_unseen_frontier; reverting the policy_helpers hunk fails
+test_single_remains_pile_is_not_targeted.  New policy attributes: none.  Bookkeeping: town work
+manifest regenerated in each commit (digests only).  New test module:
+tests/test_floor_dwell_seen_floor_recorded.py (6 tests, ~35 s).
+
+Guard outputs (on cd381d33)
+---------------------------
+  [preflight] PREFLIGHT OK: 9 changed files, 0 findings (floor-dwell-1023 vs d2304637)
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded
+  [mutation] caught     src/hengbot/policy_helpers.py:368 ("""A visible pile of only skeletons / junk / remains is not loot (#70)): test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124 (player = snapshot.player.position): test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137 (# Owner 2026-10-23 (#101): a cell shown while inside the player's): test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for cd381d33
+  [fast] 3657 fast tests (<2.0s in d2304637) + 1 changed modules, 4 shards
+  [fast] excluded 41 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-80wpffhc)
+  Failures: none
+  Errors: none
+  Total: 3665 tests, 240.4s
+  Note: the labyrinth test above is a slow test (outside the fast tier); single-module run:
+  test_policy_navigation: FAILED (failures=1) test_live_labyrinth_floor_crosses_trap_after_safe_coverage_is_exhausted;
+  test_policy: OK; test_grid_map_wire, test_exploration_commitment_observation: OK.
