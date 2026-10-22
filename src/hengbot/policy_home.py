@@ -1115,7 +1115,8 @@ class HomeMixin:
                 self._home_pending_item = relief["sale"][0]
                 self._home_pending_quantity = observed.count
                 return (self._home_full_leave_key(
-                    "home:full-queue-surplus-withdraw")
+                    "home:junk-sweep-withdraw" if relief.get("sweep")
+                    else "home:full-queue-surplus-withdraw")
                     if errand_was_active else None)
             elif self._home_errand.state.value in {"failed", "stopped"}:
                 # A failed/stopped take is an observed address miss, not a
@@ -1360,7 +1361,10 @@ class HomeMixin:
             sale = relief["sale"]
         store_type = sale[1] if relief["withdrawn"] else STORE_HOME
         if snapshot.store is not None:
-            return self._home_full_leave_key("home:full-queue-surplus-withdraw")
+            # The sweep's leave never says "full": the Home is not full.
+            return self._home_full_leave_key(
+                "home:junk-sweep-withdraw" if relief.get("sweep")
+                else "home:full-queue-surplus-withdraw")
         self._rearm_town_store_for_new_work(store_type)
         step = self._shopping_approach_step(snapshot, store_type, requester="home-visit")
         if step is None and relief.get("sweep"):

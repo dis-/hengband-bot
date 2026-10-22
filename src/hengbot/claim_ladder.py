@@ -229,7 +229,7 @@ _RUNGS: tuple[Rung, ...] = (
             "home-errand:leave-for-knowledge:"),
     _decide("_overweight_surplus_sale_key", "shop-sell", "town:overweight-surplus-"),
     _decide("_home_full_relief_key", "home-visit", "home:full-",
-            "home:junk-sweep:"),
+            "home:junk-sweep:", "home:junk-sweep-withdraw"),
     _decide("_equipment_transaction_town_key", "equipment-txn",
             owns_transaction=True),                                    # 5765
     _decide("_equipment_transaction_town_owner_key", "equipment-txn",
