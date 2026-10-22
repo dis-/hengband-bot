@@ -1801,8 +1801,8 @@ class TrapSealedFloorRegressionTest(unittest.TestCase):
             safe_path = policy._plan_explore_path_pass(
                 merged, allow_damaging=False
             )
-            self.assertEqual(safe_path, [Position(8, 13)])
-            self.assertGreater(policy._visit_counts[safe_path[-1]], 0)
+            # Owner 2026-10-23 (#101): floor seen in the own light is explored, so no safe frontier is left.
+            self.assertEqual(safe_path, [])
 
             breakout_path = policy._plan_explore_path(merged)
             self.assertEqual(breakout_path[0], Position(8, 13))
