@@ -180,3 +180,13 @@ Final verification (current tree, each module in its own process, no toggles): a
   above plus test_floor_dwell_seen_floor_recorded OK.
 Note: one early combined toggle run (two tests in one process) reported a pass that a later
   single-test run did not reproduce; every verdict above uses the single-module/test runs.
+
+Guard outputs (round 1, on 361a2408 + report; fast tier not run per the round-1 instructions)
+-------------------------------------------------------------------------------------
+  [preflight] PREFLIGHT OK: 27 changed files, 0 findings (floor-dwell-1023 vs d2304637)
+  (preflight also lists the 12 existing tests carrying a declared wall decorator, plus the labyrinth test changed earlier)
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded
+  [mutation] caught     src/hengbot/policy_helpers.py:368 ("""A visible pile of only skeletons / junk / remains is not loot (#70)): test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124 (player = snapshot.player.position): test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137 (# Owner 2026-10-23 (#101): a cell shown while inside the player's): test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
