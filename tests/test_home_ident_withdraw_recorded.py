@@ -36,6 +36,7 @@ from hengbot.model import SV_SCROLL_IDENTIFY, TVAL_SCROLL, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_HOME
+from recorded_junk_scope import pre_home_junk_sweep_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 
@@ -98,6 +99,8 @@ class HomeIdentWithdrawRecordedTest(unittest.TestCase):
              (873549, 45, 123, STORE_HOME, 17)],
         )
 
+    # declared wall: capture 2026-10-18 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def test_unfulfilled_home_pass_does_not_route_back_to_home(self):
         policy, snapshot = self._policy_for(self.approach)
         self.assertEqual(

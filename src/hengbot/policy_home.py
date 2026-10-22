@@ -299,6 +299,58 @@ class HomeMixin:
                 "town": self._effective_town_id(snapshot),
             }
 
+    def _begin_home_junk_sweep(self, snapshot: Snapshot) -> bool:
+        """#95 slice 1b-2: file one Home junk ware's relief per Home visit.
+
+        Design chapter 3.1: only on a Home page the town plan opened anyway,
+        after the live Home page owner found no Home work (the design's
+        `_shop_core` site is not on the live Home path).  The existing
+        full-Home relief takes the ware (it leaves and binds the take to the
+        entrance's atomic entry-take-exit) and destroys it outside; at most
+        HOME_BATCH_RESERVED_SLOTS wares per town stay, and a miss ends the
+        sweep for the stay.
+        """
+        epoch, swept = getattr(self, "_home_junk_sweep_count", None) or (None, 0)
+        if epoch != self._town_visit_epoch:
+            swept = 0
+        home_visit = getattr(self, "_home_visit", None)
+        if (snapshot.store is None or snapshot.store.store_type != STORE_HOME
+                or swept >= HOME_BATCH_RESERVED_SLOTS
+                or not self._home_knowledge_current
+                or self._home_errand.active
+                or self._home_pending_item is not None
+                or self._home_pending_batch
+                or self._home_full_relief is not None
+                or getattr(self, "_home_full_retry_deposits", None) is not None
+                or self._equipment_transaction_session is not None
+                or self._find_home_deposit(snapshot) is not None
+                or self._inventory_overweight(snapshot)
+                or self._physical_hostiles(snapshot)
+                or PACK_CAPACITY - len(snapshot.inventory)
+                <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
+                or self._town_store_blocked_under_applicable_bound(STORE_HOME)
+                or (home_visit is not None
+                    and home_visit.attempts_used >= home_visit.attempt_limit)):
+            return False
+        self._home_junk_sweep_count = (self._town_visit_epoch, swept + 1)
+        self._home_full_relief = {
+            "deposits": (), "remaining": 1, "sale": None, "withdrawn": False,
+            "town": self._effective_town_id(snapshot), "sweep": True,
+        }
+        return True
+
+    def _end_home_junk_sweep(self) -> None:
+        """Retain the sweep's ware and end the sweep for this town stay."""
+        relief = self._home_full_relief
+        sale = relief.get("sale") if relief is not None else None
+        if sale is not None and self._home_pending_item == sale[0]:
+            self._home_pending_item = None
+            self._home_pending_quantity = None
+        self._home_full_relief = None
+        self._home_errand.finish()
+        self._home_junk_sweep_count = (self._town_visit_epoch,
+                                       HOME_BATCH_RESERVED_SLOTS)
+
     def _revalidate_home_full_destroy_after_restore(self, snapshot: Snapshot) -> None:
         """A checkpoint cannot prove its pending destroy was posted this run."""
         relief = getattr(self, "_home_full_relief", None)
@@ -647,6 +699,8 @@ class HomeMixin:
             self._home_pending_quantity = None
             self._home_pending_take_confirmed = None
         self.last_reason = f"home:full-skip:{reason}"
+        if relief.get("sweep"):
+            self._end_home_junk_sweep()
         self._offer_execution(
             WAIT_KEY, producer="home-visit", work_id="home-full-relief",
             next_step="home.full-relief.select", arguments=(signature, reason),
@@ -899,6 +953,8 @@ class HomeMixin:
                     if key is None:
                         return None
                     self.last_reason = ("home:full-destroy-await-effect" if posted
+                                        else f"home:junk-sweep:{relief['sweep_class']}"
+                                        if relief.get("sweep")
                                         else "home:full-destroy-surplus")
                     self._offer_execution(
                         key, producer="home-visit", work_id=f"home-full-destroy:{sale_identity}",
@@ -966,7 +1022,11 @@ class HomeMixin:
                 relief.pop("mode", None)
                 self._home_errand.finish()
                 self._invalidate_home_observation()
-                if relief["remaining"] == 0:
+                if relief["remaining"] == 0 and relief.get("sweep"):
+                    # The sweep freed no deposit: no retry batch, no release
+                    # of the visit bound.
+                    self._home_full_relief = None
+                elif relief["remaining"] == 0:
                     self._home_rejected_deposits.difference_update(
                         entry[0] for entry in relief["deposits"])
                     self._home_deposit_abandoned = False
@@ -1055,7 +1115,8 @@ class HomeMixin:
                 self._home_pending_item = relief["sale"][0]
                 self._home_pending_quantity = observed.count
                 return (self._home_full_leave_key(
-                    "home:full-queue-surplus-withdraw")
+                    "home:junk-sweep-withdraw" if relief.get("sweep")
+                    else "home:full-queue-surplus-withdraw")
                     if errand_was_active else None)
             elif self._home_errand.state.value in {"failed", "stopped"}:
                 # A failed/stopped take is an observed address miss, not a
@@ -1194,6 +1255,15 @@ class HomeMixin:
             else:
                 discard = unidentified = []
             self.__dict__.pop("_disposable_armour_scan_cache", None)
+            if relief.get("sweep"):
+                # The sweep destroys junk only, a ware the pack can carry.
+                if not junk or not self._can_add_item_without_overweight(
+                        snapshot, junk[0][1]):
+                    self._end_home_junk_sweep()
+                    return None
+                relief["sweep_class"] = self._junk_class(replace(
+                    snapshot, inventory=(*snapshot.inventory, junk[0][0])),
+                    junk[0][0])
             if not candidates:
                 if len(snapshot.inventory) < PACK_CAPACITY:
                     # Free a shelf, not more pack space, whenever a Home
@@ -1286,13 +1356,21 @@ class HomeMixin:
                     if self._sale_item_identity(carried) == self._sale_item_identity(item)))
             self._home_pending_item = signature
             self._home_pending_quantity = item.count
-            self._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
+            self._rearm_town_store_for_new_work(
+                STORE_HOME, release_visit_bound=not relief.get("sweep"))
             sale = relief["sale"]
         store_type = sale[1] if relief["withdrawn"] else STORE_HOME
         if snapshot.store is not None:
-            return self._home_full_leave_key("home:full-queue-surplus-withdraw")
+            # The sweep's leave never says "full": the Home is not full.
+            return self._home_full_leave_key(
+                "home:junk-sweep-withdraw" if relief.get("sweep")
+                else "home:full-queue-surplus-withdraw")
         self._rearm_town_store_for_new_work(store_type)
         step = self._shopping_approach_step(snapshot, store_type, requester="home-visit")
+        if step is None and relief.get("sweep"):
+            # The sweep never routes back to Home: no take now ends it.
+            self._end_home_junk_sweep()
+            return None
         if step is None:
             self._town_blocked_reason = "home-full-surplus-store-unreachable"
             return self._town_blocked_key(snapshot)

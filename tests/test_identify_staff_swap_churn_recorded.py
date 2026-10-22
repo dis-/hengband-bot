@@ -83,6 +83,7 @@ from hengbot.warrior_optimization import load_character_calibration
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 from combat_decision_walls import pre_combat_decisions_rule
+from recorded_junk_scope import pre_home_junk_sweep_rule
 from suitefix4_checkpoints import restore as restore_independent
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -154,6 +155,8 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         global _RECORDS
+        # declared wall: capture 2026-10-03 predates the Home junk sweep (2026-10-22)
+        cls.enterClassContext(pre_home_junk_sweep_rule())
         for path, digest in SHA256.items():
             assert _sha(path) == digest, path
         _RECORDS = (load_character_calibration(CALIBRATION),

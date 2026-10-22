@@ -1826,7 +1826,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "26aa7695e12b711d504e6d9515d5b033f510b53f539d671485fe704466fa5249"
+    "ast_sha256": "3ededad5db51658b4d95e312700fe43ff14fe8188b094d217f2c2709789da2e4"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -5158,7 +5158,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "45d1212f7545a22929fcba1b2bca4634d0717a4d5d45a1016682e06b8594fb43"
+    "ast_sha256": "aa699013b7bcc0c02c316f136e4de4d00442f6a8338ce90be02af76102c82abe"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
@@ -5174,7 +5174,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1ecbc1fd074f3b2c869859488c0880dd4e40adfc649d98b83428c86e3d759b4d"
+    "ast_sha256": "795ceb53a79696c76a65958cd8a99b72d3c2b8d26fb5a5047c93b3cad7f3081d"
   },
   "policy_home.py:HomeMixin._home_knowledge_await_key": {
     "classification": "producer",

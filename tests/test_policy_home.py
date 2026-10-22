@@ -158,7 +158,7 @@ from hengbot.quest_knowledge import (
 )
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
 from hengbot.ammo_carry import ammo_carry_plan
-from recorded_junk_scope import pre_junk_scope_replay
+from recorded_junk_scope import pre_home_junk_sweep_replay, pre_junk_scope_replay
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.equipment_mutation import progress_core
@@ -5319,6 +5319,8 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
             equipment_move_identity(cure),
         )
 
+    # declared wall: capture 2026-09-17 predates the Home junk sweep (2026-10-22)
+    @pre_home_junk_sweep_replay
     def test_restored_policy_without_procurement_probe_declines_new_owner(self):
         policy, rows = self._primed_policy()
         del policy._home_procurement_probe
