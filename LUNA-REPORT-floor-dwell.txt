@@ -42,5 +42,10 @@ Options needing an owner decision (none implemented)
 
 Pins / controls / revert-proof: none (no fix). Existing tests untouched.
 
-Guard outputs: see the hand-off message (preflight, mutation_check, fast_tier were run on the
-report-only commit).
+Guard outputs (on commit bd144a9e, report-only):
+  preflight:     [preflight] PREFLIGHT OK: 2 changed files, 0 findings (floor-dwell-1023 vs 08257674)
+  mutation_check (--record, no --tests: no test module exists):
+                 [mutation] STOP: the change touches no test module; give --tests
+  fast_tier (run after gate-junk1b23-1022-r3 finished, 01:38):
+                 3657 fast tests + 0 changed modules, 4 shards; Crashed shards: none;
+                 Failures: none; Errors: none; Total: 3659 tests, 187.4s
