@@ -35,3 +35,25 @@ report are committed. The recorded inputs for option 1 are in the session scratc
 scratchpad/calib/live-bot-test.txt (dump 10-23 04:49:30), live-state-1750.jsonl (state.jsonl
 lines 1750-1770; line 1761 = character row, 1762 = board), repro.py, feas.py, and the two
 copied captures 20261021-085816-* and 20261023-042212-*.
+
+GUARD OUTPUTS (after commit 1aecb6d0; docs-only diff)
+[preflight] PREFLIGHT OK: 2 changed files, 0 findings (calib-required-1023 vs d2304637)
+
+[mutation] 0 source hunks, tests: tests.test_mutation_calibration
+[mutation] MUTATION OK: 0 of 0 hunks are not pinned by a test
+[mutation] recorded for 1aecb6d0
+
+(fast_tier started 06:14 after gate-lighttotal-1023 left the 70-minute window; its full suite
+was probably still running, so the machine was loaded: 660 s against the usual 200-280 s)
+[fast] 3657 fast tests (<2.0s in d2304637) + 0 changed modules, 4 shards
+Crashed shards: none
+Failures: test_control_client (3: id_mismatch_reconnects_and_retries,
+  mid_recv_failure_matches_base_close_and_reconnect_count, send_keys_returns_acknowledged_count),
+  test_dualwield_recorded.test_corrected_four_loadouts_and_real_optimizer_entry,
+  test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace
+Errors: test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder,
+  test_control_client.test_shadow_uses_state_history_without_redundant_messages_request
+Total: 3659 tests, 660.3s
+Classification: not (R). No source changed on this branch. Rerun alone
+(test_control_client, test_dualwield_recorded, AcceptedObservationRetryPins,
+Stage2aFollowBarrierPin): Ran 58 tests in 43.2s, OK -> timing under load.
