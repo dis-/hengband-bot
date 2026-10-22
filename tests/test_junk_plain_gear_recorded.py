@@ -137,7 +137,8 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         self.assertEqual(counts, {
             ("plain-gear", 19): 7,
             ("plain-gear", 21): 18, ("plain-gear", 22): 30, ("plain-gear", 23): 30,
-            ("plain-gear", 30): 6, ("plain-gear", 32): 7, ("plain-gear", 34): 8,
+            # USER DECISION 2026-10-23 「合計で比べる」: no plain helmet (tval 32) is junk beside the selected 闇の陣笠.
+            ("plain-gear", 30): 6, ("plain-gear", 34): 8,
             ("plain-gear", 35): 6, ("plain-gear", 36): 13, ("plain-gear", 37): 2,
         })
 

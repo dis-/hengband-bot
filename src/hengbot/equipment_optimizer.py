@@ -342,6 +342,52 @@ def permanent_light_radius(item: OwnedEquipment | None) -> int:
     return radius
 
 
+def worn_light_radius(items: Iterable[OwnedEquipment | None]) -> int:
+    """Total light radius of the worn ``items`` (the one light-radius rule).
+
+    USER DECISION 2026-10-23 「合計で比べる」: the optimizer compares the light
+    radius of the whole loadout, not of the light source alone (#101: a worn
+    闇の陣笠, TR_LITE_M1, turned the lamp's radius 2 into 1).
+
+    update_lite_radius() (src/specific-object/torch.cpp) adds
+    ItemEntity::get_lite_radius() (src/system/item/item-entity.cpp) of every
+    worn item: +1/+2/+3 for TR_LITE_1/2/3 unless the item has TR_DARK_SOURCE,
+    -1/-2/-3 for TR_LITE_M1/M2/M3.  A permanent light adds
+    permanent_light_radius() (the #86 term); every other item adds its own
+    flags.  Only known flags are read (fair play): an unidentified item's
+    hidden flags are not guessed.
+
+    Not counted here: fuel (a worn torch or lantern counts as burning; the
+    supply and wield owners keep it fuelled, and the optimizer never makes
+    fuel a selection input), the ego LITE_SHINE bonus (no flag on the board),
+    and what belongs to the player or the floor rather than the items (the
+    player's own light, timed emission, mimic forms, the DARKNESS dungeon cap
+    and the 0..14 clamp; the clamp is left out so that one item's own
+    darkness still counts when it is compared alone).
+    """
+    radius = 0
+    for item in items:
+        if item is None:
+            continue
+        if item.item.tval == TVAL_LITE and item.item.sval >= SV_LITE_FEANOR:
+            radius += permanent_light_radius(item)
+            continue
+        flags = item.flags
+        radius -= sum(
+            value for flag, value in DARKNESS_RADIUS_BY_FLAG if flag in flags
+        )
+        if TR_DARK_SOURCE not in flags:
+            radius += sum(
+                value for flag, value in LIGHT_RADIUS_BY_FLAG if flag in flags
+            )
+    return radius
+
+
+def loadout_light_radius(loadout: Loadout) -> int:
+    """Total light radius of ``loadout`` (worn_light_radius of its slots)."""
+    return worn_light_radius(item for _, item in loadout.slots)
+
+
 @dataclass(frozen=True)
 class LoadoutMetrics:
     expected_dps: float
@@ -1046,11 +1092,11 @@ def _prefer(
     if cm == im:
         candidate_light = (
             light_source_quality(candidate.loadout),
-            permanent_light_radius(candidate.loadout.item_at(SLOT_LIGHT)),
+            loadout_light_radius(candidate.loadout),
         )
         incumbent_light = (
             light_source_quality(incumbent.loadout),
-            permanent_light_radius(incumbent.loadout.item_at(SLOT_LIGHT)),
+            loadout_light_radius(incumbent.loadout),
         )
         if candidate_light != incumbent_light:
             return candidate_light > incumbent_light
@@ -1316,7 +1362,7 @@ def _stable_operational_best(
             entry.metrics.secondary_value,
             entry.metrics.speed_bonus,
             light_source_quality(entry.loadout),
-            permanent_light_radius(entry.loadout.item_at(SLOT_LIGHT)),
+            loadout_light_radius(entry.loadout),
             len(entry.loadout.slots),
             entry.loadout.item_ids == current_item_ids,
             entry.metrics.combat_margin,

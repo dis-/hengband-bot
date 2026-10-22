@@ -21,8 +21,9 @@ from hengbot.equipment_optimizer import (
     current_loadout,
     hand_configurations,
     light_source_quality,
-    permanent_light_radius,
+    loadout_light_radius,
     slot_for,
+    worn_light_radius,
 )
 from hengbot.warrior_defense_evaluator import PROTECTOR_TVALS, TR_SPEED
 from hengbot.warrior_equipment_evaluator import warrior_melee_signature
@@ -95,6 +96,9 @@ def _loadout_value_signature(item: OwnedEquipment) -> tuple[object, ...]:
         obj.weapon_proficiency,
         _evaluator_flags(item),
         item.exploration_legal,
+        # 「合計で比べる」 (2026-10-23): an item that changes the light radius
+        # (TR_LITE_M1 闇の陣笠) is not a copy of one that does not.
+        worn_light_radius((item,)),
     )
 
 
@@ -130,7 +134,7 @@ def _item_dominance_parts(
             int(signature[8]) if melee_weapon else 0,
             int(signature[9]),
             int(signature[11]) if melee_weapon else 0,
-            permanent_light_radius(item),
+            worn_light_radius((item,)),
         ),
         flags.intersection(BENEFICIAL_GEAR_FLAGS),
     )
@@ -297,7 +301,7 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
         launcher_item.to_h if launcher_item is not None else 0,
         launcher_item.to_d if launcher_item is not None else 0,
         light_source_quality(loadout),
-        permanent_light_radius(loadout.item_at(SLOT_LIGHT)),
+        loadout_light_radius(loadout),
         # 「空いた鎧の欄は必ず埋める」: a worn outer/head/arms/feet piece whose
         # AC nets to zero (e.g. [1,-1]) must not be compressed away as
         # equivalent to the empty slot before the optimizer's fill rule sees it.
