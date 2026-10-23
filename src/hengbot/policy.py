@@ -10384,7 +10384,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if potion is not None:
                 self.last_reason = "item:heal"
                 return reserved_item_command(self, snapshot, "quaff", potion)
-        if adjacent and not player.afraid:
+        if (
+            adjacent
+            and not player.afraid
+            and self._can_fight_in_dungeon(snapshot.floor_key[0])
+        ):
             self.last_reason = "melee"
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
@@ -11285,7 +11289,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ]
 
         # 2. Melee an adjacent hostile (weakest first) — unless too afraid.
-        if combat_adjacent and not player.afraid:
+        if (
+            combat_adjacent
+            and not player.afraid
+            and self._can_fight_in_dungeon(snapshot.floor_key[0])
+        ):
             # A chase closed on its monster: combat takes over (rev 9.2 M, for
             # whichever chasing owner holds it).
             self._complete_claim_goal(

@@ -5526,6 +5526,7 @@ class QuestMixin:
                 or did == DUNGEON_CHAMELEON_CAVE
                 or did in conquered
                 or (did == DUNGEON_YEEK_CAVE and info.guardian_id <= 0)
+                or not self._can_fight_in_dungeon(did)
             ):
                 continue
             if info.max_depth <= 0 or info.max_depth > limit:
