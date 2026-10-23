@@ -1,0 +1,51 @@
+LUNA-DIAG loop20 - n1-a life-001 retired on Angband 20F (loop-detected x3, 2026-10-23 14:26)
+=========================================================================================
+
+Evidence (read-only copies of hengband.net ~/hengbot-soak/n1-a/life-001/captures/
+20261023-142643/-142650/-142657-loop-detected and events.jsonl).
+
+Measured alternation (recorded decisions, replayed through the real policy at ac203b36)
+---------------------------------------------------------------------------------------
+Replay: the 121 player_turn state rows (turns 1680749..1681926) fed open-loop through
+_Replay (tests/test_floor_dwell_seen_floor_recorded.py) reproduce every recorded (key, reason)
+of the window exactly, e.g.
+  1680775 (18,16) '7' seek-loot            1680784 (17,15) '3' detected:prepare-choke
+  1680794 (18,16) '7' seek-loot            1680808 (17,15) '3' detected:prepare-choke ... x13
+  1681028 (17,15) '8' nav:break-oscillation, 1681035/1681055 prepare-choke '9'/'6', 1681044/
+  1681065 seek-loot '1' (the same pair one cell north), 1681095 '9' melee (one visible
+  hostile), then the pair again until the stop (life-001 stops at 1681157, 1681529, 1681919).
+
+Producers and goals:
+- detected:prepare-choke = policy.py _detected_threat_preparation_key (19112-19142 at
+  ac203b36).  At (17,15) the ESP-perceived awake Large kobolds idx 7 at (16,13) d=2 and
+  idx 10 at (16,12) d=3 are within SWARM_LOOKAHEAD=3 (melee only, max_ranged_damage 0):
+  two melee threats, the gate at 19060 opens.  _summoner_retreat_route (19628) returns
+  (None, (18,16)): no covered cell (openness <= 2 with summoner distance >= 2) is reachable,
+  so the flee fallback step '3' is taken and 19126-19134 commits NO route
+  (destination None: "the flee fallback names no cell and commits to nothing").
+- seek-loot (floor-loot claim) at (18,16): idx 7 now d=3, idx 10 d=4 -> one melee threat,
+  no committed route -> "choke-threat-dispersed" (19060) returns None; loot targets the
+  Fauchard (18,14) / 8 bolts (19,13) and its path step is '7' back to (17,15).
+- Why no progress: the kobolds never move (ESP positions identical on all 121 boards; they
+  stand behind the wall column x=14), so the gate is a pure function of the player's cell:
+  open at (17,15), closed at (18,16).  The 2026-09-23 commitment (route to a covered cell)
+  only exists when a covered cell exists; the flee fallback hands the decision back after
+  one step.  nav:break-oscillation fired twice and was walked back the same way.
+- Map: the pack is in unknown ground west of the wall x=14 (rows 10-17); a kobold did
+  reach view once (1681095 melee), so the pack is not proven sealed.
+
+Is today's change involved?  NO (measured, revert + replay of the same 32 boards):
+- ac203b36 seen-floor rule (16b5aeb6, policy_navigation._build_grid_index) reverted:
+  identical keys/reasons (14x prepare-choke '3', 13x seek-loot '7', ...).
+- ac203b36 remains-pile rule (cd381d33, _floor_pile_is_worthless) reverted: prepare-choke
+  unchanged; seek-loot at (18,16) then targets the kobold corpse (18,17) ('6') instead of
+  the Fauchard - the alternation stays (only the loot target differs).
+- 34f91c82 return-oscillation fix (policy_town.py) reverted: identical.
+The type is the 2026-09-23 / 2026-09-20 shape (seek-loot <-> detected:prepare-choke,
+stop_shape.py "ownership-alternation"), left open for the no-covered-cell case.
+
+Ledger: ROOT-TYPE-LEDGER.md has no row for this question ("does the anticipatory retreat
+keep the decision until its episode ends").  Count for this shape: 2026-09-20 (choke
+arrival, fixed by the 50-turn hold), 2026-09-23 (route commitment), 2026-10-23 (flee
+fallback) = 3rd occurrence of the same question -> the supervisor should add the row
+(ROOT-FIX threshold reached; see the report for the enumerated hand-back points).
