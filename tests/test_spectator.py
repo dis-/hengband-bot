@@ -147,10 +147,13 @@ class SpectatorFollowReplayTest(executor_pins.ProductionHarness):
         self.assertEqual(written["dungeon"], 2)
         self.assertEqual(written["hp"], [final["player"]["hp"], final["player"]["max_hp"]])
         # The executor's last screen reply, as the game sent it (no attrs requested).
-        self.assertEqual(written["screen"], {
-            "width": game.screen["width"], "height": game.screen["height"],
-            "lines": game.screen["lines"],
-        })
+        screen = written["screen"]
+        self.assertEqual(
+            (screen["width"], screen["height"], screen["lines"]),
+            (game.screen["width"], game.screen["height"], game.screen["lines"]))
+        self.assertIn("cursor", game.screen)
+        self.assertNotIn("cursor", screen)
+        self.assertNotIn("attrs", screen)
         # Each recorded snapshot carries only its new lines: all are kept, oldest first.
         seen = [message for line in recorded for message in line["messages"]]
         self.assertGreater(len(seen), 0)
@@ -244,7 +247,6 @@ class SpectatorWriterTest(unittest.TestCase):
         reply["attrs"] = [[1, 2, 3]]
         self.assertEqual(spectator_screen(reply)["attrs"], [[1, 2, 3]])
         self.assertIsNone(spectator_screen(None))
-        self.assertIsNone(spectator_screen({"width": 3}))
 
     def test_printable_key(self):
         self.assertEqual(printable_key(None), "")

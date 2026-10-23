@@ -28,6 +28,9 @@ from hengbot.control_client import raw_keys_to_macro_notation
 SPECTATE_WRITE_INTERVAL_SECONDS = 1.0
 SPECTATE_MESSAGE_LINES = 20
 SPECTATE_ERROR_REPORT_INTERVAL_SECONDS = 3600.0
+# Fields of the control server's screen reply (bot-screen.cpp, handle_screen_request)
+# that describe the cursor and the input wait rather than what is on screen.
+SPECTATE_SCREEN_FIELDS_NOT_SHOWN = ("cursor", "input_context", "term")
 
 
 def printable_key(key: str | None) -> str:
@@ -57,20 +60,19 @@ def merge_seen_messages(seen: Sequence[str], new: Sequence[str]) -> list[str]:
 
 
 def spectator_screen(screen_value: Mapping[str, object] | None) -> dict | None:
-    """The viewer's copy of one screen reply, or None without a usable reply."""
+    """The viewer's copy of one screen reply, or None without a reply.
+
+    The reply is passed through as the game sent it (width, height, the text
+    rows, and attrs when the bot asked for them) minus the fields that only
+    describe the bot's own input wait.  Nothing here reads the rows: the
+    viewer shows them, the bot does not infer anything from this copy.
+    """
     if not isinstance(screen_value, Mapping):
         return None
-    lines = screen_value.get("lines")
-    if not isinstance(lines, list):
-        return None
-    screen = {
-        "width": screen_value.get("width"),
-        "height": screen_value.get("height"),
-        "lines": list(lines),
+    return {
+        field: value for field, value in screen_value.items()
+        if field not in SPECTATE_SCREEN_FIELDS_NOT_SHOWN
     }
-    if "attrs" in screen_value:
-        screen["attrs"] = screen_value["attrs"]
-    return screen
 
 
 class SpectatorWriter:
