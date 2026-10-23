@@ -10900,5 +10900,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:_commit_home_withdraw": {
+    "classification": "adapter",
+    "rows": [
+      "home-errand"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Adapter on the Home-withdraw refusal path: closes the Home store visit acquired and requested by the approach step before its walking entry; no independent key or progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

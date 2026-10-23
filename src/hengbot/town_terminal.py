@@ -1256,6 +1256,15 @@ def _commit_identify_carried(policy: Any, board: Any, terminal: TerminalRef,
             expected_effect="identification-source-ready")
 
 
+def _commit_home_withdraw(policy: Any, board: Any, terminal: TerminalRef,
+                          admission: Admission) -> None:
+    # The approach step acquired this visit and filed its trip before the
+    # walking rung asked admission. A refused walk must not retain that visit.
+    visit = policy._store_visit
+    if visit is not None and visit.store_type == STORE_HOME:
+        policy._close_store_visit("reservation-unavailable")
+
+
 def _commit_curse_remove(policy: Any, board: Any, terminal: TerminalRef,
                          admission: Admission) -> None:
     # The body's no-step causes are the verdict's codes.
@@ -1274,6 +1283,7 @@ REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] =
     "identify-equipped": _commit_identify_equipped,
     "identify-device": _commit_identify_device,
     "identify-carried": _commit_identify_carried,
+    "home-withdraw": _commit_home_withdraw,
     "curse-remove": _commit_curse_remove,
     "enchant-launcher": _commit_enchant_launcher,
 }
