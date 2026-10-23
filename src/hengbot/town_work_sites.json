@@ -1753,7 +1753,7 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b0cc042f24220b9810fa785258f5423c7af9c0fc80707536bfb65d06299ed7d5"
+    "ast_sha256": "5274c6821a47c0677ac575b75a8a6912831a7171332f3fd4d98042391a7f27f6"
   },
   "policy.py:HengbotPolicy._breakout_restore_weapon_key": {
     "classification": "producer",
@@ -2433,7 +2433,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f77c6b1e9239b58431a04e0ede4bf8cb5fefd5784a263c0db3e6ab827f9678c2"
+    "ast_sha256": "897ae34246fb54dc1a7b8fc407313735f845d308bfcb4207f279a36631eeae7a"
   },
   "policy.py:HengbotPolicy._is_processable_chest": {
     "classification": "data",
@@ -5771,7 +5771,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "810d7f4047eda6eb70e4671e7a4d15b9e25fb3b8ce576d01f22f91835fda7cb5"
+    "ast_sha256": "fc881fb9f4ae0de92a6e100fc5e07e9735e17ca619f11d3434c458dd650004ee"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
     "classification": "adapter",
@@ -7986,7 +7986,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f152a1dc55342693b0224301629bf5f712ec59e988f010073811a2ab0dcaebdb"
+    "ast_sha256": "7ab75df86eaeace5cd161eaabab4f49c09d1cb35cc51cd03b993cbfed7c735dd"
   },
   "quest_navigator.py:QuestFloorNavigator.ranged_vantage_goals": {
     "classification": "data",

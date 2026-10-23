@@ -10089,7 +10089,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._move_repeat >= LIVELOCK_LIMIT:
             self._move_repeat = 0
             alternate = self._breakout_step(snapshot, key)
-            if alternate is not None:
+            if alternate is not None and not self._step_raises_unintended_confirm(
+                snapshot, alternate
+            ):
                 self.last_reason = "breakout"
                 key = self._direction_key(position, alternate)
                 self._last_move_key = key
@@ -19223,6 +19225,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
+            return False
+        # #102: QUEST_ENTER carries DOWN_STAIRS, but arriving on it (or '>'
+        # there) asks the quest-entry question that no descent owner answers.
+        if self._step_raises_unintended_confirm(snapshot, grid.position):
             return False
         if not self._kill_quest_descent_allowed(snapshot):
             return False

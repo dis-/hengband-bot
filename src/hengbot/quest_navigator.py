@@ -125,6 +125,9 @@ class QuestFloorNavigator:
             snapshot, quest_id
         ):
             return None
+        # The step's owner is the entering owner before the step is composed
+        # (#102: _step_toward admits a quest entrance only for that owner).
+        owner.last_reason = reason
         key = owner._step_toward(snapshot, route.first_step)
         owner.last_reason = reason
         if context is None or quest is None:

@@ -1,0 +1,67 @@
+LUNA-DIAG qdoor (#102, ledger type "what input is the game waiting for", 3rd+ after #32 #55)
+Base ac203b36, branch quest-door-confirm-1023. Line numbers are at the base unless marked.
+
+EVIDENCE (read-only copies of hengband.net n1-a/life-002/captures 20261023-151445-keep-running and
+20261023-151452-keep-running; nothing started/stopped/written there)
+- Capture 1, decisions 16470..16474 (turn 498772): 16470 '7q' fixedquest:request (quest 2 taken), 16471..16473
+  quest:enter:approach '2','3','3' walking (21,44)->(24,46) toward the quest-2 entrance (25,47); 16474 key '3'
+  reason town:repetition-depart, claim owner departure (tenure 1), departure_block.failed ["equipment_departure_ready"].
+  town_work chain of 16474: policy.py:_direction_key <- policy_navigation.py:_step_toward (policy_reason
+  "seek-downstairs") <- policy_town.py:_town_blocked_key:6046 <- force_visit_departure:5835 <- _town_blocked_key:5873
+  <- _town_special_key:6266 <- _decide.  map_memory.down_stairs = [[25,47]].
+- Capture 2 (restart on the entrance): 4 'rfd' town:repetition-depart:recall, 5 '7' town:entrance-step-off, 6 '3'
+  town:repetition-depart -- the same chain, back onto (25,47) (turn 498801).
+- Both final states: player on (25,47); the parsed grid there is has_quest_enter=True, quest_id=2,
+  has_down_stairs=True, terrain_id 8, known, passable.
+
+MEASURED CAUSE (fixture tests/fixtures/quest-door-confirm-20261023.jsonl.gz = the two recorded boards at (24,46);
+measured by tests/test_quest_door_confirm_recorded.py with the src diff reversed)
+1. Why the quest owner stopped stepping: quest_navigator.py:124-127 (and :100-102 / policy_quest.py:5229-5233) return
+   None when the next step is the entrance and _quest_equipment_entry_allowed is false -- the quest owner itself
+   knows the step raises the entry question and declines it (equipment_departure_ready false at that moment).
+2. Who then composed the step, and with what intent: the departure producer
+   policy_town.py:6020 `step = self._descent_step(snapshot)` -> policy_navigation.py:_descent_step selects descent
+   targets with policy.py:19224 _is_descent_target, which starts from GridState.is_descent (model.py:785:
+   has_down_stairs or has_entrance).  QUEST_ENTER carries DOWN_STAIRS (lib/edit/TerrainDefinitions.jsonc id 8, flags
+   STAIRS, DOWN_STAIRS, QUEST_ENTER), and the in-town rejection at policy.py:19238 only looks at has_entrance, so the
+   quest entrance became the departure's "downstairs".  The departure did NOT intend to enter the quest (its
+   continuation binding cli.py:2847 _quest_entry_continuations answers only quest:enter / quest:enter:approach /
+   fixedquest:enter).  Measured on both boards at ac203b36: _descent_step -> (25,47), last_reason seek-downstairs;
+   _step_toward(board,(25,47)) -> '3' = the live key.
+3. How walking knows quest-entrance cells: the board export cell["q"] = grid.special for QUEST_ENTER/QUEST_EXIT
+   (src/bot/bot-json-output.cpp:716) and terrain flag quest_enter -> GridState.has_quest_enter / quest_id
+   (model.py:1196-1198); the static town map's quest_entrances (town_maps.py:207-244, from lib/edit/towns/*.jsonc,
+   QUEST_ENTER symbols).  _town_entrance_cells (policy_town.py:7796) adds both to the modal cells the town routers
+   avoid as INTERMEDIATE cells; a router's TARGET is discarded from that set (policy_navigation.py:1284), which is how
+   the descent route ended on the entrance.
+
+GAME SOURCE: which cells ask on entry (C:\hengband\src)
+- QUEST_ENTER: player-move.cpp:252-255 sets command_new = SPECIAL_KEY_QUEST after the move;
+  input-key-processor.cpp:316-318 -> do_cmd_quest -> quest.cpp:336 input_check("クエストに入りますか？").  '>' on the
+  same grid also calls do_cmd_quest (cmd-move.cpp:217-219), so it is never a plain descent either.
+- Pattern START: pattern-walk.cpp:196 input_check on the first pattern tile (dungeon special levels only; the grid
+  export has no pattern flag, so no observable cell).
+- Not cell-dependent / not a step: TR_WARNING (object/warning.cpp:328 via movement-execution.cpp:319, already owned by
+  the warning gate), "本当にこの階を去りますか" and "本当にこのダンジョンに入りますか" (stair/entrance commands, owned
+  continuations), wild.cpp:701 (pets on entering the global map).
+- STORE / BLDG entry opens a screen without a confirm (player-move.cpp:244-251), owned by the existing entrance logic.
+=> The only observable step-entry confirm is QUEST_ENTER.
+
+ENUMERATED PRODUCERS THAT CAN STEP ONTO A QUEST_ENTER CELL
+A. Through the common step entry _step_toward (policy_navigation.py:1794; #83): every routed walker -- the town
+   routers (_town_map_goal_route, _nearest_goal_route, the descent route/BFS, shopping approach, travel-home, return,
+   fixed-quest building approach :5089/:5094, quest exit seek, ...) and the dungeon routers.  The descent producer is
+   the measured one; the other town routers avoid the cell as an intermediate on their first attempt and can cross it
+   only on their fallback attempt (policy_town.py:7857-7860, policy_supply.py:1922).
+B. Entering owners (intend the confirm): quest_navigator.py:105 and :128 (quest:enter:approach),
+   policy_quest.py:5234 (fixedquest:enter / approach).
+C. Target selection that turns the entrance into a goal for a non-entering owner: policy.py:19224 _is_descent_target
+   (measured).
+D. Bare _direction_key walks that bypass _step_toward (inventory of LUNA-DIAG-step-key-unify.txt re-run at ac203b36):
+   policy.py:10094 _break_livelock (alternate from _breakout_step admits any passable non-door cell -- can be the
+   entrance); policy.py:6582 _town_holder_declared_key and :6673/:6709 _town_holder_wait_key (next cell from
+   _town_map_goal_step / _nearest_goal_step, modal-cell avoidance first, fallback may cross); policy_town.py:2051
+   _boxed_town_breakout_key (its candidate filter already excludes has_quest_enter, policy_town.py:2128).
+   All other _direction_key sites are attacks into monster cells or suffixes (unchanged classification).
+E. Game-driven walks: native travel (`_entrance_travel_key` / ENTRANCE_TRAVEL_MACRO): travel_flow_aux
+   (action/travel-execution.cpp:86) does not exclude QUEST_ENTER, so a game travel path may cross one; not a bot step.

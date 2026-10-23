@@ -6,7 +6,7 @@
     "self._direction_key(player.position, best[1].position) @ ": 1
   },
   "policy.py:_break_livelock": {
-    "self._direction_key(position, alternate) @ If:body:self._move_repeat >= LIVELOCK_LIMIT / If:body:alternate is not None": 1
+    "self._direction_key(position, alternate) @ If:body:self._move_repeat >= LIVELOCK_LIMIT / If:body:alternate is not None and (not self._step_raises_unintended_confirm(snapshot, alternate))": 1
   },
   "policy.py:_breakout_step": {
     "self._direction_key(origin, neighbor) @ For:NEIGHBOR_OFFSETS / If:orelse:self._direction_key(origin, neighbor) == avoid_key": 1

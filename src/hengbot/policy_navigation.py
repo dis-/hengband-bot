@@ -1791,6 +1791,40 @@ class NavigationMixin:
             or cell in self._engagement_owned_avoid_cells
         )
 
+    def _step_raises_unintended_confirm(
+        self,
+        snapshot: Snapshot,
+        cell: Position,
+        owner_reason: str | None = None,
+    ) -> bool:
+        """Would stepping onto ``cell`` raise a confirm its owner did not intend?
+
+        Game source: a move onto a QUEST_ENTER grid queues SPECIAL_KEY_QUEST
+        (player-move.cpp:252-255), and do_cmd_quest asks "クエストに入りますか？"
+        (quest.cpp:336); '>' on the same grid asks too (cmd-move.cpp:217).
+        QUEST_ENTER also carries DOWN_STAIRS (TerrainDefinitions id 8), so a
+        quest entrance looks like a downstairs to every other walker.  Only the
+        entering owners answer the question: ``owner_reason`` is the step's
+        owner as the CLI binds the 'y' continuation to it
+        (cli._quest_entry_continuations: quest:enter, quest:enter:approach,
+        fixedquest:enter).
+        The other entry confirm on a step, the Pattern start
+        (pattern-walk.cpp:196), is a dungeon special level the grid export
+        does not flag, so it has no observable cell here.  An unemitted town
+        cell (night) falls back to the static town map's quest entrances.
+        """
+        if owner_reason in {"quest:enter", "quest:enter:approach", "fixedquest:enter"}:
+            return False
+        grid = snapshot.grids.get(cell)
+        if grid is not None and grid.known:
+            return grid.has_quest_enter
+        if not snapshot.in_town or not self._town_map_active(snapshot):
+            return False
+        return any(
+            cell in positions
+            for positions in self._town_map.quest_entrances.values()
+        )
+
     def _step_toward(
         self,
         snapshot: Snapshot,
@@ -1834,6 +1868,17 @@ class NavigationMixin:
                 # through the final entrance-WAIT safety envelope.
                 self._intentional_entrance_activation = True
             return WAIT_KEY + tail
+        if self._step_raises_unintended_confirm(
+            snapshot, step, self.last_reason
+        ):
+            # #102: a step that does not intend to enter this quest must not
+            # land on its entrance (player-move.cpp:252 queues
+            # SPECIAL_KEY_QUEST; quest.cpp:336 then asks input_check, which
+            # only the entering owner answers).  The callers' routers avoid
+            # these cells; reaching here means no route around was chosen, so
+            # the caller's existing no-step handling applies.
+            self.last_reason = "nav:confirm-cell-avoided"
+            return WAIT_KEY
         if step in self._paralyzer_avoid_cells:
             walkable = self._walkable_neighbors(
                 snapshot, snapshot.player.position
