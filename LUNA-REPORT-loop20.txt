@@ -73,3 +73,40 @@ Guard outputs (on 92c2e244)
   Failures: none
   Errors: none
   Total: 3645 tests, 221.9s
+
+REWORK (owner decision 2026-10-23 "隘路が無ければ後退しない") - commit fea9ed7f
+==========================================================================
+Behaviour of 92c2e244 (commit the flee cell + hold in the open) is removed.  One place
+changed in _detected_threat_preparation_key: after _summoner_retreat_route, `if step is
+None` became `if destination is None` -> no covered cell reachable: the preparation does
+not retreat (no flee step, no wait) and returns None; the ordinary producers act.  The
+covered-cell path (route commitment, choke hold, 50-turn bound) is unchanged.  Net src diff
+vs ac203b36: policy.py +6/-1 (+ manifest digest).  No new constant/attribute/reason.
+
+Pins: module renamed to tests/test_detected_pack_no_choke_recorded.py (same fixture).
+- test_recorded_onset_without_a_covered_cell_does_not_retreat: board 1680784 (17,15),
+  converging [(7,2),(10,3)], route (None,(18,16)); recorded '3' detected:prepare-choke ->
+  now '1' seek-loot toward the Fauchard (18,14), no route, no hold.
+- test_recorded_window_boards_never_retreat_or_wait (open loop, boards 4..41): no
+  prepare-choke / hold-choke anywhere (base: 19 prepare-choke boards fail).
+- test_closed_loop_collects_loot_without_tripping_the_loop_detector (DECLARED CONSTRUCTED
+  placement): '1' -> 'g' at (18,14), '1' -> 'g' at (19,13), then explore (one
+  ranged:fire-target when a kobold is visible); the driver's loop check never fires
+  (base: fires from 1681175).
+- control: onset board without the detected pack -> seek-loot (unchanged).
+Revert-proof: with fea9ed7f's src reversed to ac203b36 the module fails 21 checks (3 tests).
+Related modules run singly, all OK (same list as above).  Covered-cell path stays pinned
+by test_loot_choke_oscillation_recorded / test_policy_combat (choke hold tests).
+
+Guard outputs (on fea9ed7f)
+  [preflight] PREFLIGHT OK: 7 changed files, 0 findings (n1-loop20-1023 vs ac203b36)
+  [mutation] 1 source hunks, tests: test_detected_pack_no_choke_recorded
+  [mutation] caught     src/hengbot/policy.py:19116 (if destination is None:): test_closed_loop_collects_loot_without_tripping_the_loop_detector, test_recorded_onset_without_a_covered_cell_does_not_retreat, test_recorded_window_boards_never_retreat_or_wait
+  [mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+  [mutation] recorded for fea9ed7f
+  [fast] 3632 fast tests (<2.0s in ac203b360) + 1 changed modules, 4 shards
+  [fast] excluded 44 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-1nqa84dv)
+  Failures: none
+  Errors: none
+  Total: 3645 tests, 235.3s
