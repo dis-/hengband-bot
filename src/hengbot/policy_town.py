@@ -7073,11 +7073,16 @@ class TownMixin:
         self, snapshot: Snapshot, destination_town_id: int, *,
         producer: str = "store-router", reason: str = "town:teleport",
     ) -> str | None:
-        return self._town_producer_entry(
-            "town-teleport", lambda: self._town_teleport_dispatch_key(
-                snapshot, destination_town_id, producer=producer, reason=reason),
-            family=producer,
-        )
+        previous = getattr(self, "_terminal_town_travel", None)
+        self._terminal_town_travel = (producer, destination_town_id)
+        try:
+            return self._town_producer_entry(
+                "town-teleport", lambda: self._town_teleport_dispatch_key(
+                    snapshot, destination_town_id, producer=producer, reason=reason),
+                family=producer,
+            )
+        finally:
+            self._terminal_town_travel = previous
 
     def _town_teleport_dispatch_key(
         self, snapshot: Snapshot, destination_town_id: int, *,

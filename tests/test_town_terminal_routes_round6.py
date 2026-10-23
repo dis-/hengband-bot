@@ -18,6 +18,7 @@ from hengbot.model import (
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import FOOD_MIN_SVAL, TOWN_TELEPORT_COST
 from hengbot.policy_types import MorivantFullIdentifyExpedition
+from hengbot.policy_state import normalize_policy_state
 from policy_fixtures import item
 from test_goldburn_shopping_constructed import board
 from test_town_terminal_departure import policy_on
@@ -126,6 +127,31 @@ class Round6RouteTerminalTest(unittest.TestCase):
     def test_no_expedition_has_no_travel_terminal(self):
         snap = board()
         self.assertIsNone(tt.rung_terminal(policy_on(snap), "town-teleport", snap))
+
+    def test_actual_issuer_and_destination_override_other_held_trips(self):
+        snap = replace(board(), player=replace(board().player, gold=TOWN_TELEPORT_COST))
+        for producer in ("cross-town", "store-router"):
+            policy = policy_on(snap)
+            policy._morivant_full_identify = MorivantFullIdentifyExpedition(1, ())
+            # The selected trip goes home, costing one fare; the other held
+            # Morivant trip would cost two. Geometry is an isolated route read.
+            with patch.object(policy, "_town_teleport_building_positions", return_value=None), \
+                    patch.object(policy, "_town_teleport_dispatch_key", return_value="travel"):
+                self.assertEqual(policy._town_teleport_key(snap, 0, producer=producer), "travel")
+            self.assertIsNone(policy._terminal_town_travel)
+            rows = policy._decision_terminal_admissions
+            if producer == "cross-town":
+                row, = rows
+                self.assertEqual(row["terminal"], ["cross-town", [0]])
+                self.assertEqual(row["codes"], ["cross-town-route-unavailable"])
+            else:
+                self.assertEqual(rows, [])
+
+    def test_restored_checkpoint_defaults_the_temporary_travel_context(self):
+        policy = HengbotPolicy()
+        self.assertIsNone(policy._terminal_town_travel)
+        del policy.__dict__["_terminal_town_travel"]
+        self.assertIsNone(normalize_policy_state(policy)._terminal_town_travel)
 
     def test_prepare_refuses_without_digger_but_scavenge_uses_held_detection(self):
         snap = board()

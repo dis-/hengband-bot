@@ -426,6 +426,10 @@ def gather_recall_departure(policy: Any, board: Any) -> DepartureMaterial:
 
 def expedition_destination(policy: Any, board: Any) -> int | None:
     """The destination already selected by the expedition that calls teleport."""
+    context = getattr(policy, "_terminal_town_travel", None)
+    if context is not None:
+        producer, destination = context
+        return destination if producer == "cross-town" else None
     current = policy._effective_town_id(board)
     expedition = policy._morivant_full_identify
     if expedition is not None and expedition.phase not in {

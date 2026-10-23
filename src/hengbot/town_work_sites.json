@@ -7742,7 +7742,7 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "40b075e11c14bc35fd73543dfa78bf1382b9d66e2b1a1a7a41ae3c37daabfcac"
+    "ast_sha256": "979d429c27994a2bf8c79bbfc78646cc98faaba1dde111ce041869e601a47735"
   },
   "policy_town.py:TownMixin._town_teleport_route": {
     "classification": "data",

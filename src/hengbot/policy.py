@@ -1756,6 +1756,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Terminal admission (town_terminal): the per-decision verdict memo
         # and the admission rows of the current decision.
         self._terminal_admission_memo = None
+        self._terminal_town_travel = None
         self._decision_terminal_admissions = []
         # The maximum existing Home bound is installed once per town epoch.
         # Ordinary route bounds may stop earlier; no optimizer/session rebuild
