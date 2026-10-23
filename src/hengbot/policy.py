@@ -19116,7 +19116,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         destination, step = self._summoner_retreat_route(
             snapshot, threats, detected
         )
-        if step is None:
+        if destination is None:
+            # Owner 2026-10-23: with no covered cell reachable the preparation
+            # does not retreat at all (no flee step, no wait in the open); the
+            # ordinary producers act.  The one-step flee handed the decision
+            # straight back and loot walked it back into the window (live
+            # 2026-10-23 14:26, Angband 20F, a Large kobold pack behind a wall).
             self._detected_threat_route = None
             return None
         # A committed destination is a shortest-path goal, so each decision of
