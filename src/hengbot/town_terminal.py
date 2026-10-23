@@ -23,6 +23,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
     QUEST_STATUS_UNTAKEN,
+    STAFF_IDENTIFY_MIN_SUCCESS,
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
@@ -308,6 +309,48 @@ def gather_identify_device(policy: Any, board: Any) -> IdentifyMaterial:
         board, full=False, reliable_only=True) is not None)
 
 
+def carried_identification_target(policy: Any, board: Any) -> Any:
+    """The free carried target; an existing Home batch owns its own flow."""
+    if (not board.in_town or policy._home_pending_item is not None
+            or policy._home_pending_batch):
+        return None
+    return next((item for item in board.inventory
+                 if item.is_equipment
+                 and policy._item_signature(item) not in policy._deferred_home_items
+                 and policy._item_signature(item) not in policy._unidentifiable_sigs
+                 and policy._item_signature(item) not in policy._town_unidentifiable_carried_sigs
+                 and policy._identification_flow_candidate(item)), None)
+
+
+@dataclass(frozen=True)
+class CarriedIdentifyMaterial:
+    source_held: bool
+    full_exhausted: bool
+
+
+def gather_identify_carried(policy: Any, board: Any) -> CarriedIdentifyMaterial:
+    """Use the carried-command source rules without staging a command or
+    advancing its device failure watch. A held device still runs that watch
+    in the body; only absence of a source refuses here."""
+    target = carried_identification_target(policy, board)
+    full = bool(target is not None and target.known)
+    return CarriedIdentifyMaterial(
+        source_held=policy._find_identification_source(
+            board, full=full, reliable_only=(
+                policy._identify_staff_success_rate(board) < STAFF_IDENTIFY_MIN_SUCCESS
+            )) is not None,
+        full_exhausted=full and STORE_ALCHEMIST in policy._town_store_attempted,
+    )
+
+
+def verdict_identify_carried(material: CarriedIdentifyMaterial) -> Admission:
+    if material.source_held:
+        return ADMIT
+    if material.full_exhausted:
+        return refused(("full-identification-exhausted",))
+    return refused(("no-identification-source",))
+
+
 def home_withdraw_target(policy: Any, board: Any) -> Any:
     """The Home item the filed visit request walks to withdraw, or None.
 
@@ -492,6 +535,7 @@ CURSE_REMOVE_CODES = frozenset({
 ENCHANT_LAUNCHER_CODES = frozenset({"cannot-read-scroll"})
 # Codes the worn-item identification verdict can return.
 IDENTIFY_CODES = frozenset({"no-identification-source"})
+IDENTIFY_CARRIED_CODES = IDENTIFY_CODES | {"full-identification-exhausted"}
 # Codes the Home withdrawal verdict can return (verdict_home_withdraw).
 HOME_WITHDRAW_CODES = frozenset({"reservation-unavailable"})
 # Codes the entrance deposit verdict can return.
@@ -564,6 +608,7 @@ DEPARTURE_CODES = frozenset(
 # Every declared code: the keys of REFUSAL_SERVERS (design 3.3 (1)).
 TERMINAL_CODES = (QUEST_ENTRY_CODES | STORE_BUY_CODES | HOME_DEPOSIT_CODES
                   | CURSE_REMOVE_CODES | ENCHANT_LAUNCHER_CODES | IDENTIFY_CODES
+                  | IDENTIFY_CARRIED_CODES
                   | HOME_WITHDRAW_CODES
                   | HOME_ATOMIC_DEPOSIT_CODES | DESCENT_CODES | DEPARTURE_CODES)
 
@@ -601,6 +646,7 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
         Server("home-errand", "identification-withdrawal"),
         Server("cross-town"),
     ),
+    "full-identification-exhausted": (Server("cross-town"),),
     # Blindness or confusion: rest it off.
     "cannot-read-scroll": (Server("survival"),),
     # The needed scroll: bought, or the Home *Remove Curse* stock fetched.
@@ -792,6 +838,14 @@ def device_identification_intended_terminal(policy: Any, board: Any) -> Terminal
     return TerminalRef("identify-device", (policy._item_signature(target),))
 
 
+def carried_identification_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``town-item-processing``: identify the free carried equipment target."""
+    target = carried_identification_target(policy, board)
+    if target is None:
+        return None
+    return TerminalRef("identify-carried", (policy._item_signature(target),))
+
+
 def home_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     """The approach rungs: walk to Home for the filed withdrawal.  Other
     stores (store-buy) and other Home requests have no terminal here yet."""
@@ -938,6 +992,7 @@ TERMINALS: dict[str, TerminalDecl] = {
         identify_equipped_intended_terminal, SHADOW),
     "_town_device_processing_key": TerminalDecl(
         device_identification_intended_terminal, SHADOW),
+    "town-item-processing": TerminalDecl(carried_identification_intended_terminal, SHADOW),
     **{name: TerminalDecl(home_withdraw_intended_terminal, SHADOW) for name in (
         "_shopping_approach_key", "_shopping_approach_key#1",
         "_shopping_approach_key#2")},
@@ -960,6 +1015,8 @@ _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
         gather_identify_equipped(policy, board)),
     "identify-device": lambda policy, board: verdict_identify_equipped(
         gather_identify_device(policy, board)),
+    "identify-carried": lambda policy, board: verdict_identify_carried(
+        gather_identify_carried(policy, board)),
     "home-withdraw": lambda policy, board: verdict_home_withdraw(
         gather_home_withdraw(policy, board)),
     "home-atomic-deposit": lambda policy, board: verdict_home_atomic_deposit(
@@ -1008,6 +1065,26 @@ def _commit_identify_device(policy: Any, board: Any, terminal: TerminalRef,
     )
 
 
+def _commit_identify_carried(policy: Any, board: Any, terminal: TerminalRef,
+                             admission: Admission) -> None:
+    target = carried_identification_target(policy, board)
+    signature = terminal.args[0]
+    full = bool(target is not None and target.known)
+    if full and STORE_ALCHEMIST in policy._town_store_attempted:
+        policy._defer_full_identification(signature)
+        policy._offer_execution_no_step(
+            producer="identification", work_id=f"identify:town-item:{signature}",
+            cause="full-identification-deferred")
+    else:
+        policy._identification_candidate = signature
+        policy._request_identification("full" if full else "normal")
+        policy._offer_execution(
+            None, producer="identification", work_id=f"identify:town-item:{signature}",
+            next_step="identification.acquire-source",
+            arguments=("full" if full else "normal", signature),
+            expected_effect="identification-source-ready")
+
+
 def _commit_curse_remove(policy: Any, board: Any, terminal: TerminalRef,
                          admission: Admission) -> None:
     # The body's no-step causes are the verdict's codes.
@@ -1025,6 +1102,7 @@ def _commit_enchant_launcher(policy: Any, board: Any, terminal: TerminalRef,
 REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] = {
     "identify-equipped": _commit_identify_equipped,
     "identify-device": _commit_identify_device,
+    "identify-carried": _commit_identify_carried,
     "curse-remove": _commit_curse_remove,
     "enchant-launcher": _commit_enchant_launcher,
 }

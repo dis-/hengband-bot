@@ -8172,6 +8172,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "5eb0800959e319723cb6ac0b529268f4292542e9d0183f6bd0416cdc71cda452"
   },
+  "town_terminal.py:_commit_identify_carried": {
+    "classification": "adapter",
+    "rows": [
+      "identification"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "3d28ac42f3d97627c239a1dc9ce4352b4f7edae0c40f32c3f16680d17a516597"
+  },
   "town_terminal.py:_commit_identify_device": {
     "classification": "adapter",
     "rows": [

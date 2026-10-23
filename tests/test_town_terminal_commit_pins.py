@@ -167,8 +167,15 @@ class LedgerRestoreAndRecordTest(unittest.TestCase):
             for _decision in range(2):
                 policy.choose_key(board)
                 rows = policy.decision_claim["terminal_admission"]
-                self.assertEqual(len(rows), 1)
-                yields.append(rows[0]["yields"])
+                quest_rows = [row for row in rows if row["rung"] == "_fixed_quest_key#1"]
+                self.assertEqual(len(quest_rows), 1)
+                yields.append(quest_rows[0]["yields"])
+                carried_rows = [row for row in rows if row["rung"] == "town-item-processing"]
+                self.assertEqual(len(carried_rows), 1)
+                self.assertEqual(carried_rows[0]["terminal"][0], "identify-carried")
+                self.assertEqual(carried_rows[0]["codes"], ["no-identification-source"])
+                self.assertIn(["cross-town", None], carried_rows[0]["live"])
+                self.assertIsNone(carried_rows[0]["closed"])
         self.assertEqual(yields, [1, 2])
 
 
