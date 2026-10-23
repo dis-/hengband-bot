@@ -383,6 +383,30 @@ def fixed_quest_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
     return TerminalRef("quest-entry", (quest_id,))
 
 
+# The rung does not apply on this board: the entry skips its producer (on
+# and off town).  Distinct from None, which means "no terminal, not judged".
+NOT_APPLICABLE = TerminalRef("not-applicable", ())
+
+
+def fixed_quest_return_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    """Rung #1 (design 3.1 M5): it opens only while the quest-request owner is
+    not retired and stage-2 quest travel owns the town now
+    (``_fixed_quest_prepare_return_required``); then the body's terminal."""
+    if ("quest-request" in policy._town_turn_arbiter._retired
+            or not policy._fixed_quest_prepare_return_required(board)):
+        return NOT_APPLICABLE
+    return fixed_quest_intended_terminal(policy, board)
+
+
+def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
+    """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
+    or None (no declaration, no board, or no terminal on this board)."""
+    decl = TERMINALS.get(rung_name)
+    if board is None or decl is None or decl.intended_terminal is None:
+        return None
+    return decl.intended_terminal(policy, board)
+
+
 def _shadow_rungs() -> frozenset[str]:
     # The fixed S1->S2 list: these rungs only record (design 3.7 item 2).
     return frozenset({
@@ -441,9 +465,7 @@ DIRECT_PRODUCERS_S1 = frozenset({
     "_worthless_junk_destroy_key",
 })
 # Parallel predicates still deciding beside the quest rung's terminal (S2).
-PARALLEL_PREDICATES_S1 = frozenset({
-    "_fixed_quest_prepare_return_required",
-})
+PARALLEL_PREDICATES_S1: frozenset[str] = frozenset()
 EXEMPT_RUNGS = frozenset({
     "_breakout_restore_weapon_key#1", "_breakout_restore_weapon_key#2",
     "_dark_locomotion_key", "_experience_potion_quaff_key", "_explore_step#1",
@@ -454,7 +476,7 @@ EXEMPT_RUNGS = frozenset({
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
-    "_fixed_quest_key#1": TerminalDecl(fixed_quest_intended_terminal, ENFORCE),
+    "_fixed_quest_key#1": TerminalDecl(fixed_quest_return_intended_terminal, ENFORCE),
     "_fixed_quest_key#2": TerminalDecl(fixed_quest_intended_terminal, ENFORCE),
     **{name: TerminalDecl(None, SHADOW) for name in SHADOW_RUNGS},
     **{name: TerminalDecl(None, EXEMPT_SURVIVAL) for name in EXEMPT_RUNGS},
@@ -555,22 +577,20 @@ def _live_servers(policy: Any, board: Any, terminal: TerminalRef,
     return tuple(dict.fromkeys(live)), progressed
 
 
-def may_take_board(policy: Any, rung_name: str, family: str, board: Any) -> bool:
+def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
+                   terminal: TerminalRef | None) -> bool:
     """Whether this town rung may take the board (design 3.5).
 
-    A refused terminal yields while a server progresses, and closes for the
+    ``terminal`` is ``rung_terminal`` of this board (the entry reads it once,
+    before its off-town pass-through, and skips NOT_APPLICABLE rungs).  A
+    refused terminal yields while a server progresses, and closes for the
     visit after TOWN_TRAVEL_STALL_LIMIT yields without progress, or at once
     when no server is live.  Closing never stops the bot.  SHADOW rungs only
     record.  Independent of --enforce-town-claims.
     """
-    if family in EXEMPT_FAMILIES or board is None:
+    if family in EXEMPT_FAMILIES or board is None or terminal is None:
         return True
-    decl = TERMINALS.get(rung_name)
-    if decl is None or decl.intended_terminal is None:
-        return True
-    terminal = decl.intended_terminal(policy, board)
-    if terminal is None:
-        return True
+    decl = TERMINALS[rung_name]
     admission = terminal_admission(policy, board, terminal)
     if admission.admitted:
         return True

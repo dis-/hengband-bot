@@ -473,7 +473,13 @@ from hengbot.policy_constants import (
     UNIQUE_COMBAT_MAX_ATTACKS,
     WIN_QUEST_IDS,
 )
-from hengbot.town_terminal import gather_quest_work, may_take_board, verdict_quest_work
+from hengbot.town_terminal import (
+    NOT_APPLICABLE,
+    gather_quest_work,
+    may_take_board,
+    rung_terminal,
+    verdict_quest_work,
+)
 from hengbot.town_arbiter import (
     UNREGISTERED_FAMILY,
     TownArbiterMixin,
@@ -5913,6 +5919,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         the producer.  Survival and detectors remain outside the errand hold.
         """
         board = getattr(self, "_map_predicate_snapshot", None)
+        # A rung that does not apply on this board is skipped on and off town.
+        terminal = rung_terminal(self, rung_name, board)
+        if terminal == NOT_APPLICABLE:
+            return None
         if (board is not None
                 and not (getattr(board, "in_town", False)
                          or getattr(board, "store", None) is not None)):
@@ -5923,7 +5933,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             raise ValueError(f"unknown town producer rung: {rung_name}")
         # The rung's terminal admission precedes every hold, on or off the
         # --enforce-town-claims switch (town_terminal, design 3.6).
-        if not may_take_board(self, rung_name, rung.family, board):
+        if not may_take_board(self, rung_name, rung.family, board, terminal):
             return None
         session = self._equipment_transaction_session
         holder = self._claim_errand_hold("__none__", enforced=True, arrival_board=board)
@@ -11495,13 +11505,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if restore_weapon is not None:
             return restore_weapon
 
-        if (
-            "quest-request" not in self._town_turn_arbiter._retired
-            and self._fixed_quest_prepare_return_required(snapshot)
-        ):
-            fixed_quest = self._town_producer_entry("_fixed_quest_key#1", lambda: self._fixed_quest_key(snapshot, strategic_hostiles))
-            if fixed_quest is not None:
-                return fixed_quest
+        # Rung #1 applies only while stage-2 quest travel owns the town
+        # (its intended_terminal, town_terminal.fixed_quest_return_intended_terminal).
+        fixed_quest = self._town_producer_entry("_fixed_quest_key#1", lambda: self._fixed_quest_key(snapshot, strategic_hostiles))
+        if fixed_quest is not None:
+            return fixed_quest
 
         space_deposit = self._town_producer_entry("_town_space_deposit_key", lambda: self._town_space_deposit_key(snapshot))
         if space_deposit is not None:
