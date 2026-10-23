@@ -2078,7 +2078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d3ed58764b806bccab0d01362e58047284e3258f88c945f7d6f91beac1fd8a56"
+    "ast_sha256": "c89c0678ef41046088d4013c29bca65e09259d07c200266f83a2be30c0dc8db4"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -3659,7 +3659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e3055632fe0216eb280094ead74ea070e453bb3e76775785285ed8d5475d9a52"
+    "ast_sha256": "a6e4537eb4a68b5b709fb2ee0577646f8b5160f2fa6319beb9784a4a822ed8b0"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -7669,7 +7669,7 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "233798c6cc3e8a1bd3db1e4f78b5e08a8531f7c5986ac30ca20384c860018d1d"
+    "ast_sha256": "8e30cdc78aa3f9b88dbf5a3a7329e3ab694af7499685e878d632e497f3cb7228"
   },
   "policy_town.py:TownMixin._town_special_key": {
     "classification": "producer",

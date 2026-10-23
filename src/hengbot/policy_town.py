@@ -2322,11 +2322,9 @@ class TownMixin:
             # order owner finish reward/bounty work before that optional Home
             # route can acquire the store arbiter.
             return None
-        if self._fixed_quest_prepare_return_required(snapshot):
-            # Stage-2 travel is an already-owned continuation.  Keep the
-            # shortage actionable for earlier scan suppression and departure
-            # gating, but do not replace the quest candidate with a Home route.
-            return None
+        # Stage-2 quest travel (rung #1) keeps the shortage actionable for
+        # earlier scan suppression and departure gating; the rung's terminal
+        # (town_terminal.space_deposit_intended_terminal) does not apply then.
         self._town_claims_active(snapshot)
         step = self._shopping_approach_step(
             snapshot, requester="home-visit"

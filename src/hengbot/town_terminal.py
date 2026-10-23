@@ -13,9 +13,11 @@ from dataclasses import dataclass
 from typing import Any, Callable, NamedTuple
 
 from hengbot.policy_constants import (
+    EQUIPMENT_SLOT_KEY,
     FIXED_QUEST_REWARD_POSITIONS,
     FIXED_QUEST_TOWNS,
     MORIVANT_TOWN_ID,
+    PACK_CAPACITY,
     QUEST_STATUS_COMPLETED,
     QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED,
@@ -172,6 +174,123 @@ def verdict_store_buy(material: StoreBuyMaterial) -> Admission:
     return refused(("no-matching-offer",))
 
 
+@dataclass(frozen=True)
+class HomeDepositMaterial:
+    """Frozen inputs of the space-reserve Home deposit verdict."""
+
+    order_step4_pending: bool
+
+
+def gather_home_deposit(policy: Any, board: Any) -> HomeDepositMaterial:
+    """The town order's reward work, as ``_town_space_deposit_key`` reads it:
+    a merely tight pack (not full) with recorded bounty work yields."""
+    return HomeDepositMaterial(order_step4_pending=(
+        len(board.inventory) < PACK_CAPACITY
+        and policy._town_order_step4_pending(board)))
+
+
+def verdict_home_deposit(material: HomeDepositMaterial) -> Admission:
+    """Pure: the deposit, or the order's reward work it yields to."""
+    if material.order_step4_pending:
+        return refused(("town-order-step4-pending",))
+    return ADMIT
+
+
+@dataclass(frozen=True)
+class CurseRemoveMaterial:
+    """Frozen inputs of the worn-curse removal verdict."""
+
+    cannot_read: bool
+    scroll_held: bool
+    target_available: bool
+
+
+def gather_curse_remove(policy: Any, board: Any) -> CurseRemoveMaterial:
+    """What ``_town_remove_curse_key`` reads before its read key, no write."""
+    player = board.player
+    return CurseRemoveMaterial(
+        cannot_read=bool(player.blind or player.confused),
+        scroll_held=policy._usable_remove_curse_scroll(board) is not None,
+        target_available=policy._required_remove_curse_kind(board) is not None,
+    )
+
+
+def verdict_curse_remove(material: CurseRemoveMaterial) -> Admission:
+    """Pure: the body's branches in its order."""
+    if material.cannot_read:
+        return refused(("cannot-read-scroll",))
+    if not material.scroll_held:
+        return refused(("no-remove-curse-scroll",))
+    if not material.target_available:
+        return refused(("cursed-item-unavailable",))
+    return ADMIT
+
+
+@dataclass(frozen=True)
+class EnchantLauncherMaterial:
+    """Frozen inputs of the launcher enchanting verdict."""
+
+    cannot_read: bool
+
+
+def gather_enchant_launcher(policy: Any, board: Any) -> EnchantLauncherMaterial:
+    """What ``_town_enchant_launcher_key`` reads before its read key."""
+    player = board.player
+    return EnchantLauncherMaterial(cannot_read=bool(player.blind or player.confused))
+
+
+def verdict_enchant_launcher(material: EnchantLauncherMaterial) -> Admission:
+    """Pure: a carried scroll is read unless the player cannot read."""
+    if material.cannot_read:
+        return refused(("cannot-read-scroll",))
+    return ADMIT
+
+
+def launcher_enchant_scroll_held(policy: Any, board: Any) -> bool:
+    """A carried enchant scroll of a sval the worn launcher still needs."""
+    needed = set(policy._launcher_enchant_needed_svals(board))
+    return any(item.is_scroll and item.aware and item.sval in needed
+               for item in board.inventory)
+
+
+def equipped_identification_target(policy: Any, board: Any) -> Any:
+    """The worn item ``_town_equipped_identification_key`` identifies, or None."""
+    return next(
+        (item for item in board.equipment
+         if item.slot in EQUIPMENT_SLOT_KEY
+         and policy._item_signature(item) not in policy._deferred_home_items
+         and policy._identification_flow_candidate(item)),
+        None)
+
+
+@dataclass(frozen=True)
+class IdentifyMaterial:
+    """Frozen inputs of the worn-item identification verdict."""
+
+    source_held: bool
+
+
+def gather_identify_equipped(policy: Any, board: Any) -> IdentifyMaterial:
+    """Whether a reliable source of the needed kind is carried.
+
+    The source lookup binds an awaiting identification-source reservation to
+    a newly carried source (``_bind_identification_source_reservation``), the
+    same observation the body makes on this board; a second call changes
+    nothing.
+    """
+    target = equipped_identification_target(policy, board)
+    return IdentifyMaterial(source_held=target is not None and (
+        policy._find_identification_source(
+            board, full=target.known, reliable_only=True) is not None))
+
+
+def verdict_identify_equipped(material: IdentifyMaterial) -> Admission:
+    """Pure: identify with the carried source, or acquire one first."""
+    if not material.source_held:
+        return refused(("no-identification-source",))
+    return ADMIT
+
+
 def verdict_quest_entry(material: QuestEntryMaterial) -> Admission:
     """Pure: each refusing branch returns its own codes."""
     if material.morivant_deposits:
@@ -243,8 +362,19 @@ QUEST_ENTRY_CODES = frozenset({
 
 # Codes the store-buy verdict can return (verdict_store_buy).
 STORE_BUY_CODES = frozenset({"supplier-unreachable", "no-matching-offer"})
+# Codes the Home deposit verdict can return (verdict_home_deposit).
+HOME_DEPOSIT_CODES = frozenset({"town-order-step4-pending"})
+# Codes the worn-curse removal verdict can return (verdict_curse_remove).
+CURSE_REMOVE_CODES = frozenset({
+    "cannot-read-scroll", "no-remove-curse-scroll", "cursed-item-unavailable",
+})
+# Codes the launcher enchanting verdict can return (shared with curse-remove).
+ENCHANT_LAUNCHER_CODES = frozenset({"cannot-read-scroll"})
+# Codes the worn-item identification verdict can return.
+IDENTIFY_CODES = frozenset({"no-identification-source"})
 # Every declared code: the keys of REFUSAL_SERVERS (design 3.3 (1)).
-TERMINAL_CODES = QUEST_ENTRY_CODES | STORE_BUY_CODES
+TERMINAL_CODES = (QUEST_ENTRY_CODES | STORE_BUY_CODES | HOME_DEPOSIT_CODES
+                  | CURSE_REMOVE_CODES | ENCHANT_LAUNCHER_CODES | IDENTIFY_CODES)
 
 # Categories are ``_town_need_registry`` names (design 3.4, S2 (c)).
 _IDENTIFICATION_SERVERS = (
@@ -285,7 +415,25 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
     "temporary-status": (Server("survival"),),
     "morivant-temporary-deposits": (Server("cross-town"), Server("home-visit")),
     "cross-town-shopping-in-progress": (Server("cross-town"),),
+    # The town order's reward/bounty work (``_town_order_step4_key``).
+    "town-order-step4-pending": (Server("quest-request"),),
+    # A reliable source: bought, withdrawn from Home, or the Morivant trip.
+    "no-identification-source": (
+        Server("shop-buy", "identification-source"),
+        Server("home-errand", "identification-withdrawal"),
+        Server("cross-town"),
+    ),
+    # Blindness or confusion: rest it off.
+    "cannot-read-scroll": (Server("survival"),),
+    # The needed scroll: bought, or the Home *Remove Curse* stock fetched.
+    "no-remove-curse-scroll": (
+        Server("shop-buy", "remove-curse"),
+        Server("shop-buy", "required-star-remove-curse"),
+        Server("home-visit", "home-star-remove-curse-use"),
+    ),
     **{code: () for code in (
+        # Every worn curse is proven permanent.
+        "cursed-item-unavailable",
         "unsupported-class", "missing-natural-stats", "skill-exp-unknown",
         "missing-monrace-knowledge", "calibration-required", "calibration-stale:*",
         "illegal-target:*", "missing-item:*", "empty-encounter-set",
@@ -398,6 +546,48 @@ def fixed_quest_return_intended_terminal(policy: Any, board: Any) -> TerminalRef
     return fixed_quest_intended_terminal(policy, board)
 
 
+def space_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_town_space_deposit_key``: the Home deposit that restores the pack
+    reserve.  While stage-2 quest travel owns the town (rung #1) the rung does
+    not apply; the check moved here from the key's body."""
+    if not policy._town_space_deposit_actionable(board):
+        return None
+    if policy._fixed_quest_prepare_return_required(board):
+        return NOT_APPLICABLE
+    return TerminalRef("home-deposit", ("space-reserve",))
+
+
+def curse_remove_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_town_remove_curse_key``: read a Remove Curse scroll on worn gear."""
+    if not board.in_town or not policy._has_cursed_equipment(board):
+        return None
+    return TerminalRef("curse-remove", (policy._required_remove_curse_kind(board),))
+
+
+def enchant_launcher_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_town_enchant_launcher_key``: read a carried enchant scroll on the
+    worn launcher.  Enchanting is optional (buying the scroll is the
+    launcher-enchant need's own work), so without a carried scroll the rung
+    intends nothing."""
+    if not board.in_town or board.store is not None:
+        return None
+    launcher = policy._equipped_launcher(board)
+    if (launcher is None or EQUIPMENT_SLOT_KEY.get(launcher.slot) is None
+            or not launcher_enchant_scroll_held(policy, board)):
+        return None
+    return TerminalRef("enchant-launcher", (policy._item_signature(launcher),))
+
+
+def identify_equipped_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_town_equipped_identification_key``: identify a worn item."""
+    if not board.in_town or board.store is not None:
+        return None
+    target = equipped_identification_target(policy, board)
+    if target is None:
+        return None
+    return TerminalRef("identify-equipped", (policy._item_signature(target),))
+
+
 def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
     """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
     or None (no declaration, no board, or no terminal on this board)."""
@@ -480,6 +670,24 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_fixed_quest_key#2": TerminalDecl(fixed_quest_intended_terminal, ENFORCE),
     **{name: TerminalDecl(None, SHADOW) for name in SHADOW_RUNGS},
     **{name: TerminalDecl(None, EXEMPT_SURVIVAL) for name in EXEMPT_RUNGS},
+    # S2-d terminals: declared and recorded; ENFORCE with the S2 flip.
+    "_town_space_deposit_key": TerminalDecl(space_deposit_intended_terminal, SHADOW),
+    "_town_remove_curse_key": TerminalDecl(curse_remove_intended_terminal, SHADOW),
+    "_town_enchant_launcher_key": TerminalDecl(enchant_launcher_intended_terminal, SHADOW),
+    "_town_equipped_identification_key": TerminalDecl(
+        identify_equipped_intended_terminal, SHADOW),
+}
+
+# The verdict of each non-quest terminal kind (gather, then the pure verdict).
+_TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
+    "home-deposit": lambda policy, board: verdict_home_deposit(
+        gather_home_deposit(policy, board)),
+    "curse-remove": lambda policy, board: verdict_curse_remove(
+        gather_curse_remove(policy, board)),
+    "enchant-launcher": lambda policy, board: verdict_enchant_launcher(
+        gather_enchant_launcher(policy, board)),
+    "identify-equipped": lambda policy, board: verdict_identify_equipped(
+        gather_identify_equipped(policy, board)),
 }
 
 
@@ -491,8 +699,10 @@ def terminal_admission(policy: Any, board: Any, terminal: TerminalRef) -> Admiss
     memo = getattr(policy, "_terminal_admission_memo", None)
     if memo is not None and memo_key in memo:
         return memo[memo_key]
+    verdict = _TERMINAL_VERDICTS.get(terminal.terminal_id)
     admission = (verdict_quest_work(gather_quest_work(policy, board))
-                 if terminal.terminal_id in QUEST_WORK_TERMINALS else ADMIT)
+                 if terminal.terminal_id in QUEST_WORK_TERMINALS
+                 else verdict(policy, board) if verdict is not None else ADMIT)
     if admission.admitted and terminal.terminal_id == "quest-entry":
         quest_id = terminal.args[0]
         info = policy._quest_knowledge.get(quest_id)
