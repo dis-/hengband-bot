@@ -29,6 +29,7 @@ from unittest.mock import patch
 
 from hengbot.model import STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_types import DecisionContext, TownNeed
 from hengbot.town_terminal import TerminalRef
 
@@ -86,6 +87,38 @@ class PreparationReadOncePerDecisionTest(unittest.TestCase):
         # Control: a probe board (not the decision's board) reads each time.
         probe = replace(self.board)
         self.assertEqual(self.reads([(1, probe)]), 2)
+
+
+class AttributeDefaultsTest(unittest.TestCase):
+    def test_new_and_restored_policies_have_the_decision_memos(self):
+        names = ("_equipment_departure_preparation_memo", "_decision_claim_needs")
+        policy = HengbotPolicy()
+        self.assertEqual([getattr(policy, name) for name in names], [None, None])
+        for name in names:
+            del policy.__dict__[name]
+        normalize_policy_state(policy, restart=True)
+        self.assertEqual([policy.__dict__.get(name, "missing") for name in names],
+                         [None, None])
+
+
+class ClaimsEvaluationStampTest(unittest.TestCase):
+    def test_claims_evaluation_stamps_its_need_list(self):
+        board = _board()
+        policy = HengbotPolicy()
+        policy._build_grid_index(board)
+        policy._map_predicate_snapshot = board
+        policy._decision_sequence = 4
+        preparation = SimpleNamespace(
+            blockers=("no-valid-loadout",), ready=False, transaction=None, result=None)
+        with patch.object(HengbotPolicy, "_prepare_equipment_optimization",
+                          return_value=preparation):
+            policy._town_claims_active(board)
+        sequence, stamped_board, needs = policy._decision_claim_needs
+        self.assertEqual(sequence, 4)
+        self.assertIs(stamped_board, board)
+        self.assertTrue(policy._town_claim_categories)
+        self.assertEqual(list(dict.fromkeys(need.category for need in needs)),
+                         policy._town_claim_categories)
 
 
 class NeedEvidenceTest(unittest.TestCase):

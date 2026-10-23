@@ -7892,7 +7892,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
-        self._equipment_departure_preparation_memo = None
         # The executor's POSTED state is the in-flight gate every reader of
         # ``state`` (weight shedding, the space deposit, Home knowledge scans,
         # destroys) consults.  Observe the posted wield/takeoff on each board,

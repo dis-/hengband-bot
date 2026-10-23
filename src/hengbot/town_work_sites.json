@@ -1826,7 +1826,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3174845ef68b3eb2e815afa24be70d66c13eed1f1a09b63c5fad1146be6d9948"
+    "ast_sha256": "3ededad5db51658b4d95e312700fe43ff14fe8188b094d217f2c2709789da2e4"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
