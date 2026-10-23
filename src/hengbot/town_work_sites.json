@@ -8162,7 +8162,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e650436acefcd0f03dbc4b163374db5c7661ecdb56b03ab24ae6dc40401a76a8"
+    "ast_sha256": "6aa4135e541a5a68b035abafc6018b8d98538f62a52fbee950e35c0e6c12968d"
   },
   "town_work.py:bind_driver_override": {
     "classification": "driver",
