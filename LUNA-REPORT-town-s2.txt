@@ -183,7 +183,7 @@ COMMITS
          owner reads _cross_town_shopping_hold (arrival is observed at decision start, policy.py
          _observe).  _cross_town_shopping_holds_quest_travel deleted; PARALLEL_PREDICATES_S1 ->
          {"_fixed_quest_prepare_return_required"}.
-ab????? / 7b916686 / last: pins (attribute defaults, the claims stamp), the restore setdefault lines removed
+9145b830 / 7b916686 / 3a35a0ea: pins (attribute defaults, the claims stamp), the restore setdefault lines removed
          (normalize_policy_state's fresh-policy fill already covers them), manifest.
 
 APPROVED TEST CHANGE (round-3 decision), tests/test_goldburn_shopping_constructed.py, outcomes unchanged:
