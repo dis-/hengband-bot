@@ -190,3 +190,36 @@ Guard outputs (round 1, on 361a2408 + report; fast tier not run per the round-1 
   [mutation] caught     src/hengbot/policy_navigation.py:1124 (player = snapshot.player.position): test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
   [mutation] caught     src/hengbot/policy_navigation.py:1137 (# Owner 2026-10-23 (#101): a cell shown while inside the player's): test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
   [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+
+=== GATE ROUND 2 (2026-10-23) - RESULT ===
+Merged main 0e4cc93e (merge 0b283b9f; conflict only in scripts/town_work_manifest.json.gz, regenerated with
+town_work_manifest.py --write: 844 candidates, 21490 sites, zero unmapped).
+
+Failing test: tests.test_policy_town.TownWeightDepartureRecordedTest.test_r1_recorded_public_replay_posts_named_weight_owner
+(fixture incident-20260921-0536-no-claim-after-bounty.jsonl.gz, recorded 2026-09-21, town, 177 rows, open loop).
+Measured four variants of the whole replay (decisions + home unsatisfied passes):
+  now (both rules)             : home passes 4
+  (1) seen-floor reverted only : home passes 4, decisions identical to "now"
+  (2) remains-pile reverted only: home passes 5, decisions identical to "both reverted"
+  both reverted                : home passes 5
+First diverging row: 8 (player (37,91) in town; town floor pile at (38,127) = tval (10,) count 1, 36 cells away;
+the bounty corpse is already carried).
+  before (old rule {1,3}): key '9' reason seek-loot
+  now    (rule {1,3,10}) : key '\x1b`n(.' reason shop:travel
+149 of 177 rows differ afterwards.
+Cause: (2) remains-pile rule only. (1) seen-floor does not change any town decision in this replay.
+Classification: WALL. The owner's answer (2) is about floor piles of bones/corpses as such (the bot walked to them in
+case one was a bounty); not walking 36 cells across town to a lone tval-10 pile is the intended consequence, and
+round 1 already walled town replays for the same rule (test_town_cure_supplier_recorded,
+test_town_approach_retired_recorded). Not the (1)-changes-town case, so no STOP.
+Change (ff5b16cc): @pre_remains_pile_replay on TownWeightDepartureRecordedTest._replay with a one-line comment
+naming the capture date 2026-09-21; expectations unchanged. Class run alone: Ran 4 tests in 165.281s OK.
+
+preflight (vs 0e4cc93e): PREFLIGHT OK: 28 changed files, 0 findings (NOTE lines list the walled existing tests)
+mutation_check (vs 0e4cc93e, --tests test_floor_dwell_seen_floor_recorded --record):
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded
+  [mutation] caught     src/hengbot/policy_helpers.py:368: test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124: test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137: test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for ff5b16cc
