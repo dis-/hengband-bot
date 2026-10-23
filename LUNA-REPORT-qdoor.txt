@@ -80,3 +80,37 @@ fast_tier.py --shards 4 (run after gate-loop20-1023 MERGED, 16:45):
   Failures: none
   Errors: none
   Total: 3619 tests, 181.4s
+
+ROUND 2 (supervisor decision: every walking producer)
+- 84364472: _town_holder_declared_key (route.resume, policy.py:6579) and _town_holder_wait_key (dungeon-entrance
+  route :6675, store route :6716) consult _step_raises_unintended_confirm before posting their bare step; a refused
+  step returns WAIT with nav:confirm-cell-avoided, exactly as _step_toward.  StepEntryStructureTest: both removed
+  from the classified exceptions (only _boxed_town_breakout_key remains, whose candidate filter excludes
+  has_quest_enter) and asserted to consult the predicate.
+- Pins (DECLARED CONSTRUCTED pocket board from recorded board 0: the seven other neighbours of (24,46) walled, goal
+  (26,48); the routers' first attempt finds no route, the second crosses (25,47)):
+                                                    ac203b36 (measured)     after
+    declared route.resume (store-router)            ('3', shop:approach)   ('5', nav:confirm-cell-avoided)
+    store-router route, plain goal                  ('3', shop:approach)   ('5', nav:confirm-cell-avoided)
+    store-router route, dungeon-entrance goal       ('3', shop:approach)   ('5', nav:confirm-cell-avoided)
+    control: open recorded board, store route       shop:approach, not '5'/'3' at both commits
+- Game-side travel (note only, not changed): travel_flow_aux (action/travel-execution.cpp:86) does not exclude
+  QUEST_ENTER, so a native travel path (ENTRANCE_TRAVEL_MACRO etc.) may still cross a quest entrance.  Game changes
+  belong to the separate game project; C:\hengband\src was not touched.
+- Merged main c378e9a5 (49a01237): only scripts/town_work_manifest.json.gz conflicted; regenerated (844 candidates,
+  21500 sites, zero unmapped).  Guards below are against c378e9a5.
+- Changed modules: test_quest_door_confirm_recorded 16 OK, test_item_sink_lint 18 OK, test_policy_navigation 129 OK,
+  test_quest_navigator 17 OK, test_detected_pack_no_choke_recorded 4 OK, test_town_work_contract 9 OK.
+preflight:
+  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (quest-door-confirm-1023 vs c378e9a5)
+mutation_check --tests tests/test_quest_door_confirm_recorded.py --record:
+  [mutation] 8 source hunks, tests: tests/test_quest_door_confirm_recorded.py
+  caught policy.py:6579, :6675, :6716, :10104, :19246; policy_navigation.py:1791, :1868; quest_navigator.py:125
+  [mutation] MUTATION OK: 0 of 8 hunks are not pinned by a test
+  [mutation] recorded for 49a01237
+fast_tier --shards 4:
+  [fast] 3602 fast tests (<2.0s in c378e9a59) + 1 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 3624 tests, 190.0s
