@@ -308,6 +308,24 @@ def _shadow_rungs() -> frozenset[str]:
 
 
 SHADOW_RUNGS = _shadow_rungs()
+# Producers ``_decide`` still calls outside the entry (S1->S2 list, design
+# 3.6 item 3 / 3.7 item 3); S2 moves them behind named entries.
+DIRECT_PRODUCERS_S1 = frozenset({
+    "_darkness_recovery_key", "_dig_to_known_downstairs_key", "_entrance_travel_key",
+    "_escape_by_stairs", "_finish_mining_floor", "_full_pack_destroy_key",
+    "_fundraising_combat_equipment_key", "_opening_q34_town_key",
+    "_pack_pressure_identify_key", "_read_dungeon_recall_scroll_key",
+    "_recall_restock_key", "_step_toward", "_town_blocked_key",
+    "_town_cancel_unsafe_recall_key", "_town_destroy_key", "_town_special_key",
+    "_unprofitable_unique_disengage_key", "_warning_prompt_response_key",
+    "_wield_digging_tool_key", "_wilderness_survival_key",
+    "_worthless_junk_destroy_key",
+})
+# Parallel predicates still deciding beside the quest rung's terminal (S2).
+PARALLEL_PREDICATES_S1 = frozenset({
+    "_cross_town_shopping_holds_quest_travel",
+    "_fixed_quest_prepare_return_required",
+})
 EXEMPT_RUNGS = frozenset({
     "_breakout_restore_weapon_key#1", "_breakout_restore_weapon_key#2",
     "_dark_locomotion_key", "_experience_potion_quaff_key", "_explore_step#1",

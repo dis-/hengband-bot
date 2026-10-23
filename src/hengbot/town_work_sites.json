@@ -3659,7 +3659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "72fdaa936cd45eef78289e521610996847208856940d8c81ceb35cbce1b7309e"
+    "ast_sha256": "e3055632fe0216eb280094ead74ea070e453bb3e76775785285ed8d5475d9a52"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -3885,7 +3885,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b3da140f875f7b17e2424ccbec5204d7f25f0759376cb0e7159785aa6c60ebdf"
+    "ast_sha256": "bfed929cbae23a7d7123bcc1c5e0acb00d954d113a455b5190c195843cab3b90"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4407,7 +4407,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9d6fd29f25d4121b5062bd837eca49b984ee388d6fe685db26b42566a5e2ad58"
+    "ast_sha256": "599db3e4a6f23afed76981418d888e42869629574bee294897ecc8bebc85459b"
   },
   "policy_equipment.py:EquipmentMixin._equipment_exclusion_telemetry": {
     "classification": "data",
@@ -6130,7 +6130,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "aeecb10ab291aaeb8e497d8ea25f392d95889ec2acd86b167b45234896746107"
+    "ast_sha256": "d4e574077df3d56d8f1266329f7b7c334ff82130bdabcd453fb9b691ccce2e62"
   },
   "policy_quest.py:QuestMixin._quest_execute_key": {
     "classification": "dungeon-only",
@@ -8155,6 +8155,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2199ef17444a25a7b198a7f84ab57cbcef6e4c0f1683c5837e856e19335d8ec9"
+  },
+  "town_terminal.py:declared_code": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e650436acefcd0f03dbc4b163374db5c7661ecdb56b03ab24ae6dc40401a76a8"
   },
   "town_work.py:bind_driver_override": {
     "classification": "driver",
