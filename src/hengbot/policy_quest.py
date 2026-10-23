@@ -4714,7 +4714,10 @@ class QuestMixin:
         quest_id: int,
         *,
         require_target_town: bool,
+        commit: bool = True,
+        telemetry_sink: list | None = None,
     ) -> bool:
+        """``commit=False`` reads the verdict without recording the telemetry."""
         telemetry = {
             "quest_id": quest_id,
             "roster_size": 0,
@@ -4724,7 +4727,10 @@ class QuestMixin:
             "hasted": False,
             "verdict": False,
         }
-        self._fixed_quest_readiness = telemetry
+        if commit:
+            self._fixed_quest_readiness = telemetry
+        if telemetry_sink is not None:
+            telemetry_sink.append(telemetry)
 
         def reject(reason: str) -> bool:
             telemetry["reason"] = reason
