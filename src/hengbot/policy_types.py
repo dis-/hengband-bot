@@ -437,6 +437,12 @@ class TownVisitLedger:
     purchase_churn_class_exclusions: set[tuple[int, int, int]] = field(
         default_factory=set
     )
+    # Terminal admission (town_terminal.may_take_board): yields per refused
+    # terminal, the terminals closed this visit, and the server evidence.
+    terminal_yields: Counter[tuple] = field(default_factory=Counter)
+    closed_terminals: dict[tuple, str] = field(default_factory=dict)
+    terminal_route_edges: dict[tuple, int] = field(default_factory=dict)
+    terminal_server_vectors: dict[tuple, object] = field(default_factory=dict)
 
 
 @dataclass

@@ -690,5 +690,6 @@
   "purchase_rungs.py:purchase_rung_retention": "pure helper: purchase_rung_retention returns str | None (the declared retention of a purchase rung) used as input/observation, not an independently selected game action",
   "policy_home.py:HomeMixin._weight_relief_selection": "pure helper: _weight_relief_selection returns WeightRelief used as input/observation, not an independently selected game action",
   "policy_home.py:HomeMixin._overweight_surplus_candidates": "pure helper: _overweight_surplus_candidates returns a candidate list used as input/observation, not an independently selected game action",
-  "policy.py:HengbotPolicy._plain_gear_armour_slot": "pure helper: _plain_gear_armour_slot returns the armour slot a plain-gear item is compared in (a shield as \"shield\"), used as input/observation, not an independently selected game action"
+  "policy.py:HengbotPolicy._plain_gear_armour_slot": "pure helper: _plain_gear_armour_slot returns the armour slot a plain-gear item is compared in (a shield as \"shield\"), used as input/observation, not an independently selected game action",
+  "town_terminal.py:declared_code": "pure helper: declared_code returns the declaration name (str) of a terminal refusal code, used as input/observation, not an independently selected game action"
 }

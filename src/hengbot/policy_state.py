@@ -161,6 +161,14 @@ def _retire_claim_family(register) -> None:
             values[:] = [value for value in values if not is_retired(value.owner)]
 
 
+def _restore_terminal_admission_ledger(ledger) -> None:
+    """Old checkpoints predate the terminal admission ledger fields."""
+    ledger.__dict__.setdefault("terminal_yields", Counter())
+    ledger.__dict__.setdefault("closed_terminals", {})
+    ledger.__dict__.setdefault("terminal_route_edges", {})
+    ledger.__dict__.setdefault("terminal_server_vectors", {})
+
+
 def normalize_policy_state(restored, *, restart=False):
     """Upgrade ``restored`` in place to the current policy state version.
 
@@ -183,6 +191,9 @@ def normalize_policy_state(restored, *, restart=False):
         current_ledger.__dict__.setdefault(
             "purchase_churn_class_exclusions", set()
         )
+        _restore_terminal_admission_ledger(current_ledger)
+    restored.__dict__.setdefault("_terminal_admission_memo", None)
+    restored.__dict__.setdefault("_decision_terminal_admissions", [])
     if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored
     retire_strip_calibration_state(restored)

@@ -2813,8 +2813,14 @@ class EquipmentMixin:
 
     def _equipment_departure_ready(
         self, snapshot: Snapshot, *, destination_depth: int | None = None,
+        commit: bool = True, codes: list[str] | None = None,
     ) -> bool:
-        """Permit completion now or a recorded loadout with no visit-local work."""
+        """Permit completion now or a recorded loadout with no visit-local work.
+
+        ``commit=False`` is the terminal-admission material read (town_terminal):
+        the same verdict without the confirmation writes or the cache write.
+        ``codes`` receives the refusal codes of a False verdict.
+        """
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
         # Calibration controls optimization, never ordinary movement. Depth
@@ -2825,6 +2831,7 @@ class EquipmentMixin:
         cache_token = (self._decision_sequence, depth)
         if (
             cacheable
+            and codes is None
             and self._equipment_departure_cache_token == cache_token
         ):
             return self._equipment_departure_cache_value
@@ -2833,6 +2840,8 @@ class EquipmentMixin:
             blocker == "calibration-required" or blocker.startswith("calibration-stale:")
             for blocker in preparation.blockers
         ):
+            if self._equipment_transaction_session is not None and codes is not None:
+                codes.append("session-active")
             return self._equipment_transaction_session is None
         complete_now = bool(
             preparation is not None
@@ -2841,7 +2850,7 @@ class EquipmentMixin:
             and not preparation.transaction.actions
             and self._equipment_transaction_session is None
         )
-        if complete_now:
+        if complete_now and commit:
             self._record_confirmed_loadout(snapshot)
         premise = bool(
             not complete_now
@@ -2852,7 +2861,7 @@ class EquipmentMixin:
         )
         optional_ready = self._safe_optional_equipment_failure_departure(
             snapshot, preparation, destination_depth=depth)
-        if optional_ready:
+        if optional_ready and commit:
             self._stage_optional_equipment_failure_departure(snapshot, depth)
         ready = complete_now or optional_ready
         closure = getattr(self, "_equipment_transaction_visit_closure", None)
@@ -2871,22 +2880,23 @@ class EquipmentMixin:
             and self._equipment_transaction_session is None
         ):
             loadout_id = ",".join(sorted(preparation.current.item_ids))
-            closure = {
-                "epoch": self._town_visit_epoch,
-                "reason": "pack-space-home-full",
-                "loadout_id": loadout_id,
-                "target_loadout_id": loadout_id,
-                "blockers": list(preparation.blockers),
-                "turn": snapshot.turn,
-            }
-            self._equipment_transaction_visit_closure = closure
-            self._equipment_optional_failure_pending = {
-                "reason": "pack-space-home-full-current-loadout",
-                "posted": False,
-                "depth": depth,
-                "item_ids": sorted(preparation.current.item_ids),
-                "failed_item_ids": [],
-            }
+            if commit:
+                closure = {
+                    "epoch": self._town_visit_epoch,
+                    "reason": "pack-space-home-full",
+                    "loadout_id": loadout_id,
+                    "target_loadout_id": loadout_id,
+                    "blockers": list(preparation.blockers),
+                    "turn": snapshot.turn,
+                }
+                self._equipment_transaction_visit_closure = closure
+                self._equipment_optional_failure_pending = {
+                    "reason": "pack-space-home-full-current-loadout",
+                    "posted": False,
+                    "depth": depth,
+                    "item_ids": sorted(preparation.current.item_ids),
+                    "failed_item_ids": [],
+                }
             ready = True
         elif (
             not ready
@@ -2927,7 +2937,7 @@ class EquipmentMixin:
                 and not self._random_teleport_suppression_actionable(snapshot, preparation)
             ):
                 ready = True
-                if self._equipment_optional_failure_pending is None:
+                if commit and self._equipment_optional_failure_pending is None:
                     self._stage_optional_equipment_failure_departure(
                         snapshot,
                         depth,
@@ -2953,10 +2963,40 @@ class EquipmentMixin:
                     )
                     for owned in incomplete
                 )
-        if cacheable:
+        if not ready and codes is not None:
+            codes.extend(self._equipment_departure_refusal_codes(
+                snapshot, preparation, depth))
+        if cacheable and commit:
             self._equipment_departure_cache_token = cache_token
             self._equipment_departure_cache_value = ready
         return ready
+
+    def _equipment_departure_refusal_codes(self, snapshot, preparation, depth):
+        """Name each part of the preparation that refused a departure verdict."""
+        if preparation is None:
+            return ["preparation-unavailable"]
+        codes: list[str] = []
+        catalog = {owned.id: owned for owned in self._equipment_catalog.items}
+        for blocker in preparation.blockers:
+            if blocker != "incomplete-equipment-catalog":
+                codes.append(blocker)
+                continue
+            for item_id in sorted(getattr(
+                    getattr(preparation, "result", None), "incomplete_item_ids", ())):
+                owned = catalog.get(item_id)
+                codes.append(
+                    "identification-flow"
+                    if owned is not None and self._identification_flow_owns(owned.item)
+                    else blocker)
+        transaction = getattr(preparation, "transaction", None)
+        if transaction is not None and transaction.actions:
+            codes.append("transaction-actions-remaining")
+        if self._equipment_transaction_session is not None:
+            codes.append("session-active")
+        codes.extend(
+            f"missing-ability:{ability}"
+            for ability in sorted(self._missing_required_abilities(snapshot, depth)))
+        return list(dict.fromkeys(codes)) or ["loadout-unconfirmed"]
 
     def _safe_optional_equipment_failure_departure(
         self, snapshot, preparation, *, destination_depth=None,
