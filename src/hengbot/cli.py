@@ -90,6 +90,7 @@ from hengbot.ownership_metrics import (
     OwnershipMetricsLedger,
 )
 from hengbot.save_archive import LIVE_SAVE_PATH, SaveArchiveCoordinator
+from hengbot.spectator import SpectatorWriter
 from hengbot.input_executor import (
     FLOOR_PICKUP_PROMPT_PATTERN,
     Continuation,
@@ -3605,6 +3606,12 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         default=DEFAULT_LOG_GENERATIONS,
         help="retained rotated generations for decision/economy logs (default: 8)",
     )
+    parser.add_argument(
+        "--spectate-file",
+        type=Path,
+        help="after each decision write a spectator JSON snapshot here "
+             "(at most once per second, atomically; default: off)",
+    )
     return parser
 
 
@@ -4211,6 +4218,8 @@ def _run_follow(
         checkpoint_interval=args.recorder_checkpoint_decisions,
     )
     args.flight_recorder = recorder
+    spectate_path = getattr(args, "spectate_file", None)
+    spectator = SpectatorWriter(spectate_path) if spectate_path is not None else None
     save_archive = SaveArchiveCoordinator(
         live_save=args.game_save_path,
         log=lambda message: print(message, file=sys.stderr, flush=True)
@@ -4614,6 +4623,12 @@ def _run_follow(
                     phase_started_at = time.perf_counter()
                     key = policy.validate_read_key(snapshot, chosen_key)
                     key = _handle_owner_retirement(args, snapshot, key, policy, emit_visit)
+                    if spectator is not None:
+                        spectator.observe(
+                            snapshot, key, policy.last_reason,
+                            getattr(policy, "_decision_sequence", None),
+                            executor.ready_screen_value if executor is not None else None,
+                        )
                     emit_ownership = emit_ownership_verdict(
                         emit_visit, snapshot, key, emit_approach_store
                     ).as_dict()
