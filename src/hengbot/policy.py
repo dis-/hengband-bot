@@ -473,6 +473,7 @@ from hengbot.policy_constants import (
     UNIQUE_COMBAT_MAX_ATTACKS,
     WIN_QUEST_IDS,
 )
+from hengbot.town_terminal import may_take_board
 from hengbot.town_arbiter import (
     UNREGISTERED_FAMILY,
     TownArbiterMixin,
@@ -2662,6 +2663,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # S2b.2: the rungs the bar skipped on this decision (switch on only).
         self._decision_bar_skips = None
         self._decision_errand_deferred = []
+        self._decision_terminal_admissions = []
         self._decision_gate_final_count = 0
         self._decision_rewrite_refused = []
         self._decision_no_step_release = False
@@ -4963,6 +4965,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self, "_decision_declaration_mismatch", None
             ) or closed_declaration_mismatch,
         }
+        admissions = getattr(self, "_decision_terminal_admissions", None)
+        if admissions:
+            self.decision_claim["terminal_admission"] = list(admissions)
         if shadow is not None:
             if shadow["holder_family"] is None:
                 shadow["holder_family"] = claim.owner.value
@@ -5908,6 +5913,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else claim_rung_of(family, None))
         if rung is None:
             raise ValueError(f"unknown town producer rung: {rung_name}")
+        # The rung's terminal admission precedes every hold, on or off the
+        # --enforce-town-claims switch (town_terminal, design 3.6).
+        if not may_take_board(self, rung_name, rung.family, board):
+            return None
         session = self._equipment_transaction_session
         holder = self._claim_errand_hold("__none__", enforced=True, arrival_board=board)
         before = len(getattr(self, "_decision_errand_deferred", ()) or ())
