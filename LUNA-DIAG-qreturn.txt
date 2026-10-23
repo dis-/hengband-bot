@@ -1,0 +1,60 @@
+n1-a (hengband.net) life-001 -- fixedquest:claim:return loop on Yeek Cave 4F
+Base 249dfff0. Captures 20261023-072043-loop-detected and 20261023-072135-loop-detected
+(read-only copies; boards replayed through HengbotPolicy.choose_key with the real
+MonraceDefinitions and quest definitions, the inner reason of _return_to_town_key
+recorded by wrapping it; the outer reason is relabelled by policy_quest.py:4270).
+
+Facts on the stopped boards
+- floor (2, 4, 0) = Yeek Cave 4F, quest_id 0; fixed-quest target 14 (status 2 =
+  completed) -> policy_quest.py:4266-4271 latches _returning_to_town and calls
+  _return_to_town_key; last_reason is overwritten to "fixedquest:claim:return".
+- map_memory at the stop: up_stairs [] (none known), down_stairs 4, open_frontiers
+  1230 (second) / 1411 (first). No known up-stair.
+- Inventory carries a Word of Recall (slot f, "帰還の詔の巻物"). It is NOT read:
+  policy_town.py:7554 requires dungeon_level > WALK_OUT_MAX_DEPTH (= RECALL_MIN_DEPTH
+  - 1 = 4, policy_constants.py:788/371); the floor is 4, so the return walks out
+  (existing design). The dark-floor recall rung (policy_town.py:~7703-7729) needs
+  light_radius 0 (not the case). The stuck:recall-escape rung (policy_town.py:7664)
+  needs _stuck_escape_streak >= 60, but the streak is counted from last_reason
+  (policy_observation.py:260-265) and the relabel "fixedquest:claim:return" is not a
+  STUCK_FAMILY reason, so the replayed streak is 0 on every board.
+
+What 's' is
+- 's' = SEARCH_KEY from policy_town.py:7686-7702, reason "return:search-upstairs":
+  the oscillation branch (if self._is_oscillating(): at 7676) first tries
+  _probe_unknown_step, then searches while _undersearched_walls(here) (8 searches
+  per cell, SEARCH_LIMIT = 8). It is a wall search for a secret exit, not a wait.
+
+Why the positions cycle (measured, replay of both windows)
+- Capture 2: Smeagol melee around (11,66)-(11,69) fills the oscillation window
+  (_is_oscillating: EXTENDED_STUCK_WINDOW 24 recent positions within <= 6 cells).
+  Replayed decisions match the live log one for one:
+    241944..242014 (11,66) 's' x8 return:search-upstairs   osc True
+    242021        (11,66) '4'     return:explore             osc True
+    242034..242104 (11,65) 's' x8 return:search-upstairs   osc True
+    242112        (11,65) '4'     return:explore
+    242122..242195 (11,64) 's' x8 ... 242206 '4' return:explore
+    242213 (11,63) probe/explore, 242226..242291 (12,62) 's' x8, 242302 '9' return:explore
+- Capture 1: melee at (36,93)/(35,94), then the same pattern north along x=95/96:
+    232138..232196 (34,95) 's' x8, 232203 '8' return:explore,
+    232211..232276 (33,95) 's' x8, 232286 '9' ... (30,96) 's'.
+- The 10-16 explore-for-stairs rule (#47, policy_town.py:7703 _explore_step) DOES
+  run: every ninth decision is return:explore and it steps toward a frontier. But
+  the oscillation branch runs before it, and the eight searches at the new cell keep
+  the 24-entry _recent window inside <= 6 cells, so _is_oscillating() is True again
+  on every arrival. One cell per nine decisions keeps the driver's window
+  (cli.py LOOP_WINDOW 40, loop_detection.LOOP_MAX_DISTINCT 6) inside 5-6 cells ->
+  "loop detected" (twice; the restart does not help because the history refills
+  from the next melee/arrival).
+- The ordinary exploration owner already handles exactly this: policy.py:12286-12297
+  clears self._recent when its oscillation breakout finds an _explore_step route
+  ("Drop the stale stationary/search history now; otherwise it remains
+  'oscillating' ... and searches at every waypoint"). The return owner's explore
+  rung (added for #47) lacks that clear.
+
+Arrival-board replay (feed the recorded boards through the explore step, then the
+recorded first board on each next cell):
+  249dfff0: (33,95) 's' search, (32,96) 's', (31,96) 's', (30,96) 's';
+            (11,65) 's' search, (11,64) 's', (11,63) '7' return:probe.
+  fix     : (33,95) '9' return:explore, (32,96) '8', (31,96) '8', (30,96) '8';
+            (11,65) '4' return:explore, (11,64) '4', (11,63) '7' return:explore.

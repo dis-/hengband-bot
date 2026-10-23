@@ -7350,7 +7350,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6a47539333a6acda0e9bc99529d942a55e444d4d1985cedd4411a2dfe9fe98b2"
+    "ast_sha256": "f7cf8f5554aba337ceee17d3d4821106f501bf1c6a59473a8e7db917dcbf46fe"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_dispatch_key": {
     "classification": "producer",

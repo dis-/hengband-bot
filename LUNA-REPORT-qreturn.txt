@@ -1,0 +1,72 @@
+n1-a fixedquest:claim:return loop (Yeek Cave 4F) -- report
+Branch q-return-loop-1023, base 249dfff0, fix commit 0cce81c5.
+
+Measured diagnosis (details: LUNA-DIAG-qreturn.txt)
+- The live 's' is SEARCH_KEY from the return owner's oscillation branch
+  (policy_town.py:7676 -> 7686-7702, reason return:search-upstairs, 8 searches per
+  cell). The outer reason is relabelled fixedquest:claim:return (policy_quest.py:4270).
+- Knowledge: no known up-stair (map_memory up_stairs []), 1230/1411 open frontiers.
+  A Word of Recall (slot f) is carried but not read because floor 4 is not deeper
+  than WALK_OUT_MAX_DEPTH (4) -- existing design. stuck:recall-escape never arms:
+  the streak is counted from last_reason and the relabel is not a STUCK_FAMILY
+  reason (replayed _stuck_escape_streak = 0).
+- The 10-16 explore-for-stairs rung does run (return:explore every ninth decision),
+  but a melee filled the oscillation window first; the eight searches at each new
+  cell keep the 24-entry window within six cells, so every arrival is oscillating
+  again, one cell per nine decisions, and the driver's loop detector (40 decisions,
+  <= 6 cells) stops the bot. Replayed decisions match the live log one for one in
+  both captures.
+- The ordinary exploration breakout already clears self._recent once _explore_step
+  finds a route (policy.py:12286-12297); the return owner's explore rung lacked it.
+
+Change (existing behaviour of the ordinary owner, no new rule/constant/attribute)
+- policy_town.py return:explore rung: if _is_oscillating(), self._recent.clear()
+  before taking the frontier step.
+- Bookkeeping: town_work_manifest.json.gz and town_work_sites.json regenerated
+  (zero unmapped). No new policy attribute (no restored-checkpoint defaults), no new
+  reason (STUCK_FAMILY_REASONS unchanged), no baseline/census change.
+
+Pins (tests/test_return_oscillation_explore.py; fixture
+tests/fixtures/return-oscillation-search-20261023.jsonl.gz, 40,891 bytes: recorded
+state rows of both captures + MonraceKnowledge for races 63 and 1313; DECLARED
+CONSTRUCTED: skill-list viewer state, the return latch set before the window)
+  On 249dfff0 (cycle repeats):
+    capture 1 arrivals: (33,95) 's' search, (32,96) 's', (31,96) 's', (30,96) 's'
+    capture 2 arrivals: (11,65) 's' search, (11,64) 's', (11,63) '7' return:probe
+  After the fix (walks on toward the frontier):
+    capture 1: (33,95) '9', (32,96) '8', (31,96) '8', (30,96) '8'   return:explore
+    capture 2: (11,65) '4', (11,64) '4', (11,63) '7'                 return:explore
+Controls (pass before and after):
+  - known reachable up-stair beside the recorded cell -> return:seek-upstairs step
+  - carried recall at RECALL_MIN_DEPTH (constructed depth) -> ('rf', return:recall)
+
+Single modules: test_return_oscillation_explore 3 OK, test_return_explore_for_stairs
++ test_return_wander_recall OK, test_town_work_contract 9 OK, test_test_fakery_lint
+13 OK, test_item_sink_lint 18 OK, test_ownership_s2a1_closure 80 OK,
+test_policy_navigation 129 OK.
+
+Not changed (option for the supervisor): the fixedquest relabel hides the return
+reasons from the stuck-streak counter, so stuck:recall-escape cannot arm on this
+path. Not needed for this loop; would be a separate change.
+
+Guard outputs (after the fix commit 0cce81c5)
+$ python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\q-return-loop-1023 249dfff0
+[preflight] PREFLIGHT OK: 6 changed files, 0 findings (q-return-loop-1023 vs 249dfff0)
+
+$ python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\q-return-loop-1023 249dfff0 --tests test_return_oscillation_explore --record
+[mutation] 1 source hunks, tests: test_return_oscillation_explore
+[mutation] caught     src/hengbot/policy_town.py:7729 (if self._is_oscillating():): test_captured_arrivals_walk_on_instead_of_searching_again
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 0cce81c5
+
+$ python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\q-return-loop-1023 249dfff0 --shards 4
+[fast] 3644 fast tests (<2.0s in 0e4cc93e5) + 1 changed modules, 4 shards
+[fast] excluded 44 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-_m0bo63s)
+Failures: none
+Errors: ['tests.test_mutation_calibration_class_b (import) ModuleNotFoundError("No module named 'tests.test_mutation_calibration_class_b'")']
+Total: 3653 tests, 243.9s
+  The one error is not from this change: fast_tier took its module list from the
+  current main 0e4cc93e (calib-required-1023 merged during this task), which adds
+  tests/test_mutation_calibration_class_b.py; that file does not exist at 249dfff0
+  nor on this branch. Failures: none.
