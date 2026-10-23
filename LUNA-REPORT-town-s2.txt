@@ -344,3 +344,104 @@ REMAINING (next round, in order)
    _offer_execution_no_step; those commits must move to the refusal path or the server first.
 5. Replays #63 #64 #66 #68 #94 #76 + n1-a window with state carried; timing 1.1x per board.
 6. (ii) reads the claims evaluation's stamp only (rungs before the claims evaluation get none).
+
+=== FIFTH IMPLEMENTER (Claude Opus 5.5, 2026-10-24, round 5: items 1-3) ===
+STATUS: item 1 done except town-item-processing (needs an existing-test change, see below);
+item 2 done; item 3 partly (departure:<leaf> table + descent; cross-town and fundraising
+terminals and attaching departure to a rung not done).  Guards: preflight OK, mutation OK,
+fast tier: one import error of a module that does not exist at 90947a65 (see GUARDS).
+
+COMMITS
+b00e185f item 1: home-withdraw on the approach rungs (_shopping_approach_key, #1, #2): the filed
+         WITHDRAW visit request (legacy withdrawal, home-errand take, survival device) whose item
+         the CURRENT Home catalogue does not hold -> reservation-unavailable before the walk
+         (servers: shop-buy identify-staff, shop-buy identification-source, cross-town; the design
+         row names identification-source and cross-town, identify-staff added because the in-Home
+         exit it replaces is the identify-staff reserve).  Declared: identify-device
+         (_town_device_processing_key, no-identification-source), home-atomic-deposit
+         (home-full-relief-pending -> home-visit), _open_home_deposit_key (home-full-relief while Home
+         is full or a relief runs, else home-open-deposit; never refused), _defer_home_full_deposit
+         (home-full-defer, the Home-full refusal's own close).  All SHADOW.
+036c8988 item 2: town_terminal.commit_refusal / REFUSAL_COMMITS; _town_producer_entry calls it when
+         may_take_board refuses (ENFORCE only).  identify-equipped (_request_identification or
+         _defer_full_identification + acquire-source offer), identify-device (same + candidate),
+         curse-remove (no-step offer, cause = the code), enchant-launcher (no-step,
+         enchant-context-unavailable).  Bodies unchanged (SHADOW still commits in the body).
+36b4adda bookkeeping: the 4 _commit_* as adapters in town_work_review.json, manifest.
+feff9d1f item 3 (part): departure:<leaf> codes for every leaf of _town_departure_conjuncts with
+         servers (recall_departure_ready -> shop-buy recall, shop-sell organization-sale,
+         fundraising = owner decision 10-23 sell then scavenge 1F within 10,000 game turns;
+         identify_staff_ready -> shop-buy identify-staff, fundraising (stock-out mining, #76); ...;
+         quest_carry_ready and departure:* -> ()).  gather_departure reads the conjuncts with
+         commit=False (new keyword of _town_departure_conjuncts; the default call is unchanged
+         because tests stub _equipment_departure_ready(snapshot) - a first version passed
+         commit=True and broke 5 test_policy_town tests with TypeError (R), fixed).
+         descent (_descent_step: the committed target) / descent-here (direct-descent: own grid):
+         quest-entrance-target when the destination raises the quest-entry confirm (#102), no
+         server (closes).  SHADOW.
+
+STOP ITEM (existing test, not changed): declaring town-item-processing ("identify-carried",
+  codes no-identification-source / full-identification-exhausted) adds a second row to
+  tests.test_town_terminal_commit_pins.LedgerRestoreAndRecordTest.test_each_decision_records_its_own_admission
+  (old: len(rows) == 1; it would be 2: _fixed_quest_key#1 quest-entry identification-flow +
+  town-item-processing identify-carried no-identification-source on the n1-a katana, whose server
+  is the live Morivant trip).  The row is correct (the body reaches the rung and requests full
+  identification).  Needs approval to change the assertion to the quest row only (e.g. filter
+  rows by rung); the declaration is kept out until then (diff saved, about 60 lines).
+
+MEASURED
+- c4-a life-016 captures 215434 / 215541, fresh policy, open loop, base 90947a65 (git archive)
+  vs feff9d1f, back to back, machine loaded by a merge gate: 147/147 and 123/123 rows, 0 key /
+  reason diffs, 0 refusal rows.  Per-decision median/p90 (s):
+    pass 1 base->new  0.294/0.344 -> 0.310/0.390 (p90 1.13x);  0.347/0.390 -> 0.341/0.375 (0.96x)
+    pass 2 new first  0.289/0.343 -> 0.287/0.343 (1.00x);      0.276/0.315 -> 0.320/0.356 (1.13x)
+  The 1.13x moves between captures with the order: noise under load; not settled (re-measure on
+  an idle machine).
+
+PINS / CONTROLS (new modules)
+tests.test_town_terminal_home_withdraw: missing item -> reservation-unavailable on all three
+  approach rungs (control: stored item admits; stale catalogue admits; SCAN request / other store /
+  inside a store -> no terminal); device body and verdict agree; entrance deposit refused while a
+  relief owns Home (control: admitted without one, other store -> none); open page relief vs
+  deposit; defer terminal only with a relief.
+tests.test_town_terminal_refusal_commit: SHADOW (body) and ENFORCE (body not called) leave the same
+  identification writes and the same offers for identify-equipped, identify-device, curse-remove
+  (two causes), enchant-launcher (control: no refusal -> no commit).
+tests.test_town_terminal_departure: leaf codes in order; the declared leaves == the gate's leaves;
+  owner-decision servers; the material read passes commit=False while the default call does not;
+  direct-descent on a quest entrance -> closed terminal-refused-unserved (control: plain stairs no
+  row); route terminal = committed target.
+New policy attributes: none.  Existing tests changed this round: none.
+
+GUARDS (after the last source commit feff9d1f)
+preflight: [preflight] PREFLIGHT OK: 24 changed files, 0 findings (town-claim-s2-1023 vs 90947a65)
+           (5 NOTE existing-test MODIFIED, all approved in earlier rounds)
+mutation:  [mutation] 32 source hunks / MUTATION OK: 0 of 32 hunks are not pinned by a test /
+           recorded for feff9d1f
+fast tier: 3660 fast tests (<2.0s in 8f95933fa) + 14 changed modules, 4 shards; Crashed none;
+           Failures none; Errors: tests.test_melee_site_lint (import) ModuleNotFoundError - the
+           module exists only on main after this branch's base (1e96f691, not an ancestor of
+           HEAD); not a regression.  Total: 3736 tests, 191.4s
+Also green: test_policy_town, test_policy_shop, test_policy_home, test_policy_quest,
+test_policy_navigation, test_home_full_relief_recorded, test_town_overflow_recorded,
+test_town_work_contract, test_home_ident_withdraw_recorded, all test_town_terminal_*.
+
+REMAINING (next round, in order)
+1. Approval for the commit_pins row assertion, then the town-item-processing declaration
+   (+ its refusal commit: _request_identification / _defer_full_identification as in the body).
+2. Item 3 rest: cross-town terminal (expedition rungs) and fundraising terminal (_fundraising_key#1/#2,
+   supply-stockout-mining; life-016 "no digging tool" refusal); attach the departure terminal to the
+   departure seam (_town_special_key, today a DIRECT producer) and to the recall read
+   (_read_dungeon_recall_scroll_key, DIRECT; its leaves are _recall_town_departure_conjuncts, which
+   add combat_weapon_ready and departure_home_* leaves, not yet in the table).
+3. home-withdraw refusal at ENFORCE: _shopping_approach_step acquires the visit and requests the trip
+   BEFORE the entry is asked; a refused walk leaves that visit open (the step must ask the terminal
+   first, or a refusal commit must release it).  The #63 capture itself is the RECOVERY shape
+   (route-claim-unfulfilled, no WITHDRAW request): reservation-unavailable does not cover it.
+4. Plan stop choice through the store-buy verdict.
+5. 21 direct producers behind entries; SHADOW -> ENFORCE flip with the approved test_2/test_3 change
+   and census 90 -> 0, 21 -> 0; refusal commits for any further terminal whose body commits on
+   refusal.
+6. Replays #63 #64 #66 #68 #94 #76 + n1-a window with state carried; timing 1.1x per board on an
+   idle machine.
+7. (ii) reads the claims evaluation's stamp only.
