@@ -255,3 +255,92 @@ REMAINING (next round, in order)
    the wait/wander shapes), timing 1.1x per board.
 6. (ii) reads the claims evaluation's stamp; rungs evaluated before the claims evaluation in a decision
    get no (ii) evidence (not measured live).
+
+=== FOURTH IMPLEMENTER (Claude Opus 5.5, 2026-10-24, round 4: S2-c rest, S2-d part 1) ===
+STATUS: S2-c done (PARALLEL_PREDICATES_S1 empty).  S2-d part 1 done except home-withdraw.
+S2-d part 2 not started (budget).  Guards green.
+
+COMMITS
+4a6dbc6c S2-c rest: town_terminal.NOT_APPLICABLE ("rung does not apply here", distinct from None =
+         no terminal / not judged) and rung_terminal().  The entry reads the rung's terminal once,
+         BEFORE its off-town pass-through; NOT_APPLICABLE skips the producer on and off town;
+         may_take_board takes that terminal.  Rung #1 is declared with
+         fixed_quest_return_intended_terminal: NOT_APPLICABLE when quest-request is retired or
+         _fixed_quest_prepare_return_required is false, else fixed_quest_intended_terminal.  The
+         call-site guard in _decide is removed; PARALLEL_PREDICATES_S1 = frozenset().
+ea623c3a S2-d part 1 (+ manifest regenerated): SHADOW-mode terminals with gather/verdict (commit
+         stays at the bodies' own call sites); codes in TERMINAL_CODES, servers in REFUSAL_SERVERS:
+         - home-deposit ("space-reserve") on _town_space_deposit_key: terminal only when
+           _town_space_deposit_actionable; NOT_APPLICABLE while _fixed_quest_prepare_return_required
+           (the check moved out of the key's body); town-order-step4-pending -> Server("quest-request").
+         - curse-remove (needed kind) on _town_remove_curse_key: cannot-read-scroll -> survival;
+           no-remove-curse-scroll -> shop-buy remove-curse / required-star-remove-curse, home-visit
+           home-star-remove-curse-use; cursed-item-unavailable -> ().
+         - enchant-launcher on _town_enchant_launcher_key: optional work, so a terminal only while a
+           needed enchant scroll is carried; cannot-read-scroll.  (A first version refused
+           "enchant-scroll-unavailable" on every board with a launcher; it added a second row to the
+           existing test_town_terminal_commit_pins.test_each_decision_records_its_own_admission
+           (2 != 1), so the optional-work shape was changed instead of the test.)
+         - identify-equipped (target signature) on _town_equipped_identification_key:
+           no-identification-source -> shop-buy identification-source, home-errand
+           identification-withdrawal, cross-town.  The gather's source lookup performs the body's
+           idempotent reservation bind (pinned: a second read writes nothing).
+         Modes stay SHADOW (test_2 still pins ENFORCE == the two quest rungs; the approved test_2
+         change belongs to the full flip).  Census unchanged: SHADOW 90, DIRECT 21.
+
+MEASURED
+- c4-a life-016 captures 215434 / 215541, fresh policy, open loop, base 90947a650 (main checkout,
+  run twice) vs ea623c3a: 147/147 and 123/123 rows, 0 key/reason diffs, 0 refusal rows.
+  Per-decision median/p90: 0.181/0.235 (base2 0.182/0.224) -> 0.175/0.218 s (p90 <= 0.97x);
+  0.219/0.248 (base2 0.208/0.239) -> 0.210/0.246 s (p90 <= 1.03x).  Within 1.1x.
+- Recorded town-3 prepare-return walk (choose_key, real predicate): keys 7 8 9 9 9, the predicate is
+  asked by fixed_quest_return_intended_terminal and never by _decide.
+
+PINS / CONTROLS (new modules)
+tests.test_town_terminal_rung_applicability: not required -> producer skipped (control: required ->
+  runs, terminal quest-prepare-return); retired quest-request does not ask the predicate; off town
+  the rung does not apply (control: rung #2 off town passes through); PARALLEL empty; recorded walk:
+  the predicate is asked only inside the terminal (catches re-adding the call-site guard).
+tests.test_town_terminal_home_deposit: quest return owns -> NOT_APPLICABLE, no producer, no row
+  (control: deposit runs); nothing to deposit -> no terminal; step-4 work -> shadow row; the body
+  called directly no longer asks the predicate.
+tests.test_town_terminal_curse_remove: curse / enchant agreement of body and verdict (scroll held
+  -> key, no row; no scroll -> None + code; blind -> cannot-read-scroll; no curse/launcher -> none).
+tests.test_town_terminal_identify_equipped: agreement (source -> key; none -> None + code; known
+  gear -> no terminal); the material read does not write on a second call.
+New policy attributes: none.  Existing tests changed this round: none.
+
+GUARDS (after the last source commit ea623c3a)
+preflight: [preflight] PREFLIGHT OK: 20 changed files, 0 findings (town-claim-s2-1023 vs 90947a65)
+           (5 NOTE existing-test MODIFIED, all from earlier approved rounds: 4 goldburn + test_4)
+mutation:  [mutation] 30 source hunks / MUTATION OK: 0 of 30 hunks are not pinned by a test /
+           recorded for ea623c3a (tests: the 4 new modules + need_evidence, shopping_fold,
+           server_categories, supplier, declarations, goldburn, quest_work, crosstown_alt_recorded,
+           commit_pins, speed)
+fast tier: 3677 fast tests + 11 changed modules, 4 shards; Crashed none / Failures none /
+           Errors none; Total: 3740 tests, 274.7s
+Also green: test_policy_town, test_policy_shop, test_policy_quest, test_town_overflow_recorded,
+test_overflow_torches_recorded, test_oneshot_preempt_recorded, test_declarations_r5,
+test_quest_prepare_return_stage2, test_home_ident_withdraw_recorded, all test_town_terminal_*.
+
+REMAINING (next round, in order)
+1. S2-d part 1 rest: home-withdraw terminal (reservation-unavailable before walking): today the
+   refusal is only inside Home (policy.py ~9385 home:identify-staff-reserve-unavailable, ~9427
+   home:route-claim-unfulfilled) and the walk is _shopping_approach_step's Home stop
+   (policy_shop.py ~5503) / the home-errand request; not started.  Not yet declared: the other
+   identification rungs (_town_device_processing_key, town-item-processing) and the other deposit
+   rungs (home-atomic-deposit, _open_home_deposit_key, _defer_home_full_deposit).
+   _town_space_deposit_actionable keeps its "town != 1 and _fixed_quest_prepare_return_required"
+   clause: it is the deposit's material, read by 11 gating callers (policy.py, policy_shop.py,
+   policy_town.py); changing it changes those gates.
+2. S2-d part 2: cross-town, fundraising, departure:<conjunct> (recall unaffordable -> sell surplus
+   -> scavenge 1F with held Treasure Detection, back by stairs within 10,000 game turns, owner
+   decision 10-23; identify_staff_ready -> shop-buy identify-staff + supply-stockout-mining), descent
+   (quest entrances excluded).
+3. Plan stop choice through the store-buy verdict.
+4. 21 direct producers behind entries; SHADOW -> ENFORCE flip with the approved test_2/test_3 change
+   and census 90 -> 0, 21 -> 0.  At the flip: identify-equipped's refusal would skip the body's
+   commit (_request_identification / _defer_full_identification), and curse-remove's would skip
+   _offer_execution_no_step; those commits must move to the refusal path or the server first.
+5. Replays #63 #64 #66 #68 #94 #76 + n1-a window with state carried; timing 1.1x per board.
+6. (ii) reads the claims evaluation's stamp only (rungs before the claims evaluation get none).
