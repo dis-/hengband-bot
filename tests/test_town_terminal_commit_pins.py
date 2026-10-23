@@ -132,6 +132,17 @@ class LedgerRestoreAndRecordTest(unittest.TestCase):
         self.assertEqual([getattr(ledger, name) for name in LEDGER_FIELDS], [{}, {}, {}, {}])
         ledger.terminal_yields[TerminalRef("quest-entry", (2,))] += 1
 
+    def test_restore_defaults_are_the_fresh_attributes(self):
+        policy = HengbotPolicy()
+        fresh = set(vars(policy))
+        for name in ("_terminal_admission_memo", "_decision_terminal_admissions"):
+            del policy.__dict__[name]
+        restored = normalize_policy_state(policy)
+        self.assertEqual(set(vars(restored)), fresh)
+        self.assertIsNone(restored._terminal_admission_memo)
+        self.assertEqual(restored._decision_terminal_admissions, [])
+        self.assertEqual(set(vars(normalize_policy_state(HengbotPolicy()))), fresh)
+
     def test_each_decision_records_its_own_admission(self):
         board = _board()
         maps = {0: parse_town_map(find_outpost_map(Path(__file__)))}

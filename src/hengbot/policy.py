@@ -1742,6 +1742,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_progress_marker: tuple | None = None
         self._town_no_progress_count = 0
         self._town_visit_ledger = TownVisitLedger()
+        # Terminal admission (town_terminal): the per-decision verdict memo
+        # and the admission rows of the current decision.
+        self._terminal_admission_memo = None
+        self._decision_terminal_admissions = []
         # The maximum existing Home bound is installed once per town epoch.
         # Ordinary route bounds may stop earlier; no optimizer/session rebuild
         # can replenish this physical-visit budget.
