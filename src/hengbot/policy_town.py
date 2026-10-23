@@ -3742,6 +3742,7 @@ class TownMixin:
         self._retire_actionless_equipment_failure(snapshot)
         self._refresh_nonhome_effect_refusals(snapshot)
         claims: list[str] = []
+        claimed_needs: list[TownNeed] = []
         departure_ready: bool | None = None
         terminal_optional_categories = {
             "ammo-home-first",
@@ -3862,7 +3863,12 @@ class TownMixin:
                     continue
             if need.category not in claims:
                 claims.append(need.category)
+            claimed_needs.append(need)
         self._town_claim_categories = claims
+        # The decision's need list: the terminal admission reads it as the
+        # evidence that a server's need is live (town_terminal, design 3.5 (ii)).
+        self._decision_claim_needs = (
+            self._decision_sequence, snapshot, tuple(claimed_needs))
         return bool(claims)
 
     def _shortage_supplier_visit_page(

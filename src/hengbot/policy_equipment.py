@@ -2835,7 +2835,18 @@ class EquipmentMixin:
             and self._equipment_departure_cache_token == cache_token
         ):
             return self._equipment_departure_cache_value
-        preparation = self._prepare_equipment_optimization(snapshot)
+        # One preparation read per decision and board, shared by the terminal
+        # material read (commit=False) and the need list's departure verdict
+        # (design 5.2); a new decision reads again.
+        memo = getattr(self, "_equipment_departure_preparation_memo", None)
+        if (cacheable and memo is not None
+                and memo[0] == self._decision_sequence and memo[1] is snapshot):
+            preparation = memo[2]
+        else:
+            preparation = self._prepare_equipment_optimization(snapshot)
+            if cacheable:
+                self._equipment_departure_preparation_memo = (
+                    self._decision_sequence, snapshot, preparation)
         if preparation is not None and any(
             blocker == "calibration-required" or blocker.startswith("calibration-stale:")
             for blocker in preparation.blockers

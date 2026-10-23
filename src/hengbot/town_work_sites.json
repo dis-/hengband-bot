@@ -1826,7 +1826,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3ededad5db51658b4d95e312700fe43ff14fe8188b094d217f2c2709789da2e4"
+    "ast_sha256": "3174845ef68b3eb2e815afa24be70d66c13eed1f1a09b63c5fad1146be6d9948"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -4407,7 +4407,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "599db3e4a6f23afed76981418d888e42869629574bee294897ecc8bebc85459b"
+    "ast_sha256": "c5b26648caa78e0f1c45b19777bcfa2bd6542cf729192124d57e6f1eb083202d"
   },
   "policy_equipment.py:EquipmentMixin._equipment_exclusion_telemetry": {
     "classification": "data",
@@ -7391,7 +7391,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e976949484a459337bb0e3886683ba04bb327427c9bbb249f3f38c12edcf3dc8"
+    "ast_sha256": "ce4d5eb397fadbbbf2c97fc02d5eaf64e261bbea661a36b3c1b8cb052058f480"
   },
   "policy_town.py:TownMixin._town_clear_traveler_key": {
     "classification": "producer",

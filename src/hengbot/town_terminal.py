@@ -492,6 +492,21 @@ def _expedition_route_edges(policy: Any, board: Any) -> int | None:
     return 0 if result.route is None else result.route.remaining_edges
 
 
+def _need_served_now(policy: Any, board: Any, server: Server) -> bool:
+    """Design 3.5 (ii): the server's need is on this decision's need list and
+    its supplier's store-buy verdict admits (a route, and an offer or an
+    unattempted store).  The list is the claims evaluation's own read; a
+    decision without one shows no such evidence (no second read here)."""
+    stamp = getattr(policy, "_decision_claim_needs", None)
+    if (stamp is None or stamp[0] != policy._decision_sequence
+            or stamp[1] is not board):
+        return False
+    return any(
+        need.category == server.category
+        and verdict_store_buy(gather_store_buy(policy, board, need)).admitted
+        for need in stamp[2])
+
+
 def _live_servers(policy: Any, board: Any, terminal: TerminalRef,
                   servers: tuple[Server, ...]) -> tuple[tuple[Server, ...], bool]:
     """Servers progressing now, and whether one showed progress on this board.
@@ -507,6 +522,9 @@ def _live_servers(policy: Any, board: Any, terminal: TerminalRef,
     live: list[Server] = []
     progressed = False
     for server in servers:
+        if server.category is not None and _need_served_now(policy, board, server):
+            live.append(server)
+            continue
         key = (terminal, server.family)
         if server.family == "cross-town":
             edges = _expedition_route_edges(policy, board)

@@ -1571,6 +1571,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ] = {}
         self._equipment_departure_cache_token: tuple[int, int] | None = None
         self._equipment_departure_cache_value = False
+        # (decision_sequence, board, preparation): the decision's one read.
+        self._equipment_departure_preparation_memo = None
+        # (decision_sequence, board, needs) of the last claims evaluation.
+        self._decision_claim_needs = None
         self._hazard_cache: dict[Position, bool] = {}
         self._town_border_cache: dict[Position, bool] = {}
         self._last_position: Position | None = None
@@ -7888,6 +7892,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
+        self._equipment_departure_preparation_memo = None
         # The executor's POSTED state is the in-flight gate every reader of
         # ``state`` (weight shedding, the space deposit, Home knowledge scans,
         # destroys) consults.  Observe the posted wield/takeoff on each board,
