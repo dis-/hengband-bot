@@ -1,0 +1,71 @@
+LUNA report - spectator snapshot file (--spectate-file), branch spectate-1023 from c378e9a5
+Commits: cb5124fd (feature), 61dae636 (screen copy no longer reads "lines"), 559a7f6a (manifest).
+
+== Diagnosis (measured)
+- The bot's decision point in _run_follow (cli.py) is the single place every decision passes:
+  key = _handle_owner_retirement(...) right after policy.choose_key/validate_read_key, before any
+  branch (no-key, stop, send).  At that point the executor's ready_screen_value is the screen reply
+  that produced the decision board (no extra request needed).
+- Messages: the control server's state carries the recent history (make_message_history_json,
+  oldest first); the JSONL output carries only the lines added since the previous snapshot
+  (make_recent_messages_json).  The executor's board takes them from the drained JSONL rows (diffs);
+  the writer merges by overlap so both shapes give the seen lines once.
+- The bot requests screens with attrs=False, so "attrs" is normally absent (kept if present).
+
+== Changes
+- src/hengbot/spectator.py (new): SpectatorWriter.observe(snapshot, key, reason, sequence, screen)
+  merges messages (last 20 kept, every decision), writes at most once per wall-clock second
+  (time.time, injectable clock), PATH.tmp then os.replace, UTF-8 JSON (ensure_ascii=False);
+  OSError/TypeError/ValueError swallowed, one stderr line per hour at most.
+  Fields: time, decision_sequence, key (control-server macro notation via
+  raw_keys_to_macro_notation, e.g. ">\ry", "\e\r", "^A"), reason, level, depth (dungeon_level),
+  dungeon (floor_key[0]), hp [hp, max_hp], screen (reply minus cursor/input_context/term; omitted
+  when there is no reply, e.g. JSONL-only window mode), messages.
+  The values 1 s / 20 lines / 1 hour are the task's own numbers (named constants).
+- src/hengbot/cli.py: --spectate-file PATH (type Path, default None); _run_follow builds the writer
+  only when given; one call after the decision's key is fixed.  Without the flag no object is made
+  and no code runs.
+- Bookkeeping: scripts/town_work_manifest.json.gz + src/hengbot/town_work_sites.json regenerated
+  (_run_follow's ast hash).  No policy attribute, no reason, no structural census change.
+- Deviation note: the first version copied the screen with screen_value.get("lines"), which
+  tests.test_input_context_structure (LINES_READERS freeze) counted as a new input-inference site.
+  Instead of extending the frozen list (an existing test change), the copy passes the reply through
+  minus cursor/input_context/term and never reads the rows.  Any future reply field also passes.
+
+== Tests (tests/test_spectator.py, 9 tests)
+Recorded replay: tests/fixtures/equip-swap-20260826.snapshots.jsonl.gz (first 6 recorded snapshots,
+Lv15, dungeon 2, 13F) served in order by test_input_executor.FaithfulHookGame to the REAL
+ControlClient + OperationExecutor + _ExecutorInputPort + _run_follow + real policy (_fresh_policy).
+Decisions: 7,7,7,8,3 (seek-loot) then a terminal no-key on the last board.
+- without the flag: no spectate.json, the sandbox has exactly one file fewer; accepted keys
+  (game.accepted) identical, decision rows (sequence, turn, reason, key) identical, result identical.
+- with the flag and a ticking clock: every field of the last decision (sequence, reason, key "",
+  time, level 15, depth 13, dungeon 2, hp, screen width/height/lines = the executor's last reply
+  without cursor/attrs, messages = all recorded message lines, last 20, oldest first); no .tmp left.
+- with a frozen clock: only the first decision is written (its own key "7", reason, messages of the
+  bootstrap board).
+- writer: two decisions within 1 s -> one write (messages of the throttled one kept), third at +1 s
+  writes, key "\e\r"; missing directory -> no raise, one stderr line, none within the hour, one
+  after it, write resumes when the directory exists; os.replace PermissionError swallowed;
+  history-shaped messages not duplicated; screen copy keeps attrs only when present; printable key.
+
+== Revert-proof (by hand, before the guards)
+- whole cli.py diff reverted: 3 replay tests error (flag unknown).
+- hook disabled (if False): replay tests fail (spectate.json missing; file list differs).
+- screen argument replaced by None: field test fails (KeyError 'screen').
+
+== Guards (after the last source edit and commit, 559a7f6a)
+preflight:  [preflight] PREFLIGHT OK: 5 changed files, 0 findings (spectate-1023 vs c378e9a5)
+mutation:   [mutation] 5 source hunks, tests: tests.test_spectator
+            caught cli.py:90 (import), cli.py:3606 (add_argument), cli.py:4218 (spectate_path),
+            cli.py:4623 (if spectator is not None), spectator.py:1 (new module)
+            [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test / recorded for 559a7f6a
+fast_tier:  3645 fast tests + 1 changed module, 4 shards; Crashed shards: none; Failures: none;
+            Errors: ['tests.test_quest_door_confirm_recorded (import) ModuleNotFoundError'];
+            Total: 3641 tests, 216.5s; exit 1.
+  The one error is not a regression: that module does not exist at c378e9a5 or on this branch
+  (git ls-tree: 0 files); fast_tier takes it from the shared timing cache
+  C:\hengband-backups\fast-tier-module-seconds.json (written by the quest-door-confirm gate).
+  First fast_tier run (before 61dae636) also failed
+  test_input_context_structure...test_screen_lines_are_read_only_where_they_are_today (R, fixed in src).
+No existing test was edited.
