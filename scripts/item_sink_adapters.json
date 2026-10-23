@@ -44,7 +44,7 @@
     "self._explore_step(snapshot) @ ": 1
   },
   "policy.py:_low_hp_no_kit_hit_key": {
-    "self._direction_key(here, cell) @ If:body:melee / If:body:candidates": 1
+    "self._direction_key(here, cell) @ If:body:melee / If:body:candidates and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1
   },
   "policy.py:_low_hp_walk_gate": {
     "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
@@ -107,18 +107,18 @@
     "self._dungeon_recall_confirmation_key(snapshot) @ If:body:self._fundraising_mode != 'mine' and active_quest is None and (not self._emergency_return_active or self._returning_to_town) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
   },
   "policy_combat.py:_choke_engagement_key": {
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid)": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._ranged_attack_key(snapshot, visible_triggers, adjacent) @ If:body:not adjacent": 1
   },
   "policy_combat.py:_emergency_item": {
     "self._blocking_escape_melee_key(snapshot, hostiles, self._is_upstairs_target) @ If:body:self._emergency_escape_pending / If:body:lethal or summoner_open / If:body:route_step is None": 1,
-    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:self._emergency_escape_pending / If:body:lethal or summoner_open / If:body:adjacent and (not player.afraid)": 1,
+    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:self._emergency_escape_pending / If:body:lethal or summoner_open / If:body:adjacent and (not player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._flee_step(snapshot, hostiles) @ If:body:self._emergency_escape_pending / If:body:lethal or summoner_open": 1,
     "self._q22_opening_consumable_before_escape(snapshot, profile) @ ": 1,
     "self._unique_combat_consumable(snapshot, hostiles) @ If:body:not summoner_open and (not q22_reposition_active)": 1
   },
   "policy_combat.py:_esp_threat_hunt_key": {
-    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid)": 1,
+    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._ranged_attack_key(snapshot, visible_committed or strategic_hostiles, adjacent) @ ": 1
   },
   "policy_combat.py:_esp_threat_leave_key": {
@@ -128,13 +128,13 @@
     "self._esp_threat_hunt_key(snapshot, strategic_hostiles) @ If:body:action == 'hunt' and tier == 'strong'": 1
   },
   "policy_combat.py:_forbid_wait_while_damaged": {
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid)": 1,
-    "self._direction_key(snapshot.player.position, target.position) @ If:body:self._took_damage and hostiles and (not snapshot.player.afraid)": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
+    "self._direction_key(snapshot.player.position, target.position) @ If:body:self._took_damage and hostiles and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._flee_step(snapshot, hostiles) @ If:body:not only_suppressed_weak_breeders": 1,
-    "self._direction_key(snapshot.player.position, self._weakest(strategic_adjacent).position) @ If:body:snapshot.in_town and (not self._took_damage) and strategic_adjacent and (not snapshot.player.afraid) and (not material_threat)": 1
+    "self._direction_key(snapshot.player.position, self._weakest(strategic_adjacent).position) @ If:body:snapshot.in_town and (not self._took_damage) and strategic_adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0]) and (not material_threat)": 1
   },
   "policy_combat.py:_melee_swarm_combat_key": {
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:openness <= SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:adjacent and (not snapshot.player.afraid)": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:openness <= SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._ranged_attack_key(snapshot, converging, adjacent) @ If:body:not adjacent": 1,
     "self._return_to_town_key(snapshot, hostiles, allow_recall=self._fundraising_mode != 'mine') @ If:body:openness <= SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:not self._choke_plan_active(snapshot) / If:body:self._breeder_choke_attempt_ended_floor == snapshot.floor_key and self._engagement_breeder_population(snapshot)": 1,
     "self._return_to_town_key(snapshot, hostiles, allow_recall=self._fundraising_mode != 'mine') @ If:body:openness > SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:route is not None / If:body:self._breeder_choke_attempt_ended_floor == snapshot.floor_key and self._engagement_breeder_population(snapshot)": 1
@@ -258,7 +258,7 @@
   },
   "policy_navigation.py:_disengage_move_or_escalate": {
     "self._blocking_escape_melee_key(snapshot, hostiles, self._is_upstairs_target) @ ": 1,
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._explore_step(snapshot) @ If:body:hostiles / If:body:threat * 2 < snapshot.player.hp": 1
   },
   "policy_navigation.py:_step_toward": {
@@ -318,8 +318,8 @@
     "self._town_teleport_key(snapshot, 0, producer='quest-request', reason='fixedquest:prepare-return') @ If:body:snapshot.player.gold < TOWN_TELEPORT_COST": 1
   },
   "policy_quest.py:_q2_phase_key": {
-    "self._direction_key(snapshot.player.position, melee_target.position) @ If:body:residual_hostiles / If:body:self._quest_profile_ammo(snapshot, profile) is None / If:body:adjacent_breeders": 1,
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent_hostiles).position) @ If:body:uninterrupted_engagement / If:body:adjacent_hostiles and (not snapshot.player.afraid)": 1,
+    "self._direction_key(snapshot.player.position, melee_target.position) @ If:body:residual_hostiles / If:body:self._quest_profile_ammo(snapshot, profile) is None / If:body:adjacent_breeders and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent_hostiles).position) @ If:body:uninterrupted_engagement / If:body:adjacent_hostiles and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._direction_key(snapshot.player.position, target.position) @ If:body:residual_hostiles / If:body:self._quest_profile_ammo(snapshot, profile) is None": 1,
     "self._q2_ranged_core_key(snapshot, profile, visible_hostiles) @ If:body:uninterrupted_engagement": 1
   },
@@ -329,7 +329,7 @@
   "policy_quest.py:_quest_execute_key": {
     "self._direction_key(final_approach, final_door) @ If:body:final_target_phase / If:body:target_position is not None / If:body:final_door_value is not None and final_approach_value is not None / If:body:not final_door_open / If:body:snapshot.player.position == final_approach": 1,
     "self._direction_key(snapshot.player.position, blocker.position) @ If:body:hold is not None and snapshot.player.position != hold / If:body:step is not None / If:body:blocker is not None / If:body:torch is not None": 1,
-    "self._direction_key(snapshot.player.position, ranked[0].position) @ If:body:engage_adjacent and (not snapshot.player.afraid)": 1,
+    "self._direction_key(snapshot.player.position, ranked[0].position) @ If:body:engage_adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._direction_key(snapshot.player.position, target.position) @ If:body:combat_hostiles / If:body:profile.quest_id != 34 and torch is not None and targets / If:body:target is not None": 1,
     "self._direction_key(snapshot.player.position, target_monster.position) @ If:body:combat_hostiles / If:body:planned_throw is not None / If:body:torch is not None": 1,
     "self._explore_step(snapshot) @ If:body:profile.engagement_plan.get('placement_sweep') and battlefield is not None and (not hostiles) and initial_hold_complete and (profile.quest_id != 34 or self._quest_final_target_position(profile, never_move_races) in self._quest_strategy_surveyed_placements.get(34, set())) / If:body:not unsurveyed / If:body:rounds >= int(profile.engagement_plan.get('max_sweep_rounds', 3))": 1,
@@ -392,7 +392,7 @@
     "self._shopping_approach_key(snapshot, step, 'survival:shop-travel') @ If:body:snapshot.in_town / If:body:step is not None": 1
   },
   "policy_supply.py:_unseen_retreat_intercept_key": {
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid)": 1
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1
   },
   "policy_supply.py:_wilderness_survival_key": {
     "self._flee_step(snapshot, nearby_hostiles) @ If:body:nearby_hostiles": 1
@@ -421,7 +421,7 @@
     "self._verified_destroy_key(snapshot, lambda current: target if self._pending_disposal(current) is not None else None, 'equipment:destroy-unsellable-dominated') @ ": 1
   },
   "policy_town.py:_town_kill_mob_key": {
-    "self._direction_key(player.position, target.position) @ For:targets / If:body:player.position.distance_to(target.position) <= 1 / If:body:target.friendly": 1
+    "self._direction_key(player.position, target.position) @ For:targets / If:body:player.position.distance_to(target.position) <= 1 / If:body:target.friendly and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1
   },
   "policy_town.py:_town_overflow_destroy_key": {
     "self._verified_destroy_key(snapshot, self._overflow_disposal_item, 'town:destroy-overflow') @ ": 1
@@ -451,7 +451,7 @@
     "owner._quest_sweep_pack_space_key(snapshot, here) @ If:body:here is not None and here.object_count > 0 and (here.position not in processed_chests) and (here.position not in reserved_chests) and (here.position not in getattr(owner, '_deferred_loot', set()))": 1
   },
   "quest_navigator.py:decide": {
-    "owner._direction_key(snapshot.player.position, owner._weakest(adjacent).position) @ If:body:completed and adjacent and (not snapshot.player.afraid)": 1
+    "owner._direction_key(snapshot.player.position, owner._weakest(adjacent).position) @ If:body:completed and adjacent and (not snapshot.player.afraid) and owner._can_fight_in_dungeon(snapshot.floor_key[0])": 1
   },
   "quest_navigator.py:enter_from_town": {
     "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:context is None / If:orelse:step in positions and (not owner._quest_equipment_entry_allowed(snapshot, quest_id))": 1,

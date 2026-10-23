@@ -1995,7 +1995,7 @@ class QuestMixin:
                 for monster in visible_hostiles
                 if snapshot.player.position.distance_to(monster.position) <= 1
             ]
-            if adjacent_hostiles and not snapshot.player.afraid:
+            if adjacent_hostiles and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 self.last_reason = "quest-strategy:melee"
                 return self._direction_key(
                     snapshot.player.position,
@@ -2105,7 +2105,7 @@ class QuestMixin:
                     for monster in residual_hostiles
                     if snapshot.player.position.distance_to(monster.position) == 1
                 ]
-                if adjacent_breeders:
+                if adjacent_breeders and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                     melee_target = min(
                         adjacent_breeders,
                         key=lambda monster: snapshot.player.position.distance_to(
@@ -2136,6 +2136,8 @@ class QuestMixin:
                         "quest-strategy:q2-close-residual-multiplier-no-ammo"
                     )
                     return self._step_toward(snapshot, step)
+                if not self._can_fight_in_dungeon(snapshot.floor_key[0]):
+                    return None
                 self.last_reason = (
                     "quest-strategy:q2-close-residual-multiplier-no-ammo"
                 )
@@ -3454,7 +3456,7 @@ class QuestMixin:
             and monster.race_id in never_move_races
         ]
         engage_adjacent = mobile_adjacent + forced_adjacent
-        if engage_adjacent and not snapshot.player.afraid:
+        if engage_adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             ranked = sorted(
                 engage_adjacent,
                 key=lambda monster: (

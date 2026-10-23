@@ -178,7 +178,7 @@ class QuestFloorNavigator:
         # Completion never overrides immediate combat. The ordinary survival
         # gates have already run above this call; adjacent enemies are cleared
         # here before the FSM is allowed to walk toward loot or the exit.
-        if completed and adjacent and not snapshot.player.afraid:
+        if completed and adjacent and not snapshot.player.afraid and owner._can_fight_in_dungeon(snapshot.floor_key[0]):
             owner.last_reason = "quest-strategy:melee"
             return owner._direction_key(snapshot.player.position, owner._weakest(adjacent).position)
         if completed and self.phase in {QuestPhase.ENTER, QuestPhase.EXECUTE}:

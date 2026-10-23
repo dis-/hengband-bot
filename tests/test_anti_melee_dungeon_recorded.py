@@ -33,7 +33,7 @@ from unittest import mock
 from hengbot.cli import _consume_response_sequence
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy_constants import DIRECTION_KEYS
+from hengbot.policy_constants import DIRECTION_KEYS, WAIT_KEY
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 
@@ -190,6 +190,89 @@ class AntiMeleeDungeonRecordedTest(unittest.TestCase):
         policy, board, walk, attacked = self._bare_low_hp(melee_allowed=True)
         key = policy._low_hp_walk_gate(board, walk)
         self.assertEqual(policy.last_reason, "melee")
+        self.assertIn(key, attacked)
+
+    # Specialised melee sites, each on DECLARED CONSTRUCTED recorded boards.
+
+    def _choke(self, line, *, melee_allowed=False):
+        # DECLARED CONSTRUCTED: the unseen-retreat choke point is this board's
+        # cell and its hold is active (one collaborator patched).
+        policy, board = self._board(line, melee_allowed=melee_allowed)
+        policy._unseen_retreat_floor = board.floor_key
+        policy._unseen_choke_position = board.player.position
+        hostiles = [m for m in board.visible_monsters if m.hostile]
+        adjacent = [m for m in hostiles if m.distance <= 1]
+        with mock.patch.object(policy, "_unseen_choke_hold_active", return_value=True):
+            key = policy._unseen_retreat_intercept_key(board, hostiles, adjacent)
+        return key, policy.last_reason, self._attacked_cells(board)
+
+    def test_unseen_choke_holds_instead_of_melee(self):
+        for line, (turn, _key) in zip(self.lines, RECORDED):
+            with self.subTest(turn=turn):
+                key, reason, attacked = self._choke(line)
+                # Was the adjacent attack / ``melee:choke``.
+                self.assertEqual(reason, "melee:choke-hold")
+                self.assertNotIn(key, attacked)
+
+    def test_control_unseen_choke_melees_without_the_flag(self):
+        key, reason, attacked = self._choke(self.lines[0], melee_allowed=True)
+        self.assertEqual(reason, "melee:choke")
+        self.assertIn(key, attacked)
+
+    def _no_wait(self, line, *, melee_allowed=False, took_damage=False):
+        # DECLARED CONSTRUCTED: an empty pack and no flee / least-visited
+        # neighbour (two collaborators patched), so the no-wait rewrite of a
+        # bare wait reaches its attack alternatives.
+        policy, board = self._board(line, melee_allowed=melee_allowed)
+        board = dataclasses.replace(board, inventory=[])
+        policy.last_reason = "emergency:wait"
+        policy._took_damage = took_damage
+        with mock.patch.object(policy, "_flee_step", return_value=None), \
+                mock.patch.object(policy, "_least_visited_neighbor", return_value=None):
+            key = policy._forbid_wait_while_damaged(board, WAIT_KEY)
+        return key, policy.last_reason, self._attacked_cells(board)
+
+    def test_no_wait_rewrite_does_not_attack(self):
+        for took_damage in (False, True):
+            for line, (turn, _key) in zip(self.lines, RECORDED):
+                with self.subTest(turn=turn, took_damage=took_damage):
+                    key, reason, attacked = self._no_wait(line, took_damage=took_damage)
+                    # Was ``no-wait:melee`` into the weakest neighbour.
+                    self.assertNotIn(reason, {"no-wait:melee", "no-wait:attack"})
+                    self.assertNotIn(key, attacked)
+
+    def test_control_no_wait_rewrite_melees_without_the_flag(self):
+        key, reason, attacked = self._no_wait(self.lines[0], melee_allowed=True)
+        self.assertEqual(reason, "no-wait:melee")
+        self.assertIn(key, attacked)
+
+    def _breakthrough(self, line, *, melee_allowed=False):
+        # DECLARED CONSTRUCTED: the adjacent monsters breed, so the breeder
+        # breakthrough does not yield to the combat ladder and routes through
+        # them (its ``clear-escape-path`` step is an attack).
+        policy, board = self._board(line, melee_allowed=melee_allowed)
+        attacked = self._attacked_cells(board)
+        board = dataclasses.replace(
+            board,
+            visible_monsters=[
+                dataclasses.replace(m, can_multiply=True) if m.distance <= 1 else m
+                for m in board.visible_monsters
+            ],
+        )
+        key = policy._breeder_breakthrough_escape_key(board)
+        return key, policy.last_reason, attacked
+
+    def test_breeder_breakthrough_does_not_step_into_a_monster(self):
+        for line, (turn, _key) in zip(self.lines, RECORDED):
+            with self.subTest(turn=turn):
+                key, reason, attacked = self._breakthrough(line)
+                # Was the step into the blocker / clear-escape-path.
+                self.assertNotEqual(reason, "breeder-breakthrough:clear-escape-path")
+                self.assertNotIn(key, attacked)
+
+    def test_control_breeder_breakthrough_clears_without_the_flag(self):
+        key, reason, attacked = self._breakthrough(self.lines[0], melee_allowed=True)
+        self.assertEqual(reason, "breeder-breakthrough:clear-escape-path")
         self.assertIn(key, attacked)
 
     def test_control_shallowest_fallback_is_unchanged(self):

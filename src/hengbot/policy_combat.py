@@ -475,6 +475,7 @@ class CombatMixin:
             and not self._took_damage
             and strategic_adjacent
             and not snapshot.player.afraid
+            and self._can_fight_in_dungeon(snapshot.floor_key[0])
             and not material_threat
         ):
             self.last_reason = "no-wait:melee"
@@ -513,7 +514,7 @@ class CombatMixin:
             for monster in hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
         ]
-        if adjacent and not snapshot.player.afraid:
+        if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             self.last_reason = "no-wait:melee"
             return self._direction_key(
                 snapshot.player.position, self._weakest(adjacent).position
@@ -522,7 +523,7 @@ class CombatMixin:
         # A completely boxed player has no legal movement alternative.  Keep
         # the invariant explicit even there: attack the nearest observed threat
         # instead of spending another turn on a bare no-op.
-        if self._took_damage and hostiles and not snapshot.player.afraid:
+        if self._took_damage and hostiles and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             target = min(hostiles, key=lambda monster: monster.distance)
             self.last_reason = "no-wait:attack"
             return self._direction_key(snapshot.player.position, target.position)
@@ -1010,7 +1011,7 @@ class CombatMixin:
             monster for monster in strategic_hostiles
             if monster.distance <= 1
         ]
-        if adjacent and not player.afraid:
+        if adjacent and not player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             self.last_reason = "melee:esp-threat-hunt"
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
@@ -2217,7 +2218,7 @@ class CombatMixin:
                 adjacent = [
                     monster for monster in hostiles if monster.distance <= 1
                 ]
-                if adjacent and not player.afraid:
+                if adjacent and not player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                     # No stair, relocation, recall, or open retreat cell remains.
                     # Waiting donates every turn to the surrounding monsters;
                     # attack the weakest adjacent blocker to create an exit.
@@ -3440,7 +3441,7 @@ class CombatMixin:
                 self._inherit_choke_outcome_budget(
                     snapshot, self._choke_engagement_plan
                 )
-            if adjacent and not snapshot.player.afraid:
+            if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 self.last_reason = "melee:choke"
                 return self._direction_key(
                     snapshot.player.position, self._weakest(adjacent).position
@@ -3636,7 +3637,7 @@ class CombatMixin:
             )
             if restore is not None:
                 return restore
-        if adjacent and not snapshot.player.afraid:
+        if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             self.last_reason = "melee:choke"
             return self._direction_key(
                 snapshot.player.position, self._weakest(adjacent).position
@@ -3763,6 +3764,12 @@ class CombatMixin:
             seek_reason = "breeder-breakthrough:seek-frontier"
         if step is not None:
             grid = snapshot.grid_at(step)
+            if (
+                grid is not None
+                and grid.has_monster
+                and not self._can_fight_in_dungeon(snapshot.floor_key[0])
+            ):
+                return None  # the step is an attack the dungeon refuses
             self.last_reason = (
                 "breeder-breakthrough:clear-escape-path"
                 if grid is not None and grid.has_monster

@@ -10244,7 +10244,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and not grid.is_door
                 and not any(m.position == cell for m in hostiles)
             ]
-            if candidates:
+            if candidates and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 cell = random.Random(snapshot.turn).choice(candidates)
                 self.last_reason = "no-wait:attack"
                 return ALTER_KEY + self._direction_key(here, cell)
@@ -11219,7 +11219,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if scroll is not None:
                 self.last_reason = "flee:scroll"
                 return self._read_key(snapshot, scroll)
-            if strategic_adjacent and not player.afraid:
+            if strategic_adjacent and not player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 self.last_reason = "flee:cornered-attack"
                 return self._town_producer_entry("_direction_key#1", lambda: self._direction_key(
                     player.position, self._weakest(strategic_adjacent).position
@@ -19642,7 +19642,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 best is None or distance_to_goal < best[0]
             ):
                 best = (distance_to_goal, monster)
-        if best is None:
+        if best is None or not self._can_fight_in_dungeon(snapshot.floor_key[0]):
             return None
         return self._direction_key(player.position, best[1].position)
 
