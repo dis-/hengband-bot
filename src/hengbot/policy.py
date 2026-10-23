@@ -473,7 +473,7 @@ from hengbot.policy_constants import (
     UNIQUE_COMBAT_MAX_ATTACKS,
     WIN_QUEST_IDS,
 )
-from hengbot.town_terminal import may_take_board
+from hengbot.town_terminal import gather_quest_work, may_take_board, verdict_quest_work
 from hengbot.town_arbiter import (
     UNREGISTERED_FAMILY,
     TownArbiterMixin,
@@ -17456,7 +17456,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._defer_town_errand(
                 "quest-request", "q2-travel", preserve_home_hold=False):
             return None
-        if self._cross_town_shopping_holds_quest_travel(snapshot):
+        if not verdict_quest_work(gather_quest_work(self, snapshot)).admitted:
             return None
         if snapshot.visited_town_ids is None or 1 not in snapshot.visited_town_ids:
             return None

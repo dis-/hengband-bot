@@ -1711,16 +1711,6 @@ class ShopMixin(InStoreMixin):
                         claim.claim_id, "complete", "cross-town-shopping:arrived",
                     )
 
-    def _cross_town_shopping_holds_quest_travel(self, snapshot: Snapshot) -> bool:
-        """Finish the admitted trip's local procurement before quest travel.
-
-        Arrival is an observation, independent of which producer wins this turn.
-        A remaining shortage releases the trip only after every local supplier
-        has actually shown stock-out (or an unaffordable offer).
-        """
-        self._observe_cross_town_shopping_arrival(snapshot)
-        return self._cross_town_shopping_hold(snapshot)
-
     def _cross_town_shopping_hold(self, snapshot: Snapshot) -> bool:
         """The hold itself, without the arrival observation (the quest
         terminals' verdict reads it; ``choose_key`` observes arrival first)."""
@@ -1744,7 +1734,7 @@ class ShopMixin(InStoreMixin):
         if (snapshot.in_town and self._defer_town_errand(
                 "cross-town", "shopping")):
             return None
-        if self._cross_town_shopping_holds_quest_travel(snapshot):
+        if self._cross_town_shopping_hold(snapshot):
             expedition = self._cross_town_shopping
             if expedition.target_town_id is None:
                 return None

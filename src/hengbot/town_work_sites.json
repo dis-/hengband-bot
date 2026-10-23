@@ -3233,7 +3233,7 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d2c97e741e96ee8766c56d5e443bf9a008f55dc64594ddc7e46f69354ecc476f"
+    "ast_sha256": "741b43d9ab8fa96c0bf11770a5c7d3f85563e2f551e64dfd214364af61a26cfa"
   },
   "policy.py:HengbotPolicy._temporary_status_clear": {
     "classification": "data",
@@ -5924,7 +5924,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8043307f53edb32072d7a828097efd8fcd64e75ab12fa3ae9b0d4f7fd25e0264"
+    "ast_sha256": "18a87801c98eb3dee0dbd196885f5b262195cb170116b4d00716de9bc8fefda6"
   },
   "policy_quest.py:QuestMixin._fixed_quest_reward_key": {
     "classification": "producer",
@@ -5999,7 +5999,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9e03a1a0fec32b7ce686b7f2bfec40901a6147b501caa2794cab4f3237183786"
+    "ast_sha256": "833cf7e392d6fb5bf8a5df5e199b196c20a6d18a748f389275745730c124b6e1"
   },
   "policy_quest.py:QuestMixin._prepare_return_1_candidate": {
     "classification": "adapter",
@@ -6402,7 +6402,7 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f65b1d5d9d08621a80b97bf492ad2daff1113f638a3973f091d2ff8415628d84"
+    "ast_sha256": "ef8f36ca33912dce6ebe840e731e50e36eee4a40b65d85222118acb62e800727"
   },
   "policy_shop.py:ShopMixin._current_store_sale_candidates": {
     "classification": "data",

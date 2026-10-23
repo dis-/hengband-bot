@@ -100,7 +100,7 @@ class QuestWorkMaterial:
 # The fixed-quest terminals the shopping hold refuses (not the floor reward).
 QUEST_WORK_TERMINALS = frozenset({
     "quest-prepare-return", "quest-travel", "quest-claim",
-    "quest-request-building", "quest-entry",
+    "quest-request-building", "quest-entry", "quest-descent",
 })
 
 
@@ -356,7 +356,17 @@ def fixed_quest_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
             # the base town (or prepares the town-1 request) instead.
             return TerminalRef("quest-prepare-return",
                                (policy._effective_town_id(board),))
-        return None
+        # The body still travels toward its travel quest (the head, when
+        # approved and, untaken, ready for travel) in another town.
+        travel = policy._fixed_quest_head(board)
+        if travel is None or policy.approved_quest_strategy(travel.id) is None or (
+                travel.status == QUEST_STATUS_UNTAKEN
+                and not policy._fixed_quest_ready_for_travel(board, travel.id)):
+            return None
+        travel_town = FIXED_QUEST_TOWNS.get(travel.id, 0)
+        if policy._effective_town_id(board) == travel_town:
+            return None
+        return TerminalRef("quest-travel", (travel_town,))
     target_town = FIXED_QUEST_TOWNS.get(quest_id, 0)
     if policy._effective_town_id(board) != target_town:
         return TerminalRef("quest-travel", (target_town,))
@@ -368,8 +378,8 @@ def fixed_quest_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
         return None
     info = policy._quest_knowledge.get(quest_id)
     if info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}:
-        # A taken kill quest descends by ordinary stairs (S2: ``descent``).
-        return None
+        # A taken kill quest descends by ordinary stairs from the town.
+        return TerminalRef("quest-descent", (quest_id,))
     return TerminalRef("quest-entry", (quest_id,))
 
 
@@ -432,7 +442,6 @@ DIRECT_PRODUCERS_S1 = frozenset({
 })
 # Parallel predicates still deciding beside the quest rung's terminal (S2).
 PARALLEL_PREDICATES_S1 = frozenset({
-    "_cross_town_shopping_holds_quest_travel",
     "_fixed_quest_prepare_return_required",
 })
 EXEMPT_RUNGS = frozenset({
