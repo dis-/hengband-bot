@@ -1,0 +1,73 @@
+LUNA-REPORT town-s1 (ROOT-FIX S1, town errand retired / owner-retired; branch town-claim-s1-1023 at 062241f2)
+Spec: plans/DESIGN-town-claim-rootfix-1023.md (S1 only).  Implementer: Claude Opus 5.5.
+
+COMMITS (per design step)
+1e4469106 S1-1 split: _equipment_departure_ready(commit=, codes=) / _evaluate_fixed_quest_readiness(commit=,
+          telemetry_sink=) + town_terminal.gather_quest_entry / verdict_quest_entry
+48e02cf7c S1-2 town_terminal.py: TerminalRef/Server/TerminalDecl/Admission, QUEST_ENTRY_CODES, REFUSAL_SERVERS,
+          TERMINALS (quest #1/#2 ENFORCE, 90 SHADOW, 14 EXEMPT), fixed_quest_intended_terminal, may_take_board;
+          TownVisitLedger terminal_yields/closed_terminals/terminal_route_edges/terminal_server_vectors + restore
+676f6d260 S1-3/4 may_take_board at the head of _town_producer_entry (flag-independent); decision_claim
+          "terminal_admission" rows
+5b8429e9c S1-5 structural checks tests/test_town_terminal_declarations.py (+ DIRECT_PRODUCERS_S1 21,
+          PARALLEL_PREDICATES_S1 2), review entry + manifest
+804ee4b2d / 112bad08c S1-6 pins (n1-a boards, once-per-decision material)
+035a0b436 bookkeeping: town_producer_baseline.json entry for declared_code
+3ba30e63a repair round 1 (mutation): commit-guard pins; _quest_equipment_entry_allowed restored to its
+          original body (the wrapper was a behaviour-identical refactor the mutation check cannot pin)
+ebfc42414 manifest regenerated
+1ee0deaa4 repair (fast tier, R regression): fresh policy now owns _terminal_admission_memo /
+          _decision_terminal_admissions (restore key-set parity)
+
+S1 EXIT CHECKS (measured)
+- 4 boards, no --enforce-town-claims, declared wall = live entry verdict False/identification-flow + live
+  Morivant expedition: quest rung None/None/None/None (062241f2: None,'1','8',None live; control ready:
+  '1','1','8','9' unchanged); _town_blocked_reason not written; record live=[cross-town], closed=None.
+- n1-a window replay 183351 (82 decisions, walls: entry False, ~f skill list held, expedition seeded):
+  old 062241f2: quest:enter:approach 41, preempted-by:quest-request 41 (81/82 identical to live);
+  new: quest:enter:approach 0, preempted-by:quest-request 0, terminal_admission 76.  Open loop (recorded
+  boards do not move) the town plan's shop:approach took most boards, cross-town 14; after 8 yields without
+  route progress the entry closed (yield-without-server-progress, 69 rows).  183418/183436 (fresh policy,
+  no expedition): quest approach 0/0, closed terminal-refused-unserved:identification-flow.
+  Morivant trip reaching the inn: closed-loop walk test from (23,49) along _town_teleport_route(board,2)
+  until remaining_edges 0: the quest rung yields every step, yields < 2, never closed.
+- 14 captures of the 9 ledger cases (c4a-loops-20261016): 13 + 0050 = 14/14 decision streams identical to
+  062241f2 (0 key/reason differences); shadow/enforce refusal table: 0 refused terminals (no quest-entry
+  refusal occurs in them; SHADOW rungs declare no terminal in S1, so their count is 0 by construction).
+- Q34 control: quest:readiness:<reason> still written only at the entry call site (pinned).
+- Timing: isolated, 4 boards x 5 runs, two rounds, new/old median ratio 0.94-1.00, max similar.
+  Admission cost per decision (no wall, 14 captures): median <= 1 ms, p90 <= 6 ms, max 14 ms.  Capture
+  replays median ratios 0.97-1.09 (run concurrently with tests; noisy).  compare_timings not run: it needs
+  a full-suite timings state (merge gate).
+
+REVERT-PROOF (design 5.1)
+(1) may_take_board removed -> 534285/534891 '1'/'8': caught (n1a tests).  (2) commit writes in the
+material read -> commit_pins tests.  (3) identification-flow without cross-town -> closes:
+test_identification_is_served_by_the_cross_town_trip.  (4) table key added/removed -> test_4.  (5) TERMINALS
+entry removed / SHADOW grown -> test_1/test_2.  (6) progress by claim -> unroutable trip closes:
+test_unroutable_trip_is_not_progress.  (7) terminal by rung name -> reward board: test_reward_terminal_...
+mutation_check: 0 of 19 hunks unpinned.
+
+NOT DONE / DEVIATIONS (report)
+- M5 parallel predicates kept: _cross_town_shopping_holds_quest_travel and
+  _fixed_quest_prepare_return_required still gate the quest rung (listed in PARALLEL_PREDICATES_S1); the
+  code cross-town-shopping-in-progress is not declared.  Moving them changes behaviour; left for S2.
+- _quest_equipment_entry_allowed is not a gather->verdict->commit wrapper (task rule: no unpinnable pure
+  refactor).  gather_quest_entry mirrors its conditions in the same order; agreement pinned on the boards.
+- Server categories: design names identification-source/space-deposit/... are not _town_need_registry
+  names; S1 uses None except identify-staff, equipment-catalog, remove-curse, required-star-remove-curse.
+- progressing (ii) is S2.  Risk until then: a refused entry whose server has not acted yet this visit
+  (no arbiter vector, no expedition) closes at once (terminal-refused-unserved) and the quest waits for the
+  next visit.  Declared extra codes: real blockers not in the design list (incomplete-equipment-catalog,
+  empty-encounter-set, optimization-timeout, no-valid-loadout, pending-random-teleport-suppression,
+  equipment-transaction-failed, home-route-unavailable, town-owner-retired, missing-item:*, unready) and
+  named branches preparation-unavailable, loadout-unconfirmed.
+- Existing tests: none edited.  fast tier R regression fixed (test_calibration_checkpoint x2,
+  test_policy_calibration x1).  tests.test_spectator import error: module absent at 062241f2 (added on
+  main later), not this change.
+- New policy attributes (restore defaults): _terminal_admission_memo=None, _decision_terminal_admissions=[];
+  ledger fields above.  New test modules: test_town_terminal_n1a_recorded, _declarations, _speed,
+  _commit_pins; fixture tests/fixtures/n1a-townalt-20261023.jsonl.gz (4 player_turn rows).
+
+GUARDS: preflight OK (15 files, 0 findings); mutation OK (0/19 unpinned, recorded 1ee0deaa); fast tier
+3638 tests, Failures none, Errors: tests.test_spectator import (absent module).
