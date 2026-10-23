@@ -223,3 +223,48 @@ mutation_check (vs 0e4cc93e, --tests test_floor_dwell_seen_floor_recorded --reco
   [mutation] caught     src/hengbot/policy_navigation.py:1137: test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
   [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
   [mutation] recorded for ff5b16cc
+
+=== GATE ROUND 3 (2026-10-23) - RESULT ===
+Merged main 34f91c82 (merge 7fae958b; conflict only in scripts/town_work_manifest.json.gz, regenerated with
+town_work_manifest.py --write: 844 candidates, 21490 sites, zero unmapped).
+
+Failing test: tests.test_return_oscillation_explore.ReturnOscillationExploreTest.test_captured_arrivals_walk_on_instead_of_searching_again
+(fixture return-oscillation-search-20261023.jsonl.gz, boards recorded 2026-10-23 07:20/07:21 with bot d2304637).
+Rule measured by reverting each src hunk alone (git apply -R of the branch diff):
+  (1) seen-floor reverted : test OK
+  (2) remains-pile reverted: test still fails, same diff
+Cause: (1) seen-floor only. Only capture 20261023-072043 changes; 20261023-072135 is identical.
+First diverging decision: last feed row (player (34,95)): before '8' return:explore (north), now '1' return:explore.
+Arrivals (cell: before key/goal -> now key/goal):
+  (33,95): 9 FRONTIER (32,96) -> 2 VISIT (34,93)
+  (32,96): 8 FRONTIER (31,96) -> 1 VISIT (34,93)
+  (31,96): 8 FRONTIER (30,96) -> 2 VISIT (34,93)
+  (30,96): 8 FRONTIER (29,96) -> 9 VISIT (29,98)
+Why: the corridor (29..33, 96) the recorded bot walked was already shown in its light (radius 2) and visited once;
+before (1) nothing there was CAVE_MARK, so every corridor cell read as frontier and the old goal was always the next
+cell north. With (1) those cells are explored; the nearest new ground is the unvisited side passage (34,93) that
+leads to the frontier (33,93), and later (29,98) beside the frontier (29,99). The new bot keeps the same committed
+goal over the three boards the old bot walked away from (it replans back to it), then a new goal further north-east.
+Progress check with both rules (merged tree): every arrival is return:explore with a direction key, no 's', not
+oscillating after the step, goal is unvisited floor or a remembered frontier. Feed searches per cell (fixed recorded
+boards) now (36,93):8 (35,94):3 (34,95):8 = 19, before 7/7/8 = 22; none above SEARCH_LIMIT.
+Classification: still progresses (only the exact key/target differs) -> wall + progress pin, no src change.
+Change (9f73d90e, tests/test_return_oscillation_explore.py only):
+  - @pre_seen_floor_replay on test_captured_arrivals_walk_on_instead_of_searching_again with a one-line comment naming
+    the 2026-10-23 07:20 recording (bot d2304637); assertions unchanged.
+  - new test_seen_floor_arrivals_still_walk_on_to_new_ground: same boards, both rules on; asserts per arrival
+    return:explore, the exact key and committed goal (table SEEN_FLOOR_ARRIVALS), not oscillating, goal is unvisited
+    floor or remembered frontier. Fails if 0cce81c5's _recent.clear() is reverted (both captures: oscillating) and if
+    rule (1) is reverted (goal (32,96) instead of (34,93)).
+Module run: Ran 4 tests OK; test_floor_dwell_seen_floor_recorded Ran 6 tests OK.
+
+preflight (vs 34f91c82): PREFLIGHT OK: 29 changed files, 0 findings (NOTE lines list the walled existing tests,
+  now including test_return_oscillation_explore::test_captured_arrivals_walk_on_instead_of_searching_again)
+mutation_check (vs 34f91c82, --tests test_floor_dwell_seen_floor_recorded test_return_oscillation_explore --record):
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded test_return_oscillation_explore
+  [mutation] caught     src/hengbot/policy_helpers.py:368: test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124: test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137: test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier, test_seen_floor_arrivals_still_walk_on_to_new_ground
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for 9f73d90e
+fast_tier: not run (round 3 asks for preflight and mutation_check only, as rounds 1/2).
