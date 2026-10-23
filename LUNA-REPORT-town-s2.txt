@@ -162,3 +162,96 @@ mutation : MUTATION OK: 0 of 10 hunks are not pinned by a test (recorded for 89e
 fast tier: 3677 fast + 4 changed modules, 4 shards; Failures none, Errors none; 3702 tests, 303.6s
 Also green: test_policy_town (593), 9 supplier modules (303), cross-town modules (37), terminal modules.
 New policy attributes: none.
+
+=== THIRD IMPLEMENTER (Claude Opus 5.5, 2026-10-24, round 3: S2-b, S2-c) ===
+STATUS: S2-b and S2-c done (S2-c partly, see below).  S2-d not started (budget).  Guards green.
+
+COMMITS
+44a177ee S2-b: one preparation read per decision and board inside _equipment_departure_ready
+         (_equipment_departure_preparation_memo = (decision_sequence, board, preparation); the material
+         read commit=False and the need list's departure verdict share it; next decision reads again;
+         only the decision's own board (_map_predicate_snapshot) is memoized).  Evidence (ii):
+         _town_claims_active stamps _decision_claim_needs = (decision_sequence, board, claimed needs);
+         _need_served_now (town_terminal) makes a category server live when its need is on this
+         decision's list and verdict_store_buy(gather_store_buy) admits.  No second read in
+         may_take_board: a decision without the stamp shows no (ii) evidence.
+61e67d6c S2-c: the cross-town shopping hold lives only in the quest-work verdict.  Removed the body
+         hold of _fixed_quest_key; fixed_quest_intended_terminal now names every board where the body
+         acts past the old hold: taken kill quest -> quest-descent (added to QUEST_WORK_TERMINALS);
+         no target quest but an approved travel head in another town -> quest-travel.  _telmora_q2_travel_key
+         and the direct (entry-less) call in _opening_q34_town_key ask verdict_quest_work; the cross-town
+         owner reads _cross_town_shopping_hold (arrival is observed at decision start, policy.py
+         _observe).  _cross_town_shopping_holds_quest_travel deleted; PARALLEL_PREDICATES_S1 ->
+         {"_fixed_quest_prepare_return_required"}.
+ab????? / 7b916686 / last: pins (attribute defaults, the claims stamp), the restore setdefault lines removed
+         (normalize_policy_state's fresh-policy fill already covers them), manifest.
+
+APPROVED TEST CHANGE (round-3 decision), tests/test_goldburn_shopping_constructed.py, outcomes unchanged:
+  old policy._fixed_quest_key(snap, []) (4 places: first_alternating x2, destination, affordable_shelf)
+  new _quest_entry(policy, snap): observe arrival as at decision start, then
+      _town_producer_entry("_fixed_quest_key#2", lambda: policy._fixed_quest_key(snap, []))
+      (the arrival record expectation tried_towns==[1] now comes from that observation)
+  old policy._cross_town_shopping_holds_quest_travel(snap) (2 places)
+  new not verdict_quest_work(gather_quest_work(policy, snap)).admitted
+  test_observed_stockout's direct _fixed_quest_key(snap, []) == "7" and test_finished_q2 unchanged.
+No other existing test changed.  Census unchanged (SHADOW 90, DIRECT 21).
+
+MEASURED
+- Q: did the reorder "prepare-return first" (faithful to the body) fit?  No: the S1 n1a tests use a fresh
+  policy without the Q2 strategy approval, where the body would prepare-return but the tests expect the
+  quest-entry terminal.  Kept the target-first order; added only the two body-acting cases above.
+- c4-a life-016 captures 215434 / 215541 (fresh policy, open loop), base 90947a65 vs branch:
+  147/147 and 123/123 rows, 0 key/reason diffs, 0 refusal rows.  Per-decision time median/p90
+  0.182/0.213 -> 0.176/0.228 s (p90 1.07x) and 0.195/0.213 -> 0.200/0.220 s (1.03x): within 1.1x.
+
+PINS / CONTROLS (new modules)
+tests.test_town_terminal_need_evidence: material and need list share one read (control: next
+  decision reads again; a probe board is not memoized); attribute defaults new/restored; the claims
+  evaluation stamps its need list; a supplied need keeps shop-buy/identification-source live (controls:
+  no list -> terminal-refused-unserved:identification-flow; stale list; attempted supplier without offer).
+tests.test_town_terminal_shopping_fold: kill-quest descent held by the trip (control: no trip runs);
+  travel-only head held (control: unapproved head has no terminal); opening Q34 does not call the
+  quest body under the trip (control: calls it once).
+tests.test_crosstown_alt_recorded (existing) pins the cross-town owner's hold read.
+New policy attributes: _equipment_departure_preparation_memo, _decision_claim_needs (default None,
+restored by normalize_policy_state's fresh-policy fill; pinned).
+
+GUARDS (after the last source commit)
+preflight: [preflight] PREFLIGHT OK: 16 changed files, 0 findings (town-claim-s2-1023 vs 90947a65)
+           (5 NOTE existing-test MODIFIED: the 4 approved goldburn tests + the approved test_4)
+           first run: FAIL manifest stale -> regenerated and committed, then OK
+mutation:  [mutation] 22 source hunks, tests: tests.test_town_terminal_need_evidence
+           tests.test_town_terminal_shopping_fold tests.test_town_terminal_server_categories
+           tests.test_town_terminal_supplier tests.test_town_terminal_declarations
+           tests.test_goldburn_shopping_constructed tests.test_town_terminal_quest_work
+           tests.test_crosstown_alt_recorded
+           [mutation] MUTATION OK: 0 of 22 hunks are not pinned by a test / recorded for 7b916686
+           (round 1: 6 NOT CAUGHT -> pins added, the decision-start memo reset and the restore
+           setdefaults removed as redundant; round 2: 1 NOT CAUGHT -> restore setdefault removed)
+fast tier: 3677 fast tests + 7 changed modules, 4 shards; Crashed none / Failures none / Errors none;
+           Total: 3715 tests, 249.3s
+Also green: test_policy_quest, test_crosstown_alt_recorded, test_declarations_r3b, _r10,
+test_ownership_s3_3_delegation_record, test_goldburn_shopping_constructed, all test_town_terminal_*,
+test_policy_town TownRecallReturnTest.test_capture_affordable_identify_staff_vetoes_cross_town_expedition.
+
+REMAINING (next round, in order)
+1. S2-c rest: _fixed_quest_prepare_return_required still decides beside the terminal at
+   (a) rung #1's call site (policy.py, "_fixed_quest_key#1") and (b) _town_space_deposit_actionable /
+   _town_space_deposit_key (policy_town.py).  (a) is not a pure move: _town_producer_entry passes
+   off-town boards straight to call(), so the guard is rung #1's applicability outside town; folding
+   needs the entry to judge that rung off town (a "not applicable" terminal) - otherwise the move is
+   unpinnable.  (b) belongs to the home-deposit terminal (S2-d).
+   The opening Q34 direct call asks the quest-work verdict itself until _opening_q34_town_key is behind
+   an entry (item 5).
+2. S2-d: terminals with gather/verdict/commit for home-withdraw (reservation-unavailable), home-deposit,
+   identification, curse-enchant; then cross-town, fundraising, departure:<conjunct> (recall:
+   unaffordable -> servers "sell surplus" then "scavenge 1F with held detection, back by stairs,
+   10,000 game turns" per the owner decision 10-23; identify_staff_ready -> shop-buy/identify-staff +
+   supply-stockout-mining), descent (quest entrances excluded; today only the route, not the target).
+3. Plan stop choice through the store-buy verdict (supplier counting is done).
+4. 21 direct producers behind named entries; 90 SHADOW rungs ENFORCE; then the approved test_2 /
+   test_3 changes and census 90 -> 0, 21 -> 0.
+5. Replays #63 #64 #66 #68 #94 #76 + n1-a window with state carried (fresh replays do not reproduce
+   the wait/wander shapes), timing 1.1x per board.
+6. (ii) reads the claims evaluation's stamp; rungs evaluated before the claims evaluation in a decision
+   get no (ii) evidence (not measured live).
