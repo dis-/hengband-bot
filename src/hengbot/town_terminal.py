@@ -88,6 +88,33 @@ def gather_quest_entry(policy: Any, board: Any, quest_id: int, *,
         equipment_ready=ready, equipment_codes=tuple(codes))
 
 
+@dataclass(frozen=True)
+class QuestWorkMaterial:
+    """Frozen inputs every fixed-quest terminal shares (travel, claim,
+    request, entry): the admitted cross-town shopping trip still holds."""
+
+    shopping_hold: bool = False
+
+
+# The fixed-quest terminals the shopping hold refuses (not the floor reward).
+QUEST_WORK_TERMINALS = frozenset({
+    "quest-prepare-return", "quest-travel", "quest-claim",
+    "quest-request-building", "quest-entry",
+})
+
+
+def gather_quest_work(policy: Any, board: Any) -> QuestWorkMaterial:
+    """The hold without the arrival observation (``choose_key`` observes it)."""
+    return QuestWorkMaterial(shopping_hold=policy._cross_town_shopping_hold(board))
+
+
+def verdict_quest_work(material: QuestWorkMaterial) -> Admission:
+    """Pure: the shopping trip's hold is a refusal code (design 3.3 M5)."""
+    if material.shopping_hold:
+        return refused(("cross-town-shopping-in-progress",))
+    return ADMIT
+
+
 def verdict_quest_entry(material: QuestEntryMaterial) -> Admission:
     """Pure: each refusing branch returns its own codes."""
     if material.morivant_deposits:
@@ -153,6 +180,8 @@ QUEST_ENTRY_CODES = frozenset({
     "three-turn-threat", "toughest-kill-time", "unready",
     # The entry's own conditions.
     "morivant-temporary-deposits", "kill-descent",
+    # The fixed-quest terminals' shared verdict (verdict_quest_work).
+    "cross-town-shopping-in-progress",
 })
 
 # Categories are ``_town_need_registry`` names (design 3.4, S2 (c)).
@@ -193,6 +222,7 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
     "not-full-hp": (Server("survival"),),
     "temporary-status": (Server("survival"),),
     "morivant-temporary-deposits": (Server("cross-town"), Server("home-visit")),
+    "cross-town-shopping-in-progress": (Server("cross-town"),),
     **{code: () for code in (
         "unsupported-class", "missing-natural-stats", "skill-exp-unknown",
         "missing-monrace-knowledge", "calibration-required", "calibration-stale:*",
@@ -257,6 +287,11 @@ def fixed_quest_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
     quest = (None if quest_id is None
              else policy._known_fixed_quests(board).get(quest_id))
     if quest is None:
+        if policy._fixed_quest_prepare_return_required(board):
+            # No fixed quest is ready for travel: the body returns by inn to
+            # the base town (or prepares the town-1 request) instead.
+            return TerminalRef("quest-prepare-return",
+                               (policy._effective_town_id(board),))
         return None
     target_town = FIXED_QUEST_TOWNS.get(quest_id, 0)
     if policy._effective_town_id(board) != target_town:
@@ -361,9 +396,9 @@ def terminal_admission(policy: Any, board: Any, terminal: TerminalRef) -> Admiss
     memo = getattr(policy, "_terminal_admission_memo", None)
     if memo is not None and memo_key in memo:
         return memo[memo_key]
-    if terminal.terminal_id != "quest-entry":
-        admission = ADMIT
-    else:
+    admission = (verdict_quest_work(gather_quest_work(policy, board))
+                 if terminal.terminal_id in QUEST_WORK_TERMINALS else ADMIT)
+    if admission.admitted and terminal.terminal_id == "quest-entry":
         quest_id = terminal.args[0]
         info = policy._quest_knowledge.get(quest_id)
         navigator = bool(policy.approved_quest_strategy(quest_id) is not None

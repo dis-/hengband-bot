@@ -1719,6 +1719,11 @@ class ShopMixin(InStoreMixin):
         has actually shown stock-out (or an unaffordable offer).
         """
         self._observe_cross_town_shopping_arrival(snapshot)
+        return self._cross_town_shopping_hold(snapshot)
+
+    def _cross_town_shopping_hold(self, snapshot: Snapshot) -> bool:
+        """The hold itself, without the arrival observation (the quest
+        terminals' verdict reads it; ``choose_key`` observes arrival first)."""
         expedition = self._cross_town_shopping
         if expedition is None or not snapshot.in_town:
             return False
