@@ -3659,7 +3659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "a6e4537eb4a68b5b709fb2ee0577646f8b5160f2fa6319beb9784a4a822ed8b0"
+    "ast_sha256": "f1028f42c4850b98f10693457e3bc0958f5d2500d430e365886b4d3e03ac546d"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -8155,6 +8155,38 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2199ef17444a25a7b198a7f84ab57cbcef6e4c0f1683c5837e856e19335d8ec9"
+  },
+  "town_terminal.py:_commit_curse_remove": {
+    "classification": "adapter",
+    "rows": [
+      "remove-curse"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "111724bd73a783b04bb0aed573542d2c132c7b2059e8bd87e488bc400047d90b"
+  },
+  "town_terminal.py:_commit_enchant_launcher": {
+    "classification": "adapter",
+    "rows": [
+      "enchant"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5eb0800959e319723cb6ac0b529268f4292542e9d0183f6bd0416cdc71cda452"
+  },
+  "town_terminal.py:_commit_identify_device": {
+    "classification": "adapter",
+    "rows": [
+      "device"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "d3c7e0c5df7de4838743d70895a090e9494027e85315ccde717620cfad78b61a"
+  },
+  "town_terminal.py:_commit_identify_equipped": {
+    "classification": "adapter",
+    "rows": [
+      "identification"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "ea4d8b4f23b06ff9d55dfa61bd14cd2b2ed5c631526bbc0a06f7a5cf891b72fb"
   },
   "town_terminal.py:declared_code": {
     "classification": "data",

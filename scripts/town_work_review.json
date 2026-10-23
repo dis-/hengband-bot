@@ -10845,5 +10845,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:_commit_identify_equipped": {
+    "classification": "adapter",
+    "rows": [
+      "identification"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Adapter on the entry's refusal path (town_terminal.commit_refusal): performs the confirmation the skipped producer _town_equipped_identification_key makes on the same refusal (same writes, same execution offer); no key, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:_commit_identify_device": {
+    "classification": "adapter",
+    "rows": [
+      "device"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Adapter on the entry's refusal path (town_terminal.commit_refusal): performs the confirmation the skipped producer _town_device_processing_key makes on the same refusal (same writes, same execution offer); no key, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:_commit_curse_remove": {
+    "classification": "adapter",
+    "rows": [
+      "remove-curse"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Adapter on the entry's refusal path (town_terminal.commit_refusal): performs the confirmation the skipped producer _town_remove_curse_key makes on the same refusal (same writes, same execution offer); no key, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:_commit_enchant_launcher": {
+    "classification": "adapter",
+    "rows": [
+      "enchant"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Adapter on the entry's refusal path (town_terminal.commit_refusal): performs the confirmation the skipped producer _town_enchant_launcher_key makes on the same refusal (same writes, same execution offer); no key, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
