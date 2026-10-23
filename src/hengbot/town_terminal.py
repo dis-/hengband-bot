@@ -155,11 +155,17 @@ QUEST_ENTRY_CODES = frozenset({
     "morivant-temporary-deposits", "kill-descent",
 })
 
+# Categories are ``_town_need_registry`` names (design 3.4, S2 (c)).
 _IDENTIFICATION_SERVERS = (
     Server("identification"), Server("cross-town"),
-    Server("home-errand"), Server("shop-buy", "identify-staff"),
+    Server("home-errand", "identification-withdrawal"),
+    Server("shop-buy", "identification-source"),
 )
-_SPACE_SERVERS = (Server("home-visit"), Server("shop-sell"), Server("town-plan"))
+_SPACE_SERVERS = (
+    Server("home-visit", "space-deposit"),
+    Server("shop-sell", "organization-sale"),
+    Server("town-plan"),
+)
 _TRANSACTION_SERVERS = (Server("equipment-txn"),)
 
 # Who serves each refusal code.  An empty right side is explicit: no town
@@ -180,7 +186,10 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
     "combat-weapon": _TRANSACTION_SERVERS,
     "random-teleport": _TRANSACTION_SERVERS,
     "pending-random-teleport-suppression": _TRANSACTION_SERVERS,
-    "overweight": (Server("shop-sell"), Server("home-visit")),
+    "overweight": (
+        Server("shop-sell", "overweight-surplus"),
+        Server("home-visit", "weight-overload"),
+    ),
     "not-full-hp": (Server("survival"),),
     "temporary-status": (Server("survival"),),
     "morivant-temporary-deposits": (Server("cross-town"), Server("home-visit")),
