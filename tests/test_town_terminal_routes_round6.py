@@ -13,7 +13,8 @@ from unittest.mock import patch
 from hengbot import town_terminal as tt
 from hengbot.model import (
     Position, SV_LITE_LANTERN, SV_SCROLL_DETECT_TREASURE,
-    SV_SCROLL_WORD_OF_RECALL, TVAL_FOOD, TVAL_LITE, TVAL_SCROLL,
+    SV_SCROLL_WORD_OF_RECALL, SV_DIGGING_SHOVEL, TVAL_DIGGING,
+    TVAL_FOOD, TVAL_LITE, TVAL_SCROLL,
 )
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import FOOD_MIN_SVAL, TOWN_TELEPORT_COST
@@ -197,6 +198,22 @@ class Round6RouteTerminalTest(unittest.TestCase):
                     self.assertEqual(terminal, tt.TerminalRef("fundraising", ("supply-stockout",)))
                     self.assertIn("fundraising-no-digging-tool",
                                   tt.terminal_admission(policy, snap, terminal).codes)
+
+    def test_stockout_one_run_accepts_one_detection_scroll(self):
+        snap = replace(board(), inventory=[
+            item("a", TVAL_FOOD, FOOD_MIN_SVAL),
+            item("b", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=1),
+            item("c", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+        ], equipment=[item("light", TVAL_LITE, SV_LITE_LANTERN, fuel=10000)])
+        policy = policy_on(snap)
+        with patch.object(policy, "_recall_town_departure_conjuncts",
+                          return_value={"recall_departure_ready": False}), \
+                patch.object(policy, "procurement_requirements", return_value=[{
+                    "item": "Word of Recall scrolls", "blocked_reason": "no-actionable-supplier"}]):
+            self.assertIsNotNone(policy._supply_stockout_mining_key(snap))
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._planned_mining_runs, 1)
+        self.assertEqual(policy._decision_terminal_admissions, [])
 
 
 if __name__ == "__main__":

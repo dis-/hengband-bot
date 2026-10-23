@@ -477,11 +477,14 @@ class FundraisingMaterial:
 
 def gather_fundraising(policy: Any, board: Any) -> FundraisingMaterial:
     preparing = policy._fundraising_mode in {None, "prepare"}
+    detection = policy._count_treasure_detection_scrolls(board)
+    # Before the stock-out initiator installs its plan, its terminal is
+    # already the declared single run, not the ordinary multi-run set.
+    detection_missing = (not detection if policy._fundraising_mode is None else
+                         preparing and detection < policy._mining_detection_scroll_target(board))
     return FundraisingMaterial(
         missing_digger=preparing and not policy._has_digging_tool(board),
-        missing_detection=preparing and (
-            policy._count_treasure_detection_scrolls(board)
-            < policy._mining_detection_scroll_target(board)),
+        missing_detection=detection_missing,
         missing_food=not policy._fundraising_food_ready(board),
         missing_light=not policy._fundraising_light_ready(board),
         departure_ready=policy._fundraising_departure_ready(board),
