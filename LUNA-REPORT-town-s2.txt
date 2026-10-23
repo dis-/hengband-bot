@@ -108,3 +108,57 @@ mutation:   [mutation] 2 source hunks, tests: tests.test_town_terminal_server_ca
             [mutation] recorded for 63dc48a5
 fast tier:  3677 fast tests (<2.0s in 90947a650) + 1 changed modules, 4 shards
             Crashed shards: none / Failures: none / Errors: none / Total: 3685 tests, 205.2s
+
+=== SECOND IMPLEMENTER (Claude Opus 5.5, 2026-10-23, after SUPERVISOR DECISIONS) ===
+STATUS: STOPPED with S2 incomplete (token budget; plus two blockers below).  Guards green.
+
+COMMITS
+b5944693e S2 (a) item 1: cross-town shopping hold -> refusal code cross-town-shopping-in-progress
+          (server cross-town) of every fixed-quest terminal (verdict_quest_work: prepare-return, travel,
+          claim, request, entry; not the floor reward).  fixed_quest_intended_terminal returns
+          ("quest-prepare-return",(town,)) when no target quest and _fixed_quest_prepare_return_required.
+          _cross_town_shopping_hold = the hold without the arrival observation (choose_key observes first).
+5fd3d021c item 3 (store-buy terminal) + item 4: gather_store_buy/verdict_store_buy (codes
+          supplier-unreachable, no-matching-offer, servers empty); _departure_supplier_core counts a
+          supplier only when the verdict admits: reachable and (Home, unattempted, or the remembered page
+          offers the need: supply-kind categories via _supply_page_offers, i.e. a matching ware within
+          gold and not churn-rejected).  Approved test_4 change in this commit.
+89e8b89f  manifest; 3rd commit adds the declaration pin of the store-buy codes.
+
+APPROVED TEST CHANGE (decision (1))
+test_4_codes_and_table_agree: old set(REFUSAL_SERVERS)==set(QUEST_ENTRY_CODES), scan over
+verdict_quest_entry + _equipment_departure_refusal_codes; new QUEST_ENTRY_CODES <= TERMINAL_CODES,
+set(REFUSAL_SERVERS)==set(TERMINAL_CODES) (QUEST_ENTRY_CODES|STORE_BUY_CODES), scan over every verdict_*
+in town_terminal (verdict_quest_work, verdict_store_buy, verdict_quest_entry) + the namer.
+test_2 / test_3 NOT changed (SHADOW 90 / DIRECT 21 lists not emptied; census unchanged).
+
+DECISION (2) c4-a life-016: STOP for the recall server.  Measured: both captures hold 10 Treasure
+Detection scrolls in the pack, gold 28->51 / 28->203, no digging tool.  10-03 allows scavenging only when
+detection is not held, not at Home, and not one scroll can be bought; 10-15 adds stock-out.  "Detection
+held, digging tool / recall unaffordable" is not covered, so scavenge cannot be the live server of the
+recall refusal here.  Owner decision needed.
+
+BLOCKERS / NOT DONE
+- item 1 remainder: the body copy of the hold in _fixed_quest_key and rung #1's call-site predicate stay.
+  Removing the body hold breaks existing tests test_goldburn_shopping_constructed (lines 69/74/86/123
+  call _fixed_quest_key directly and expect None, and line 70 expects the arrival record from that call);
+  moving the #1 predicate is a pure move (mutation rule).  PARALLEL list unchanged.
+- item 2 (progressing (ii)): implemented then removed.  Evaluating a category's need (NeedSpec.produces)
+  enumerates _town_need_candidates, which calls _prepare_equipment_optimization a second time per
+  decision -> existing test_town_terminal_speed.test_one_preparation_read_per_decision fails (2 != 1).
+  Needs a per-decision preparation memo shared by gather and the candidate enumeration (design 5.2).
+- item 3: only store-buy; home-withdraw/deposit, identification, curse, cross-town, fundraising,
+  departure:<conjunct>, descent not done.  Categories without a supply kind keep "any ware within gold".
+- item 4: plan stop choice not routed.  item 5 (21 direct, 90 SHADOW -> ENFORCE) not started.
+
+REPLAYS (fresh policy, open loop, state rows; 11 case captures #63 #64 #66 #68 #94 #76 + 2 c4-a life-016)
+13/13 streams identical to 90947a65 (0 key/reason diffs, 0 refusal rows).  Fresh replays do not carry the
+attempted-store / expedition state, so the wait/wander shapes are not reproduced; no shape change shown.
+Timing per decision median/p90 new <= base on all 13 (e.g. 215434 0.207/0.197 s, 0050 0.320/0.223 s).
+
+GUARDS
+preflight: PREFLIGHT OK: 10 changed files, 0 findings (NOTE existing-test MODIFIED test_4, approved)
+mutation : MUTATION OK: 0 of 10 hunks are not pinned by a test (recorded for 89e8b89f)
+fast tier: 3677 fast + 4 changed modules, 4 shards; Failures none, Errors none; 3702 tests, 303.6s
+Also green: test_policy_town (593), 9 supplier modules (303), cross-town modules (37), terminal modules.
+New policy attributes: none.
