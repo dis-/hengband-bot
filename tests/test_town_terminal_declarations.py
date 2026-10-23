@@ -122,11 +122,19 @@ class TerminalDeclarationTest(unittest.TestCase):
         self.assertLessEqual(len(town_terminal.DIRECT_PRODUCERS_S1), S1_DIRECT_CENSUS)
 
     def test_4_codes_and_table_agree(self):
-        self.assertEqual(set(REFUSAL_SERVERS), set(QUEST_ENTRY_CODES))
+        # S2 (supervisor decision 2026-10-23 (1)): the keys are the union of
+        # every terminal's declared codes; every verdict_* function is scanned.
+        self.assertLessEqual(set(QUEST_ENTRY_CODES), set(town_terminal.TERMINAL_CODES))
+        self.assertEqual(set(REFUSAL_SERVERS), set(town_terminal.TERMINAL_CODES))
+        verdicts = sorted(
+            node.name for node in ast.parse(
+                (SRC / "town_terminal.py").read_text(encoding="utf-8")).body
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("verdict_"))
+        self.assertIn("verdict_store_buy", verdicts)
         literals = set()
-        for path, name in ((SRC / "town_terminal.py", "verdict_quest_entry"),
-                           (SRC / "policy_equipment.py",
-                            "_equipment_departure_refusal_codes")):
+        for path, name in ((*((SRC / "town_terminal.py", verdict) for verdict in verdicts),
+                            (SRC / "policy_equipment.py",
+                             "_equipment_departure_refusal_codes"))):
             for node in ast.walk(_function(path, name)):
                 if isinstance(node, ast.Return) and node.value is not None:
                     emitted = node.value

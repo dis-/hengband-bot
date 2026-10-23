@@ -60,6 +60,7 @@ from hengbot.policy_types import (
 )
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
+from hengbot.town_terminal import gather_store_buy, verdict_store_buy
 from dataclasses import dataclass, replace
 import json
 import os
@@ -4095,8 +4096,6 @@ class TownMixin:
         )
         retired = set(getattr(self._town_turn_arbiter, "_retired", ()))
         for need in candidates:
-            if not self._town_need_supplier_reachable(snapshot, need):
-                continue
             # A Home identification handoff for an equipment candidate belongs
             # to the exhausted equipment owner too. Independent supplies and
             # safe deposits remain eligible for their own departure remedies.
@@ -4109,16 +4108,10 @@ class TownMixin:
                 or "equipment-txn" in retired
             ):
                 continue
-            page = self._town_supplier_stock.get(need.store_type)
-            remembered_affordable = bool(
-                page is not None
-                and any(item.price <= snapshot.player.gold for item in page.items)
-            )
-            if (
-                need.store_type not in self._town_store_attempted
-                or need.store_type == STORE_HOME
-                or remembered_affordable
-            ):
+            # The supplier's store-buy verdict (town_terminal, S2): reachable,
+            # and Home, unattempted, or a remembered ware that serves the need
+            # (not merely any ware within gold, #66 #68 #94).
+            if verdict_store_buy(gather_store_buy(self, snapshot, need)).admitted:
                 return need.store_type, equipment_exhausted
         return None, equipment_exhausted
 

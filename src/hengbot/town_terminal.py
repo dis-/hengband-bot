@@ -23,6 +23,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_UNTAKEN,
     TOWN_TRAVEL_STALL_LIMIT,
 )
+from hengbot.model import STORE_HOME
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
 
 
@@ -115,6 +116,62 @@ def verdict_quest_work(material: QuestWorkMaterial) -> Admission:
     return ADMIT
 
 
+# Need categories whose wares the supply ledger names (``_store_item_is_supply``
+# kinds); the same map as ``_departure_supplier_core``'s ledger shortages.
+SUPPLY_KIND_BY_CATEGORY = {
+    "recall": "recall", "food": "food", "oil": "oil", "teleport": "teleport",
+    "cure-critical": "cure", "remove-curse": "remove-curse",
+    "required-star-remove-curse": "star-remove-curse",
+}
+
+
+@dataclass(frozen=True)
+class StoreBuyMaterial:
+    """Frozen inputs of a supplier's store-buy verdict for one town need."""
+
+    store: int
+    reachable: bool
+    home: bool
+    attempted: bool
+    page_offers: bool
+
+
+def gather_store_buy(policy: Any, board: Any, need: Any) -> StoreBuyMaterial:
+    """Read whether ``need``'s supplier can serve it, without any write.
+
+    A remembered page offers the need when a ware of the need's supply kind
+    passes the ledger's predicate (``_supply_page_offers``: within gold or on
+    an unattempted store, and not refused by the churn guard, #68).  A
+    category without a supply kind keeps the earlier evidence (any ware within
+    the carried gold).
+    """
+    store = need.store_type
+    page = policy._town_supplier_stock.get(store)
+    kind = SUPPLY_KIND_BY_CATEGORY.get(need.category)
+    if page is None:
+        offers = False
+    elif kind is not None:
+        offers = policy._supply_page_offers(board, kind, store, page)
+    else:
+        offers = any(item.price <= board.player.gold for item in page.items)
+    return StoreBuyMaterial(
+        store=store,
+        reachable=policy._town_need_supplier_reachable(board, need),
+        home=store == STORE_HOME,
+        attempted=store in policy._town_store_attempted,
+        page_offers=offers,
+    )
+
+
+def verdict_store_buy(material: StoreBuyMaterial) -> Admission:
+    """Pure: the supplier serves the need, or the branch's code."""
+    if not material.reachable:
+        return refused(("supplier-unreachable",))
+    if material.home or not material.attempted or material.page_offers:
+        return ADMIT
+    return refused(("no-matching-offer",))
+
+
 def verdict_quest_entry(material: QuestEntryMaterial) -> Admission:
     """Pure: each refusing branch returns its own codes."""
     if material.morivant_deposits:
@@ -184,6 +241,11 @@ QUEST_ENTRY_CODES = frozenset({
     "cross-town-shopping-in-progress",
 })
 
+# Codes the store-buy verdict can return (verdict_store_buy).
+STORE_BUY_CODES = frozenset({"supplier-unreachable", "no-matching-offer"})
+# Every declared code: the keys of REFUSAL_SERVERS (design 3.3 (1)).
+TERMINAL_CODES = QUEST_ENTRY_CODES | STORE_BUY_CODES
+
 # Categories are ``_town_need_registry`` names (design 3.4, S2 (c)).
 _IDENTIFICATION_SERVERS = (
     Server("identification"), Server("cross-town"),
@@ -232,16 +294,18 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
         "missing-ability:*", "loadout-unconfirmed", "not-in-town", "unknown-quest",
         "strategy-force", "departure", "empty-roster", "unknown-monster",
         "three-turn-threat", "toughest-kill-time", "unready", "kill-descent",
+        # A supplier that cannot serve the need: no town owner serves it.
+        "supplier-unreachable", "no-matching-offer",
     )},
 }
 
 
 def declared_code(code: str) -> str | None:
     """The declaration a returned code belongs to, or None when undeclared."""
-    if code in QUEST_ENTRY_CODES:
+    if code in TERMINAL_CODES:
         return code
     head, sep, _detail = code.partition(":")
-    if sep and f"{head}:*" in QUEST_ENTRY_CODES:
+    if sep and f"{head}:*" in TERMINAL_CODES:
         return f"{head}:*"
     return None
 
