@@ -47,7 +47,7 @@
     "self._direction_key(here, cell) @ If:body:melee / If:body:candidates": 1
   },
   "policy.py:_low_hp_walk_gate": {
-    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid)": 1,
+    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._low_hp_no_kit_hit_key(snapshot, hostiles) @ If:body:low": 1
   },
   "policy.py:_observe_home_atomic_withdrawal_outside": {
