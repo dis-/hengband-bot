@@ -352,6 +352,48 @@ def verdict_home_withdraw(material: HomeWithdrawMaterial) -> Admission:
 
 
 @dataclass(frozen=True)
+class DepartureMaterial:
+    """The failing leaves of the ordinary town departure gate, in its order."""
+
+    failed: tuple[str, ...]
+
+
+def gather_departure(policy: Any, board: Any) -> DepartureMaterial:
+    """``_town_departure_conjuncts`` without the equipment leaf's commit."""
+    return DepartureMaterial(failed=tuple(
+        name for name, ready
+        in policy._town_departure_conjuncts(board, commit=False).items()
+        if not ready))
+
+
+def verdict_departure(material: DepartureMaterial) -> Admission:
+    """Pure: each failing leaf is its own ``departure:<leaf>`` code."""
+    if material.failed:
+        return refused(tuple(f"departure:{name}" for name in material.failed))
+    return ADMIT
+
+
+@dataclass(frozen=True)
+class DescentMaterial:
+    """Whether the descent's destination asks the quest-entry question."""
+
+    quest_entrance: bool
+
+
+def gather_descent(policy: Any, board: Any, target: Any) -> DescentMaterial:
+    return DescentMaterial(
+        quest_entrance=policy._step_raises_unintended_confirm(board, target))
+
+
+def verdict_descent(material: DescentMaterial) -> Admission:
+    """Pure: a descent never ends on a quest entrance (#102: QUEST_ENTER also
+    carries DOWN_STAIRS; only the quest-entry owner answers its question)."""
+    if material.quest_entrance:
+        return refused(("quest-entrance-target",))
+    return ADMIT
+
+
+@dataclass(frozen=True)
 class HomeAtomicDepositMaterial:
     """Frozen inputs of the entrance deposit verdict."""
 
@@ -454,12 +496,6 @@ IDENTIFY_CODES = frozenset({"no-identification-source"})
 HOME_WITHDRAW_CODES = frozenset({"reservation-unavailable"})
 # Codes the entrance deposit verdict can return.
 HOME_ATOMIC_DEPOSIT_CODES = frozenset({"home-full-relief-pending"})
-# Every declared code: the keys of REFUSAL_SERVERS (design 3.3 (1)).
-TERMINAL_CODES = (QUEST_ENTRY_CODES | STORE_BUY_CODES | HOME_DEPOSIT_CODES
-                  | CURSE_REMOVE_CODES | ENCHANT_LAUNCHER_CODES | IDENTIFY_CODES
-                  | HOME_WITHDRAW_CODES
-                  | HOME_ATOMIC_DEPOSIT_CODES)
-
 # Categories are ``_town_need_registry`` names (design 3.4, S2 (c)).
 _IDENTIFICATION_SERVERS = (
     Server("identification"), Server("cross-town"),
@@ -472,6 +508,64 @@ _SPACE_SERVERS = (
     Server("town-plan"),
 )
 _TRANSACTION_SERVERS = (Server("equipment-txn"),)
+
+# Codes the descent verdict can return (verdict_descent).
+DESCENT_CODES = frozenset({"quest-entrance-target"})
+# Who serves each failing leaf of the ordinary departure gate
+# (``_town_departure_conjuncts``; design 3.4 S2 rows ``departure:<leaf>``).
+_DEPARTURE_LEAF_SERVERS: dict[str, tuple[Server, ...]] = {
+    # Owner decision 2026-10-23 (c4-a life-016, recall unaffordable): first
+    # sell the sellable surplus for the scroll's price, then scavenge dungeon
+    # 1F with the held Treasure Detection, back by the stairs within 10,000
+    # game turns (2026-10-15 rule); both run as fundraising.
+    "recall_departure_ready": (
+        Server("shop-buy", "recall"),
+        Server("shop-sell", "organization-sale"),
+        Server("fundraising"),
+    ),
+    "remove_curse_ready": (
+        Server("curse-enchant", "remove-curse"),
+        Server("curse-enchant", "required-star-remove-curse"),
+    ),
+    "food_ready": (Server("shop-buy", "food"),),
+    "light_ready": (Server("shop-buy", "light"),),
+    "teleport_ready": (Server("shop-buy", "teleport"),),
+    "cure_critical_ready": (Server("shop-buy", "cure-critical"),),
+    # #76: the staff is bought, or the stock-out mining run (fundraising).
+    "identify_staff_ready": (Server("shop-buy", "identify-staff"), Server("fundraising")),
+    "teleport_items_safe": _TRANSACTION_SERVERS,
+    "free_pack_slots_ready": _SPACE_SERVERS,
+    "inventory_weight_ready": (
+        Server("shop-sell", "overweight-surplus"),
+        Server("home-visit", "weight-overload"),
+    ),
+    "hp_full": (Server("survival"),),
+    "mp_full": (Server("survival"),),
+    "temporary_status_clear": (Server("survival"),),
+    "organization_complete": (
+        Server("shop-sell", "organization-sale"), Server("town-plan"),
+    ),
+    "equipment_departure_ready": (*_TRANSACTION_SERVERS, *_IDENTIFICATION_SERVERS),
+    "home_candidate_resolved": (Server("home-visit"),),
+    "home_catalog_ready": (Server("home-scan"),),
+    "home_pending_item_clear": (Server("home-errand"),),
+    "home_pending_batch_clear": (Server("home-errand"),),
+    "home_batch_review_clear": (Server("home-errand"),),
+    "home_atomic_withdraw_clear": (Server("home-errand"),),
+    "digger_withdrawal_resolved": (Server("home-errand"),),
+    "identification_need_clear": (Server("identification"),),
+    # Always ready (the quest-entry contract owns quest carry).
+    "quest_carry_ready": (),
+}
+# Codes the departure verdict can return: one per leaf, and the prefix for a
+# leaf added later (no server until it is named here).
+DEPARTURE_CODES = frozenset(
+    {"departure:*", *(f"departure:{leaf}" for leaf in _DEPARTURE_LEAF_SERVERS)})
+# Every declared code: the keys of REFUSAL_SERVERS (design 3.3 (1)).
+TERMINAL_CODES = (QUEST_ENTRY_CODES | STORE_BUY_CODES | HOME_DEPOSIT_CODES
+                  | CURSE_REMOVE_CODES | ENCHANT_LAUNCHER_CODES | IDENTIFY_CODES
+                  | HOME_WITHDRAW_CODES
+                  | HOME_ATOMIC_DEPOSIT_CODES | DESCENT_CODES | DEPARTURE_CODES)
 
 # Who serves each refusal code.  An empty right side is explicit: no town
 # owner can satisfy it, so the terminal closes for the visit.
@@ -525,7 +619,13 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
     ),
     # A Home-full relief owns the page first (``_home_full_relief_key``).
     "home-full-relief-pending": (Server("home-visit"),),
+    **{f"departure:{leaf}": servers
+       for leaf, servers in _DEPARTURE_LEAF_SERVERS.items()},
     **{code: () for code in (
+        # The descent never ends on a quest entrance; no town owner moves it.
+        "quest-entrance-target",
+        # A departure leaf not named above has no server yet.
+        "departure:*",
         # Every worn curse is proven permanent.
         "cursed-item-unavailable",
         "unsupported-class", "missing-natural-stats", "skill-exp-unknown",
@@ -731,6 +831,23 @@ def home_full_defer_intended_terminal(policy: Any, board: Any) -> TerminalRef | 
     return TerminalRef("home-full-defer", ())
 
 
+def descent_route_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_descent_step`` in town: the committed stair or entrance it walks to."""
+    if not board.in_town:
+        return None
+    target = policy._nav_ledger.descent_target
+    if target is None:
+        return None
+    return TerminalRef("descent", (target,))
+
+
+def direct_descent_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``direct-descent`` in town: descend from the grid the player stands on."""
+    if not board.in_town or board.store is not None:
+        return None
+    return TerminalRef("descent-here", (board.player.position,))
+
+
 def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
     """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
     or None (no declaration, no board, or no terminal on this board)."""
@@ -827,6 +944,8 @@ TERMINALS: dict[str, TerminalDecl] = {
     "home-atomic-deposit": TerminalDecl(home_atomic_deposit_intended_terminal, SHADOW),
     "_open_home_deposit_key": TerminalDecl(open_home_deposit_intended_terminal, SHADOW),
     "_defer_home_full_deposit": TerminalDecl(home_full_defer_intended_terminal, SHADOW),
+    "_descent_step": TerminalDecl(descent_route_intended_terminal, SHADOW),
+    "direct-descent": TerminalDecl(direct_descent_intended_terminal, SHADOW),
 }
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
@@ -845,6 +964,10 @@ _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
         gather_home_withdraw(policy, board)),
     "home-atomic-deposit": lambda policy, board: verdict_home_atomic_deposit(
         gather_home_atomic_deposit(policy, board)),
+    "descent": lambda policy, board: verdict_descent(
+        gather_descent(policy, board, policy._nav_ledger.descent_target)),
+    "descent-here": lambda policy, board: verdict_descent(
+        gather_descent(policy, board, board.player.position)),
 }
 
 

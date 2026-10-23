@@ -2209,9 +2209,14 @@ class TownMixin:
         return self._food_ready(snapshot)
 
     def _town_departure_conjuncts(
-        self, snapshot: Snapshot, *, ignore_free_slots: bool = False
+        self, snapshot: Snapshot, *, ignore_free_slots: bool = False,
+        commit: bool = True,
     ) -> dict[str, bool]:
-        """Evaluate and name every leaf of the ordinary town departure gate."""
+        """Evaluate and name every leaf of the ordinary town departure gate.
+
+        ``commit=False`` is the departure terminal's material read
+        (town_terminal.gather_departure): the equipment leaf without its
+        confirmation writes."""
         player = snapshot.player
         free_slots_ok = (
             ignore_free_slots
@@ -2245,7 +2250,10 @@ class TownMixin:
                 len(snapshot.inventory) < PACK_CAPACITY
                 or self._find_town_organization_surplus(snapshot) is None
             ),
-            "equipment_departure_ready": self._equipment_departure_ready(snapshot),
+            # The default read keeps its historical call (tests stub it).
+            "equipment_departure_ready": (
+                self._equipment_departure_ready(snapshot) if commit
+                else self._equipment_departure_ready(snapshot, commit=False)),
             "home_candidate_resolved": (
                 not home_required or not self._home_candidate_waiting
             ),

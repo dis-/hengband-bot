@@ -7407,7 +7407,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "1c0b0feca2c781a5bace5733ad7b89e9b250319d16619956b84b6969d95c1457"
+    "ast_sha256": "1caf89a380325a689891c211d6d6b21f40df5c24daad12bc4d23d1bd04913737"
   },
   "policy_town.py:TownMixin._town_destroy_key": {
     "classification": "producer",
