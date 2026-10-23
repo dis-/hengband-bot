@@ -1,0 +1,77 @@
+DEATH 2026-10-23 21:23 Anti-melee cave - report (branch death-1023, base a7feea46)
+
+Measured diagnosis: see LUNA-DIAG-death.txt.  In short:
+- 20:21:32 the no-depth-progress valve (policy_observation.py:583-601, five Angband dives at saved depth 49)
+  called _pick_alternate_dungeon(max_entry_depth=48, prefer_deepest=True); among the entered dungeons the
+  deepest landing below 49 was dungeon 17 (landing 40).  _pick_alternate_dungeon read no flag but MAZE/FORGET.
+  Logged over_extension: alternate 17, last_overextended_depth 49.  20:29:04 town:recall-to-alt-dungeon.
+- 20:29-21:23: 21 trips into 17 (40F -> 45F); each return was an existing trigger and the alternate latch sent
+  every next recall back to 17.  Final 43 s: 79 x melee from _direction_key#2, refused by the game every time.
+- The bot loads DungeonInfo.flags (dungeon_knowledge.py) but nothing read NO_MELEE.  NO_MAGIC (dungeon 16) only
+  blocks spell casting / cmd_limit_cast racials, irrelevant for a warrior; no other flag disables attacking.
+
+Change (one predicate, static data):
+- policy_helpers.py _can_fight_in_dungeon(dungeon_id): False when the dungeon's flags include NO_MELEE; unknown
+  dungeon -> True (previous behaviour).
+- Consulted by the dungeon choice: _pick_alternate_dungeon (all three valves: empty-dive, no-depth-progress,
+  unsafe-recall fallback) and the _conquest_target scan (a guardianless dungeon counts as "viable", so 17 can
+  become the conquest target once the resistance limit reaches 50).
+- Consulted by the melee producers posting reason "melee": the ordinary combat ladder _direction_key#2
+  (policy.py ~11292) and the low-HP walk gate's adjacent-hostile answer (policy.py ~10387).  The ladder then
+  continues to the existing ranged / avoid-engagement / explore producers.
+- Already inside such a dungeon: no new rule.  The existing returns (emergency-repeat, low-HP, summoner,
+  lethal-swarm, unseen-attacker, cure-low, pack-full) end the stay as they did live; the next recall follows
+  _target_dungeon_id, and the latch to 17 came only from _pick_alternate_dungeon (_alternate_dungeon is not in
+  the policy checkpoint), so it now goes elsewhere.
+- Not changed (listed in the diagnosis, section 5): the specialised melee sites (flee:cornered-attack,
+  no-wait:melee/attack, emergency:cornered-attack, melee:esp-threat-hunt, melee:choke x3, breeder
+  breakthrough, quest-strategy melee on fixed quest maps).  None fired in the death; with the choice fixed
+  they are reachable only if the character is already inside.  Can be routed through the same predicate
+  if wanted.
+- No new constant, threshold or policy attribute (no restored-checkpoint defaults needed).
+
+Pins / controls (tests/test_anti_melee_dungeon_recorded.py, fixture tests/fixtures/anti-melee-death-20261023.jsonl.gz,
+three raw boards, 5,584 bytes, turns 8823126 / 8823394 / 8823592, recorded keys 6 / 1 / 6, reason melee):
+  test                                                        a7feea46        fix
+  recorded boards: no melee where forbidden (3 subtests)      FAIL (melee)    OK (explore / threat:avoid-engagement x1 / approach-descent; no key into a monster)
+  no-depth-progress valve never picks 17                      FAIL (17)       OK
+  conquest target never picks 17 (constructed: Mountain conquered, limit 50)  FAIL (17)  OK
+  low-HP walk gate does not turn a walk into melee (constructed HP 1, empty pack)  FAIL (melee)  OK
+  control: boards melee with the recorded key without the flag                OK   OK
+  control: valve picks 17 without the flag                                    OK   OK
+  control: conquest target 17 without the flag                                OK   OK
+  control: low-HP gate melees without the flag                                OK   OK
+  control: shallowest fallback unchanged by the flag                          OK   OK
+  Before: 6 failures; after: 10 OK.
+Related existing modules after the fix: test_policy_observation 57 OK, test_policy_quest 334 OK (7 skipped),
+test_guardian_recall_pingpong_recorded 8 OK, test_no_safe_destination_recorded 5 OK,
+test_unsafe_recall_fallback_recorded 5 OK, test_self_destruct_melee_recorded 6 OK, test_item_sink_lint 18 OK.
+
+Bookkeeping: town work manifest rewritten (844 candidates, 21,508 -> 21,510 sites, zero unmapped;
+town_work_sites.json ast hashes of _low_hp_walk_gate and the combat-ladder function); scripts/item_sink_adapters.json:
+the _low_hp_walk_gate melee call is registered by its enclosing if-condition text, updated to the new
+condition (no adapter added or removed; test_item_sink_lint assertions unchanged).
+
+Guard outputs:
+preflight:
+  [preflight] PREFLIGHT OK: 9 changed files, 0 findings (death-1023 vs a7feea46)
+mutation_check:
+  [mutation] 5 source hunks, tests: test_anti_melee_dungeon_recorded
+  [mutation] caught     src/hengbot/policy.py:10384 (if (): test_low_hp_walk_gate_does_not_turn_a_walk_into_melee
+  [mutation] caught     src/hengbot/policy.py:11289 (if (): test_recorded_boards_do_not_melee_where_the_dungeon_forbids_it
+  [mutation] caught     src/hengbot/policy_helpers.py:532 (if not self._can_fight_in_dungeon(did):): test_no_depth_progress_valve_never_picks_the_anti_melee_cave
+  [mutation] caught     src/hengbot/policy_helpers.py:574 (def _can_fight_in_dungeon(...)): test_conquest_target_never_picks_the_anti_melee_cave, ...
+  [mutation] caught     src/hengbot/policy_quest.py:5526 (or not self._can_fight_in_dungeon(did)): test_conquest_target_never_picks_the_anti_melee_cave
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+fast_tier (run after gate-towns1-1023 printed MERGED):
+  [fast] 3677 fast tests (<2.0s in 90947a650) + 1 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: 4 import errors - tests.test_town_terminal_n1a_recorded / _commit_pins / _declarations / _speed:
+          ModuleNotFoundError.  These modules were added by the town-claim-s1 merge (exist on main 90947a65,
+          absent on a7feea46 and on this branch); the tier took its list from 90947a65.  Not a regression.
+  Total: 3670 tests, 241.8s
+
+Process note: while gathering evidence I copied a scan script to /tmp on the Linux soak machine once by mistake
+(scp); I removed that one file immediately and afterwards fed scripts over ssh stdin.  Nothing under
+~/hengbot-soak was written; no process was touched.
