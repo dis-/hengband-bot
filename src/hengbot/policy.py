@@ -6579,6 +6579,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else "fixedquest:request:approach" if family == "quest-request"
                 else "shop:approach")
             self._declare_reach(goal, family=family)
+            if self._step_raises_unintended_confirm(snapshot, next_cell):
+                # #102: the route's fallback attempt may cross a quest entrance;
+                # refuse that step exactly as _step_toward does.
+                self.last_reason = "nav:confirm-cell-avoided"
+                return WAIT_KEY
             key = self._direction_key(snapshot.player.position, next_cell)
             self._offer_execution(
                 key, producer=family, work_id=declaration.work_id,
@@ -6670,6 +6675,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if step is not None:
                     self.last_reason = "shop:approach"
                     self._declare_reach(goal, family="store-router")
+                    if self._step_raises_unintended_confirm(snapshot, step):
+                        # #102: the route's fallback attempt may cross a quest entrance;
+                        # refuse that step exactly as _step_toward does.
+                        self.last_reason = "nav:confirm-cell-avoided"
+                        return WAIT_KEY
                     key = self._direction_key(snapshot.player.position, step)
                     self._offer_execution(
                         key, producer="store-router",
@@ -6706,6 +6716,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if step is not None:
                 self.last_reason = "shop:approach"
                 self._declare_reach(goal, family="store-router")
+                if self._step_raises_unintended_confirm(snapshot, step):
+                    # #102: the route's fallback attempt may cross a quest entrance;
+                    # refuse that step exactly as _step_toward does.
+                    self.last_reason = "nav:confirm-cell-avoided"
+                    return WAIT_KEY
                 key = self._direction_key(snapshot.player.position, step)
                 self._offer_execution(
                     key, producer="store-router",
@@ -10089,7 +10104,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._move_repeat >= LIVELOCK_LIMIT:
             self._move_repeat = 0
             alternate = self._breakout_step(snapshot, key)
-            if alternate is not None:
+            if alternate is not None and not self._step_raises_unintended_confirm(
+                snapshot, alternate
+            ):
                 self.last_reason = "breakout"
                 key = self._direction_key(position, alternate)
                 self._last_move_key = key
@@ -19228,6 +19245,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
+            return False
+        # #102: QUEST_ENTER carries DOWN_STAIRS, but arriving on it (or '>'
+        # there) asks the quest-entry question that no descent owner answers.
+        if self._step_raises_unintended_confirm(snapshot, grid.position):
             return False
         if not self._kill_quest_descent_allowed(snapshot):
             return False
