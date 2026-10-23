@@ -1,0 +1,82 @@
+LUNA-REPORT qdoor (#102, ledger type "what input is the game waiting for", 3rd+: #32 #55 #102)
+Branch quest-door-confirm-1023, base ac203b36.  Commits: dcb9ceb6 (fix + pins + bookkeeping + LUNA-DIAG), this report.
+
+MEASURED DIAGNOSIS (details and file:line in LUNA-DIAG-qdoor.txt)
+- Both stops: on the recorded boards (player (24,46), turn 498772 / 498801) the departure producer
+  policy_town.py:6020 _descent_step chose the quest-2 entrance (25,47) as its "downstairs" (seek-downstairs) and
+  _step_toward composed '3' onto it.  The quest owner had just declined that same last step itself
+  (quest_navigator.py:124, equipment entry not allowed -- departure_block.failed ["equipment_departure_ready"]).
+  The departure did not intend to enter the quest; only quest:enter / quest:enter:approach / fixedquest:enter bind
+  the 'y' answer (cli.py:2847).
+- Cause: QUEST_ENTER carries DOWN_STAIRS (TerrainDefinitions id 8), GridState.is_descent = has_down_stairs or
+  has_entrance, and _is_descent_target's in-town filter looked only at has_entrance.
+- Game source, cells that ask on entry: QUEST_ENTER (player-move.cpp:252 -> quest.cpp:336; '>' there too,
+  cmd-move.cpp:217) and the Pattern start (pattern-walk.cpp:196, dungeon special levels, not exported).  Only
+  QUEST_ENTER is observable to the bot.
+- Producers that can step onto it: (A) every router through _step_toward; (B) the entering owners; (C) the descent
+  target selection (measured); (D) bare _direction_key walks _break_livelock, _town_holder_declared_key,
+  _town_holder_wait_key, _boxed_town_breakout_key; (E) game travel (travel_flow_aux does not exclude QUEST_ENTER).
+
+PREDICATE AND ROUTING
+- One predicate policy_navigation.py:_step_raises_unintended_confirm(snapshot, cell, owner_reason=None): false when
+  the owner is an entering owner (the same three reasons the CLI binds the answer to); else the known grid's
+  has_quest_enter; an unemitted town cell falls back to the static town map's quest_entrances.
+- Consulted by: _step_toward (the #83 single step entry; owner = last_reason; a refused step returns WAIT with
+  reason nav:confirm-cell-avoided, so the caller's existing no-step handling runs -- the departure falls through to
+  its recall rung); _is_descent_target (the entrance is never a descent target, so the departure routes to a real
+  entrance or recalls); _break_livelock (a breakout alternate on such a cell is not taken).
+- quest_navigator.enter_from_town (context branch) now sets last_reason = quest:enter:approach before composing the
+  step (it was set only after), so the entering owner keeps its behaviour.  No new constant, threshold or policy
+  attribute (no restored-checkpoint defaults needed).  New reason nav:confirm-cell-avoided (town/step only, not a
+  STUCK_FAMILY member; STUCK_FAMILY_REASONS unchanged).
+- Residual, not changed (reported for decision): (D) _town_holder_declared_key / _town_holder_wait_key post a bare
+  key from _town_map_goal_step / _nearest_goal_step, whose first attempt avoids modal cells (quest entrances
+  included) but whose fallback attempt may cross one; _boxed_town_breakout_key already excludes has_quest_enter
+  (policy_town.py:2128).  (E) native travel may cross a quest entrance (game-side path).
+
+STRUCTURAL CHECK
+- tests/test_quest_door_confirm_recorded.py StepEntryStructureTest: every function composing _direction_key( must
+  be _step_toward, consult _step_raises_unintended_confirm, or be in the classified census (attacks / suffixes from
+  the #83 inventory, plus the three residual town routers named above).  A new bare walking producer fails it.
+  (AST census like the existing step_toward_concatenation_offenders structural test.)
+
+PINS (recorded boards, fixture tests/fixtures/quest-door-confirm-20261023.jsonl.gz)
+                                                         ac203b36 (measured)          after
+  _descent_step, both boards                             (25,47) seek-downstairs      None
+  _step_toward onto (25,47), both boards                 '3'                          '5' nav:confirm-cell-avoided
+  same with the entrance grid unemitted (constructed)    '3'                          '5'; entering owner '3'
+  _break_livelock, alternate = entrance (constructed)    '3' breakout                 '6' (original key kept)
+CONTROLS (same at both commits except where the fix is required)
+  quest:enter / quest:enter:approach / fixedquest:enter step onto the entrance: '3'; fixedquest:approach: refused
+  QuestFloorNavigator.enter_from_town (no context and DecisionContext): '3' quest:enter:approach
+  _fixed_quest_enter_key: '3' fixedquest:enter
+  ordinary town steps (24,47) '6', (25,46) '2'; breakout onto plain floor '2' breakout
+
+EXISTING TESTS (single modules after the fix; no assertion changed)
+  test_policy_navigation 129 OK, test_quest_navigator 17 OK, test_quest_enter_approach_progress 5 OK,
+  test_step_key_unify_rubble 8 OK, test_town_work_contract 9 OK, test_warning_refused_step_recorded 5 OK,
+  test_item_sink_lint 18 OK (after bookkeeping: scripts/item_sink_adapters.json pinned expression of
+  _break_livelock updated to the new condition; before it 2 failures).
+  Note: a first draft passed the intent as a keyword to _step_toward; test_quest_navigator fakes _step_toward with a
+  two-argument lambda, so the intent is taken from the step's owner reason instead (no existing test changed).
+BOOKKEEPING: town work manifest + town_work_sites.json regenerated (844 candidates, 21497 sites, zero unmapped).
+
+GUARD OUTPUTS
+preflight.py (after dcb9ceb6):
+  [preflight] PREFLIGHT OK: 9 changed files, 0 findings (quest-door-confirm-1023 vs ac203b36)
+mutation_check.py --tests tests/test_quest_door_confirm_recorded.py --record:
+  [mutation] 5 source hunks, tests: tests/test_quest_door_confirm_recorded.py
+  [mutation] caught     src/hengbot/policy.py:10089 (_break_livelock alternate gate)
+  [mutation] caught     src/hengbot/policy.py:19226 (_is_descent_target)
+  [mutation] caught     src/hengbot/policy_navigation.py:1791 (def _step_raises_unintended_confirm)
+  [mutation] caught     src/hengbot/policy_navigation.py:1868 (_step_toward gate)
+  [mutation] caught     src/hengbot/quest_navigator.py:125 (entering owner reason before the step)
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+  [mutation] recorded for dcb9ceb6
+fast_tier.py --shards 4 (run after gate-loop20-1023 MERGED, 16:45):
+  [fast] 3602 fast tests (<2.0s in c378e9a59) + 1 changed modules, 4 shards
+  [fast] excluded 44 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-89cdernj)
+  Failures: none
+  Errors: none
+  Total: 3619 tests, 181.4s
