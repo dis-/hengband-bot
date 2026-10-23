@@ -265,6 +265,7 @@ from hengbot.policy_constants import (
     WIN_QUEST_IDS,
 )
 from hengbot.town_arbiter import TownArbiterMixin, TownTurnArbiter
+from hengbot.town_terminal import gather_quest_entry, verdict_quest_entry
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
@@ -1030,25 +1031,20 @@ class QuestMixin:
     def _quest_equipment_entry_allowed(
         self, snapshot: Snapshot, quest_id: int
     ) -> bool:
-        """Apply only the equipment boundary to a fixed quest entered on foot."""
-        if (
-            self._morivant_full_identify is not None
-            and self._morivant_full_identify.temporary_deposits
-        ):
-            return False
-        if self._opening_q34_active(snapshot) and quest_id == 34:
-            ready = self._evaluate_fixed_quest_readiness(
-                snapshot, quest_id, require_target_town=True
-            )
-            if not ready:
-                reason = self._fixed_quest_readiness.get("reason", "unready")
-                self.last_reason = f"quest:readiness:{reason}"
-            return ready
-        info = self._quest_knowledge.get(quest_id)
-        quest = snapshot.quests.get(quest_id)
-        depth = max(1, info.level if info is not None else quest.level if quest is not None else 1)
-        if self._equipment_departure_ready(snapshot, destination_depth=depth):
+        """Apply only the equipment boundary to a fixed quest entered on foot.
+
+        Gather the entry material, ask the shared verdict, then commit the
+        refusal (town_terminal: the admission probe runs the same two steps
+        without this commit).
+        """
+        material = gather_quest_entry(self, snapshot, quest_id, commit=True)
+        if verdict_quest_entry(material).admitted:
             return True
+        if material.morivant_deposits:
+            return False
+        if material.q34:
+            self.last_reason = f"quest:readiness:{material.readiness_reason}"
+            return False
         self._departure_block = self._departure_block_state(snapshot)
         self._departure_block_sequence = self._decision_sequence
         if not self._departure_block.get("failed"):
@@ -4714,7 +4710,10 @@ class QuestMixin:
         quest_id: int,
         *,
         require_target_town: bool,
+        commit: bool = True,
+        telemetry_sink: list | None = None,
     ) -> bool:
+        """``commit=False`` reads the verdict without recording the telemetry."""
         telemetry = {
             "quest_id": quest_id,
             "roster_size": 0,
@@ -4724,7 +4723,10 @@ class QuestMixin:
             "hasted": False,
             "verdict": False,
         }
-        self._fixed_quest_readiness = telemetry
+        if commit:
+            self._fixed_quest_readiness = telemetry
+        if telemetry_sink is not None:
+            telemetry_sink.append(telemetry)
 
         def reject(reason: str) -> bool:
             telemetry["reason"] = reason
