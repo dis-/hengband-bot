@@ -1,0 +1,148 @@
+DEATH 2026-10-23 21:23 Anti-melee cave - report (branch death-1023, base a7feea46)
+
+Measured diagnosis: see LUNA-DIAG-death.txt.  In short:
+- 20:21:32 the no-depth-progress valve (policy_observation.py:583-601, five Angband dives at saved depth 49)
+  called _pick_alternate_dungeon(max_entry_depth=48, prefer_deepest=True); among the entered dungeons the
+  deepest landing below 49 was dungeon 17 (landing 40).  _pick_alternate_dungeon read no flag but MAZE/FORGET.
+  Logged over_extension: alternate 17, last_overextended_depth 49.  20:29:04 town:recall-to-alt-dungeon.
+- 20:29-21:23: 21 trips into 17 (40F -> 45F); each return was an existing trigger and the alternate latch sent
+  every next recall back to 17.  Final 43 s: 79 x melee from _direction_key#2, refused by the game every time.
+- The bot loads DungeonInfo.flags (dungeon_knowledge.py) but nothing read NO_MELEE.  NO_MAGIC (dungeon 16) only
+  blocks spell casting / cmd_limit_cast racials, irrelevant for a warrior; no other flag disables attacking.
+
+Change (one predicate, static data):
+- policy_helpers.py _can_fight_in_dungeon(dungeon_id): False when the dungeon's flags include NO_MELEE; unknown
+  dungeon -> True (previous behaviour).
+- Consulted by the dungeon choice: _pick_alternate_dungeon (all three valves: empty-dive, no-depth-progress,
+  unsafe-recall fallback) and the _conquest_target scan (a guardianless dungeon counts as "viable", so 17 can
+  become the conquest target once the resistance limit reaches 50).
+- Consulted by the melee producers posting reason "melee": the ordinary combat ladder _direction_key#2
+  (policy.py ~11292) and the low-HP walk gate's adjacent-hostile answer (policy.py ~10387).  The ladder then
+  continues to the existing ranged / avoid-engagement / explore producers.
+- Already inside such a dungeon: no new rule.  The existing returns (emergency-repeat, low-HP, summoner,
+  lethal-swarm, unseen-attacker, cure-low, pack-full) end the stay as they did live; the next recall follows
+  _target_dungeon_id, and the latch to 17 came only from _pick_alternate_dungeon (_alternate_dungeon is not in
+  the policy checkpoint), so it now goes elsewhere.
+- Not changed (listed in the diagnosis, section 5): the specialised melee sites (flee:cornered-attack,
+  no-wait:melee/attack, emergency:cornered-attack, melee:esp-threat-hunt, melee:choke x3, breeder
+  breakthrough, quest-strategy melee on fixed quest maps).  None fired in the death; with the choice fixed
+  they are reachable only if the character is already inside.  Can be routed through the same predicate
+  if wanted.
+- No new constant, threshold or policy attribute (no restored-checkpoint defaults needed).
+
+Pins / controls (tests/test_anti_melee_dungeon_recorded.py, fixture tests/fixtures/anti-melee-death-20261023.jsonl.gz,
+three raw boards, 5,584 bytes, turns 8823126 / 8823394 / 8823592, recorded keys 6 / 1 / 6, reason melee):
+  test                                                        a7feea46        fix
+  recorded boards: no melee where forbidden (3 subtests)      FAIL (melee)    OK (explore / threat:avoid-engagement x1 / approach-descent; no key into a monster)
+  no-depth-progress valve never picks 17                      FAIL (17)       OK
+  conquest target never picks 17 (constructed: Mountain conquered, limit 50)  FAIL (17)  OK
+  low-HP walk gate does not turn a walk into melee (constructed HP 1, empty pack)  FAIL (melee)  OK
+  control: boards melee with the recorded key without the flag                OK   OK
+  control: valve picks 17 without the flag                                    OK   OK
+  control: conquest target 17 without the flag                                OK   OK
+  control: low-HP gate melees without the flag                                OK   OK
+  control: shallowest fallback unchanged by the flag                          OK   OK
+  Before: 6 failures; after: 10 OK.
+Related existing modules after the fix: test_policy_observation 57 OK, test_policy_quest 334 OK (7 skipped),
+test_guardian_recall_pingpong_recorded 8 OK, test_no_safe_destination_recorded 5 OK,
+test_unsafe_recall_fallback_recorded 5 OK, test_self_destruct_melee_recorded 6 OK, test_item_sink_lint 18 OK.
+
+Bookkeeping: town work manifest rewritten (844 candidates, 21,508 -> 21,510 sites, zero unmapped;
+town_work_sites.json ast hashes of _low_hp_walk_gate and the combat-ladder function); scripts/item_sink_adapters.json:
+the _low_hp_walk_gate melee call is registered by its enclosing if-condition text, updated to the new
+condition (no adapter added or removed; test_item_sink_lint assertions unchanged).
+
+Guard outputs:
+preflight:
+  [preflight] PREFLIGHT OK: 9 changed files, 0 findings (death-1023 vs a7feea46)
+mutation_check:
+  [mutation] 5 source hunks, tests: test_anti_melee_dungeon_recorded
+  [mutation] caught     src/hengbot/policy.py:10384 (if (): test_low_hp_walk_gate_does_not_turn_a_walk_into_melee
+  [mutation] caught     src/hengbot/policy.py:11289 (if (): test_recorded_boards_do_not_melee_where_the_dungeon_forbids_it
+  [mutation] caught     src/hengbot/policy_helpers.py:532 (if not self._can_fight_in_dungeon(did):): test_no_depth_progress_valve_never_picks_the_anti_melee_cave
+  [mutation] caught     src/hengbot/policy_helpers.py:574 (def _can_fight_in_dungeon(...)): test_conquest_target_never_picks_the_anti_melee_cave, ...
+  [mutation] caught     src/hengbot/policy_quest.py:5526 (or not self._can_fight_in_dungeon(did)): test_conquest_target_never_picks_the_anti_melee_cave
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+fast_tier (run after gate-towns1-1023 printed MERGED):
+  [fast] 3677 fast tests (<2.0s in 90947a650) + 1 changed modules, 4 shards
+  Crashed shards: none
+  Failures: none
+  Errors: 4 import errors - tests.test_town_terminal_n1a_recorded / _commit_pins / _declarations / _speed:
+          ModuleNotFoundError.  These modules were added by the town-claim-s1 merge (exist on main 90947a65,
+          absent on a7feea46 and on this branch); the tier took its list from 90947a65.  Not a regression.
+  Total: 3670 tests, 241.8s
+
+Process note: while gathering evidence I copied a scan script to /tmp on the Linux soak machine once by mistake
+(scp); I removed that one file immediately and afterwards fed scripts over ssh stdin.  Nothing under
+~/hengbot-soak was written; no process was touched.
+
+# Round 2 (supervisor decision: route every melee-composing site through the predicate)
+
+Merged main 90947a65 into death-1023 (154403a3d; only conflict scripts/town_work_manifest.json.gz, regenerated:
+845 candidates, zero unmapped) so the fast tier's module list matches the tree.
+
+Sites routed through _can_fight_in_dungeon (when it answers False the site does not compose melee and the
+existing next statement / producers decide; no new rule):
+  policy.py            _low_hp_no_kit_hit_key  no-wait:attack (ALTER attack)     -> falls to `return None`
+  policy.py            flee rung               flee:cornered-attack              -> flee:wait
+  policy.py            _blocking_escape_melee_key (disengage/emergency clear-escape-path) -> None
+  policy_combat.py     _forbid_wait_while_damaged town no-wait:melee, no-wait:melee, no-wait:attack -> key kept
+  policy_combat.py     _esp_threat_hunt_key    melee:esp-threat-hunt             -> its ranged/next steps
+  policy_combat.py     emergency rung          emergency:cornered-attack         -> emergency:wait
+  policy_combat.py     choke engagement x2     melee:choke                       -> melee:choke-hold
+  policy_combat.py     _breeder_breakthrough_escape_key: a route step into a monster cell
+                       (breeder-breakthrough:clear-escape-path) -> None (ordinary ladder)
+  policy_supply.py     _unseen_retreat_intercept_key melee:choke              -> melee:choke-hold
+  policy_navigation.py _disengage_move_or_escalate combat:disengage-melee     -> its next steps
+  policy_town.py       _town_kill_mob_key friendly alter attack (town; predicate True there) -> delegated None
+  policy_quest.py      quest-strategy:melee x2, q2 melee corpse attack, q2 residual multiplier bump -> next steps / None
+  quest_navigator.py   completed-quest adjacent melee                       -> FSM continues
+The breeder breakthrough's "yield to the ladder when a non-breeder is adjacent" (policy_combat.py ~3747) is
+deliberately NOT gated: yielding hands the turn to the ladder, which no longer melees; gating it made the
+breakthrough step into the monster (probe on the recorded boards), so it was reverted.
+
+Structural check: scripts/melee_site_lint.py + tests/test_melee_site_lint.py.  A melee-composing site is a
+_direction_key(origin, <expr>.position) call that is not a missile suffix=, or ALTER_KEY + _direction_key(...);
+it must sit under an `if` testing _can_fight_in_dungeon or after an earlier returning `if` testing it in the same
+function.  Census: 20 sites, 0 unguarded (before round 2: 18 unguarded).  Synthetic sources pin the detector
+(unguarded adjacent / alter attack reported; enclosing and early-return guards pass; a guard in another function
+does not count; missile aim and plain steps are not sites).  Note: the task rules forbid source-text/AST
+assertions; this structural check is one by design, added on the supervisor's explicit decision.
+Not covered by the lint: steps routed into a monster cell through _step_toward (only the breeder breakthrough is
+known to do this deliberately; it is gated and pinned behaviourally).
+
+Behavioural pins added (DECLARED CONSTRUCTED on the three recorded boards):
+  unseen choke hold (choke point = this cell, hold active; 1 patch)   before: melee:choke into a monster   after: melee:choke-hold '5'
+  no-wait rewrite of a bare wait (empty pack, no flee/least-visited neighbour; 2 patches), took_damage False/True
+                                                                      before: no-wait:melee                after: wait kept, no attack
+  breeder breakthrough (adjacent monsters breed)                      before: clear-escape-path into the monster  after: None
+  controls without NO_MELEE: melee:choke / no-wait:melee / clear-escape-path, each into a monster.
+  test_anti_melee_dungeon_recorded: 16 tests; test_melee_site_lint: 7 tests.  With round 2 reversed: 12 + 1 failures.
+item_sink_adapters.json: 12 sites re-keyed to the new if-condition text (same calls, same counts; checked by
+normalising away the predicate).
+Related modules after round 2: test_item_sink_lint 18 OK, test_policy_navigation 129 OK, test_policy_combat 303 OK
+(5 skipped), test_policy_quest 334 OK (7 skipped), test_self_destruct_melee_recorded 6 OK.
+
+Round 2 repairs:
+- Repair 1 (1e96f6911): the lint's early-return rule counted an earlier positive melee branch
+  (`if adjacent and pred: return melee`) as a guard, so mutation left the two q2 quest hunks NOT CAUGHT.
+  The early guard now has to return when the predicate fails (`if not pred` / `if ... or not pred`);
+  a synthetic test pins this.
+- Repair 2 (bb5616141): fast tier (R) tests.test_declarations_r3b...test_friendly_attack_declares_exact_monster:
+  _town_kill_mob_key read snapshot.floor_key, which the town-only board in that test does not have. The
+  function returns early outside town, so the dungeon there is the town: the predicate is passed 0.
+  The test is unchanged.
+
+Round 2 guard outputs (final commit bb5616141):
+preflight:  [preflight] PREFLIGHT OK: 29 changed files, 0 findings (death-1023 vs a7feea46)
+            (vs a7feea46 the diff includes main 90947a65, which was merged in)
+mutation_check (base 90947a65 = a7feea46 + merged main; vs a7feea46 it would also mutate main's
+            town-claim hunks):
+  [mutation] 24 source hunks, tests: tests.test_anti_melee_dungeon_recorded tests.test_melee_site_lint
+  ... all 24 caught ...
+  [mutation] MUTATION OK: 0 of 24 hunks are not pinned by a test
+  [mutation] recorded for bb561614
+fast_tier:
+  [fast] 3677 fast tests (<2.0s in 90947a650) + 6 changed modules, 4 shards
+  Crashed shards: none / Failures: none / Errors: none
+  Total: 3710 tests, 288.9s (EXIT 0)

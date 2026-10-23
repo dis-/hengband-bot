@@ -532,6 +532,8 @@ class PolicyHelpersMixin:
                 continue  # the one we are leaving — never re-pick it, always step down
             if did == guardian_bounced_dungeon:
                 continue  # the guardian valve leaves the bounced dungeon too
+            if not self._can_fight_in_dungeon(did):
+                continue  # never switch a melee character into a no-melee dungeon
             landing_depth = snapshot.dungeon_recall_depths.get(did, info.min_depth)
             if max_entry_depth is None:
                 if (
@@ -572,6 +574,22 @@ class PolicyHelpersMixin:
             ):
                 best = info
         return best.id if best is not None else None
+    def _can_fight_in_dungeon(self, dungeon_id: int) -> bool:
+        """Whether this character can fight in ``dungeon_id`` (static data).
+
+        The bot's characters fight in melee (the guardian and unique fight
+        projections read the main-hand weapon; missiles are supplementary).
+        A dungeon whose ``DungeonDefinitions.jsonc`` flags include NO_MELEE
+        refuses every melee attack (cmd-attack.cpp: 「なぜか攻撃することが
+        できない。」), so such a character cannot fight there: live
+        2026-10-23 21:23, the Anti-melee cave 45F, a Lv40 warrior posted
+        melee ~80 times while casters and breathers killed it.  NO_MAGIC only
+        blocks spell casting (input-key-processor.cpp, action-limited.cpp),
+        which a warrior never uses.  Unknown dungeons answer True (the
+        previous behaviour).
+        """
+        info = self._dungeon_knowledge.get(dungeon_id)
+        return info is None or "NO_MELEE" not in info.flags
     def _is_completed_forgetting_maze(self, snapshot: Snapshot) -> bool:
         """Whether this forgetting maze no longer has a guardian objective."""
         if not self._is_forgetting_maze(snapshot):

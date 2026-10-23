@@ -949,7 +949,7 @@ class NavigationMixin:
                     self.last_reason = "combat:disengage-cut-through"
                     return self._step_toward(snapshot, target)
         adjacent = self._physical_adjacent_hostiles(snapshot)
-        if adjacent:
+        if adjacent and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             self.last_reason = "combat:disengage-melee"
             return self._direction_key(
                 snapshot.player.position, self._weakest(adjacent).position

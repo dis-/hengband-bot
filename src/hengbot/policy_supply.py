@@ -1765,7 +1765,7 @@ class SupplyMixin:
             return None
         if not self._unseen_choke_hold_active(snapshot, hostiles):
             return None
-        if adjacent and not snapshot.player.afraid:
+        if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             self.last_reason = "melee:choke"
             return self._direction_key(
                 snapshot.player.position, self._weakest(adjacent).position

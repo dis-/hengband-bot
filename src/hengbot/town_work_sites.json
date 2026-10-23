@@ -1713,7 +1713,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5e0262e06db919e99e1f4b98499ff062b9ce74c5c84124894c1743344565620a"
+    "ast_sha256": "aec07ac6c58254be1b0689770cddcfedaa3f269961b12cd2ee973ed464c8652e"
   },
   "policy.py:HengbotPolicy._blocks_teleport": {
     "classification": "data",
@@ -2078,7 +2078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d3ed58764b806bccab0d01362e58047284e3258f88c945f7d6f91beac1fd8a56"
+    "ast_sha256": "e4d0067d65231aa00490ea8df289faf9ed46440a103c60d549ad218c95ed86e9"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -2610,7 +2610,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "93076f08a4ac4262388bb88d05a5709aaecd68924f07b3fceace28792c84c7d4"
+    "ast_sha256": "50a1cbf94fc7d0579f99aed9aa646ce538821b154f3e8c0f99a06791bb19eb1f"
   },
   "policy.py:HengbotPolicy._low_hp_walk_gate": {
     "classification": "producer",
@@ -2618,7 +2618,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "378bf9f5fe20ea0acd26a7945ad06f519c216318a0831a6a96071eee4dc1e547"
+    "ast_sha256": "cbe11d074ea1064ffdf7d6e2dba1b818354df9ab41bbbf5886828590b178f159"
   },
   "policy.py:HengbotPolicy._matching_ammo": {
     "classification": "data",
@@ -4022,7 +4022,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6fb49e63c685421585c8c05404f411758614093e16596443d7ccab629072f82b"
+    "ast_sha256": "c8ee50eaa509cbb593788256c84bd2000399aadc18ea9e96d8a7e120c8aad053"
   },
   "policy_combat.py:CombatMixin._breeder_breakthrough_frontier_step": {
     "classification": "data",
@@ -4070,7 +4070,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "921e04819095bb8c832212eb749a8c4466df6b32acbfc597d59abaf867a0c147"
+    "ast_sha256": "6283e80420a070ba44b2e47c69c98f311850f78ea5d51196ef5d9b16e22a0c66"
   },
   "policy_combat.py:CombatMixin._choke_predicted_damage": {
     "classification": "data",
@@ -4094,7 +4094,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8d0df1453f8d319066215872d96f5085664860c4cc6f3a1ff0113f517c8104c6"
+    "ast_sha256": "e3e8fe43e8e7103c1befbeff65bac999d348f30f89332c050e974929071fe4e7"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -4110,7 +4110,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0b55cedb5add3db84d0886a33276a765ba15290471ad3c7be0ecb2dbcfb45b1a"
+    "ast_sha256": "1071cd6ff5cf294ed9bc7b5f1dabf6baea7e3dd4766fb72b566e1a68de4a8189"
   },
   "policy_combat.py:CombatMixin._esp_threat_leave_key": {
     "classification": "producer",
@@ -4175,7 +4175,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "91c6e02415a723c6b4ed88e8a67270b4e7090fdb0206164c32a56c1877db7288"
+    "ast_sha256": "8d4576dbaa25ead0f9866007b71909bf246d0c17dd3f71f7711af06f235b01dc"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",
@@ -4239,7 +4239,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8013896558b996379c519582ecd29c47442dbe02b89006b366f104ed9a659aed"
+    "ast_sha256": "8035a12562593e76f6b46459d58c25d4776a993cbd928eb403feade66803aa4f"
   },
   "policy_combat.py:CombatMixin._offset_fire_aim": {
     "classification": "data",
@@ -5707,7 +5707,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5c2cf304ec860523f056a990319f18df5b89884219bdc187faa9195d12d426d4"
+    "ast_sha256": "333b37cc769316b5de779af682039a8296266e92def063e83ec75edf65f3e3f1"
   },
   "policy_navigation.py:NavigationMixin._dungeon_entry_depth": {
     "classification": "data",
@@ -6050,7 +6050,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "85ca4fe4f93640913c705ed30c050dfec303fc870bdb04f31f0c6438d342607f"
+    "ast_sha256": "c491f40a75d303aa6389a473c69cf89ff20b824d355f2deb01d3739a2097993c"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.light_after_opening": {
     "classification": "dungeon-only",
@@ -6138,7 +6138,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1456b5c130089f3c475edfa0af040c5475880b91d61da2d9d1754a47c8529917"
+    "ast_sha256": "c02d2f0022a7c4ce9fadb4cf06f67872f22c3e28bdd1a32b864eae392963dba7"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -7166,7 +7166,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ebaa015b22f6ab2a2df1e4af11c1a56edeee0a58cbc586685b43476595861eb3"
+    "ast_sha256": "2fe6217fae08f969adccf53d7a8b29b3e79f1d5623f514e86c59e8aa7dabdf6d"
   },
   "policy_supply.py:SupplyMixin._unseen_retreat_key": {
     "classification": "producer",
@@ -7474,7 +7474,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "417a47ecdd0c35b0985c2afe077fc0415ca956cb9beb02cededb17741b21af07"
+    "ast_sha256": "a1e4afd35676cab103cb6d8a8830bba8259c7b7dfcf7f3c81dd2f2fb3d4a8782"
   },
   "policy_town.py:TownMixin._town_map_active": {
     "classification": "data",
@@ -7977,7 +7977,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "2562f440c287bd39739e7f7dceaa1a4fa1d27d37d3681e296d10fc429aaf4ca7"
+    "ast_sha256": "1936cf51ceb257e127482a3fc59636290f1e0d18c3338277a5002665211aa64e"
   },
   "quest_navigator.py:QuestFloorNavigator.enter_from_town": {
     "classification": "producer",

@@ -1,0 +1,74 @@
+DEATH 2026-10-23 21:23 c4-a life-014 (Zombie Warrior Lv40) in dungeon 17 「反攻撃の洞窟」 / Anti-melee cave
+Base a7feea46 (line numbers below are a7feea46).  Measured facts only.
+
+1. How dungeon 17 was chosen (measured from life-014/jsonlog/bot-decisions.jsonl.2/.1, read-only)
+   - Angband dives (target 1) landing on 49F: 19:59, 20:04, 20:08, 20:11, 20:14, 20:18, 20:20 - the saved
+     Angband recall depth stayed 49 (dungeon_recall_depths["1"] = 49).
+   - First decision back in town after the 20:20 dive (seq 2205, 20:21:32, last_return_trigger pack-full,
+     dive_loot 21): over_extension = {target 17, alternate 17 "Anti-melee cave", last_overextended_depth 49,
+     over_extended_dive_streak 0}.  Before it (19:33 .. 20:20) alternate was null.
+   - Which valve: dive_loot 21 > OVEREXTEND_LOOT_MAX (4) resets _target_empty_dives
+     (policy_observation.py:486-489), so the empty-dive valve (policy_observation.py:545-578, shallowest-first)
+     did not fire; the shallow-first unsafe-recall fallback (policy.py:14735 _activate_safe_recall_fallback)
+     would have picked the shallowest landing, not 17.  The pick matches the no-depth-progress valve
+     policy_observation.py:583-601: blocked_depth = recall_depth 49 -> _last_overextended_depth = 49 (logged),
+     _pick_alternate_dungeon(max_entry_depth=48, prefer_deepest=True).
+   - _pick_alternate_dungeon (policy_helpers.py:488-578) loops snapshot.entered_dungeon_ids
+     [1,2,3,4,7,12,14,17,18], recall depths {2:13,3:23,4:18,7:32,12:30,14:30,17:40,18:30}: skips Angband,
+     Chameleon, Yeek, conquered forgetting maze (4), then checks landing <= 48, _missing_required_abilities
+     (17 at 40 needs resist_chaos+resist_neth: both held) and _guardian_floor_blocked (17 has guardian 0).
+     Deepest = 17 (40).  It never reads info.flags except MAZE/FORGET.
+   - The target then latches: policy_observation.py:604-607 (_alternate_dungeon in entered -> _target_dungeon_id),
+     and the town departure reads it as recall_dest "alt-dungeon" (policy_town.py:6179-6184), gated only by
+     _recall_destination_safe (policy.py:13702: required abilities + blocked guardian landing).
+     Decision seq 2484 20:29:04 town:recall-to-alt-dungeon key 'reh'; arrival (17,40) 20:29:26.
+   - 20:29-21:23 the character made 21 trips into dungeon 17 (40F -> 45F); every return was an existing
+     trigger (emergency-repeat, emergency-low-hp, emergency-summoner, emergency-lethal-swarm, unseen-attacker,
+     cure-low, pack-full) and every next recall went back to 17 because the alternate latch holds until
+     conquest/replacement (policy_observation.py:602-607) and 17 has no guardian to conquer.
+   - Final 43 s (capture 20261023-212334, 166 decisions): 79 x reason melee from rung _direction_key#2
+     (policy.py:11288-11302), the game answering 「なぜか攻撃することができない。」 each time
+     (cmd-attack.cpp:202-206); also 26 ranged:fire*, 3 emergency:teleport, item:heal, return:recall.
+
+2. Does the bot read dungeon flags from lib/edit?  Yes: dungeon_knowledge.py:30/52 loads every dungeon's
+   "flags" into DungeonInfo.flags.  Consumers of flags at a7feea46: MAZE/FORGET (policy_helpers.py:518-526,
+   _is_forgetting_maze), quest-silent flags (policy.py:17658).  No reference to NO_MELEE or NO_MAGIC anywhere
+   in src/ or tests/ (grep).
+
+3. Dungeon flags checked against a warrior's means (game source):
+   - NO_MELEE (only dungeon 17): player melee refused (cmd-attack.cpp:202); monsters cannot melee either
+     (monster-attack-player.cpp:129, monster-attack-processor.cpp:49/94).  Disables the warrior's means.
+   - NO_MAGIC (only dungeon 16 Anti-magic cave): blocks spell casting (input-key-processor.cpp:418; warriors
+     cannot cast anyway, line 410) and cmd_limit_cast (action-limited.cpp:28), which is used only by
+     Magic-eater / Red-mage racial commands (racial-switcher.cpp:208/218/227).  Scrolls, potions, staffs,
+     wands and missiles are unaffected.  Irrelevant for a warrior.
+   - All other flags in DungeonDefinitions.jsonc (ACID_RIVER, ARCADE, ARENA, BEGINNER, CAVE, CAVERN, CHAMELEON,
+     CURTAIN, DARKNESS, DESTROY, FORGET, GLASS_*, LAKE_*, LARGE*, LAVA_RIVER, MAZE, NO_CAVE, NO_DOORS, NO_VAULT,
+     POISONOUS_RIVER, SMALL*, WATER_RIVER, WINNER) are generation/layout flags; none disables attacking.
+
+4. Places that choose a dungeon (a7feea46)
+   - _pick_alternate_dungeon (policy_helpers.py:488) - callers: empty-dive valve policy_observation.py:559,
+     no-depth-progress valve policy_observation.py:594 (fired here), unsafe-recall fallback policy.py:14758/14762.
+   - _conquest_target scan (policy_quest.py:5490-5534): a guardianless dungeon is "viable"
+     (_guardian_fight_viable policy_quest.py:5416 returns True for guardian_id <= 0), so 17 (max depth 50)
+     becomes the conquest target once the resistance limit reaches 50 and the Mountain (also 50) is conquered.
+   - Angband default (policy_observation.py:397) and quest dungeons (policy_quest.py:4296) are fixed, never 17.
+
+5. Places that decide "fight in melee" (all gate only on `not player.afraid`; none can know the dungeon forbids it)
+   - policy.py:11288 _direction_key#2 reason "melee" (ordinary combat ladder; the 79 posts)
+   - policy.py:10387 low-HP walk gate rewrites a walk into reason "melee"
+   - policy.py:11205 flee:cornered-attack; policy.py:10236 no-wait:attack (alter-attack into a cell)
+   - policy_combat.py:516 no-wait:melee, :525 no-wait:attack, :1013 melee:esp-threat-hunt,
+     :2220 emergency:cornered-attack, :3443/:3639 melee:choke, :3747 breeder breakthrough yields to melee
+   - policy_supply.py:1768 melee:choke (unseen choke hold)
+   - policy_quest.py:1998 quest-strategy:melee, :2115 q2 corpse attack, :3457 quest 31 engage (fixed quest
+     maps, never in dungeon 17)
+   Fair play: the dungeon's flags are static design data (lib/edit/DungeonDefinitions.jsonc), like the
+   depth ranges the bot already reads.
+
+6. Already inside such a dungeon: no existing rule says "leave"; the existing returns that fired live are
+   emergency-repeat (policy_observation.py:452, 2 relocations), the low-HP / summoner / lethal-swarm
+   emergencies, unseen-attacker (policy_combat.py:1784), cure-low / pack-full (policy_town.py:7250-7350).
+   After a return the next recall follows _target_dungeon_id; the latch to 17 came only from
+   _pick_alternate_dungeon (_alternate_dungeon is not in the policy checkpoint), so with the choice fixed the
+   next recall goes elsewhere.  No new rule is needed.
