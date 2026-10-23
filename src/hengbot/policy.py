@@ -19063,7 +19063,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._release_claim_goal("choke-threat-dispersed", route[1], owners=("positioning",))
             self._detected_threat_route = None
             return None
-        if (
+        # The retreat reached the cell it committed to and its own steps took
+        # the pack out of the convergence window while the pack is still
+        # perceived.  Handing the decision back here lets loot or exploration
+        # walk straight back into the window, which re-opens this owner: two
+        # owners one cell apart until the loop detector stopped the bot (live
+        # 2026-10-23 14:26, Angband 20F, a Large kobold pack standing behind a
+        # wall, no covered cell reachable, seek-loot '7' <-> prepare-choke
+        # '3').  Owner 2026-09-20: once the bot braces for a detected pack it
+        # waits, and the 50-turn bound below releases the wait.
+        retreat_widened = (
+            route is not None
+            and snapshot.player.position == route[1]
+            and bool(committed)
+            and not breeders
+            and not melee_threats
+        )
+        if retreat_widened or (
             self._open_neighbor_count(snapshot, snapshot.player.position)
             <= SUMMONER_CHOKE_NEIGHBORS - 1
         ):
@@ -19122,13 +19138,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # A committed destination is a shortest-path goal, so each decision of
         # the episode stands strictly closer to it: the retreat leg ends by
         # arriving, and the hold above then bounds the wait.  The flee fallback
-        # names no cell and commits to nothing.
+        # (no covered cell reachable) commits to the cell its step reaches, so
+        # the same arrival hands the episode to the bounded hold instead of
+        # back to loot (2026-10-23 14:26).
+        committed_cell = destination if destination is not None else step
         self._detected_threat_route = (
             None
-            if destination is None or destination == snapshot.player.position
+            if committed_cell == snapshot.player.position
             else (
                 snapshot.floor_key,
-                destination,
+                committed_cell,
                 frozenset(monster.index for monster in threats),
             )
         )
