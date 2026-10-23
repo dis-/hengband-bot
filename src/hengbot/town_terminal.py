@@ -25,6 +25,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_UNTAKEN,
     TOWN_TRAVEL_STALL_LIMIT,
 )
+from hengbot.home_visit import HomeVisitKind
 from hengbot.model import STORE_HOME
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
 
@@ -291,6 +292,83 @@ def verdict_identify_equipped(material: IdentifyMaterial) -> Admission:
     return ADMIT
 
 
+def device_identification_target(policy: Any, board: Any) -> Any:
+    """The carried device ``_town_device_processing_key`` identifies, or None."""
+    return next(
+        (item for item in board.inventory
+         if policy._normal_identification_flow_candidate(item)
+         and not item.is_equipment
+         and policy._item_signature(item) not in policy._deferred_device_items),
+        None)
+
+
+def gather_identify_device(policy: Any, board: Any) -> IdentifyMaterial:
+    """Whether the body's reliable normal source is carried (the same lookup)."""
+    return IdentifyMaterial(source_held=policy._find_identification_source(
+        board, full=False, reliable_only=True) is not None)
+
+
+def home_withdraw_target(policy: Any, board: Any) -> Any:
+    """The Home item the filed visit request walks to withdraw, or None.
+
+    The walking deciders are the approach rungs: ``_shopping_approach_step``
+    files the Home visit request (a legacy withdrawal, a home-errand take,
+    survival's device) before the approach key steps toward Home.
+    """
+    if (not board.in_town or board.store is not None
+            or policy._shopping_approach_store_type != STORE_HOME):
+        return None
+    request = getattr(getattr(policy, "_home_visit", None), "request", None)
+    if request is None or request.kind != HomeVisitKind.WITHDRAW:
+        return None
+    return request.address if request.address is not None else request.item_identity
+
+
+@dataclass(frozen=True)
+class HomeWithdrawMaterial:
+    """Frozen inputs of the Home withdrawal verdict."""
+
+    knowledge_current: bool
+    target_stored: bool
+
+
+def gather_home_withdraw(policy: Any, board: Any) -> HomeWithdrawMaterial:
+    """Whether the current Home catalogue still holds the requested item."""
+    target = home_withdraw_target(policy, board)
+    return HomeWithdrawMaterial(
+        knowledge_current=bool(policy._home_knowledge_current),
+        target_stored=any(policy._item_signature(item) == target
+                          for item in policy._home_knowledge_items),
+    )
+
+
+def verdict_home_withdraw(material: HomeWithdrawMaterial) -> Admission:
+    """Pure: a current catalogue without the item refuses before the walk
+    (the in-Home ``identify-staff-reserve-unavailable`` / ``route-claim-
+    unfulfilled`` exits learned it only after entering)."""
+    if material.knowledge_current and not material.target_stored:
+        return refused(("reservation-unavailable",))
+    return ADMIT
+
+
+@dataclass(frozen=True)
+class HomeAtomicDepositMaterial:
+    """Frozen inputs of the entrance deposit verdict."""
+
+    relief_pending: bool
+
+
+def gather_home_atomic_deposit(policy: Any, board: Any) -> HomeAtomicDepositMaterial:
+    return HomeAtomicDepositMaterial(relief_pending=policy._home_full_relief is not None)
+
+
+def verdict_home_atomic_deposit(material: HomeAtomicDepositMaterial) -> Admission:
+    """Pure: the body's ``home-full-sale-pending`` branch."""
+    if material.relief_pending:
+        return refused(("home-full-relief-pending",))
+    return ADMIT
+
+
 def verdict_quest_entry(material: QuestEntryMaterial) -> Admission:
     """Pure: each refusing branch returns its own codes."""
     if material.morivant_deposits:
@@ -372,9 +450,15 @@ CURSE_REMOVE_CODES = frozenset({
 ENCHANT_LAUNCHER_CODES = frozenset({"cannot-read-scroll"})
 # Codes the worn-item identification verdict can return.
 IDENTIFY_CODES = frozenset({"no-identification-source"})
+# Codes the Home withdrawal verdict can return (verdict_home_withdraw).
+HOME_WITHDRAW_CODES = frozenset({"reservation-unavailable"})
+# Codes the entrance deposit verdict can return.
+HOME_ATOMIC_DEPOSIT_CODES = frozenset({"home-full-relief-pending"})
 # Every declared code: the keys of REFUSAL_SERVERS (design 3.3 (1)).
 TERMINAL_CODES = (QUEST_ENTRY_CODES | STORE_BUY_CODES | HOME_DEPOSIT_CODES
-                  | CURSE_REMOVE_CODES | ENCHANT_LAUNCHER_CODES | IDENTIFY_CODES)
+                  | CURSE_REMOVE_CODES | ENCHANT_LAUNCHER_CODES | IDENTIFY_CODES
+                  | HOME_WITHDRAW_CODES
+                  | HOME_ATOMIC_DEPOSIT_CODES)
 
 # Categories are ``_town_need_registry`` names (design 3.4, S2 (c)).
 _IDENTIFICATION_SERVERS = (
@@ -431,6 +515,16 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
         Server("shop-buy", "required-star-remove-curse"),
         Server("home-visit", "home-star-remove-curse-use"),
     ),
+    # The Home catalogue lacks the reserved item (design 3.4 S2 row): a
+    # source is bought instead (the staff itself, or a scroll), or fetched on
+    # the Morivant trip.
+    "reservation-unavailable": (
+        Server("shop-buy", "identify-staff"),
+        Server("shop-buy", "identification-source"),
+        Server("cross-town"),
+    ),
+    # A Home-full relief owns the page first (``_home_full_relief_key``).
+    "home-full-relief-pending": (Server("home-visit"),),
     **{code: () for code in (
         # Every worn curse is proven permanent.
         "cursed-item-unavailable",
@@ -588,6 +682,55 @@ def identify_equipped_intended_terminal(policy: Any, board: Any) -> TerminalRef 
     return TerminalRef("identify-equipped", (policy._item_signature(target),))
 
 
+def device_identification_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_town_device_processing_key``: identify a carried device."""
+    if not board.in_town:
+        return None
+    target = device_identification_target(policy, board)
+    if target is None:
+        return None
+    return TerminalRef("identify-device", (policy._item_signature(target),))
+
+
+def home_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """The approach rungs: walk to Home for the filed withdrawal.  Other
+    stores (store-buy) and other Home requests have no terminal here yet."""
+    target = home_withdraw_target(policy, board)
+    if target is None:
+        return None
+    return TerminalRef("home-withdraw", (target,))
+
+
+def home_atomic_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``home-atomic-deposit``: the entrance deposit bound to its stay."""
+    if (board.store is not None or policy._shopping_approach_store_type != STORE_HOME
+            or policy._home_atomic_deposit_pending is not None
+            or (policy._store_visit is not None
+                and policy._store_visit.store_type != STORE_HOME)):
+        return None
+    return TerminalRef("home-atomic-deposit", ())
+
+
+def open_home_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_open_home_deposit_key`` on the open Home page: the Home-full relief
+    while Home is full (or a relief runs), else the page's deposit.  Neither
+    is refused on the board; the body's own exits stay."""
+    store = board.store
+    if store is None or store.store_type != STORE_HOME:
+        return None
+    if policy._home_is_full(board) or policy._home_full_relief is not None:
+        return TerminalRef("home-full-relief", ())
+    return TerminalRef("home-open-deposit", ())
+
+
+def home_full_defer_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """``_defer_home_full_deposit``: carry the unserviceable deposit past the
+    visit.  It is the Home-full refusal's own close, never refused itself."""
+    if policy._home_full_relief is None:
+        return None
+    return TerminalRef("home-full-defer", ())
+
+
 def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
     """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
     or None (no declaration, no board, or no terminal on this board)."""
@@ -676,6 +819,14 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_town_enchant_launcher_key": TerminalDecl(enchant_launcher_intended_terminal, SHADOW),
     "_town_equipped_identification_key": TerminalDecl(
         identify_equipped_intended_terminal, SHADOW),
+    "_town_device_processing_key": TerminalDecl(
+        device_identification_intended_terminal, SHADOW),
+    **{name: TerminalDecl(home_withdraw_intended_terminal, SHADOW) for name in (
+        "_shopping_approach_key", "_shopping_approach_key#1",
+        "_shopping_approach_key#2")},
+    "home-atomic-deposit": TerminalDecl(home_atomic_deposit_intended_terminal, SHADOW),
+    "_open_home_deposit_key": TerminalDecl(open_home_deposit_intended_terminal, SHADOW),
+    "_defer_home_full_deposit": TerminalDecl(home_full_defer_intended_terminal, SHADOW),
 }
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
@@ -688,6 +839,12 @@ _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
         gather_enchant_launcher(policy, board)),
     "identify-equipped": lambda policy, board: verdict_identify_equipped(
         gather_identify_equipped(policy, board)),
+    "identify-device": lambda policy, board: verdict_identify_equipped(
+        gather_identify_device(policy, board)),
+    "home-withdraw": lambda policy, board: verdict_home_withdraw(
+        gather_home_withdraw(policy, board)),
+    "home-atomic-deposit": lambda policy, board: verdict_home_atomic_deposit(
+        gather_home_atomic_deposit(policy, board)),
 }
 
 
