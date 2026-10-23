@@ -52,6 +52,15 @@ class MeleeSiteLintTest(unittest.TestCase):
         )
         self.assertEqual(unguarded_melee_sites(source), [])
 
+    def test_earlier_positive_melee_branch_is_not_a_guard(self):
+        source = (
+            "def producer(self, snapshot, adjacent, target):\n"
+            "    if adjacent and self._can_fight_in_dungeon(snapshot.floor_key[0]):\n"
+            "        return self._direction_key(snapshot.player.position, adjacent[0].position)\n"
+            "    return self._direction_key(snapshot.player.position, target.position)\n"
+        )
+        self.assertEqual(len(unguarded_melee_sites(source)), 1)
+
     def test_guard_in_another_function_does_not_count(self):
         source = (
             "def other(self, snapshot):\n"

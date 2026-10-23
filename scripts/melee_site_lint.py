@@ -10,7 +10,8 @@ aims at a monster -- its second argument is ``<expr>.position`` and the key
 is not a missile's ``suffix=`` -- or an alter attack
 ``ALTER_KEY + _direction_key(...)``.  It is guarded when an enclosing ``if``
 of the same function tests the predicate, or an earlier ``if`` of the same
-function tests it and returns.
+function returns when the predicate fails (``if not pred(...)`` or
+``if ... or not pred(...)``).
 """
 
 from __future__ import annotations
@@ -28,6 +29,17 @@ def _attr(node: ast.AST) -> str | None:
 
 def _tests_predicate(test: ast.AST) -> bool:
     return any(_attr(node) == PREDICATE for node in ast.walk(test))
+
+
+def _refuses_on_predicate(test: ast.AST) -> bool:
+    """``not pred(...)``, alone or as one alternative of an ``or``."""
+    alternatives = test.values if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.Or) else [test]
+    return any(
+        isinstance(alternative, ast.UnaryOp)
+        and isinstance(alternative.op, ast.Not)
+        and _attr(alternative.operand) == PREDICATE
+        for alternative in alternatives
+    )
 
 
 def _is_site(node: ast.AST, parents: dict) -> bool:
@@ -65,7 +77,7 @@ def _guarded(node: ast.AST, parents: dict) -> bool:
     return any(
         isinstance(statement, ast.If)
         and statement.lineno < node.lineno
-        and _tests_predicate(statement.test)
+        and _refuses_on_predicate(statement.test)
         and statement.body
         and isinstance(statement.body[-1], ast.Return)
         for statement in ast.walk(function)
