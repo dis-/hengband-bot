@@ -42,6 +42,7 @@ def carried_board(*, full=False, source=False):
 
 def refusal_result(snap, *, enforce, exhausted):
     policy = policy_on(snap)
+    policy._home_procurement_batch_active = True
     if exhausted:
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
     decl = town_terminal.TERMINALS[RUNG]
@@ -60,7 +61,8 @@ def refusal_result(snap, *, enforce, exhausted):
             patch.object(policy, "_offer_execution_no_step",
                          side_effect=lambda **kw: no_steps.append(kw)):
         key = policy._town_producer_entry(RUNG, producer, family="identification")
-    watched = (*WATCHED, "_unbuyable_full_identify_sigs", "_deferred_home_items")
+    watched = (*WATCHED, "_unbuyable_full_identify_sigs", "_deferred_home_items",
+               "_home_procurement_batch_active")
     writes = {name: repr(getattr(policy, name, None)) for name in watched}
     return writes, offers, no_steps, key
 
@@ -112,6 +114,7 @@ class CarriedIdentificationTest(unittest.TestCase):
                 self.assertEqual(results[0], results[1])
                 _writes, offers, no_steps, key = results[0]
                 self.assertIsNone(key)
+                self.assertEqual(_writes["_home_procurement_batch_active"], "False")
                 if exhausted:
                     self.assertEqual(no_steps[-1]["cause"], "full-identification-deferred")
                     self.assertEqual(offers, [])

@@ -1067,6 +1067,7 @@ def _commit_identify_device(policy: Any, board: Any, terminal: TerminalRef,
 
 def _commit_identify_carried(policy: Any, board: Any, terminal: TerminalRef,
                              admission: Admission) -> None:
+    policy._activate_home_batch_item()
     target = carried_identification_target(policy, board)
     signature = terminal.args[0]
     full = bool(target is not None and target.known)

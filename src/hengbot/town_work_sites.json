@@ -8178,7 +8178,7 @@
       "identification"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3d28ac42f3d97627c239a1dc9ce4352b4f7edae0c40f32c3f16680d17a516597"
+    "ast_sha256": "6526526e84783afca92659f314418a7732c60bf28d8374175fff99aea151e16a"
   },
   "town_terminal.py:_commit_identify_device": {
     "classification": "adapter",
