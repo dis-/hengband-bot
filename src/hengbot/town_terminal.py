@@ -24,6 +24,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_TAKEN,
     QUEST_STATUS_UNTAKEN,
     STAFF_IDENTIFY_MIN_SUCCESS,
+    TOWN_TELEPORT_COST,
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
@@ -416,6 +417,88 @@ def verdict_departure(material: DepartureMaterial) -> Admission:
     return ADMIT
 
 
+def gather_recall_departure(policy: Any, board: Any) -> DepartureMaterial:
+    return DepartureMaterial(tuple(
+        name for name, ready
+        in policy._recall_town_departure_conjuncts(board, commit=False).items()
+        if not ready))
+
+
+def expedition_destination(policy: Any, board: Any) -> int | None:
+    """The destination already selected by the expedition that calls teleport."""
+    current = policy._effective_town_id(board)
+    expedition = policy._morivant_full_identify
+    if expedition is not None and expedition.phase not in {
+            "prepare-home", "return-home", "restore-home"}:
+        destination = expedition.origin_town_id if expedition.returning else MORIVANT_TOWN_ID
+        if destination != current:
+            return destination
+    shopping = policy._cross_town_shopping
+    return None if shopping is None else shopping.target_town_id
+
+
+@dataclass(frozen=True)
+class CrossTownMaterial:
+    affordable: bool
+    reachable: bool
+
+
+def gather_cross_town(policy: Any, board: Any) -> CrossTownMaterial:
+    destination = expedition_destination(policy, board)
+    required = TOWN_TELEPORT_COST if destination == 0 else 2 * TOWN_TELEPORT_COST
+    positions = policy._town_teleport_building_positions(board)
+    reachable = bool(positions) and (
+        bool(policy._walkable_neighbors(board, board.player.position))
+        if board.player.position in positions
+        else policy._town_teleport_building_route(board, positions) is not None)
+    return CrossTownMaterial(board.player.gold >= required, bool(reachable))
+
+
+def verdict_cross_town(material: CrossTownMaterial) -> Admission:
+    if not material.affordable:
+        return refused(("cross-town-fare-unaffordable",))
+    if not material.reachable:
+        return refused(("cross-town-route-unavailable",))
+    return ADMIT
+
+
+@dataclass(frozen=True)
+class FundraisingMaterial:
+    missing_digger: bool
+    missing_detection: bool
+    missing_food: bool
+    missing_light: bool
+    departure_ready: bool
+
+
+def gather_fundraising(policy: Any, board: Any) -> FundraisingMaterial:
+    preparing = policy._fundraising_mode in {None, "prepare"}
+    return FundraisingMaterial(
+        missing_digger=preparing and not policy._has_digging_tool(board),
+        missing_detection=preparing and (
+            policy._count_treasure_detection_scrolls(board)
+            < policy._mining_detection_scroll_target(board)),
+        missing_food=not policy._fundraising_food_ready(board),
+        missing_light=not policy._fundraising_light_ready(board),
+        departure_ready=policy._fundraising_departure_ready(board),
+    )
+
+
+def verdict_fundraising(material: FundraisingMaterial) -> Admission:
+    codes = []
+    if material.missing_digger:
+        codes.append("fundraising-no-digging-tool")
+    if material.missing_detection:
+        codes.append("fundraising-no-detection")
+    if material.missing_food:
+        codes.append("fundraising-no-food")
+    if material.missing_light:
+        codes.append("fundraising-no-light")
+    if not codes and not material.departure_ready:
+        codes.append("fundraising-departure-unready")
+    return refused(tuple(codes)) if codes else ADMIT
+
+
 @dataclass(frozen=True)
 class DescentMaterial:
     """Whether the descent's destination asks the quest-entry question."""
@@ -600,17 +683,29 @@ _DEPARTURE_LEAF_SERVERS: dict[str, tuple[Server, ...]] = {
     "identification_need_clear": (Server("identification"),),
     # Always ready (the quest-entry contract owns quest carry).
     "quest_carry_ready": (),
+    "combat_weapon_ready": _TRANSACTION_SERVERS,
+    "departure_home_pending_item_clear": (Server("home-errand"),),
+    "departure_home_pending_batch_clear": (Server("home-errand"),),
+    "departure_home_batch_review_clear": (Server("home-errand"),),
+    "departure_home_atomic_withdraw_clear": (Server("home-errand"),),
+    "departure_identification_need_clear": (Server("identification"),),
 }
 # Codes the departure verdict can return: one per leaf, and the prefix for a
 # leaf added later (no server until it is named here).
 DEPARTURE_CODES = frozenset(
     {"departure:*", *(f"departure:{leaf}" for leaf in _DEPARTURE_LEAF_SERVERS)})
+CROSS_TOWN_CODES = frozenset({"cross-town-fare-unaffordable", "cross-town-route-unavailable"})
+FUNDRAISING_CODES = frozenset({
+    "fundraising-no-digging-tool", "fundraising-no-detection", "fundraising-no-food",
+    "fundraising-no-light", "fundraising-departure-unready",
+})
 # Every declared code: the keys of REFUSAL_SERVERS (design 3.3 (1)).
 TERMINAL_CODES = (QUEST_ENTRY_CODES | STORE_BUY_CODES | HOME_DEPOSIT_CODES
                   | CURSE_REMOVE_CODES | ENCHANT_LAUNCHER_CODES | IDENTIFY_CODES
                   | IDENTIFY_CARRIED_CODES
                   | HOME_WITHDRAW_CODES
                   | HOME_ATOMIC_DEPOSIT_CODES | DESCENT_CODES | DEPARTURE_CODES)
+TERMINAL_CODES |= CROSS_TOWN_CODES | FUNDRAISING_CODES
 
 # Who serves each refusal code.  An empty right side is explicit: no town
 # owner can satisfy it, so the terminal closes for the visit.
@@ -665,6 +760,19 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
     ),
     # A Home-full relief owns the page first (``_home_full_relief_key``).
     "home-full-relief-pending": (Server("home-visit"),),
+    "cross-town-fare-unaffordable": (
+        Server("shop-sell", "organization-sale"), Server("fundraising")),
+    "cross-town-route-unavailable": (),
+    "fundraising-no-digging-tool": (
+        Server("home-errand", "stored-digger"),
+        Server("shop-buy", "fundraising-digger")),
+    "fundraising-no-detection": (
+        Server("home-errand", "stored-detection"),
+        Server("shop-buy", "fundraising-detection")),
+    "fundraising-no-food": (Server("shop-buy", "fundraising-food"),),
+    "fundraising-no-light": (Server("shop-buy", "fundraising-light"),),
+    "fundraising-departure-unready": (
+        Server("survival"), Server("curse-enchant", "remove-curse")),
     **{f"departure:{leaf}": servers
        for leaf, servers in _DEPARTURE_LEAF_SERVERS.items()},
     **{code: () for code in (
@@ -902,6 +1010,57 @@ def direct_descent_intended_terminal(policy: Any, board: Any) -> TerminalRef | N
     return TerminalRef("descent-here", (board.player.position,))
 
 
+def cross_town_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    if not board.in_town or board.store is not None:
+        return None
+    destination = expedition_destination(policy, board)
+    return None if destination is None else TerminalRef("cross-town", (destination,))
+
+
+def fundraising_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    if (not board.in_town or board.store is not None
+            or policy._fundraising_mode not in {"prepare", "mine", "scavenge"}):
+        return None
+    return TerminalRef("fundraising", (policy._fundraising_mode,))
+
+
+def stockout_mining_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    if (not board.in_town or board.store is not None
+            or policy._fundraising_mode is not None or board.player.recalling):
+        return None
+    labels = {
+        "recall_departure_ready": {"Word of Recall scrolls"},
+        "food_ready": {"Food rations", "Device charges for food"},
+        "light_ready": {"Flasks of oil"},
+        "teleport_ready": {"Teleport scrolls"},
+        "cure_critical_ready": {"Cure Critical Wounds potions"},
+        "remove_curse_ready": {"Remove Curse scrolls", "*Remove Curse* scrolls"},
+    }
+    failed = gather_recall_departure(policy, board).failed
+    blocked = {row["item"] for row in policy.procurement_requirements(board)
+               if row.get("blocked_reason") == "no-actionable-supplier"}
+    if not failed or any(not (labels.get(name, set()) & blocked) for name in failed):
+        return None
+    return TerminalRef("fundraising", ("supply-stockout",))
+
+
+def departure_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    if not board.in_town or board.store is not None or board.player.class_id < 0:
+        return None
+    funding = fundraising_intended_terminal(policy, board)
+    if funding is not None:
+        return funding
+    # The special dispatcher also serves the expedition before departure.
+    if policy._morivant_full_identify is not None:
+        return None
+    return TerminalRef("departure-recall", ())
+
+
+def recall_read_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    # Dungeon return reads pass through; town reads own the full recall gate.
+    return TerminalRef("departure-recall", ()) if board.in_town else None
+
+
 def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
     """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
     or None (no declaration, no board, or no terminal on this board)."""
@@ -950,6 +1109,7 @@ def _shadow_rungs() -> frozenset[str]:
         "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
         "navigator.decide", "oscillating-probe", "supply-stockout-mining",
         "town-item-processing", "town-progress-committed-loot", "town-teleport",
+        "_town_special_key", "_read_dungeon_recall_scroll_key",
         "verified-disposal",
     })
 
@@ -1001,6 +1161,12 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_defer_home_full_deposit": TerminalDecl(home_full_defer_intended_terminal, SHADOW),
     "_descent_step": TerminalDecl(descent_route_intended_terminal, SHADOW),
     "direct-descent": TerminalDecl(direct_descent_intended_terminal, SHADOW),
+    "town-teleport": TerminalDecl(cross_town_intended_terminal, SHADOW),
+    **{name: TerminalDecl(fundraising_intended_terminal, SHADOW) for name in (
+        "_fundraising_key#1", "_fundraising_key#2")},
+    "supply-stockout-mining": TerminalDecl(stockout_mining_intended_terminal, SHADOW),
+    "_town_special_key": TerminalDecl(departure_intended_terminal, SHADOW),
+    "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, SHADOW),
 }
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
@@ -1025,6 +1191,10 @@ _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
         gather_descent(policy, board, policy._nav_ledger.descent_target)),
     "descent-here": lambda policy, board: verdict_descent(
         gather_descent(policy, board, board.player.position)),
+    "departure-recall": lambda policy, board: verdict_departure(
+        gather_recall_departure(policy, board)),
+    "cross-town": lambda policy, board: verdict_cross_town(gather_cross_town(policy, board)),
+    "fundraising": lambda policy, board: verdict_fundraising(gather_fundraising(policy, board)),
 }
 
 

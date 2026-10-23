@@ -11963,7 +11963,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if self._terminal_pack_space_signature != signature:
                     self._terminal_pack_space_signature = signature
 
-        town_special = self._town_special_key(snapshot)
+        town_special = self._town_producer_entry(
+            "_town_special_key", lambda: self._town_special_key(snapshot), family="departure")
         if town_special is not None:
             return town_special
 

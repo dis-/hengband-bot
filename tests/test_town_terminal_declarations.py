@@ -42,7 +42,7 @@ from hengbot.town_terminal import (
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "hengbot"
 FIXTURE = Path(__file__).parent / "fixtures" / "n1a-townalt-20261023.jsonl.gz"
-S1_SHADOW_CENSUS = 90
+S1_SHADOW_CENSUS = 92
 S1_DIRECT_CENSUS = 21
 
 

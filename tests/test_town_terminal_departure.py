@@ -50,7 +50,9 @@ class DepartureLeafTest(unittest.TestCase):
 
     def test_every_leaf_of_the_gate_has_a_declared_row(self):
         snap = board()
-        leaves = set(policy_on(snap)._town_departure_conjuncts(snap, commit=False))
+        policy = policy_on(snap)
+        leaves = (set(policy._town_departure_conjuncts(snap, commit=False))
+                  | set(policy._recall_town_departure_conjuncts(snap, commit=False)))
         declared = {code.partition(":")[2] for code in REFUSAL_SERVERS
                     if code.startswith("departure:") and code != "departure:*"}
         self.assertEqual(leaves, declared)

@@ -2409,9 +2409,12 @@ class TownMixin:
         self._town_order_expected_observation = "departure-supplies-ready"
         return supplier
 
-    def _recall_town_departure_conjuncts(self, snapshot: Snapshot) -> dict[str, bool]:
+    def _recall_town_departure_conjuncts(
+        self, snapshot: Snapshot, *, commit: bool = True,
+    ) -> dict[str, bool]:
         """Return the complete leaf set consumed by a town recall decision."""
-        values = self._town_departure_conjuncts(snapshot)
+        values = (self._town_departure_conjuncts(snapshot) if commit
+                  else self._town_departure_conjuncts(snapshot, commit=False))
         values.update(
             {
                 # Recall lands deep even if an income-mode latch survives.
@@ -7173,7 +7176,12 @@ class TownMixin:
 
     def _read_dungeon_recall_scroll_key(
         self, snapshot: Snapshot, recall: InventoryItem
-    ) -> str:
+    ) -> str | None:
+        key = self._town_producer_entry(
+            "_read_dungeon_recall_scroll_key",
+            lambda: self._read_key(snapshot, recall), family="departure")
+        if key is None:
+            return None
         recall_count = sum(
             item.count for item in snapshot.inventory if item.is_recall_scroll
         )
@@ -7185,7 +7193,7 @@ class TownMixin:
         self._post_owner_expectation(
             snapshot, "return:recall", "inventory", "recalling", "floor"
         )
-        return self._read_key(snapshot, recall)
+        return key
 
     @claims(ClaimOwner.DEPARTURE)
     def _dungeon_recall_confirmation_key(
