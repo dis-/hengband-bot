@@ -73,6 +73,13 @@ class StoreBuyVerdictTest(unittest.TestCase):
         self.assertTrue(town_terminal.verdict_store_buy(
             self.material(potion, attempted=False)).admitted)
 
+    def test_store_buy_codes_are_declared_without_a_town_server(self):
+        # No town owner serves a supplier that cannot serve the need: the
+        # refused supplier is simply not counted (design 3.4 S2 rows).
+        for code in town_terminal.STORE_BUY_CODES:
+            self.assertEqual(town_terminal.REFUSAL_SERVERS[code], (), code)
+            self.assertEqual(town_terminal.declared_code(code), code)
+
     def test_unreachable_supplier_is_refused(self):
         self.assertEqual(town_terminal.verdict_store_buy(town_terminal.StoreBuyMaterial(
             STORE_TEMPLE, reachable=False, home=False, attempted=False, page_offers=True)),
