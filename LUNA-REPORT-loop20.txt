@@ -1,0 +1,75 @@
+LUNA-REPORT loop20 - n1-a life-001 retired on Angband 20F (branch n1-loop20-1023, base ac203b36)
+================================================================================================
+
+Diagnosis (measured; details in LUNA-DIAG-loop20.txt)
+-----------------------------------------------------
+- Alternating producers: detected:prepare-choke '3' at (17,15) <-> seek-loot '7' at (18,16)
+  (policy.py _detected_threat_preparation_key flee fallback vs the floor-loot claim toward
+  the Fauchard (18,14) / bolts (19,13)).  The replay of the 121 recorded boards through the
+  policy at ac203b36 reproduces every recorded key and reason.
+- Cause: an ESP-perceived awake Large kobold pack that never moves (behind the wall x=14).
+  At (17,15) two kobolds are within SWARM_LOOKAHEAD (d=2, d=3) -> retreat; no covered cell is
+  reachable (_summoner_retreat_route -> (None, (18,16))), so the flee fallback steps '3' and
+  commits nothing.  At (18,16) only one is inside (d=3, d=4) -> "choke-threat-dispersed",
+  loot walks back.  The 2026-09-23 route commitment covered only the covered-cell case.
+- Today's seen-floor rule (ac203b36): NOT involved.  Reverting it (and separately the
+  remains-pile rule and 34f91c82) and replaying gives the same alternation (the remains
+  revert only switches the loot target to the corpse at (18,17)).
+- Type: 3rd occurrence of "the anticipatory retreat hands the decision back before its
+  episode ends" (2026-09-20 choke arrival, 2026-09-23 route, 2026-10-23 flee fallback).  The
+  ledger has no row for it; the supervisor should add it.
+
+Fix (commit 92c2e244, policy.py only)
+------------------------------------
+1. The flee fallback commits to the cell its step reaches (same _detected_threat_route
+   tuple; destination = flee step when no covered cell).
+2. When the retreat arrives at its committed cell with its pack still perceived and no
+   converging member left inside the window (retreat_widened), the existing bounded hold
+   takes over exactly as at a reached choke ('5' summoner:hold-choke, released by the
+   50-turn bound, a visible hostile or a floor change; expiry does not re-arm on the floor).
+   While a pack member is still inside the window the retreat keeps stepping (unchanged).
+Existing decision used: owner 2026-09-20 "構えて待つと決めて50ターン敵の目視がなければ解除".
+FLAG for the supervisor: the recorded memory reads it as waiting "at a choke"; here the wait
+happens at the open flee cell (openness 6).  If that needs the owner's confirmation, the
+alternative options are (a) loot/explore defer targets inside the pack's window while it is
+perceived (the 2026-10-06 unseen-attack analogue, loot may be lost) or (b) no flee at all
+when no covered cell is reachable.
+No new constant, threshold, attribute or reason.  Restored checkpoints: no new attributes.
+Other hand-back points of the same producer (enumerated, unchanged): visible hostile
+(combat owns), expiry (owner bound), pack no longer detected, quest plan owns, dispersed
+without commitment (gate), committed cell unreachable (19109), no flee step (19119).
+
+Pins (tests/test_detected_pack_flee_hold_recorded.py, fixture
+tests/fixtures/detected-pack-flee-loop-20261023-state.jsonl.gz, 121 recorded rows, ~15 s)
+- test_recorded_onset_is_a_flee_without_a_covered_cell: board 1680784 -> '3' prepare-choke,
+  converging [(7,2),(10,3)], route (None, (18,16)).  Same before/after (fact pin).
+- test_recorded_flee_cell_boards_are_not_handed_back_to_loot (open loop, boards 4..41):
+  before: 16 of the (18,16) boards are seek-loot '7'; after: all are prepare-choke steps.
+- test_closed_loop_holds_then_releases_without_tripping_the_loop_detector (DECLARED
+  CONSTRUCTED player placement): before: the driver's loop check fires on 30+ decisions
+  (first 1681175); after: walk (17,15)->(18,16)->(19,17), 29 waits, a visible hostile
+  clears the hold, re-arm, 52 waits, released past 500 game turns, no re-arm, the bolts are
+  picked up ('g'), exploration continues; the loop check never fires.
+- Control test_control_recorded_board_without_the_pack_is_loot: the onset board with the
+  detected pack removed -> seek-loot, no route (unchanged).
+Revert-proof: with the src diff reversed (git apply -R) the new module fails 17 checks
+(2 tests); mutation check catches both hunks.
+Existing related modules run singly, all OK: test_policy_combat (303), test_loot_choke_
+oscillation_recorded, test_summoner_loot_choke_loop_recorded, test_q2_choke_loop_recorded,
+test_ownership_s2b2_bar, test_ownership_claims, test_choke_hold_loop_recorded.
+Bookkeeping: town work manifest regenerated (one ast digest in town_work_sites.json).
+
+Guard outputs (on 92c2e244)
+--------------------------
+  [preflight] PREFLIGHT OK: 6 changed files, 0 findings (n1-loop20-1023 vs ac203b36)
+  [mutation] 2 source hunks, tests: test_detected_pack_flee_hold_recorded
+  [mutation] caught     src/hengbot/policy.py:19063 (# The retreat reached the cell it committed to and its own steps took): test_closed_loop_holds_then_releases_without_tripping_the_loop_detector
+  [mutation] caught     src/hengbot/policy.py:19138 (# (no covered cell reachable) commits to the cell its step reaches, so): test_closed_loop_holds_then_releases_without_tripping_the_loop_detector, test_recorded_flee_cell_boards_are_not_handed_back_to_loot
+  [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+  [mutation] recorded for 92c2e244
+  [fast] 3632 fast tests (<2.0s in ac203b360) + 1 changed modules, 4 shards
+  [fast] excluded 44 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-msm4xh_7)
+  Failures: none
+  Errors: none
+  Total: 3645 tests, 221.9s
