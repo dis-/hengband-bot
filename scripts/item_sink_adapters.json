@@ -421,7 +421,7 @@
     "self._verified_destroy_key(snapshot, lambda current: target if self._pending_disposal(current) is not None else None, 'equipment:destroy-unsellable-dominated') @ ": 1
   },
   "policy_town.py:_town_kill_mob_key": {
-    "self._direction_key(player.position, target.position) @ For:targets / If:body:player.position.distance_to(target.position) <= 1 / If:body:target.friendly and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1
+    "self._direction_key(player.position, target.position) @ For:targets / If:body:player.position.distance_to(target.position) <= 1 / If:body:target.friendly and self._can_fight_in_dungeon(0)": 1
   },
   "policy_town.py:_town_overflow_destroy_key": {
     "self._verified_destroy_key(snapshot, self._overflow_disposal_item, 'town:destroy-overflow') @ ": 1

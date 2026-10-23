@@ -5186,7 +5186,8 @@ class TownMixin:
                     "last-known-reacquired", last_known,
                     owners=(ClaimOwner.SURVIVAL,),
                 )
-                if target.friendly and self._can_fight_in_dungeon(snapshot.floor_key[0]):
+                # The early return above keeps this in town: dungeon id 0.
+                if target.friendly and self._can_fight_in_dungeon(0):
                     self.last_reason = "town:kill-mob-friendly"
                     key = "+" + self._direction_key(player.position, target.position) + "y"
                     self._offer_execution(
