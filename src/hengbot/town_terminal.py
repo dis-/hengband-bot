@@ -55,9 +55,14 @@ class QuestEntryMaterial:
 
 
 def gather_quest_entry(policy: Any, board: Any, quest_id: int, *,
-                       commit: bool = False,
                        kill_descent: bool = False) -> QuestEntryMaterial:
-    """Read the entry material; ``commit`` only for the entry's own call site."""
+    """Read the entry material without the entry's commit writes.
+
+    The same conditions, in the same order, as ``_quest_equipment_entry_allowed``
+    (and ``_kill_quest_descent_allowed`` before it on the ``_fixed_quest_enter_key``
+    path); that call site keeps its commit (``_departure_block``,
+    ``_town_blocked_reason``, the Q34 ``quest:readiness`` reason).
+    """
     expedition = policy._morivant_full_identify
     if expedition is not None and expedition.temporary_deposits:
         return QuestEntryMaterial(quest_id, morivant_deposits=True)
@@ -67,7 +72,7 @@ def gather_quest_entry(policy: Any, board: Any, quest_id: int, *,
         sink: list[dict] = []
         ready = policy._evaluate_fixed_quest_readiness(
             board, quest_id, require_target_town=True,
-            commit=commit, telemetry_sink=sink)
+            commit=False, telemetry_sink=sink)
         return QuestEntryMaterial(
             quest_id, q34=True, kill_descent_allowed=kill_ok,
             readiness_reason=(
@@ -76,12 +81,8 @@ def gather_quest_entry(policy: Any, board: Any, quest_id: int, *,
     quest = board.quests.get(quest_id)
     depth = max(1, info.level if info is not None else quest.level if quest is not None else 1)
     codes: list[str] = []
-    if commit:
-        # The entry's own call site: the historical call and its commits.
-        ready = policy._equipment_departure_ready(board, destination_depth=depth)
-    else:
-        ready = policy._equipment_departure_ready(
-            board, destination_depth=depth, commit=False, codes=codes)
+    ready = policy._equipment_departure_ready(
+        board, destination_depth=depth, commit=False, codes=codes)
     return QuestEntryMaterial(
         quest_id, kill_descent_allowed=kill_ok,
         equipment_ready=ready, equipment_codes=tuple(codes))

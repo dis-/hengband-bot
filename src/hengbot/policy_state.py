@@ -399,7 +399,6 @@ def normalize_policy_state(restored, *, restart=False):
         ledger.__dict__.setdefault("rearmed_work_signatures", set())
         ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         ledger.__dict__.setdefault("purchase_churn_class_exclusions", set())
-        _restore_terminal_admission_ledger(ledger)
     # Older checkpoints can retain the two pre-ARB restocked-*-unreachable
     # values.  Normalize them at the compatibility boundary so restored work
     # follows the surviving canonical release path without keeping either
