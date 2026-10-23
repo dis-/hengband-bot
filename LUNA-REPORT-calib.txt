@@ -1,0 +1,59 @@
+LUNA-REPORT calib-required (branch calib-required-1023, base d2304637) - STOPPED: needs a decision
+
+SUMMARY
+The optimizer stopped on life-014 because the character gained mutation 65 (PUNY, STR -4)
+between 10-21 08:18 and 08:56. Calibration is not "never requested": the periodic C-screen
+dump is posted every 180 s and read, and every one is refused by the #88 first-step
+allowlist with "unsupported-mutation:65" (6187 matches in the current decision log, 10501 in
+.3; no other reason). Measured details, code path and the real-policy reproduction are in
+LUNA-DIAG-calib.txt.
+
+WHY STOP
+- 65 is design class B (plans/DESIGN-mutation-calibration-1019.md 4/5.1). The user approved
+  only class A (79 ids) as the first step (#88, 10-19); the memory note says class B is the
+  next stage. Implementing it adds the MUTATION_STAT_BONUS table (a new constant) and the
+  B derivation rule, which this task forbids without a decision.
+- Allowlisting 65 alone does not work (measured): the live dump then fails with
+  "visible-modifier-mismatch", because the STR modifier column includes PUNY's -4.
+- With the design's B rule (M[STR] = -4, total = printed + M + equipment, displayed_modifier
+  compared against the printed race/class/personality only), the live STR/DEX/CON rows match
+  exactly (scratch feas.py), so the reviewed design does fix life-014.
+
+OPTIONS
+1. (Recommended) Implement the #88 design stage B as reviewed (5.2 steps 2-3: all 16 class-B
+   ids incl. ILL_NORM 74, review fixes such as the partition assertions), with the live
+   life-014 dump + character row (mutations [12,65]) as the recorded fixture and the
+   07-20 (69) dump for a second mutation; 93 stays refused.
+2. Narrower: only the stat-only B ids (64-73 except 74, 83-85, 90, 91 through the table);
+   ILL_NORM 74 stays refused until later.
+3. Keep refusing (status quo). life-014 keeps its current gear until it loses PUNY; the dump is
+   still posted and refused every 180 s.
+
+CHANGES / PINS / CONTROLS / REVERT-PROOF
+None: no source or test change (stopped before the fix). Only LUNA-DIAG-calib.txt and this
+report are committed. The recorded inputs for option 1 are in the session scratchpad:
+scratchpad/calib/live-bot-test.txt (dump 10-23 04:49:30), live-state-1750.jsonl (state.jsonl
+lines 1750-1770; line 1761 = character row, 1762 = board), repro.py, feas.py, and the two
+copied captures 20261021-085816-* and 20261023-042212-*.
+
+GUARD OUTPUTS (after commit 1aecb6d0; docs-only diff)
+[preflight] PREFLIGHT OK: 2 changed files, 0 findings (calib-required-1023 vs d2304637)
+
+[mutation] 0 source hunks, tests: tests.test_mutation_calibration
+[mutation] MUTATION OK: 0 of 0 hunks are not pinned by a test
+[mutation] recorded for 1aecb6d0
+
+(fast_tier started 06:14 after gate-lighttotal-1023 left the 70-minute window; its full suite
+was probably still running, so the machine was loaded: 660 s against the usual 200-280 s)
+[fast] 3657 fast tests (<2.0s in d2304637) + 0 changed modules, 4 shards
+Crashed shards: none
+Failures: test_control_client (3: id_mismatch_reconnects_and_retries,
+  mid_recv_failure_matches_base_close_and_reconnect_count, send_keys_returns_acknowledged_count),
+  test_dualwield_recorded.test_corrected_four_loadouts_and_real_optimizer_entry,
+  test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace
+Errors: test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder,
+  test_control_client.test_shadow_uses_state_history_without_redundant_messages_request
+Total: 3659 tests, 660.3s
+Classification: not (R). No source changed on this branch. Rerun alone
+(test_control_client, test_dualwield_recorded, AcceptedObservationRetryPins,
+Stage2aFollowBarrierPin): Ran 58 tests in 43.2s, OK -> timing under load.

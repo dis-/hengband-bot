@@ -117,21 +117,16 @@ class SheetNeutralMutationTest(unittest.TestCase):
 
     def test_reason_lists_only_the_ids_outside_the_allowlist(self):
         sheet, snapshot, character = recorded_equipped_inputs()
-        for mutations, reason in (([12, 69], "unsupported-mutation:69"),
+        # Owner decision 2026-10-23 (#88 stage 2, all of class B): class B is no longer refused.
+        for mutations, reason in (([12, 69], "mutation-symbol-mismatch"),
                                   ([93], "unsupported-mutation:93"),
                                   ([96], "unsupported-mutation:96"),
-                                  ([93, 12, 74, 1], "unsupported-mutation:74,93")):
+                                  ([93, 12, 74, 1], "unsupported-mutation:93")):
             with self.subTest(mutations=mutations):
                 with self.assertRaises(CharacterSheetUnavailable) as raised:
                     derive_equipped_calibration(sheet, snapshot,
                                                 dict(character, mutations=mutations))
                 self.assertEqual(str(raised.exception), reason)
-        for mutation in sorted(DESIGN_CLASS_B | DESIGN_CLASS_C):
-            with self.subTest(mutation=mutation):
-                with self.assertRaises(CharacterSheetUnavailable) as raised:
-                    derive_equipped_calibration(sheet, snapshot,
-                                                dict(character, mutations=[mutation]))
-                self.assertEqual(str(raised.exception), f"unsupported-mutation:{mutation}")
 
     def test_allowlist_is_the_design_partition(self):
         # The design's class B already holds ILL_NORM 74 (64..74 are eleven

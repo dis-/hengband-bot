@@ -1,0 +1,123 @@
+LUNA-REPORT light-total (#101, light type 6th, ROOT-FIX) - branch light-total-1023
+=================================================================================
+
+RESULT: implemented within the existing comparison (no new weight). One existing test changes its
+expected value (STOP item below). Commit 92aec127 (+ this report).
+
+MEASURED DIAGNOSIS
+- Game rule (C:\hengband\src):
+  - src/specific-object/torch.cpp:69-117 update_lite_radius(): cur_lite = sum over INVEN_WIELDING_SLOTS of
+    ItemEntity::get_lite_radius(); a torch/lantern with fuel <= 0 (and no TR_DARK_SOURCE) adds 0; then
+    cur_lite <= 0 && player->lite -> 1; cap 14; ANGEL +3 / DEMIGOD +6; tim_emission +lev/5; DARKNESS
+    dungeon caps at 1; < 0 -> 0.
+  - src/system/item/item-entity.cpp:1270-1298 get_lite_radius(): +1/+2/+3 for TR_LITE_1/2/3 unless
+    TR_DARK_SOURCE; -1/-2/-3 for TR_LITE_M1/M2/M3; ego LITE_SHINE +1.
+  - lib/edit: torch "LITE" (= TR_LITE_1, baseitem-tokens-table.cpp:87), lantern LITE_2, Feanor lamp LITE_2;
+    EgoDefinitions id 23 闇の (helms) = LITE_M1 + RES_DARK.
+- Board (life-014 capture 20261021-045344, turn 3446622): worn 闇の陣笠 [4,+6] known_flags [55,124], lamp
+  [56,78,86,122]; player.light_radius 1 = 2 - 1.
+- Live loadout report (life-014 jsonlog/loadout-report.jsonl 2026-10-21T04:58:41, same catalog): rank 1 worn
+  set (闇の陣笠) margin 2.546831, rank 3 鋼鉄ヘルメット [6,+5] set margin 2.553026 (higher). Both inside the
+  1% band; the current set won the "is current" tie breaker. Replayed on d2304637: same choice and metrics.
+  On this board RES_DARK models 0: the 闇の陣笠 set and the 金属帽子 [3,+7] set have identical metrics.
+- NEW FINDING (separate defect, not fixed): from 2026-10-21 08:18 the life-014 optimizer never ran:
+  loadout-report.jsonl last written 10-21 08:09, character-calibration.json 10-21 08:18 (Level 32);
+  bot-decisions.jsonl has 295 rows and .3 has 966 rows with "blockers": ["calibration-required"] and no
+  other blocker. So the 闇の陣笠 [4,-4] kept on the 10-22/10-23 dwell boards (Home: 星兜 [7,+5],
+  ★ホルヘンネス [5,+10]) is the blocked optimizer, not the comparison.
+
+SITE ENUMERATION (d2304637 + this branch)
+Compute/compare radius - routed through the one rule:
+  src/hengbot/equipment_optimizer.py:345 worn_light_radius(items)   THE RULE (new)
+  src/hengbot/equipment_optimizer.py:386 loadout_light_radius(loadout) = worn_light_radius(slots) (new)
+  src/hengbot/equipment_optimizer.py:326 permanent_light_radius   unchanged; now only the permanent-light term
+      inside worn_light_radius (kept: the #86 wall tests/recorded_loadout.py patches it)
+  equipment_optimizer.py:1095 _prefer light tuple            was permanent_light_radius(light slot)
+  equipment_optimizer.py:1365 _stable_operational_best key   was permanent_light_radius(light slot)
+  warrior_loadout_search.py:137 _item_dominance_parts vector was permanent_light_radius(item)
+      (also read by policy.py:15375 _plain_gear_armour_dominated, the #95 plain-gear junk rule)
+  warrior_loadout_search.py:304 _gear_state vector           was permanent_light_radius(light slot)
+  warrior_loadout_search.py:101 _loadout_value_signature     added: radius split copies (dedup; also
+      policy.py:15459/15484/15520 plain-gear keepers/signatures)
+Not radius computations (left unchanged):
+  equipment_optimizer.py:314 light_source_quality, 1198 _selection_equivalence_key (light rank only; the
+      tie inside one key is decided by _prefer, which reads the rule)
+  readiness / fuel / wield: policy_supply.py:119 _owns_usable_permanent_light, :404 _light_ready,
+      :423 _expedition_light_ready; policy_fundraising.py:390 _fundraising_light_ready; policy.py:13136
+      _find_light, :13163 _light_rank, :13171 _is_usable_light, :13177 _light_to_wield - presence, light rank
+      and fuel, no radius. Requiring total radius > 0 there would be a new departure conjunct (owner rule).
+  observed game value snapshot.light_radius (cur_lite, includes the player's own light and the floor cap):
+      policy.py:13318-13319 (monster seen within the light), policy_town.py:7711 (no light -> recall),
+      cli.py:1239 (log). Reading the game's value is preferred to recomputing it.
+
+PREDICATE AND ROUTING
+worn_light_radius: per worn item, a permanent light (tval 39, sval >= 2) adds permanent_light_radius(item);
+any other item adds -M1/-M2/-M3 and, unless TR_DARK_SOURCE, +LITE_1/2/3, over item.flags = known_flags only
+(unidentified flags not guessed). Not counted (documented): fuel (fuel lights count as burning; fuel stays
+with the supply/wield owners and is not a selection input), ego LITE_SHINE (no flag on the board), player /
+floor terms and the 0..14 clamp (left out so one item's darkness counts when compared alone).
+Optimizer: the total replaces the light-slot radius in the same two comparison places (#86), after
+light_source_quality and before the slot count / current-set tie breaker. No new constant or weight.
+
+STRUCTURAL CHECK (tests/test_light_total_radius.py SitesReadTheRuleTest, behavioural, no source text)
+Each site is run with the rule replaced (equipment_optimizer.loadout_light_radius, warrior_loadout_search.
+loadout_light_radius / worn_light_radius patched) and must follow the replacement: _prefer, _stable_operational_
+best, _compress_states, _deduplicate_slot_copies, _prune_dominated_catalog. A site computing its own radius
+does not follow and fails.
+
+PINS (tests/test_light_total_radius_recorded.py, fixture tests/fixtures/light-total-20261021.jsonl.gz
+sha a3591cf8..., calibration fixture = life-014 character-calibration.json; DECLARED CONSTRUCTED: the ~f row
+taken from 20261021-193733 row 1 onto a copy of row 0; the Home list adopted via consume_home_knowledge)
+- test_the_helmet_that_lowers_the_radius_is_not_selected: before (d2304637) 闇の陣笠 [4,+6] (radius 1,
+  margin 2.546831 = recorded); after home:65b3bfbbf227e45e:0 鋼鉄ヘルメット [6,+5] (radius 2, margin
+  2.553026 = recorded rank 3), only the head changes.
+- test_a_same_stat_helmet_that_keeps_the_radius_replaces_the_worn_one (constructed Home copy without
+  TR_LITE_M1, other Home helmets removed): before the worn one (copy deduplicated as identical); after the copy.
+CONTROLS
+- test_control_without_the_darkness_flag_the_worn_helmet_is_kept: worn helmet without TR_LITE_M1 -> the worn
+  helmet is kept with the recorded margin (same as d2304637).
+- #86 pins unchanged and passing: test_light_radius_wall_recorded (1), test_light_radius_rank_recorded (13),
+  test_optimizer_lamp_recorded (5). Also OK alone: test_dualwield_recorded, test_empty_armor_slot_fill,
+  test_equipment_margin_ratio_recorded, test_equipment_optimizer, test_home_equipment_disposal,
+  test_warrior_loadout_evaluator, test_warrior_loadout_search, test_warrior_optimization, test_town_work_contract.
+
+REVERT-PROOF: mutation_check below, every hunk caught. The recorded main pin is held by two hunks at once
+(_prefer drops the current 闇 set for the equal-metric 金属帽子 set; the field key ranks radius before the
+current-set tie), so each of those hunks is also pinned by the unit tests and the constructed copy test.
+
+STOP ITEM - existing test whose expected value changes (not edited)
+  test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_recorded_home_plain_gear_counts
+  old: ('plain-gear', 32): 7     new: no ('plain-gear', 32) entry (0); every other count unchanged.
+  Cause: the board (life-014 10-21 19:37) selects 闇の陣笠 [4,+4] (single-slot search local optimum; the
+  radius-2 sets evaluated there are 4.6% lower in margin), and the #95 rule calls a plain helmet junk only
+  when its _item_dominance_parts are dominated by the selected one. The radius term (闇 -1, plain 0) means no
+  plain helmet is dominated any more: each lights more than the selected helmet.
+  Options: (A) accept - re-pin the count without tval 32 (a helmet that keeps the radius is not "worse" than
+  a selected helmet that lowers it); (B) keep the junk count - the plain-gear junk comparison leaves the light
+  radius out (a declared exception to the one rule); (C) wall the test like #86 (its subject is junk, not the
+  light) with a pre-2026-10-23 rule.
+
+GUARDS (after commit 92aec127)
+preflight:
+  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (light-total-1023 vs d2304637)
+mutation_check --tests test_light_total_radius test_light_total_radius_recorded --record:
+  [mutation] 7 source hunks, tests: test_light_total_radius test_light_total_radius_recorded
+  [mutation] caught     src/hengbot/equipment_optimizer.py:342 (def worn_light_radius(...)): test_light_total_radius, test_light_total_radius_recorded
+  [mutation] caught     src/hengbot/equipment_optimizer.py:1092 (loadout_light_radius(candidate.loadout),): test_pairwise_preference_takes_the_larger_total, test_a_same_stat_helmet_that_keeps_the_radius_replaces_the_worn_one
+  [mutation] caught     src/hengbot/equipment_optimizer.py:1362 (loadout_light_radius(entry.loadout),): test_field_selection_takes_the_larger_total, test_a_same_stat_helmet_that_keeps_the_radius_replaces_the_worn_one
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:21 (loadout_light_radius,): test_catalog_prune_does_not_let_darkness_prune_light, test_copies_are_split_by_the_total, test_state_compression_keeps_the_larger_total, setUpClass
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:96 (# 「合計で比べる」 ...): test_copies_are_split_by_the_total, test_a_same_stat_helmet_that_keeps_the_radius_replaces_the_worn_one
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:134 (worn_light_radius((item,)),): test_catalog_prune_does_not_let_darkness_prune_light, setUpClass
+  [mutation] caught     src/hengbot/warrior_loadout_search.py:301 (loadout_light_radius(loadout),): test_state_compression_keeps_the_larger_total
+  [mutation] MUTATION OK: 0 of 7 hunks are not pinned by a test
+  [mutation] recorded for 92aec127
+fast_tier --shards 4:
+  [fast] 3657 fast tests (<2.0s in d2304637) + 2 changed modules, 4 shards
+  [fast] excluded 41 modules measured over 60s
+  Crashed shards: none / Failures: none / Errors: none / Total: 3670 tests, 314.3s
+  (test_junk_plain_gear_recorded is a slow module, not in the fast tier: its failure is the STOP item.)
+
+BOOKKEEPING: town work manifest regenerated (--write, 0 violations); town_producer_baseline.json /
+town_work_review.json: added worn_light_radius, loadout_light_radius; removed the entries the manifest
+reported stale (Loadout.item_at, permanent_light_radius). No new policy attribute (no checkpoint defaults).
+No census count changed. test_town_work_contract 9 OK.
