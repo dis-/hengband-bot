@@ -1,0 +1,110 @@
+LUNA-REPORT town-s2 (ROOT-FIX S2, town errand retired / owner-retired; branch town-claim-s2-1023 at 90947a65)
+Spec: plans/DESIGN-town-claim-rootfix-1023.md (S2).  Implementer: Claude Opus 5.5.
+
+STATUS: STOPPED by the task rule "If an existing test must change, STOP and report".
+Only S2 (c) is done.  The S2 exit (exception lists empty, structural checks strict, town rungs ENFORCE,
+direct producers behind the entry, departure/store/home codes) cannot be reached without changing the
+assertions of three existing tests at 90947a65 (all in tests/test_town_terminal_declarations.py, written
+by S1).  The census constants S1_SHADOW_CENSUS / S1_DIRECT_CENSUS are bookkeeping (allowed); the
+assertions below are not.
+
+EXISTING TESTS THAT S2 MUST CHANGE (name, old -> new, why)
+1. TerminalDeclarationTest.test_2_modes
+   old: assertEqual(enforce, {"_fixed_quest_key#1", "_fixed_quest_key#2"})
+   new: enforce == every TERMINALS key whose mode is not EXEMPT_SURVIVAL; town_terminal.SHADOW_RUNGS == set()
+   why: design 5.3 S2 exit "SHADOW list empty".  The only modes are ENFORCE / SHADOW / EXEMPT_SURVIVAL
+   (design 3.7 item 2), and EXEMPT_SURVIVAL is only for survival/detectors/bookkeeping, so the 90 SHADOW
+   rungs must become ENFORCE.  The old equality fails for the first rung that is moved.
+2. TerminalDeclarationTest.test_3_direct_producers_are_listed
+   old: assertIn("_town_special_key", direct)   (self-check that _town_special_key is a direct call)
+   new: direct == set()  and  DIRECT_PRODUCERS_S1 == frozenset()
+   why: design 3.6 item 3 / 5.3 "入口を通らない直接呼び出しを入口へ"; _town_special_key is one of them.
+3. TerminalDeclarationTest.test_4_codes_and_table_agree
+   old: assertEqual(set(REFUSAL_SERVERS), set(QUEST_ENTRY_CODES)); literal scan only over
+        verdict_quest_entry and _equipment_departure_refusal_codes
+   new: set(REFUSAL_SERVERS) == union of the declared code sets of every terminal (QUEST_ENTRY_CODES |
+        DEPARTURE_CODES (departure:<conjunct>) | STORE_BUY_CODES (churn-rejected ...) | HOME_WITHDRAW_CODES
+        (reservation-unavailable ...) | ...); the literal scan covers every verdict_* function
+   why: design 3.3 (1) "鍵の集合 == 宣言した集合の和" and 3.4 "S2 で足す行".  Any S2 code outside the
+        quest-entry set breaks the old equality.
+   Census (bookkeeping, will be reported when changed): S1_SHADOW_CENSUS 90 -> 0, S1_DIRECT_CENSUS 21 -> 0.
+
+COMMITS
+51ea25327 S2 (c): REFUSAL_SERVERS categories are _town_need_registry names (design 3.4 table):
+          identification-flow -> home-errand/identification-withdrawal, shop-buy/identification-source;
+          pack-space(-required:*) -> home-visit/space-deposit, shop-sell/organization-sale, town-plan;
+          overweight -> shop-sell/overweight-surplus, home-visit/weight-overload.
+          New test module tests/test_town_terminal_server_categories.py (2 tests).
+          No behaviour change: _live_servers reads only the family (categories matter once progressing (ii)
+          is in).
+63dc48a59 manifest regenerated (preflight).
+
+S2 EXIT CHECKS (measured)
+- exception lists empty / structural checks strict: NOT MET (blocked, see above).  SHADOW 90, DIRECT 21,
+  PARALLEL 2 unchanged.
+- town rungs with a real intended_terminal + admission: NOT DONE.
+- descent never targets a quest entrance: measured in code, not changed.  _descent_step's targets are
+  _is_descent_target (rejects _step_raises_unintended_confirm = has_quest_enter, #102) plus, in the
+  dungeon only, remembered downstairs; a committed target survives only while it is in that set.  The
+  remaining WAIT path is the BFS route crossing an entrance cell -> _step_toward "nav:confirm-cell-avoided"
+  (policy_navigation.py:1871-1880), i.e. the path, not the target.  No pin written.
+- supplier counting through the predicate: NOT DONE.  Measured root of the S type in
+  _departure_supplier_core (policy_town.py:4112-4121): a store is a supplier when unattempted, Home, or
+  "remembered_affordable" = ANY ware on the remembered page within gold, not a ware that supplies the need
+  (the supply ledger's _supply_page_offers already filters by supply and churn, #68; the
+  departure-blocking needs path does not).
+- departure servers incl. stock-out mining, captures #63 #64 #66 #68 #94 #76, n1-a window, timing:
+  NOT DONE (no behaviour change in this branch, so all replays equal 90947a65 by construction).
+- c4-a life-016 captures (read only, copied to scratch):
+  20261023-215434 / -215541 town-blocked-owner-retired-burst, Lv7, gold 51 / 203, HP full,
+  fundraising mode "prepare", kit_secured false, Word of Recall 0/9, digging tool 0/2, oil 0/5.
+  Plan stops ["General Store"] skipped "shelf-evidence"; _recall_restock_key waits R300 at the temple
+  14 times (decisions 833-878, ~3,000 game turns each), then town:kill-mob-approach / melee:choke-reposition
+  ping-pong; the retired owner is "misc" (arbiter retirement_set ["misc"], tenure 7, progress false).
+  No owned digging tool + treasure detection, so the recall-stockout mining branch (policy.py:15770-15785)
+  never starts, and the wait is unbounded because restock cannot make recall affordable at 51 gold.
+  Shape: N/S type -- the recall terminal is refused for gold (not stock-out), its server (fundraising) is
+  itself refused (kit unaffordable), nobody is declared.  Under the design this becomes a named close
+  (terminal-refused-unserved) and the A0 minimum departure.  Note for the owner's rules: 10-03 allowed
+  scavenging without detection when not one scroll can be bought ("1巻も買えない"); 10-15 added stock-out.
+  Whether "unaffordable recall" alone leads to the L1 walk-in should be checked against those decisions
+  when S2 declares departure:recall_departure_ready.
+
+PINS / CONTROLS
+- tests.test_town_terminal_server_categories: design-table rows (fails on revert of 51ea25327); control:
+  every named category is a registry name.
+- Existing S1 modules unchanged and green: test_town_terminal_declarations, _n1a_recorded (18 tests with
+  the new module).
+
+REVERT-PROOF
+mutation_check: 2 source hunks, 0 unpinned (both caught by test_design_table_rows_carry_registry_categories).
+
+NEW POLICY ATTRIBUTES: none.  Existing tests edited: none.
+
+WHAT REMAINS (S2, after approval of the three test changes)
+1. (a) fold _cross_town_shopping_holds_quest_travel into code cross-town-shopping-in-progress (it has a
+   side effect, _observe_cross_town_shopping_arrival, which must stay outside gather) and
+   _fixed_quest_prepare_return_required into rung #1's intended_terminal (rung #1 needs "not applicable"
+   distinct from "no terminal"; today None means "do not judge" and would let rung #1 run).  The kill-quest
+   TAKEN case returns None today and depends on the descent terminal.
+2. (b) progressing (ii): NeedSpec.produces + reachable supplier + supplier verdict ADMIT.  Will change the
+   S1 expectations "terminal-refused-unserved:identification-flow" on 183418/183436 if an identification
+   need produces there (to be measured).
+3. Terminal kinds with gather/verdict/commit: store-buy (churn-rejected, page offers the need, gold),
+   home-withdraw (reservation-unavailable), home-deposit, identification, curse-enchant, cross-town,
+   fundraising, departure (departure:<conjunct> incl. identify_staff_ready -> shop-buy/identify-staff +
+   supply-stockout-mining, recall_departure_ready -> shop-buy/recall + fundraising), descent.
+4. _departure_supplier_core and the plan stop choice through the store-buy / home-withdraw verdict.
+5. 21 direct producers behind named entries; 90 SHADOW rungs ENFORCE (non-town rungs declare a terminal
+   function that returns None off a town terminal).
+6. Replays (#63 #64 #66 #68 #94 #76, n1-a window, c4-a life-016), timing 1.1x.
+
+GUARDS (after the last commit)
+preflight:  [preflight] PREFLIGHT OK: 3 changed files, 0 findings (town-claim-s2-1023 vs 90947a65)
+            (first run: FAIL manifest stale -> regenerated and committed, then OK)
+mutation:   [mutation] 2 source hunks, tests: tests.test_town_terminal_server_categories
+            caught src/hengbot/town_terminal.py:155, :186
+            [mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+            [mutation] recorded for 63dc48a5
+fast tier:  3677 fast tests (<2.0s in 90947a650) + 1 changed modules, 4 shards
+            Crashed shards: none / Failures: none / Errors: none / Total: 3685 tests, 205.2s
