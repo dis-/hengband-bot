@@ -2135,7 +2135,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "24c438e0b6fa9c10cf5e574d3774bfcd9d46f5020510e2e2b63afd1e2f494c0b"
+    "ast_sha256": "c27ae1ace7a23c7946de0df1052f1c7352f9ade8f6de4fdbff0416086ef447d0"
   },
   "policy.py:HengbotPolicy._device_food_reserve_slot": {
     "classification": "data",

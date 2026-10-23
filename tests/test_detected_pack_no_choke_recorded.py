@@ -1,4 +1,4 @@
-"""The anticipatory retreat with no covered cell keeps the decision (n1-a life-001).
+"""A detected pack with no covered cell reachable is not retreated from (n1-a life-001).
 
 Live incident: Linux soak n1-a, life-001 (Lv28 Zombie Warrior), Angband 20F
 (floor (1, 20, 0)), 2026-10-23 14:26:43 / 14:26:50 / 14:26:57: the loop
@@ -10,10 +10,10 @@ retreated; no covered cell was reachable, so it took the flee step '3' to
 (18,16) and committed to nothing.  There only one kobold was inside the window,
 the owner fell silent and `seek-loot` walked '7' back to (17,15).
 
-Fix: the flee fallback commits to the cell its step reaches; when the retreat
-arrives there with its pack still perceived and outside the window, the
-bounded hold (owner decision 2026-09-20: brace and wait, release after 50
-turns without sight) owns the wait instead of handing back to loot.
+Fix (owner decision 2026-10-23, "隘路が無ければ後退しない"): when no covered
+cell is reachable the preparation does not retreat at all - no flee step and no
+wait in the open; the ordinary producers act.  The 2026-09-20 hold stays for an
+actual choke only.
 
 Fixture tests/fixtures/detected-pack-flee-loop-20261023-state.jsonl.gz: the
 121 `player_turn` state rows (turns 1680749..1681926) of the captures
@@ -25,7 +25,8 @@ the same pair on every following pair of boards up to the stop.
 
 DECLARED CONSTRUCTED: the closed-loop walk places the player of each recorded
 board at the cell the replayed policy stepped to (the pack, the walls and the
-loot do not change across the recorded boards); the control removes the
+loot do not change across the recorded boards, and the frozen boards neither
+remove picked-up items nor reveal new ground); the control removes the
 detected pack from a recorded board.
 """
 
@@ -40,11 +41,7 @@ import unittest
 from hengbot.cli import LOOP_WINDOW, _cell_loop_guard_applies, _is_looping
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy import WAIT_KEY
-from hengbot.policy_constants import (
-    DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
-    SWARM_LOOKAHEAD,
-)
+from hengbot.policy_constants import SWARM_LOOKAHEAD
 from test_esp_threat_rest_recorded import EDIT
 from test_floor_dwell_seen_floor_recorded import FIXTURES, _Replay
 
@@ -66,7 +63,7 @@ def _states() -> list[str]:
     return gzip.decompress(data).decode("utf-8").splitlines()
 
 
-class DetectedPackFleeHoldRecordedTest(unittest.TestCase):
+class DetectedPackNoChokeRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.states = _states()
@@ -86,13 +83,12 @@ class DetectedPackFleeHoldRecordedTest(unittest.TestCase):
             and monster.distance <= SWARM_LOOKAHEAD
         ]
 
-    def test_recorded_onset_is_a_flee_without_a_covered_cell(self):
+    def test_recorded_onset_without_a_covered_cell_does_not_retreat(self):
         replay = self._replay(ONSET)
         board, key, reason = replay.decide(self.states[ONSET])
         policy = replay.policy
         self.assertEqual(board.turn, 1680784)
         self.assertEqual(board.player.position, WINDOW_CELL)
-        self.assertEqual((key, reason), ("3", "detected:prepare-choke"))
         converging = self._converging(policy, board)
         self.assertEqual(
             sorted((m.index, m.distance) for m in converging), [(7, 2), (10, 3)]
@@ -102,24 +98,27 @@ class DetectedPackFleeHoldRecordedTest(unittest.TestCase):
         )
         self.assertIsNone(destination)
         self.assertEqual(step, FLEE_CELL)
+        # Recorded: '3' detected:prepare-choke (the flee step to (18,16)).
+        # Now the loot owner keeps walking to the Fauchard at (18,14).
+        self.assertEqual((key, reason), ("1", "seek-loot"))
+        self.assertIsNone(policy._detected_threat_route)
+        self.assertIsNone(policy._detected_threat_hold)
 
-    def test_recorded_flee_cell_boards_are_not_handed_back_to_loot(self):
-        # Open loop: every recorded board at (18,16) after the onset was a
-        # seek-loot '7' back into the window.  The retreat keeps it; with one
-        # kobold still inside the window it keeps retreating (a step, not a
-        # wait), which is the pre-existing behaviour for a pack in the window.
+    def test_recorded_window_boards_never_retreat_or_wait(self):
+        # Open loop over the recorded alternation (boards 4..41): the recorded
+        # decisions at (17,15) were 'detected:prepare-choke' flee steps.
         replay = self._replay(ONSET)
         rows = []
         for line in self.states[ONSET:42]:
             board, key, reason = replay.decide(line)
             rows.append((board.player.position, key, reason))
-        flee_rows = [row for row in rows if row[0] == FLEE_CELL]
-        self.assertGreaterEqual(len(flee_rows), 13)
-        for position, key, reason in flee_rows:
-            with self.subTest(position=position):
-                self.assertNotEqual(reason, "seek-loot")
-                self.assertEqual(reason, "detected:prepare-choke")
-                self.assertIn(key, MOVES)
+        window_rows = [row for row in rows if row[0] == WINDOW_CELL]
+        self.assertGreaterEqual(len(window_rows), 15)
+        for position, key, reason in rows:
+            with self.subTest(position=position, key=key):
+                self.assertNotIn(
+                    reason, {"detected:prepare-choke", "summoner:hold-choke"}
+                )
 
     def _closed_loop(self):
         replay = self._replay(ONSET)
@@ -138,7 +137,7 @@ class DetectedPackFleeHoldRecordedTest(unittest.TestCase):
             position = Position(here.y + dy, here.x + dx)
         return walk
 
-    def test_closed_loop_holds_then_releases_without_tripping_the_loop_detector(self):
+    def test_closed_loop_collects_loot_without_tripping_the_loop_detector(self):
         walk = self._closed_loop()
         recent_cells = []
         previous = None
@@ -155,25 +154,17 @@ class DetectedPackFleeHoldRecordedTest(unittest.TestCase):
         self.assertEqual(fired, [])
 
         reasons = [reason for _board, _key, reason, _hold in walk]
-        self.assertIn("summoner:hold-choke", reasons)
-        # While a hold is live, nothing walks back into the window cell.
-        for board, key, reason, hold in walk:
-            if reason == "summoner:hold-choke":
-                self.assertEqual(key, WAIT_KEY)
-                self.assertNotEqual(board.player.position, WINDOW_CELL)
-        # The hold ends at the owner's 50-turn bound and does not re-arm on
-        # this floor: the loot is then collected.
-        last_hold = max(
-            index for index, row in enumerate(walk)
-            if row[2] == "summoner:hold-choke"
-        )
-        start = walk[last_hold][3][1]
-        released = walk[last_hold + 1]
-        self.assertGreater(released[0].turn - start, DETECTED_THREAT_HOLD_MAX_GAME_TURNS)
-        after = [row[2] for row in walk[last_hold + 1:]]
-        self.assertNotIn("detected:prepare-choke", after)
-        self.assertNotIn("summoner:hold-choke", after)
-        self.assertIn("pickup", after)
+        self.assertNotIn("detected:prepare-choke", reasons)
+        self.assertNotIn("summoner:hold-choke", reasons)
+        # Instead: the Fauchard (18,14) and the bolts (19,13) are picked up,
+        # then exploration continues.
+        pickups = [
+            board.player.position
+            for board, key, reason, _hold in walk if reason == "pickup"
+        ]
+        self.assertEqual(pickups, [Position(18, 14), Position(19, 13)])
+        self.assertEqual(reasons[0], "seek-loot")
+        self.assertIn("explore", reasons)
 
     def test_control_recorded_board_without_the_pack_is_loot(self):
         replay = self._replay(ONSET)
