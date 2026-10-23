@@ -6579,6 +6579,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else "fixedquest:request:approach" if family == "quest-request"
                 else "shop:approach")
             self._declare_reach(goal, family=family)
+            if self._step_raises_unintended_confirm(snapshot, next_cell):
+                # #102: the route's fallback attempt may cross a quest entrance;
+                # refuse that step exactly as _step_toward does.
+                self.last_reason = "nav:confirm-cell-avoided"
+                return WAIT_KEY
             key = self._direction_key(snapshot.player.position, next_cell)
             self._offer_execution(
                 key, producer=family, work_id=declaration.work_id,
@@ -6670,6 +6675,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if step is not None:
                     self.last_reason = "shop:approach"
                     self._declare_reach(goal, family="store-router")
+                    if self._step_raises_unintended_confirm(snapshot, step):
+                        # #102: the route's fallback attempt may cross a quest entrance;
+                        # refuse that step exactly as _step_toward does.
+                        self.last_reason = "nav:confirm-cell-avoided"
+                        return WAIT_KEY
                     key = self._direction_key(snapshot.player.position, step)
                     self._offer_execution(
                         key, producer="store-router",
@@ -6706,6 +6716,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if step is not None:
                 self.last_reason = "shop:approach"
                 self._declare_reach(goal, family="store-router")
+                if self._step_raises_unintended_confirm(snapshot, step):
+                    # #102: the route's fallback attempt may cross a quest entrance;
+                    # refuse that step exactly as _step_toward does.
+                    self.last_reason = "nav:confirm-cell-avoided"
+                    return WAIT_KEY
                 key = self._direction_key(snapshot.player.position, step)
                 self._offer_execution(
                     key, producer="store-router",

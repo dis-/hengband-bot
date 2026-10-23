@@ -30,8 +30,10 @@ import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from hengbot.claim_register import GOAL_REACH as CLAIM_GOAL_REACH
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import LIVELOCK_LIMIT, HengbotPolicy
 from hengbot.policy_constants import WAIT_KEY
@@ -178,6 +180,95 @@ class QuestDoorConfirmRecordedTest(unittest.TestCase):
             key = policy._fixed_quest_enter_key(board, QUEST_ID)
         self.assertEqual((key, policy.last_reason), ("3", "fixedquest:enter"))
 
+    # DECLARED CONSTRUCTED: the seven other neighbours of (24,46) on board 0
+    # are walled, so the only way to (26,48) is across the entrance.  The
+    # routers' first attempt (modal cells blocked) finds nothing and their
+    # second attempt crosses (25,47).  Holders are minimal declarations.
+    POCKET = (
+        Position(23, 45), Position(23, 46), Position(23, 47), Position(24, 45),
+        Position(24, 47), Position(25, 45), Position(25, 46),
+    )
+    BEYOND = Position(26, 48)
+
+    def pocket_board(self, *, goal_entrance=False):
+        board = self.boards[0]
+        grids = dict(board.grids)
+        for cell in self.POCKET:
+            grids[cell] = replace(grids[cell], passable=False, wall=True)
+        if goal_entrance:
+            # (26,48) is not emitted on the recorded board; a dungeon
+            # entrance grid is placed there.
+            grids[self.BEYOND] = replace(
+                grids[ENTRANCE], position=self.BEYOND, has_quest_enter=False,
+                quest_id=-1, has_entrance=True, entrance_dungeon_id=-2,
+            )
+        return replace(board, grids=grids)
+
+    def test_pocket_route_falls_back_across_the_entrance(self):
+        board = self.pocket_board()
+        policy = self.policy(board)
+        self.assertIsNone(
+            policy._town_map_goal_step(
+                board, self.BEYOND, allow_entrance_fallback=False
+            )
+        )
+        self.assertEqual(policy._town_map_goal_step(board, self.BEYOND), ENTRANCE)
+
+    def test_declared_route_resume_refuses_the_entrance(self):
+        # ac203b36: '3' (the bare route step onto the entrance).
+        board = self.pocket_board()
+        policy = self.policy(board)
+        holder = SimpleNamespace(
+            owner=SimpleNamespace(value="store-router"),
+            claim_id=1,
+            execution=SimpleNamespace(
+                state="acting", next_step="route.resume",
+                arguments=("store", (self.BEYOND.y, self.BEYOND.x)),
+                work_id="route:store:26,48", expected_effect="arrive:26,48",
+                budget_ref="town-travel", continuation="route.resume",
+                evidence=None, cause=None,
+            ),
+        )
+        with patch.object(
+            HengbotPolicy, "_town_holder_structural_stop", return_value=None
+        ):
+            key = policy._town_holder_declared_key(holder, board)
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "nav:confirm-cell-avoided"))
+
+    def wait_holder(self):
+        return SimpleNamespace(
+            owner=SimpleNamespace(value="store-router"),
+            claim_id=1,
+            goal=SimpleNamespace(
+                kind=CLAIM_GOAL_REACH, cell=(self.BEYOND.y, self.BEYOND.x)
+            ),
+            execution=None,
+        )
+
+    def test_store_router_route_refuses_the_entrance(self):
+        # ac203b36: '3' (policy.py:6709 bare step).
+        board = self.pocket_board()
+        policy = self.policy(board)
+        key = policy._town_holder_wait_key(self.wait_holder(), board)
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "nav:confirm-cell-avoided"))
+
+    def test_store_router_entrance_route_refuses_the_entrance(self):
+        # ac203b36: '3' (policy.py:6673 bare step toward a dungeon entrance).
+        board = self.pocket_board(goal_entrance=True)
+        policy = self.policy(board)
+        with patch.object(
+            HengbotPolicy, "_active_dungeon_target", return_value=-2
+        ), patch.object(HengbotPolicy, "_town_travel_key", return_value=None):
+            key = policy._town_holder_wait_key(self.wait_holder(), board)
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "nav:confirm-cell-avoided"))
+
+    def test_control_store_router_open_route_unchanged(self):
+        board = self.boards[0]
+        policy = self.policy(board)
+        key = policy._town_holder_wait_key(self.wait_holder(), board)
+        self.assertNotIn(key, (WAIT_KEY, "3"))
+        self.assertEqual(policy.last_reason, "shop:approach")
+
     def test_control_ordinary_town_step_unchanged(self):
         for board in self.boards:
             policy = self.policy(board)
@@ -211,13 +302,9 @@ NOT_A_WALK = {
     "_town_kill_mob_key": "'+' + dir + 'y' attack on a town monster",
     "decide": "quest floor melee on an adjacent monster",
 }
-# Bare town walks that route with the modal-cell avoidance of
-# _town_map_goal_route / _nearest_goal_route / the boxed breakout candidate
-# filter (policy_town.py, has_quest_enter excluded).  Residual: the routers'
-# second attempt may cross a modal cell; recorded in LUNA-REPORT-qdoor.txt.
+# The boxed town breakout chooses only candidates that exclude
+# has_quest_enter (policy_town.py _boxed_town_breakout_key candidate filter).
 TOWN_ROUTED_RESIDUAL = {
-    "_town_holder_declared_key",
-    "_town_holder_wait_key",
     "_boxed_town_breakout_key",
 }
 STEP_ENTRY = "_step_toward"
@@ -256,7 +343,10 @@ class StepEntryStructureTest(unittest.TestCase):
             and name not in TOWN_ROUTED_RESIDUAL
         )
         self.assertEqual(bypass, [])
-        self.assertIn(PREDICATE, walkers["_break_livelock"])
+        for name in (
+            "_break_livelock", "_town_holder_declared_key", "_town_holder_wait_key",
+        ):
+            self.assertIn(PREDICATE, walkers[name])
 
 
 if __name__ == "__main__":
