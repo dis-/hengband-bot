@@ -26,7 +26,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
-from hengbot.model import STORE_HOME
+from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
 
 
@@ -846,6 +846,72 @@ _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
     "home-atomic-deposit": lambda policy, board: verdict_home_atomic_deposit(
         gather_home_atomic_deposit(policy, board)),
 }
+
+
+# --- The refusal path's commit (design 3.2 item 3) -----------------------
+# A refused ENFORCE terminal skips its producer, so the confirmation its body
+# makes on the same refusal moves here: the entry performs it instead of the
+# skipped body (same writes, same execution offer).  SHADOW rungs still run
+# the body, which commits itself.
+
+def _commit_identify_equipped(policy: Any, board: Any, terminal: TerminalRef,
+                              admission: Admission) -> None:
+    target = equipped_identification_target(policy, board)
+    signature = terminal.args[0]
+    full = bool(target is not None and target.known)
+    if full and STORE_ALCHEMIST in policy._town_store_attempted:
+        policy._defer_full_identification(signature)
+    else:
+        policy._identification_candidate = signature
+        policy._request_identification("full" if full else "normal")
+    policy._offer_execution(
+        None, producer="identification",
+        work_id=f"identify:equipped:{signature}",
+        next_step="identification.acquire-source",
+        arguments=("full" if full else "normal", signature),
+        expected_effect="reliable-identification-source-ready",
+    )
+
+
+def _commit_identify_device(policy: Any, board: Any, terminal: TerminalRef,
+                            admission: Admission) -> None:
+    policy._request_identification("normal")
+    policy._device_identification_candidate = terminal.args[0]
+    policy._offer_execution(
+        None, producer="identification", work_id="identify:device",
+        next_step="identification.acquire-source",
+        arguments=("normal", terminal.args[0]),
+        expected_effect="reliable-identification-source-ready",
+    )
+
+
+def _commit_curse_remove(policy: Any, board: Any, terminal: TerminalRef,
+                         admission: Admission) -> None:
+    # The body's no-step causes are the verdict's codes.
+    policy._offer_execution_no_step(
+        producer="curse-enchant", work_id="remove-curse", cause=admission.codes[0])
+
+
+def _commit_enchant_launcher(policy: Any, board: Any, terminal: TerminalRef,
+                             admission: Admission) -> None:
+    policy._offer_execution_no_step(
+        producer="curse-enchant", work_id="enchant-launcher",
+        cause="enchant-context-unavailable")
+
+
+REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] = {
+    "identify-equipped": _commit_identify_equipped,
+    "identify-device": _commit_identify_device,
+    "curse-remove": _commit_curse_remove,
+    "enchant-launcher": _commit_enchant_launcher,
+}
+
+
+def commit_refusal(policy: Any, board: Any, terminal: TerminalRef | None) -> None:
+    """Called by the entry when ``may_take_board`` refused (ENFORCE only)."""
+    commit = REFUSAL_COMMITS.get(terminal.terminal_id) if terminal is not None else None
+    if commit is not None:
+        commit(policy, board, terminal, terminal_admission(policy, board, terminal))
 
 
 # --- The board verdict (design 3.5) --------------------------------------

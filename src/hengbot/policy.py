@@ -475,6 +475,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.town_terminal import (
     NOT_APPLICABLE,
+    commit_refusal,
     gather_quest_work,
     may_take_board,
     rung_terminal,
@@ -5934,6 +5935,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # The rung's terminal admission precedes every hold, on or off the
         # --enforce-town-claims switch (town_terminal, design 3.6).
         if not may_take_board(self, rung_name, rung.family, board, terminal):
+            # The skipped body's confirmation on this refusal (design 3.2).
+            commit_refusal(self, board, terminal)
             return None
         session = self._equipment_transaction_session
         holder = self._claim_errand_hold("__none__", enforced=True, arrival_board=board)
