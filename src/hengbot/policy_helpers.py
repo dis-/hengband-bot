@@ -368,13 +368,15 @@ class PolicyHelpersMixin:
         return self._junk_class(self.__dict__.get("_junk_board"), item) is not None
     @staticmethod
     def _floor_pile_is_worthless(grid) -> bool:
-        """A visible pile of only skeletons / junk is not loot (#70).
+        """A visible pile of only skeletons / junk / remains is not loot (#70).
 
-        Corpses (tval 10) stay loot: a bounty is only visible once carried,
-        where the dungeon junk disposal destroys every other remain.
+        Owner 2026-10-23 (#101): remains (tval 10) are told apart by the game's
+        auto-pickup -- the character's picktype.prf picks up a wanted
+        (賞金首の) corpse or skeleton when the bot steps on it
+        (autopick_pickup_items, autopick.cpp) -- so the bot never walks to one.
         """
         return bool(grid.object_tvals) and all(
-            tval in {1, 3} for tval in grid.object_tvals)
+            tval in {1, 3, 10} for tval in grid.object_tvals)
     def _floor_pile_is_junk(self, snapshot: Snapshot, grid) -> bool:
         """A visible pile whose tvals alone are junk is not loot.
 

@@ -1,0 +1,149 @@
+LUNA-DIAG floor-dwell (Issue #101) - branch floor-dwell-1023 @ 08257674
+=======================================================================
+
+Sources (read-only, Linux soak c4-a/life-014):
+- the 10 captures */captures/*-stall-floor-dwell-* (bot-decisions.jsonl.gz, state.jsonl.gz, bot-stderr.log);
+  each capture holds only the last ~4 minutes (231-300 decision rows, ~100 state rows).
+- the full rotated decision logs jsonlog/bot-decisions.jsonl{,.1,.4,.6} cover the whole 30-minute
+  window for 5 stops (10-22 07:11, 08:04, 12:48, 21:29, 10-23 00:22). The 10-21 stops and
+  10-22 00:47 / 01:29 are older than the oldest rotated file (.7 ends 10-22 06:16): tail only.
+- c4-a/events.jsonl (runner heartbeats / restarts), guard-tools/linux_soak.py 415-428.
+
+Runner rule (measured from linux_soak.py): dwell key = (json of state.floor incl. "feeling",
+player.level); restart when the key is unchanged for DWELL_MINUTES=30 of WALL time
+(time.time()), reason = most common decision reason in the last 1 MB of bot-decisions.jsonl.
+
+Per capture (measured; tail = last ~4 min of the capture, full = whole window from the live log)
+------------------------------------------------------------------------------------------------
+cap               floor        Lv  light map known/visited/frontiers (tail start->end)  stairs dn/up  pack free
+10-21 15:22 explo Angband 30F  33  1  1365/633/672 -> 1532/743/800 (+167 known)          0/0          -
+10-21 16:40 loot  Angband 30F  33  1  2428/1011/1989 -> 2907/1152/2340 (+479)            0/1          0..2, 7 pickup->destroy cycles in tail
+10-21 23:01 explo Angband 30F  33  1  1250/646/684 -> 1250/646/684 (+0, 204 cells walked) 0/0          -
+10-22 00:47 explo Angband 30F  33  1  1184/575/645 -> 1185/576/645 (+1, 161 cells walked) 1/1          -
+10-22 01:29 explo Angband 30F  34  1  1346/612/703 -> 1512/696/765 (+166)                2/1          -
+10-22 07:11 explo Angband 30F  34  1  full: 06:40-07:11, 1875 steps on 1079 cells; 06:40-06:49 617 explore steps,
+                                       596 on already-walked cells, known +1 (1956->1957)   1/2          1 (0 in 14 rows)
+10-22 08:04 explo Angband 29F  34  1  full: 07:33-08:04, 1868 steps on 784 cells; 08:00-08:04 233 explore steps,
+                                       222 revisits, known +10                              0/0          1 (0 in 17 rows)
+10-22 12:48 explo Forest  30F  35  1  full: decisions 12:00-12:06:07, then NONE until 12:48:34 - see group B
+10-22 21:29 explo Angband 30F  36  1  full: 20:58-21:29, 22190 game turns, known 157->2052, visited 42->911,
+                                       frontiers 88->1086; 21:10-21:19 known only +64 (373/468 explore steps revisits)
+                                                                                         0/0          1 in 1025 rows, 0 in 16
+10-23 00:22 explo Angband 30F  36  1  full: 23:52-00:22, 22452 game turns, known 267->1565, visited 85->805,
+                                       frontiers 126->867; 1050/1779 explore steps revisits 0/0         1 (0 in 6 rows)
+
+Common facts (all 10): light_radius 1 in every row (light = 不朽の眼のフェアノールのランプ, radius 2,
+minus 1 from the equipped helmet 闇の陣笠 {r暗;闇}, TR_LITE_M1: src/system/item/item-entity.cpp
+get_lite_radius); 0-2 visible hostiles; floors 198x44 or 132x66; reason 'explore' 63-98 % of rows;
+no rung other than _explore_step#2 dominates; no warning-refused cells (#93) and only 0-6
+unseen:reverse-choke rows per tail (#91) - neither the step-refusal type nor the unseen area is
+what keeps the bot on the floor.
+
+Why the bot never leaves (code at 08257674 + measured row fields)
+-----------------------------------------------------------------
+1. Descent is closed at the depth cap: required_depth_gates(31) = {resist_chaos}
+   (policy_constants.DEPTH_ABILITY_REQUIREMENTS 31-39); depth_safety.has in every row lacks
+   resist_chaos. So 30F is the deepest permitted floor; a known down stair (00:47, 01:29, 07:11)
+   is never a descent target. (08:04 is 29F: no down stair was ever seen in the window.)
+2. The floor is left only by (a) a town-return trigger or (b) rule 9 in policy.py ~12376
+   "Nothing to explore: take any known stairs" which runs only after exploration, probing,
+   secret-wall search all return nothing. With light radius 1 on a 198x44 floor the
+   frontier set GROWS during the 30 minutes (e.g. 126 -> 867, 88 -> 1086), so (b) is never reached.
+3. The return trigger 'pack-full' (policy_town._should_start_town_return: len(inventory) >= 23)
+   is pre-empted by the in-dungeon destroy rungs: the pack sits at 22/23 (free 1) for most of every
+   full window; each new pickup fills it (free 0 for 6-17 rows) and inventory:destroy-worthless-junk
+   / destroy-disposable-item / trigger-autodestroy frees one slot again (e.g. 21:29 window:
+   44 pickups, 10 + 4 destroys, 12 autodestroys; picked-then-destroyed items: 洞窟オークの骨,
+   洞窟オークの死体, グレイ・ベトベトの死体, cursed 硬革ブーツ, トラップ感知の巻物, 回復モンスターの魔法棒).
+   Destroying remains before a return is the owner decision of 10-18 (#70); here it also
+   keeps the return from ever starting.
+4. Within the window much walking is repeated room sweeps: cells walked 2-3 times on average
+   (visit histogram 07:11 window: 625x1, 199x2, 229x3; 00:22 window: 186x1, 351x2, 66x3, ... up to 12),
+   e.g. 06:40-06:49 the same room rows 6-30 / cols 5-23 was swept three times in boustrophedon.
+   INFERRED (not measured, no policy internals logged): torch-lit floor in dark rooms is 'known'
+   but not 'marked', and the frontier predicate (_is_remembered_frontier, policy.py ~20066) tests
+   neighbours against _marked_t, so a swept dark-room cell stays a frontier until
+   FRONTIER_EXHAUST_VISITS (8) visits or until probed. map_memory marked is only 20-50 % of known
+   in every capture (e.g. 1565 known / 711 marked, 2907 / 570), consistent with this.
+
+Grouping by cause
+-----------------
+A (9 of 10: all but 12:48) - depth-capped floor that cannot end: descent gated (resist_chaos),
+  exploration with radius-1 light never exhausts the frontier, and the pack-full return is
+  pre-empted by destroying the item just picked up. Sub-shapes inside A: steady new coverage
+  (15:22, 16:40, 01:29, 21:29, 00:22) and no-progress re-sweeps (23:01, 00:47, 07:11 06:4x,
+  08:04 08:0x). Same root: no owner rule ends a depth-capped floor before full exploration.
+B (1 of 10: 10-22 12:48) - runner measurement artifact: the bot made decisions 12:00-12:06:07, then
+  none until 12:48:34; runner heartbeats due 12:11 and 12:41 are missing in events.jsonl
+  (11:41:43 -> 12:48:35), so the whole soak was suspended ~42 min and the wall-clock dwell timer
+  fired on resume (bot time on that floor ~6 min). Not a bot defect.
+
+Root-type ledger
+----------------
+- 'その階に居続ける（stall:floor-dwell）' (#101) is its own row, count 1: not a 3rd recurrence.
+- Not 'このマスへ今歩いてよいか' (#75 #83 #91 #93): no warning-refused cells, unseen area rows rare.
+- Contributing: '光源と燃料' (#65 #81 #82 #85 #86, 5 issues, "次に出たら ROOT-FIX"): radius 1 comes
+  from a non-light slot (helmet LITE_M1) the #86 rule (compare radius between fuel-less lights)
+  does not cover - this would be the 6th recurrence of that type.
+- Contributing: 'この品は余りか' (#70 junk): remains/cursed items are picked up and destroyed in the
+  dungeon (the 10-18 decision allows "拾わない または 帰還前に処理"); the destroy keeps the pack
+  below the pack-full return.
+
+Fix within existing owner decisions?
+------------------------------------
+No. Every way to end group A changes behaviour that no owner decision covers:
+- leaving a depth-capped floor before it is fully explored (stairs / Recall / turn budget),
+- weighing light radius from a non-light slot in the equipment optimizer,
+- not picking up remains (the 10-18 decision explicitly allows either way, the bot uses
+  "destroy before return"), or making the pack-full return win over the destroy rungs,
+- changing the frontier predicate from 'marked' to 'known' (an exploration-strategy change and
+  its mechanism is inferred, not measured).
+Group B is a guard-tools runner matter (wall clock vs bot time), outside this branch.
+Per the task, STOP after the diagnosis: no source change, no pins.
+
+Addendum (coordinator follow-up: defect checks 3 and 4 under existing decisions)
+=================================================================================
+
+(3) Junk pickup - measured: by design of the #70 implementation, no fix.
+- Every remains pickup in the full windows is a tval 10 kind ("~の骨" = tval 10 sval 0, "~の死体" =
+  tval 10 sval 1, lib/edit/BaseitemDefinitions.jsonc). Pickup messages in the live logs:
+  current file 3 corpses / 5 skeletons, .1 27 / 20, .6 19 / 12; tval 1 kinds (骨の破片, 頭蓋骨の破片,
+  人間の骨, 犬の骨 ...) 0.
+- Example boards (bot-decisions.jsonl.1): 23:21:11 reason 'pickup' key 'g' on a single-object pile
+  (loot.visible count 1, message 'スケイヴンの骨がある。'), producer _normal_loot_key ->
+  _current_floor_item_key; 00:21:29 (current file) 'pickup' 'g' on '丘オークの骨がある。' (count 1).
+  Single-remains piles, not mixed.
+- Why the floor filter did not reject them: _floor_pile_is_worthless (policy_helpers.py 370-377)
+  rejects tvals {1, 3} only and says "Corpses (tval 10) stay loot: a bounty is only visible once
+  carried" (commit fec25709, #70). The board gives a floor pile only its tvals; is_bounty is exported
+  for carried items only, and the bot has no wanted-list knowledge to match the look name. So the
+  tval-10 pickup is the deliberate bounty exception; the dungeon disposal then destroys it before
+  the return (also within the 10-18 decision "拾わない または 帰還前に処理").
+- Changing it is an owner question: (a) never pick up tval 10 (gives up bounty remains), or
+  (b) pick up a tval 10 pile only when its look name matches a known wanted monster (needs the
+  wanted list as knowledge).
+
+(4) Re-walking seen floor - measured on all 10 recorded boards (state.jsonl.gz, ~100 boards each).
+- The soak runs protocol 3. model._decode_grid_map zeroes every CAVE flag in protocol 3 (only an
+  emitted TUNNEL terrain is set 'mark'), so walls are marked but NO floor cell is ever marked:
+  floor 'marked' flags = 0 in every Angband board of every capture (the forest capture has marked
+  floors only because its tree/tunnel terrain is REMEMBER).
+- _is_frontier / _is_remembered_frontier test neighbours against _marked_t, so every remembered floor
+  cell next to another floor cell stays a frontier until FRONTIER_EXHAUST_VISITS (8) visits or a probe.
+- Which cells the explore steps of the tails walked (classified against the boards of the window):
+    15:22 102 cells: 102 seen only while torch-lit (shown only within distance 1 of the player)
+    23:01 105: 104 torch-lit only, 1 game-remembered (shown away from the light)
+    00:47 103: 101 / 2      01:29 93: 89 / 4      07:11 91: 91 / 0      08:04 96: 94 / 2
+    21:29 73: 70 / 3        00:22 75: 63 / 12     (16:40: 4 steps, 4 remembered; 12:48 forest: 22 / 74)
+  Game source: a non-REMEMBER floor is drawn only with CAVE_MARK | CAVE_LITE | CAVE_MNLT or in view
+  and glowing (src/view/display-map.cpp is_terrain_visible_on_map 133-146); dark-room floor lit by
+  the radius-1 light is not memorised, it vanishes from the screen once the light moves on.
+- Conclusion: 84-100 % of the re-walked cells in the Angband tails are cells the game does NOT show
+  to the player any more (seen only while torch-lit). Treating them as explored would rest on the
+  bot's own memory of a cell the screen no longer shows - not the defect shape the follow-up asked
+  to fix ("already seen and shown by the game"). The part that does match it - game-remembered floor
+  (shown away from the light) never counted as marked under protocol 3 - is 0-16 % of the walked
+  cells, too small to end the re-sweeps. Per the follow-up: report and stop; no source change.
+- Owner question if wanted: should the frontier test count a floor cell the bot has seen (lit by its
+  own light) as explored even after the game stops showing it? (A human player does remember
+  having walked a room; the screen does not.)

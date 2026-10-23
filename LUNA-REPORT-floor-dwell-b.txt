@@ -1,0 +1,270 @@
+LUNA-REPORT floor-dwell-b (Issue #101) - branch floor-dwell-1023, main d2304637 merged (793bfa32)
+=============================================================================================
+
+Outcome: (1) and (2) implemented and pinned; ONE EXISTING TEST MUST CHANGE for (1) -> STOP for the
+supervisor (see "Existing test that must change").  Commits:
+  16b5aeb6 [Fix] #101 深さの上限の階で探索が終わらない（自分の明かりで見た床を未探索のままにする）
+  cd381d33 [Fix] #101 骨・死体だけの山を拾いに行っては壊す（賞金首はゲームの自動拾いで見分ける）
+
+(1) Seen floor counts as explored
+---------------------------------
+Measured: protocol 3 boards emit exactly the cells the screen draws (bot-json-output.cpp
+make_grid_map_json: is_map_terrain_visible), and model._decode_grid_map sets 'mark' only for TUNNEL
+terrain, so no floor cell is ever marked.  Dark-room floor lit by the player's light is drawn only while
+CAVE_LITE (display-map.cpp is_terrain_visible_on_map 143-145).  The frontier tests (_is_frontier,
+_is_remembered_frontier), _probe_unknown_step and the frontier score all read _marked_t, built from
+_remembered_marked_t in _build_grid_index.
+Change (one place, _build_grid_index): a cell shown on a board within the board's light radius of the
+player (game distance = Grid::calc_distance / the bot's _monster_cast_distance; the lit area of
+update_lite, torch.cpp 159-) is added to _remembered_marked_t.  Boards without light_radius (old
+formats, synthetic tests) keep the old marks.  Cells shown only away from the light (e.g. remembered
+lit-room floor, magic mapping) are known but not explored, as before.  No new attribute, constant or
+threshold.  Side effect: the coverage counters that read len(_remembered_marked_t) (nav stall,
+fruitless disengage) now also count own-light-seen floor.
+Not changed: the unvisited-floor sweep goal in _plan_explore_path_pass (visit 0 floor) - excluding
+own-light-seen cells there broke 4 existing tests that pin sweeping marked floor
+(test_policy ResistanceDepthGateTest.test_stair_refusal_explores_across_consecutive_decisions,
+test_policy_navigation ExplorationTest.test_steps_onto_lit_but_unvisited_floor_before_finishing_exploration,
+ProbeTest.test_escapes_a_searched_pocket_by_least_visited_route,
+TrapSealedFloorRegressionTest.test_longer_safe_route_to_new_coverage_wins_over_short_trap_route),
+so it was dropped.  Seen-but-never-stepped floor is still visited once (finite, not a re-sweep).
+
+Pin (fixture: all 113 state rows + the 112 decision rows of the same turns of
+c4-a/life-014 20261022-004727-stall-floor-dwell-explore, Angband 30F, light radius 1):
+  before: all 112 recorded explore goals are frontiers; 142 of 142 remembered floor cells frontier.
+  after : 51 recorded goals are no longer frontiers; the 9 of them already walked on (true re-walks)
+          are never the replayed policy's goal; frontier cells 142 -> 17, each borders a cell no
+          board of the capture ever showed (unseen ground).
+  Other captures (same replay, not pinned): 07:11 172 -> 75 frontiers, 23:01 161 -> 29.
+  "Nothing to explore" is NOT reachable from a capture: it holds only the last ~4 minutes of boards,
+  so floor seen earlier on the floor is missing from the replayed memory (the 17 remaining frontiers
+  border cells never shown in the window).
+Controls: unseen cells stay frontier (above); a cell shown only outside the own light stays out of
+_marked_t; boards with no light_radius unchanged (all existing frontier tests on such boards pass).
+
+Existing test that must change (STOP)
+-------------------------------------
+test_policy_navigation.TrapSealedFloorRegressionTest.test_live_labyrinth_floor_crosses_trap_after_safe_coverage_is_exhausted
+  (recorded labyrinth, light_radius 2)
+  safe_path = _plan_explore_path_pass(merged, allow_damaging=False)
+    old: [Position(8, 13)]   new: []   (the safe side is all seen inside the light: no safe frontier)
+  assertGreater(_visit_counts[safe_path[-1]], 0): cannot be evaluated on [] (IndexError).
+  Every later assertion holds unchanged: breakout path starts (8,13) and crosses (8,12), last cell
+  unvisited, choose_key '4' 'breakout:seek-frontier', beside the trap 'D4' 'explore', 1 disarm.
+  The test's own claim ("crosses the trap after safe coverage is exhausted") is now literally true.
+
+(2) Remains piles
+-----------------
+Game (read): WANTED keyword 賞金首の / "wanted" (autopick-keys-table.cpp 24) matches only
+ItemEntity::is_bounty() (autopick-matcher.cpp 288; item-entity.cpp 802: MONSTER_REMAINS of a
+non-achieved bounty unique, today's bounty or tsuchinoko).  carry() (player-inventory.cpp 262) runs
+autopick_pickup_items on every step onto a grid (autopick.cpp 107): pickup with no prompt for a plain
+rule, "ザックには~を入れる隙間がない。" when full, '?' rules prompt.  Auto-destroy ('!' rules) never
+asks: it marks the item and update_inventory_arrangement destroys it with "~を自動破壊します。"
+(autopick-destroyer.cpp 130-160, autopick.cpp 59); with always_pickup on, '!' destroys only if the
+destroy_items options allow.  The pref is picktype-<name>.prf, else picktype.prf, in the user dir
+(autopick-reader-writer.cpp 49-79), loaded at name processing / pref load.
+Change: _floor_pile_is_worthless treats tval 10 like tval 1/3: a pile of only remains is not loot
+(one predicate; _floor_pile_is_junk, _known_loot, _current_floor_item_key and the unsafe-loot set all
+read it).  Per the supervisor update no pref content is written (the runner copies the owner's
+lib/user/picktype.prf, which has 賞金首の死体や骨#賞金首 and !死体や骨).
+Desync check: the bot reads the next board (inventory, floor) after every key; a pickup or destroy
+done by the game during a step is the same inventory/floor delta as the bot's own 'g' or the existing
+trigger-autodestroy rung (step off and back on), which already relies on game autopick.  No prompt
+arises from these two rules.
+Windows: the skill launches Hengband.exe with -o -u BOT_PLAY and no -d user, so the user dir is
+lib\user (angband-initializer.cpp 63; PRIVATE_USER_PATH is Unix only); lib\user has no
+picktype-<name>.prf, so the Windows bot loads the same lib\user\picktype.prf.
+
+Pin (fixture: state rows 85-86 of 20261022-012932-stall-floor-dwell-explore, single
+ゾンビ・イークの死体 at (12,111)):
+  before: 'seek-loot' '6', then 'pickup' 'g' (as recorded).   after: 'explore' both, pile not in
+  _known_loot.
+Controls (DECLARED CONSTRUCTED tvals on the same rows): pile tvals (10, 23) -> 'seek-loot' '6',
+'pickup' 'gaa' (unchanged); tvals (1, 3) -> not targeted (unchanged).
+
+Revert-proof: reverting the policy_navigation hunk fails test_recorded_rewalk_targets_are_not_chosen
+and test_seen_floor_leaves_only_unseen_frontier; reverting the policy_helpers hunk fails
+test_single_remains_pile_is_not_targeted.  New policy attributes: none.  Bookkeeping: town work
+manifest regenerated in each commit (digests only).  New test module:
+tests/test_floor_dwell_seen_floor_recorded.py (6 tests, ~35 s).
+
+Guard outputs (on cd381d33)
+---------------------------
+  [preflight] PREFLIGHT OK: 9 changed files, 0 findings (floor-dwell-1023 vs d2304637)
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded
+  [mutation] caught     src/hengbot/policy_helpers.py:368 ("""A visible pile of only skeletons / junk / remains is not loot (#70)): test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124 (player = snapshot.player.position): test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137 (# Owner 2026-10-23 (#101): a cell shown while inside the player's): test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for cd381d33
+  [fast] 3657 fast tests (<2.0s in d2304637) + 1 changed modules, 4 shards
+  [fast] excluded 41 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+  Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-80wpffhc)
+  Failures: none
+  Errors: none
+  Total: 3665 tests, 240.4s
+  Note: the labyrinth test above is a slow test (outside the fast tier); single-module run:
+  test_policy_navigation: FAILED (failures=1) test_live_labyrinth_floor_crosses_trap_after_safe_coverage_is_exhausted;
+  test_policy: OK; test_grid_map_wire, test_exploration_commitment_observation: OK.
+
+GATE ROUND 1 (2026-10-23) - implementer report
+==============================================
+Method.  Each verdict is a toggle measurement on this branch: the module is run with
+(1) reverted (pre_seen_floor_rule: _build_grid_index without the light radius), (2) reverted
+(pre_remains_pile_rule: _floor_pile_is_worthless back to {1, 3}), and both.  WALL = the replay
+passes once the named rule(s) are restored and every recorded board predates 2026-10-23.
+No REGRESSION was found, so src is unchanged in this round.
+
+Gate failure
+  test_two_cell_oscillation_recorded.BreederBreakthroughAdjacentHostileRecordedTest
+    .test_replay_reproduces_live_until_a_non_breeder_is_adjacent  (capture 2026-10-02)
+  Order/shard dependence: none.  The class run alone in its own process on 3b6a15ab fails the
+  same way (and a standalone replay script reproduces it), so it is not a shard-neighbour effect.
+  First diverging row 5626 at (46,73): recorded ('8','breeder-breakthrough:clear-escape-path'),
+  now ('1','breeder-breakthrough:seek-frontier'); every later row to 5647 differs.
+  (1) reverted -> first divergence is 5644 ('6' vs live '4'), the row the test already declares
+  (B_COMMITTED_FRONTIER_DIVERGENCE); (2) reverted alone -> still 5626.  Verdict WALL (1).
+
+New walls: tests/recorded_floor_knowledge.py
+  pre_seen_floor_rule / pre_seen_floor_replay  (hides light_radius from _build_grid_index only)
+  pre_remains_pile_rule / pre_remains_pile_replay (old worthless set {1, 3})
+  Each use carries a one-line comment naming the capture date.  No expectation changed.
+
+Sweep: every module that replays recorded boards through the real policy
+  261 modules (grep: choose_key / _consume_response_sequence / frontier helpers + fixtures +
+  explore/seek-loot/frontier/pickup/oscillation/breakthrough/recorded), each in its own process,
+  slow ones included.  247 passed unchanged.  14 failed:
+
+  module (capture date) : failing test(s) : first diverging row recorded -> now : toggles : verdict
+  test_experience_potion (tour 2026-09-22, morivant 2026-09-22)
+    X4 test_x4_drained_without_supplier_the_potion_is_kept: row 147 ('7','explore') -> ('s','search');
+      with (1) reverted the rest is row 927 ('2','seek-loot') -> ('6','explore') (a remains pile)
+      : needs (1)+(2) : WALL both, on ExperiencePotionRecordedTest._replay (shared cache)
+    X7 test_x7_protocol2_lifetime_decisions_are_unchanged: row 66 ('8','probe') -> ('s','search')
+      at (38,11), light radius 2 : (1) alone passes : WALL (1)
+  test_morivant_travel_retired_recorded (2026-09-22) m0: same rows 66-69,121-137 probe -> search
+      : (1) passes, (2) fails : WALL (1) on _replay
+  test_pure_decision_telemetry
+    t1_t2_protocol2_morivant_lifetime_prefix (2026-09-22): ('8','probe') -> ('s','search') : WALL (1)
+    t1_t2_protocol3_town_arrival_reuses_no_telemetry_result (tour 2026-09-22): (1) alone leaves
+      ('2','seek-loot') -> ('6','explore') : (1)+(2) pass : WALL both
+  test_unaffordable_claim_tour_recorded (2026-09-22) s2a1: next-row completions 974 != 980
+      (same tour divergences 147 / 927 as X4) : (1) alone still 974 (4 hash seeds), (1)+(2) pass
+      : WALL both on _replay
+  test_town_approach_retired_recorded (2026-09-25): replay first change 995 != 1180;
+      row 995 on floor (2,1,0) at (18,42), light 2: ('8','explore') -> ('9','explore')
+      : (1) passes (the module already walls remains via _recorded_junk_pile_loot) : WALL (1)
+  test_unseen_reapproach_recorded (2026-10-20) explore_does_not_walk_back_into_the_attack:
+      9641 ('s','search') -> ('8','breakout:least-visited') : (1) passes : WALL (1)
+  test_protocol3_client (2026-09-21) P1 lifetime prefix: seq 122 ('8','explore') -> ('9','explore')
+      : (1) passes, (2) fails : WALL (1)
+  test_reverse_choke_loot_loop_recorded (2026-10-03): 4566 ('1','probe') -> ('s','search')
+      : (1) passes, (2) fails : WALL (1) on both setUpClass
+  test_warning_refused_step_recorded (2026-10-20): 276 ('2','probe') -> ('s','search');
+      control_forced_walk (24,47) missing from the frontier set : (1) passes : WALL (1)
+  test_recall_stockout_set_end_recorded (2026-09-21): live loot prefix first change 521,
+      s0 replay 1280 (route to remains piles) : (2) alone passes, (1) fails : WALL (2)
+  test_loot_before_recall_recorded (2026-09-23): countdown target (37,55) (a remains pile) no
+      longer in _known_loot; L4 sweep order ('3' -> '6') : (2) passes : WALL (2) on the 2 tests
+  test_overweight_home_unreachable_recorded (2026-09-25): first changed index 95 (was []) and
+      the pre-strip list : (1) fails, (2) fails, both pass : WALL both on _replay/_live_loot_prefix
+  test_declarations_r14 (overweight 2026-09-25) overweight_home_tail_keeps_its_operation_at_3715:
+      OFF replay hash differs : (1) fails, (2) fails, both pass : WALL both
+  test_town_cure_supplier_recorded (2026-10-03) walled_prefix: first new divergent index 433
+      : (1) fails, (2) fails, both pass : WALL both on _RecordedProcess.setUpClass
+  test_input_executor: AcceptedObservationRetryPins timing pin failed once under heavy load
+      (6 parallel replays); passes alone twice.  Not a replay, not (1)/(2): load flake, no change.
+
+Final verification (current tree, each module in its own process, no toggles): all 16 modules
+  above plus test_floor_dwell_seen_floor_recorded OK.
+Note: one early combined toggle run (two tests in one process) reported a pass that a later
+  single-test run did not reproduce; every verdict above uses the single-module/test runs.
+
+Guard outputs (round 1, on 361a2408 + report; fast tier not run per the round-1 instructions)
+-------------------------------------------------------------------------------------
+  [preflight] PREFLIGHT OK: 27 changed files, 0 findings (floor-dwell-1023 vs d2304637)
+  (preflight also lists the 12 existing tests carrying a declared wall decorator, plus the labyrinth test changed earlier)
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded
+  [mutation] caught     src/hengbot/policy_helpers.py:368 ("""A visible pile of only skeletons / junk / remains is not loot (#70)): test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124 (player = snapshot.player.position): test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137 (# Owner 2026-10-23 (#101): a cell shown while inside the player's): test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+
+=== GATE ROUND 2 (2026-10-23) - RESULT ===
+Merged main 0e4cc93e (merge 0b283b9f; conflict only in scripts/town_work_manifest.json.gz, regenerated with
+town_work_manifest.py --write: 844 candidates, 21490 sites, zero unmapped).
+
+Failing test: tests.test_policy_town.TownWeightDepartureRecordedTest.test_r1_recorded_public_replay_posts_named_weight_owner
+(fixture incident-20260921-0536-no-claim-after-bounty.jsonl.gz, recorded 2026-09-21, town, 177 rows, open loop).
+Measured four variants of the whole replay (decisions + home unsatisfied passes):
+  now (both rules)             : home passes 4
+  (1) seen-floor reverted only : home passes 4, decisions identical to "now"
+  (2) remains-pile reverted only: home passes 5, decisions identical to "both reverted"
+  both reverted                : home passes 5
+First diverging row: 8 (player (37,91) in town; town floor pile at (38,127) = tval (10,) count 1, 36 cells away;
+the bounty corpse is already carried).
+  before (old rule {1,3}): key '9' reason seek-loot
+  now    (rule {1,3,10}) : key '\x1b`n(.' reason shop:travel
+149 of 177 rows differ afterwards.
+Cause: (2) remains-pile rule only. (1) seen-floor does not change any town decision in this replay.
+Classification: WALL. The owner's answer (2) is about floor piles of bones/corpses as such (the bot walked to them in
+case one was a bounty); not walking 36 cells across town to a lone tval-10 pile is the intended consequence, and
+round 1 already walled town replays for the same rule (test_town_cure_supplier_recorded,
+test_town_approach_retired_recorded). Not the (1)-changes-town case, so no STOP.
+Change (ff5b16cc): @pre_remains_pile_replay on TownWeightDepartureRecordedTest._replay with a one-line comment
+naming the capture date 2026-09-21; expectations unchanged. Class run alone: Ran 4 tests in 165.281s OK.
+
+preflight (vs 0e4cc93e): PREFLIGHT OK: 28 changed files, 0 findings (NOTE lines list the walled existing tests)
+mutation_check (vs 0e4cc93e, --tests test_floor_dwell_seen_floor_recorded --record):
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded
+  [mutation] caught     src/hengbot/policy_helpers.py:368: test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124: test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137: test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for ff5b16cc
+
+=== GATE ROUND 3 (2026-10-23) - RESULT ===
+Merged main 34f91c82 (merge 7fae958b; conflict only in scripts/town_work_manifest.json.gz, regenerated with
+town_work_manifest.py --write: 844 candidates, 21490 sites, zero unmapped).
+
+Failing test: tests.test_return_oscillation_explore.ReturnOscillationExploreTest.test_captured_arrivals_walk_on_instead_of_searching_again
+(fixture return-oscillation-search-20261023.jsonl.gz, boards recorded 2026-10-23 07:20/07:21 with bot d2304637).
+Rule measured by reverting each src hunk alone (git apply -R of the branch diff):
+  (1) seen-floor reverted : test OK
+  (2) remains-pile reverted: test still fails, same diff
+Cause: (1) seen-floor only. Only capture 20261023-072043 changes; 20261023-072135 is identical.
+First diverging decision: last feed row (player (34,95)): before '8' return:explore (north), now '1' return:explore.
+Arrivals (cell: before key/goal -> now key/goal):
+  (33,95): 9 FRONTIER (32,96) -> 2 VISIT (34,93)
+  (32,96): 8 FRONTIER (31,96) -> 1 VISIT (34,93)
+  (31,96): 8 FRONTIER (30,96) -> 2 VISIT (34,93)
+  (30,96): 8 FRONTIER (29,96) -> 9 VISIT (29,98)
+Why: the corridor (29..33, 96) the recorded bot walked was already shown in its light (radius 2) and visited once;
+before (1) nothing there was CAVE_MARK, so every corridor cell read as frontier and the old goal was always the next
+cell north. With (1) those cells are explored; the nearest new ground is the unvisited side passage (34,93) that
+leads to the frontier (33,93), and later (29,98) beside the frontier (29,99). The new bot keeps the same committed
+goal over the three boards the old bot walked away from (it replans back to it), then a new goal further north-east.
+Progress check with both rules (merged tree): every arrival is return:explore with a direction key, no 's', not
+oscillating after the step, goal is unvisited floor or a remembered frontier. Feed searches per cell (fixed recorded
+boards) now (36,93):8 (35,94):3 (34,95):8 = 19, before 7/7/8 = 22; none above SEARCH_LIMIT.
+Classification: still progresses (only the exact key/target differs) -> wall + progress pin, no src change.
+Change (9f73d90e, tests/test_return_oscillation_explore.py only):
+  - @pre_seen_floor_replay on test_captured_arrivals_walk_on_instead_of_searching_again with a one-line comment naming
+    the 2026-10-23 07:20 recording (bot d2304637); assertions unchanged.
+  - new test_seen_floor_arrivals_still_walk_on_to_new_ground: same boards, both rules on; asserts per arrival
+    return:explore, the exact key and committed goal (table SEEN_FLOOR_ARRIVALS), not oscillating, goal is unvisited
+    floor or remembered frontier. Fails if 0cce81c5's _recent.clear() is reverted (both captures: oscillating) and if
+    rule (1) is reverted (goal (32,96) instead of (34,93)).
+Module run: Ran 4 tests OK; test_floor_dwell_seen_floor_recorded Ran 6 tests OK.
+
+preflight (vs 34f91c82): PREFLIGHT OK: 29 changed files, 0 findings (NOTE lines list the walled existing tests,
+  now including test_return_oscillation_explore::test_captured_arrivals_walk_on_instead_of_searching_again)
+mutation_check (vs 34f91c82, --tests test_floor_dwell_seen_floor_recorded test_return_oscillation_explore --record):
+  [mutation] 3 source hunks, tests: test_floor_dwell_seen_floor_recorded test_return_oscillation_explore
+  [mutation] caught     src/hengbot/policy_helpers.py:368: test_single_remains_pile_is_not_targeted
+  [mutation] caught     src/hengbot/policy_navigation.py:1124: test_mixed_pile_is_still_picked_up, test_single_remains_pile_is_not_targeted, test_skeleton_fragment_pile_unchanged, test_recorded_rewalk_targets_are_not_chosen
+  [mutation] caught     src/hengbot/policy_navigation.py:1137: test_recorded_rewalk_targets_are_not_chosen, test_seen_floor_leaves_only_unseen_frontier, test_seen_floor_arrivals_still_walk_on_to_new_ground
+  [mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+  [mutation] recorded for 9f73d90e
+fast_tier: not run (round 3 asks for preflight and mutation_check only, as rounds 1/2).

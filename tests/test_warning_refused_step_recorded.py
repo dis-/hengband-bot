@@ -52,6 +52,7 @@ from hengbot.cli import (
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
+from recorded_floor_knowledge import pre_seen_floor_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -150,6 +151,7 @@ class WarningRefusedStepRecordedTest(unittest.TestCase):
             [("2", "probe"), ("4", "probe"), ("1", "probe")],
         )
 
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-10-20, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     def test_probe_does_not_reselect_a_refused_cell(self):
         lines = self.boards[PROBE]
         with TemporaryDirectory() as tmp:
@@ -228,6 +230,7 @@ class WarningRefusedStepRecordedTest(unittest.TestCase):
         self.assertTrue(route is None or route[1] != refused)
         self.assertNotEqual(key[:1], _key_to(here, refused))
 
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-10-20, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     def test_control_forced_walk_still_walks_with_y(self):
         lines = self.boards[PROBE]
         here, refused = Position(23, 47), Position(24, 47)

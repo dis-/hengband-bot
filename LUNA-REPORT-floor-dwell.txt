@@ -1,0 +1,51 @@
+LUNA-REPORT floor-dwell (Issue #101) - branch floor-dwell-1023 @ 08257674
+========================================================================
+
+Outcome: STOPPED after the diagnosis (task step 2: the fix needs a new behaviour rule).
+No source change, no tests, no fixtures. Full measured diagnosis: LUNA-DIAG-floor-dwell.txt.
+
+Diagnosis in short
+------------------
+A (9 of 10 stops): the character (warrior Lv33-36) sits at its depth cap. 31F needs resist_chaos
+  (DEPTH_ABILITY_REQUIREMENTS 31-39) and the character lacks it, so no down stair is a descent
+  target. A capped floor ends only by a town-return trigger or by rule 9 ("nothing to explore:
+  take any known stairs"). Neither happens within 30 minutes:
+  - light radius is 1 in every row (Feanorian lamp 2, minus 1 from the equipped helmet 闇の陣笠,
+    TR_LITE_M1); on 198x44 / 132x66 floors the remembered frontier set grows for the whole
+    window (126 -> 867, 88 -> 1086), so exploration never runs out;
+  - the pack sits at 22/23; each pickup fills it and a destroy rung (worthless junk /
+    disposable / autodestroy) frees the slot before the pack-full return can start
+    (21:29 window: 44 pickups, 26 destroys; picked-and-destroyed remains, cursed boots, scrolls);
+  - much of the walking re-sweeps visited rooms (cells walked 2-3x on average; 06:40-06:49 one
+    room swept 3 times, 596 of 617 explore steps on already-walked cells, +1 known cell).
+    Mechanism inferred, not measured: dark-room torch-lit floor is 'known' but not 'marked' and
+    the frontier test uses 'marked'.
+B (1 of 10, 10-22 12:48): soak suspended 12:06 -> 12:48 (no decisions, two runner heartbeats
+  missing); the runner's wall-clock dwell timer fired on resume. Runner artifact.
+
+Ledger: own type 'その階に居続ける' (#101, count 1) - not a 3rd recurrence; not the
+"may I step here" type (#75 #83 #91 #93). Contributing: '光源と燃料' (6th occurrence if filed,
+the row says the next one is ROOT-FIX) and 'この品は余りか' (#70 pick-up-then-destroy).
+
+Options needing an owner decision (none implemented)
+----------------------------------------------------
+1. At the depth cap, leave the floor once a known stair exists and the floor has been
+   explored for a while / by a turn budget (needs the rule and a number).
+2. Equipment: count light radius over all slots (do not accept total radius 1 when a radius-2
+   loadout exists, or weigh it) - ROOT-FIX of the light type.
+3. Junk: at the depth cap do not pick up items the junk predicate would destroy (remains,
+   known cursed), or let the pack-full return win over the destroy rungs.
+4. Exploration: treat 'known' (seen) floor as explored for the frontier test so dark rooms are
+   not re-swept (strategy change; first needs a measuring log of explore goals to prove it).
+5. Runner (guard-tools, not this branch): measure dwell in bot time / game turns, not wall
+   clock, so a suspended soak (group B) does not count.
+
+Pins / controls / revert-proof: none (no fix). Existing tests untouched.
+
+Guard outputs (on commit bd144a9e, report-only):
+  preflight:     [preflight] PREFLIGHT OK: 2 changed files, 0 findings (floor-dwell-1023 vs 08257674)
+  mutation_check (--record, no --tests: no test module exists):
+                 [mutation] STOP: the change touches no test module; give --tests
+  fast_tier (run after gate-junk1b23-1022-r3 finished, 01:38):
+                 3657 fast tests + 0 changed modules, 4 shards; Crashed shards: none;
+                 Failures: none; Errors: none; Total: 3659 tests, 187.4s

@@ -74,6 +74,7 @@ import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
 from recorded_loadout import pre_light_radius_replay, recorded_loadout_replay
 from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
+from recorded_floor_knowledge import pre_remains_pile_replay, pre_seen_floor_replay
 
 
 # The tour lifetime's first town visit: list index 20 is the recorded
@@ -482,6 +483,8 @@ class PureDecisionTelemetryTest(unittest.TestCase):
         )
         lockstep.assert_pure()
 
+    @pre_seen_floor_replay  # declared wall: tour recorded 2026-09-22, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
+    @pre_remains_pile_replay  # declared wall: tour recorded 2026-09-22, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
     @recorded_loadout_replay
     def test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result(self):
@@ -632,6 +635,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             lockstep.decide(boards, boundaries["recorded"][index][1], index)
         lockstep.assert_pure()
 
+    @pre_seen_floor_replay  # declared wall: morivant recorded 2026-09-22, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     @pre_progressing_loot_gate_replay  # declared wall: pre-6c0910fb loot gate (tests/recorded_emergency_loot_gate.py)
     def test_t1_t2_protocol2_morivant_lifetime_prefix(self):
         lockstep, boundaries = self._recorded_lifetime(

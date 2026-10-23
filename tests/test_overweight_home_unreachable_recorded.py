@@ -116,6 +116,7 @@ import test_policy_home  # WeightOverloadTownTest's overweight town board
 from recorded_loadout import recorded_loadout_replay
 from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
 from recorded_equipment_decisions import frozen_equipment_replay
+from recorded_floor_knowledge import pre_remains_pile_replay, pre_seen_floor_replay
 from extraction_calibration import install_extraction_calibration
 
 
@@ -209,6 +210,8 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         return segment
 
     @classmethod
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-09-25, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
+    @pre_remains_pile_replay  # declared wall: board recorded 2026-09-25, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     @pre_progressing_loot_gate_replay  # declared wall: pre-6c0910fb loot gate (tests/recorded_emergency_loot_gate.py)
     @recorded_loadout_replay
     # batchfixB / approved dual-wield half-max-melee selection, ruling #9:
@@ -287,6 +290,8 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         return replay
 
     @classmethod
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-09-25, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
+    @pre_remains_pile_replay  # declared wall: board recorded 2026-09-25, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     @frozen_equipment_replay("overweight")
     def _live_loot_prefix(cls):
         """Replay only through the first loot change with production policy."""

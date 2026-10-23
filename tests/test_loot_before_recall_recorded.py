@@ -79,6 +79,8 @@ from hengbot.navigation import NAV_TARGET_STALL_LIMIT
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 
+from recorded_floor_knowledge import pre_remains_pile_replay
+
 
 FIXTURE = (
     Path(__file__).parent / "fixtures" / "loot-before-recall-20260923.jsonl.gz"
@@ -266,6 +268,7 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         self.assertEqual((policy.last_reason, key), ("trigger-autodestroy", "7"))
         self.assertIsNone(policy.loot_state(countdown)["blocker"])
 
+    @pre_remains_pile_replay  # declared wall: board recorded 2026-09-23, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     def test_countdown_rearms_a_real_ledger_expiry_once(self):
         policy, _replayed, countdown = self._replay_to_recall()
         target = BESIDE[0]
@@ -337,6 +340,7 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         self.assertEqual((policy.last_reason, key), ("return:wait-recall", "5"))
         self.assertEqual(policy._loot_ledger_rearmed, set())
 
+    @pre_remains_pile_replay  # declared wall: board recorded 2026-09-23, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     def test_l4_every_reachable_item_is_collected_nearest_first_then_wait(self):
         """L4: the whole countdown sweep, its order, and the wait it returns to."""
         policy, _replayed, snapshot = self._replay_to_recall()

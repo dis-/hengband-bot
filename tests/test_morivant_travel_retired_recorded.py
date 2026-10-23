@@ -53,6 +53,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import TOWN_TRAVEL_STALL_LIMIT
 
 from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
+from recorded_floor_knowledge import pre_seen_floor_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 
@@ -104,6 +105,7 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         return snapshots[-1]
 
     @classmethod
+    @pre_seen_floor_replay  # declared wall: morivant recorded 2026-09-22, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     @pre_progressing_loot_gate_replay  # declared wall: pre-6c0910fb loot gate (tests/recorded_emergency_loot_gate.py)
     def _replay(cls):
         """Replay the recorded lifetime and decide the recorded terminal input."""

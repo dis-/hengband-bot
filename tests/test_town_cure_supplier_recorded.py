@@ -127,6 +127,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 
+from recorded_floor_knowledge import pre_remains_pile_replay, pre_seen_floor_replay
 from recorded_junk_scope import pre_home_junk_sweep_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 
@@ -215,6 +216,8 @@ def _pre_fix_supply_rule():
 
 class _RecordedProcess(unittest.TestCase):
     @classmethod
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-10-03, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
+    @pre_remains_pile_replay  # declared wall: board recorded 2026-10-03, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     def setUpClass(cls):
         for path, digest in SHA256.items():
             assert _sha(path) == digest, path

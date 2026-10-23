@@ -1124,6 +1124,8 @@ class NavigationMixin:
         remembered_marked = self._remembered_marked_t
         blocked_doors = self._blocked_doors
         blocked_rubble = self._blocked_rubble
+        player = snapshot.player.position
+        light_radius = snapshot.light_radius
         for pos, grid in snapshot.grids.items():
             key = (pos.y, pos.x)
             if not grid.known:
@@ -1135,7 +1137,14 @@ class NavigationMixin:
             if grid.has_entrance:
                 self._remembered_entrances.add(pos)
             remembered_known.add(key)
-            if grid.marked:
+            # Owner 2026-10-23 (#101): a cell shown while inside the player's
+            # own light (update_lite, torch.cpp; distance as Grid::calc_distance)
+            # has been seen and stays explored after the light moves on and the
+            # game stops drawing it -- dark-room floor is never CAVE_MARK.
+            if grid.marked or (
+                light_radius is not None
+                and self._monster_cast_distance(player, pos) <= light_radius
+            ):
                 remembered_marked.add(key)
             remembered_floor.discard(key)
             remembered_door.discard(key)

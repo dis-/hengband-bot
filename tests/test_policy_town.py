@@ -47,6 +47,8 @@ from policy_fixtures import (
     hostile,
 )
 
+from recorded_floor_knowledge import pre_remains_pile_replay
+
 import hengbot.policy as policy_module
 
 import hengbot.equipment_mutation as equipment_mutation_module
@@ -15448,6 +15450,7 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
         assert len(cls.rows) == 177
         cls.replay_result = None
 
+    @pre_remains_pile_replay  # declared wall: board recorded 2026-09-21, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     def _replay(self):
         if self.replay_result is not None:
             return self.replay_result

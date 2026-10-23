@@ -85,6 +85,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
+from recorded_floor_knowledge import pre_seen_floor_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
 from unseen_scratch_walls import pre_unseen_scratch_bound_rule
 
@@ -150,6 +151,7 @@ def _load():
 
 class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
     @classmethod
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-10-03, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     def setUpClass(cls):
         # Declared wall (tests/unseen_scratch_walls.py): the recorded 4638
         # read, and every pin built on its landing, run under the recorded-era
@@ -470,6 +472,7 @@ class UnseenScratchDivergenceTest(unittest.TestCase):
     """
 
     @classmethod
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-10-03, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     def setUpClass(cls):
         knowledge, warm_up, inputs = _load()
         payload = json.loads(RECORDED.read_text(encoding="utf-8"))

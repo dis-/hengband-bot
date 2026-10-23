@@ -111,6 +111,7 @@ from hengbot.policy_constants import SHOP_APPROACH_STUCK_LIMIT, TOWN_TRAVEL_STAL
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loadout import recorded_loadout_replay
 from recorded_equipment_decisions import frozen_equipment_replay
+from recorded_floor_knowledge import pre_seen_floor_replay
 from extraction_calibration import install_extraction_calibration
 from test_store_reentry_recorded import _Unpickler
 from hengbot.policy_state import normalize_policy_state
@@ -332,6 +333,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         return decided
 
     @classmethod
+    @pre_seen_floor_replay  # declared wall: board recorded 2026-09-25, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
     @recorded_loadout_replay
     # fixer-reconcile-prompt.txt STEP 2: approach/ownership/guardian pins must
     # consume capture-time equipment choices, not unconfirmed new loadouts.
