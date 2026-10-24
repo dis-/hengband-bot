@@ -54,7 +54,8 @@ class Round6RouteTerminalTest(unittest.TestCase):
                 policy = policy_on(snap)
                 name = "_read_dungeon_recall_scroll_key"
                 decl = tt.TERMINALS[name]
-                modes = {name: tt.TerminalDecl(decl.intended_terminal, tt.ENFORCE)} if enforce else {}
+                modes = {name: tt.TerminalDecl(
+                    decl.intended_terminal, tt.ENFORCE if enforce else tt.SHADOW)}
                 with patch.dict(tt.TERMINALS, modes), \
                         patch.object(policy, "_recall_town_departure_conjuncts",
                                      return_value={"combat_weapon_ready": False}), \

@@ -1144,7 +1144,6 @@ def _shadow_rungs() -> frozenset[str]:
         "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
         "navigator.decide", "oscillating-probe",
         "town-progress-committed-loot",
-        "_town_special_key", "_read_dungeon_recall_scroll_key",
         "verified-disposal",
         "_dig_to_known_downstairs_key",
         "_entrance_travel_key",
@@ -1213,8 +1212,8 @@ TERMINALS: dict[str, TerminalDecl] = {
     **{name: TerminalDecl(fundraising_intended_terminal, ENFORCE) for name in (
         "_fundraising_key#1", "_fundraising_key#2")},
     "supply-stockout-mining": TerminalDecl(stockout_mining_intended_terminal, ENFORCE),
-    "_town_special_key": TerminalDecl(departure_intended_terminal, SHADOW),
-    "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, SHADOW),
+    "_town_special_key": TerminalDecl(departure_intended_terminal, ENFORCE),
+    "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, ENFORCE),
 }
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
