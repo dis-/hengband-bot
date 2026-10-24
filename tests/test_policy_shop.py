@@ -2343,7 +2343,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._cure_critical_ready = lambda _snapshot: True
         policy._identify_staff_ready = lambda _snapshot: True
         policy._combat_weapon_ready = lambda _snapshot: True
-        policy._equipment_departure_ready = lambda _snapshot: True
+        policy._equipment_departure_ready = lambda _snapshot, **_kwargs: True
         policy._find_home_deposit = lambda _snapshot: None
 
         self.assertIsNone(policy._next_required_store_type(snap))
