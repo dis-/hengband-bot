@@ -1107,3 +1107,409 @@ preflightだけが合格であり、今回のHEADをmutation/fast_tier合格と�
   単独モジュール検証と指定fast_tier --shards 4だけを使用した。
 - 作業開始時の未追跡ファイルは保持し、今回のログも未追跡の作業記録として保持した。
   本報告のコミットによる差分は報告だけで、ガード対象のsrc/tests treeは変わらない。
+
+=== round 10 / ISSUE #47 / 2026-10-24 ===
+
+STATUS: 出発・帰還 family のバッチで停止。S2 完了ではない。
+main 90947a65 の既存テストで、キー・理由・状態に mode 以外の差が出た。
+最終節の「main の既存テストは STOP 規定」に従い、既存期待値を編集せず、
+後続89 rung の宣言変更へは進まなかった。これらの差を承認済みの仕様変更とは扱わない。
+開始 HEAD: 3b59683f2。最終コード・帳簿 HEAD: dc366caa1。
+
+実施したバッチとコミット
+- 62f20341d / d914eeb2a: 解呪・launcher バッチの mode 期待値を承認範囲で更新。
+  test_2_modes に SHADOW_RUNGS と実際の SHADOW 宣言集合の完全一致を追加。
+  旧「ENFORCE は quest 2件」から、この時点の quest + curse/enchant 4件へ。
+  単に SHADOW 一覧へ解呪・強化を戻しても落ちるようになった。
+- ffe718afa: Home 7 rung。SHADOW 107→100、ENFORCE 4→11。
+  予約できない取得の歩行停止と来店・travel の解放を維持。
+- 529ffc98e: 装備・device・carried 鑑定3 rung。SHADOW 100→97、ENFORCE 11→14。
+  手段の要求、完全鑑定の延期、確認 offer の一致を維持。
+- da998f9da: town-teleport。SHADOW 97→96、ENFORCE 14→15。
+  実際の issuer / destination の文脈で拒否し、拒否時に dispatch しない。
+- 7c7313aa1: 資金稼ぎ3 rung。SHADOW 96→93、ENFORCE 15→18。
+  新しい比較テストで、単純な切替では2つの run rung ×4条件の8 subTest が失敗した。
+  欠けていたのは fundraising-mode-inactive / outside-mining-floor の no-step offer と、
+  scavenge 不適用時の既存 _settle_fundraising_detection の確定処理だった。
+  commit_refusal に省略可能な rung_name を渡し、rung 固有の commit を優先するようにした。
+  同じ fundraising terminal を使う出発 dispatcher に run の確認を混ぜない対照も追加。
+  修正後は比較2テスト・全8条件で一致。準備run数の解除と供給店の再armも比較した。
+- aab97e82b: 階段2 rung。SHADOW 93→91、ENFORCE 18→20。
+  直接下降・経路選択の両方で quest 入口を拒否し、通常の目標を通す既定 mode の対照を追加。
+- d7fa173ea: 出発・帰還2 rung。SHADOW 91→89、ENFORCE 20→22。
+  町終端モジュールは合格したが、下記の既存 main テストが失敗。このバッチで停止。
+- dc366caa1: 最終 preflight の帳簿修復。登録済み adapter を producer baseline へ
+  重ねて記載していた誤りを除去。town_work_review.json の adapter 登録は維持した。
+  policy の動作と既存テスト期待値は変更していない。
+
+承認範囲内のテスト変更
+- tests/test_town_terminal_curse_remove.py:
+  CurseRemoveTerminalTest.test_no_scroll_refuses_and_the_body_does_not_read の mode だけ
+  shadow→enforce。キー None、no-remove-curse-scroll、server の期待値は維持。
+- tests/test_town_terminal_identify_equipped.py:
+  IdentifyEquippedTerminalTest.test_no_source_refuses_and_the_body_requests_one の mode だけ
+  shadow→enforce。キー・no-identification-source・server の期待値は維持。
+- tests/test_town_terminal_identify_carried.py:
+  CarriedIdentificationTest.test_source_and_body_agree_for_normal_and_full の mode だけ
+  shadow→enforce。refusal_result の比較では False 側も明示的に SHADOW を指定。
+- tests/test_town_terminal_home_deposit.py:
+  SpaceDepositTerminalTest.test_order_reward_work_refuses_in_shadow を明示的な SHADOW 比較にした。
+  旧キー "7"・呼出し ["ran"]・コード・server のアサーションは変えていない。
+  別の新テストで、既定 ENFORCE では本体を呼ばず None になることを確認。
+- tests/test_town_terminal_home_withdraw.py:
+  HomeWithdrawTerminalTest.test_catalogue_without_the_item_refuses_before_the_walk を
+  明示的な SHADOW 比較にした。旧 "walk"・コード・server の期待値は維持。
+  別の新テストで3つの既定 walking rung が不足品を歩く前に拒否することを確認。
+- tests/test_town_terminal_withdraw_release_round6.py:
+  WithdrawReleaseTest.test_refused_walk_releases_acquired_visit_and_trip の比較 mode を
+  両側とも明示指定。キー、来店解放、travel 解放の全期待値は維持。
+- tests/test_town_terminal_refusal_commit.py:
+  decide の False 側を明示的な SHADOW にした。確認の書込み・offer・キーの期待値は維持。
+- tests/test_town_terminal_routes_round6.py:
+  Round6RouteTerminalTest.test_actual_issuer_and_destination_override_other_held_trips と
+  test_read_refusal_does_not_arm_a_watch_or_read の SHADOW 側を明示指定。
+  旧 travel キー、read 回数、watch、コードの期待値は維持。
+  実際の町間移動を既定 mode で拒否し、文脈を解放する新テストを追加。
+- tests/test_town_terminal_departure.py:
+  DescentTerminalTest.test_direct_descent_on_a_quest_entrance_is_refused の旧 SHADOW 比較を
+  明示指定。旧 ">"・コード・close の期待値は維持。既定 mode の拒否・許可対照を別に追加。
+- tests/test_town_terminal_declarations.py: 承認済み test_2_modes の ENFORCE 集合を
+  各バッチの実数 4→11→14→15→18→20→22 に更新し、SHADOW 一覧との完全一致を検査。
+  全解除には未到達なので S1_SHADOW_CENSUS=109 と SHADOW 許可の最終撤去は未実施。
+- tests/test_policy_town.py / test_policy_shop.py / test_policy_home.py は、この round では
+  編集していない。新たな main の collaborator stub 拡張もない。
+
+検証と停止の診断
+- Home、鑑定、町間移動、資金稼ぎ、階段の各バッチで、町終端モジュールを各々単独実行。
+  各バッチの test_policy_home 171件、test_policy_shop 275件、test_policy_town 593件は合格。
+  最初の鑑定用補助スクリプトが複数行宣言を拾わなかった実行は採用せず、適用完了後に再実行した。
+- 町間移動では test_crosstown_alt_recorded 5件、test_goldburn_shopping_constructed 8件、
+  test_town_structure_lint 19件、test_ownership_s2b1_ladder 52件も各単独で合格。
+- 資金稼ぎの test_supply_stockout_recorded 9件、test_recall_churn_stockout_recorded 5件、
+  test_keep_running_a0 17件は合格。新たな録画 wall の変更はない。
+- 最後の出発バッチ: 町終端23モジュール・計136テストは合格。
+  test_policy_home 171件は合格。test_policy_shop は275件中2失敗、
+  test_policy_town は593件中36失敗（subTest を含む）。Errors はいずれも0。
+  この2モジュールで失敗したメソッドは計7件で、変更箇所は _town_special_key の departure-recall 拒否。
+- 同じコードで最後の2 rung だけ SHADOW / ENFORCE にして、失敗したケースを隔離実行した。
+  SHADOW: 町5メソッド・買い物2メソッドとも失敗0、Errors 0。
+  ENFORCE: 同じ7メソッドで計38失敗、Errors 0。38条件の最初の分岐差を記録した。
+  特に記録済みの _town_blocked_reason / Home の確認 / 代替資金稼ぎ / restock の処理を持つ
+  dispatcher 全体が、単一の帰還終端として先に拒否されている。
+  admission の拒否記録自体は意図した仕組みだが、probe への転落、早い device 延期、
+  可視終端や既存の確認が消える結果は R（回帰）として扱う。期待値を弱めて解消していない。
+  まず source 側で、この rung が今実際に行う仕事の終端・適用性と、拒否時に必要な確認を
+  正しく分ける必要がある。下表の「旧／新」は隔離対照で最初に分岐した判断を示す。
+
+さらに最終 fast_tier で、tests/test_policy_equipment.py の公開確認経路6メソッド・10条件と、
+tests/test_ability_sources_incident.py の1メソッド・1条件が失敗した。
+これらも最後の2 mode だけを切り替える対照で、SHADOW は全件合格、ENFORCE は全件失敗。
+最終的に、既存 main の14メソッド・49条件すべてを対照で再現し、Errors は0。
+装備確認経路では旧 "5" / town:blocked:equipment-optimization-timeout が新 "8" / probe に変わる。
+下表の49条件が fast_tier の失敗集合と完全一致する（module alias は正規化して照合）。
+
+T=tests/test_policy_town.py、S=tests/test_policy_shop.py、E=tests/test_policy_equipment.py、
+A=tests/test_ability_sources_incident.py。行番号はメソッド先頭。
+全行の拒否 rung は `_town_special_key`、終端は `departure-recall`。分類はすべて R。
+最後の2 mode だけを切り替えた対照であり、既存アサーションは変更していない。
+
+| テスト（file:line）／条件 | 旧 key / reason | 新 key / reason | 拒否コード | 状態の差 |
+| --- | --- | --- | --- | --- |
+| `T:14069 NoSafeRecallDestinationTest.test_drive_ending_town_terminals_survive_decision_rederivation` (terminal=departure-unsatisfiable) | `"5"` / `fundraising:no-safe-destination` | `"8"` / `probe` | `departure:food_ready, departure:cure_critical_ready` | blocked: `null`→`"departure-unsatisfiable"` |
+| `T:14069 NoSafeRecallDestinationTest.test_drive_ending_town_terminals_survive_decision_rederivation` (terminal=no-safe-recall-destination) | `"5"` / `town:blocked:no-safe-recall-destination` | `"8"` / `probe` | `departure:food_ready, departure:cure_critical_ready` | — |
+| `T:14069 NoSafeRecallDestinationTest.test_drive_ending_town_terminals_survive_decision_rederivation` (terminal=equipment-work-home-route-exhausted) | `"5"` / `fundraising:no-safe-destination` | `"8"` / `probe` | `departure:food_ready, departure:cure_critical_ready` | blocked: `null`→`"equipment-work-home-route-exhausted"` |
+| `T:14355 NoSafeRecallDestinationTest.test_exhausted_equipment_home_route_emits_named_terminal_publicly` | `"5"` / `fundraising:no-safe-destination` | `"2"` / `probe` | `departure:food_ready, departure:cure_critical_ready` | — |
+| `T:14109 NoSafeRecallDestinationTest.test_no_town_work_latches_visible_terminal` | `"5"` / `fundraising:no-safe-destination:depth-gate:destination-30:missing-resist_acid,resist_elec` | `"2"` / `probe` | `departure:food_ready, departure:cure_critical_ready, departure:equipment_departure_ready` | — |
+| `T:6284 TownAndFundraisingPolicyTest.test_live_capture_home_scan_incomplete_never_reads_recall_after_restart` | `"5"` / `town:blocked:equipment-home-unavailable` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-home-unavailable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=recall_departure_ready) | `"R300\r"` / `town:wait-restock:temple` | `"8"` / `probe` | `departure:recall_departure_ready` | — |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=remove_curse_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:remove_curse_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=food_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:food_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=light_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:light_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=quest_carry_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:quest_carry_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=teleport_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:teleport_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=cure_critical_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:cure_critical_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=identify_staff_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:identify_staff_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=teleport_items_safe) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:teleport_items_safe` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=free_pack_slots_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:free_pack_slots_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=inventory_weight_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:inventory_weight_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=hp_full) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:hp_full` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=mp_full) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:mp_full` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=temporary_status_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:temporary_status_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=organization_complete) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:organization_complete` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=equipment_departure_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=home_candidate_resolved) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:home_candidate_resolved` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=home_catalog_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:home_catalog_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=home_pending_item_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:home_pending_item_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=home_pending_batch_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:home_pending_batch_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=home_batch_review_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:home_batch_review_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=home_atomic_withdraw_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:home_atomic_withdraw_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=digger_withdrawal_resolved) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:digger_withdrawal_resolved` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=identification_need_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:identification_need_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=combat_weapon_ready) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:combat_weapon_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=departure_home_pending_item_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:departure_home_pending_item_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=departure_home_pending_batch_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:departure_home_pending_batch_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=departure_home_batch_review_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:departure_home_batch_review_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=departure_home_atomic_withdraw_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:departure_home_atomic_withdraw_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `T:9389 TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf` (failed_leaf=departure_identification_need_clear) | `"5"` / `town:blocked:departure-unsatisfiable` | `"8"` / `probe` | `departure:departure_identification_need_clear` | blocked: `"departure-unsatisfiable"`→`null` |
+| `S:3322 ShopPurchaseSellPolicyTest.test_unknown_device_waits_for_home_catalogue_before_deferral` | `"R300\r"` / `town:wait-restock:temple` | `"R300\r"` / `town:wait-restock:temple` | `departure:recall_departure_ready, departure:food_ready, departure:light_ready, departure:teleport_ready, departure:cure_critical_ready` | deferred_devices: `[]`→`["('unknown wand', 65, -1)"]` |
+| `S:6694 TownErrandPlanTest.test_non_home_leave_blocks_reopened_out_of_stock_stop` | `"5"` / `town:blocked:departure-unsatisfiable` | `"R300\r"` / `town:wait-restock:temple` | `departure:recall_departure_ready, departure:food_ready, departure:light_ready, departure:teleport_ready, departure:cure_critical_ready` | blocked: `"departure-unsatisfiable"`→`null` |
+| `E:4003 ConfirmedLoadoutPublicPathPinTest.test_dual_shovel_incident_refuses_through_choose_key` | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:3887 ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key` | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:3970 ConfirmedLoadoutPublicPathPinTest.test_light_only_home_upgrade_refuses_through_choose_key` | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:4030 ConfirmedLoadoutPublicPathPinTest.test_light_only_pack_incident_refuses_through_choose_key` | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:4394 ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key` (name=missing) | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:4394 ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key` (name=corrupt) | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:4394 ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key` (name=old-schema) | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:4394 ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key` (name=empty) | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:4394 ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key` (name=partial) | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `E:4372 ConfirmedLoadoutPublicPathPinTest.test_write_oserror_allows_completion_but_not_fresh_process` | `"5"` / `town:blocked:equipment-optimization-timeout` | `"8"` / `probe` | `departure:equipment_departure_ready` | blocked: `"equipment-optimization-timeout"`→`null` |
+| `A:81 AbilitySourcesIncidentTest.test_depth34_pre_recall_town_snapshot_refuses_public_departure` | `"2"` / `town:blocked:depth-gate:destination-34:missing-resist_chaos` | `"R300\r"` / `town:wait-restock:temple` | `departure:recall_departure_ready, departure:identify_staff_ready` | blocked: `"depth-gate:destination-34:missing-resist_chaos"`→`null` |
+
+89 rung の分類
+a=76、b=13（合計89）。aは拒否可能な終端、bは理由付き NO_REFUSAL の対象。
+STOPにより、aは終端未実装、bは宣言未実装。分類と実装完了を分けて記載する。
+
+| rung | 分類 | 根拠／必要な終端 | 状態 |
+| --- | --- | --- | --- |
+| `_atomic_shop_transaction_key` | a | 売買・店や報酬建物への経路・再訪。価格・在庫・受入・経路の拒否がある。 | 未実装 |
+| `_blocking_escape_melee_key` | a | 退路を塞ぐ隣接敵への攻撃。恐怖など、攻撃が拒否される条件を終端として扱う必要がある。 | 未実装 |
+| `_breeder_breakthrough_escape_key` | a | 上り階段とその経路。クエスト退出ロック・警告セル・到達不能の既存拒否がある。 | 未実装 |
+| `_breeder_breakthrough_key` | a | 帰還の読み、上り退避。読書可否・クエスト退出・経路の既存拒否がある。 | 未実装 |
+| `_chest_processing_key#1` | a | 箱の設置・探索・解除・開封。周辺敵、状態、箱の位置、phaseと試行予算を判定する。 | 未実装 |
+| `_chest_processing_key#2` | a | 箱の設置・探索・解除・開封。周辺敵、状態、箱の位置、phaseと試行予算を判定する。 | 未実装 |
+| `_choke_engagement_key` | a | 装備復旧・射撃・位置取り。装備条件、資源、経路、既存のengagement予算の拒否がある。 | 未実装 |
+| `_conquest_loot_key` | a | 拾得・移動・満杯時の処分・帰還。容量・安全・経路・帰還の拒否がある。 | 未実装 |
+| `_detected_threat_preparation_key` | a | 脅威に対する位置取り・待機。経路、警告セル、既存hold期限による拒否がある。 | 未実装 |
+| `_dig_to_known_downstairs_key` | a | 歩行・開扉・掘削・入口 travel。警告済みセル・意図しない確認・経路失敗の拒否がある。 | 未実装 |
+| `_direction_key#1` | b | 隣接座標を方向キーへ変換するだけ。取引・入場・使用を予約しない。 | 未宣言 |
+| `_direction_key#2` | b | 隣接座標を方向キーへ変換するだけ。取引・入場・使用を予約しない。 | 未宣言 |
+| `_emergency_item` | a | 消耗品の使用、階段、退避移動。対象資源・読書・退出ロック・移動の拒否がある。 | 未実装 |
+| `_entrance_travel_key` | a | 歩行・開扉・掘削・入口 travel。警告済みセル・意図しない確認・経路失敗の拒否がある。 | 未実装 |
+| `_equipment_transaction_home_key` | a | Home取得・預入・着脱。予約・装備条件・実行不能の判定と確認・復旧が必要。 | 未実装 |
+| `_equipment_transaction_town_key` | a | Home取得・預入・着脱。予約・装備条件・実行不能の判定と確認・復旧が必要。 | 未実装 |
+| `_equipment_transaction_town_key#1` | a | Home取得・預入・着脱。予約・装備条件・実行不能の判定と確認・復旧が必要。 | 未実装 |
+| `_equipment_transaction_town_key#2` | a | Home取得・預入・着脱。予約・装備条件・実行不能の判定と確認・復旧が必要。 | 未実装 |
+| `_equipment_transaction_town_owner_key` | a | Home取得・預入・着脱。予約・装備条件・実行不能の判定と確認・復旧が必要。 | 未実装 |
+| `_esp_threat_hunt_key` | a | 回復・加速薬、射撃、接近。資源の控え・戦闘の可否・経路の拒否がある。 | 未実装 |
+| `_esp_threat_rest_key` | a | 評価結果だけでなく追跡・退出のキーも返す。委譲した使用・階段・移動が拒否可能。 | 未実装 |
+| `_explore_step#2` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `_finish_mining_floor` | a | 採掘階からの退出を実行する。帰還の読み・階段・退出経路の既存拒否がある。 | 未実装 |
+| `_flee_step#2` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `_flee_step#3` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `_flee_step#4` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `_fruitless_disengage_key` | a | 消耗品・帰還・退避移動。資源・退出ロック・経路の既存拒否がある。 | 未実装 |
+| `_full_pack_destroy_key` | a | 破壊・処分（鑑定が先行する場合あり）。保護・予約・実行失敗の既存拒否がある。 | 未実装 |
+| `_fundraising_combat_equipment_key` | a | 着脱・装備変更・刻銘。対象・呪い・予約・鑑定の既存拒否がある。 | 未実装 |
+| `_heavy_curse_inscription_key` | a | 着脱・装備変更・刻銘。対象・呪い・予約・鑑定の既存拒否がある。 | 未実装 |
+| `_home_catalogue_work_key` | a | 知識要求・観測。既存の未観測拒否・期限切れ経路と確認処理がある。 | 未実装 |
+| `_home_disposal_processing_key` | a | 破壊・処分（鑑定が先行する場合あり）。保護・予約・実行失敗の既存拒否がある。 | 未実装 |
+| `_home_full_knowledge_key` | a | 知識要求・観測。既存の未観測拒否・期限切れ経路と確認処理がある。 | 未実装 |
+| `_home_full_relief_key` | a | Home取得・満杯解消の取引。対象・予約・容量・経路の拒否がある。 | 未実装 |
+| `_home_full_skip_key` | b | 未解決品を保持対象に記録して選択を解除する。新しい取引・使用を発行しない。 | 未宣言 |
+| `_home_rearm_key` | a | 着脱・装備変更・刻銘。対象・呪い・予約・鑑定の既存拒否がある。 | 未実装 |
+| `_hunt_step#1` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `_hunt_step#2` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `_hunt_step#3` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `_immobile_breeder_giveup_key` | a | 探索先へ実際に歩く。_step_toward の警告セル・確認・開扉等の拒否を引き継ぐ。 | 未実装 |
+| `_item_destroying_breeder_leave_key` | a | 破壊・処分（鑑定が先行する場合あり）。保護・予約・実行失敗の既存拒否がある。 | 未実装 |
+| `_kill_quest_floor_recovery_key` | a | クエスト階への戻り・再下降。行先深度・下降許可・階段と経路の既存拒否がある。 | 未実装 |
+| `_melee_swarm_combat_key` | a | 戦闘装備への復旧、射撃、位置取り。着脱条件・弾・経路の既存拒否がある。 | 未実装 |
+| `_normal_loot_key#1` | a | 拾得・移動・満杯時の処分・帰還。容量・安全・経路・帰還の拒否がある。 | 未実装 |
+| `_normal_loot_key#2` | a | 拾得・移動・満杯時の処分・帰還。容量・安全・経路・帰還の拒否がある。 | 未実装 |
+| `_opening_q34_town_key` | a | 武器の再装備、調達、クエスト入場へ分岐。各終端の準備・経路・入場可否が必要。 | 未実装 |
+| `_overweight_surplus_sale_key` | a | 超過重量を解消する売却・処分と経路。保持・受入・安全・Home容量・到達可能性で拒否できる。 | 未実装 |
+| `_pack_pressure_identify_key` | a | 鑑定の使用。供給源・対象・予約を判定し、要求・延期の確認を維持する必要がある。 | 未実装 |
+| `_paralyzer_prevention_key` | a | 逃走の巻物または退避移動。読書可否、所持品、経路・警告セルの拒否がある。 | 未実装 |
+| `_ranged_attack_key#1` | a | 射撃・投擲。弾や投擲物、射線、盲目・混乱、拒否済み対象の既存条件がある。 | 未実装 |
+| `_ranged_attack_key#2` | a | 射撃・投擲。弾や投擲物、射線、盲目・混乱、拒否済み対象の既存条件がある。 | 未実装 |
+| `_recall_restock_key` | a | 売買・店や報酬建物への経路・再訪。価格・在庫・受入・経路の拒否がある。 | 未実装 |
+| `_release_staged_store_operation` | a | 売買・店や報酬建物への経路・再訪。価格・在庫・受入・経路の拒否がある。 | 未実装 |
+| `_released_restock_store_key` | a | 売買・店や報酬建物への経路・再訪。価格・在庫・受入・経路の拒否がある。 | 未実装 |
+| `_return_to_town_key#1` | a | 帰還の読み・上り階段と帰路。所持品、読書可否、クエスト退出ロック、経路に拒否がある。 | 未実装 |
+| `_return_to_town_key#2` | a | 帰還の読み・上り階段と帰路。所持品、読書可否、クエスト退出ロック、経路に拒否がある。 | 未実装 |
+| `_return_to_town_key#3` | a | 帰還の読み・上り階段と帰路。所持品、読書可否、クエスト退出ロック、経路に拒否がある。 | 未実装 |
+| `_start_kill_quest_regeneration` | a | 階段を使うクエスト再生成。経路と再生成終了条件を持ち、純粋な候補座標選択ではない。 | 未実装 |
+| `_step_toward` | a | 歩行・開扉・掘削・入口 travel。警告済みセル・意図しない確認・経路失敗の拒否がある。 | 未実装 |
+| `_step_toward:departure` | a | 歩行・開扉・掘削・入口 travel。警告済みセル・意図しない確認・経路失敗の拒否がある。 | 未実装 |
+| `_step_toward:escape` | a | 歩行・開扉・掘削・入口 travel。警告済みセル・意図しない確認・経路失敗の拒否がある。 | 未実装 |
+| `_step_toward:hunt` | a | 歩行・開扉・掘削・入口 travel。警告済みセル・意図しない確認・経路失敗の拒否がある。 | 未実装 |
+| `_step_toward:positioning` | a | 歩行・開扉・掘削・入口 travel。警告済みセル・意図しない確認・経路失敗の拒否がある。 | 未実装 |
+| `_store_sell_key` | a | 売買・店や報酬建物への経路・再訪。価格・在庫・受入・経路の拒否がある。 | 未実装 |
+| `_summoner_ranged_kill_key` | a | 召喚者への射撃を実行する。弾・射撃可否と戦闘条件の既存拒否がある。 | 未実装 |
+| `_town_blocked_key` | a | 表示だけでなく強制出発・経路・取引放棄も行う。出発可否・owner予算・経路が拒否可能。 | 未実装 |
+| `_town_destroy_key` | a | 破壊・処分（鑑定が先行する場合あり）。保護・予約・実行失敗の既存拒否がある。 | 未実装 |
+| `_town_order_step4_key#1` | a | 売買・店や報酬建物への経路・再訪。価格・在庫・受入・経路の拒否がある。 | 未実装 |
+| `_town_order_step4_key#2` | a | 売買・店や報酬建物への経路・再訪。価格・在庫・受入・経路の拒否がある。 | 未実装 |
+| `_town_overflow_destroy_key` | a | 破壊・処分（鑑定が先行する場合あり）。保護・予約・実行失敗の既存拒否がある。 | 未実装 |
+| `_town_random_teleport_suppression_key` | a | 着脱・装備変更・刻銘。対象・呪い・予約・鑑定の既存拒否がある。 | 未実装 |
+| `_town_restore_weapon_key` | a | 着脱・装備変更・刻銘。対象・呪い・予約・鑑定の既存拒否がある。 | 未実装 |
+| `_unprofitable_unique_disengage_key` | a | クエスト退出ロックを確認して退避処理へ委譲。委譲先の使用・退出・移動が拒否可能。 | 未実装 |
+| `_unseen_retreat_intercept_key` | b | 成立済みチョークの維持。恐怖がなければ近接方向キー、そうでなければ待機だけで、使用・取引・旅行・入場を持たない。 | 未宣言 |
+| `_unseen_retreat_key` | a | 実際に逆チョーク・退避移動を発行する。経路・警告セル・脅威条件が拒否可能。 | 未実装 |
+| `_victory_loot_key` | a | 拾得・移動・満杯時の処分・帰還。容量・安全・経路・帰還の拒否がある。 | 未実装 |
+| `_wield_digging_tool_key` | a | 着脱・装備変更・刻銘。対象・呪い・予約・鑑定の既存拒否がある。 | 未実装 |
+| `_worthless_junk_destroy_key` | a | 破壊・処分（鑑定が先行する場合あり）。保護・予約・実行失敗の既存拒否がある。 | 未実装 |
+| `frontier-probe` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `home-atomic-withdraw` | a | Home取得・満杯解消の取引。対象・予約・容量・経路の拒否がある。 | 未実装 |
+| `home-errand-knowledge` | a | 知識要求・観測。既存の未観測拒否・期限切れ経路と確認処理がある。 | 未実装 |
+| `home-full-identification` | a | 鑑定の使用。供給源・対象・予約を判定し、要求・延期の確認を維持する必要がある。 | 未実装 |
+| `home-full-knowledge` | a | 知識要求・観測。既存の未観測拒否・期限切れ経路と確認処理がある。 | 未実装 |
+| `home-knowledge-after-exit` | a | 知識要求・観測。既存の未観測拒否・期限切れ経路と確認処理がある。 | 未実装 |
+| `idle-fallback` | a | 候補選択だけでなく歩行・場合によって帰還も発行する。移動と読書の拒否がある。 | 未実装 |
+| `navigator.decide` | a | クエストの入場・経路・計画を実行する。準備・入場許可・確認・経路の拒否がある。 | 未実装 |
+| `oscillating-probe` | b | 候補座標を選ぶ処理。ゲームへ発行する移動は別の _step_toward rung が所有する。 | 未宣言 |
+| `town-progress-committed-loot` | a | 拾得・移動・満杯時の処分・帰還。容量・安全・経路・帰還の拒否がある。 | 未実装 |
+| `verified-disposal` | a | 破壊・処分（鑑定が先行する場合あり）。保護・予約・実行失敗の既存拒否がある。 | 未実装 |
+
+分類表の実装は未着手。出発バッチの STOP 条件を超えて NO_REFUSAL を宣言したり、
+未実装の refusable terminal を例外扱いしていない。構造検査の最終形
+ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL のみへの限定と、SHADOW census 109→0 は残作業。
+
+帳簿・互換性
+- 現在の TERMINALS は ENFORCE 22、SHADOW 89、EXEMPT_SURVIVAL 21。
+  SHADOW_RUNGS も89で完全一致。DIRECT_PRODUCERS_S1 / PARALLEL_PREDICATES_S1 は空のまま。
+- 新しい source helper は _commit_fundraising_run だけ。review 表で adapter として登録した。
+  manifest は859→860候補、21,937→21,942箇所、未分類0件。
+- 新しい policy 属性はなく、復元 checkpoint の追加既定値はない。
+  commit_refusal の新しい rung_name は省略可能で、既存の直接呼出しと互換。
+- 新しい拒否コード、last_reason、閾値はない。既存の no-step cause と observer を使用した。
+  REFUSAL_SERVERS と STUCK_FAMILY_REASONS の追加変更は不要だった。
+
+ガードの記録
+- 解呪・強化バッチの有効なガード: d914eeb2a で preflight 合格、mutation は78/78検知、
+  fast_tier は4,366件・Failuresなし。既知の共有キャッシュ由来の
+  tests.test_melee_site_lint import エラー1件は、従前の指示どおり無視した。
+- 初回に preflight と mutation を誤って重ねた実行は無効とした。
+  私が起動した mutation とその unit-test 子プロセスだけを終了し、自分の逆適用を復元。
+  その後の有効な3ガードは順次実行した。他人のプロセスは停止していない。
+- 修復1: 解呪・強化の SHADOW 一覧除去1 hunk が未検知だったため、承認済み構造テストへ
+  一覧の完全一致を追加。再実行で78/78検知。
+- 修復2: 登録済み adapter の重複 producer baseline 記載を修正。
+  最終3ガードは dc366caa1 後、preflight→mutation→並行ゲート確認→fast_tier の順で実行。
+  下記にその出力を掲載する。main の回帰は STOP 規定により未修正であり、合格扱いしない。
+
+最終結果: preflight exit 0、mutation exit 0（77/77 hunk 検知・dc366caa1 に記録）。
+fast_tier exit 1、4,372テスト / 527.1秒、Failures 49、Errors 1、crashed shards なし。
+Errors 1は既知の共有キャッシュ由来 import エラーで、従前の指示により無視した。
+Failures 49は上表の既存 main 回帰であり、無視していない。修復枠は2/2を使用済み。
+fast_tier 直前の指定パターン・70分以内の並行ゲート確認は稼働0件。
+
+--- preflight (exit 0) ---
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_affordable_shelf_keeps_shopping_owner
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_destination_discards_origin_stockout_and_store_bounds
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_first_alternating_board_quest_return_yields_and_records_arrival
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_observed_stockout_releases_quest_return
+[preflight] NOTE existing-test MODIFIED: tests/test_policy_shop.py::ShopPurchaseSellPolicyTest.test_expired_recall_restock_wait_routes_to_released_store_publicly
+[preflight] NOTE existing-test MODIFIED: tests/test_policy_town.py::TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_commit_pins.py::LedgerRestoreAndRecordTest.test_each_decision_records_its_own_admission
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_2_modes
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_3_direct_producers_are_listed
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_4_codes_and_table_agree
+[preflight] PREFLIGHT OK: 36 changed files, 0 findings (town-claim-s2-1023 vs 90947a65)
+
+--- mutation_check --record (exit 0) ---
+[mutation] 77 source hunks, tests: tests.test_town_terminal_declarations.TerminalDeclarationTest.test_3_direct_producers_are_listed tests.test_town_terminal_curse_remove.CurseRemoveTerminalTest.test_no_scroll_refuses_and_the_body_does_not_read tests.test_town_terminal_departure.DepartureLeafTest.test_every_leaf_of_the_gate_has_a_declared_row tests.test_town_terminal_home_deposit.SpaceDepositBodyTest.test_the_body_no_longer_asks_the_quest_predicate tests.test_town_terminal_routes_round6.Round6RouteTerminalTest.test_read_refusal_does_not_arm_a_watch_or_read tests.test_town_terminal_routes_round6.Round6RouteTerminalTest.test_restored_checkpoint_defaults_the_temporary_travel_context tests.test_town_terminal_shopping_fold.OpeningQ34AsksTheVerdictTest.test_trip_holds_the_quest_body tests.test_crosstown_alt_recorded.CrosstownAltRecordedTest.test_after_refusal_travel_reaches_recorded_target_without_reentry tests.test_goldburn_shopping_constructed.GoldburnShoppingConstructedTest.test_finished_q2_return_also_yields tests.test_town_terminal_curse_remove.CurseRemoveTerminalTest.test_scroll_held_admits_and_the_body_reads tests.test_town_terminal_declarations.TerminalDeclarationTest.test_4_codes_and_table_agree tests.test_town_terminal_departure.DepartureLeafTest.test_material_read_does_not_commit_the_equipment_leaf tests.test_town_terminal_direct_round8.DirectEntryTest.test_quest_return_applicability_is_asked_by_its_terminal tests.test_town_terminal_plan_round7.PlanAdmissionTest.test_missing_withdrawal_is_refused_before_visit_filing tests.test_town_terminal_quest_work.QuestWorkHoldTest.test_hold_is_the_entry_refusal_of_the_quest_terminal tests.test_town_terminal_refusal_round7.RefusalConfirmationTest.test_fare_refusal_preserves_the_body_record_and_reason tests.test_town_terminal_routes_round6.Round6RouteTerminalTest.test_special_dispatcher_normal_decision_uses_its_entry tests.test_town_terminal_supplier.DepartureSupplierTest.test_affordable_other_ware_is_not_a_recall_supplier tests.test_town_terminal_need_evidence.NeedEvidenceTest.test_supplied_need_keeps_the_server_live tests.test_town_terminal_need_evidence.AttributeDefaultsTest.test_new_and_restored_policies_have_the_decision_memos tests.test_town_terminal_need_evidence.ClaimsEvaluationStampTest.test_claims_evaluation_stamps_its_need_list tests.test_town_terminal_need_evidence.PreparationReadOncePerDecisionTest.test_material_and_need_list_share_the_read tests.test_town_terminal_declarations.TerminalDeclarationTest.test_2_modes tests.test_town_terminal_fundraising_round10
+[mutation] caught     src/hengbot/policy.py:473 (from hengbot.town_terminal import (): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] caught     src/hengbot/policy.py:1578 (# (decision_sequence, board, preparation): the decision's one read.): test_new_and_restored_policies_have_the_decision_memos
+[mutation] caught     src/hengbot/policy.py:1756 (self._terminal_town_travel = None): test_restored_checkpoint_defaults_the_temporary_travel_context
+[mutation] caught     src/hengbot/policy.py:5921 (# A rung that does not apply on this board is skipped on and off town.): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] caught     src/hengbot/policy.py:5935 (if not may_take_board(self, rung_name, rung.family, board, terminal):): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] caught     src/hengbot/policy.py:10442 (cancel_unsafe_recall = self._town_producer_entry("_town_cancel_unsafe_): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10546 (warning_response = self._town_producer_entry("_warning_prompt_response): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10564 (return self._town_producer_entry("_town_blocked_key", lambda: self._to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10647 (key = self._town_producer_entry("_town_blocked_key", lambda: self._tow): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10775 (return self._town_producer_entry("_wilderness_survival_key", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10876 (darkness_recovery = self._town_producer_entry("_darkness_recovery_key"): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10891 (or self._town_producer_entry("_dig_to_known_downstairs_key", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10966 (return self._town_producer_entry("_wilderness_survival_key", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11043 (unprofitable_unique = self._town_producer_entry("_unprofitable_unique_): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11053 (combat_equip = self._town_producer_entry("_fundraising_combat_equipmen): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11133 (escape = self._town_producer_entry("_escape_by_stairs", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11166 (return self._town_producer_entry("_step_toward:survival", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11184 (escape = self._town_producer_entry("_escape_by_stairs", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11227 (return self._town_producer_entry("_step_toward:escape", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11295 (return self._town_producer_entry("_step_toward:escape", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11387 (return self._town_producer_entry("_step_toward:positioning", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11400 (return self._town_producer_entry("_step_toward:hunt", lambda: self._st): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11425 (cancel_unsafe_recall = self._town_producer_entry("_town_cancel_unsafe_): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11443 (key = self._town_producer_entry("_step_toward:departure", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11489 (return self._town_producer_entry("_step_toward:survival", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11509 (# Rung #1 applies only while stage-2 quest travel owns the town): test_quest_return_applicability_is_asked_by_its_terminal
+[mutation] caught     src/hengbot/policy.py:11575 (identify = self._town_producer_entry("_pack_pressure_identify_key", la): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11586 (destroy = self._town_producer_entry("_full_pack_destroy_key", lambda: ): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11664 (junk = self._town_producer_entry("_worthless_junk_destroy_key", lambda): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11872 (town_cycle_repair = self._town_producer_entry("_town_special_key", lam): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11940 (destroy = self._town_producer_entry("_town_destroy_key", lambda: self.): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11964 (town_special = self._town_producer_entry(): test_3_direct_producers_are_listed, test_quest_return_applicability_is_asked_by_its_terminal, test_special_dispatcher_normal_decision_uses_its_entry
+[mutation] caught     src/hengbot/policy.py:12012 (return self._town_producer_entry("_recall_restock_key", lambda: self._): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12177 (return self._town_producer_entry("_step_toward:positioning", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12196 (key = self._town_producer_entry("_step_toward:departure", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12211 (travel = self._town_producer_entry("_entrance_travel_key", lambda: sel): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12241 (return self._town_producer_entry("_step_toward:hunt", lambda: self._st): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12273 (dig = self._town_producer_entry("_dig_to_known_downstairs_key", lambda): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12293 (return self._town_producer_entry("_read_dungeon_recall_scroll_key", la): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12312 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12344 (return self._town_producer_entry("_step_toward:detectors", lambda: sel): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12378 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12397 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12429 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12452 (return self._town_producer_entry("_step_toward:detectors", lambda: sel): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:17468 (if not verdict_quest_work(gather_quest_work(self, snapshot)).admitted:): test_finished_q2_return_also_yields
+[mutation] caught     src/hengbot/policy_equipment.py:2835 (# One preparation read per decision and board, shared by the terminal): test_material_and_need_list_share_the_read
+[mutation] caught     src/hengbot/policy_quest.py:23 (from hengbot.town_terminal import gather_quest_work, verdict_quest_wor): test_trip_holds_the_quest_body
+[mutation] caught     src/hengbot/policy_quest.py:585 (# This direct call has no entry: the fixed-quest terminals' shared): test_trip_holds_the_quest_body
+[mutation] caught     src/hengbot/policy_shop.py:1711 (def _cross_town_shopping_hold(self, snapshot: Snapshot) -> bool:): test_trip_holds_the_quest_body, test_after_refusal_travel_reaches_recorded_target_without_reentry, test_finished_q2_return_also_yields, test_hold_is_the_entry_r
+[mutation] caught     src/hengbot/policy_shop.py:1734 (if self._cross_town_shopping_hold(snapshot):): test_after_refusal_travel_reaches_recorded_target_without_reentry
+[mutation] caught     src/hengbot/policy_state.py:193 (restored.__dict__.setdefault("_terminal_town_travel", None)): test_restored_checkpoint_defaults_the_temporary_travel_context
+[mutation] caught     src/hengbot/policy_town.py:60 (from hengbot.town_terminal import gather_store_buy, verdict_store_buy,): test_the_body_no_longer_asks_the_quest_predicate, test_quest_return_applicability_is_asked_by_its_terminal, test_missing_withdrawal_is_refused_before_visit_fili
+[mutation] caught     src/hengbot/policy_town.py:2209 (self, snapshot: Snapshot, *, ignore_free_slots: bool = False,): test_every_leaf_of_the_gate_has_a_declared_row, test_after_refusal_travel_reaches_recorded_target_without_reentry, test_material_read_does_not_commit_the_equipm
+[mutation] caught     src/hengbot/policy_town.py:2250 (# The default read keeps its historical call (tests stub it).): test_material_read_does_not_commit_the_equipment_leaf
+[mutation] caught     src/hengbot/policy_town.py:2330 (# Stage-2 quest travel (rung #1) keeps the shortage actionable for): test_the_body_no_longer_asks_the_quest_predicate
+[mutation] caught     src/hengbot/policy_town.py:2409 (def _recall_town_departure_conjuncts(): test_every_leaf_of_the_gate_has_a_declared_row
+[mutation] caught     src/hengbot/policy_town.py:3751 (claimed_needs: list[TownNeed] = []): test_after_refusal_travel_reaches_recorded_target_without_reentry, test_quest_return_applicability_is_asked_by_its_terminal, test_special_dispatcher_normal_deci
+[mutation] caught     src/hengbot/policy_town.py:3872 (claimed_needs.append(need)): test_claims_evaluation_stamps_its_need_list
+[mutation] caught     src/hengbot/policy_town.py:4123 (# The supplier's store-buy verdict (town_terminal, S2): reachable,): test_affordable_other_ware_is_not_a_recall_supplier
+[mutation] caught     src/hengbot/policy_town.py:4246 (needs = [need for need in needs): test_missing_withdrawal_is_refused_before_visit_filing
+[mutation] caught     src/hengbot/policy_town.py:7075 (previous = getattr(self, "_terminal_town_travel", None)): test_fare_refusal_preserves_the_body_record_and_reason
+[mutation] caught     src/hengbot/policy_town.py:7183 () -> str | None:): test_read_refusal_does_not_arm_a_watch_or_read
+[mutation] caught     src/hengbot/policy_town.py:7200 (return key): test_read_refusal_does_not_arm_a_watch_or_read
+[mutation] caught     src/hengbot/town_terminal.py:9 (from dataclasses import dataclass, replace): test_the_body_no_longer_asks_the_quest_predicate, test_quest_return_applicability_is_asked_by_its_terminal, test_missing_withdrawal_is_refused_before_visit_fili
+[mutation] caught     src/hengbot/town_terminal.py:94 (@dataclass(frozen=True)): test_town_terminal_declarations, test_town_terminal_curse_remove, test_town_terminal_departure, test_town_terminal_home_deposit, test_town_terminal_routes_round
+[mutation] caught     src/hengbot/town_terminal.py:640 (# The fixed-quest terminals' shared verdict (verdict_quest_work).): non-zero exit
+[mutation] caught     src/hengbot/town_terminal.py:763 ("overweight": (): test_no_scroll_refuses_and_the_body_does_not_read, test_every_leaf_of_the_gate_has_a_declared_row, test_4_codes_and_table_agree
+[mutation] caught     src/hengbot/town_terminal.py:828 (# A supplier that cannot serve the need: no town owner serves it.): test_4_codes_and_table_agree
+[mutation] caught     src/hengbot/town_terminal.py:885 (if policy._fixed_quest_prepare_return_required(board):): test_hold_is_the_entry_refusal_of_the_quest_terminal
+[mutation] caught     src/hengbot/town_terminal.py:912 (# A taken kill quest descends by ordinary stairs from the town.): non-zero exit
+[mutation] caught     src/hengbot/town_terminal.py:1115 ("_heavy_curse_inscription_key",): test_3_direct_producers_are_listed, test_2_modes
+[mutation] caught     src/hengbot/town_terminal.py:1187 ("_fixed_quest_key#1": TerminalDecl(fixed_quest_return_intended_termina): test_town_terminal_declarations, test_town_terminal_curse_remove, test_town_terminal_departure, test_town_terminal_home_deposit, test_town_terminal_routes_round
+[mutation] caught     src/hengbot/town_terminal.py:1394 (verdict = _TERMINAL_VERDICTS.get(terminal.terminal_id)): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_hold_is_the_entry_refusal_of_the_quest_terminal, test_fa
+[mutation] caught     src/hengbot/town_terminal.py:1428 (def _need_served_now(policy: Any, board: Any, server: Server) -> bool:): test_no_scroll_refuses_and_the_body_does_not_read, test_fare_refusal_preserves_the_body_record_and_reason, test_supplied_need_keeps_the_server_live, test_depart
+[mutation] caught     src/hengbot/town_terminal.py:1458 (if server.category is not None and _need_served_now(policy, board, ser): test_supplied_need_keeps_the_server_live
+[mutation] caught     src/hengbot/town_terminal.py:1482 (def may_take_board(policy: Any, rung_name: str, family: str, board: An): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] MUTATION OK: 0 of 77 hunks are not pinned by a test
+[mutation] recorded for dc366caa
+
+--- fast_tier --shards 4 (exit 1) ---
+[fast] 3660 fast tests (<2.0s in 8f95933fa) + 24 changed modules, 4 shards
+[fast] excluded 45 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-fb4uikpf)
+Failures: ['tests.test_ability_sources_incident.AbilitySourcesIncidentTest.test_depth34_pre_recall_town_snapshot_refuses_public_departure', "tests.test_policy_town.NoSafeRecallDestinationTest.test_drive_ending_town_terminals_survive_decision_rederivation (terminal='departure-unsatisfiable')", "tests.test_policy_town.NoSafeRecallDestinationTest.test_drive_ending_town_terminals_survive_decision_rederivation (terminal='no-safe-recall-destination')", "tests.test_policy_town.NoSafeRecallDestinationTest.test_drive_ending_town_terminals_survive_decision_rederivation (terminal='equipment-work-home-route-exhausted')", 'tests.test_policy_town.NoSafeRecallDestinationTest.test_exhausted_equipment_home_route_emits_named_terminal_publicly', 'tests.test_policy_town.NoSafeRecallDestinationTest.test_no_town_work_latches_visible_terminal', 'tests.test_policy_town.TownAndFundraisingPolicyTest.test_live_capture_home_scan_incomplete_never_reads_recall_after_restart', "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='recall_departure_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='remove_curse_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='food_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='light_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='quest_carry_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='teleport_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='cure_critical_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='identify_staff_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='teleport_items_safe')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='free_pack_slots_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='inventory_weight_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='hp_full')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='mp_full')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='temporary_status_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='organization_complete')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='equipment_departure_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='home_candidate_resolved')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='home_catalog_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='home_pending_item_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='home_pending_batch_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='home_batch_review_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='home_atomic_withdraw_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='digger_withdrawal_resolved')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='identification_need_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='combat_weapon_ready')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='departure_home_pending_item_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='departure_home_pending_batch_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='departure_home_batch_review_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='departure_home_atomic_withdraw_clear')", "tests.test_policy_town.TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf (failed_leaf='departure_identification_need_clear')", 'tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_dual_shovel_incident_refuses_through_choose_key', 'tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key', 'tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_light_only_home_upgrade_refuses_through_choose_key', 'tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_light_only_pack_incident_refuses_through_choose_key', "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key (name='missing')", "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key (name='corrupt')", "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key (name='old-schema')", "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key (name='empty')", "tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_record_fail_closed_shapes_refuse_through_choose_key (name='partial')", 'tests.test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_write_oserror_allows_completion_but_not_fresh_process', 'test_policy_shop.ShopPurchaseSellPolicyTest.test_unknown_device_waits_for_home_catalogue_before_deferral', 'test_policy_shop.TownErrandPlanTest.test_non_home_leave_blocks_reopened_out_of_stock_stop']
+Errors: ['tests.test_melee_site_lint (import) ModuleNotFoundError("No module named \'tests.test_melee_site_lint\'")']
+Total: 4372 tests, 527.1s
+
+残作業
+1. 出発 dispatcher の R を source で修正し、上記14メソッド・49条件と町モジュールを再確認。
+   既存期待値の更新が本当に必要なら、具体的な旧／新と理由を承認対象にする。
+2. 分類した89 rung のうち、b は理由付き NO_REFUSAL、a は実際の終端と材料・純粋 verdict・
+   必要な refusal commit を実装して ENFORCE にする。全 SHADOW をなくし、最終構造検査を厳密化。
+3. 設計で指定された全 capture 窓の受入れ・前進証拠と、盤面ごとの1.1倍以内の性能確認は未完了。
+   今回の既存録画モジュール合格を、その全受入れの完了とは扱わない。
+4. 修正後の HEAD で必要な3ガードを再度実施。全スイートと取り込みは merge gate の担当のまま。
+
+運用制約
+- 指定 worktree / branch だけで作業し、push・merge・stash はしていない。
+- ゲーム/BOT の操作、リモートへの書込み、他人のプロセスの停止はしていない。
+- 大規模な test_parallel_runner / 全スイートは実行していない。
+  開発中は単独モジュール検証、対照は失敗ケースの隔離実行、最終検証は指定 fast_tier を使用した。
+- 開始時の未追跡ファイルは保持した。診断スクリプトと実行ログは未追跡の作業証拠として保持。
+  このレポート追記のコミットは src/tests tree を変えない。
