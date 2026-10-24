@@ -700,6 +700,5 @@
   "town_terminal.py:plan_stop_admission": "pure helper: read supplier and Home withdrawal verdicts for the route projection, including native travel and a newly produced category",
   "town_terminal.py:refused": "pure helper: construct an immutable refusal result with deduplicated codes",
   "town_terminal.py:verdict_home_withdraw": "pure helper: judge the frozen Home withdrawal material without side effects",
-  "town_terminal.py:verdict_store_buy": "pure helper: judge the frozen supplier material without side effects",
-  "town_terminal.py:_commit_fundraising_run": "delegated adapter: preserve the refused fundraising run's existing no-step confirmation and detection observation; no key or independent progress"
+  "town_terminal.py:verdict_store_buy": "pure helper: judge the frozen supplier material without side effects"
 }
