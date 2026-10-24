@@ -193,6 +193,8 @@ def normalize_policy_state(restored, *, restart=False):
         )
         _restore_terminal_admission_ledger(current_ledger)
     restored.__dict__.setdefault("_terminal_admission_memo", None)
+    restored.__dict__.setdefault("_store_buy_material_memo", None)
+    restored.__dict__.setdefault("_supplier_reachability_memo", None)
     restored.__dict__.setdefault("_terminal_town_travel", None)
     restored.__dict__.setdefault("_terminal_town_recall_read", False)
     restored.__dict__.setdefault("_terminal_store_sale", None)

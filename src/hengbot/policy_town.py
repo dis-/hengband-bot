@@ -3990,6 +3990,23 @@ class TownMixin:
         self, snapshot: Snapshot, need: TownNeed
     ) -> bool:
         """Whether a need's supplier has a live or remembered town route."""
+        memo = getattr(self, "_supplier_reachability_memo", None)
+        if (memo is None or memo[0] != self._decision_sequence
+                or memo[1] is not snapshot):
+            memo = (self._decision_sequence, snapshot, {})
+            self._supplier_reachability_memo = memo
+        # Routes depend on the store, not on the need's category or priority.
+        # Town layouts are immutable; a newly selected map invalidates the key.
+        key = (need.store_type, id(self._town_map), self._town_map_active,
+               tuple((town, id(layout)) for town, layout in self._town_maps.items()))
+        if key not in memo[2]:
+            memo[2][key] = self._compute_town_need_supplier_reachable(snapshot, need)
+        return memo[2][key]
+
+    def _compute_town_need_supplier_reachable(
+        self, snapshot: Snapshot, need: TownNeed
+    ) -> bool:
+        """Read the observed or remembered route on a decision-memo miss."""
         store = getattr(snapshot, "store", None)
         if store is not None and store.store_type == need.store_type:
             return True

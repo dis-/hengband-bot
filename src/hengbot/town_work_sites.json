@@ -7307,6 +7307,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "102cbf2c7ed0c2cfdf024401ff310735c2f57b9e7cb3dc7e1757e509f8bbaa86"
   },
+  "policy_town.py:TownMixin._compute_town_need_supplier_reachable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "baa81a591b72d7c0c30f919fd04fdabab075ae11dde80a98955252c32c9b2f38"
+  },
   "policy_town.py:TownMixin._cross_town_item_categories": {
     "classification": "data",
     "rows": [
@@ -7589,7 +7597,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b6cfce95976fabf3470c55084e498f5036b44bfca0df3e73a4c24ff53e6f9a69"
+    "ast_sha256": "ee8fbad86ca2fd3d2eb637d879d00f52f338b957efb1f443d310537e15a18c46"
   },
   "policy_town.py:TownMixin._town_observed_purchase_is_composable": {
     "classification": "data",
@@ -8295,6 +8303,14 @@
     "delegation": "no independent success",
     "ast_sha256": "43046c2598c012f1427f97fba7f12a167aa3ad98a6db8fa64214572fadac7550"
   },
+  "town_terminal.py:_compute_store_buy_material": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "c18df28e3ab5ef1cdb7666f3b635a881d68c72158ec39c409c2b3eebfe8b54d0"
+  },
   "town_terminal.py:commit_refusal": {
     "classification": "data",
     "rows": [
@@ -8341,7 +8357,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "006445f1d759610b5267037a93ea980b575458ba5ee33e370f345f4643225e0f"
+    "ast_sha256": "e4bf1047f7d4e762dcb6fb0e35163faa7a18486112882a19ac1b00ec8d084c7a"
   },
   "town_terminal.py:home_withdraw_intended_terminal": {
     "classification": "data",

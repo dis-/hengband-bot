@@ -11211,5 +11211,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "existing item effect and store exit observers",
     "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._compute_town_need_supplier_reachable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "town_terminal.py:_compute_store_buy_material": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
   }
 }
