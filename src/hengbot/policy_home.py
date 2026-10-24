@@ -3180,7 +3180,7 @@ class HomeMixin:
                   else "home-errand" if self._home_errand.active else "home-visit")
         return self._town_producer_entry(
             "home-atomic-withdraw", lambda: self._atomic_home_withdraw_dispatch_key(
-                snapshot, step), family=family)
+                snapshot, step), family=family, board=snapshot)
 
     def _home_take_entry_key(self, snapshot, item, owner, quantity, letter):
         """Admit the observed shelf target before composing its physical take."""
@@ -3190,7 +3190,7 @@ class HomeMixin:
             return self._town_producer_entry(
                 "home-atomic-withdraw", lambda: store_item_key(
                     self, snapshot, "withdraw", item, owner, quantity=quantity, address=letter),
-                family=owner)
+                family=owner, board=snapshot)
         finally:
             self._terminal_home_take = previous
 
@@ -4893,7 +4893,7 @@ class HomeMixin:
             return self._town_producer_entry(
                 "_heavy_curse_inscription_key" if inscription else "verified-disposal",
                 lambda: reserved_item_command(self, snapshot, kind, item, owner, address=address),
-                family=family)
+                family=family, board=snapshot)
         finally:
             self._terminal_item_command = previous
 

@@ -3659,7 +3659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e723781de564cdc0959e996e5e513d332cb4ccf6b8824b6ffc368e7e57eed707"
+    "ast_sha256": "c368fac1928654200da344b8fc15ca9ea4beeb4d206deed5bd1fbbdf54c389e1"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -4939,7 +4939,7 @@
       "home-withdraw"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ad881082c772d17fb35907cbd1d87e17feb1a77c9a7d5e8777bcffe4d41ad7f1"
+    "ast_sha256": "ef8bd7ed364d1ce673ac4f115e930644520420f1486ff4085790b4c8630d4ffe"
   },
   "policy_home.py:HomeMixin._carried_disposal_preserves_departure": {
     "classification": "data",
@@ -5217,7 +5217,7 @@
       "home-withdraw"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ef54889fbc218c15394e455e1d149e05f2d650fa7bdd23866f49a216b35d87a9"
+    "ast_sha256": "b485f547aaa3d790ec54f35223fc06c05fe8d7dfbf7ebfeba05fae6922a29224"
   },
   "policy_home.py:HomeMixin._home_visit_keep_set": {
     "classification": "data",
@@ -5380,7 +5380,7 @@
       "destruction"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "60a265ae292d8a561585b8881656135ca1eb6d94157224335d923c47170257b4"
+    "ast_sha256": "0a91a7d4aef90db0f4634e89e2328afdeba512a0f826ebc485b2b03b97ef9e46"
   },
   "policy_home.py:HomeMixin._weight_deposit_candidates": {
     "classification": "data",
@@ -6899,7 +6899,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d3fcc57e8ebddd29e1fd8e666e851cf1c37792f08063498cadb81735a7aac342"
+    "ast_sha256": "1062b71c9109636f85cd87566d0b21f7dee3df5d9963f70621816d044994fefa"
   },
   "policy_shop.py:ShopMixin._store_sell_key": {
     "classification": "producer",

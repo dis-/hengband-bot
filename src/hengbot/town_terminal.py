@@ -1113,7 +1113,8 @@ def home_atomic_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalR
         target, owner, quantity, letter = context
         return TerminalRef("home-take", (
             policy._item_signature(target), getattr(target, "slot", ""), owner, quantity, letter))
-    return TerminalRef("home-atomic-withdraw", ())
+    material = gather_home_atomic_withdraw(policy, board)
+    return TerminalRef("home-atomic-withdraw", (material.surface_ready, material.at_entrance))
 
 
 def home_relief_intended_terminal(policy: Any, board: Any) -> TerminalRef:

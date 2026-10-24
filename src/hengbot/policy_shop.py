@@ -3912,7 +3912,7 @@ class ShopMixin(InStoreMixin):
         try:
             return self._town_producer_entry(
                 "_store_sell_key", lambda: self._store_sell_key(snapshot, item, reason, **kwargs),
-                family="shop-sell")
+                family="shop-sell", board=snapshot)
         finally:
             self._terminal_store_sale = previous
 

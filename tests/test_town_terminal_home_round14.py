@@ -68,11 +68,26 @@ class HomeAdmissionTest(unittest.TestCase):
             material = tt.gather_home_atomic_withdraw(policy, snap)
             self.assertTrue(tt.verdict_home_atomic_withdraw(material).admitted)
             self.assertEqual(tt.rung_terminal(policy, "home-atomic-withdraw", snap),
-                             tt.TerminalRef("home-atomic-withdraw", ()))
+                             tt.TerminalRef("home-atomic-withdraw", (True, True)))
             self.assertEqual(pickle.dumps(vars(policy)), before)
         with patch.object(policy, "_atomic_home_withdraw_dispatch_key", return_value="take") as body:
             self.assertEqual(policy._atomic_home_withdraw_key(snap, pos), "take")
         body.assert_called_once_with(snap, pos)
+
+    def test_explicit_board_and_changed_surface_do_not_reuse_an_old_admission(self):
+        old = board()
+        pos = old.player.position
+        current = replace(old, grids={pos: replace(grid(pos.y, pos.x), store_number=STORE_HOME)})
+        policy = policy_on(old)
+        policy._shopping_approach_store_type = STORE_HOME
+        with patch.object(policy, "_atomic_home_withdraw_dispatch_key", return_value="take") as body:
+            self.assertEqual(policy._atomic_home_withdraw_key(current, pos), "take")
+            policy._home_atomic_withdraw_pending = (("taken", 0, 0), 0, None, 1)
+            self.assertIsNone(policy._atomic_home_withdraw_key(current, pos))
+        self.assertEqual(body.call_count, 1)
+        self.assertIs(policy._map_predicate_snapshot, old)
+        row, = policy._decision_terminal_admissions
+        self.assertEqual(row["codes"], ["wrong-surface-or-pending"])
 
     def test_knowledge_entries_and_reactive_dispatch_are_never_refused(self):
         snap = board()

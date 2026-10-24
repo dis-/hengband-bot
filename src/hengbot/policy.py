@@ -5918,14 +5918,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _town_producer_entry(self, rung_name: str, call,
-                             *, family: str | None = None):
+                             *, family: str | None = None, board: Snapshot | None = None):
         """Ask the town holder before running a ladder producer.
 
         The rung table supplies the producer's family.  In particular, this
         test precedes any reservation, visit mutation, or execution offer in
         the producer.  Survival and detectors remain outside the errand hold.
         """
-        board = getattr(self, "_map_predicate_snapshot", None)
+        if board is None:
+            board = getattr(self, "_map_predicate_snapshot", None)
         # A rung that does not apply on this board is skipped on and off town.
         terminal = rung_terminal(self, rung_name, board)
         if terminal == NOT_APPLICABLE:
