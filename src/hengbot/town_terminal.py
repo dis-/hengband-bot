@@ -614,6 +614,7 @@ class Server(NamedTuple):
 class TerminalDecl(NamedTuple):
     intended_terminal: Callable[[Any, Any], TerminalRef | None] | None
     mode: str
+    no_refusal_reason: str = ""
 
 
 # Codes the quest-entry verdict can return.  Each is an existing blocker or
@@ -1100,9 +1101,13 @@ def recall_read_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
 
 def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
     """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
-    or None (no declaration, no board, or no terminal on this board)."""
+    a reason-bearing NO_REFUSAL marker, or None (no board or terminal)."""
     decl = TERMINALS.get(rung_name)
-    if board is None or decl is None or decl.intended_terminal is None:
+    if board is None or decl is None:
+        return None
+    if decl.mode == NO_REFUSAL:
+        return TerminalRef(NO_REFUSAL, (rung_name, decl.no_refusal_reason))
+    if decl.intended_terminal is None:
         return None
     return decl.intended_terminal(policy, board)
 
@@ -1114,16 +1119,16 @@ def _shadow_rungs() -> frozenset[str]:
         "_breeder_breakthrough_escape_key", "_breeder_breakthrough_key",
         "_chest_processing_key#1", "_chest_processing_key#2",
         "_choke_engagement_key", "_conquest_loot_key",
-        "_detected_threat_preparation_key", "_direction_key#1", "_direction_key#2",
+        "_detected_threat_preparation_key",
         "_emergency_item", "_equipment_transaction_home_key",
         "_equipment_transaction_town_key", "_equipment_transaction_town_key#1",
         "_equipment_transaction_town_key#2", "_equipment_transaction_town_owner_key",
-        "_esp_threat_hunt_key", "_esp_threat_rest_key", "_explore_step#2",
-        "_flee_step#2", "_flee_step#3", "_flee_step#4", "_fruitless_disengage_key",
+        "_esp_threat_hunt_key", "_esp_threat_rest_key",
+        "_fruitless_disengage_key",
         "_heavy_curse_inscription_key",
         "_home_catalogue_work_key", "_home_disposal_processing_key",
-        "_home_full_knowledge_key", "_home_full_relief_key", "_home_full_skip_key",
-        "_home_rearm_key", "_hunt_step#1", "_hunt_step#2", "_hunt_step#3",
+        "_home_full_knowledge_key", "_home_full_relief_key",
+        "_home_rearm_key",
         "_immobile_breeder_giveup_key", "_item_destroying_breeder_leave_key",
         "_kill_quest_floor_recovery_key", "_melee_swarm_combat_key",
         "_normal_loot_key#1", "_normal_loot_key#2",
@@ -1136,12 +1141,10 @@ def _shadow_rungs() -> frozenset[str]:
         "_town_order_step4_key#1", "_town_order_step4_key#2",
         "_town_overflow_destroy_key", "_town_random_teleport_suppression_key",
         "_town_restore_weapon_key",
-        "_unseen_retreat_intercept_key",
         "_unseen_retreat_key", "_victory_loot_key", "_worthless_junk_destroy_key",
-        "frontier-probe",
         "home-atomic-withdraw", "home-errand-knowledge", "home-full-identification",
         "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
-        "navigator.decide", "oscillating-probe",
+        "navigator.decide",
         "town-progress-committed-loot",
         "verified-disposal",
         "_dig_to_known_downstairs_key",
@@ -1184,11 +1187,31 @@ EXEMPT_RUNGS = frozenset({
     "_survival_gate_key#1", "_survival_gate_key#2", "_town_kill_mob_key",
 })
 
+# Non-refusable selectors and named closes (round-10 classification b).
+NO_REFUSAL_REASONS = {
+    "_direction_key#1": "Convert adjacent coordinates to a direction key; no transaction, resource use or entry is selected.",
+    "_direction_key#2": "Convert adjacent coordinates to a direction key; no transaction, resource use or entry is selected.",
+    "_explore_step#2": "Select a destination coordinate; the separate movement entry owns the game command.",
+    "_flee_step#2": "Select a retreat coordinate; the separate movement entry owns the game command.",
+    "_flee_step#3": "Select a retreat coordinate; the separate movement entry owns the game command.",
+    "_flee_step#4": "Select a retreat coordinate; the separate movement entry owns the game command.",
+    "_home_full_skip_key": "Retain the unresolved item and clear its selection; the emitted wait only observes that named close.",
+    "_hunt_step#1": "Select a pursuit coordinate; the separate movement entry owns the game command.",
+    "_hunt_step#2": "Select a pursuit coordinate; the separate movement entry owns the game command.",
+    "_hunt_step#3": "Select a pursuit coordinate; the separate movement entry owns the game command.",
+    "_unseen_retreat_intercept_key": "Hold an established choke with a direction key or wait; no travel, entry or resource use is selected.",
+    "frontier-probe": "Select a probe coordinate; the separate movement entry owns the game command.",
+    "oscillating-probe": "Select a probe coordinate; the separate movement entry owns the game command.",
+}
+
+
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
     "_fixed_quest_key#1": TerminalDecl(fixed_quest_return_intended_terminal, ENFORCE),
     "_fixed_quest_key#2": TerminalDecl(fixed_quest_intended_terminal, ENFORCE),
     **{name: TerminalDecl(None, SHADOW) for name in SHADOW_RUNGS},
+    **{name: TerminalDecl(None, NO_REFUSAL, reason)
+       for name, reason in NO_REFUSAL_REASONS.items()},
     **{name: TerminalDecl(None, EXEMPT_SURVIVAL) for name in EXEMPT_RUNGS},
     # S2-d terminals: declared and recorded; ENFORCE with the S2 flip.
     "_town_space_deposit_key": TerminalDecl(space_deposit_intended_terminal, ENFORCE),

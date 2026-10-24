@@ -114,12 +114,16 @@ class TerminalDeclarationTest(unittest.TestCase):
         self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset(
             name for name, decl in TERMINALS.items() if decl.mode == SHADOW))
         for name, decl in TERMINALS.items():
-            self.assertIn(decl.mode, {ENFORCE, SHADOW, EXEMPT_SURVIVAL}, name)
+            self.assertIn(decl.mode, {ENFORCE, SHADOW, town_terminal.NO_REFUSAL, EXEMPT_SURVIVAL}, name)
             if decl.mode == EXEMPT_SURVIVAL:
                 self.assertIn(families[name], EXEMPT_FAMILIES, name)
             if decl.mode == SHADOW:
                 self.assertIn(name, town_terminal.SHADOW_RUNGS, name)
                 self.assertNotIn(families[name], EXEMPT_FAMILIES, name)
+            if decl.mode == town_terminal.NO_REFUSAL:
+                self.assertIsNone(decl.intended_terminal, name)
+                self.assertTrue(decl.no_refusal_reason.strip(), name)
+                self.assertEqual(decl.no_refusal_reason, town_terminal.NO_REFUSAL_REASONS[name])
             if decl.mode == ENFORCE:
                 self.assertIsNotNone(decl.intended_terminal, name)
         # The S1->S2 list may only shrink (empty at the S2 exit).
