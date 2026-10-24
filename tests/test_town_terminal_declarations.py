@@ -42,8 +42,8 @@ from hengbot.town_terminal import (
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "hengbot"
 FIXTURE = Path(__file__).parent / "fixtures" / "n1a-townalt-20261023.jsonl.gz"
-S1_SHADOW_CENSUS = 92
-S1_DIRECT_CENSUS = 21
+S1_SHADOW_CENSUS = 109
+S1_DIRECT_CENSUS = 0
 
 
 def _entry_calls():
@@ -117,8 +117,8 @@ class TerminalDeclarationTest(unittest.TestCase):
             and isinstance(node.func.value, ast.Name) and node.func.value.id == "self"
             and node.func.attr in producers and id(node) not in wrapped
         }
-        self.assertIn("_town_special_key", direct)
-        self.assertLessEqual(direct, town_terminal.DIRECT_PRODUCERS_S1)
+        self.assertEqual(direct, set())
+        self.assertEqual(town_terminal.DIRECT_PRODUCERS_S1, frozenset())
         self.assertLessEqual(len(town_terminal.DIRECT_PRODUCERS_S1), S1_DIRECT_CENSUS)
 
     def test_4_codes_and_table_agree(self):

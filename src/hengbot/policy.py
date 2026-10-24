@@ -10442,10 +10442,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # A0 hands this visit to repetition. Pre-empt optional enchants and
         # required-purchase/release branches before they can reopen its work.
         if snapshot.in_town and self._visit_departure_committed:
-            cancel_unsafe_recall = self._town_cancel_unsafe_recall_key(snapshot)
+            cancel_unsafe_recall = self._town_producer_entry("_town_cancel_unsafe_recall_key", lambda: self._town_cancel_unsafe_recall_key(snapshot), family="survival")
             if cancel_unsafe_recall is not None:
                 return cancel_unsafe_recall
-            return self._town_blocked_key(snapshot)
+            return self._town_producer_entry("_town_blocked_key", lambda: self._town_blocked_key(snapshot), family="town-plan")
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
         if (snapshot.in_town and self._home_errand.needs_knowledge
@@ -10546,7 +10546,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # not re-chosen (the loop this handler removes), and an unsanctioned
         # tail-answered crossing is latched even when the walk opened a store
         # screen (the handler posts nothing in that case).
-        warning_response = self._warning_prompt_response_key(snapshot)
+        warning_response = self._town_producer_entry("_warning_prompt_response_key", lambda: self._warning_prompt_response_key(snapshot), family="survival")
         if warning_response is not None:
             return warning_response
         if self._warning_prompt_stops_decision:
@@ -10564,7 +10564,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "equipment-transaction:withdraw-item-unobserved:"
             )
         ):
-            return self._town_blocked_key(snapshot)
+            return self._town_producer_entry("_town_blocked_key", lambda: self._town_blocked_key(snapshot), family="town-plan")
 
         # Once a transaction has physically stripped anything, restoration or
         # completion owns every town decision.  No shopping, sale, disposal,
@@ -10647,7 +10647,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._store_visit.operation_posted
             )
         ):
-            key = self._town_blocked_key(snapshot)
+            key = self._town_producer_entry("_town_blocked_key", lambda: self._town_blocked_key(snapshot), family="town-plan")
             if snapshot.store is not None:
                 self._record_shop_selector_diagnostics(snapshot, key)
             return key
@@ -10775,7 +10775,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # repetition, and fundraising commands are not valid here.  Route or
         # enter the town before allowing any of those owners to select again.
         if self._on_global_wilderness_map(snapshot):
-            return self._wilderness_survival_key(snapshot, physical_hostiles)
+            return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
         self._update_mining_combat_streaks(
             snapshot, physical_hostiles, physical_adjacent
         )
@@ -10876,14 +10876,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # square (cave-map.cpp update_lite); a non-blind player whose own square
         # is not lit therefore has radius zero. In darkness note_spot records
         # nothing (grid.cpp), so repair the light before combat/mining/navigation.
-        darkness_recovery = self._darkness_recovery_key(snapshot)
+        darkness_recovery = self._town_producer_entry("_darkness_recovery_key", lambda: self._darkness_recovery_key(snapshot), family="survival")
         if darkness_recovery is not None:
             return darkness_recovery
         dark_locomotion = self._town_producer_entry("_dark_locomotion_key", lambda: self._dark_locomotion_key(snapshot))
         if dark_locomotion is not None:
             return dark_locomotion
 
-        opening_q34 = self._opening_q34_town_key(snapshot, strategic_hostiles)
+        opening_q34 = self._town_producer_entry("_opening_q34_town_key", lambda: self._opening_q34_town_key(snapshot, strategic_hostiles), family="quest-request")
         if opening_q34 is not None:
             return opening_q34
 
@@ -10891,7 +10891,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._breakout_dig_floor is not None
             and (
                 snapshot.floor_key != self._breakout_dig_floor
-                or self._dig_to_known_downstairs_key(snapshot) is None
+                or self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure") is None
             )
         ):
             restore = self._town_producer_entry("_breakout_restore_weapon_key#1", lambda: self._breakout_restore_weapon_key(snapshot))
@@ -10966,7 +10966,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         #     Cyclops killed a clvl-4 bot here). Survival is the ONLY goal: flee,
         #     recall to safety, never shop/explore/fight for XP.
         if snapshot.on_open_wilderness:
-            return self._wilderness_survival_key(snapshot, physical_hostiles)
+            return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
 
         # Town is cleared before errands resume.  Unlike dungeon hunting this is
         # deliberately unconditional: every visible non-pet monster is a target,
@@ -11043,9 +11043,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # the consumable projection and into ordinary melee forever.  Arm a
         # floor-level disengage while it is visible; the latch survives BLINK
         # and TELEPORT interruptions that reset the contiguous combat tracker.
-        unprofitable_unique = self._unprofitable_unique_disengage_key(
+        unprofitable_unique = self._town_producer_entry("_unprofitable_unique_disengage_key", lambda: self._unprofitable_unique_disengage_key(
             snapshot, strategic_hostiles
-        )
+        ), family="escape")
         if unprofitable_unique is not None:
             return unprofitable_unique
 
@@ -11053,12 +11053,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._fundraising_mode in {"mine", "scavenge"}
             and self._breeder_breakthrough_floor == snapshot.floor_key
         ):
-            combat_equip = self._fundraising_combat_equipment_key(
+            combat_equip = self._town_producer_entry("_fundraising_combat_equipment_key", lambda: self._fundraising_combat_equipment_key(
                 snapshot, physical_hostiles
-            )
+            ), family="equipment-txn")
             if combat_equip is not None:
                 return combat_equip
-            key = self._finish_mining_floor(snapshot)
+            key = self._town_producer_entry("_finish_mining_floor", lambda: self._finish_mining_floor(snapshot), family="fundraising")
             if (
                 key != WAIT_KEY
                 or self.last_reason != "fundraise:upstairs-not-found"
@@ -11133,7 +11133,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     (monster.index, monster.race_id) for monster in status_threats
                 },
             )
-            escape = self._escape_by_stairs(snapshot)
+            escape = self._town_producer_entry("_escape_by_stairs", lambda: self._escape_by_stairs(snapshot), family="survival")
             if escape is not None:
                 self.last_reason = "status-threat:stairs"
                 return escape
@@ -11166,7 +11166,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "status-threat:retreat"
                 self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:survival", lambda: self._step_toward(snapshot, step), family="survival")
             if not player.blind and not player.confused:
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
@@ -11184,7 +11184,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             # Record-only: every exit of this rung is escape, fleeing these.
             self._declare_triggers(strategic_hostiles, family="escape")
-            escape = self._escape_by_stairs(snapshot)
+            escape = self._town_producer_entry("_escape_by_stairs", lambda: self._escape_by_stairs(snapshot), family="survival")
             if escape is not None:
                 self.last_reason = (
                     "flee:stairs-quest-fail"
@@ -11227,7 +11227,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "flee"
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:escape", lambda: self._step_toward(snapshot, step), family="escape")
             # Cornered: try a relocation scroll before anything desperate.
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
@@ -11295,11 +11295,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_engagement_avoid_cells((snapshot.player.position,))
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "summoner:retreat"
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:escape", lambda: self._step_toward(snapshot, step), family="escape")
 
-        combat_equip = self._fundraising_combat_equipment_key(
+        combat_equip = self._town_producer_entry("_fundraising_combat_equipment_key", lambda: self._fundraising_combat_equipment_key(
             snapshot, mining_hostiles
-        )
+        ), family="equipment-txn")
         if combat_equip is not None:
             return combat_equip
 
@@ -11387,7 +11387,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "threat:reposition"
                 self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                 self._declare_triggers(strategic_hostiles)  # record-only
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "threat:scroll"
@@ -11400,7 +11400,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if step is not None:
                 self.last_reason = "hunt:quest-target"
                 self._declare_monster(getattr(self, "_hunt_step_target", None))
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:hunt", lambda: self._step_toward(snapshot, step), family="hunt")
 
         # 2s. Survival gate (R1): starvation safety is mode- and objective-
         # independent. It runs ABOVE fundraising/quests/descent because every
@@ -11425,7 +11425,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if home_disposal is not None:
             return home_disposal
 
-        cancel_unsafe_recall = self._town_cancel_unsafe_recall_key(snapshot)
+        cancel_unsafe_recall = self._town_producer_entry("_town_cancel_unsafe_recall_key", lambda: self._town_cancel_unsafe_recall_key(snapshot), family="survival")
         if cancel_unsafe_recall is not None:
             return cancel_unsafe_recall
         if snapshot.in_town and snapshot.player.recalling:
@@ -11443,7 +11443,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if neighbors:
                     self.last_reason = "town:wait-recall-step-off"
                     self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
-                    key = self._step_toward(snapshot, neighbors[0])
+                    key = self._town_producer_entry("_step_toward:departure", lambda: self._step_toward(snapshot, neighbors[0]), family="departure")
                     if key is not None:
                         self._offer_execution(
                             key, producer="departure",
@@ -11489,7 +11489,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if shelter is not None:
                     self.last_reason = "town:seek-shelter"
                     self._declare_reach(shelter_target)
-                    return self._step_toward(snapshot, shelter)
+                    return self._town_producer_entry("_step_toward:survival", lambda: self._step_toward(snapshot, shelter), family="survival")
             if (
                 player.hp < player.max_hp
                 or player.mp < player.max_mp
@@ -11575,7 +11575,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._returning_to_town = True
             self._last_return_trigger = "recall-shortage"
 
-        identify = self._pack_pressure_identify_key(snapshot)
+        identify = self._town_producer_entry("_pack_pressure_identify_key", lambda: self._pack_pressure_identify_key(snapshot), family="identification")
         if identify is not None:
             return identify
 
@@ -11586,7 +11586,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.in_town
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
         ):
-            destroy = self._full_pack_destroy_key(snapshot)
+            destroy = self._town_producer_entry("_full_pack_destroy_key", lambda: self._full_pack_destroy_key(snapshot), family="shop-sell")
             if destroy is not None:
                 return destroy
 
@@ -11664,7 +11664,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not player.recalling
             and not self._return_exit_locked(snapshot)
         ):
-            junk = self._worthless_junk_destroy_key(snapshot)
+            junk = self._town_producer_entry("_worthless_junk_destroy_key", lambda: self._worthless_junk_destroy_key(snapshot), family="shop-sell")
             if junk is not None:
                 return junk
 
@@ -11872,7 +11872,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._town_blocked_reason = None
                 self._retire_town_errand_plan_for_rebuild()
         if self._town_cycle_pending:
-            town_cycle_repair = self._town_special_key(snapshot)
+            town_cycle_repair = self._town_producer_entry("_town_special_key", lambda: self._town_special_key(snapshot), family="departure")
             if town_cycle_repair is not None:
                 return town_cycle_repair
 
@@ -11940,7 +11940,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self.last_reason = "shop:approach"
                     return self._town_producer_entry("_shopping_approach_key#2", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"))
 
-        destroy = self._town_destroy_key(snapshot)
+        destroy = self._town_producer_entry("_town_destroy_key", lambda: self._town_destroy_key(snapshot), family="equipment-txn")
         if destroy is not None:
             return destroy
 
@@ -12012,7 +12012,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._town_producer_entry("_released_restock_store_key", lambda: self._released_restock_store_key(
                     snapshot, recall_stores
                 ))
-            return self._recall_restock_key(snapshot)
+            return self._town_producer_entry("_recall_restock_key", lambda: self._recall_restock_key(snapshot), family="departure")
 
         here = snapshot.grid_at(player.position)
         # 4. Recover between fights: with nothing hostile in sight and HP down
@@ -12177,7 +12177,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "threat:avoid-engagement"
                 self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                 self._declare_triggers(strategic_hostiles)  # record-only
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
 
         # 6. Head for a known downstairs / dungeon entrance: path straight there
         #    if reachable, otherwise explore toward it (the entrance may be known
@@ -12196,7 +12196,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._declare_monster(
                         getattr(self, "_hunt_step_target", None)
                     )
-                    key = self._step_toward(snapshot, clear_step)
+                    key = self._town_producer_entry("_step_toward:departure", lambda: self._step_toward(snapshot, clear_step), family="departure")
                     if key is not None:
                         self._offer_execution(
                             key, producer="departure",
@@ -12211,10 +12211,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             cause="blocker-step-unavailable",
                         )
                     return key
-            travel = self._entrance_travel_key(snapshot, self._descent_target_goal)
+            travel = self._town_producer_entry("_entrance_travel_key", lambda: self._entrance_travel_key(snapshot, self._descent_target_goal), family="departure")
             if travel is not None:
                 return travel
-            key = self._step_toward(snapshot, step)
+            key = self._town_producer_entry("_step_toward:departure", lambda: self._step_toward(snapshot, step), family="departure")
             if key is not None:
                 self._offer_execution(
                     key, producer="departure",
@@ -12241,7 +12241,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if step is not None:
             self.last_reason = "hunt"
             self._declare_monster(getattr(self, "_hunt_step_target", None))
-            return self._step_toward(snapshot, step)
+            return self._town_producer_entry("_step_toward:hunt", lambda: self._step_toward(snapshot, step), family="hunt")
 
         # 7b. Escape a walled-off floor. If we have spent STUCK_ESCAPE_LIMIT turns
         #     running only searching / breaking out / wandering here (no combat, no
@@ -12273,12 +12273,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # the map, while the mode-independent navigation ledger eventually
             # takes over and recalls if repeated digs make no observable progress.
             if self._has_digging_tool(snapshot) and not self._nav_exhausted:
-                dig = self._dig_to_known_downstairs_key(snapshot)
+                dig = self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure")
                 if dig is not None:
                     if self._equipped_digging_tool(snapshot) is None:
-                        wield = self._wield_digging_tool_key(
+                        wield = self._town_producer_entry("_wield_digging_tool_key", lambda: self._wield_digging_tool_key(
                             snapshot, "breakout:wield-digging-tool"
-                        )
+                        ), family="equipment-txn")
                         if wield is not None:
                             self._breakout_dig_floor = snapshot.floor_key
                             return wield
@@ -12293,7 +12293,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._note_return_start(None)
                 self._returning_to_town = True
                 self.last_reason = "stuck:recall-escape"
-                return self._read_dungeon_recall_scroll_key(snapshot, recall)
+                return self._town_producer_entry("_read_dungeon_recall_scroll_key", lambda: self._read_dungeon_recall_scroll_key(snapshot, recall), family="departure")
             teleport = self._find_teleport_scroll(snapshot)
             if teleport is not None and self._can_read_scrolls(snapshot):
                 self._stuck_escape_streak = 0
@@ -12312,7 +12312,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if step is not None:
                 self._release_explore_walk("explore-oscillating:probe")
                 self.last_reason = "probe"
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward", lambda: self._step_toward(snapshot, step), family="explore")
             # A dead-end may be a SECRET door/passage the map can't show until we
             # search for it. Search this spot a few times before treating it as
             # truly closed — it is what breaks an otherwise-unescapable circle
@@ -12344,14 +12344,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._stuck_escape_streak = 0
                 self.last_reason = "breakout:seek-frontier"
                 self._declare_explore_goal()
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
             # No reachable unexplored floor or frontier remains. Only now use a
             # local least-visited step to keep moving while secret-wall searches
             # are exhausted elsewhere.
             step = self._least_visited_neighbor(snapshot)
             if step is not None:
                 self.last_reason = "breakout:least-visited"
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
 
         # Search a corridor dead-end before ordinary exploration routes us away.
         # This is opportunistic only: never detour toward a remote dead-end.
@@ -12378,7 +12378,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if step is not None:
             self.last_reason = "explore"
             self._declare_explore_goal()
-            return self._step_toward(snapshot, step)
+            return self._town_producer_entry("_step_toward", lambda: self._step_toward(snapshot, step), family="explore")
 
         # The planner deliberately excludes the current tile as a destination.
         # When this tile is the floor's sole remaining frontier, probe through
@@ -12397,7 +12397,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 family="explore")
             if step is not None:
                 self.last_reason = "probe"
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward", lambda: self._step_toward(snapshot, step), family="explore")
             # No secret passages in town — do not waste turns searching there.
             here_key = (player.position.y, player.position.x)
             if (
@@ -12429,7 +12429,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if step is not None:
                 self.last_reason = "seek-secret-wall"
                 self._declare_reach(step_target)
-                return self._step_toward(snapshot, step)
+                return self._town_producer_entry("_step_toward", lambda: self._step_toward(snapshot, step), family="explore")
 
         # 9. Nothing to explore: take any known stairs to reach a fresh floor.
         quest_regen = self._town_producer_entry("_start_kill_quest_regeneration", lambda: self._start_kill_quest_regeneration(snapshot))
@@ -12452,7 +12452,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if step is not None:
             self.last_reason = "stuck:seek-stairs"
             self._declare_reach(step_target)
-            return self._step_toward(snapshot, step)
+            return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
         if not floor_exit_locked and here is not None and self._is_upstairs_target(here):
             self._defer_descent(snapshot)
             self.last_reason = "stuck:ascend"
