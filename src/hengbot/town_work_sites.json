@@ -4471,7 +4471,7 @@
       "equipment-transaction"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fa4e70242cfa8169344690b482a3533ab5e495d31c40ee76e32f4bedbbbdf950"
+    "ast_sha256": "4fe95c448709fe5e16396a8feabaf92b289e17dd8a346412500ef59d5db8b5d1"
   },
   "policy_equipment.py:EquipmentMixin._equipment_town_outcome": {
     "classification": "data",
