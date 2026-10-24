@@ -19,6 +19,7 @@ import tests  # noqa: F401
 
 import unittest
 from dataclasses import replace
+from unittest.mock import patch
 
 from hengbot import town_terminal
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
@@ -63,9 +64,12 @@ class HomeWithdrawTerminalTest(unittest.TestCase):
         for rung in ("_shopping_approach_key", "_shopping_approach_key#1",
                      "_shopping_approach_key#2"):
             with self.subTest(rung=rung):
-                terminal, key, rows = entry(
-                    withdraw_policy(stored=False), board(), rung,
-                    family="store-router" if rung == "_shopping_approach_key" else None)
+                decl = town_terminal.TERMINALS[rung]
+                with patch.dict(town_terminal.TERMINALS, {
+                        rung: decl._replace(mode=town_terminal.SHADOW)}):
+                    terminal, key, rows = entry(
+                        withdraw_policy(stored=False), board(), rung,
+                        family="store-router" if rung == "_shopping_approach_key" else None)
                 self.assertEqual(terminal.terminal_id, "home-withdraw")
                 self.assertEqual(key, "walk")  # SHADOW: recorded only
                 row, = rows
@@ -74,6 +78,19 @@ class HomeWithdrawTerminalTest(unittest.TestCase):
         self.assertIn(Server("shop-buy", "identify-staff"),
                       REFUSAL_SERVERS["reservation-unavailable"])
         self.assertIn(Server("cross-town"), REFUSAL_SERVERS["reservation-unavailable"])
+
+    def test_default_mode_refuses_the_missing_item_before_walking(self):
+        for rung in ("_shopping_approach_key", "_shopping_approach_key#1",
+                     "_shopping_approach_key#2"):
+            with self.subTest(rung=rung):
+                terminal, key, rows = entry(
+                    withdraw_policy(stored=False), board(), rung,
+                    family="store-router" if rung == "_shopping_approach_key" else None)
+                self.assertEqual(terminal.terminal_id, "home-withdraw")
+                self.assertIsNone(key)
+                row, = rows
+                self.assertEqual((row["codes"], row["mode"]),
+                                 (["reservation-unavailable"], "enforce"))
 
     def test_stored_item_admits(self):
         terminal, key, rows = entry(withdraw_policy(stored=True), board(),

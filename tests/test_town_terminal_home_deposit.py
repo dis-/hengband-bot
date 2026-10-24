@@ -72,7 +72,10 @@ class SpaceDepositTerminalTest(unittest.TestCase):
         self.assertEqual((key, calls), ("7", ["ran"]))
 
     def test_order_reward_work_refuses_in_shadow(self):
-        terminal, (key, calls, rows) = self.run_rung(step4=True)
+        decl = town_terminal.TERMINALS[RUNG]
+        with patch.dict(town_terminal.TERMINALS, {
+                RUNG: decl._replace(mode=town_terminal.SHADOW)}):
+            terminal, (key, calls, rows) = self.run_rung(step4=True)
         self.assertEqual(terminal, DEPOSIT)
         # SHADOW: recorded, the producer still runs.
         self.assertEqual((key, calls), ("7", ["ran"]))
@@ -90,6 +93,17 @@ class SpaceDepositTerminalTest(unittest.TestCase):
             self.assertEqual(verdict_home_deposit(gather_home_deposit(policy, snap)).codes,
                              ("town-order-step4-pending",))
         self.assertTrue(verdict_home_deposit(gather_home_deposit(policy, snap)).admitted)
+
+    def test_default_mode_refuses_before_the_deposit_body(self):
+        terminal, (key, calls, rows) = self.run_rung(step4=True)
+        self.assertEqual(terminal, DEPOSIT)
+        self.assertEqual((key, calls), (None, []))
+        row, = rows
+        self.assertEqual((row["terminal"], row["codes"], row["mode"]),
+                         (["home-deposit", ["space-reserve"]],
+                          ["town-order-step4-pending"], "enforce"))
+        self.assertEqual(REFUSAL_SERVERS["town-order-step4-pending"],
+                         (Server("quest-request"),))
 
 
 class SpaceDepositBodyTest(unittest.TestCase):
