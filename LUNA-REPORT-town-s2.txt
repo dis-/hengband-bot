@@ -1853,3 +1853,88 @@ Total: 4387 tests, 546.8s
   初回修正後の4出力はround11-initial-control-*-enforce.jsonにも保存し、旧データとの混同を避けた。
 - その他の開始時未追跡ファイルと、今回の診断スクリプト・ログは保持した。
 - この日本語報告の追記コミットはsource/tests treeを変更しない。
+
+
+=== round 12 / ISSUE #47: 実装前の75 rung経路分類 (開始HEAD f45691120) ===
+
+町到達性は depth 0 の町盤面について保守的に測定した。yesは、引用関数または呼出元に町を除外する条件がなく、町での実行を否定できないことを示す。floor一致やモード一致だけをダンジョン専用の証明にはしていない。noは明示した早期returnまたは呼出元条件による。行番号は変更前HEADのもの。表のterminalは実装予定であり、実装済みを意味しない。
+
+| rung | town-reachable | code path / guard (file:line) | class | reason / terminal |
+| --- | --- | --- | --- | --- |
+| _atomic_shop_transaction_key | yes | src/hengbot/policy_shop.py:6058 | 4 | ENFORCE: per-board store-buy / store-sell / named close |
+| _blocking_escape_melee_key | yes | src/hengbot/policy.py:19599 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _breeder_breakthrough_escape_key | yes | src/hengbot/policy_combat.py:3710 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _breeder_breakthrough_key | yes | src/hengbot/policy_combat.py:3647 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _chest_processing_key#1 | yes | src/hengbot/policy_identification.py:82 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _chest_processing_key#2 | yes | src/hengbot/policy_identification.py:82 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _choke_engagement_key | yes | src/hengbot/policy_combat.py:3503 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _conquest_loot_key | no | src/hengbot/policy_quest.py:1578 | 2 | NO_REFUSAL: dungeon-only: not a town errand; snapshot.in_town -> return None |
+| _detected_threat_preparation_key | yes | src/hengbot/policy.py:19011 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _dig_to_known_downstairs_key | yes | src/hengbot/policy_fundraising.py:829 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| _emergency_item | yes | src/hengbot/policy_combat.py:1692 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _entrance_travel_key | yes | src/hengbot/policy.py:16497 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| _equipment_transaction_home_key | yes | src/hengbot/policy_equipment.py:2107 | 4 | ENFORCE: per-action home-withdraw / home-deposit / equipment mutation |
+| _equipment_transaction_town_key | yes | src/hengbot/policy_equipment.py:2576 | 4 | ENFORCE: per-action equipment mutation / Home approach |
+| _equipment_transaction_town_key#1 | yes | src/hengbot/policy_equipment.py:2576 | 4 | ENFORCE: per-action equipment mutation / Home approach |
+| _equipment_transaction_town_key#2 | yes | src/hengbot/policy_equipment.py:2576 | 4 | ENFORCE: per-action equipment mutation / Home approach |
+| _equipment_transaction_town_owner_key | yes | src/hengbot/policy_equipment.py:1917 | 4 | ENFORCE: per-action equipment mutation / Home approach / named close |
+| _esp_threat_hunt_key | no | src/hengbot/policy_combat.py:942 | 2 | NO_REFUSAL: dungeon-only: not a town errand; snapshot.in_town -> _esp_threat_end_hunt (settlement, no action) |
+| _esp_threat_rest_key | yes | src/hengbot/policy_combat.py:1078 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _finish_mining_floor | yes | src/hengbot/policy.py:17055 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _fruitless_disengage_key | yes | src/hengbot/policy.py:18237 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _full_pack_destroy_key | yes | src/hengbot/policy_identification.py:528 | 4 | ENFORCE: verified-disposal |
+| _fundraising_combat_equipment_key | no | src/hengbot/policy_fundraising.py:496 | 2 | NO_REFUSAL: dungeon-only: not a town errand; dungeon_level != 1 -> return None |
+| _heavy_curse_inscription_key | yes | src/hengbot/policy.py:16724 | 4 | ENFORCE: inscription |
+| _home_catalogue_work_key | yes | src/hengbot/policy.py:6946 | 4 | ENFORCE: home-knowledge |
+| _home_disposal_processing_key | yes | src/hengbot/policy_home.py:4526 | 4 | ENFORCE: verified-disposal / home-deposit |
+| _home_full_knowledge_key | yes | src/hengbot/policy_home.py:1390 | 4 | ENFORCE: home-knowledge |
+| _home_full_relief_key | yes | src/hengbot/policy_home.py:761 | 4 | ENFORCE: per-board home-withdraw / store-sell / home-full-identify / named close |
+| _home_rearm_key | yes | src/hengbot/policy_equipment.py:3527 | 4 | ENFORCE: equipment mutation |
+| _immobile_breeder_giveup_key | yes | src/hengbot/policy.py:18916 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _item_destroying_breeder_leave_key | yes | src/hengbot/policy_combat.py:257 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _kill_quest_floor_recovery_key | yes | src/hengbot/policy_quest.py:5899 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _melee_swarm_combat_key | yes | src/hengbot/policy_combat.py:3276 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _normal_loot_key#1 | yes | src/hengbot/policy_identification.py:1322 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _normal_loot_key#2 | yes | src/hengbot/policy_identification.py:1322 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _opening_q34_town_key | yes | src/hengbot/policy_quest.py:544 | 4 | ENFORCE: quest-entry / equipment mutation / named close |
+| _overweight_surplus_sale_key | yes | src/hengbot/policy_home.py:150 | 4 | ENFORCE: store-sell / verified-disposal / named close |
+| _pack_pressure_identify_key | no | src/hengbot/policy_identification.py:378 | 2 | NO_REFUSAL: dungeon-only: not a town errand; snapshot.in_town -> no-step + return None |
+| _paralyzer_prevention_key | yes | src/hengbot/policy_combat.py:2406 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _ranged_attack_key#1 | yes | src/hengbot/policy_combat.py:1231 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _ranged_attack_key#2 | yes | src/hengbot/policy_combat.py:1231 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _recall_restock_key | yes | src/hengbot/policy.py:15759 | 4 | ENFORCE: restock named close / store-buy / fundraising |
+| _release_staged_store_operation | yes | src/hengbot/policy_shop.py:509 | 4 | ENFORCE: bound store-buy / store-sell / home-withdraw / home-deposit |
+| _released_restock_store_key | yes | src/hengbot/policy_shop.py:1015 | 4 | ENFORCE: store-buy / restock named close |
+| _return_to_town_key#1 | no | src/hengbot/policy_town.py:7451 | 2 | NO_REFUSAL: dungeon-only: not a town errand; snapshot.in_town -> no-step + return None |
+| _return_to_town_key#2 | no | src/hengbot/policy_combat.py:3702 | 2 | NO_REFUSAL: dungeon-only: not a town errand; caller _breeder_walkout_active requires not snapshot.in_town; body policy_town.py:7451 |
+| _return_to_town_key#3 | no | src/hengbot/policy_town.py:7451 | 2 | NO_REFUSAL: dungeon-only: not a town errand; snapshot.in_town -> no-step + return None |
+| _start_kill_quest_regeneration | yes | src/hengbot/policy.py:19375 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _step_toward | yes | src/hengbot/policy_navigation.py:1828 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| _step_toward:departure | yes | src/hengbot/policy_navigation.py:1828 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| _step_toward:escape | yes | src/hengbot/policy_navigation.py:1828 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| _step_toward:hunt | yes | src/hengbot/policy_navigation.py:1828 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| _step_toward:positioning | yes | src/hengbot/policy_navigation.py:1828 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| _store_sell_key | yes | src/hengbot/policy_shop.py:3907 | 4 | ENFORCE: store-sell |
+| _summoner_ranged_kill_key | yes | src/hengbot/policy.py:12686 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _town_blocked_key | yes | src/hengbot/policy_town.py:5864 | 4 | ENFORCE: visible blocked NO_REFUSAL / per-board departure / store transaction |
+| _town_destroy_key | yes | src/hengbot/policy_town.py:2816 | 4 | ENFORCE: verified-disposal / named close |
+| _town_order_step4_key#1 | yes | src/hengbot/policy_town.py:2354 | 4 | ENFORCE: quest-request-building / named close |
+| _town_order_step4_key#2 | yes | src/hengbot/policy_town.py:2354 | 4 | ENFORCE: quest-request-building / named close |
+| _town_overflow_destroy_key | yes | src/hengbot/policy_town.py:2479 | 4 | ENFORCE: verified-disposal / named close |
+| _town_random_teleport_suppression_key | yes | src/hengbot/policy_town.py:5442 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _town_restore_weapon_key | yes | src/hengbot/policy_equipment.py:3648 | 4 | ENFORCE: equipment mutation |
+| _unprofitable_unique_disengage_key | no | src/hengbot/policy.py:18414 | 2 | NO_REFUSAL: dungeon-only: not a town errand; snapshot.in_town -> return None |
+| _unseen_retreat_key | yes | src/hengbot/policy_supply.py:1777 | 5 | NO_REFUSAL: tactical survival/combat (family exemption must be measured); no town errand added |
+| _victory_loot_key | yes | src/hengbot/policy.py:17267 | 未分類・当該rungのみSTOP | town exclusion guard unproven; loot/chest/quest regeneration/mining exit is not in the town-errand list; do not invent a dungeon guard |
+| _wield_digging_tool_key | no | src/hengbot/policy.py:12259 | 2 | NO_REFUSAL: dungeon-only: not a town errand; only entry caller requires not snapshot.in_town at 12259 |
+| _worthless_junk_destroy_key | yes | src/hengbot/policy_identification.py:545 | 4 | ENFORCE: verified-disposal |
+| home-atomic-withdraw | yes | src/hengbot/policy_home.py:3185 | 4 | ENFORCE: home-withdraw |
+| home-errand-knowledge | yes | src/hengbot/policy_home.py:1416 | 4 | ENFORCE: home-knowledge |
+| home-full-knowledge | yes | src/hengbot/policy_home.py:1390 | 4 | ENFORCE: home-knowledge |
+| home-knowledge-after-exit | yes | src/hengbot/policy_home.py:1390 | 4 | ENFORCE: home-knowledge |
+| idle-fallback | yes | src/hengbot/policy.py:12465 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal |
+| navigator.decide | yes | src/hengbot/policy.py:10944 | 3 | walk: NO_REFUSAL delegated: caller's terminal governs; store/quest entry branches require existing errand terminal (approved quest profile calls it; includes more than walking) |
+| town-progress-committed-loot | yes | src/hengbot/policy_identification.py:1322 | 4 | ENFORCE: pickup / delegated walk / safety named close |
+| verified-disposal | yes | src/hengbot/policy.py:12928 | 4 | ENFORCE: verified-disposal |
+
+未分類の8 rungは、そのrungだけ作業を停止する。特に_chest_processing_keyは所持chestを町でも処理でき、_normal_loot_keyには町を除外する条件がない。_victory_loot_keyのdungeon id比較はdepth条件ではない。_kill_quest_floor_recovery_key / _start_kill_quest_regenerationの_taken_dungeon_kill_level_questもdungeon idとquest状態だけを見る。_finish_mining_floorの呼出元はfloor latchだけでdepthを制約しない。この8件をdungeon-onlyと偽って宣言しない。他のクラスは継続する。
