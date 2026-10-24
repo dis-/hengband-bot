@@ -312,3 +312,33 @@ Remaining S2 exit items (design 5.3 S2 and 5.2), measure and pin; do not add new
      a defect of the S2 implementation under the decisions already in this file; otherwise STOP and report options.
   4. The three guards on the final HEAD (wait for fast_tier to exit).
 Main's existing tests unchanged (STOP rule). LF only. Token budget 300k.
+
+=== SUPERVISOR DECISIONS 2026-10-25 02:10 (round 17: the timing STOP; read the report's round-16 section first) ===
+ISSUE: #47
+Round 16 accepted except timing. The supervisor re-measured on an idle Linux machine (8 cores, nice, one process at a time,
+old 90947a65 vs new 391246a98, 10 alternating rounds, your round16-probe / round16-n1-probe unchanged). Your #63 p90 1.36x on
+Windows was load from another session's MSBuild rebuild (4 cores of link.exe at the time). Clean results (total-median ratio,
+max board median, max board p90, boards over 1.1x): four 1.019/1.106/1.099/1; 63 1.032/1.063/1.041/0; 64 0.994/-/1.014/0;
+66b 0.982/0.998/1.000/0; 66c 0.995/0.995/1.005/0; 68 1.006/1.030/1.043/0; 94 0.998/0.998/1.032/0; 76 1.007/1.007/1.019/0;
+20261023-183418 1.023/1.055/1.068/0; 20261023-183436 1.012/1.037/1.048/0;
+20261023-183351 1.027/1.104/1.151/10 boards (indices 4,49-52,56,57,60,68,72; same key and reason in both versions; every one
+~230ms -> ~245ms, i.e. a real +15-20ms per decision, not noise).
+cProfile of that window (both versions, same run: prof-old.pstats / prof-new.pstats in this worktree, aggregated by
+file+function since line numbers differ): +0.9s over 82 decisions =
+  town_terminal.gather_store_buy: 0 -> 972 calls, 1.41s cumulative (from plan_stop_admission 416 calls in
+    _build_town_errand_plan, +0.77s, and the supplier counting);
+  policy_town._town_need_supplier_reachable: 2056 -> 2914 calls, 3.00s -> 4.27s cumulative (+858 calls);
+  terminal_admission 152 -> 2498 calls; may_take_board 3411 -> 4019.
+Design 5.2 already requires "materials are gathered once per decision" (the decision memo keyed by _decision_sequence and the
+board). The store-buy material and the supplier reachability are evaluated ~12 times per decision for the same
+(decision, board, store/need), so this is a defect of the S2 implementation, not a new rule. Fix:
+  1. Memoize gather_store_buy and the supplier-reachability result per decision with the same memo discipline as the existing
+     decision memos (key includes everything the result reads; dropped when _decision_sequence advances; restored-checkpoint
+     default; never shared across boards). Do not change any verdict, code or ordering.
+  2. Pin: within one decision on the 183351 boards, gather_store_buy and _town_need_supplier_reachable compute at most once per
+     distinct key (counted on the real methods); identical keys/reasons on all 13 windows (your exit-expected fixture).
+  3. Re-measure ONLY on the Linux machine? No - you cannot reach it. Measure locally the 183351 window old vs new alternating 5
+     rounds ONLY if C:\hengband-backups\suite-logs shows no active gate AND no MSBuild/link.exe/cl.exe process runs (check
+     Get-Process); report the numbers as indicative. The supervisor re-measures on Linux after your commit.
+  4. The three guards on the final HEAD (wait for fast_tier to exit).
+Main's existing tests unchanged (STOP rule). LF only. Token budget 200k.
