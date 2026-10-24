@@ -13,6 +13,30 @@ from tests.test_town_decision_speed_caches import (
 
 
 class TownDecisionSpeed2CachePins(unittest.TestCase):
+    def test_same_board_next_preparation_hits_signature_cache(self):
+        from unittest.mock import patch
+        from tests.test_policy_equipment import EquipmentQuarantineInvariantTest
+        from hengbot import policy_equipment
+
+        policy, board, _ring, _identity = (
+            EquipmentQuarantineInvariantTest()._policy_with_home_ring())
+        with patch.object(policy_equipment, 'prepare_warrior_optimization',
+                          wraps=policy_equipment.prepare_warrior_optimization) as search:
+            first = policy._prepare_equipment_optimization(board, depth_override=31)
+            self.assertIsNotNone(first.result)
+            self.assertEqual(search.call_count, 1)
+            self.assertEqual(policy._equipment_optimization_telemetry['result_source'],
+                             'fresh-search')
+            # End the transaction owner so its early return cannot masquerade
+            # as a signature hit; no board or equipment input changes.
+            policy._equipment_transaction_session = None
+            policy._decision_sequence += 1
+            second = policy._prepare_equipment_optimization(board, depth_override=31)
+            self.assertIs(second, first)
+            self.assertEqual(policy._equipment_optimization_telemetry['result_source'],
+                             'signature-cache-hit')
+            self.assertEqual(search.call_count, 1)
+
     def test_claim_candidate_cache_pin(self):
         from tests.test_town_decision_speed_caches import TownDecisionSpeedCacheTest
         TownDecisionSpeedCacheTest().test_recorded_board_pins_claim_candidate_reuse()

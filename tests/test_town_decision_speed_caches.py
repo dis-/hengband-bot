@@ -95,6 +95,56 @@ def checkpoint_without_elapsed_telemetry(policy):
 
 
 class TownDecisionSpeedCacheTest(unittest.TestCase):
+    def test_full_decision_computes_equipment_optimization_once(self):
+        from unittest.mock import patch
+        from tests.test_policy_equipment import EquipmentQuarantineInvariantTest
+        from hengbot import policy_equipment
+
+        policy, board, _ring, _identity = (
+            EquipmentQuarantineInvariantTest()._policy_with_home_ring())
+        with patch.object(policy_equipment, 'prepare_warrior_optimization',
+                          wraps=policy_equipment.prepare_warrior_optimization) as search:
+            policy.choose_key(board)
+        # This calibrated board must perform a real search. Cheap preparation
+        # readers may hit the signature or in-flight-session caches afterwards.
+        self.assertEqual(search.call_count, 1)
+
+    def test_departure_material_prepares_equipment_once_per_decision(self):
+        """Admission and the need-list reader share the real preparation.
+
+        Constructed calibrated town board: one Home ring supplies the depth-31
+        chaos gate. This runs the optimizer, unlike uncalibrated replay boards.
+        """
+        from unittest.mock import patch
+        from tests.test_policy_equipment import EquipmentQuarantineInvariantTest
+
+        policy, board, _ring, _identity = (
+            EquipmentQuarantineInvariantTest()._policy_with_home_ring())
+        policy._build_grid_index(board)
+        policy._map_predicate_snapshot = board
+        policy._decision_sequence = 1
+        with patch.object(policy, '_prepare_equipment_optimization',
+                          wraps=policy._prepare_equipment_optimization) as prepare:
+            codes = []
+            policy._equipment_departure_ready(
+                board, destination_depth=31, commit=False, codes=codes)
+            preparation = policy._equipment_optimization_preparation
+            self.assertIsNotNone(preparation.result)
+            self.assertEqual(policy._equipment_optimization_telemetry['result_source'],
+                             'fresh-search')
+            # Supplying codes bypasses the bool memo: this must share the
+            # preparation memo even when computing another depth's verdict.
+            policy._equipment_departure_ready(
+                board, destination_depth=40, commit=False, codes=[])
+            self.assertIs(policy._equipment_optimization_preparation, preparation)
+            self.assertEqual(prepare.call_count, 1)
+            # A new decision must read again, rather than retaining the memo.
+            policy._equipment_transaction_session = None
+            policy._decision_sequence += 1
+            policy._equipment_departure_ready(
+                board, destination_depth=31, commit=False, codes=[])
+            self.assertEqual(prepare.call_count, 2)
+
     def test_recorded_boards_keep_key_and_reason_with_caches_enabled(self):
         for capture in CAPTURES:
             rows = load_rows(capture)
