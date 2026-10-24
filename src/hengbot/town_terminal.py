@@ -9,7 +9,7 @@ the commit that only the terminal's own call site performs.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, NamedTuple
 
 from hengbot.policy_constants import (
@@ -376,9 +376,10 @@ class HomeWithdrawMaterial:
     target_stored: bool
 
 
-def gather_home_withdraw(policy: Any, board: Any) -> HomeWithdrawMaterial:
+def gather_home_withdraw(policy: Any, board: Any, *, target: Any = None) -> HomeWithdrawMaterial:
     """Whether the current Home catalogue still holds the requested item."""
-    target = home_withdraw_target(policy, board)
+    if target is None:
+        target = home_withdraw_target(policy, board)
     return HomeWithdrawMaterial(
         knowledge_current=bool(policy._home_knowledge_current),
         target_stored=any(policy._item_signature(item) == target
@@ -392,6 +393,36 @@ def verdict_home_withdraw(material: HomeWithdrawMaterial) -> Admission:
     unfulfilled`` exits learned it only after entering)."""
     if material.knowledge_current and not material.target_stored:
         return refused(("reservation-unavailable",))
+    return ADMIT
+
+
+def plan_stop_admission(policy: Any, board: Any, need: Any) -> Admission:
+    """Judge the same supplier before putting it in the town route.
+
+    Home's derived request is read without filing it or acquiring a visit;
+    a scan/deposit/recovery does not require a withdrawal reservation.
+    """
+    material = gather_store_buy(policy, board, need)
+    # The router supports native travel before a town map has been adopted.
+    # Its next stop may also rearm a newly produced category, as the router
+    # historically does after rebuilding the projection.  An observed shelf
+    # still has to offer this need; a new category cannot erase that evidence.
+    plan = policy._town_errand_plan
+    prior_categories = plan.need_categories.get(need.store_type, ()) if plan is not None else ()
+    material = replace(
+        material,
+        reachable=material.reachable or not policy._town_map_active(board),
+        attempted=(material.attempted and not (
+            need.category not in prior_categories
+            and need.store_type not in policy._town_supplier_stock)),
+    )
+    supplier = verdict_store_buy(material)
+    if not supplier.admitted or need.store_type != STORE_HOME:
+        return supplier
+    request = policy._derived_home_visit_request(board)
+    if request is not None and request.kind == HomeVisitKind.WITHDRAW:
+        target = request.address if request.address is not None else request.item_identity
+        return verdict_home_withdraw(gather_home_withdraw(policy, board, target=target))
     return ADMIT
 
 

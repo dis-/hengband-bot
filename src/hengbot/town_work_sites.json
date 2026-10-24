@@ -5211,6 +5211,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "92f45926ec311e65e8105d88dc091139cf0c46025ea79da222ca102de3e40d27"
   },
+  "policy_home.py:HomeMixin._home_visit_keep_set": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "997dc6e6d59eb78f7e5978f57eb64312e0350c9af336b08d83a3c39e4ca6c4fe"
+  },
   "policy_home.py:HomeMixin._home_visit_retention": {
     "classification": "data",
     "rows": [
@@ -5837,6 +5845,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "8b10e98cf1d87ed5d5361d72b1411ee9bfc9200584a4b930530246b8a012b6c5"
+  },
+  "policy_quest.py:QuestMixin._derived_home_visit_request": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "7a21e266dbdb8b6719408cd0f9ef04b159de58056f03eb322933ee4fa883c107"
   },
   "policy_quest.py:QuestMixin._fixed_quest_building_candidate": {
     "classification": "data",
@@ -7144,6 +7160,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "0709c2c4fc73f029a7d2d624744cb2fe1af2e9aa385ae5422f80f07b807c1ac0"
   },
+  "policy_supply.py:SupplyMixin._supply_page_offers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "dd08bbacd906402349919d07b1c6fa789f8f04ed7f8fc2958a2adffa1d2bf649"
+  },
   "policy_supply.py:SupplyMixin._survival_gate_key": {
     "classification": "producer",
     "rows": [
@@ -7222,7 +7246,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "1815ebbbac24f4a0083d54f55eabaf791fa4b353762cf272cc2db4745850ecec"
+    "ast_sha256": "efdd21bde2b1313f0d2fb48f5ce2f4233d96065299bc99c7f92f1864c826aaff"
   },
   "policy_town.py:TownMixin._commit_boxed_town_breakout_key": {
     "classification": "producer",
@@ -8203,6 +8227,54 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "6aa4135e541a5a68b035abafc6018b8d98538f62a52fbee950e35c0e6c12968d"
+  },
+  "town_terminal.py:gather_home_withdraw": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e2efeccbfe7af1d802e6a9fe72bb1d964a253ddb45fbff5ed11a95c85f79be41"
+  },
+  "town_terminal.py:gather_store_buy": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "006445f1d759610b5267037a93ea980b575458ba5ee33e370f345f4643225e0f"
+  },
+  "town_terminal.py:plan_stop_admission": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "74f570ab5b203b0af51d56e60f876d167a7564c11f911eeba229b639e9f51bec"
+  },
+  "town_terminal.py:refused": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "ab00377d0bdd884745fba97a8c6ee231a753f48596b2b7b7f66812162f8101d8"
+  },
+  "town_terminal.py:verdict_home_withdraw": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "fe132302c066a7f02223ecf1a2033b62b7550563d23da95f99ac9fe6811cc804"
+  },
+  "town_terminal.py:verdict_store_buy": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "1829f882cb479cdb69384111be6da39172b30fdb16ece7488f68eefcda61a64f"
   },
   "town_work.py:bind_driver_override": {
     "classification": "driver",

@@ -60,7 +60,7 @@ from hengbot.policy_types import (
 )
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
-from hengbot.town_terminal import gather_store_buy, verdict_store_buy
+from hengbot.town_terminal import gather_store_buy, verdict_store_buy, plan_stop_admission
 from dataclasses import dataclass, replace
 import json
 import os
@@ -4246,6 +4246,8 @@ class TownMixin:
     def _build_town_errand_plan(
         self, snapshot: Snapshot, needs: list[TownNeed]
     ) -> TownErrandPlan | None:
+        needs = [need for need in needs
+                 if plan_stop_admission(self, snapshot, need).admitted]
         previous = self._town_errand_plan
         leading_home = any(
             need.store_type == STORE_HOME and need.ordering_class != "post-alchemist-home"
