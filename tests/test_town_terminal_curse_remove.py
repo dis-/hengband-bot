@@ -69,7 +69,7 @@ class CurseRemoveTerminalTest(unittest.TestCase):
         self.assertEqual(terminal, TERMINAL)
         self.assertIsNone(key)
         row, = rows
-        self.assertEqual((row["codes"], row["mode"]), (["no-remove-curse-scroll"], "shadow"))
+        self.assertEqual((row["codes"], row["mode"]), (["no-remove-curse-scroll"], "enforce"))
         self.assertIn(Server("shop-buy", "remove-curse"),
                       REFUSAL_SERVERS["no-remove-curse-scroll"])
 
