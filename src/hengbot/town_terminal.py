@@ -1136,10 +1136,10 @@ def _shadow_rungs() -> frozenset[str]:
         "_shopping_approach_key", "_shopping_approach_key#1",
         "_shopping_approach_key#2", "_start_kill_quest_regeneration",
         "_store_sell_key", "_summoner_ranged_kill_key", "_town_device_processing_key",
-        "_town_enchant_launcher_key", "_town_equipped_identification_key",
+        "_town_equipped_identification_key",
         "_town_order_step4_key#1", "_town_order_step4_key#2",
         "_town_overflow_destroy_key", "_town_random_teleport_suppression_key",
-        "_town_remove_curse_key", "_town_restore_weapon_key",
+        "_town_restore_weapon_key",
         "_town_space_deposit_key", "_unseen_retreat_intercept_key",
         "_unseen_retreat_key", "_victory_loot_key", "_worthless_junk_destroy_key",
         "direct-descent", "frontier-probe", "home-atomic-deposit",
@@ -1197,8 +1197,8 @@ TERMINALS: dict[str, TerminalDecl] = {
     **{name: TerminalDecl(None, EXEMPT_SURVIVAL) for name in EXEMPT_RUNGS},
     # S2-d terminals: declared and recorded; ENFORCE with the S2 flip.
     "_town_space_deposit_key": TerminalDecl(space_deposit_intended_terminal, SHADOW),
-    "_town_remove_curse_key": TerminalDecl(curse_remove_intended_terminal, SHADOW),
-    "_town_enchant_launcher_key": TerminalDecl(enchant_launcher_intended_terminal, SHADOW),
+    "_town_remove_curse_key": TerminalDecl(curse_remove_intended_terminal, ENFORCE),
+    "_town_enchant_launcher_key": TerminalDecl(enchant_launcher_intended_terminal, ENFORCE),
     "_town_equipped_identification_key": TerminalDecl(
         identify_equipped_intended_terminal, SHADOW),
     "_town_device_processing_key": TerminalDecl(
