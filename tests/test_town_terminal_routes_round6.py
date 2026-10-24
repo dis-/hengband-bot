@@ -91,16 +91,18 @@ class Round6RouteTerminalTest(unittest.TestCase):
                              side_effect=AssertionError("entry must own dispatch")):
             self.assertEqual(policy.choose_key(board()), "departure-entry")
 
-    def test_special_departure_declares_gate_and_defers_to_live_expedition(self):
+    def test_special_departure_declares_only_the_selected_read(self):
         snap = board()
         policy = policy_on(snap)
+        dispatch = tt.TerminalRef(tt.NO_REFUSAL, ("town-special-dispatch",))
+        self.assertEqual(tt.rung_terminal(policy, "_town_special_key", snap), dispatch)
+        policy._morivant_full_identify = MorivantFullIdentifyExpedition(1, ())
+        self.assertEqual(tt.rung_terminal(policy, "_town_special_key", snap), dispatch)
+        policy._fundraising_mode = "prepare"
+        self.assertEqual(tt.rung_terminal(policy, "_town_special_key", snap), dispatch)
+        policy._terminal_town_recall_read = True
         self.assertEqual(tt.rung_terminal(policy, "_town_special_key", snap),
                          tt.TerminalRef("departure-recall", ()))
-        policy._morivant_full_identify = MorivantFullIdentifyExpedition(1, ())
-        self.assertIsNone(tt.rung_terminal(policy, "_town_special_key", snap))
-        policy._fundraising_mode = "prepare"
-        self.assertEqual(tt.rung_terminal(policy, "_town_special_key", snap),
-                         tt.TerminalRef("fundraising", ("prepare",)))
 
     def test_expedition_fare_and_route_are_separate_refusals(self):
         for destination, fare in ((0, TOWN_TELEPORT_COST), (2, 2 * TOWN_TELEPORT_COST)):

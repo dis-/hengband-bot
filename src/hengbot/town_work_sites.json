@@ -7734,7 +7734,15 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5f02671febbffff076719e506c70cfc70e41200849dbad2d5a0d40a78ef38637"
+    "ast_sha256": "6755d8aaf81ed772011ed52c317487b04f987292a6df1c28ced5312eb9458a7f"
+  },
+  "policy_town.py:TownMixin._town_special_key.read_recall": {
+    "classification": "adapter",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "025a5fb7ad701963e5a1ff9b5818f284910e8965e834952d1a10eb9224790665"
   },
   "policy_town.py:TownMixin._town_teleport_building_positions": {
     "classification": "data",

@@ -593,6 +593,7 @@ def verdict_quest_entry(material: QuestEntryMaterial) -> Admission:
 # --- Declarations (design 3.3 / 3.4) -------------------------------------
 
 ENFORCE = "enforce"
+NO_REFUSAL = "no-refusal"
 SHADOW = "shadow"
 EXEMPT_SURVIVAL = "exempt-survival"
 EXEMPT_FAMILIES = frozenset({"survival", "detectors", "bookkeeping"})
@@ -1085,13 +1086,11 @@ def stockout_mining_intended_terminal(policy: Any, board: Any) -> TerminalRef | 
 def departure_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     if not board.in_town or board.store is not None or board.player.class_id < 0:
         return None
-    funding = fundraising_intended_terminal(policy, board)
-    if funding is not None:
-        return funding
-    # The special dispatcher also serves the expedition before departure.
-    if policy._morivant_full_identify is not None:
-        return None
-    return TerminalRef("departure-recall", ())
+    # Only the scroll-read branch owns departure. The dispatcher also selects
+    # remedies and named closes, whose child entries own their own terminals.
+    if getattr(policy, "_terminal_town_recall_read", False):
+        return TerminalRef("departure-recall", ())
+    return TerminalRef(NO_REFUSAL, ("town-special-dispatch",))
 
 
 def recall_read_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
@@ -1218,6 +1217,7 @@ TERMINALS: dict[str, TerminalDecl] = {
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
 _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
+    NO_REFUSAL: lambda policy, board: ADMIT,
     "home-deposit": lambda policy, board: verdict_home_deposit(
         gather_home_deposit(policy, board)),
     "curse-remove": lambda policy, board: verdict_curse_remove(

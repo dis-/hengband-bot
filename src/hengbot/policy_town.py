@@ -6785,23 +6785,38 @@ class TownMixin:
                             cause="selection-unavailable",
                         )
                         return None
-                    self._pending_recall_dungeon_id = recall_dungeon_id
-                    self._town_recall_issue_watch = (
-                        recall_dungeon_id,
-                        snapshot.turn,
-                        recall_count,
-                    )
-                    self.last_reason = f"town:recall-to-{recall_dest}"
-                    key = self._read_key(snapshot, recall, selection)
-                    self._offer_execution(
-                        key, producer="departure",
-                        work_id=f"town:recall:{recall_dungeon_id}",
-                        next_step="recall.scroll.send",
-                        arguments=(recall.slot, recall_dungeon_id),
-                        expected_effect="recall-activated",
-                        continuation="recall.observe-arrival",
-                    )
-                    return key
+                    # The dispatcher's reactions are not a departure. Ask the
+                    # departure terminal only at the branch that sends a read,
+                    # before arming its watch or publishing an execution offer.
+                    def read_recall():
+                        recall_count = sum(
+                            item.count for item in snapshot.inventory if item.is_recall_scroll
+                        )
+                        self._pending_recall_dungeon_id = recall_dungeon_id
+                        self._town_recall_issue_watch = (
+                            recall_dungeon_id,
+                            snapshot.turn,
+                            recall_count,
+                        )
+                        self.last_reason = f"town:recall-to-{recall_dest}"
+                        key = self._read_key(snapshot, recall, selection)
+                        self._offer_execution(
+                            key, producer="departure",
+                            work_id=f"town:recall:{recall_dungeon_id}",
+                            next_step="recall.scroll.send",
+                            arguments=(recall.slot, recall_dungeon_id),
+                            expected_effect="recall-activated",
+                            continuation="recall.observe-arrival",
+                        )
+                        return key
+
+                    previous = self._terminal_town_recall_read
+                    self._terminal_town_recall_read = True
+                    try:
+                        return self._town_producer_entry(
+                            "_town_special_key", read_recall, family="departure")
+                    finally:
+                        self._terminal_town_recall_read = previous
 
         if recall_dest is not None and not departure_ok:
             blocker = self._terminal_equipment_blocker(snapshot)
