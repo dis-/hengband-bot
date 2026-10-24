@@ -1632,9 +1632,17 @@ class EquipmentMixin:
         key: str,
         context_identity: tuple[object, ...],
     ) -> bool:
-        if not session.prepare(
-            action, observation, key, context_identity
-        ):
+        previous = getattr(self, "_terminal_equipment_command", None)
+        self._terminal_equipment_command = (session, action, observation, key, context_identity)
+        try:
+            accepted = self._town_producer_entry(
+                "_equipment_transaction_home_key" if observation.in_home
+                else "_equipment_transaction_town_key#1",
+                lambda: session.prepare(action, observation, key, context_identity),
+                family="equipment-txn")
+        finally:
+            self._terminal_equipment_command = previous
+        if not accepted:
             return False
         self._equipment_transaction_prepared_key = key
         producer = (
@@ -2697,9 +2705,10 @@ class EquipmentMixin:
                 snapshot, STORE_HOME, goal_satisfied=False
             )
             self.last_reason = "equipment-transaction:approach-home"
-            key = self._shopping_approach_key(
-                snapshot, step, "equipment-transaction:travel-home"
-            )
+            key = self._town_producer_entry(
+                "_shopping_approach_key#1", lambda: self._shopping_approach_key(
+                    snapshot, step, "equipment-transaction:travel-home"),
+                family="equipment-txn")
             return self._equipment_town_outcome(
                 key, label="approach-home", effect="home-reached",
             )

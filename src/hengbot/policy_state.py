@@ -197,6 +197,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_terminal_town_recall_read", False)
     restored.__dict__.setdefault("_terminal_store_sale", None)
     restored.__dict__.setdefault("_terminal_home_take", None)
+    restored.__dict__.setdefault("_terminal_equipment_command", None)
     restored.__dict__.setdefault("_decision_terminal_admissions", [])
     if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored

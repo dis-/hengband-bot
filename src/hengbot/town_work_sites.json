@@ -4495,7 +4495,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3e3ae06107a37458cac8f3630c099c5cacd5854bf35b2171dce8c30f2e252b6e"
+    "ast_sha256": "7e045379bb189b625230a97522224ab63003b6ef41f0f1d4826bfb6315a644a2"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_owner_key": {
     "classification": "producer",
@@ -4599,7 +4599,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e51d5f0eb0859be90e0eb32cbf73aeb4de8b90fcf05a59a4fd37dce2380d17ea"
+    "ast_sha256": "e95bfada258bc28e794e48865941d88a07b36c5bf13f7a8d0a00f159287cf809"
   },
   "policy_equipment.py:EquipmentMixin._queue_standing_home_digger": {
     "classification": "producer",

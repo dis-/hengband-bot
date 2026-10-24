@@ -88,6 +88,11 @@ class TerminalDeclarationTest(unittest.TestCase):
             families[name] = family or (rung.family if rung is not None else None)
         enforce = {name for name, decl in TERMINALS.items() if decl.mode == ENFORCE}
         self.assertEqual(enforce, {
+            "_equipment_transaction_home_key",
+            "_equipment_transaction_town_key",
+            "_equipment_transaction_town_key#1",
+            "_equipment_transaction_town_key#2",
+            "_equipment_transaction_town_owner_key",
             "home-atomic-withdraw",
             "_home_full_relief_key",
             "_home_rearm_key",

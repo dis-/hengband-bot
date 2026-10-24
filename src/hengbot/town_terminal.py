@@ -694,6 +694,8 @@ QUEST_ENTRY_CODES = frozenset({
     "optimization-timeout", "incomplete-equipment-catalog", "no-valid-loadout",
     "pending-random-teleport-suppression", "equipment-transaction-failed",
     "home-route-unavailable", "town-owner-retired",
+    # The existing session.prepare refusal, before its caller's failure commit.
+    "equipment-dispatch-rejected",
     # The incomplete item owned by the identification flow (policy_equipment).
     "identification-flow",
     # _equipment_departure_ready branches that had no string.
@@ -816,6 +818,7 @@ TERMINAL_CODES |= CROSS_TOWN_CODES | FUNDRAISING_CODES
 # Who serves each refusal code.  An empty right side is explicit: no town
 # owner can satisfy it, so the terminal closes for the visit.
 REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
+    "equipment-dispatch-rejected": (),
     "identification-flow": _IDENTIFICATION_SERVERS,
     "incomplete-equipment-catalog": (
         *_IDENTIFICATION_SERVERS, Server("home-scan", "equipment-catalog")),
@@ -1122,6 +1125,47 @@ def home_rearm_intended_terminal(policy: Any, board: Any) -> TerminalRef:
     return TerminalRef(NO_REFUSAL, ("home-rearm-file-or-scan",))
 
 
+@dataclass(frozen=True)
+class EquipmentCommandMaterial:
+    executable: bool
+    current_action: bool
+    right_surface: bool
+    prepared_matches: bool
+
+
+def gather_equipment_command(policy: Any, board: Any) -> EquipmentCommandMaterial:
+    session, action, observation, key, context_identity = policy._terminal_equipment_command
+    from hengbot.equipment_transaction_planner import PHASE_EQUIP
+    needs_home = session.physical_context == "home" or action.phase != PHASE_EQUIP
+    candidate = (action, observation, key, context_identity)
+    return EquipmentCommandMaterial(
+        session.executable, action == session.current_action,
+        observation.in_home == needs_home,
+        session._prepared is None or session._prepared == candidate)
+
+
+def verdict_equipment_command(material: EquipmentCommandMaterial) -> Admission:
+    if not (material.executable and material.current_action
+            and material.right_surface and material.prepared_matches):
+        return refused(("equipment-dispatch-rejected",))
+    return ADMIT
+
+
+def equipment_transaction_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    context = getattr(policy, "_terminal_equipment_command", None)
+    if context is None:
+        # Replanning, restoration, observation barriers and named failures must
+        # run even when the selected command cannot be prepared.
+        return TerminalRef(NO_REFUSAL, ("equipment-transaction-dispatch",))
+    session, action, _observation, key, context_identity = context
+    material = gather_equipment_command(policy, board)
+    return TerminalRef("equipment-command", (
+        session.target_loadout_id, session.index, action.kind,
+        action.item_identity, key, context_identity,
+        (material.executable, material.current_action,
+         material.right_surface, material.prepared_matches)))
+
+
 def home_atomic_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     """``home-atomic-deposit``: the entrance deposit bound to its stay."""
     if (board.store is not None or policy._shopping_approach_store_type != STORE_HOME
@@ -1418,9 +1462,6 @@ def _shadow_rungs() -> frozenset[str]:
     # The fixed S1->S2 list: these rungs only record (design 3.7 item 2).
     return frozenset({
         "_chest_processing_key#1", "_chest_processing_key#2",
-        "_equipment_transaction_home_key",
-        "_equipment_transaction_town_key", "_equipment_transaction_town_key#1",
-        "_equipment_transaction_town_key#2", "_equipment_transaction_town_owner_key",
         "_heavy_curse_inscription_key",
         "_kill_quest_floor_recovery_key",
         "_normal_loot_key#1", "_normal_loot_key#2",
@@ -1525,6 +1566,10 @@ NO_REFUSAL_REASONS = {
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
+    **{name: TerminalDecl(equipment_transaction_intended_terminal, ENFORCE) for name in (
+        "_equipment_transaction_home_key", "_equipment_transaction_town_key",
+        "_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
+        "_equipment_transaction_town_owner_key")},
     "home-atomic-withdraw": TerminalDecl(home_atomic_withdraw_intended_terminal, ENFORCE),
     "_home_full_relief_key": TerminalDecl(home_relief_intended_terminal, ENFORCE),
     "_home_rearm_key": TerminalDecl(home_rearm_intended_terminal, ENFORCE),
@@ -1566,6 +1611,8 @@ TERMINALS: dict[str, TerminalDecl] = {
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
 _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
+    "equipment-command": lambda policy, board: verdict_equipment_command(
+        gather_equipment_command(policy, board)),
     "home-atomic-withdraw": lambda policy, board: verdict_home_atomic_withdraw(
         gather_home_atomic_withdraw(policy, board)),
     "home-take": lambda policy, board: verdict_home_withdraw(gather_home_take(policy, board)),
