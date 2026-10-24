@@ -273,3 +273,21 @@ C(4) destroy / surplus sale, C(5) the rest, then A (the 8 loot / chest / mining-
 server" test). One commit per family. When SHADOW is empty: census 0, the test_2_modes final change, structural checks limited
 to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL. Main's existing tests unchanged (STOP rule). Write files with LF only. Then the three
 guards. Token budget 300k; stop at the budget and report precisely what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 15; read the report's round-14 section first) ===
+ISSUE: #47
+Round 14 accepted (C2-C4, the two guard repairs). Note: your final fast_tier did not finish (round14-fast-tier.log has one line,
+no .exit, no process alive): it ended with your session. Re-run the three guards on this round's final HEAD and wait for them.
+STOP answer (tests/test_town_terminal_departure.py:58, test_every_leaf_of_the_gate_has_a_declared_row): APPROVED as proposed in
+round14-C5-draft/proposed-existing-test-change.patch. It is a structural census (every departure leaf a reader can produce has a
+declared server row); the forced-exit recall terminal is a real new reader of _departure_minimum, so the expected source set
+gains that reader while the exact-equality assertion stays. No other change to that test. Report it as an approved change.
+Then:
+  1. Apply round14-C5-draft/source.patch and its test module, regenerate the town work manifest, run the module tests, commit C5.
+  2. A (8 rungs) by the round-13 decision A: inspect each branch with its call guard; a branch that starts a town board server
+     (e.g. finish-mining's recall exit, victory-loot's full-pack relief if it reads recall / goes to Home) gets that errand's
+     existing terminal per board; pick up / open / walk / wait / stairs-only branches are NO_REFUSAL "not a town errand: ...".
+     One commit.
+  3. SHADOW empty: census 0, the test_2_modes final change, structural checks limited to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL.
+  4. The three guards (wait for fast_tier to exit and paste its summary).
+Main's existing tests otherwise unchanged (STOP rule). LF only. Token budget 300k; stop at the budget and report what remains.
