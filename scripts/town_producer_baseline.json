@@ -701,5 +701,18 @@
   "town_terminal.py:refused": "pure helper: construct an immutable refusal result with deduplicated codes",
   "town_terminal.py:verdict_home_withdraw": "pure helper: judge the frozen Home withdrawal material without side effects",
   "town_terminal.py:verdict_store_buy": "pure helper: judge the frozen supplier material without side effects",
-  "policy_town.py:TownMixin._town_special_key.read_recall": "delegated adapter: selected scroll-read callback of _town_special_key, invoked only through its departure entry; no independent selection or progress"
+  "policy_town.py:TownMixin._town_special_key.read_recall": "delegated adapter: selected scroll-read callback of _town_special_key, invoked only through its departure entry; no independent selection or progress",
+  "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness.reject": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "policy_shop.py:ShopMixin._cross_town_shopping_hold": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:commit_refusal": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:gather_quest_entry": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:gather_quest_work": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:home_withdraw_intended_terminal": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:home_withdraw_target": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:rung_terminal": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:shopping_intended_terminal": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:terminal_admission": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:verdict_quest_entry": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
+  "town_terminal.py:verdict_quest_work": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry"
 }

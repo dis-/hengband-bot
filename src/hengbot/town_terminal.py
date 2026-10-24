@@ -15,6 +15,8 @@ from typing import Any, Callable, NamedTuple
 
 from hengbot.policy_constants import (
     EQUIPMENT_SLOT_KEY,
+    LEAVE_STORE_KEY,
+    SELL_KEY,
     FIXED_QUEST_REWARD_POSITIONS,
     FIXED_QUEST_TOWNS,
     MORIVANT_TOWN_ID,
@@ -29,7 +31,9 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
+from hengbot.item_reservation import item_available
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
+from hengbot.policy_types import TownNeed
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
 
 
@@ -673,7 +677,7 @@ QUEST_ENTRY_CODES = frozenset({
 })
 
 # Codes the store-buy verdict can return (verdict_store_buy).
-STORE_BUY_CODES = frozenset({"supplier-unreachable", "no-matching-offer"})
+STORE_BUY_CODES = frozenset({"supplier-unreachable", "no-matching-offer", "page-not-composable", "store-page-not-fresh", "sale-item-unavailable", "sale-retains-digging-tool", "sale-not-accepted"})
 # Codes the Home deposit verdict can return (verdict_home_deposit).
 HOME_DEPOSIT_CODES = frozenset({"town-order-step4-pending"})
 # Codes the worn-curse removal verdict can return (verdict_curse_remove).
@@ -857,7 +861,8 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
         "strategy-force", "departure", "empty-roster", "unknown-monster",
         "three-turn-threat", "toughest-kill-time", "unready", "kill-descent",
         # A supplier that cannot serve the need: no town owner serves it.
-        "supplier-unreachable", "no-matching-offer",
+        "supplier-unreachable", "no-matching-offer", "page-not-composable",
+        "store-page-not-fresh", "sale-item-unavailable", "sale-retains-digging-tool", "sale-not-accepted",
     )},
 }
 
@@ -1152,6 +1157,181 @@ def recall_read_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
     return TerminalRef("departure-recall", ()) if board.in_town else None
 
 
+@dataclass(frozen=True)
+class ShopPageMaterial:
+    composable: bool
+
+
+def gather_shop_page(policy: Any, board: Any) -> ShopPageMaterial:
+    return ShopPageMaterial(policy._can_compose_shop_observation(board))
+
+
+def verdict_shop_page(material: ShopPageMaterial) -> Admission:
+    if not material.composable:
+        return refused(("page-not-composable",))
+    return ADMIT
+
+
+def shop_page_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    observation = policy._shop_observation
+    if observation is None:
+        return None
+    if not policy._can_compose_shop_observation(board) and policy._can_resume_magic_shelf(board):
+        return TerminalRef(NO_REFUSAL, ("shop-resume-delegated-route",))
+    return TerminalRef("shop-page", (observation[0].store_type, observation[1]))
+
+
+def _commit_shop_page(policy: Any, board: Any, terminal: TerminalRef,
+                      admission: Admission) -> None:
+    observation = policy._shop_observation
+    if (observation is not None and board.store is None
+            and observation[0].store_type != STORE_HOME
+            and board.grid_at(board.player.position) is not None
+            and board.grid_at(board.player.position).store_number == observation[0].store_type
+            and observation[0].page_top not in (None, 0)):
+        policy._shop_observation = None
+        policy.last_reason = "shop:one-shot-page-not-zero"
+    family = policy._claim_family_of(policy.last_reason)
+    if family not in {"shop-buy", "shop-sell", "store-router"}:
+        family = "store-router"
+    policy._offer_execution_no_step(
+        producer=family,
+        work_id=f"shop-page:{terminal.args[0]}:{policy._decision_sequence}",
+        cause="page-not-composable")
+
+
+@dataclass(frozen=True)
+class StagedStoreMaterial:
+    fresh: bool
+
+
+def gather_staged_store(policy: Any, board: Any) -> StagedStoreMaterial:
+    visit = policy._store_visit
+    return StagedStoreMaterial(bool(
+        board.store is not None and visit is not None
+        and visit.operation_posted and not visit.operation_released
+        and visit.operation_key is not None
+        and board.store.store_type == visit.store_type
+        and visit.posted_turn is not None and board.turn >= visit.posted_turn))
+
+
+def verdict_staged_store(material: StagedStoreMaterial) -> Admission:
+    if not material.fresh:
+        return refused(("store-page-not-fresh",))
+    return ADMIT
+
+
+def staged_store_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    visit = policy._store_visit
+    if visit is None or not visit.operation_posted or visit.operation_released or visit.operation_key is None:
+        return None
+    if (gather_staged_store(policy, board).fresh and visit.store_type == STORE_HOME
+            and policy._inventory_overweight(board) and policy._home_is_full(board)
+            and visit.operation_key.startswith(SELL_KEY)
+            and policy._home_atomic_deposit_pending is not None):
+        return TerminalRef(NO_REFUSAL, ("full-page-supersedes-weight-deposit",))
+    return TerminalRef("staged-store-operation", (visit.store_type, visit.operation_key))
+
+
+@dataclass(frozen=True)
+class StoreSaleMaterial:
+    target_present: bool
+    available: bool = True
+    retained: bool = False
+    accepted: bool = True
+    refused_before: bool = False
+
+
+def store_sale_target(policy: Any, board: Any) -> Any:
+    state = policy._overweight_surplus_disposal
+    pending = state.get("pending") if state is not None else None
+    if pending is None:
+        return None
+    return next((item for item in board.inventory
+                 if policy._sale_item_identity(item) == pending["identity"]), None)
+
+
+def gather_store_sale(policy: Any, board: Any) -> StoreSaleMaterial:
+    item = store_sale_target(policy, board)
+    if item is None:
+        return StoreSaleMaterial(False)
+    store = board.store
+    return StoreSaleMaterial(
+        True, available=item_available(policy, board, item, "shop-sell", "sell"),
+        retained=policy._sale_retains_digging_tool(board, item),
+        accepted=store is not None and policy._store_accepts_sale(store.store_type, item),
+        refused_before=(policy._item_signature(item) in policy._unsellable_items
+                        or (store is not None and store.store_type in policy._store_sale_refused)))
+
+
+def verdict_store_sale(material: StoreSaleMaterial) -> Admission:
+    if not material.target_present or not material.available:
+        return refused(("sale-item-unavailable",))
+    if material.retained:
+        return refused(("sale-retains-digging-tool",))
+    if not material.accepted or material.refused_before:
+        return refused(("sale-not-accepted",))
+    return ADMIT
+
+
+def store_sale_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    state = policy._overweight_surplus_disposal
+    pending = state.get("pending") if state is not None else None
+    if pending is None:
+        return None
+    return TerminalRef("store-sell", (pending["signature"],))
+
+
+def _commit_store_sale(policy: Any, board: Any, terminal: TerminalRef,
+                        admission: Admission) -> str:
+    item = store_sale_target(policy, board)
+    material = gather_store_sale(policy, board)
+    if not material.target_present:
+        policy._last_sell_sig = None
+        policy._store_sell_stuck_count = 0
+    elif material.available and material.retained:
+        policy._batch_sell_pending = None
+    elif material.available and not material.accepted:
+        policy._unsellable_items.add(policy._item_signature(item))
+        if board.store is not None:
+            policy._set_town_store_attempted(board.store.store_type, board.turn, "sell-no-item")
+        policy._batch_sell_pending = None
+        policy._last_sell_sig = None
+        policy._store_sell_stuck_count = 0
+    policy.last_reason = ("shop:retain-standing-digging-tool"
+                          if material.target_present and material.available and material.retained
+                          else "shop:unsellable-leave")
+    policy._offer_store_sale_leave(board)
+    return LEAVE_STORE_KEY
+
+
+def gather_store_route(policy: Any, board: Any) -> tuple[StoreBuyMaterial, ...]:
+    store = policy._shopping_approach_store_type
+    plan = policy._town_errand_plan
+    categories = plan.need_categories.get(store, ()) if plan is not None else ()
+    return tuple(gather_store_buy(policy, board, TownNeed(store, category, "normal"))
+                 for category in categories)
+
+
+def verdict_store_route(materials: tuple[StoreBuyMaterial, ...]) -> Admission:
+    admissions = tuple(verdict_store_buy(material) for material in materials)
+    if not admissions or any(admission.admitted for admission in admissions):
+        return ADMIT
+    return refused(code for admission in admissions for code in admission.codes)
+
+
+def shopping_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    withdrawal = home_withdraw_intended_terminal(policy, board)
+    if withdrawal is not None:
+        return withdrawal
+    store = policy._shopping_approach_store_type
+    if not board.in_town or board.store is not None or store is None or store == STORE_HOME:
+        return None
+    plan = policy._town_errand_plan
+    categories = plan.need_categories.get(store, ()) if plan is not None else ()
+    return TerminalRef("store-route", (store, tuple(categories))) if categories else None
+
+
 def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
     """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
     a reason-bearing NO_REFUSAL marker, or None (no board or terminal)."""
@@ -1168,7 +1348,6 @@ def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None
 def _shadow_rungs() -> frozenset[str]:
     # The fixed S1->S2 list: these rungs only record (design 3.7 item 2).
     return frozenset({
-        "_atomic_shop_transaction_key",
         "_chest_processing_key#1", "_chest_processing_key#2",
         "_equipment_transaction_home_key",
         "_equipment_transaction_town_key", "_equipment_transaction_town_key#1",
@@ -1180,9 +1359,7 @@ def _shadow_rungs() -> frozenset[str]:
         "_kill_quest_floor_recovery_key",
         "_normal_loot_key#1", "_normal_loot_key#2",
         "_overweight_surplus_sale_key",
-        "_release_staged_store_operation", "_released_restock_store_key",
         "_start_kill_quest_regeneration",
-        "_store_sell_key",
         "_town_order_step4_key#1", "_town_order_step4_key#2",
         "_town_overflow_destroy_key",
         "_town_restore_weapon_key",
@@ -1194,7 +1371,6 @@ def _shadow_rungs() -> frozenset[str]:
         "_finish_mining_floor",
         "_full_pack_destroy_key",
         "_opening_q34_town_key",
-        "_recall_restock_key",
         "_town_blocked_key",
         "_town_destroy_key",
     })
@@ -1222,6 +1398,8 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
+    "_released_restock_store_key": "Delegate each supplier walk to the shopping terminal; unreachable suppliers produce a visible named close; src/hengbot/policy_shop.py:1015",
+    "_recall_restock_key": "Observe stock turnover or queue mining preparation; supplier walking delegates to the shopping terminal; src/hengbot/policy.py:15758",
     '_blocking_escape_melee_key': 'tactical survival/combat: not a town errand; src/hengbot/policy.py:19599',
     '_breeder_breakthrough_escape_key': 'tactical survival/combat: not a town errand; src/hengbot/policy_combat.py:3710',
     '_breeder_breakthrough_key': 'tactical survival/combat: not a town errand; src/hengbot/policy_combat.py:3647',
@@ -1278,6 +1456,9 @@ NO_REFUSAL_REASONS = {
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
+    "_store_sell_key": TerminalDecl(store_sale_intended_terminal, ENFORCE),
+    "_release_staged_store_operation": TerminalDecl(staged_store_intended_terminal, ENFORCE),
+    "_atomic_shop_transaction_key": TerminalDecl(shop_page_intended_terminal, ENFORCE),
     "_fixed_quest_key#1": TerminalDecl(fixed_quest_return_intended_terminal, ENFORCE),
     "_fixed_quest_key#2": TerminalDecl(fixed_quest_intended_terminal, ENFORCE),
     **{name: TerminalDecl(None, SHADOW) for name in SHADOW_RUNGS},
@@ -1295,7 +1476,7 @@ TERMINALS: dict[str, TerminalDecl] = {
     "town-item-processing": TerminalDecl(carried_identification_intended_terminal, ENFORCE),
     "_home_disposal_processing_key": TerminalDecl(home_disposal_intended_terminal, ENFORCE),
     "home-full-identification": TerminalDecl(home_full_identify_intended_terminal, ENFORCE),
-    **{name: TerminalDecl(home_withdraw_intended_terminal, ENFORCE) for name in (
+    **{name: TerminalDecl(shopping_intended_terminal, ENFORCE) for name in (
         "_shopping_approach_key", "_shopping_approach_key#1",
         "_shopping_approach_key#2")},
     "home-atomic-deposit": TerminalDecl(home_atomic_deposit_intended_terminal, ENFORCE),
@@ -1313,6 +1494,10 @@ TERMINALS: dict[str, TerminalDecl] = {
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
 _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
+    "store-route": lambda policy, board: verdict_store_route(gather_store_route(policy, board)),
+    "staged-store-operation": lambda policy, board: verdict_staged_store(gather_staged_store(policy, board)),
+    "store-sell": lambda policy, board: verdict_store_sale(gather_store_sale(policy, board)),
+    "shop-page": lambda policy, board: verdict_shop_page(gather_shop_page(policy, board)),
     NO_REFUSAL: lambda policy, board: ADMIT,
     "home-deposit": lambda policy, board: verdict_home_deposit(
         gather_home_deposit(policy, board)),
@@ -1468,7 +1653,9 @@ def _commit_fundraising_run(policy: Any, board: Any, terminal: TerminalRef,
 
 # Rung-specific confirmation takes precedence when a terminal is shared by
 # different producers; the other entries apply to the terminal kind.
-REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] = {
+REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], str | None]] = {
+    "shop-page": _commit_shop_page,
+    "store-sell": _commit_store_sale,
     "_fundraising_key#1": _commit_fundraising_run,
     "_fundraising_key#2": _commit_fundraising_run,
     "identify-equipped": _commit_identify_equipped,
@@ -1484,12 +1671,12 @@ REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] =
 
 
 def commit_refusal(policy: Any, board: Any, terminal: TerminalRef | None, *,
-                   rung_name: str | None = None) -> None:
+                   rung_name: str | None = None) -> str | None:
     """Called by the entry when ``may_take_board`` refused (ENFORCE only)."""
     commit = (REFUSAL_COMMITS.get(rung_name or "")
               or REFUSAL_COMMITS.get(terminal.terminal_id)) if terminal is not None else None
     if commit is not None:
-        commit(policy, board, terminal, terminal_admission(policy, board, terminal))
+        return commit(policy, board, terminal, terminal_admission(policy, board, terminal))
 
 
 # --- The board verdict (design 3.5) --------------------------------------

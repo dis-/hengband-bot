@@ -5819,6 +5819,17 @@ class ShopMixin(InStoreMixin):
         # Record-only (rev 9.2 C): the walk below runs the errand that
         # ``travel_reason`` names, whatever reason the decision still carries.
         writer_family = self._claim_family_of(travel_reason)
+        # Restock and Home-relief dispatchers also call this route directly.
+        # Their walk must ask the same terminal as the ladder approach rungs.
+        if not self._town_gate_exempt(writer_family, travel_reason, snapshot):
+            from hengbot.town_terminal import (
+                commit_refusal, may_take_board, shopping_intended_terminal,
+            )
+            terminal = shopping_intended_terminal(self, snapshot)
+            if not may_take_board(self, "_shopping_approach_key", writer_family,
+                                  snapshot, terminal):
+                return commit_refusal(self, snapshot, terminal,
+                                      rung_name="_shopping_approach_key")
         # Progress-invariant repairs use this route producer as detectors;
         # apply the same exemptions as the other town producer entry gates.
         if (not self._town_gate_exempt(writer_family, travel_reason, snapshot)

@@ -5938,8 +5938,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # --enforce-town-claims switch (town_terminal, design 3.6).
         if not may_take_board(self, rung_name, rung.family, board, terminal):
             # The skipped body's confirmation on this refusal (design 3.2).
-            commit_refusal(self, board, terminal, rung_name=rung_name)
-            return None
+            return commit_refusal(self, board, terminal, rung_name=rung_name)
         session = self._equipment_transaction_session
         holder = self._claim_errand_hold("__none__", enforced=True, arrival_board=board)
         before = len(getattr(self, "_decision_errand_deferred", ()) or ())

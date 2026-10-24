@@ -3659,7 +3659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3fa1d0134680328e987176aaa7839df60d832ad8875b392dfc1c8fca322b2142"
+    "ast_sha256": "e723781de564cdc0959e996e5e513d332cb4ccf6b8824b6ffc368e7e57eed707"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -5854,6 +5854,22 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "7a21e266dbdb8b6719408cd0f9ef04b159de58056f03eb322933ee4fa883c107"
   },
+  "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "9fda312d7b5508ae9a2bf2b9f1452284ee4a58215f0c40921eaae42da5637066"
+  },
+  "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness.reject": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "95cfad1f91af9ef8f88de8e6ff64cf0557708e4a88b5754d6927cbd267d879c6"
+  },
   "policy_quest.py:QuestMixin._fixed_quest_building_candidate": {
     "classification": "data",
     "rows": [
@@ -6412,6 +6428,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "660364b9e0b8e8e3c2465185b9dce7d471060a642a10e1a423da1784c9005cb0"
   },
+  "policy_shop.py:ShopMixin._cross_town_shopping_hold": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "10796999d9549017f2468b7dd7ff38d47b29aba32aacc200a6fba96932ab4365"
+  },
   "policy_shop.py:ShopMixin._cross_town_shopping_key": {
     "classification": "producer",
     "rows": [
@@ -6801,7 +6825,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "19514db4ca1152a039dea94d37146398a818f4ea359040ab49f689e8309577c0"
+    "ast_sha256": "88b814e87c1bbb3f859d7837b9b7b01a7b6650dd7206227f1fc689001e034cf2"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
     "classification": "data",
@@ -8236,6 +8260,22 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "ea4d8b4f23b06ff9d55dfa61bd14cd2b2ed5c631526bbc0a06f7a5cf891b72fb"
   },
+  "town_terminal.py:_commit_shop_page": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "43046c2598c012f1427f97fba7f12a167aa3ad98a6db8fa64214572fadac7550"
+  },
+  "town_terminal.py:commit_refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "6a48cdbc11d2221c9c02da629c57e1c547421c1b040cd8d1fa35b02dd5f1575c"
+  },
   "town_terminal.py:declared_code": {
     "classification": "data",
     "rows": [
@@ -8252,6 +8292,22 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "e2efeccbfe7af1d802e6a9fe72bb1d964a253ddb45fbff5ed11a95c85f79be41"
   },
+  "town_terminal.py:gather_quest_entry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "e3489f6c4af0e79d21818de751ff04ac127f0c54b87061ac441e3a8e1bab6b66"
+  },
+  "town_terminal.py:gather_quest_work": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "ae4083d9890ffed93c90992e7a8caad10b4aa1ae69b0ec36bdc55fd22479570f"
+  },
   "town_terminal.py:gather_store_buy": {
     "classification": "data",
     "rows": [
@@ -8259,6 +8315,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "006445f1d759610b5267037a93ea980b575458ba5ee33e370f345f4643225e0f"
+  },
+  "town_terminal.py:home_withdraw_intended_terminal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "2e79f2b1e016ae438dce474730043a9a9acc8b82533a0979f529d898944b4fb3"
+  },
+  "town_terminal.py:home_withdraw_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "4a9cd29521a777f6d70599093171e24bed21c04b77eb4b3a08b520f8dade0e14"
   },
   "town_terminal.py:plan_stop_admission": {
     "classification": "data",
@@ -8276,6 +8348,30 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "ab00377d0bdd884745fba97a8c6ee231a753f48596b2b7b7f66812162f8101d8"
   },
+  "town_terminal.py:rung_terminal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "ae1f80bd3b9bbe512c8155bba48487c8c697ef6b14291fa8f490a2333cea60ee"
+  },
+  "town_terminal.py:shopping_intended_terminal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "4420591323dc9c9fbffd34cf8d8e3947e823cee39b485a902b8d72973200118d"
+  },
+  "town_terminal.py:terminal_admission": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "ee4eb4c6a4fac0a953ab576a4ecb86b181ac84a564a108a5e1bd83f868d17789"
+  },
   "town_terminal.py:verdict_home_withdraw": {
     "classification": "data",
     "rows": [
@@ -8283,6 +8379,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "fe132302c066a7f02223ecf1a2033b62b7550563d23da95f99ac9fe6811cc804"
+  },
+  "town_terminal.py:verdict_quest_entry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "2e6d203cf97c97e5ac54295d6486fafde42ece980b26f91b43aa0d9cec7e13df"
+  },
+  "town_terminal.py:verdict_quest_work": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "4ac29ccb4d62a921102cade580bc7fba466c120babb6b3075420e24af46793ee"
   },
   "town_terminal.py:verdict_store_buy": {
     "classification": "data",
