@@ -264,3 +264,12 @@ and the commit_refusal return change). Keep it: review it, re-run its module tes
 home / town / test_town_structure_lint), and commit it as the store-family commit. The files now have CRLF line endings in the
 working copy (written via PowerShell Set-Content); write them back with LF only (as the repository has them) before committing,
 and write files with Python newline="\n" from now on. Then continue round 13 (C families 2-5, A, D) as written above.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 14; read the report's round-13 section first) ===
+ISSUE: #47
+Round 13 accepted (class 5 and the store family; SHADOW 56 -> 34; guards green, the tests.test_melee_site_lint import error stays
+out of scope). Continue round 13's decisions unchanged for the 34 left, in this order: C(2) Home, C(3) equipment transaction,
+C(4) destroy / surplus sale, C(5) the rest, then A (the 8 loot / chest / mining-exit / kill-quest rungs by the "takes a town board
+server" test). One commit per family. When SHADOW is empty: census 0, the test_2_modes final change, structural checks limited
+to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL. Main's existing tests unchanged (STOP rule). Write files with LF only. Then the three
+guards. Token budget 300k; stop at the budget and report precisely what remains.
