@@ -60,18 +60,25 @@ class FundraisingRefusalConfirmationTest(unittest.TestCase):
                         self.assertIsNone(enforce[3])
                         self.assertNotIn(STORE_ALCHEMIST, enforce[5])
 
-    def test_departure_dispatcher_does_not_borrow_a_run_confirmation(self):
+    def test_dispatcher_runs_the_reaction_without_borrowing_a_run_confirmation(self):
         snap = board()
         policy = policy_on(snap)
         policy._fundraising_mode = "prepare"
         rung = "_town_special_key"
         decl = tt.TERMINALS[rung]
+        dispatched = []
+
+        def body():
+            dispatched.append(True)
+            return None
+
         with patch.dict(tt.TERMINALS, {rung: decl._replace(mode=tt.ENFORCE)}), \
                 patch.object(policy, "_offer_execution_no_step") as offer:
             key = policy._town_producer_entry(
-                rung, lambda: self.fail("refused departure must not dispatch"),
+                rung, body,
                 family="departure")
         self.assertIsNone(key)
+        self.assertEqual(dispatched, [True])
         offer.assert_not_called()
 
 
