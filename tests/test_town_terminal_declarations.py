@@ -1,10 +1,9 @@
-"""ROOT-FIX S1 structural checks of the terminal declarations (design 3.7).
+"""ROOT-FIX S2 structural checks of the terminal declarations (design 3.7).
 
 1. Every ``_town_producer_entry("<rung>", ...)`` name in src (collected by AST)
    is a ``TERMINALS`` key, and no key is extra.
-2. Modes: ENFORCE only for the two quest rungs; EXEMPT_SURVIVAL only for the
-   survival/detectors/bookkeeping families; SHADOW only for the fixed S1->S2
-   list (its census is pinned and may only shrink).
+2. Modes: only ENFORCE / reason-bearing NO_REFUSAL / EXEMPT_SURVIVAL;
+   the SHADOW exception list and its census are exactly zero.
 3. A producer of the manifest called by ``_decide`` outside the entry is in
    the fixed S1->S2 list ``DIRECT_PRODUCERS_S1``.
 4. ``REFUSAL_SERVERS`` keys equal the declared codes; every code literal the
@@ -34,7 +33,6 @@ from hengbot.town_terminal import (
     EXEMPT_SURVIVAL,
     QUEST_ENTRY_CODES,
     REFUSAL_SERVERS,
-    SHADOW,
     TERMINALS,
     declared_code,
 )
@@ -42,7 +40,7 @@ from hengbot.town_terminal import (
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "hengbot"
 FIXTURE = Path(__file__).parent / "fixtures" / "n1a-townalt-20261023.jsonl.gz"
-S1_SHADOW_CENSUS = 109
+S1_SHADOW_CENSUS = 0
 S1_DIRECT_CENSUS = 0
 
 
@@ -86,73 +84,18 @@ class TerminalDeclarationTest(unittest.TestCase):
         for name, family in _entry_calls():
             rung = rung_named(name)
             families[name] = family or (rung.family if rung is not None else None)
-        enforce = {name for name, decl in TERMINALS.items() if decl.mode == ENFORCE}
-        self.assertEqual(enforce, {
-            "_finish_mining_floor",
-            "_victory_loot_key",
-            "_town_blocked_key",
-            "_opening_q34_town_key",
-            "_town_restore_weapon_key",
-            "_heavy_curse_inscription_key",
-            "_overweight_surplus_sale_key",
-            "_town_overflow_destroy_key",
-            "_worthless_junk_destroy_key",
-            "_full_pack_destroy_key",
-            "_town_destroy_key",
-            "verified-disposal",
-            "_equipment_transaction_home_key",
-            "_equipment_transaction_town_key",
-            "_equipment_transaction_town_key#1",
-            "_equipment_transaction_town_key#2",
-            "_equipment_transaction_town_owner_key",
-            "home-atomic-withdraw",
-            "_home_full_relief_key",
-            "_home_rearm_key",
-            "_store_sell_key",
-            "_release_staged_store_operation",
-            "_atomic_shop_transaction_key",
-            "_home_disposal_processing_key",
-            "_defer_home_full_deposit",
-            "_descent_step",
-            "_fixed_quest_key#1",
-            "_fixed_quest_key#2",
-            "_fundraising_key#1",
-            "_fundraising_key#2",
-            "_open_home_deposit_key",
-            "_read_dungeon_recall_scroll_key",
-            "_shopping_approach_key",
-            "_shopping_approach_key#1",
-            "_shopping_approach_key#2",
-            "_town_device_processing_key",
-            "_town_enchant_launcher_key",
-            "_town_equipped_identification_key",
-            "_town_remove_curse_key",
-            "_town_space_deposit_key",
-            "_town_special_key",
-            "direct-descent",
-            "home-atomic-deposit",
-            "home-full-identification",
-            "supply-stockout-mining",
-            "town-item-processing",
-            "town-teleport",
-        })
-        self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset(
-            name for name, decl in TERMINALS.items() if decl.mode == SHADOW))
+        self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset())
         for name, decl in TERMINALS.items():
-            self.assertIn(decl.mode, {ENFORCE, SHADOW, town_terminal.NO_REFUSAL, EXEMPT_SURVIVAL}, name)
+            self.assertIn(decl.mode, {ENFORCE, town_terminal.NO_REFUSAL, EXEMPT_SURVIVAL}, name)
             if decl.mode == EXEMPT_SURVIVAL:
                 self.assertIn(families[name], EXEMPT_FAMILIES, name)
-            if decl.mode == SHADOW:
-                self.assertIn(name, town_terminal.SHADOW_RUNGS, name)
-                self.assertNotIn(families[name], EXEMPT_FAMILIES, name)
             if decl.mode == town_terminal.NO_REFUSAL:
                 self.assertIsNone(decl.intended_terminal, name)
                 self.assertTrue(decl.no_refusal_reason.strip(), name)
                 self.assertEqual(decl.no_refusal_reason, town_terminal.NO_REFUSAL_REASONS[name])
             if decl.mode == ENFORCE:
                 self.assertIsNotNone(decl.intended_terminal, name)
-        # The S1->S2 list may only shrink (empty at the S2 exit).
-        self.assertLessEqual(len(town_terminal.SHADOW_RUNGS), S1_SHADOW_CENSUS)
+        self.assertEqual(len(town_terminal.SHADOW_RUNGS), S1_SHADOW_CENSUS)
 
     def test_3_direct_producers_are_listed(self):
         manifest = json.loads((SRC / "town_work_sites.json").read_text(encoding="utf-8"))

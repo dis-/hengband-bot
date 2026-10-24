@@ -1564,11 +1564,8 @@ def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None
     return decl.intended_terminal(policy, board)
 
 
-def _shadow_rungs() -> frozenset[str]:
-    # The last eight S1 exceptions now have explicit declarations.
-    return frozenset()
-
-SHADOW_RUNGS = _shadow_rungs()
+# S2 exit: every production rung has an explicit final mode.
+SHADOW_RUNGS: frozenset[str] = frozenset()
 # Producers ``_decide`` still calls outside the entry (S1->S2 list, design
 # 3.6 item 3 / 3.7 item 3); S2 moves them behind named entries.
 DIRECT_PRODUCERS_S1: frozenset[str] = frozenset()
@@ -1683,7 +1680,6 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_atomic_shop_transaction_key": TerminalDecl(shop_page_intended_terminal, ENFORCE),
     "_fixed_quest_key#1": TerminalDecl(fixed_quest_return_intended_terminal, ENFORCE),
     "_fixed_quest_key#2": TerminalDecl(fixed_quest_intended_terminal, ENFORCE),
-    **{name: TerminalDecl(None, SHADOW) for name in SHADOW_RUNGS},
     **{name: TerminalDecl(None, NO_REFUSAL, reason)
        for name, reason in NO_REFUSAL_REASONS.items()},
     **{name: TerminalDecl(None, EXEMPT_SURVIVAL) for name in EXEMPT_RUNGS},
