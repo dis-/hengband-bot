@@ -37,10 +37,11 @@ class NoRefusalDeclarationTest(unittest.TestCase):
             "_dig_to_known_downstairs_key", "_entrance_travel_key", "idle-fallback",
             "navigator.decide",
         }
-        self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12)
+        round13 = {'_summoner_ranged_kill_key', '_unseen_retreat_key', '_emergency_item', '_fruitless_disengage_key', '_town_random_teleport_suppression_key', '_blocking_escape_melee_key', '_paralyzer_prevention_key', '_ranged_attack_key#2', '_immobile_breeder_giveup_key', '_detected_threat_preparation_key', '_breeder_breakthrough_key', '_item_destroying_breeder_leave_key', '_ranged_attack_key#1', '_choke_engagement_key', '_esp_threat_rest_key', '_melee_swarm_combat_key', '_breeder_breakthrough_escape_key'}
+        self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12 | round13)
         self.assertEqual({name for name, decl in tt.TERMINALS.items()
-                          if decl.mode == tt.NO_REFUSAL}, EXPECTED | round12)
-        self.assertEqual(len(tt.SHADOW_RUNGS), 56)
+                          if decl.mode == tt.NO_REFUSAL}, EXPECTED | round12 | round13)
+        self.assertEqual(len(tt.SHADOW_RUNGS), 39)
         self.assertTrue(EXPECTED.isdisjoint(tt.SHADOW_RUNGS))
         for name in EXPECTED:
             decl = tt.TERMINALS[name]
