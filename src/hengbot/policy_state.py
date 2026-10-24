@@ -193,6 +193,13 @@ def normalize_policy_state(restored, *, restart=False):
         )
         _restore_terminal_admission_ledger(current_ledger)
     restored.__dict__.setdefault("_terminal_admission_memo", None)
+    restored.__dict__.setdefault("_terminal_town_travel", None)
+    restored.__dict__.setdefault("_terminal_town_recall_read", False)
+    restored.__dict__.setdefault("_terminal_store_sale", None)
+    restored.__dict__.setdefault("_terminal_home_take", None)
+    restored.__dict__.setdefault("_terminal_equipment_command", None)
+    restored.__dict__.setdefault("_terminal_item_command", None)
+    restored.__dict__.setdefault("_terminal_blocked_recall", None)
     restored.__dict__.setdefault("_decision_terminal_admissions", [])
     if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored

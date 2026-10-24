@@ -2,7 +2,7 @@ from __future__ import annotations
 from functools import wraps
 from weakref import WeakKeyDictionary
 from hengbot.item_reservation import (
-    claim_candidate_cache, decision_caches_enabled, reservation_query,
+    claim_candidate_cache, decision_caches_enabled, decision_memo, reservation_query,
 )
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 
@@ -60,6 +60,7 @@ from hengbot.policy_types import (
 )
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
+from hengbot.town_terminal import gather_store_buy, verdict_store_buy, plan_stop_admission
 from dataclasses import dataclass, replace
 import json
 import os
@@ -2208,9 +2209,14 @@ class TownMixin:
         return self._food_ready(snapshot)
 
     def _town_departure_conjuncts(
-        self, snapshot: Snapshot, *, ignore_free_slots: bool = False
+        self, snapshot: Snapshot, *, ignore_free_slots: bool = False,
+        commit: bool = True,
     ) -> dict[str, bool]:
-        """Evaluate and name every leaf of the ordinary town departure gate."""
+        """Evaluate and name every leaf of the ordinary town departure gate.
+
+        ``commit=False`` is the departure terminal's material read
+        (town_terminal.gather_departure): the equipment leaf without its
+        confirmation writes."""
         player = snapshot.player
         free_slots_ok = (
             ignore_free_slots
@@ -2244,7 +2250,10 @@ class TownMixin:
                 len(snapshot.inventory) < PACK_CAPACITY
                 or self._find_town_organization_surplus(snapshot) is None
             ),
-            "equipment_departure_ready": self._equipment_departure_ready(snapshot),
+            # The default read keeps its historical call (tests stub it).
+            "equipment_departure_ready": (
+                self._equipment_departure_ready(snapshot) if commit
+                else self._equipment_departure_ready(snapshot, commit=False)),
             "home_candidate_resolved": (
                 not home_required or not self._home_candidate_waiting
             ),
@@ -2321,11 +2330,9 @@ class TownMixin:
             # order owner finish reward/bounty work before that optional Home
             # route can acquire the store arbiter.
             return None
-        if self._fixed_quest_prepare_return_required(snapshot):
-            # Stage-2 travel is an already-owned continuation.  Keep the
-            # shortage actionable for earlier scan suppression and departure
-            # gating, but do not replace the quest candidate with a Home route.
-            return None
+        # Stage-2 quest travel (rung #1) keeps the shortage actionable for
+        # earlier scan suppression and departure gating; the rung's terminal
+        # (town_terminal.space_deposit_intended_terminal) does not apply then.
         self._town_claims_active(snapshot)
         step = self._shopping_approach_step(
             snapshot, requester="home-visit"
@@ -2402,9 +2409,12 @@ class TownMixin:
         self._town_order_expected_observation = "departure-supplies-ready"
         return supplier
 
-    def _recall_town_departure_conjuncts(self, snapshot: Snapshot) -> dict[str, bool]:
+    def _recall_town_departure_conjuncts(
+        self, snapshot: Snapshot, *, commit: bool = True,
+    ) -> dict[str, bool]:
         """Return the complete leaf set consumed by a town recall decision."""
-        values = self._town_departure_conjuncts(snapshot)
+        values = (self._town_departure_conjuncts(snapshot) if commit
+                  else self._town_departure_conjuncts(snapshot, commit=False))
         values.update(
             {
                 # Recall lands deep even if an income-mode latch survives.
@@ -3741,6 +3751,7 @@ class TownMixin:
         self._retire_actionless_equipment_failure(snapshot)
         self._refresh_nonhome_effect_refusals(snapshot)
         claims: list[str] = []
+        claimed_needs: list[TownNeed] = []
         departure_ready: bool | None = None
         terminal_optional_categories = {
             "ammo-home-first",
@@ -3861,7 +3872,12 @@ class TownMixin:
                     continue
             if need.category not in claims:
                 claims.append(need.category)
+            claimed_needs.append(need)
         self._town_claim_categories = claims
+        # The decision's need list: the terminal admission reads it as the
+        # evidence that a server's need is live (town_terminal, design 3.5 (ii)).
+        self._decision_claim_needs = (
+            self._decision_sequence, snapshot, tuple(claimed_needs))
         return bool(claims)
 
     def _shortage_supplier_visit_page(
@@ -3974,6 +3990,18 @@ class TownMixin:
         self, snapshot: Snapshot, need: TownNeed
     ) -> bool:
         """Whether a need's supplier has a live or remembered town route."""
+        # Routes depend on the store, not on the need's category or priority.
+        # Town layouts are immutable; a newly selected map invalidates the key.
+        key = (self._decision_sequence, need.store_type, id(self._town_map), self._town_map_active,
+               tuple((town, id(layout)) for town, layout in self._town_maps.items()))
+        return decision_memo(
+            self, "_town_need_supplier_reachable", snapshot, key,
+            lambda: self._compute_town_need_supplier_reachable(snapshot, need))
+
+    def _compute_town_need_supplier_reachable(
+        self, snapshot: Snapshot, need: TownNeed
+    ) -> bool:
+        """Read the observed or remembered route on a decision-memo miss."""
         store = getattr(snapshot, "store", None)
         if store is not None and store.store_type == need.store_type:
             return True
@@ -4095,8 +4123,6 @@ class TownMixin:
         )
         retired = set(getattr(self._town_turn_arbiter, "_retired", ()))
         for need in candidates:
-            if not self._town_need_supplier_reachable(snapshot, need):
-                continue
             # A Home identification handoff for an equipment candidate belongs
             # to the exhausted equipment owner too. Independent supplies and
             # safe deposits remain eligible for their own departure remedies.
@@ -4109,16 +4135,10 @@ class TownMixin:
                 or "equipment-txn" in retired
             ):
                 continue
-            page = self._town_supplier_stock.get(need.store_type)
-            remembered_affordable = bool(
-                page is not None
-                and any(item.price <= snapshot.player.gold for item in page.items)
-            )
-            if (
-                need.store_type not in self._town_store_attempted
-                or need.store_type == STORE_HOME
-                or remembered_affordable
-            ):
+            # The supplier's store-buy verdict (town_terminal, S2): reachable,
+            # and Home, unattempted, or a remembered ware that serves the need
+            # (not merely any ware within gold, #66 #68 #94).
+            if verdict_store_buy(gather_store_buy(self, snapshot, need)).admitted:
                 return need.store_type, equipment_exhausted
         return None, equipment_exhausted
 
@@ -4238,6 +4258,8 @@ class TownMixin:
     def _build_town_errand_plan(
         self, snapshot: Snapshot, needs: list[TownNeed]
     ) -> TownErrandPlan | None:
+        needs = [need for need in needs
+                 if plan_stop_admission(self, snapshot, need).admitted]
         previous = self._town_errand_plan
         leading_home = any(
             need.store_type == STORE_HOME and need.ordering_class != "post-alchemist-home"
@@ -6057,6 +6079,7 @@ class TownMixin:
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
                     selection = ""
+                    strict_departure_gate = False
                     recall_dungeon_id = snapshot.recall_dungeon_id
                     if snapshot.in_town:
                         recall_dest, recall_dungeon_id = (
@@ -6070,6 +6093,7 @@ class TownMixin:
                             )
                             if gated_dest is None:
                                 return WAIT_KEY
+                            strict_departure_gate = not bool(self._visit_departure_committed)
                             if not (self._departure_minimum(snapshot,
                                     self._dungeon_entry_depth(snapshot, gated_dungeon,
                                                               via_recall=True))["holds"]
@@ -6119,9 +6143,20 @@ class TownMixin:
                         )
                         if selection is None:
                             return WAIT_KEY
-                    self.last_reason = "town:repetition-depart:recall"
-                    self._emergency_recall_sanctioned = True
-                    key = self._read_key(snapshot, recall, selection)
+                    from hengbot.town_terminal import may_take_board, rung_terminal
+                    previous = getattr(self, "_terminal_blocked_recall", None)
+                    self._terminal_blocked_recall = (
+                        recall_dungeon_id, bool(self._visit_departure_committed), strict_departure_gate)
+                    try:
+                        terminal = rung_terminal(self, "_town_blocked_key", snapshot)
+                        if snapshot.in_town and not may_take_board(
+                                self, "_town_blocked_key", "departure", snapshot, terminal):
+                            return WAIT_KEY
+                        self.last_reason = "town:repetition-depart:recall"
+                        self._emergency_recall_sanctioned = True
+                        key = self._read_key(snapshot, recall, selection)
+                    finally:
+                        self._terminal_blocked_recall = previous
                     self._offer_execution(
                         key, producer="departure",
                         work_id=f"town:repetition-recall:{recall_dungeon_id}",
@@ -6776,23 +6811,38 @@ class TownMixin:
                             cause="selection-unavailable",
                         )
                         return None
-                    self._pending_recall_dungeon_id = recall_dungeon_id
-                    self._town_recall_issue_watch = (
-                        recall_dungeon_id,
-                        snapshot.turn,
-                        recall_count,
-                    )
-                    self.last_reason = f"town:recall-to-{recall_dest}"
-                    key = self._read_key(snapshot, recall, selection)
-                    self._offer_execution(
-                        key, producer="departure",
-                        work_id=f"town:recall:{recall_dungeon_id}",
-                        next_step="recall.scroll.send",
-                        arguments=(recall.slot, recall_dungeon_id),
-                        expected_effect="recall-activated",
-                        continuation="recall.observe-arrival",
-                    )
-                    return key
+                    # The dispatcher's reactions are not a departure. Ask the
+                    # departure terminal only at the branch that sends a read,
+                    # before arming its watch or publishing an execution offer.
+                    def read_recall():
+                        recall_count = sum(
+                            item.count for item in snapshot.inventory if item.is_recall_scroll
+                        )
+                        self._pending_recall_dungeon_id = recall_dungeon_id
+                        self._town_recall_issue_watch = (
+                            recall_dungeon_id,
+                            snapshot.turn,
+                            recall_count,
+                        )
+                        self.last_reason = f"town:recall-to-{recall_dest}"
+                        key = self._read_key(snapshot, recall, selection)
+                        self._offer_execution(
+                            key, producer="departure",
+                            work_id=f"town:recall:{recall_dungeon_id}",
+                            next_step="recall.scroll.send",
+                            arguments=(recall.slot, recall_dungeon_id),
+                            expected_effect="recall-activated",
+                            continuation="recall.observe-arrival",
+                        )
+                        return key
+
+                    previous = self._terminal_town_recall_read
+                    self._terminal_town_recall_read = True
+                    try:
+                        return self._town_producer_entry(
+                            "_town_special_key", read_recall, family="departure")
+                    finally:
+                        self._terminal_town_recall_read = previous
 
         if recall_dest is not None and not departure_ok:
             blocker = self._terminal_equipment_blocker(snapshot)
@@ -7066,11 +7116,16 @@ class TownMixin:
         self, snapshot: Snapshot, destination_town_id: int, *,
         producer: str = "store-router", reason: str = "town:teleport",
     ) -> str | None:
-        return self._town_producer_entry(
-            "town-teleport", lambda: self._town_teleport_dispatch_key(
-                snapshot, destination_town_id, producer=producer, reason=reason),
-            family=producer,
-        )
+        previous = getattr(self, "_terminal_town_travel", None)
+        self._terminal_town_travel = (producer, destination_town_id)
+        try:
+            return self._town_producer_entry(
+                "town-teleport", lambda: self._town_teleport_dispatch_key(
+                    snapshot, destination_town_id, producer=producer, reason=reason),
+                family=producer,
+            )
+        finally:
+            self._terminal_town_travel = previous
 
     def _town_teleport_dispatch_key(
         self, snapshot: Snapshot, destination_town_id: int, *,
@@ -7169,7 +7224,12 @@ class TownMixin:
 
     def _read_dungeon_recall_scroll_key(
         self, snapshot: Snapshot, recall: InventoryItem
-    ) -> str:
+    ) -> str | None:
+        key = self._town_producer_entry(
+            "_read_dungeon_recall_scroll_key",
+            lambda: self._read_key(snapshot, recall), family="departure", board=snapshot)
+        if key is None:
+            return None
         recall_count = sum(
             item.count for item in snapshot.inventory if item.is_recall_scroll
         )
@@ -7181,7 +7241,7 @@ class TownMixin:
         self._post_owner_expectation(
             snapshot, "return:recall", "inventory", "recalling", "floor"
         )
-        return self._read_key(snapshot, recall)
+        return key
 
     @claims(ClaimOwner.DEPARTURE)
     def _dungeon_recall_confirmation_key(

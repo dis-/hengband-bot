@@ -1711,14 +1711,9 @@ class ShopMixin(InStoreMixin):
                         claim.claim_id, "complete", "cross-town-shopping:arrived",
                     )
 
-    def _cross_town_shopping_holds_quest_travel(self, snapshot: Snapshot) -> bool:
-        """Finish the admitted trip's local procurement before quest travel.
-
-        Arrival is an observation, independent of which producer wins this turn.
-        A remaining shortage releases the trip only after every local supplier
-        has actually shown stock-out (or an unaffordable offer).
-        """
-        self._observe_cross_town_shopping_arrival(snapshot)
+    def _cross_town_shopping_hold(self, snapshot: Snapshot) -> bool:
+        """The hold itself, without the arrival observation (the quest
+        terminals' verdict reads it; ``choose_key`` observes arrival first)."""
         expedition = self._cross_town_shopping
         if expedition is None or not snapshot.in_town:
             return False
@@ -1739,7 +1734,7 @@ class ShopMixin(InStoreMixin):
         if (snapshot.in_town and self._defer_town_errand(
                 "cross-town", "shopping")):
             return None
-        if self._cross_town_shopping_holds_quest_travel(snapshot):
+        if self._cross_town_shopping_hold(snapshot):
             expedition = self._cross_town_shopping
             if expedition.target_town_id is None:
                 return None
@@ -3908,6 +3903,19 @@ class ShopMixin(InStoreMixin):
             expected_effect="outside-store",
         )
 
+    def _store_sale_entry_key(self, snapshot, item, reason, **kwargs):
+        """Bind the caller's exact sale target and refusal reason to admission."""
+        previous = getattr(self, "_terminal_store_sale", None)
+        self._terminal_store_sale = (
+            item.slot, self._item_signature(item),
+            kwargs.get("rejected_reason", "shop:unsellable-leave"))
+        try:
+            return self._town_producer_entry(
+                "_store_sell_key", lambda: self._store_sell_key(snapshot, item, reason, **kwargs),
+                family="shop-sell", board=snapshot)
+        finally:
+            self._terminal_store_sale = previous
+
     @claims(ClaimOwner.SHOP_SELL)
     def _store_sell_key(
         self,
@@ -5824,6 +5832,17 @@ class ShopMixin(InStoreMixin):
         # Record-only (rev 9.2 C): the walk below runs the errand that
         # ``travel_reason`` names, whatever reason the decision still carries.
         writer_family = self._claim_family_of(travel_reason)
+        # Restock and Home-relief dispatchers also call this route directly.
+        # Their walk must ask the same terminal as the ladder approach rungs.
+        if not self._town_gate_exempt(writer_family, travel_reason, snapshot):
+            from hengbot.town_terminal import (
+                commit_refusal, may_take_board, shopping_intended_terminal,
+            )
+            terminal = shopping_intended_terminal(self, snapshot)
+            if not may_take_board(self, "_shopping_approach_key", writer_family,
+                                  snapshot, terminal):
+                return commit_refusal(self, snapshot, terminal,
+                                      rung_name="_shopping_approach_key")
         # Progress-invariant repairs use this route producer as detectors;
         # apply the same exemptions as the other town producer entry gates.
         if (not self._town_gate_exempt(writer_family, travel_reason, snapshot)

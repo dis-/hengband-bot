@@ -23,6 +23,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_FINISHED
 from hengbot.policy_types import CrossTownShoppingExpedition
 from hengbot.claim_register import reach_place
+from hengbot.town_terminal import gather_quest_work, verdict_quest_work
 
 FIXTURE = Path(__file__).parent / "fixtures/goldburn-20261003.decisions.json"
 SHA256 = "6f3f9fe6b9d9e6c5e9323795e03a96cd545af59c6516582925f4a5faba439c37"
@@ -49,6 +50,22 @@ def board(index=0):
     )
 
 
+def _quest_entry(policy, snap):
+    """The fixed-quest rung through its entry, on a decision board whose
+    arrival was observed first (as at the start of every decision)."""
+    policy._build_grid_index(snap)
+    policy._begin_map_predicate_cache(snap)
+    policy._decision_sequence += 1
+    policy._decision_terminal_admissions = []
+    policy._observe_cross_town_shopping_arrival(snap)
+    return policy._town_producer_entry(
+        "_fixed_quest_key#2", lambda: policy._fixed_quest_key(snap, []))
+
+
+def _shopping_holds(policy, snap):
+    return not verdict_quest_work(gather_quest_work(policy, snap)).admitted
+
+
 def shopping_policy():
     policy = HengbotPolicy()
     row = decision(0)
@@ -66,12 +83,12 @@ class GoldburnShoppingConstructedTest(unittest.TestCase):
         policy = shopping_policy()
         snap = board()
         policy._build_grid_index(snap)
-        self.assertIsNone(policy._fixed_quest_key(snap, []))
+        self.assertIsNone(_quest_entry(policy, snap))
         self.assertEqual(policy._cross_town_shopping.tried_towns, [1])
         self.assertIsNone(policy._cross_town_shopping.target_town_id)
-        self.assertTrue(policy._cross_town_shopping_holds_quest_travel(snap))
+        self.assertTrue(_shopping_holds(policy, snap))
         # A second board must still yield, after the arrival target was cleared.
-        self.assertIsNone(policy._fixed_quest_key(replace(snap, turn=snap.turn + 1), []))
+        self.assertIsNone(_quest_entry(policy, replace(snap, turn=snap.turn + 1)))
 
     def test_destination_discards_origin_stockout_and_store_bounds(self):
         policy = shopping_policy()
@@ -83,7 +100,7 @@ class GoldburnShoppingConstructedTest(unittest.TestCase):
         policy._observe(snap)
         self.assertFalse(policy._town_visit_ledger.shelf_observations)
         self.assertNotIn(STORE_ALCHEMIST, policy._town_visit_ledger.blocked_stores)
-        self.assertIsNone(policy._fixed_quest_key(snap, []))
+        self.assertIsNone(_quest_entry(policy, snap))
 
     def test_arrival_completes_transport_claim_before_shop_entry(self):
         policy = shopping_policy()
@@ -114,13 +131,13 @@ class GoldburnShoppingConstructedTest(unittest.TestCase):
         policy._build_grid_index(snap)
         policy._observe_cross_town_shopping_arrival(snap)
         policy._town_visit_ledger.shelf_observations[(STORE_ALCHEMIST, "identification-source:full")] = ()
-        self.assertFalse(policy._cross_town_shopping_holds_quest_travel(snap))
+        self.assertFalse(_shopping_holds(policy, snap))
         self.assertEqual(policy._fixed_quest_key(snap, []), "7")
 
     def test_affordable_shelf_keeps_shopping_owner(self):
         policy = shopping_policy()
         policy._town_visit_ledger.shelf_observations[(STORE_ALCHEMIST, "identification-source:full")] = ((11815, 1),)
-        self.assertIsNone(policy._fixed_quest_key(board(), []))
+        self.assertIsNone(_quest_entry(policy, board()))
 
     def test_fare_does_not_change_durable_progress_or_retirement_key(self):
         policy = HengbotPolicy()

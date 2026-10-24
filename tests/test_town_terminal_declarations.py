@@ -1,10 +1,9 @@
-"""ROOT-FIX S1 structural checks of the terminal declarations (design 3.7).
+"""ROOT-FIX S2 structural checks of the terminal declarations (design 3.7).
 
 1. Every ``_town_producer_entry("<rung>", ...)`` name in src (collected by AST)
    is a ``TERMINALS`` key, and no key is extra.
-2. Modes: ENFORCE only for the two quest rungs; EXEMPT_SURVIVAL only for the
-   survival/detectors/bookkeeping families; SHADOW only for the fixed S1->S2
-   list (its census is pinned and may only shrink).
+2. Modes: only ENFORCE / reason-bearing NO_REFUSAL / EXEMPT_SURVIVAL;
+   the SHADOW exception list and its census are exactly zero.
 3. A producer of the manifest called by ``_decide`` outside the entry is in
    the fixed S1->S2 list ``DIRECT_PRODUCERS_S1``.
 4. ``REFUSAL_SERVERS`` keys equal the declared codes; every code literal the
@@ -34,7 +33,6 @@ from hengbot.town_terminal import (
     EXEMPT_SURVIVAL,
     QUEST_ENTRY_CODES,
     REFUSAL_SERVERS,
-    SHADOW,
     TERMINALS,
     declared_code,
 )
@@ -42,8 +40,8 @@ from hengbot.town_terminal import (
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "hengbot"
 FIXTURE = Path(__file__).parent / "fixtures" / "n1a-townalt-20261023.jsonl.gz"
-S1_SHADOW_CENSUS = 90
-S1_DIRECT_CENSUS = 21
+S1_SHADOW_CENSUS = 0
+S1_DIRECT_CENSUS = 0
 
 
 def _entry_calls():
@@ -86,19 +84,18 @@ class TerminalDeclarationTest(unittest.TestCase):
         for name, family in _entry_calls():
             rung = rung_named(name)
             families[name] = family or (rung.family if rung is not None else None)
-        enforce = {name for name, decl in TERMINALS.items() if decl.mode == ENFORCE}
-        self.assertEqual(enforce, {"_fixed_quest_key#1", "_fixed_quest_key#2"})
+        self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset())
         for name, decl in TERMINALS.items():
-            self.assertIn(decl.mode, {ENFORCE, SHADOW, EXEMPT_SURVIVAL}, name)
+            self.assertIn(decl.mode, {ENFORCE, town_terminal.NO_REFUSAL, EXEMPT_SURVIVAL}, name)
             if decl.mode == EXEMPT_SURVIVAL:
                 self.assertIn(families[name], EXEMPT_FAMILIES, name)
-            if decl.mode == SHADOW:
-                self.assertIn(name, town_terminal.SHADOW_RUNGS, name)
-                self.assertNotIn(families[name], EXEMPT_FAMILIES, name)
+            if decl.mode == town_terminal.NO_REFUSAL:
+                self.assertIsNone(decl.intended_terminal, name)
+                self.assertTrue(decl.no_refusal_reason.strip(), name)
+                self.assertEqual(decl.no_refusal_reason, town_terminal.NO_REFUSAL_REASONS[name])
             if decl.mode == ENFORCE:
                 self.assertIsNotNone(decl.intended_terminal, name)
-        # The S1->S2 list may only shrink (empty at the S2 exit).
-        self.assertLessEqual(len(town_terminal.SHADOW_RUNGS), S1_SHADOW_CENSUS)
+        self.assertEqual(len(town_terminal.SHADOW_RUNGS), S1_SHADOW_CENSUS)
 
     def test_3_direct_producers_are_listed(self):
         manifest = json.loads((SRC / "town_work_sites.json").read_text(encoding="utf-8"))
@@ -117,16 +114,24 @@ class TerminalDeclarationTest(unittest.TestCase):
             and isinstance(node.func.value, ast.Name) and node.func.value.id == "self"
             and node.func.attr in producers and id(node) not in wrapped
         }
-        self.assertIn("_town_special_key", direct)
-        self.assertLessEqual(direct, town_terminal.DIRECT_PRODUCERS_S1)
+        self.assertEqual(direct, set())
+        self.assertEqual(town_terminal.DIRECT_PRODUCERS_S1, frozenset())
         self.assertLessEqual(len(town_terminal.DIRECT_PRODUCERS_S1), S1_DIRECT_CENSUS)
 
     def test_4_codes_and_table_agree(self):
-        self.assertEqual(set(REFUSAL_SERVERS), set(QUEST_ENTRY_CODES))
+        # S2 (supervisor decision 2026-10-23 (1)): the keys are the union of
+        # every terminal's declared codes; every verdict_* function is scanned.
+        self.assertLessEqual(set(QUEST_ENTRY_CODES), set(town_terminal.TERMINAL_CODES))
+        self.assertEqual(set(REFUSAL_SERVERS), set(town_terminal.TERMINAL_CODES))
+        verdicts = sorted(
+            node.name for node in ast.parse(
+                (SRC / "town_terminal.py").read_text(encoding="utf-8")).body
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("verdict_"))
+        self.assertIn("verdict_store_buy", verdicts)
         literals = set()
-        for path, name in ((SRC / "town_terminal.py", "verdict_quest_entry"),
-                           (SRC / "policy_equipment.py",
-                            "_equipment_departure_refusal_codes")):
+        for path, name in ((*((SRC / "town_terminal.py", verdict) for verdict in verdicts),
+                            (SRC / "policy_equipment.py",
+                             "_equipment_departure_refusal_codes"))):
             for node in ast.walk(_function(path, name)):
                 if isinstance(node, ast.Return) and node.value is not None:
                     emitted = node.value

@@ -1,0 +1,5065 @@
+{
+  "20261018-071312": {
+    "fixture": "town-s2-20261018-071312.jsonl.gz",
+    "decide_at": [
+      0,
+      2,
+      3,
+      4,
+      6,
+      7,
+      14,
+      15,
+      16,
+      20,
+      22,
+      23,
+      24,
+      25,
+      26,
+      28,
+      29,
+      30,
+      31,
+      32,
+      34,
+      35,
+      39,
+      40,
+      43,
+      45,
+      46,
+      49,
+      50,
+      52,
+      54,
+      55,
+      56,
+      57,
+      59,
+      60,
+      61,
+      63,
+      64,
+      65,
+      68,
+      69,
+      72,
+      73,
+      75,
+      76,
+      77,
+      79,
+      80,
+      81,
+      83,
+      84,
+      85,
+      87,
+      88,
+      89,
+      91,
+      92,
+      93,
+      95,
+      97
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 10166,
+        "turn": 871448,
+        "key": "~f\u001b",
+        "reason": "periodic:skill-exp-knowledge",
+        "time": "2026-10-18T07:11:42+0900"
+      },
+      {
+        "decision_sequence": 10167,
+        "turn": 871448,
+        "key": "wna",
+        "reason": "town:restore-combat-weapon",
+        "time": "2026-10-18T07:11:44+0900"
+      },
+      {
+        "decision_sequence": 10168,
+        "turn": 871463,
+        "key": "tb",
+        "reason": "town:restore-combat-weapon",
+        "time": "2026-10-18T07:11:45+0900"
+      },
+      {
+        "decision_sequence": 10169,
+        "turn": 871468,
+        "key": "1",
+        "reason": "town:entrance-step-off:policy:none-wait",
+        "time": "2026-10-18T07:11:48+0900"
+      },
+      {
+        "decision_sequence": 10170,
+        "turn": 871479,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:11:50+0900"
+      },
+      {
+        "decision_sequence": 10171,
+        "turn": 871807,
+        "key": "dtdn2\rdi3\r\u001b",
+        "reason": "home:weight-overload-deposit",
+        "time": "2026-10-18T07:11:51+0900"
+      },
+      {
+        "decision_sequence": 10172,
+        "turn": 871814,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-18T07:11:53+0900"
+      },
+      {
+        "decision_sequence": 10173,
+        "turn": 871814,
+        "key": "\u001b`n%.",
+        "reason": "town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach",
+        "time": "2026-10-18T07:11:55+0900"
+      },
+      {
+        "decision_sequence": 10176,
+        "turn": 872156,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-18T07:11:59+0900"
+      },
+      {
+        "decision_sequence": 10177,
+        "turn": 872168,
+        "key": "rhc",
+        "reason": "town:enchant-launcher-tohit",
+        "time": "2026-10-18T07:12:00+0900"
+      },
+      {
+        "decision_sequence": 10178,
+        "turn": 872174,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:12:01+0900"
+      },
+      {
+        "decision_sequence": 10179,
+        "turn": 872195,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:12:02+0900"
+      },
+      {
+        "decision_sequence": 10180,
+        "turn": 872208,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:12:04+0900"
+      },
+      {
+        "decision_sequence": 10181,
+        "turn": 872219,
+        "key": "\u0013",
+        "reason": "periodic:game-save",
+        "time": "2026-10-18T07:12:05+0900"
+      },
+      {
+        "decision_sequence": 10182,
+        "turn": 872219,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-18T07:12:06+0900"
+      },
+      {
+        "decision_sequence": 10183,
+        "turn": 872219,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:12:07+0900"
+      },
+      {
+        "decision_sequence": 10184,
+        "turn": 872230,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:12:08+0900"
+      },
+      {
+        "decision_sequence": 10185,
+        "turn": 872242,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:12:09+0900"
+      },
+      {
+        "decision_sequence": 10186,
+        "turn": 872253,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:12:10+0900"
+      },
+      {
+        "decision_sequence": 10187,
+        "turn": 872265,
+        "key": "1",
+        "reason": "melee",
+        "time": "2026-10-18T07:12:11+0900"
+      },
+      {
+        "decision_sequence": 10188,
+        "turn": 872274,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:12:13+0900"
+      },
+      {
+        "decision_sequence": 10190,
+        "turn": 872322,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-18T07:12:15+0900"
+      },
+      {
+        "decision_sequence": 10191,
+        "turn": 872331,
+        "key": "\u001b`n'.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:12:16+0900"
+      },
+      {
+        "decision_sequence": 10193,
+        "turn": 872523,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-18T07:12:19+0900"
+      },
+      {
+        "decision_sequence": 10194,
+        "turn": 872530,
+        "key": "1",
+        "reason": "town:blocked:no-actionable-claim-owner",
+        "time": "2026-10-18T07:12:24+0900"
+      },
+      {
+        "decision_sequence": 10195,
+        "turn": 872541,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:12:26+0900"
+      },
+      {
+        "decision_sequence": 10196,
+        "turn": 872945,
+        "key": "dh\u001b",
+        "reason": "home:atomic-deposit",
+        "time": "2026-10-18T07:12:26+0900"
+      },
+      {
+        "decision_sequence": 10197,
+        "turn": 872957,
+        "key": "5",
+        "reason": "shop:travel:await-entry",
+        "time": "2026-10-18T07:12:28+0900"
+      },
+      {
+        "decision_sequence": 10198,
+        "turn": 872957,
+        "key": "\u001b",
+        "reason": "home:scan-incomplete-open-page",
+        "time": "2026-10-18T07:12:29+0900"
+      },
+      {
+        "decision_sequence": 10199,
+        "turn": 872965,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-18T07:12:29+0900"
+      },
+      {
+        "decision_sequence": 10200,
+        "turn": 872965,
+        "key": "9",
+        "reason": "town:entrance-step-off:shop:observed-operation-uncomposable",
+        "time": "2026-10-18T07:12:31+0900"
+      },
+      {
+        "decision_sequence": 10201,
+        "turn": 872977,
+        "key": "5",
+        "reason": "town:blocked:no-actionable-claim-owner",
+        "time": "2026-10-18T07:12:36+0900"
+      },
+      {
+        "decision_sequence": 10202,
+        "turn": 872987,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:12:38+0900"
+      },
+      {
+        "decision_sequence": 10203,
+        "turn": 872987,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:12:38+0900"
+      },
+      {
+        "decision_sequence": 10204,
+        "turn": 872999,
+        "key": "6",
+        "reason": "probe",
+        "time": "2026-10-18T07:12:40+0900"
+      },
+      {
+        "decision_sequence": 10205,
+        "turn": 873009,
+        "key": "4",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:12:41+0900"
+      },
+      {
+        "decision_sequence": 10206,
+        "turn": 873009,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:12:42+0900"
+      },
+      {
+        "decision_sequence": 10207,
+        "turn": 873020,
+        "key": "3",
+        "reason": "probe",
+        "time": "2026-10-18T07:12:43+0900"
+      },
+      {
+        "decision_sequence": 10208,
+        "turn": 873029,
+        "key": "7",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:12:45+0900"
+      },
+      {
+        "decision_sequence": 10209,
+        "turn": 873029,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:12:45+0900"
+      },
+      {
+        "decision_sequence": 10210,
+        "turn": 873043,
+        "key": "\u001b`n&.",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:12:47+0900"
+      },
+      {
+        "decision_sequence": 10211,
+        "turn": 873230,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T07:12:48+0900"
+      },
+      {
+        "decision_sequence": 10212,
+        "turn": 873240,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:12:50+0900"
+      },
+      {
+        "decision_sequence": 10213,
+        "turn": 873423,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:12:50+0900"
+      },
+      {
+        "decision_sequence": 10214,
+        "turn": 873437,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:12:52+0900"
+      },
+      {
+        "decision_sequence": 10215,
+        "turn": 873450,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:12:53+0900"
+      },
+      {
+        "decision_sequence": 10216,
+        "turn": 873450,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:12:54+0900"
+      },
+      {
+        "decision_sequence": 10217,
+        "turn": 873460,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:12:55+0900"
+      },
+      {
+        "decision_sequence": 10218,
+        "turn": 873469,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:12:56+0900"
+      },
+      {
+        "decision_sequence": 10219,
+        "turn": 873469,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:12:57+0900"
+      },
+      {
+        "decision_sequence": 10220,
+        "turn": 873478,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:12:59+0900"
+      },
+      {
+        "decision_sequence": 10221,
+        "turn": 873486,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:13:00+0900"
+      },
+      {
+        "decision_sequence": 10222,
+        "turn": 873486,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:13:01+0900"
+      },
+      {
+        "decision_sequence": 10223,
+        "turn": 873500,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:13:02+0900"
+      },
+      {
+        "decision_sequence": 10224,
+        "turn": 873510,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:13:03+0900"
+      },
+      {
+        "decision_sequence": 10225,
+        "turn": 873510,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:13:04+0900"
+      },
+      {
+        "decision_sequence": 10226,
+        "turn": 873517,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:13:06+0900"
+      },
+      {
+        "decision_sequence": 10227,
+        "turn": 873529,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:13:07+0900"
+      },
+      {
+        "decision_sequence": 10228,
+        "turn": 873529,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:13:08+0900"
+      },
+      {
+        "decision_sequence": 10229,
+        "turn": 873540,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:13:09+0900"
+      },
+      {
+        "decision_sequence": 10230,
+        "turn": 873549,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:13:10+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261018-071312-loop-detected",
+    "entry_wall": false,
+    "sha256": "1485df4df32818149e97a61a35ef4a48ac2d36bec6e682294476b4b585d5e12c"
+  },
+  "20261018-074006": {
+    "fixture": "town-s2-20261018-074006.jsonl.gz",
+    "decide_at": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      8,
+      9,
+      10,
+      21,
+      22,
+      23,
+      27,
+      28,
+      31,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      44,
+      45,
+      47,
+      48,
+      49,
+      51,
+      52,
+      53,
+      55,
+      56,
+      57,
+      60,
+      61,
+      64,
+      65,
+      67,
+      68,
+      69,
+      71,
+      72,
+      73,
+      75,
+      76,
+      77,
+      79,
+      80,
+      81,
+      83,
+      84,
+      85,
+      87,
+      89
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 2511,
+        "turn": 901251,
+        "key": "5",
+        "reason": "return:wait-recall",
+        "time": "2026-10-18T07:38:24+0900"
+      },
+      {
+        "decision_sequence": 2512,
+        "turn": 901262,
+        "key": "5",
+        "reason": "return:wait-recall",
+        "time": "2026-10-18T07:38:24+0900"
+      },
+      {
+        "decision_sequence": 2513,
+        "turn": 901274,
+        "key": "fp1",
+        "reason": "ranged:fire",
+        "time": "2026-10-18T07:38:24+0900"
+      },
+      {
+        "decision_sequence": 2514,
+        "turn": 901282,
+        "key": "5",
+        "reason": "return:wait-recall",
+        "time": "2026-10-18T07:38:24+0900"
+      },
+      {
+        "decision_sequence": 2515,
+        "turn": 901290,
+        "key": "5",
+        "reason": "return:wait-recall",
+        "time": "2026-10-18T07:38:24+0900"
+      },
+      {
+        "decision_sequence": 2515,
+        "turn": 901298,
+        "key": "~f\u001b",
+        "reason": "periodic:skill-exp-knowledge",
+        "time": "2026-10-18T07:38:25+0900"
+      },
+      {
+        "decision_sequence": 2516,
+        "turn": 901298,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:38:29+0900"
+      },
+      {
+        "decision_sequence": 2517,
+        "turn": 901701,
+        "key": "dwdsdq4\rdndldkdb5\r\u001b",
+        "reason": "home:weight-overload-deposit",
+        "time": "2026-10-18T07:38:31+0900"
+      },
+      {
+        "decision_sequence": 2518,
+        "turn": 901711,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-18T07:38:32+0900"
+      },
+      {
+        "decision_sequence": 2519,
+        "turn": 901711,
+        "key": "\u001b`n%.",
+        "reason": "town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach",
+        "time": "2026-10-18T07:38:35+0900"
+      },
+      {
+        "decision_sequence": 2521,
+        "turn": 902046,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-18T07:38:38+0900"
+      },
+      {
+        "decision_sequence": 2522,
+        "turn": 902058,
+        "key": "\u001b`n#.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:38:40+0900"
+      },
+      {
+        "decision_sequence": 2524,
+        "turn": 902110,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-18T07:38:43+0900"
+      },
+      {
+        "decision_sequence": 2525,
+        "turn": 902121,
+        "key": "2",
+        "reason": "probe",
+        "time": "2026-10-18T07:38:46+0900"
+      },
+      {
+        "decision_sequence": 2526,
+        "turn": 902134,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:38:47+0900"
+      },
+      {
+        "decision_sequence": 2527,
+        "turn": 902305,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:38:49+0900"
+      },
+      {
+        "decision_sequence": 2528,
+        "turn": 902316,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:38:50+0900"
+      },
+      {
+        "decision_sequence": 2529,
+        "turn": 902326,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:38:52+0900"
+      },
+      {
+        "decision_sequence": 2530,
+        "turn": 902334,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:38:53+0900"
+      },
+      {
+        "decision_sequence": 2531,
+        "turn": 902349,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:38:54+0900"
+      },
+      {
+        "decision_sequence": 2532,
+        "turn": 902357,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:38:55+0900"
+      },
+      {
+        "decision_sequence": 2533,
+        "turn": 902368,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T07:38:56+0900"
+      },
+      {
+        "decision_sequence": 2534,
+        "turn": 902377,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T07:38:57+0900"
+      },
+      {
+        "decision_sequence": 2535,
+        "turn": 902391,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T07:38:58+0900"
+      },
+      {
+        "decision_sequence": 2536,
+        "turn": 902402,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:39:00+0900"
+      },
+      {
+        "decision_sequence": 2537,
+        "turn": 902617,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:02+0900"
+      },
+      {
+        "decision_sequence": 2538,
+        "turn": 902630,
+        "key": "9",
+        "reason": "town:blocked:no-actionable-claim-owner",
+        "time": "2026-10-18T07:39:08+0900"
+      },
+      {
+        "decision_sequence": 2539,
+        "turn": 902639,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:10+0900"
+      },
+      {
+        "decision_sequence": 2540,
+        "turn": 902639,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:11+0900"
+      },
+      {
+        "decision_sequence": 2541,
+        "turn": 902648,
+        "key": "6",
+        "reason": "town:blocked:no-actionable-claim-owner",
+        "time": "2026-10-18T07:39:17+0900"
+      },
+      {
+        "decision_sequence": 2542,
+        "turn": 902662,
+        "key": "4",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:19+0900"
+      },
+      {
+        "decision_sequence": 2543,
+        "turn": 902662,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:20+0900"
+      },
+      {
+        "decision_sequence": 2544,
+        "turn": 902672,
+        "key": "3",
+        "reason": "probe",
+        "time": "2026-10-18T07:39:22+0900"
+      },
+      {
+        "decision_sequence": 2545,
+        "turn": 902678,
+        "key": "7",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:24+0900"
+      },
+      {
+        "decision_sequence": 2546,
+        "turn": 902678,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:25+0900"
+      },
+      {
+        "decision_sequence": 2547,
+        "turn": 902687,
+        "key": "\u001b`n&.",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:39:27+0900"
+      },
+      {
+        "decision_sequence": 2548,
+        "turn": 902853,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T07:39:29+0900"
+      },
+      {
+        "decision_sequence": 2549,
+        "turn": 902865,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T07:39:31+0900"
+      },
+      {
+        "decision_sequence": 2550,
+        "turn": 903037,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:32+0900"
+      },
+      {
+        "decision_sequence": 2551,
+        "turn": 903044,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:39:34+0900"
+      },
+      {
+        "decision_sequence": 2552,
+        "turn": 903055,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:36+0900"
+      },
+      {
+        "decision_sequence": 2553,
+        "turn": 903055,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:37+0900"
+      },
+      {
+        "decision_sequence": 2554,
+        "turn": 903067,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:39:40+0900"
+      },
+      {
+        "decision_sequence": 2555,
+        "turn": 903074,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:41+0900"
+      },
+      {
+        "decision_sequence": 2556,
+        "turn": 903074,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:42+0900"
+      },
+      {
+        "decision_sequence": 2557,
+        "turn": 903086,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:39:44+0900"
+      },
+      {
+        "decision_sequence": 2558,
+        "turn": 903094,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:46+0900"
+      },
+      {
+        "decision_sequence": 2559,
+        "turn": 903094,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:47+0900"
+      },
+      {
+        "decision_sequence": 2560,
+        "turn": 903103,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:39:49+0900"
+      },
+      {
+        "decision_sequence": 2561,
+        "turn": 903113,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:51+0900"
+      },
+      {
+        "decision_sequence": 2562,
+        "turn": 903113,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:53+0900"
+      },
+      {
+        "decision_sequence": 2563,
+        "turn": 903121,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:39:55+0900"
+      },
+      {
+        "decision_sequence": 2564,
+        "turn": 903132,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:39:56+0900"
+      },
+      {
+        "decision_sequence": 2565,
+        "turn": 903132,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "time": "2026-10-18T07:39:58+0900"
+      },
+      {
+        "decision_sequence": 2566,
+        "turn": 903144,
+        "key": "9",
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "time": "2026-10-18T07:40:00+0900"
+      },
+      {
+        "decision_sequence": 2567,
+        "turn": 903155,
+        "key": "1",
+        "reason": "shop:approach",
+        "time": "2026-10-18T07:40:01+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261018-074006-loop-detected",
+    "entry_wall": false,
+    "sha256": "096ac14c6ec58bbab822ccd4ea841ceee9f2897da9b382009737df66c65ccb5f"
+  },
+  "20261018-091516": {
+    "fixture": "town-s2-20261018-091516.jsonl.gz",
+    "decide_at": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      19,
+      20,
+      21,
+      23,
+      24,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      37,
+      38
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 1987,
+        "turn": 1062658,
+        "key": "2",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:13:19+0900"
+      },
+      {
+        "decision_sequence": 1988,
+        "turn": 1062666,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:13:25+0900"
+      },
+      {
+        "decision_sequence": 1989,
+        "turn": 1062672,
+        "key": "1",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:13:32+0900"
+      },
+      {
+        "decision_sequence": 1990,
+        "turn": 1062680,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:13:38+0900"
+      },
+      {
+        "decision_sequence": 1991,
+        "turn": 1062690,
+        "key": "1",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:13:44+0900"
+      },
+      {
+        "decision_sequence": 1992,
+        "turn": 1062701,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:13:50+0900"
+      },
+      {
+        "decision_sequence": 1993,
+        "turn": 1062713,
+        "key": "1",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:13:56+0900"
+      },
+      {
+        "decision_sequence": 1994,
+        "turn": 1062715,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:03+0900"
+      },
+      {
+        "decision_sequence": 1995,
+        "turn": 1062728,
+        "key": "1",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:09+0900"
+      },
+      {
+        "decision_sequence": 1996,
+        "turn": 1062735,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:15+0900"
+      },
+      {
+        "decision_sequence": 1997,
+        "turn": 1062744,
+        "key": "1",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:21+0900"
+      },
+      {
+        "decision_sequence": 1998,
+        "turn": 1062751,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:28+0900"
+      },
+      {
+        "decision_sequence": 1999,
+        "turn": 1062765,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:34+0900"
+      },
+      {
+        "decision_sequence": 2000,
+        "turn": 1062773,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:41+0900"
+      },
+      {
+        "decision_sequence": 2001,
+        "turn": 1062782,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T09:14:47+0900"
+      },
+      {
+        "decision_sequence": 2002,
+        "turn": 1062788,
+        "key": "\u001b`n(.",
+        "reason": "town:repetition-required-shopping",
+        "time": "2026-10-18T09:14:49+0900"
+      },
+      {
+        "decision_sequence": 2003,
+        "turn": 1062886,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T09:14:51+0900"
+      },
+      {
+        "decision_sequence": 2004,
+        "turn": 1062898,
+        "key": "1",
+        "reason": "melee",
+        "time": "2026-10-18T09:14:52+0900"
+      },
+      {
+        "decision_sequence": 2005,
+        "turn": 1062908,
+        "key": "\u001b`n(.",
+        "reason": "town:repetition-required-shopping",
+        "time": "2026-10-18T09:14:54+0900"
+      },
+      {
+        "decision_sequence": 2006,
+        "turn": 1063378,
+        "key": "\u001b",
+        "reason": "home:identify-staff-reserve-unavailable",
+        "time": "2026-10-18T09:14:55+0900"
+      },
+      {
+        "decision_sequence": 2007,
+        "turn": 1063394,
+        "key": "9",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:14:56+0900"
+      },
+      {
+        "decision_sequence": 2008,
+        "turn": 1063406,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:14:58+0900"
+      },
+      {
+        "decision_sequence": 2009,
+        "turn": 1063416,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:15:00+0900"
+      },
+      {
+        "decision_sequence": 2010,
+        "turn": 1063426,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:15:01+0900"
+      },
+      {
+        "decision_sequence": 2011,
+        "turn": 1063438,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:15:03+0900"
+      },
+      {
+        "decision_sequence": 2012,
+        "turn": 1063448,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:15:05+0900"
+      },
+      {
+        "decision_sequence": 2013,
+        "turn": 1063460,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:15:06+0900"
+      },
+      {
+        "decision_sequence": 2014,
+        "turn": 1063467,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:15:08+0900"
+      },
+      {
+        "decision_sequence": 2015,
+        "turn": 1063478,
+        "key": "\u0013",
+        "reason": "periodic:game-save",
+        "time": "2026-10-18T09:15:10+0900"
+      },
+      {
+        "decision_sequence": 2016,
+        "turn": 1063478,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-18T09:15:11+0900"
+      },
+      {
+        "decision_sequence": 2017,
+        "turn": 1063478,
+        "key": "5",
+        "reason": "town:blocked:repetition",
+        "time": "2026-10-18T09:15:13+0900"
+      },
+      {
+        "decision_sequence": 2018,
+        "turn": 1063485,
+        "key": "5",
+        "reason": "town:blocked:owner-retired-burst",
+        "time": "2026-10-18T09:15:15+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261018-091516-town-blocked-owner-retired-burst",
+    "entry_wall": false,
+    "sha256": "0faf05fcca728af2fc1ba93d232348d369018ef11c19fcc60fc2318d3accb0ad"
+  },
+  "20261018-140156": {
+    "fixture": "town-s2-20261018-140156.jsonl.gz",
+    "decide_at": [
+      18,
+      19,
+      20,
+      21,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 6181,
+        "turn": 1746969,
+        "key": "7",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T13:59:53+0900"
+      },
+      {
+        "decision_sequence": 6182,
+        "turn": 1746978,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:00:01+0900"
+      },
+      {
+        "decision_sequence": 6183,
+        "turn": 1746986,
+        "key": "\u0013",
+        "reason": "periodic:game-save",
+        "time": "2026-10-18T14:00:09+0900"
+      },
+      {
+        "decision_sequence": 6184,
+        "turn": 1746986,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-18T14:00:17+0900"
+      },
+      {
+        "decision_sequence": 6185,
+        "turn": 1746986,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:00:25+0900"
+      },
+      {
+        "decision_sequence": 6186,
+        "turn": 1746993,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:00:32+0900"
+      },
+      {
+        "decision_sequence": 6187,
+        "turn": 1747004,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:00:40+0900"
+      },
+      {
+        "decision_sequence": 6188,
+        "turn": 1747012,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:00:48+0900"
+      },
+      {
+        "decision_sequence": 6189,
+        "turn": 1747024,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:00:55+0900"
+      },
+      {
+        "decision_sequence": 6190,
+        "turn": 1747030,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:01:03+0900"
+      },
+      {
+        "decision_sequence": 6191,
+        "turn": 1747039,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:01:11+0900"
+      },
+      {
+        "decision_sequence": 6192,
+        "turn": 1747050,
+        "key": "1",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:01:12+0900"
+      },
+      {
+        "decision_sequence": 6193,
+        "turn": 1747059,
+        "key": "2",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:01:13+0900"
+      },
+      {
+        "decision_sequence": 6194,
+        "turn": 1747069,
+        "key": "3",
+        "reason": "melee",
+        "time": "2026-10-18T14:01:14+0900"
+      },
+      {
+        "decision_sequence": 6195,
+        "turn": 1747078,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:01:15+0900"
+      },
+      {
+        "decision_sequence": 6196,
+        "turn": 1747086,
+        "key": "8",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:01:23+0900"
+      },
+      {
+        "decision_sequence": 6197,
+        "turn": 1747097,
+        "key": "8",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:01:31+0900"
+      },
+      {
+        "decision_sequence": 6198,
+        "turn": 1747106,
+        "key": "7",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:01:38+0900"
+      },
+      {
+        "decision_sequence": 6199,
+        "turn": 1747114,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-18T14:01:46+0900"
+      },
+      {
+        "decision_sequence": 6200,
+        "turn": 1747119,
+        "key": "5",
+        "reason": "town:blocked:owner-retired-burst",
+        "time": "2026-10-18T14:01:53+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261018-140156-town-blocked-owner-retired-burst",
+    "entry_wall": false,
+    "sha256": "74acaa8e073dfbd6b749b49eaa7eafd881fea03cf846149e840b6c556ac0a736"
+  },
+  "20261018-144235": {
+    "fixture": "town-s2-20261018-144235.jsonl.gz",
+    "decide_at": [
+      1,
+      2,
+      4,
+      5,
+      6,
+      7,
+      8,
+      10,
+      11,
+      14,
+      15,
+      18,
+      19,
+      21,
+      22,
+      23,
+      24,
+      25,
+      27,
+      28,
+      31,
+      32,
+      35,
+      37,
+      38,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      47,
+      48,
+      51,
+      52,
+      55,
+      56,
+      58,
+      59,
+      60,
+      61,
+      62,
+      64,
+      65,
+      68,
+      69,
+      72,
+      73,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      82,
+      83,
+      86,
+      87,
+      90
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 1581,
+        "turn": 2476805,
+        "key": "\u001b`n'.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:05+0900"
+      },
+      {
+        "decision_sequence": 1582,
+        "turn": 2476957,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:06+0900"
+      },
+      {
+        "decision_sequence": 1583,
+        "turn": 2476965,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:08+0900"
+      },
+      {
+        "decision_sequence": 1584,
+        "turn": 2479229,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:09+0900"
+      },
+      {
+        "decision_sequence": 1585,
+        "turn": 2481545,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:11+0900"
+      },
+      {
+        "decision_sequence": 1586,
+        "turn": 2483887,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:12+0900"
+      },
+      {
+        "decision_sequence": 1587,
+        "turn": 2486158,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:13+0900"
+      },
+      {
+        "decision_sequence": 1588,
+        "turn": 2488530,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:15+0900"
+      },
+      {
+        "decision_sequence": 1589,
+        "turn": 2488662,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:16+0900"
+      },
+      {
+        "decision_sequence": 1590,
+        "turn": 2488669,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:17+0900"
+      },
+      {
+        "decision_sequence": 1591,
+        "turn": 2488766,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:19+0900"
+      },
+      {
+        "decision_sequence": 1592,
+        "turn": 2488771,
+        "key": "\u001b`n'.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:20+0900"
+      },
+      {
+        "decision_sequence": 1593,
+        "turn": 2488931,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:21+0900"
+      },
+      {
+        "decision_sequence": 1594,
+        "turn": 2488938,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:23+0900"
+      },
+      {
+        "decision_sequence": 1595,
+        "turn": 2491259,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:24+0900"
+      },
+      {
+        "decision_sequence": 1596,
+        "turn": 2493557,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:26+0900"
+      },
+      {
+        "decision_sequence": 1597,
+        "turn": 2495900,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:27+0900"
+      },
+      {
+        "decision_sequence": 1598,
+        "turn": 2498184,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:29+0900"
+      },
+      {
+        "decision_sequence": 1599,
+        "turn": 2500462,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:31+0900"
+      },
+      {
+        "decision_sequence": 1600,
+        "turn": 2500613,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:32+0900"
+      },
+      {
+        "decision_sequence": 1601,
+        "turn": 2500621,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:34+0900"
+      },
+      {
+        "decision_sequence": 1602,
+        "turn": 2500735,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:35+0900"
+      },
+      {
+        "decision_sequence": 1603,
+        "turn": 2500740,
+        "key": "\u001b`n'.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:37+0900"
+      },
+      {
+        "decision_sequence": 1604,
+        "turn": 2500767,
+        "key": "\u001b`n'.",
+        "reason": "store:entry-interrupted-replan",
+        "time": "2026-10-18T14:41:38+0900"
+      },
+      {
+        "decision_sequence": 1605,
+        "turn": 2500894,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:40+0900"
+      },
+      {
+        "decision_sequence": 1606,
+        "turn": 2500899,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:41+0900"
+      },
+      {
+        "decision_sequence": 1607,
+        "turn": 2503159,
+        "key": "Ei",
+        "reason": "survival:mana-absorb",
+        "time": "2026-10-18T14:41:42+0900"
+      },
+      {
+        "decision_sequence": 1608,
+        "turn": 2503167,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:44+0900"
+      },
+      {
+        "decision_sequence": 1609,
+        "turn": 2505431,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:46+0900"
+      },
+      {
+        "decision_sequence": 1610,
+        "turn": 2507720,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:47+0900"
+      },
+      {
+        "decision_sequence": 1611,
+        "turn": 2509995,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:41:49+0900"
+      },
+      {
+        "decision_sequence": 1612,
+        "turn": 2512241,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:51+0900"
+      },
+      {
+        "decision_sequence": 1613,
+        "turn": 2512408,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:52+0900"
+      },
+      {
+        "decision_sequence": 1614,
+        "turn": 2512412,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:54+0900"
+      },
+      {
+        "decision_sequence": 1615,
+        "turn": 2512519,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:55+0900"
+      },
+      {
+        "decision_sequence": 1616,
+        "turn": 2512526,
+        "key": "\u001b`n'.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:41:57+0900"
+      },
+      {
+        "decision_sequence": 1617,
+        "turn": 2512686,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:41:58+0900"
+      },
+      {
+        "decision_sequence": 1618,
+        "turn": 2512694,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:00+0900"
+      },
+      {
+        "decision_sequence": 1619,
+        "turn": 2515019,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:02+0900"
+      },
+      {
+        "decision_sequence": 1620,
+        "turn": 2517385,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:04+0900"
+      },
+      {
+        "decision_sequence": 1621,
+        "turn": 2519629,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:05+0900"
+      },
+      {
+        "decision_sequence": 1622,
+        "turn": 2521910,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:07+0900"
+      },
+      {
+        "decision_sequence": 1623,
+        "turn": 2524185,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:42:08+0900"
+      },
+      {
+        "decision_sequence": 1624,
+        "turn": 2524350,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:42:10+0900"
+      },
+      {
+        "decision_sequence": 1625,
+        "turn": 2524359,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:42:12+0900"
+      },
+      {
+        "decision_sequence": 1626,
+        "turn": 2524454,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:42:13+0900"
+      },
+      {
+        "decision_sequence": 1627,
+        "turn": 2524463,
+        "key": "\u001b`n'.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:42:15+0900"
+      },
+      {
+        "decision_sequence": 1628,
+        "turn": 2524605,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:42:16+0900"
+      },
+      {
+        "decision_sequence": 1629,
+        "turn": 2524609,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:18+0900"
+      },
+      {
+        "decision_sequence": 1630,
+        "turn": 2526905,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:20+0900"
+      },
+      {
+        "decision_sequence": 1631,
+        "turn": 2529201,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:22+0900"
+      },
+      {
+        "decision_sequence": 1632,
+        "turn": 2531518,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:23+0900"
+      },
+      {
+        "decision_sequence": 1633,
+        "turn": 2533760,
+        "key": "R300\r",
+        "reason": "town:wait-restock:temple",
+        "time": "2026-10-18T14:42:25+0900"
+      },
+      {
+        "decision_sequence": 1634,
+        "turn": 2534404,
+        "key": "Ei",
+        "reason": "survival:mana-absorb",
+        "time": "2026-10-18T14:42:26+0900"
+      },
+      {
+        "decision_sequence": 1635,
+        "turn": 2534413,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:42:28+0900"
+      },
+      {
+        "decision_sequence": 1636,
+        "turn": 2534568,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:42:29+0900"
+      },
+      {
+        "decision_sequence": 1637,
+        "turn": 2534574,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:42:31+0900"
+      },
+      {
+        "decision_sequence": 1638,
+        "turn": 2534682,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:42:32+0900"
+      },
+      {
+        "decision_sequence": 1639,
+        "turn": 2534691,
+        "key": "\u001b`n'.",
+        "reason": "shop:travel",
+        "time": "2026-10-18T14:42:34+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261018-144235-stall-floor-dwell-town-wait-restock-temple",
+    "entry_wall": false,
+    "sha256": "24aa3913ef746799714b87537279fc7f3b982e08dfd7e81fae6f196fe950eb7a"
+  },
+  "20261018-144457": {
+    "fixture": "town-s2-20261018-144457.jsonl.gz",
+    "decide_at": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 20,
+        "turn": 2534978,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:12+0900"
+      },
+      {
+        "decision_sequence": 21,
+        "turn": 2534984,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:14+0900"
+      },
+      {
+        "decision_sequence": 22,
+        "turn": 2534992,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:15+0900"
+      },
+      {
+        "decision_sequence": 23,
+        "turn": 2535000,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:16+0900"
+      },
+      {
+        "decision_sequence": 24,
+        "turn": 2535007,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:17+0900"
+      },
+      {
+        "decision_sequence": 25,
+        "turn": 2535007,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-18T14:43:19+0900"
+      },
+      {
+        "decision_sequence": 26,
+        "turn": 2535011,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:20+0900"
+      },
+      {
+        "decision_sequence": 27,
+        "turn": 2535018,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:21+0900"
+      },
+      {
+        "decision_sequence": 28,
+        "turn": 2535023,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:22+0900"
+      },
+      {
+        "decision_sequence": 29,
+        "turn": 2535030,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:43:24+0900"
+      },
+      {
+        "decision_sequence": 30,
+        "turn": 2535038,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:25+0900"
+      },
+      {
+        "decision_sequence": 31,
+        "turn": 2535043,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:26+0900"
+      },
+      {
+        "decision_sequence": 32,
+        "turn": 2535049,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:27+0900"
+      },
+      {
+        "decision_sequence": 33,
+        "turn": 2535055,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:43:28+0900"
+      },
+      {
+        "decision_sequence": 34,
+        "turn": 2535065,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:43:29+0900"
+      },
+      {
+        "decision_sequence": 35,
+        "turn": 2535072,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:30+0900"
+      },
+      {
+        "decision_sequence": 36,
+        "turn": 2535083,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:32+0900"
+      },
+      {
+        "decision_sequence": 37,
+        "turn": 2535094,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:33+0900"
+      },
+      {
+        "decision_sequence": 38,
+        "turn": 2535103,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:34+0900"
+      },
+      {
+        "decision_sequence": 39,
+        "turn": 2535111,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:35+0900"
+      },
+      {
+        "decision_sequence": 40,
+        "turn": 2535120,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:43:36+0900"
+      },
+      {
+        "decision_sequence": 41,
+        "turn": 2535130,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:37+0900"
+      },
+      {
+        "decision_sequence": 42,
+        "turn": 2535137,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:43:38+0900"
+      },
+      {
+        "decision_sequence": 43,
+        "turn": 2535142,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:39+0900"
+      },
+      {
+        "decision_sequence": 44,
+        "turn": 2535149,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:41+0900"
+      },
+      {
+        "decision_sequence": 45,
+        "turn": 2535156,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:42+0900"
+      },
+      {
+        "decision_sequence": 46,
+        "turn": 2535163,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:43+0900"
+      },
+      {
+        "decision_sequence": 47,
+        "turn": 2535171,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:45+0900"
+      },
+      {
+        "decision_sequence": 48,
+        "turn": 2535176,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:46+0900"
+      },
+      {
+        "decision_sequence": 49,
+        "turn": 2535184,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:48+0900"
+      },
+      {
+        "decision_sequence": 50,
+        "turn": 2535189,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:49+0900"
+      },
+      {
+        "decision_sequence": 51,
+        "turn": 2535191,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:50+0900"
+      },
+      {
+        "decision_sequence": 52,
+        "turn": 2535197,
+        "key": "3",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:52+0900"
+      },
+      {
+        "decision_sequence": 53,
+        "turn": 2535203,
+        "key": "3",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:53+0900"
+      },
+      {
+        "decision_sequence": 54,
+        "turn": 2535211,
+        "key": "3",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:55+0900"
+      },
+      {
+        "decision_sequence": 55,
+        "turn": 2535217,
+        "key": "3",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:56+0900"
+      },
+      {
+        "decision_sequence": 56,
+        "turn": 2535223,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:57+0900"
+      },
+      {
+        "decision_sequence": 57,
+        "turn": 2535231,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:43:59+0900"
+      },
+      {
+        "decision_sequence": 58,
+        "turn": 2535237,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:00+0900"
+      },
+      {
+        "decision_sequence": 59,
+        "turn": 2535242,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:01+0900"
+      },
+      {
+        "decision_sequence": 60,
+        "turn": 2535249,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:03+0900"
+      },
+      {
+        "decision_sequence": 61,
+        "turn": 2535255,
+        "key": "2",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:04+0900"
+      },
+      {
+        "decision_sequence": 62,
+        "turn": 2535260,
+        "key": "3",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:04+0900"
+      },
+      {
+        "decision_sequence": 63,
+        "turn": 2535268,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:06+0900"
+      },
+      {
+        "decision_sequence": 64,
+        "turn": 2535277,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:07+0900"
+      },
+      {
+        "decision_sequence": 65,
+        "turn": 2535283,
+        "key": "1",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:44:08+0900"
+      },
+      {
+        "decision_sequence": 66,
+        "turn": 2535294,
+        "key": "1",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:44:09+0900"
+      },
+      {
+        "decision_sequence": 67,
+        "turn": 2535300,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:44:10+0900"
+      },
+      {
+        "decision_sequence": 68,
+        "turn": 2535306,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:44:11+0900"
+      },
+      {
+        "decision_sequence": 69,
+        "turn": 2535314,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:44:12+0900"
+      },
+      {
+        "decision_sequence": 70,
+        "turn": 2535322,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:44:13+0900"
+      },
+      {
+        "decision_sequence": 71,
+        "turn": 2535331,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-18T14:44:14+0900"
+      },
+      {
+        "decision_sequence": 72,
+        "turn": 2535337,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:16+0900"
+      },
+      {
+        "decision_sequence": 73,
+        "turn": 2535344,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:17+0900"
+      },
+      {
+        "decision_sequence": 74,
+        "turn": 2535353,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:19+0900"
+      },
+      {
+        "decision_sequence": 75,
+        "turn": 2535362,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:20+0900"
+      },
+      {
+        "decision_sequence": 76,
+        "turn": 2535367,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:22+0900"
+      },
+      {
+        "decision_sequence": 77,
+        "turn": 2535374,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:23+0900"
+      },
+      {
+        "decision_sequence": 78,
+        "turn": 2535382,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:24+0900"
+      },
+      {
+        "decision_sequence": 79,
+        "turn": 2535391,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:26+0900"
+      },
+      {
+        "decision_sequence": 80,
+        "turn": 2535398,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:27+0900"
+      },
+      {
+        "decision_sequence": 81,
+        "turn": 2535405,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:28+0900"
+      },
+      {
+        "decision_sequence": 82,
+        "turn": 2535412,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:29+0900"
+      },
+      {
+        "decision_sequence": 83,
+        "turn": 2535420,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:31+0900"
+      },
+      {
+        "decision_sequence": 84,
+        "turn": 2535427,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:32+0900"
+      },
+      {
+        "decision_sequence": 85,
+        "turn": 2535435,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:33+0900"
+      },
+      {
+        "decision_sequence": 86,
+        "turn": 2535442,
+        "key": "8",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:35+0900"
+      },
+      {
+        "decision_sequence": 87,
+        "turn": 2535449,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:36+0900"
+      },
+      {
+        "decision_sequence": 88,
+        "turn": 2535459,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:37+0900"
+      },
+      {
+        "decision_sequence": 89,
+        "turn": 2535465,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:38+0900"
+      },
+      {
+        "decision_sequence": 90,
+        "turn": 2535471,
+        "key": "6",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:39+0900"
+      },
+      {
+        "decision_sequence": 91,
+        "turn": 2535482,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:40+0900"
+      },
+      {
+        "decision_sequence": 92,
+        "turn": 2535489,
+        "key": "2",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:41+0900"
+      },
+      {
+        "decision_sequence": 93,
+        "turn": 2535496,
+        "key": "7",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:42+0900"
+      },
+      {
+        "decision_sequence": 94,
+        "turn": 2535502,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:44+0900"
+      },
+      {
+        "decision_sequence": 95,
+        "turn": 2535510,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:45+0900"
+      },
+      {
+        "decision_sequence": 96,
+        "turn": 2535521,
+        "key": "3",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:46+0900"
+      },
+      {
+        "decision_sequence": 97,
+        "turn": 2535527,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:47+0900"
+      },
+      {
+        "decision_sequence": 98,
+        "turn": 2535534,
+        "key": "3",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:48+0900"
+      },
+      {
+        "decision_sequence": 99,
+        "turn": 2535541,
+        "key": "9",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:49+0900"
+      },
+      {
+        "decision_sequence": 100,
+        "turn": 2535550,
+        "key": "9",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:50+0900"
+      },
+      {
+        "decision_sequence": 101,
+        "turn": 2535557,
+        "key": "2",
+        "reason": "town:kill-mob-approach",
+        "time": "2026-10-18T14:44:51+0900"
+      },
+      {
+        "decision_sequence": 102,
+        "turn": 2535566,
+        "key": "4",
+        "reason": "melee",
+        "time": "2026-10-18T14:44:52+0900"
+      },
+      {
+        "decision_sequence": 103,
+        "turn": 2535574,
+        "key": "5",
+        "reason": "town:blocked:owner-retired-burst",
+        "time": "2026-10-18T14:44:53+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261018-144457-town-blocked-owner-retired-burst",
+    "entry_wall": false,
+    "sha256": "9db8249e2307ecb868554b6dada7d3d3ca90aceda69a369fd52d4ee4e91c01e6"
+  },
+  "20261019-0050": {
+    "fixture": "town-s2-20261019-0050.jsonl.gz",
+    "decide_at": [
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      71,
+      72,
+      73,
+      74
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 282,
+        "turn": 2947096,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:48:18+0900"
+      },
+      {
+        "decision_sequence": 283,
+        "turn": 2947104,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:48:25+0900"
+      },
+      {
+        "decision_sequence": 284,
+        "turn": 2947109,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:48:32+0900"
+      },
+      {
+        "decision_sequence": 285,
+        "turn": 2947118,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:48:38+0900"
+      },
+      {
+        "decision_sequence": 286,
+        "turn": 2947129,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:48:45+0900"
+      },
+      {
+        "decision_sequence": 287,
+        "turn": 2947138,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:48:52+0900"
+      },
+      {
+        "decision_sequence": 288,
+        "turn": 2947145,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:48:59+0900"
+      },
+      {
+        "decision_sequence": 289,
+        "turn": 2947153,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:49:06+0900"
+      },
+      {
+        "decision_sequence": 290,
+        "turn": 2947158,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:49:13+0900"
+      },
+      {
+        "decision_sequence": 291,
+        "turn": 2947164,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:49:20+0900"
+      },
+      {
+        "decision_sequence": 292,
+        "turn": 2947175,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:49:27+0900"
+      },
+      {
+        "decision_sequence": 293,
+        "turn": 2947180,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:49:33+0900"
+      },
+      {
+        "decision_sequence": 294,
+        "turn": 2947191,
+        "key": "\u0013",
+        "reason": "periodic:game-save",
+        "time": "2026-10-19T00:49:40+0900"
+      },
+      {
+        "decision_sequence": 295,
+        "turn": 2947191,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-19T00:49:47+0900"
+      },
+      {
+        "decision_sequence": 296,
+        "turn": 2947191,
+        "key": "4",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:49:55+0900"
+      },
+      {
+        "decision_sequence": 297,
+        "turn": 2947200,
+        "key": "2",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:50:02+0900"
+      },
+      {
+        "decision_sequence": 298,
+        "turn": 2947204,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:50:09+0900"
+      },
+      {
+        "decision_sequence": 299,
+        "turn": 2947213,
+        "key": "6",
+        "reason": "stuck:wander",
+        "time": "2026-10-19T00:50:17+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261019-0050-manual-town-wander",
+    "entry_wall": false,
+    "sha256": "62d0dba09482785330e34ace6a550318de432304be0bd340c5b6b733b14c5375"
+  },
+  "20261019-080433": {
+    "fixture": "town-s2-20261019-080433.jsonl.gz",
+    "decide_at": [
+      0,
+      3,
+      4,
+      7,
+      9,
+      11,
+      13,
+      15,
+      16,
+      24,
+      26,
+      27,
+      29,
+      30,
+      31,
+      32,
+      34,
+      35,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      46,
+      47,
+      49,
+      50,
+      52,
+      53,
+      59,
+      60,
+      63,
+      65,
+      66,
+      69,
+      70,
+      75,
+      76,
+      78,
+      80,
+      82,
+      83,
+      88,
+      89,
+      94,
+      95,
+      99,
+      100,
+      102
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 6582,
+        "turn": 657941,
+        "key": "ft*t5\u001b",
+        "reason": "ranged:fire-target",
+        "time": "2026-10-19T08:02:52+0900"
+      },
+      {
+        "decision_sequence": 6583,
+        "turn": 657959,
+        "key": "8",
+        "reason": "melee",
+        "time": "2026-10-19T08:02:52+0900"
+      },
+      {
+        "decision_sequence": 6584,
+        "turn": 657972,
+        "key": "ft*t5\u001b",
+        "reason": "ranged:fire-target",
+        "time": "2026-10-19T08:02:52+0900"
+      },
+      {
+        "decision_sequence": 6585,
+        "turn": 657990,
+        "key": "5",
+        "reason": "return:wait-recall",
+        "time": "2026-10-19T08:02:52+0900"
+      },
+      {
+        "decision_sequence": 6585,
+        "turn": 658007,
+        "key": "~f\u001b",
+        "reason": "periodic:skill-exp-knowledge",
+        "time": "2026-10-19T08:02:53+0900"
+      },
+      {
+        "decision_sequence": 6586,
+        "turn": 658007,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-19T08:02:55+0900"
+      },
+      {
+        "decision_sequence": 6587,
+        "turn": 658007,
+        "key": "R&\r",
+        "reason": "town:recover",
+        "time": "2026-10-19T08:02:57+0900"
+      },
+      {
+        "decision_sequence": 6588,
+        "turn": 658085,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-19T08:02:59+0900"
+      },
+      {
+        "decision_sequence": 6589,
+        "turn": 658498,
+        "key": "dsdqdpdodldb\u001b",
+        "reason": "home:weight-overload-deposit",
+        "time": "2026-10-19T08:03:01+0900"
+      },
+      {
+        "decision_sequence": 6590,
+        "turn": 658506,
+        "key": "ujk",
+        "reason": "identify:normal",
+        "time": "2026-10-19T08:03:03+0900"
+      },
+      {
+        "decision_sequence": 6591,
+        "turn": 658513,
+        "key": "\u001b`n&.",
+        "reason": "town-progress-invariant:defect:identify:normal=>town-progress-invariant:approach",
+        "time": "2026-10-19T08:03:05+0900"
+      },
+      {
+        "decision_sequence": 6592,
+        "turn": 658699,
+        "key": "\u001b",
+        "reason": "town-progress-invariant:continue-observed-shop",
+        "time": "2026-10-19T08:03:07+0900"
+      },
+      {
+        "decision_sequence": 6593,
+        "turn": 658713,
+        "key": "ujk",
+        "reason": "identify:normal",
+        "time": "2026-10-19T08:03:10+0900"
+      },
+      {
+        "decision_sequence": 6594,
+        "turn": 658724,
+        "key": "{l.\r",
+        "reason": "equipment:suppress-random-teleport",
+        "time": "2026-10-19T08:03:11+0900"
+      },
+      {
+        "decision_sequence": 6595,
+        "turn": 658724,
+        "key": "th",
+        "reason": "equipment-transaction:takeoff",
+        "time": "2026-10-19T08:03:12+0900"
+      },
+      {
+        "decision_sequence": 6596,
+        "turn": 658727,
+        "key": "wl",
+        "reason": "equipment-transaction:equip",
+        "time": "2026-10-19T08:03:13+0900"
+      },
+      {
+        "decision_sequence": 6597,
+        "turn": 658740,
+        "key": "\u001b`n(.",
+        "reason": "equipment-transaction:travel-home",
+        "time": "2026-10-19T08:03:14+0900"
+      },
+      {
+        "decision_sequence": 6599,
+        "turn": 658946,
+        "key": "\u001b",
+        "reason": "home:leave-after-one-operation",
+        "time": "2026-10-19T08:03:17+0900"
+      },
+      {
+        "decision_sequence": 6600,
+        "turn": 658951,
+        "key": "ujl",
+        "reason": "identify:normal",
+        "time": "2026-10-19T08:03:19+0900"
+      },
+      {
+        "decision_sequence": 6601,
+        "turn": 658959,
+        "key": "{l.\r",
+        "reason": "equipment:suppress-random-teleport",
+        "time": "2026-10-19T08:03:21+0900"
+      },
+      {
+        "decision_sequence": 6602,
+        "turn": 658959,
+        "key": "th",
+        "reason": "equipment-transaction:takeoff",
+        "time": "2026-10-19T08:03:22+0900"
+      },
+      {
+        "decision_sequence": 6603,
+        "turn": 658962,
+        "key": "wm",
+        "reason": "equipment-transaction:equip",
+        "time": "2026-10-19T08:03:23+0900"
+      },
+      {
+        "decision_sequence": 6604,
+        "turn": 658976,
+        "key": "5",
+        "reason": "equipment-transaction:travel-home:await-entry",
+        "time": "2026-10-19T08:03:24+0900"
+      },
+      {
+        "decision_sequence": 6605,
+        "turn": 658976,
+        "key": "\u001b",
+        "reason": "equipment-transaction:defer-identification",
+        "time": "2026-10-19T08:03:25+0900"
+      },
+      {
+        "decision_sequence": 6606,
+        "turn": 658986,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "time": "2026-10-19T08:03:27+0900"
+      },
+      {
+        "decision_sequence": 6607,
+        "turn": 659331,
+        "key": "\u001b",
+        "reason": "town-progress-invariant:continue-observed-shop",
+        "time": "2026-10-19T08:03:28+0900"
+      },
+      {
+        "decision_sequence": 6608,
+        "turn": 659340,
+        "key": "7",
+        "reason": "shop:approach",
+        "time": "2026-10-19T08:03:30+0900"
+      },
+      {
+        "decision_sequence": 6612,
+        "turn": 659349,
+        "key": "pi\r",
+        "reason": "shop:in-store-buy",
+        "time": "2026-10-19T08:03:36+0900"
+      },
+      {
+        "decision_sequence": 6613,
+        "turn": 659349,
+        "key": "pk1\r\r",
+        "reason": "shop:in-store-buy",
+        "time": "2026-10-19T08:03:37+0900"
+      },
+      {
+        "decision_sequence": 6614,
+        "turn": 659349,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-19T08:03:39+0900"
+      },
+      {
+        "decision_sequence": 6615,
+        "turn": 659358,
+        "key": "\u001b`n$.",
+        "reason": "town-progress-invariant:defect:identify:full-equipped=>town-progress-invariant:approach",
+        "time": "2026-10-19T08:03:41+0900"
+      },
+      {
+        "decision_sequence": 6617,
+        "turn": 659495,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-19T08:03:45+0900"
+      },
+      {
+        "decision_sequence": 6618,
+        "turn": 659505,
+        "key": "rg/h\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
+        "reason": "identify:full-equipped",
+        "time": "2026-10-19T08:03:47+0900"
+      },
+      {
+        "decision_sequence": 6619,
+        "turn": 659513,
+        "key": "\u001b`n(.",
+        "reason": "equipment-transaction:travel-home",
+        "time": "2026-10-19T08:03:50+0900"
+      },
+      {
+        "decision_sequence": 6621,
+        "turn": 659960,
+        "key": "\u001b",
+        "reason": "home:store-context-exit",
+        "time": "2026-10-19T08:03:52+0900"
+      },
+      {
+        "decision_sequence": 6625,
+        "turn": 659973,
+        "key": "dm",
+        "reason": "equipment-transaction:deposit",
+        "time": "2026-10-19T08:03:56+0900"
+      },
+      {
+        "decision_sequence": 6626,
+        "turn": 659973,
+        "key": "\u001b",
+        "reason": "home:leave-after-one-operation",
+        "time": "2026-10-19T08:03:57+0900"
+      },
+      {
+        "decision_sequence": 6627,
+        "turn": 659980,
+        "key": "5",
+        "reason": "shop:travel:await-entry",
+        "time": "2026-10-19T08:04:00+0900"
+      },
+      {
+        "decision_sequence": 6628,
+        "turn": 659980,
+        "key": "\u001b",
+        "reason": "home:scan-incomplete-open-page",
+        "time": "2026-10-19T08:04:01+0900"
+      },
+      {
+        "decision_sequence": 6629,
+        "turn": 659988,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-19T08:04:02+0900"
+      },
+      {
+        "decision_sequence": 6630,
+        "turn": 659988,
+        "key": "9",
+        "reason": "town:entrance-step-off:shop:observed-operation-uncomposable",
+        "time": "2026-10-19T08:04:06+0900"
+      },
+      {
+        "decision_sequence": 6631,
+        "turn": 659998,
+        "key": "\u001b`n!.",
+        "reason": "shop:travel",
+        "time": "2026-10-19T08:04:07+0900"
+      },
+      {
+        "decision_sequence": 6634,
+        "turn": 660139,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-19T08:04:12+0900"
+      },
+      {
+        "decision_sequence": 6635,
+        "turn": 660149,
+        "key": "\u001b`n#.",
+        "reason": "shop:travel",
+        "time": "2026-10-19T08:04:14+0900"
+      },
+      {
+        "decision_sequence": 6638,
+        "turn": 660417,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-19T08:04:18+0900"
+      },
+      {
+        "decision_sequence": 6639,
+        "turn": 660427,
+        "key": "\u001b`n\".",
+        "reason": "shop:travel",
+        "time": "2026-10-19T08:04:19+0900"
+      },
+      {
+        "decision_sequence": 6642,
+        "turn": 660563,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-19T08:04:23+0900"
+      },
+      {
+        "decision_sequence": 6643,
+        "turn": 660575,
+        "key": "\u0013",
+        "reason": "periodic:game-save",
+        "time": "2026-10-19T08:04:25+0900"
+      },
+      {
+        "decision_sequence": 6644,
+        "turn": 660575,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-19T08:04:27+0900"
+      },
+      {
+        "decision_sequence": 6645,
+        "turn": 660575,
+        "key": "1",
+        "reason": "town:blocked:departure-unsatisfiable",
+        "time": "2026-10-19T08:04:30+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261019-080433-town-blocked-departure-unsatisfiable",
+    "entry_wall": false,
+    "sha256": "baf688b88825c90ef5d6dd573e1c3c756d05efe5792a7574c729c40eb6305a28"
+  },
+  "20261020-135723": {
+    "fixture": "town-s2-20261020-135723.jsonl.gz",
+    "decide_at": [
+      3,
+      13,
+      15,
+      16,
+      23,
+      24,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      63,
+      64,
+      67,
+      68,
+      70,
+      71,
+      75,
+      76,
+      80,
+      82,
+      83,
+      85
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 6590,
+        "turn": 3085782,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-20T13:55:19+0900"
+      },
+      {
+        "decision_sequence": 6591,
+        "turn": 3085791,
+        "key": "Eo",
+        "reason": "survival:mana-absorb",
+        "time": "2026-10-20T13:55:21+0900"
+      },
+      {
+        "decision_sequence": 6592,
+        "turn": 3085799,
+        "key": "\u001b`n\".",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:55:23+0900"
+      },
+      {
+        "decision_sequence": 6597,
+        "turn": 3085850,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-20T13:55:33+0900"
+      },
+      {
+        "decision_sequence": 6598,
+        "turn": 3085861,
+        "key": "\u001b`n'.",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:55:35+0900"
+      },
+      {
+        "decision_sequence": 6599,
+        "turn": 3086049,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-20T13:55:37+0900"
+      },
+      {
+        "decision_sequence": 6600,
+        "turn": 3086061,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:40+0900"
+      },
+      {
+        "decision_sequence": 6601,
+        "turn": 3086075,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:42+0900"
+      },
+      {
+        "decision_sequence": 6602,
+        "turn": 3086086,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:44+0900"
+      },
+      {
+        "decision_sequence": 6603,
+        "turn": 3086093,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:46+0900"
+      },
+      {
+        "decision_sequence": 6604,
+        "turn": 3086100,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:47+0900"
+      },
+      {
+        "decision_sequence": 6605,
+        "turn": 3086113,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:49+0900"
+      },
+      {
+        "decision_sequence": 6606,
+        "turn": 3086119,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:51+0900"
+      },
+      {
+        "decision_sequence": 6607,
+        "turn": 3086131,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:53+0900"
+      },
+      {
+        "decision_sequence": 6608,
+        "turn": 3086142,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:55+0900"
+      },
+      {
+        "decision_sequence": 6609,
+        "turn": 3086147,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:55:58+0900"
+      },
+      {
+        "decision_sequence": 6610,
+        "turn": 3086154,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:00+0900"
+      },
+      {
+        "decision_sequence": 6611,
+        "turn": 3086161,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:02+0900"
+      },
+      {
+        "decision_sequence": 6612,
+        "turn": 3086170,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:04+0900"
+      },
+      {
+        "decision_sequence": 6613,
+        "turn": 3086177,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:06+0900"
+      },
+      {
+        "decision_sequence": 6614,
+        "turn": 3086186,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:07+0900"
+      },
+      {
+        "decision_sequence": 6615,
+        "turn": 3086195,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:09+0900"
+      },
+      {
+        "decision_sequence": 6616,
+        "turn": 3086199,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:11+0900"
+      },
+      {
+        "decision_sequence": 6617,
+        "turn": 3086212,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:13+0900"
+      },
+      {
+        "decision_sequence": 6618,
+        "turn": 3086219,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:15+0900"
+      },
+      {
+        "decision_sequence": 6619,
+        "turn": 3086226,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:17+0900"
+      },
+      {
+        "decision_sequence": 6620,
+        "turn": 3086239,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:19+0900"
+      },
+      {
+        "decision_sequence": 6621,
+        "turn": 3086239,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "time": "2026-10-20T13:56:20+0900"
+      },
+      {
+        "decision_sequence": 6622,
+        "turn": 3086249,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:23+0900"
+      },
+      {
+        "decision_sequence": 6623,
+        "turn": 3086263,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:25+0900"
+      },
+      {
+        "decision_sequence": 6624,
+        "turn": 3086274,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:27+0900"
+      },
+      {
+        "decision_sequence": 6625,
+        "turn": 3086283,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:28+0900"
+      },
+      {
+        "decision_sequence": 6626,
+        "turn": 3086295,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:30+0900"
+      },
+      {
+        "decision_sequence": 6627,
+        "turn": 3086304,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:32+0900"
+      },
+      {
+        "decision_sequence": 6628,
+        "turn": 3086317,
+        "key": "9",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:34+0900"
+      },
+      {
+        "decision_sequence": 6629,
+        "turn": 3086328,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:36+0900"
+      },
+      {
+        "decision_sequence": 6630,
+        "turn": 3086339,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:38+0900"
+      },
+      {
+        "decision_sequence": 6631,
+        "turn": 3086347,
+        "key": "3",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:39+0900"
+      },
+      {
+        "decision_sequence": 6632,
+        "turn": 3086356,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:41+0900"
+      },
+      {
+        "decision_sequence": 6633,
+        "turn": 3086365,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:43+0900"
+      },
+      {
+        "decision_sequence": 6634,
+        "turn": 3086373,
+        "key": "6",
+        "reason": "seek-loot",
+        "time": "2026-10-20T13:56:45+0900"
+      },
+      {
+        "decision_sequence": 6635,
+        "turn": 3086385,
+        "key": "\u001b`n#.",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:56:47+0900"
+      },
+      {
+        "decision_sequence": 6637,
+        "turn": 3086648,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-20T13:56:51+0900"
+      },
+      {
+        "decision_sequence": 6638,
+        "turn": 3086657,
+        "key": "01ki",
+        "reason": "inventory:destroy-after-superior-item-refusal",
+        "time": "2026-10-20T13:56:54+0900"
+      },
+      {
+        "decision_sequence": 6639,
+        "turn": 3086664,
+        "key": "1",
+        "reason": "town:entrance-step-off:town:identify-staff-stockout-mining",
+        "time": "2026-10-20T13:56:56+0900"
+      },
+      {
+        "decision_sequence": 6640,
+        "turn": 3086672,
+        "key": "\u001b`n%.",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:56:58+0900"
+      },
+      {
+        "decision_sequence": 6642,
+        "turn": 3086706,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-20T13:57:03+0900"
+      },
+      {
+        "decision_sequence": 6643,
+        "turn": 3086717,
+        "key": "\u001b`n&.",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:57:05+0900"
+      },
+      {
+        "decision_sequence": 6646,
+        "turn": 3086865,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-20T13:57:11+0900"
+      },
+      {
+        "decision_sequence": 6647,
+        "turn": 3086877,
+        "key": "8",
+        "reason": "probe",
+        "time": "2026-10-20T13:57:13+0900"
+      },
+      {
+        "decision_sequence": 6648,
+        "turn": 3086883,
+        "key": "\u001b`n(.",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:57:15+0900"
+      },
+      {
+        "decision_sequence": 6649,
+        "turn": 3087053,
+        "key": "\u001b",
+        "reason": "policy:none-store-exit",
+        "time": "2026-10-20T13:57:17+0900"
+      },
+      {
+        "decision_sequence": 6650,
+        "turn": 3087064,
+        "key": "9",
+        "reason": "town:blocked:departure-unsatisfiable",
+        "time": "2026-10-20T13:57:19+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261020-135723-town-blocked-departure-unsatisfiable",
+    "entry_wall": false,
+    "sha256": "35ff8c279ee44af8de65ce5e446491483cae67cc64086e7a899cf2dd6e2d6f61"
+  },
+  "20261020-140000": {
+    "fixture": "town-s2-20261020-140000.jsonl.gz",
+    "decide_at": [
+      1,
+      2,
+      11,
+      12,
+      20,
+      23,
+      24,
+      25,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      45,
+      46,
+      49,
+      57,
+      58,
+      64,
+      65,
+      66,
+      69,
+      71,
+      72,
+      73,
+      75
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 84,
+        "turn": 3089546,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-20T13:59:04+0900"
+      },
+      {
+        "decision_sequence": 85,
+        "turn": 3089546,
+        "key": "5    pm\u001b",
+        "reason": "home:atomic-withdraw",
+        "time": "2026-10-20T13:59:06+0900"
+      },
+      {
+        "decision_sequence": 86,
+        "turn": 3089556,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-20T13:59:09+0900"
+      },
+      {
+        "decision_sequence": 87,
+        "turn": 3089556,
+        "key": "5    pm\u001b",
+        "reason": "home:atomic-withdraw",
+        "time": "2026-10-20T13:59:11+0900"
+      },
+      {
+        "decision_sequence": 88,
+        "turn": 3089565,
+        "key": "5pA\u001b",
+        "reason": "home-errand:atomic-withdraw:identification-catalog",
+        "time": "2026-10-20T13:59:16+0900"
+      },
+      {
+        "decision_sequence": 89,
+        "turn": 3089575,
+        "key": "9",
+        "reason": "town:entrance-step-off:home:atomic-withdraw-complete",
+        "time": "2026-10-20T13:59:22+0900"
+      },
+      {
+        "decision_sequence": 91,
+        "turn": 3089587,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-20T13:59:25+0900"
+      },
+      {
+        "decision_sequence": 92,
+        "turn": 3089587,
+        "key": "dtds17\rdr82\rdpdjdidf1\r\u001b",
+        "reason": "home:weight-overload-deposit",
+        "time": "2026-10-20T13:59:27+0900"
+      },
+      {
+        "decision_sequence": 93,
+        "turn": 3089598,
+        "key": "6",
+        "reason": "town:entrance-step-off:home:atomic-deposit-await-confirmation",
+        "time": "2026-10-20T13:59:28+0900"
+      },
+      {
+        "decision_sequence": 94,
+        "turn": 3089605,
+        "key": "5",
+        "reason": "home:atomic-deposit-await-confirmation",
+        "time": "2026-10-20T13:59:29+0900"
+      },
+      {
+        "decision_sequence": 95,
+        "turn": 3089614,
+        "key": "5",
+        "reason": "home:atomic-deposit-await-confirmation",
+        "time": "2026-10-20T13:59:30+0900"
+      },
+      {
+        "decision_sequence": 96,
+        "turn": 3089620,
+        "key": "5",
+        "reason": "home:atomic-deposit-await-confirmation",
+        "time": "2026-10-20T13:59:31+0900"
+      },
+      {
+        "decision_sequence": 97,
+        "turn": 3089632,
+        "key": "5",
+        "reason": "home:atomic-deposit-await-confirmation",
+        "time": "2026-10-20T13:59:32+0900"
+      },
+      {
+        "decision_sequence": 98,
+        "turn": 3089636,
+        "key": "5",
+        "reason": "home:atomic-deposit-await-confirmation",
+        "time": "2026-10-20T13:59:33+0900"
+      },
+      {
+        "decision_sequence": 99,
+        "turn": 3089650,
+        "key": "5",
+        "reason": "home:atomic-deposit-await-confirmation",
+        "time": "2026-10-20T13:59:35+0900"
+      },
+      {
+        "decision_sequence": 100,
+        "turn": 3089659,
+        "key": "~9\u001b\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-20T13:59:36+0900"
+      },
+      {
+        "decision_sequence": 101,
+        "turn": 3089659,
+        "key": "4",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-20T13:59:37+0900"
+      },
+      {
+        "decision_sequence": 102,
+        "turn": 3089659,
+        "key": "\u001b",
+        "reason": "policy:none-store-exit",
+        "time": "2026-10-20T13:59:41+0900"
+      },
+      {
+        "decision_sequence": 103,
+        "turn": 3089668,
+        "key": "5    pF\u001b",
+        "reason": "home-errand:atomic-withdraw:full-home-sale",
+        "time": "2026-10-20T13:59:42+0900"
+      },
+      {
+        "decision_sequence": 104,
+        "turn": 3089682,
+        "key": "\u001b`n!.",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:59:43+0900"
+      },
+      {
+        "decision_sequence": 107,
+        "turn": 3089830,
+        "key": "\u001b",
+        "reason": "home:scan-leave-store",
+        "time": "2026-10-20T13:59:49+0900"
+      },
+      {
+        "decision_sequence": 108,
+        "turn": 3089841,
+        "key": "~9\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-20T13:59:50+0900"
+      },
+      {
+        "decision_sequence": 109,
+        "turn": 3089841,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-20T13:59:51+0900"
+      },
+      {
+        "decision_sequence": 110,
+        "turn": 3089985,
+        "key": "df1\r\u001b",
+        "reason": "home:atomic-deposit",
+        "time": "2026-10-20T13:59:52+0900"
+      },
+      {
+        "decision_sequence": 111,
+        "turn": 3089994,
+        "key": "~9\u001b",
+        "reason": "home-errand:request-knowledge:identification-catalog",
+        "time": "2026-10-20T13:59:53+0900"
+      },
+      {
+        "decision_sequence": 112,
+        "turn": 3089994,
+        "key": "3",
+        "reason": "town:entrance-step-off:policy:none-wait",
+        "time": "2026-10-20T13:59:55+0900"
+      },
+      {
+        "decision_sequence": 113,
+        "turn": 3090001,
+        "key": "7",
+        "reason": "shop:approach",
+        "time": "2026-10-20T13:59:56+0900"
+      },
+      {
+        "decision_sequence": 114,
+        "turn": 3090001,
+        "key": "\u001b",
+        "reason": "home:identify-staff-reserve-unavailable",
+        "time": "2026-10-20T13:59:57+0900"
+      },
+      {
+        "decision_sequence": 115,
+        "turn": 3090008,
+        "key": "9",
+        "reason": "town:blocked:departure-unsatisfiable",
+        "time": "2026-10-20T13:59:58+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261020-140000-town-blocked-departure-unsatisfiable",
+    "entry_wall": false,
+    "sha256": "cf42566912decd44e19ebcaa3d92c30900a5e6e6180e11cead35bf51f2bf4f7b"
+  },
+  "20261023-183351": {
+    "fixture": "town-s2-20261023-183351.jsonl.gz",
+    "decide_at": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 3371,
+        "turn": 533485,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:18+0900"
+      },
+      {
+        "decision_sequence": 3372,
+        "turn": 533501,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:19+0900"
+      },
+      {
+        "decision_sequence": 3373,
+        "turn": 533516,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:19+0900"
+      },
+      {
+        "decision_sequence": 3374,
+        "turn": 533529,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:19+0900"
+      },
+      {
+        "decision_sequence": 3375,
+        "turn": 533538,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:20+0900"
+      },
+      {
+        "decision_sequence": 3376,
+        "turn": 533541,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:20+0900"
+      },
+      {
+        "decision_sequence": 3377,
+        "turn": 533545,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:21+0900"
+      },
+      {
+        "decision_sequence": 3378,
+        "turn": 533555,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:21+0900"
+      },
+      {
+        "decision_sequence": 3379,
+        "turn": 533566,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:21+0900"
+      },
+      {
+        "decision_sequence": 3380,
+        "turn": 533573,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:22+0900"
+      },
+      {
+        "decision_sequence": 3381,
+        "turn": 533580,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:22+0900"
+      },
+      {
+        "decision_sequence": 3382,
+        "turn": 533587,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:22+0900"
+      },
+      {
+        "decision_sequence": 3383,
+        "turn": 533595,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:23+0900"
+      },
+      {
+        "decision_sequence": 3384,
+        "turn": 533604,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:23+0900"
+      },
+      {
+        "decision_sequence": 3385,
+        "turn": 533615,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:24+0900"
+      },
+      {
+        "decision_sequence": 3386,
+        "turn": 533623,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:24+0900"
+      },
+      {
+        "decision_sequence": 3387,
+        "turn": 533634,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:24+0900"
+      },
+      {
+        "decision_sequence": 3388,
+        "turn": 533646,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:25+0900"
+      },
+      {
+        "decision_sequence": 3389,
+        "turn": 533654,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:25+0900"
+      },
+      {
+        "decision_sequence": 3390,
+        "turn": 533667,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:25+0900"
+      },
+      {
+        "decision_sequence": 3391,
+        "turn": 533679,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:26+0900"
+      },
+      {
+        "decision_sequence": 3392,
+        "turn": 533685,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:26+0900"
+      },
+      {
+        "decision_sequence": 3393,
+        "turn": 533695,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:27+0900"
+      },
+      {
+        "decision_sequence": 3394,
+        "turn": 533705,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:27+0900"
+      },
+      {
+        "decision_sequence": 3395,
+        "turn": 533713,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:28+0900"
+      },
+      {
+        "decision_sequence": 3396,
+        "turn": 533723,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:28+0900"
+      },
+      {
+        "decision_sequence": 3397,
+        "turn": 533730,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:28+0900"
+      },
+      {
+        "decision_sequence": 3398,
+        "turn": 533740,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:29+0900"
+      },
+      {
+        "decision_sequence": 3399,
+        "turn": 533753,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:29+0900"
+      },
+      {
+        "decision_sequence": 3400,
+        "turn": 533762,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:29+0900"
+      },
+      {
+        "decision_sequence": 3401,
+        "turn": 533774,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:30+0900"
+      },
+      {
+        "decision_sequence": 3402,
+        "turn": 533785,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:30+0900"
+      },
+      {
+        "decision_sequence": 3403,
+        "turn": 533801,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:31+0900"
+      },
+      {
+        "decision_sequence": 3404,
+        "turn": 533818,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:31+0900"
+      },
+      {
+        "decision_sequence": 3405,
+        "turn": 533830,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:31+0900"
+      },
+      {
+        "decision_sequence": 3406,
+        "turn": 533838,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:32+0900"
+      },
+      {
+        "decision_sequence": 3407,
+        "turn": 533849,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:32+0900"
+      },
+      {
+        "decision_sequence": 3408,
+        "turn": 533865,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:33+0900"
+      },
+      {
+        "decision_sequence": 3409,
+        "turn": 533873,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:33+0900"
+      },
+      {
+        "decision_sequence": 3410,
+        "turn": 533879,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:33+0900"
+      },
+      {
+        "decision_sequence": 3411,
+        "turn": 533890,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:34+0900"
+      },
+      {
+        "decision_sequence": 3412,
+        "turn": 533899,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:34+0900"
+      },
+      {
+        "decision_sequence": 3413,
+        "turn": 533907,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:34+0900"
+      },
+      {
+        "decision_sequence": 3414,
+        "turn": 533920,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:35+0900"
+      },
+      {
+        "decision_sequence": 3415,
+        "turn": 533929,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:35+0900"
+      },
+      {
+        "decision_sequence": 3416,
+        "turn": 533940,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:36+0900"
+      },
+      {
+        "decision_sequence": 3417,
+        "turn": 533952,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:36+0900"
+      },
+      {
+        "decision_sequence": 3418,
+        "turn": 533962,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:36+0900"
+      },
+      {
+        "decision_sequence": 3419,
+        "turn": 533971,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:37+0900"
+      },
+      {
+        "decision_sequence": 3420,
+        "turn": 533980,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:37+0900"
+      },
+      {
+        "decision_sequence": 3421,
+        "turn": 533991,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:38+0900"
+      },
+      {
+        "decision_sequence": 3422,
+        "turn": 534002,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:38+0900"
+      },
+      {
+        "decision_sequence": 3423,
+        "turn": 534013,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:38+0900"
+      },
+      {
+        "decision_sequence": 3424,
+        "turn": 534019,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:39+0900"
+      },
+      {
+        "decision_sequence": 3425,
+        "turn": 534023,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:39+0900"
+      },
+      {
+        "decision_sequence": 3426,
+        "turn": 534033,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:39+0900"
+      },
+      {
+        "decision_sequence": 3427,
+        "turn": 534041,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:40+0900"
+      },
+      {
+        "decision_sequence": 3428,
+        "turn": 534052,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:40+0900"
+      },
+      {
+        "decision_sequence": 3429,
+        "turn": 534062,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:41+0900"
+      },
+      {
+        "decision_sequence": 3430,
+        "turn": 534068,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:41+0900"
+      },
+      {
+        "decision_sequence": 3431,
+        "turn": 534080,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:41+0900"
+      },
+      {
+        "decision_sequence": 3432,
+        "turn": 534086,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:42+0900"
+      },
+      {
+        "decision_sequence": 3433,
+        "turn": 534096,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:42+0900"
+      },
+      {
+        "decision_sequence": 3434,
+        "turn": 534108,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:42+0900"
+      },
+      {
+        "decision_sequence": 3435,
+        "turn": 534118,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:43+0900"
+      },
+      {
+        "decision_sequence": 3436,
+        "turn": 534127,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:43+0900"
+      },
+      {
+        "decision_sequence": 3437,
+        "turn": 534133,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:44+0900"
+      },
+      {
+        "decision_sequence": 3438,
+        "turn": 534143,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:44+0900"
+      },
+      {
+        "decision_sequence": 3439,
+        "turn": 534155,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:44+0900"
+      },
+      {
+        "decision_sequence": 3440,
+        "turn": 534164,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:45+0900"
+      },
+      {
+        "decision_sequence": 3441,
+        "turn": 534175,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:45+0900"
+      },
+      {
+        "decision_sequence": 3442,
+        "turn": 534184,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:46+0900"
+      },
+      {
+        "decision_sequence": 3443,
+        "turn": 534193,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:46+0900"
+      },
+      {
+        "decision_sequence": 3444,
+        "turn": 534206,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:46+0900"
+      },
+      {
+        "decision_sequence": 3445,
+        "turn": 534218,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:47+0900"
+      },
+      {
+        "decision_sequence": 3446,
+        "turn": 534227,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:47+0900"
+      },
+      {
+        "decision_sequence": 3447,
+        "turn": 534239,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:48+0900"
+      },
+      {
+        "decision_sequence": 3448,
+        "turn": 534248,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:48+0900"
+      },
+      {
+        "decision_sequence": 3449,
+        "turn": 534259,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:48+0900"
+      },
+      {
+        "decision_sequence": 3450,
+        "turn": 534272,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:49+0900"
+      },
+      {
+        "decision_sequence": 3451,
+        "turn": 534279,
+        "key": "9",
+        "reason": "town:morivant-full-identify:travel-2",
+        "time": "2026-10-23T18:33:49+0900"
+      },
+      {
+        "decision_sequence": 3452,
+        "turn": 534285,
+        "key": "1",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:33:49+0900"
+      }
+    ],
+    "seed": true,
+    "source_capture": "20261023-183351-loop-detected",
+    "entry_wall": true,
+    "sha256": "2fc1e6c285053aecdfbe6579db2ccc0a6911217db60227912ec74e00646719ed"
+  },
+  "20261023-183418": {
+    "fixture": "town-s2-20261023-183418.jsonl.gz",
+    "decide_at": [
+      0,
+      2,
+      4,
+      5,
+      7,
+      9,
+      10,
+      13,
+      14,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 0,
+        "turn": 534289,
+        "key": "~f\u001b",
+        "reason": "periodic:skill-exp-knowledge",
+        "time": "2026-10-23T18:33:55+0900"
+      },
+      {
+        "decision_sequence": 1,
+        "turn": 534289,
+        "key": "~9\u001b\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-23T18:33:56+0900"
+      },
+      {
+        "decision_sequence": 2,
+        "turn": 534289,
+        "key": "\u0013",
+        "reason": "periodic:game-save",
+        "time": "2026-10-23T18:33:56+0900"
+      },
+      {
+        "decision_sequence": 3,
+        "turn": 534289,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-23T18:33:56+0900"
+      },
+      {
+        "decision_sequence": 4,
+        "turn": 534289,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:33:59+0900"
+      },
+      {
+        "decision_sequence": 5,
+        "turn": 534298,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "time": "2026-10-23T18:33:59+0900"
+      },
+      {
+        "decision_sequence": 6,
+        "turn": 534604,
+        "key": "dj\u001b",
+        "reason": "home:atomic-deposit",
+        "time": "2026-10-23T18:34:00+0900"
+      },
+      {
+        "decision_sequence": 7,
+        "turn": 534611,
+        "key": "7",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:01+0900"
+      },
+      {
+        "decision_sequence": 8,
+        "turn": 534621,
+        "key": "~9\u001b\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-23T18:34:02+0900"
+      },
+      {
+        "decision_sequence": 9,
+        "turn": 534621,
+        "key": "7",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:02+0900"
+      },
+      {
+        "decision_sequence": 10,
+        "turn": 534626,
+        "key": "7",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:03+0900"
+      },
+      {
+        "decision_sequence": 11,
+        "turn": 534636,
+        "key": "7",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:03+0900"
+      },
+      {
+        "decision_sequence": 12,
+        "turn": 534640,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:04+0900"
+      },
+      {
+        "decision_sequence": 13,
+        "turn": 534648,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:04+0900"
+      },
+      {
+        "decision_sequence": 14,
+        "turn": 534653,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:04+0900"
+      },
+      {
+        "decision_sequence": 15,
+        "turn": 534663,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:05+0900"
+      },
+      {
+        "decision_sequence": 16,
+        "turn": 534677,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:05+0900"
+      },
+      {
+        "decision_sequence": 17,
+        "turn": 534689,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:06+0900"
+      },
+      {
+        "decision_sequence": 18,
+        "turn": 534700,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:06+0900"
+      },
+      {
+        "decision_sequence": 19,
+        "turn": 534711,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:07+0900"
+      },
+      {
+        "decision_sequence": 20,
+        "turn": 534722,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:07+0900"
+      },
+      {
+        "decision_sequence": 21,
+        "turn": 534734,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:08+0900"
+      },
+      {
+        "decision_sequence": 22,
+        "turn": 534746,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:08+0900"
+      },
+      {
+        "decision_sequence": 23,
+        "turn": 534753,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:09+0900"
+      },
+      {
+        "decision_sequence": 24,
+        "turn": 534762,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:09+0900"
+      },
+      {
+        "decision_sequence": 25,
+        "turn": 534772,
+        "key": "6",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:09+0900"
+      },
+      {
+        "decision_sequence": 26,
+        "turn": 534784,
+        "key": "6",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:10+0900"
+      },
+      {
+        "decision_sequence": 27,
+        "turn": 534794,
+        "key": "6",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:10+0900"
+      },
+      {
+        "decision_sequence": 28,
+        "turn": 534805,
+        "key": "6",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:11+0900"
+      },
+      {
+        "decision_sequence": 29,
+        "turn": 534814,
+        "key": "6",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:11+0900"
+      },
+      {
+        "decision_sequence": 30,
+        "turn": 534824,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:12+0900"
+      },
+      {
+        "decision_sequence": 31,
+        "turn": 534836,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:12+0900"
+      },
+      {
+        "decision_sequence": 32,
+        "turn": 534847,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:12+0900"
+      },
+      {
+        "decision_sequence": 33,
+        "turn": 534856,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:13+0900"
+      },
+      {
+        "decision_sequence": 34,
+        "turn": 534871,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:13+0900"
+      },
+      {
+        "decision_sequence": 35,
+        "turn": 534878,
+        "key": "7",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:14+0900"
+      },
+      {
+        "decision_sequence": 36,
+        "turn": 534891,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:14+0900"
+      },
+      {
+        "decision_sequence": 37,
+        "turn": 534903,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:14+0900"
+      },
+      {
+        "decision_sequence": 38,
+        "turn": 534910,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:15+0900"
+      },
+      {
+        "decision_sequence": 39,
+        "turn": 534922,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:15+0900"
+      },
+      {
+        "decision_sequence": 40,
+        "turn": 534934,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:15+0900"
+      },
+      {
+        "decision_sequence": 41,
+        "turn": 534941,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:16+0900"
+      },
+      {
+        "decision_sequence": 42,
+        "turn": 534951,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:16+0900"
+      },
+      {
+        "decision_sequence": 43,
+        "turn": 534958,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:16+0900"
+      },
+      {
+        "decision_sequence": 44,
+        "turn": 534970,
+        "key": "5",
+        "reason": "town:blocked:owner-retired-burst",
+        "time": "2026-10-23T18:34:17+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261023-183418-town-blocked-owner-retired-burst",
+    "entry_wall": true,
+    "sha256": "4ef97dae1cf6ab349093d9fea214dbac6d295e68540a80bda1027b7475357552"
+  },
+  "20261023-183436": {
+    "fixture": "town-s2-20261023-183436.jsonl.gz",
+    "decide_at": [
+      5,
+      7,
+      9,
+      10,
+      12,
+      14,
+      15,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38
+    ],
+    "decisions": [
+      {
+        "decision_sequence": 0,
+        "turn": 534970,
+        "key": "~f\u001b",
+        "reason": "periodic:skill-exp-knowledge",
+        "time": "2026-10-23T18:34:23+0900"
+      },
+      {
+        "decision_sequence": 1,
+        "turn": 534970,
+        "key": "~9\u001b\u001b",
+        "reason": "home:request-knowledge-scan",
+        "time": "2026-10-23T18:34:23+0900"
+      },
+      {
+        "decision_sequence": 2,
+        "turn": 534970,
+        "key": "\u0013",
+        "reason": "periodic:game-save",
+        "time": "2026-10-23T18:34:23+0900"
+      },
+      {
+        "decision_sequence": 3,
+        "turn": 534970,
+        "key": "Cf\ry\u001b\u001b",
+        "reason": "periodic:character-dump",
+        "time": "2026-10-23T18:34:24+0900"
+      },
+      {
+        "decision_sequence": 4,
+        "turn": 534970,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:26+0900"
+      },
+      {
+        "decision_sequence": 5,
+        "turn": 534982,
+        "key": "\u001b`n&.",
+        "reason": "shop:travel",
+        "time": "2026-10-23T18:34:27+0900"
+      },
+      {
+        "decision_sequence": 9,
+        "turn": 535085,
+        "key": "\u001b",
+        "reason": "shop:in-store-done",
+        "time": "2026-10-23T18:34:27+0900"
+      },
+      {
+        "decision_sequence": 10,
+        "turn": 535091,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:27+0900"
+      },
+      {
+        "decision_sequence": 11,
+        "turn": 535096,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:28+0900"
+      },
+      {
+        "decision_sequence": 12,
+        "turn": 535109,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:28+0900"
+      },
+      {
+        "decision_sequence": 13,
+        "turn": 535116,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:28+0900"
+      },
+      {
+        "decision_sequence": 14,
+        "turn": 535125,
+        "key": "9",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:29+0900"
+      },
+      {
+        "decision_sequence": 15,
+        "turn": 535139,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:29+0900"
+      },
+      {
+        "decision_sequence": 16,
+        "turn": 535150,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:30+0900"
+      },
+      {
+        "decision_sequence": 17,
+        "turn": 535160,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:30+0900"
+      },
+      {
+        "decision_sequence": 18,
+        "turn": 535165,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:30+0900"
+      },
+      {
+        "decision_sequence": 19,
+        "turn": 535176,
+        "key": "7",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:31+0900"
+      },
+      {
+        "decision_sequence": 20,
+        "turn": 535191,
+        "key": "8",
+        "reason": "quest:enter:approach",
+        "time": "2026-10-23T18:34:31+0900"
+      },
+      {
+        "decision_sequence": 21,
+        "turn": 535196,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:31+0900"
+      },
+      {
+        "decision_sequence": 22,
+        "turn": 535212,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:32+0900"
+      },
+      {
+        "decision_sequence": 23,
+        "turn": 535224,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:32+0900"
+      },
+      {
+        "decision_sequence": 24,
+        "turn": 535231,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:32+0900"
+      },
+      {
+        "decision_sequence": 25,
+        "turn": 535243,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:33+0900"
+      },
+      {
+        "decision_sequence": 26,
+        "turn": 535249,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:33+0900"
+      },
+      {
+        "decision_sequence": 27,
+        "turn": 535258,
+        "key": "5",
+        "reason": "town:blocked:equipment-departure-incomplete",
+        "time": "2026-10-23T18:34:33+0900"
+      },
+      {
+        "decision_sequence": 28,
+        "turn": 535267,
+        "key": "5",
+        "reason": "town:blocked:owner-retired-burst",
+        "time": "2026-10-23T18:34:34+0900"
+      }
+    ],
+    "seed": false,
+    "source_capture": "20261023-183436-town-blocked-owner-retired-burst",
+    "entry_wall": true,
+    "sha256": "f19f9e0c4e109874a1d2a291aec3f27ae7b193291119b913eb9348e2b96f51cc"
+  }
+}

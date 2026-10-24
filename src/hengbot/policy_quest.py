@@ -23,6 +23,7 @@ from hengbot.latch_onset_capture import (
 from hengbot.town_maps import TownMap
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.wilderness_map import WildernessMap
+from hengbot.town_terminal import gather_quest_work, verdict_quest_work
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS,
@@ -584,7 +585,12 @@ class QuestMixin:
                 return self._shopping_approach_key(snapshot, step, "shop:travel")
 
         readiness_before = self._fixed_quest_readiness
-        fixed_quest = self._fixed_quest_key(snapshot, hostiles)
+        # This direct call has no entry: the fixed-quest terminals' shared
+        # verdict (the cross-town shopping hold) is asked here instead.
+        fixed_quest = (
+            self._fixed_quest_key(snapshot, hostiles)
+            if verdict_quest_work(gather_quest_work(self, snapshot)).admitted
+            else None)
         if fixed_quest is not None:
             return fixed_quest
         if (
@@ -4114,8 +4120,6 @@ class QuestMixin:
                 }
                 and self.approved_quest_strategy(quest.id) is not None
             ]
-            if self._cross_town_shopping_holds_quest_travel(snapshot):
-                return None
             fixed_quest_head = self._fixed_quest_head(snapshot)
             travel_quest = fixed_quest_head
             if (

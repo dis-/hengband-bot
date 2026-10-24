@@ -1,0 +1,71 @@
+         879996 function calls (879964 primitive calls) in 0.685 seconds
+
+   Ordered by: cumulative time
+   List reduced from 486 to 65 due to restriction <65>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.717    0.717 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_work.py:130(run)
+        1    0.000    0.000    0.717    0.717 C:\hengband-backups\town-s2-round16-base\src\hengbot\item_reservation.py:187(run)
+        1    0.000    0.000    0.717    0.717 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:2633(choose_key)
+        1    0.000    0.000    0.708    0.708 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:2818(choose_ladder)
+        1    0.000    0.000    0.708    0.708 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:7486(_choose_key_with_latch_capture)
+        1    0.008    0.008    0.708    0.708 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:7878(_choose_key)
+        1    0.001    0.001    0.368    0.368 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:10422(_decide)
+       11    0.000    0.000    0.223    0.020 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:5903(_town_producer_entry)
+        1    0.000    0.000    0.222    0.222 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:10956(<lambda>)
+        1    0.000    0.000    0.222    0.222 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:5129(_town_kill_mob_key)
+        1    0.000    0.000    0.222    0.222 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_supply.py:1893(_nearest_goal_step)
+        1    0.017    0.017    0.222    0.222 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_supply.py:1911(_nearest_goal_route)
+        1    0.004    0.004    0.178    0.178 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:2615(_begin_map_predicate_cache)
+        5    0.027    0.005    0.165    0.033 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:103(_refresh_town_facts)
+     1713    0.033    0.000    0.149    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:19762(_walkable_neighbors)
+        2    0.079    0.040    0.144    0.072 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_navigation.py:1118(_build_grid_index)
+   170972    0.091    0.000    0.134    0.000 <string>:38(__hash__)
+        1    0.027    0.027    0.113    0.113 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:2546(_with_grid_memory)
+    10306    0.041    0.000    0.087    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:149(<genexpr>)
+    34579    0.039    0.000    0.075    0.000 {method 'get' of 'dict' objects}
+    12083    0.026    0.000    0.056    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:7978(_on_town_border)
+    83055    0.040    0.000    0.053    0.000 {method 'add' of 'set' objects}
+171023/171021    0.044    0.000    0.044    0.000 {built-in method builtins.hash}
+   131928    0.042    0.000    0.042    0.000 <string>:8(__eq__)
+        1    0.000    0.000    0.030    0.030 {method 'difference_update' of 'set' objects}
+       10    0.004    0.000    0.030    0.003 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_supply.py:1915(<genexpr>)
+        1    0.012    0.012    0.030    0.030 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_observation.py:74(_observe)
+    83195    0.029    0.000    0.029    0.000 {method 'discard' of 'set' objects}
+    11330    0.009    0.000    0.029    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:5266(<lambda>)
+    12083    0.013    0.000    0.024    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:20021(_is_avoidable_hazard_grid)
+    11337    0.012    0.000    0.020    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\model.py:133(distance_to)
+    10319    0.008    0.000    0.016    0.000 {method 'pop' of 'dict' objects}
+       82    0.003    0.000    0.014    0.000 {built-in method builtins.sorted}
+    10305    0.012    0.000    0.012    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:639(_persistent_grid_signature)
+        4    0.006    0.002    0.010    0.003 {method 'update' of 'dict' objects}
+        1    0.000    0.000    0.010    0.010 C:\hengband-backups\town-s2-round16-base\src\hengbot\exploration_ledger.py:146(note_decision)
+        1    0.000    0.000    0.010    0.010 C:\hengband-backups\town-s2-round16-base\src\hengbot\exploration_ledger.py:23(_sample)
+    10399    0.009    0.000    0.009    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:2617(<genexpr>)
+     9520    0.007    0.000    0.007    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\exploration_ledger.py:24(<genexpr>)
+    26198    0.006    0.000    0.006    0.000 {built-in method builtins.abs}
+    20797    0.006    0.000    0.006    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\model.py:777(is_rubble)
+    12183    0.004    0.000    0.004    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\model.py:922(in_town)
+    11949    0.004    0.000    0.004    0.000 {method 'append' of 'list' objects}
+        4    0.000    0.000    0.004    0.001 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:218(_town_arbiter_progress_vector)
+    11517    0.003    0.000    0.003    0.000 {built-in method builtins.max}
+        5    0.000    0.000    0.002    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_arbiter.py:1116(_owner_progress_core)
+        5    0.000    0.000    0.002    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_arbiter.py:1124(_progress_core_of)
+     1758    0.002    0.000    0.002    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_combat.py:3987(_monster_cast_distance)
+      162    0.001    0.000    0.002    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_arbiter.py:1073(_emission_item_state)
+     6907    0.002    0.000    0.002    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:20014(_is_damaging_grid)
+        1    0.000    0.000    0.002    0.002 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:4387(_record_decision_claim)
+        2    0.000    0.000    0.002    0.001 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:944(_town_retirement_clearance_key)
+     1782    0.001    0.000    0.002    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_arbiter.py:1075(<genexpr>)
+        1    0.000    0.000    0.002    0.002 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_quest.py:1077(_conquest_departure_ready)
+        1    0.000    0.000    0.002    0.002 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:2190(_town_departure_ready)
+        1    0.000    0.000    0.002    0.002 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:2210(_town_departure_conjuncts)
+        4    0.000    0.000    0.001    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_town.py:1317(_town_progress_fingerprint)
+       90    0.000    0.000    0.001    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_arbiter.py:1144(<genexpr>)
+3356/3328    0.001    0.000    0.001    0.000 {built-in method builtins.getattr}
+      108    0.000    0.000    0.001    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_arbiter.py:1083(_town_progress_item_state)
+       59    0.000    0.000    0.001    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:5591(_claim_errand_hold)
+        1    0.000    0.000    0.001    0.001 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy.py:7019(_s33_shadow_verdict)
+        4    0.000    0.000    0.001    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_supply.py:185(_supply_ledger)
+        4    0.000    0.000    0.001    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\policy_supply.py:248(_compute_supply_ledger)
+      972    0.001    0.000    0.001    0.000 C:\hengband-backups\town-s2-round16-base\src\hengbot\town_arbiter.py:1091(<genexpr>)

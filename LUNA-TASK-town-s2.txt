@@ -1,0 +1,364 @@
+ROOT-FIX, stage S2 (ledger type "town errand retired / owner-retired", now 9 occurrences + c4-a life-016 at 21:54/21:55
+today). Branch town-claim-s2-1023 at main 90947a65 (S1 merged: town_terminal.py, may_take_board at _town_producer_entry,
+quest rungs ENFORCE, the S1 exception lists DIRECT_PRODUCERS_S1 / PARALLEL_PREDICATES_S1 / SHADOW rungs) (worktree C:\hengband\bot-client\.worktrees\town-claim-s2-1023).
+Owner (2026-10-23, verbatim): 「根本から直さないと何度でも再発する類と見た。配信は急がないからきっちり直して」.
+Spec = C:\hengband\bot-client\plans\DESIGN-town-claim-rootfix-1023.md (revised; its review .review.md) and the S1 report
+(git show 812ab9ed2:LUNA-REPORT-town-s1.txt in the bot-client repo) which lists what S1 deferred to S2:
+  (a) fold _cross_town_shopping_holds_quest_travel and _fixed_quest_prepare_return_required into the single predicate
+      (reason code cross-town-shopping-in-progress), (b) the full "server is making progress" evidence of design (ii)
+      (supplier route + verdict ADMIT, composable expedition) so an entry is not closed too early, (c) Server demand names
+      that exist in _town_need_registry.
+Implement stage S2 exactly as the design's slice chapter defines it and meet every S2 exit check: the exception lists EMPTY and
+the structural checks strict; every town rung with a real intended_terminal + admission (store purchase, Home withdraw and
+deposit, identify, remove curse, cross-town travel, fundraising, departure); the departure down-stairs never targets a quest
+entrance; the supplier counting (_departure_supplier_core) and plan stop choice through the same predicate; direct calls moved
+behind the entry; per departure item the declared servers (incl. stock-out mining); replays of #63 #64 #66 #68 #94 #76 captures
+(the design lists them) where alternation / wander / wait shapes become named closes or progress; the n1-a window and the new
+c4-a life-016 captures (ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/hengbot-soak newtech@49.212.149.243
+~/hengbot-soak/c4-a/life-016/captures/20261023-2154*, 20261023-2155* - read only) behave the same way; timing within 1.1x per
+board; full-suite green is the gate's job. Commit per design step. If an existing test must change, STOP and report (old/new,
+why) - except the declared-wall pattern for pre-2026-10-23 recordings whose divergence comes only from the new rule (report
+each). If you approach the token budget, stop and report what is done and what remains.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at 90947a65) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
+  New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions. New
+  policy attributes need restored-checkpoint defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- NEVER use git stash (the stash list is shared by every worktree; another implementer's pop takes your changes). To
+  compare before/after, use `git apply -R` of your own diff or a temporary detached worktree.
+- No new constant or threshold; no special case keyed to one store, one floor or one capture.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), scripts/town_producer_baseline.json /
+  scripts/town_work_review.json entries for new helpers (json.dumps ensure_ascii=False indent=2 + trailing newline,
+  no sorting), census counts in structural tests (report the change), STUCK_FAMILY_REASONS if a new reason is added.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8), not the console code page. They also hold
+  non-decision rows; filter on "decision_sequence".
+- Other implementers (death-1023, death2-1023) work in parallel. Merge gates may be running their full suite. Before
+  fast_tier, wait (sleep 60 between polls) while any file
+  C:\hengband-backups\suite-logs\gate-*-10*.run.log modified in the last 70 minutes lacks "MERGED", "FAILED" and
+  "STOP" in its tail.
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\town-claim-s2-1023 90947a65
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\town-claim-s2-1023 90947a65 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\town-claim-s2-1023 90947a65 --shards 4
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
+  outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 300k is a HARD limit: when you reach it, stop and report what is done. Wall time 150 minutes. Write
+  LUNA-REPORT-town-s2.txt (measured diagnosis, changes, pins before/after, controls, guard outputs) and commit.
+
+=== SUPERVISOR DECISIONS 2026-10-23 22:xx (after the first S2 implementer's stop report LUNA-REPORT-town-s2.txt; read it) ===
+(1) APPROVED: the three S1 assertions in tests/test_town_terminal_declarations.py were transitional by design (the design's S2
+    exit requires empty exception lists). Change them exactly as the report proposes: test_2_modes (every rung except
+    EXEMPT_SURVIVAL is ENFORCE, SHADOW_RUNGS empty), test_3_direct_producers_are_listed (direct == set(),
+    DIRECT_PRODUCERS_S1 empty), test_4_codes_and_table_agree (keys == union of all terminal codes; strings collected from all
+    verdict_* functions). Census numbers go to 0 (report them). Do it in the commit that empties each list; name old/new values.
+(2) The c4-a life-016 shape (recall unaffordable with 51 gold, fundraising refused for lack of digging tools, waiting for
+    restock forever): use the EXISTING owner decisions as its server - 2026-10-03 "scavenge without detection only when no
+    Treasure Detection is held and not even one scroll can be bought" and 2026-10-15 "when necessities and detection are out of
+    stock, scavenge 1F without detection and return quickly within 10,000 game turns" (memory
+    scavenge-only-when-detection-unobtainable-decision-20261003.md, scavenge-on-detection-stockout-decision-20261015.md). The
+    recall-purchase refusal for gold must have that scavenge as its declared server; if those decisions do not cover "cannot
+    afford" (only "out of stock"), STOP and report.
+(3) Continue with every remaining S2 item listed in the report's "承認の後に残る作業" 1-6, in that order, committing per item.
+
+=== SUPERVISOR DECISIONS 2026-10-23 23:xx (round 3; read the report's latest section first) ===
+Owner decision (AskUserQuestion, label 「両方」) for the c4-a life-016 shape (cannot afford a recall scroll, fundraising refused for lack
+of digging tools, Treasure Detection scrolls held): (1) first sell sellable surplus to raise the price of a recall scroll; (2) if
+still short, scavenge dungeon 1F using the held Treasure Detection, return by the stairs, and apply the 2026-10-15 rule "return
+quickly within 10,000 game turns". Declare these as the servers of the recall-purchase refusal for gold (memory
+recall-unaffordable-sell-then-scavenge-decision-20261023.md).
+APPROVED: tests/test_goldburn_shopping_constructed may change ONLY where it calls the old hold function directly (lines ~69/74/86/
+123 and the arrival-record expectation at ~70) to go through the new cross-town-shopping-in-progress verdict / the separated
+_cross_town_shopping_hold; the expected outcomes stay the same. Name old/new calls in the commit.
+Remaining S2 work is split into sequential sub-slices; THIS round does, in order, committing each:
+  S2-b: one preparation read per decision shared by material gathering and the need list (design 5.2 memo), then the
+        "server is making progress" evidence (ii); keep test_one_preparation_read_per_decision green.
+  S2-c: fold the two parallel predicates (PARALLEL_PREDICATES_S1 -> empty) with the approved test change.
+  S2-d (only if budget remains): terminals for Home withdraw/deposit and identify/remove-curse.
+Stop at the budget and report precisely what remains for the next round.
+
+=== SUPERVISOR DECISIONS 2026-10-24 00:xx (round 4; read the report's round-3 section first) ===
+This round does, in order, committing each (stop at the budget and report precisely what remains):
+  S2-c rest: give the entry a "rung does not apply here" terminal outcome (distinct from "no terminal / not judged") so that
+        _fixed_quest_prepare_return_required moves INSIDE rung #1's intended_terminal and is pinned (reverting the move must fail a
+        test); PARALLEL_PREDICATES_S1 becomes empty. The _town_space_deposit_* use is handled with the home-deposit terminal below.
+  S2-d part 1: terminals (gather / verdict / commit, reason codes declared, servers declared, checks exact) for home-withdraw,
+        home-deposit (incl. _town_space_deposit_*), identification, curse/enchant.
+  S2-d part 2 (if budget remains): cross-town, fundraising, and departure:<conjunct> with the servers as the round-3 report lists
+        (recall unaffordable -> sell surplus -> scavenge 1F with held Treasure Detection, return by stairs within 10,000 game turns,
+        owner decision 2026-10-23; identify_staff_ready -> shop-buy/identify-staff and supply-stockout-mining).
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 5; read the report's round-4 section first) ===
+This round does, in order, committing each (stop at the budget and report precisely what remains):
+  1. S2-d part 1 rest: the home-withdraw terminal (refuse before walking with reservation-unavailable; the walking deciders at
+     _shopping_approach_step's Home stop and the home-errand request), and declare the remaining rungs listed in round 4
+     (_town_device_processing_key, town-item-processing, home-atomic-deposit, _open_home_deposit_key, _defer_home_full_deposit).
+  2. Before any ENFORCE switch: move the confirmation side effects that a refusal would skip (_request_identification /
+     _defer_full_identification for identify-equipped; _offer_execution_no_step for curse-remove) onto the refusal path or into
+     their servers, pinned.
+  3. S2-d part 2: cross-town, fundraising, descent (destination never a quest entrance), and departure:<conjunct> with the servers
+     (recall unaffordable -> sell surplus -> scavenge 1F with held Treasure Detection, return by stairs within 10,000 game turns;
+     identify_staff_ready -> shop-buy/identify-staff and supply-stockout-mining).
+Keep the rule: an existing test change beyond the approved ones -> STOP and report.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 6; read the report's round-5 section first) ===
+ISSUE: #47
+APPROVED: tests.test_town_terminal_commit_pins.LedgerRestoreAndRecordTest.test_each_decision_records_its_own_admission may narrow
+its assertion to the quest rung's rows (rows filtered by rung == the quest rung; len == 1), because declaring town-item-processing
+correctly adds a second row (identify-carried / no-identification-source served by the live Morivant expedition). Assert the
+second row too (rung, code, server alive). Name old/new in the commit.
+This round does, in order, committing each (stop at the budget and report precisely what remains):
+  1. town-item-processing (identify-carried) declaration + its refusal commit (same confirmation as the body).
+  2. Item 3 rest: cross-town terminal; fundraising terminal (_fundraising_key#1/#2, supply-stockout-mining; life-016 "no digging
+     tool" refusal); departure terminal attached at _town_special_key and _read_dungeon_recall_scroll_key (the return-side items
+     too: combat_weapon_ready, departure_home_*).
+  3. home-withdraw before ENFORCE: ask the terminal before _shopping_approach_step takes the visit / requests travel, or release the
+     visit in the refusal commit - choose, pin.
+Do not switch anything to ENFORCE in this round. Do not run the full suite.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 7; read the report's round-6 sections first) ===
+ISSUE: #47
+APPROVED: tests/test_policy_shop.py ShopPurchaseSellPolicyTest.test_expired_recall_restock_wait_routes_to_released_store_publicly
+(~line 2346): change only the collaborator stub `policy._equipment_departure_ready = lambda _snapshot: True` to
+`lambda _snapshot, **_kwargs: True` (the expectation is unchanged; the material read now passes commit=False). Separate commit
+naming old/new. The test_melee_site_lint import error in fast_tier comes from the shared timing cache (module only on newer main),
+not from this branch - ignore it.
+This round does, in order, committing each (stop at the budget and report precisely what remains):
+  1. The approved stub change; rerun test_policy_shop.
+  2. Plan stop choice (the town plan's "which store to visit") through the store-buy / home-withdraw verdict.
+  3. Refusal commits for every remaining terminal whose body commits on refusal (list them first), so the ENFORCE flip skips no
+     confirmation.
+  4. Move the 21 direct producers behind named entries (DIRECT_PRODUCERS_S1 -> empty, census 21 -> 0, approved test_3 change).
+  5. Only if 1-4 are green and budget remains: flip SHADOW -> ENFORCE (census 90 -> 0, approved test_2 change) and rerun the
+     relevant town modules; if any existing expectation then changes beyond those approved, STOP and report the list.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 8; read the report's round-7 section first) ===
+ISSUE: #47
+Round 7 items 1-3 are done and green (HEAD e34e99a46). This round does, in order, committing each (stop at the budget and report
+precisely what remains):
+  1. Move the 21 direct producers behind named entries (DIRECT_PRODUCERS_S1 -> empty, census 21 -> 0, the approved test_3 change).
+     Keep every key byte-identical on the existing recorded replays (they are the proof that the move is behaviour-neutral).
+  2. Flip SHADOW -> ENFORCE for every rung except EXEMPT_SURVIVAL (census 92 -> 0, the approved test_2 change), in batches by
+     terminal family, running the town modules after each batch. If an existing test expectation changes beyond the approved ones,
+     do NOT edit it: list each (test, old/new key/reason, which rung's refusal changed it, whether the new behaviour is the
+     intended one per the design) and STOP after the batch that caused it.
+The test_melee_site_lint import error in fast_tier is a shared timing-cache artifact - ignore it.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 9; read the report's round-8 section first) ===
+ISSUE: #47
+APPROVED (general rule for this branch): a collaborator stub in an existing test that replaces one of the departure readers
+(_equipment_departure_ready, _recall_town_departure_conjuncts, _town_departure_conjuncts and similar) may widen its signature
+to accept the new keyword(s) (e.g. `lambda _snapshot, values=candidate, **_kwargs: dict(values)`), as long as its return value
+and every assertion stay unchanged. Apply it now to tests/test_policy_town.py TownRecallReturnTest
+(test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf, ~line 9403); list every stub you widen (file:line old/new).
+This round does, in order, committing each:
+  1. The approved stub widening(s); tests.test_policy_town must be fully green (593, 0 errors).
+  2. Round 8 item 2: flip SHADOW -> ENFORCE for every non-EXEMPT rung in batches by terminal family, running the town modules
+     after each batch; test_2_modes final change and SHADOW census 109 -> 0 at the end. Same STOP rule: an existing expectation
+     that changes beyond the approved ones -> do not edit it; list (test, old/new key/reason, which rung's refusal, intended per
+     design or not) and STOP after that batch.
+Stop at the budget and report precisely what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 10; read the report's round-9 section and round9-remaining.log first) ===
+ISSUE: #47
+APPROVED: tests that were CREATED ON THIS BRANCH (tests/test_town_terminal_*.py and other modules added since 90947a65) may
+update their mode expectations as the flip proceeds ('shadow' -> 'enforce'), keeping every other expectation (keys, reasons,
+codes, servers). Name them in the commit. Tests that exist on main 90947a65 keep the STOP rule.
+For the 89 rungs declared TerminalDecl(None, SHADOW): classify each (write the table into the report) as
+  (a) the rung has a terminal step that can be refused (a purchase, a withdrawal, an entry, a read, a trip...) -> implement its
+      intended_terminal + gather/verdict (+ refusal commit if its body commits on refusal), then ENFORCE; or
+  (b) the rung has no refusable terminal (its step cannot be refused by the game or by an existing condition, e.g. a pure walk to
+      a fixed tile, an answer to a prompt, a survival move) -> declare it explicitly as NO_REFUSAL with a one-line reason; the
+      structural check must accept only ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL (no SHADOW, no undeclared).
+This round does, in order, committing per family batch: finish the curse/launcher batch (green guards); then the 18 rungs that
+already have terminals (Home, identification, cross-town, fundraising, stairs, departure/return) -> ENFORCE; then the 89 by the
+classification above. At the end SHADOW_RUNGS empty, census 109 -> 0, the approved test_2_modes final change. Same STOP rule for
+main's existing tests. Stop at the budget and report precisely what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 11; read the report's round-10 section first) ===
+ISSUE: #47
+Your round-10 diagnosis is right: the 49 conditions are R (regressions), not spec changes. Cause: _town_special_key is a
+dispatcher that does several different jobs, and round 10 declared it as ONE terminal "departure-recall", so a departure refusal
+also suppressed the very branches that REACT to an unsatisfied departure (the visible blocked terminals and _town_blocked_reason,
+fundraising:no-safe-destination, the restock wait R300, the equipment-optimization timeout terminal, the Home confirmation).
+Those branches are the servers / the named closes of the departure refusal, not the departure itself (design M1: the intended
+terminal is per board, from the dispatcher's own branches).
+Fix in source (do not touch main's tests):
+  1. Give _town_special_key (and _read_dungeon_recall_scroll_key if the same applies) a per-board intended_terminal that returns
+     the departure-recall terminal ONLY for the branch that actually reads the recall scroll / departs; the reacting branches get
+     their own terminal (e.g. the restock wait as a store-buy/restock terminal, fundraising as the fundraising terminal) or
+     NO_REFUSAL (a visible blocked/named close is never refused), as the classification rule of round 10 says.
+  2. Prove it with the 49 conditions: all 14 methods of main's tests (T/S/E/A in your table) must pass unchanged with the departure
+     rungs in ENFORCE. Keep your SHADOW-vs-ENFORCE comparison tests as pins.
+  3. Then continue: the 89 TerminalDecl(None, SHADOW) rungs by the (a) ENFORCE with terminal / (b) NO_REFUSAL classification,
+     committing per family, SHADOW empty and census 109 -> 0 at the end, the approved test_2_modes final change.
+Same STOP rule for main's existing tests. Stop at the budget and report precisely what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 12; read the report's round-11 section first) ===
+ISSUE: #47
+Round 11 accepted: the departure dispatcher fix (main's 49 conditions pass), the 13 NO_REFUSAL rungs, Home identify ENFORCE.
+At 14 rungs per round the remaining 75 take five more rounds. Most of the 75 are not town errands at all (combat, loot, flee,
+breeder, chest, mining-floor exit). The design's terminal + admission is for TOWN errands (store buy/sell, Home withdraw /
+deposit / disposal, identify, remove curse, enchant, cross-town travel, fundraising, departure). Classify with this order:
+  1. Measure first, per rung: can it run while the character is in town (depth 0)? Show it from the code path (the guard that
+     returns before the body outside the dungeon, file:line), not by name.
+  2. Dungeon-only rungs (cannot run in town): NO_REFUSAL with reason "dungeon-only: not a town errand" plus the file:line guard.
+     Add ONE structural check that fails if such a rung's guard is removed (a constructed town board reaches the body ->
+     fail). Do not add terminals or refusals to dungeon combat / loot / escape; their behavior must stay byte-identical.
+  3. Movement primitives (_step_toward and its :departure / :escape / :hunt / :positioning variants, _dig_to_known_downstairs_key,
+     _entrance_travel_key, idle-fallback, navigator.decide when it only walks): the walk is owned by the caller's errand terminal
+     (like _direction_key in round 11). NO_REFUSAL "delegated: caller's terminal governs", with a pin that the caller's ENFORCE
+     refusal still stops the walk. Where the rung itself STARTS an errand (enters a store, reads recall, enters a quest), that
+     branch gets the errand's existing terminal, same per-board rule as the round-11 departure dispatcher.
+  4. Town errand rungs (shop transaction, store sell, Home rearm / relief / knowledge / catalogue / disposal / atomic withdraw,
+     equipment transaction town/home/owner, overweight surplus sale, town destroy / overflow destroy / worthless junk, restock,
+     opening q34 town, town restore weapon, pack-pressure identify, heavy curse inscription, town_order_step4, town_blocked,
+     verified-disposal, town-progress-committed-loot): (a) ENFORCE with the errand's terminal, reusing the round-9..11 verdicts
+     and servers; named closes and visible blocked states are NO_REFUSAL as in round 11.
+  5. Survival-family rungs that do run in town (e.g. town random-teleport suppression, emergency item if town-reachable):
+     EXEMPT_SURVIVAL only if the family is in _town_gate_exempt; otherwise NO_REFUSAL with the reason.
+Write the full 75-row table (rung, town-reachable yes/no with file:line, class, reason/terminal) into the report FIRST and
+commit it, then implement by class: 2 (one commit), 3 (one commit), 4 (per family), 5. End state: SHADOW_RUNGS empty, census 0,
+test_2_modes final change, structural checks limited to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL. Same STOP rule for main's
+existing tests. If a rung fits none of 1-5, list it and STOP for it only (continue the others). Then the three guards. Token
+budget 300k; stop at the budget and report precisely what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 13; read the report's round-12 section first) ===
+ISSUE: #47
+Round 12 accepted (19 rungs, guards green; the tests.test_melee_site_lint import error stays out of scope).
+Decisions for what you STOPped or left:
+  A. The 8 unclassified rungs (_chest_processing_key#1/#2, _finish_mining_floor, _kill_quest_floor_recovery_key,
+     _normal_loot_key#1/#2, _start_kill_quest_regeneration, _victory_loot_key): the test is not "has a depth guard" but "does
+     this branch take a town board server" (store buy/sell, Home withdraw/deposit/disposal, identify, remove curse, enchant,
+     cross-town travel, fundraising, departure recall). A branch that only picks up / opens / walks / waits / leaves a floor by
+     stairs is NO_REFUSAL with reason "not a town errand: <what it does>" and file:line, even when it is town-reachable; its
+     behavior stays byte-identical. A branch inside them that starts one of those errands (e.g. reading recall to go home with a
+     full pack) gets that errand's existing terminal per board, the same rule as the round-11 departure dispatcher. Same
+     structural census as round 12 so the reason cannot hide a later errand.
+  B. Class 5 (17 rungs): do it now, first, in one commit (it is mechanical), not after class 4.
+  C. Class 4 (31 rungs): per family, reusing the round-9..12 verdicts and servers: (1) store sell / shop transaction / restock /
+     staged store op, (2) Home rearm / relief / catalogue / knowledge / atomic withdraw / after-exit, (3) equipment transaction
+     town / home / owner, (4) destroy / overflow / worthless junk / full pack / overweight surplus sale, (5) the rest (q34 town,
+     restore weapon, heavy curse inscription, town_order_step4, town_blocked, town-progress-committed-loot). Named closes and
+     visible blocked states are NO_REFUSAL as in round 11. One commit per family.
+  D. Fix the trailing blank line at tests/test_town_terminal_dungeon_round12.py:112.
+End state unchanged: SHADOW_RUNGS empty, census 0, test_2_modes final change, structural checks limited to ENFORCE /
+NO_REFUSAL / EXEMPT_SURVIVAL, main's existing tests unchanged (STOP rule), then the three guards. Token budget 300k; stop at the
+budget and report precisely what remains.
+
+=== SUPERVISOR NOTE 2026-10-24 18:05 (round 13, continued) ===
+ISSUE: #47
+Your round-13 run stopped at 18:02 with "Selected model is at capacity" after committing 9e2a5de79 (class 5). Its uncommitted
+work is still in the worktree (src/hengbot/policy.py, src/hengbot/town_terminal.py, tests/test_town_terminal_declarations.py,
+tests/test_town_terminal_no_refusal_round11.py: the store family of class 4, _released_restock_store_key / _recall_restock_key
+and the commit_refusal return change). Keep it: review it, re-run its module tests (it was running tests.test_policy_shop /
+home / town / test_town_structure_lint), and commit it as the store-family commit. The files now have CRLF line endings in the
+working copy (written via PowerShell Set-Content); write them back with LF only (as the repository has them) before committing,
+and write files with Python newline="\n" from now on. Then continue round 13 (C families 2-5, A, D) as written above.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 14; read the report's round-13 section first) ===
+ISSUE: #47
+Round 13 accepted (class 5 and the store family; SHADOW 56 -> 34; guards green, the tests.test_melee_site_lint import error stays
+out of scope). Continue round 13's decisions unchanged for the 34 left, in this order: C(2) Home, C(3) equipment transaction,
+C(4) destroy / surplus sale, C(5) the rest, then A (the 8 loot / chest / mining-exit / kill-quest rungs by the "takes a town board
+server" test). One commit per family. When SHADOW is empty: census 0, the test_2_modes final change, structural checks limited
+to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL. Main's existing tests unchanged (STOP rule). Write files with LF only. Then the three
+guards. Token budget 300k; stop at the budget and report precisely what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 15; read the report's round-14 section first) ===
+ISSUE: #47
+Round 14 accepted (C2-C4, the two guard repairs). Note: your final fast_tier did not finish (round14-fast-tier.log has one line,
+no .exit, no process alive): it ended with your session. Re-run the three guards on this round's final HEAD and wait for them.
+STOP answer (tests/test_town_terminal_departure.py:58, test_every_leaf_of_the_gate_has_a_declared_row): APPROVED as proposed in
+round14-C5-draft/proposed-existing-test-change.patch. It is a structural census (every departure leaf a reader can produce has a
+declared server row); the forced-exit recall terminal is a real new reader of _departure_minimum, so the expected source set
+gains that reader while the exact-equality assertion stays. No other change to that test. Report it as an approved change.
+Then:
+  1. Apply round14-C5-draft/source.patch and its test module, regenerate the town work manifest, run the module tests, commit C5.
+  2. A (8 rungs) by the round-13 decision A: inspect each branch with its call guard; a branch that starts a town board server
+     (e.g. finish-mining's recall exit, victory-loot's full-pack relief if it reads recall / goes to Home) gets that errand's
+     existing terminal per board; pick up / open / walk / wait / stairs-only branches are NO_REFUSAL "not a town errand: ...".
+     One commit.
+  3. SHADOW empty: census 0, the test_2_modes final change, structural checks limited to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL.
+  4. The three guards (wait for fast_tier to exit and paste its summary).
+Main's existing tests otherwise unchanged (STOP rule). LF only. Token budget 300k; stop at the budget and report what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 23:35 (round 16: S2 exit acceptance; read the report's round-15 section first) ===
+ISSUE: #47
+Round 15 accepted. The supervisor fixed your STOP (test_cli ledger snapshots have no in_town): 491ad134e reads
+getattr(snapshot, "in_town", False) at _equipment_takeoff and _town_equipment_item_available, and 69bda2de5 regenerates the
+manifest. On 69bda2de5: preflight OK (54 files, 0 findings); fast_tier 4445 tests, Failures none, only the out-of-scope
+tests.test_melee_site_lint import error. Do not redo C5/A; the declarations are final (ENFORCE 47 / NO_REFUSAL 64 / EXEMPT 21).
+Remaining S2 exit items (design 5.3 S2 and 5.2), measure and pin; do not add new behavior:
+  1. Capture replays with state carried, ENFORCE on, for #63 #64 #66 (2nd/3rd) #68 #94 #76 (the design's section 2 table lists
+     the capture names; they are under C:\hengband-backups\state-logs and the recorded test fixtures) and the n1-a window
+     (20261023-183351 / -183418 / -183436, from the S1 work): per capture, old shape on 90947a65 (alternation / stuck:wander / wait
+     count) vs the shape on this branch (a named close or progress). Table in the report. One small pin per capture where none
+     exists yet (gzip fixture, last minutes only). The S1 shadow census: every REFUSED row must now be a yield or a named close.
+  2. Timing (design 5.2): (a) the 4 boards and the windows, per board median and p90 on this branch vs 90947a65, within 1.1x.
+     Run the two versions ALTERNATELY on an idle machine (no other test run; check the gate logs as before), at least 5 rounds each,
+     and report the raw numbers. (b) Add to tests/test_town_decision_speed_caches.py / ..._speed2_caches.py: one decision never
+     prepares the equipment optimization twice; the same board the second time hits the signature cache.
+  3. If a capture keeps an alternation / wander / wait shape, or a board is over 1.1x: diagnose with file:line, fix only if it is
+     a defect of the S2 implementation under the decisions already in this file; otherwise STOP and report options.
+  4. The three guards on the final HEAD (wait for fast_tier to exit).
+Main's existing tests unchanged (STOP rule). LF only. Token budget 300k.
+
+=== SUPERVISOR DECISIONS 2026-10-25 02:10 (round 17: the timing STOP; read the report's round-16 section first) ===
+ISSUE: #47
+Round 16 accepted except timing. The supervisor re-measured on an idle Linux machine (8 cores, nice, one process at a time,
+old 90947a65 vs new 391246a98, 10 alternating rounds, your round16-probe / round16-n1-probe unchanged). Your #63 p90 1.36x on
+Windows was load from another session's MSBuild rebuild (4 cores of link.exe at the time). Clean results (total-median ratio,
+max board median, max board p90, boards over 1.1x): four 1.019/1.106/1.099/1; 63 1.032/1.063/1.041/0; 64 0.994/-/1.014/0;
+66b 0.982/0.998/1.000/0; 66c 0.995/0.995/1.005/0; 68 1.006/1.030/1.043/0; 94 0.998/0.998/1.032/0; 76 1.007/1.007/1.019/0;
+20261023-183418 1.023/1.055/1.068/0; 20261023-183436 1.012/1.037/1.048/0;
+20261023-183351 1.027/1.104/1.151/10 boards (indices 4,49-52,56,57,60,68,72; same key and reason in both versions; every one
+~230ms -> ~245ms, i.e. a real +15-20ms per decision, not noise).
+cProfile of that window (both versions, same run: prof-old.pstats / prof-new.pstats in this worktree, aggregated by
+file+function since line numbers differ): +0.9s over 82 decisions =
+  town_terminal.gather_store_buy: 0 -> 972 calls, 1.41s cumulative (from plan_stop_admission 416 calls in
+    _build_town_errand_plan, +0.77s, and the supplier counting);
+  policy_town._town_need_supplier_reachable: 2056 -> 2914 calls, 3.00s -> 4.27s cumulative (+858 calls);
+  terminal_admission 152 -> 2498 calls; may_take_board 3411 -> 4019.
+Design 5.2 already requires "materials are gathered once per decision" (the decision memo keyed by _decision_sequence and the
+board). The store-buy material and the supplier reachability are evaluated ~12 times per decision for the same
+(decision, board, store/need), so this is a defect of the S2 implementation, not a new rule. Fix:
+  1. Memoize gather_store_buy and the supplier-reachability result per decision with the same memo discipline as the existing
+     decision memos (key includes everything the result reads; dropped when _decision_sequence advances; restored-checkpoint
+     default; never shared across boards). Do not change any verdict, code or ordering.
+  2. Pin: within one decision on the 183351 boards, gather_store_buy and _town_need_supplier_reachable compute at most once per
+     distinct key (counted on the real methods); identical keys/reasons on all 13 windows (your exit-expected fixture).
+  3. Re-measure ONLY on the Linux machine? No - you cannot reach it. Measure locally the 183351 window old vs new alternating 5
+     rounds ONLY if C:\hengband-backups\suite-logs shows no active gate AND no MSBuild/link.exe/cl.exe process runs (check
+     Get-Process); report the numbers as indicative. The supervisor re-measures on Linux after your commit.
+  4. The three guards on the final HEAD (wait for fast_tier to exit).
+Main's existing tests unchanged (STOP rule). LF only. Token budget 200k.
+
+=== SUPERVISOR DECISIONS 2026-10-25 06:05 (round 18: merge-gate full-suite failures; read the report's round-17 section first) ===
+ISSUE: #47
+Round 17 accepted. The supervisor re-measured 2d1cc8192 on the Linux machine (10 alternating rounds, all 13 windows + four
+boards): every board within 1.1x (max board p90 1.083x, total ratios 0.909-1.003). Timing is DONE; do not measure again.
+The merge gate (main 8f95933f + this branch c57400e0, log C:\hengband-backups\suite-logs\gate-town-claim-s2-1023.run.log) passed
+preflight, mutation record and fast_tier (4487 tests, 0 failures, 0 errors) but the FULL suite (6531 tests) has 2 failing tests
+that fast_tier does not run (slow modules; you never ran them):
+  A. tests.test_declarations_r14.DeclarationR14Test.test_overweight_home_tail_keeps_its_operation_at_3715
+     AssertionError: (list_index, historical_sequence) (5, 5) != (3715, 3714) - the OFF/ON first divergence of the "overweight"
+     replay (measure("overweight", "s33")) moved from row 3715 to row 5.
+  B. tests.test_live37_home_scan.Live37HomeScanTest.test_second_recorded_board_public_off_shadow_and_on_continuation, subtests
+     (restored=False, enforced=True) and (restored=True, enforced=True): ('3', 'shop:approach') != ('\x1b`n(.', 'shop:travel').
+Both are main's existing tests (STOP rule applies to changing them). Diagnose each FIRST with file:line and the measured rows /
+decisions (what row 5 is in OFF and ON, which S2 terminal/verdict or memo changed it; for B which rung now wins and why the
+enforced board approaches instead of travelling): is it R (an S2 defect: fix in source, tests unchanged) or a consequence of an
+already-approved S2 rule (then STOP with old/new and why; no test change without the supervisor). Run each of these modules
+alone (they are slow: test_declarations_r14 and test_live37_home_scan) before and after. Also run alone, after any fix, every
+module listed as "excluded ... measured over 60s" in C:\hengband-backups\suite-logs\gate-town-claim-s2-1023-fast.log that touches
+town/home/shop (list which you ran). Then the three guards. LF only. Token budget 200k, 150 minutes.

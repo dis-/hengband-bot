@@ -252,7 +252,7 @@ class HomeMixin:
                 return key
         elif snapshot.store is None:
             pending["mode"] = "destroy"
-            key = reserved_item_command(self, snapshot, "overweight-surplus", item, "shop-sell")
+            key = self._town_item_command_entry_key(snapshot, "overweight-surplus", item, "shop-sell")
             if key is not None:
                 pending["key"] = key
                 pending["gold"] = snapshot.player.gold
@@ -996,7 +996,7 @@ class HomeMixin:
                 if snapshot.store is not None:
                     if snapshot.store.store_type != store_type:
                         return self._home_full_leave_key("home:full-leave-with-surplus")
-                    key = self._store_sell_key(snapshot, target,
+                    key = self._store_sale_entry_key(snapshot, target,
                         "shop:sell-home-full-surplus",
                         rejected_reason="shop:unsellable-home-full-surplus-sale-refused")
                     if (key and key.startswith(("d", "{"))
@@ -3180,7 +3180,19 @@ class HomeMixin:
                   else "home-errand" if self._home_errand.active else "home-visit")
         return self._town_producer_entry(
             "home-atomic-withdraw", lambda: self._atomic_home_withdraw_dispatch_key(
-                snapshot, step), family=family)
+                snapshot, step), family=family, board=snapshot)
+
+    def _home_take_entry_key(self, snapshot, item, owner, quantity, letter):
+        """Admit the observed shelf target before composing its physical take."""
+        previous = getattr(self, "_terminal_home_take", None)
+        self._terminal_home_take = (item, owner, quantity, letter)
+        try:
+            return self._town_producer_entry(
+                "home-atomic-withdraw", lambda: store_item_key(
+                    self, snapshot, "withdraw", item, owner, quantity=quantity, address=letter),
+                family=owner, board=snapshot)
+        finally:
+            self._terminal_home_take = previous
 
     def _atomic_home_withdraw_dispatch_key(
         self, snapshot: Snapshot, step: Position
@@ -3536,8 +3548,7 @@ class HomeMixin:
         # The completed address scan binds the shelf letter and stack count to
         # this one-shot entry.  A multi-item stack therefore proves that the
         # quantity prompt will consume this response before the leave key.
-        withdrawal = store_item_key(self, snapshot, "withdraw", item, owner,
-                                    quantity=take_count, address=letter)
+        withdrawal = self._home_take_entry_key(snapshot, item, owner, take_count, letter)
         if withdrawal is None:
             return None
         operation_key = (" " * page) + withdrawal + LEAVE_STORE_KEY
@@ -4871,6 +4882,21 @@ class HomeMixin:
         self.last_reason = "home:queue-dominated-withdraw"
         return LEAVE_STORE_KEY
 
+    def _town_item_command_entry_key(self, snapshot, kind, item, owner, *, address=None):
+        """Ask admission for the selected town item before serializing its key."""
+        previous = getattr(self, "_terminal_item_command", None)
+        self._terminal_item_command = (kind, item, owner, address)
+        inscription = kind in {"inscribe-equipped", "uninscribe-equipped"}
+        family = ("equipment-txn" if inscription else "shop-sell" if kind == "overweight-surplus"
+                  else "home-visit" if owner == "home-visit" else "identification")
+        try:
+            return self._town_producer_entry(
+                "_heavy_curse_inscription_key" if inscription else "verified-disposal",
+                lambda: reserved_item_command(self, snapshot, kind, item, owner, address=address),
+                family=family, board=snapshot)
+        finally:
+            self._terminal_item_command = previous
+
     @staticmethod
     def _destroy_item_key(item: InventoryItem, snapshot: Snapshot | None = None,
                           owner: str = "identification", *, policy=None) -> str | None:
@@ -4884,6 +4910,8 @@ class HomeMixin:
         if snapshot is not None:
             if policy is None:
                 raise ValueError("a decision destruction requires its policy")
+            if snapshot.in_town:
+                return policy._town_item_command_entry_key(snapshot, "destroy", item, owner)
             return reserved_item_command(policy, snapshot, "destroy", item, owner)
         # Legacy standalone helper calls are not town decisions. The lint
         # requires every production caller to provide its snapshot.
