@@ -2,15 +2,40 @@
 
 import tests  # noqa: F401
 
+import sys
 import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
+from hengbot import town_terminal as tt
 from hengbot.policy import HengbotPolicy
 from test_goldburn_shopping_constructed import board
 
 
 class DirectEntryTest(unittest.TestCase):
+    def test_quest_return_applicability_is_asked_by_its_terminal(self):
+        snap = board()
+        policy = HengbotPolicy()
+        callers, entries = [], []
+
+        def predicate(self_, snapshot):
+            callers.append(sys._getframe(1).f_code.co_name)
+            return False
+
+        def entry(rung, producer, **kwargs):
+            if rung == "_fixed_quest_key#1":
+                entries.append(rung)
+                self.assertEqual(tt.rung_terminal(policy, rung, snap), tt.NOT_APPLICABLE)
+            return "entry-owned-key" if rung == "_town_special_key" else None
+
+        with patch.object(policy, "_town_producer_entry", side_effect=entry), \
+                patch.object(policy, "_shopping_approach_step", return_value=None), \
+                patch.object(HengbotPolicy, "_fixed_quest_prepare_return_required", predicate):
+            self.assertEqual(policy.choose_key(snap), "entry-owned-key")
+        self.assertEqual(entries, ["_fixed_quest_key#1"])
+        self.assertIn("fixed_quest_return_intended_terminal", callers)
+        self.assertNotIn("_decide", callers)
+
     def test_normal_town_dispatch_asks_before_each_direct_body(self):
         for name in (
                 "_warning_prompt_response_key", "_darkness_recovery_key",
