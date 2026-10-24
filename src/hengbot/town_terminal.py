@@ -1259,6 +1259,13 @@ def blocked_intended_terminal(policy: Any, board: Any) -> TerminalRef:
     return TerminalRef(NO_REFUSAL, ("town-blocked-dispatch",))
 
 
+def floor_exit_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    # Loot/triage and floor-exit dispatchers must retain their reactions.
+    # Their read seams ask the existing recall terminal on the acting board;
+    # Home/disposal children retain their own selected-operation admissions.
+    return TerminalRef(NO_REFUSAL, ("floor-exit-dispatch",))
+
+
 def opening_town_intended_terminal(policy: Any, board: Any) -> TerminalRef:
     # Q34's readiness/blocked states must still select their suppliers. Gear,
     # shopping and fixed-quest actions keep their own operation verdicts.
@@ -1558,16 +1565,8 @@ def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None
 
 
 def _shadow_rungs() -> frozenset[str]:
-    # The fixed S1->S2 list: these rungs only record (design 3.7 item 2).
-    return frozenset({
-        "_chest_processing_key#1", "_chest_processing_key#2",
-        "_kill_quest_floor_recovery_key",
-        "_normal_loot_key#1", "_normal_loot_key#2",
-        "_start_kill_quest_regeneration",
-        "_victory_loot_key",
-        "_finish_mining_floor",
-    })
-
+    # The last eight S1 exceptions now have explicit declarations.
+    return frozenset()
 
 SHADOW_RUNGS = _shadow_rungs()
 # Producers ``_decide`` still calls outside the entry (S1->S2 list, design
@@ -1591,6 +1590,12 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
+    '_chest_processing_key#1': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
+    '_chest_processing_key#2': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
+    '_normal_loot_key#1': 'not a town errand: defend, pick up or walk to visible floor loot; src/hengbot/policy_identification.py:1322',
+    '_normal_loot_key#2': 'not a town errand: defend, pick up or walk to visible floor loot; src/hengbot/policy_identification.py:1322',
+    '_kill_quest_floor_recovery_key': 'not a town errand: recover quest depth by walking, waiting or ordinary stairs; src/hengbot/policy_quest.py:5899',
+    '_start_kill_quest_regeneration': 'not a town errand: walk to upstairs, ascend or name an exhausted-floor wait; src/hengbot/policy.py:19380',
     "_town_order_step4_key#1": "Walk to the bounty office and answer its cash-out prompt for observed wanted remains; unavailable routes are named closes; src/hengbot/policy_town.py:2354",
     "_town_order_step4_key#2": "Walk to the bounty office and answer its cash-out prompt for observed wanted remains; unavailable routes are named closes; src/hengbot/policy_town.py:2354",
     "town-progress-committed-loot": "not a town errand: continue pickup or walking to committed floor loot; src/hengbot/policy_town.py:1668",
@@ -1657,6 +1662,8 @@ NO_REFUSAL_REASONS = {
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
+    "_finish_mining_floor": TerminalDecl(floor_exit_intended_terminal, ENFORCE),
+    "_victory_loot_key": TerminalDecl(floor_exit_intended_terminal, ENFORCE),
     "_town_blocked_key": TerminalDecl(blocked_intended_terminal, ENFORCE),
     "_opening_q34_town_key": TerminalDecl(opening_town_intended_terminal, ENFORCE),
     "_town_restore_weapon_key": TerminalDecl(item_command_intended_terminal, ENFORCE),

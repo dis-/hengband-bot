@@ -4731,7 +4731,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "90e5958d91e6b766bd6eb0c6a3c57faccf1f56bc1d084936939ab9e3c69117b0"
+    "ast_sha256": "64cf8731287b27eabbfd750b8d80b03dfcfc5bebc8915224f14b56c0eba0be66"
   },
   "policy_fundraising.py:FundraisingMixin._mining_closure_key": {
     "classification": "producer",
@@ -7401,7 +7401,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "28c676206d0fb4bf213993749ac26227521a38b3168f2c3a9c1cbc970d80bef0"
+    "ast_sha256": "0308db8ad4b3adad92368da05e91dd966445cebdb3a9eb5e153078099d4fe1dd"
   },
   "policy_town.py:TownMixin._recall_town_departure_conjuncts": {
     "classification": "data",

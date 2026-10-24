@@ -7214,7 +7214,7 @@ class TownMixin:
     ) -> str | None:
         key = self._town_producer_entry(
             "_read_dungeon_recall_scroll_key",
-            lambda: self._read_key(snapshot, recall), family="departure")
+            lambda: self._read_key(snapshot, recall), family="departure", board=snapshot)
         if key is None:
             return None
         recall_count = sum(

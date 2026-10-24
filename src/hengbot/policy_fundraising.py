@@ -587,7 +587,9 @@ class FundraisingMixin:
                 and self._can_read_scrolls(snapshot)
             ):
                 self.last_reason = "fundraise:recall"
-                key = self._read_key(snapshot, recall)
+                key = self._town_producer_entry(
+                    "_read_dungeon_recall_scroll_key",
+                    lambda: self._read_key(snapshot, recall), family="departure", board=snapshot)
                 self._offer_execution(
                     key, producer="fundraising",
                     work_id="fundraise:return:recall",
@@ -668,7 +670,9 @@ class FundraisingMixin:
             self._returning_to_town = True
             self.last_reason = "fundraise:recall-stuck"
             return self._fundraising_return_route_key(
-                self._read_key(snapshot, recall),
+                self._town_producer_entry(
+                    "_read_dungeon_recall_scroll_key",
+                    lambda: self._read_key(snapshot, recall), family="departure", board=snapshot),
                 step="fundraising.recall-stuck.send",
                 work_id="fundraise:return:recall-stuck",
                 expected_effect="recall-activated",
