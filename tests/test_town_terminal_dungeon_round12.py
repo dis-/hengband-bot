@@ -6,8 +6,9 @@ import unittest
 from unittest.mock import patch
 
 from hengbot import town_terminal as tt
-from hengbot.model import DUNGEON_YEEK_CAVE
-from hengbot.policy_constants import PACK_CAPACITY
+from hengbot.model import DUNGEON_YEEK_CAVE, TVAL_DIGGING, SV_DIGGING_SHOVEL
+from hengbot.policy_constants import PACK_CAPACITY, STUCK_ESCAPE_LIMIT
+from policy_fixtures import item
 from test_goldburn_shopping_constructed import board
 from test_town_terminal_departure import policy_on
 
@@ -62,6 +63,29 @@ class DungeonOnlyGuardTest(unittest.TestCase):
                 self.assertTrue(decl.no_refusal_reason.startswith(
                     "dungeon-only: not a town errand; src/hengbot/"))
                 self.assertNotIn(rung, tt.SHADOW_RUNGS)
+
+        # This rung has its guard at the only entry call site, not in the
+        # reusable equipment serializer. Keep all other breakout premises true.
+        snap = replace(board(), inventory=[item(
+            "a", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)])
+        policy = policy_on(snap)
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
+        policy._breakout_dig_floor = snap.floor_key
+        seen = []
+
+        def observe_entry(rung, call, **kwargs):
+            seen.append(rung)
+            if rung == "_wield_digging_tool_key":
+                self.fail("town board reached the dungeon breakout wield body")
+            return "dig" if rung == "_dig_to_known_downstairs_key" else None
+
+        with patch.object(policy, "_town_producer_entry", side_effect=observe_entry), \
+                patch.object(policy, "_recall_shortage_opening_exempt", return_value=True):
+            self.assertIsNone(policy._decide(snap))
+        self.assertIn("_dig_to_known_downstairs_key", seen)
+        self.assertEqual(seen[-1], "idle-fallback")
+        self.assertNotIn("_wield_digging_tool_key", seen)
+        self.assertEqual(tt.TERMINALS["_wield_digging_tool_key"].mode, tt.NO_REFUSAL)
 
 
 if __name__ == "__main__":

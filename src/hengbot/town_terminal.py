@@ -1171,15 +1171,15 @@ def _shadow_rungs() -> frozenset[str]:
         "_atomic_shop_transaction_key", "_blocking_escape_melee_key",
         "_breeder_breakthrough_escape_key", "_breeder_breakthrough_key",
         "_chest_processing_key#1", "_chest_processing_key#2",
-        "_choke_engagement_key", 
+        "_choke_engagement_key",
         "_detected_threat_preparation_key",
         "_emergency_item", "_equipment_transaction_home_key",
         "_equipment_transaction_town_key", "_equipment_transaction_town_key#1",
         "_equipment_transaction_town_key#2", "_equipment_transaction_town_owner_key",
-         "_esp_threat_rest_key",
+        "_esp_threat_rest_key",
         "_fruitless_disengage_key",
         "_heavy_curse_inscription_key",
-        "_home_catalogue_work_key", 
+        "_home_catalogue_work_key",
         "_home_full_knowledge_key", "_home_full_relief_key",
         "_home_rearm_key",
         "_immobile_breeder_giveup_key", "_item_destroying_breeder_leave_key",
@@ -1188,7 +1188,6 @@ def _shadow_rungs() -> frozenset[str]:
         "_overweight_surplus_sale_key", "_paralyzer_prevention_key",
         "_ranged_attack_key#1", "_ranged_attack_key#2",
         "_release_staged_store_operation", "_released_restock_store_key",
-          
         "_start_kill_quest_regeneration",
         "_store_sell_key", "_summoner_ranged_kill_key",
         "_town_order_step4_key#1", "_town_order_step4_key#2",
@@ -1196,27 +1195,15 @@ def _shadow_rungs() -> frozenset[str]:
         "_town_restore_weapon_key",
         "_unseen_retreat_key", "_victory_loot_key", "_worthless_junk_destroy_key",
         "home-atomic-withdraw", "home-errand-knowledge",
-        "home-full-knowledge", "home-knowledge-after-exit", 
-        
+        "home-full-knowledge", "home-knowledge-after-exit",
         "town-progress-committed-loot",
         "verified-disposal",
-        
-        
         "_finish_mining_floor",
         "_full_pack_destroy_key",
-        
         "_opening_q34_town_key",
-        
         "_recall_restock_key",
-        
-        
-        
-        
-        
         "_town_blocked_key",
         "_town_destroy_key",
-        
-        "_wield_digging_tool_key",
     })
 
 
@@ -1242,6 +1229,7 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
+    "_wield_digging_tool_key": "dungeon-only: not a town errand; src/hengbot/policy.py:12259 caller requires not snapshot.in_town",
     '_dig_to_known_downstairs_key': "delegated: caller's terminal governs; src/hengbot/policy_fundraising.py:829",
     '_entrance_travel_key': "delegated: caller's terminal governs; src/hengbot/policy.py:16497",
     '_step_toward': "delegated: caller's terminal governs; src/hengbot/policy_navigation.py:1828",
