@@ -291,3 +291,24 @@ Then:
   3. SHADOW empty: census 0, the test_2_modes final change, structural checks limited to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL.
   4. The three guards (wait for fast_tier to exit and paste its summary).
 Main's existing tests otherwise unchanged (STOP rule). LF only. Token budget 300k; stop at the budget and report what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 23:35 (round 16: S2 exit acceptance; read the report's round-15 section first) ===
+ISSUE: #47
+Round 15 accepted. The supervisor fixed your STOP (test_cli ledger snapshots have no in_town): 491ad134e reads
+getattr(snapshot, "in_town", False) at _equipment_takeoff and _town_equipment_item_available, and 69bda2de5 regenerates the
+manifest. On 69bda2de5: preflight OK (54 files, 0 findings); fast_tier 4445 tests, Failures none, only the out-of-scope
+tests.test_melee_site_lint import error. Do not redo C5/A; the declarations are final (ENFORCE 47 / NO_REFUSAL 64 / EXEMPT 21).
+Remaining S2 exit items (design 5.3 S2 and 5.2), measure and pin; do not add new behavior:
+  1. Capture replays with state carried, ENFORCE on, for #63 #64 #66 (2nd/3rd) #68 #94 #76 (the design's section 2 table lists
+     the capture names; they are under C:\hengband-backups\state-logs and the recorded test fixtures) and the n1-a window
+     (20261023-183351 / -183418 / -183436, from the S1 work): per capture, old shape on 90947a65 (alternation / stuck:wander / wait
+     count) vs the shape on this branch (a named close or progress). Table in the report. One small pin per capture where none
+     exists yet (gzip fixture, last minutes only). The S1 shadow census: every REFUSED row must now be a yield or a named close.
+  2. Timing (design 5.2): (a) the 4 boards and the windows, per board median and p90 on this branch vs 90947a65, within 1.1x.
+     Run the two versions ALTERNATELY on an idle machine (no other test run; check the gate logs as before), at least 5 rounds each,
+     and report the raw numbers. (b) Add to tests/test_town_decision_speed_caches.py / ..._speed2_caches.py: one decision never
+     prepares the equipment optimization twice; the same board the second time hits the signature cache.
+  3. If a capture keeps an alternation / wander / wait shape, or a board is over 1.1x: diagnose with file:line, fix only if it is
+     a defect of the S2 implementation under the decisions already in this file; otherwise STOP and report options.
+  4. The three guards on the final HEAD (wait for fast_tier to exit).
+Main's existing tests unchanged (STOP rule). LF only. Token budget 300k.
