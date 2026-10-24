@@ -3922,7 +3922,7 @@ class EquipmentMixin:
 
     def _town_equipment_item_available(self, snapshot, kind, item, *, address=None):
         """Admit a gear operation without reselecting its caller's town owner."""
-        if not snapshot.in_town:
+        if not getattr(snapshot, "in_town", False):
             return item_available(self, snapshot, item, "equipment-txn", kind)
         from hengbot.town_terminal import commit_refusal, may_take_board, rung_terminal
         previous = getattr(self, "_terminal_item_command", None)
@@ -3988,7 +3988,7 @@ class EquipmentMixin:
         item = next((candidate for candidate in snapshot.equipment
                      if EQUIPMENT_SLOT_KEY.get(candidate.slot) == slot_key), slot_key)
         verdict = reservation_verdict(self, snapshot, item, "equipment-txn", "takeoff")
-        if snapshot.in_town and not isinstance(item, str):
+        if getattr(snapshot, "in_town", False) and not isinstance(item, str):
             if not self._town_equipment_item_available(snapshot, "takeoff", item, address=slot_key):
                 return None
         elif verdict.owner is not None:
