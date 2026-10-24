@@ -115,6 +115,45 @@ class RemainingTownAdmissionTest(unittest.TestCase):
             row, = policy._decision_terminal_admissions
             self.assertEqual(row["codes"], ["departure:hp_full"])
 
+    def test_guardian_fallback_keeps_the_strict_gate_at_the_actual_read(self):
+        # The body admits a fallback using its normal (committing) reader.
+        # At the physical read seam the noncommitting reader must still be
+        # asked: a newly observed failed leaf cannot become an ordinary
+        # repetition remedy merely because the guardian target was switched.
+        for mode in (tt.ENFORCE, tt.SHADOW):
+            policy, snap = blocked_recall()
+            switched = False
+
+            def destination(_snap, *, guardian_gate=True, **kwargs):
+                return ("angband" if switched or not guardian_gate else None, DUNGEON_ANGBAND)
+
+            def switch_target(_snap, _dungeon):
+                nonlocal switched
+                switched = True
+                return True
+
+            with patch.dict(tt.TERMINALS, {"_town_blocked_key":
+                    tt.TERMINALS["_town_blocked_key"]._replace(mode=mode)}), \
+                    patch.object(policy, "_town_recall_destination", side_effect=destination), \
+                    patch.object(policy, "_guardian_blocked_recall_switch", side_effect=switch_target) as switch, \
+                    patch.object(policy, "_recall_town_departure_conjuncts",
+                        side_effect=lambda _snap, **kwargs: {
+                            "hp_full": kwargs.get("commit") is not False}) as gate:
+                key = policy._town_blocked_key(snap)
+            switch.assert_called_once_with(snap, DUNGEON_ANGBAND)
+            if mode == tt.ENFORCE:
+                self.assertEqual(key, WAIT_KEY)
+                self.assertIsNone(policy._read_binding)
+                self.assertFalse(policy._emergency_recall_sanctioned)
+            else:
+                self.assertTrue(key.startswith("rr"), key)
+                self.assertIsNotNone(policy._read_binding)
+                self.assertTrue(policy._emergency_recall_sanctioned)
+            self.assertEqual([entry.kwargs for entry in gate.call_args_list], [{}, {"commit": False}])
+            row, = policy._decision_terminal_admissions
+            self.assertEqual(row["codes"], ["departure:hp_full"])
+            self.assertIsNone(policy._terminal_blocked_recall)
+
     def test_blocked_recall_material_follows_its_own_branch_not_optional_supplies(self):
         policy, snap = blocked_recall()
         policy._terminal_blocked_recall = (DUNGEON_ANGBAND, False, False)
