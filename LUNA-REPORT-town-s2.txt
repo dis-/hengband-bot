@@ -977,3 +977,133 @@ Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-wyzqi_cw)
 Failures: none
 Errors: ['tests.test_melee_site_lint (import) ModuleNotFoundError("No module named \'tests.test_melee_site_lint\'")']
 Total: 3773 tests, 209.8s
+
+=== round 9 / ISSUE #47 / 2026-10-24 ===
+
+STATUS: round 9項目1は完了。項目2は最初の解呪・強化familyのバッチで停止。
+既存テストのmode期待値が変わるため、最終節の「未承認の既存期待値変更が必要なら、
+編集せずそのバッチでSTOP」に従った。全ENFORCE化・S2出口・ガード合格は未達。
+開始HEAD: 0d85e542e。
+
+項目1: 承認済みスタブ修正（コミット543166944）
+- 今回広げたスタブは1箇所だけ。
+  tests/test_policy_town.py:9403
+  TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf
+  旧: lambda _snapshot, values=candidate: dict(values)
+  新: lambda _snapshot, values=candidate, **_kwargs: dict(values)
+  対象reader: _recall_town_departure_conjuncts。
+  返却値・全アサーション・キー/reasonの期待値は変更していない。
+- tests.test_policy_town: 593 tests / 343.966秒、Failures=0、Errors=0、exit 0。
+  round 8の30 subTestのTypeErrorを解消し、実際の出発条件のケースを完走した。
+- 他のスタブを広げる必要はなく、変更していない。
+
+項目2: 最初のfamilyバッチのみ（コミット4cd2d3267）
+- curse-enchant familyの _town_remove_curse_key と _town_enchant_launcher_key を
+  SHADOWからENFORCEに変更し、両方をSHADOW_RUNGSから除いた。
+  gather/verdict/REFUSAL_COMMITSの既存実装をそのまま使用。新条件や上限は追加していない。
+- 実数: SHADOW_RUNGS 109→107、ENFORCE 2→4、EXEMPT_SURVIVAL 21→21。
+  DIRECT_PRODUCERS_S1とPARALLEL_PREDICATES_S1は空のまま。
+  最終切替に未到達なので、S1_SHADOW_CENSUS=109とtest_2_modesは未変更。
+- scripts/town_work_manifest.py --write を実行。
+  859 candidates / 21,937 sites / zero unmapped、生成物の差分なし。
+  新helper・新属性・復元既定値・新reason codeはなし。baseline/review表の追加対象もなし。
+
+停止対象（既存テストの期待値は一切編集していない）
+1. tests.test_town_terminal_curse_remove.CurseRemoveTerminalTest.
+   test_no_scroll_refuses_and_the_body_does_not_read
+   tests/test_town_terminal_curse_remove.py:72
+   旧期待: (row['codes'], row['mode']) == (['no-remove-curse-scroll'], 'shadow')
+   新実測: (['no-remove-curse-scroll'], 'enforce')
+   拒否したrung: _town_remove_curse_key、終端curse-remove。
+   キー旧/新: None / None、last_reason旧/新: '' / ''。
+   拒否コードは旧/新ともno-remove-curse-scrollで同じ。
+   設計どおりか: はい。非EXEMPT rungのENFORCE化による記録modeの変更であり、
+   巻物を持たない実体の本体も元々キーを返さない。mode期待値の変更は今回の承認外。
+   分類: ENFORCE化と既存のSHADOW専用期待値の不整合。仕様を曲げるsrc修正はしない。
+   必要な変更案はこのアサーションの'shadow'→'enforce'だけだが、実施していない。
+2. tests.test_town_terminal_declarations.TerminalDeclarationTest.test_2_modes
+   tests/test_town_terminal_declarations.py:90
+   旧期待ENFORCE集合: {_fixed_quest_key#1, _fixed_quest_key#2}
+   新実測: 上記に _town_remove_curse_key と _town_enchant_launcher_key を追加した4件。
+   キー/reason・拒否の変化ではなく、構造上のmode集合の変化。
+   設計どおりか: はい。このテストの最終変更は承認済みだが、round 9指定の
+   全family切替終了時にはまだ達していないため、今回変更していない。
+
+検証・対照
+- 切替前 tests.test_town_terminal_curse_remove: 8 tests / 0.013秒、全件合格。
+- 切替後、各々単独のunittestモジュールとして町終端22モジュールを実行:
+  130 tests、Failures=2、Errors=0。上記2件だけが失敗、残り128件は合格。
+  ログ: round9-curse-test_town_terminal_*.log。
+- 切替後 tests.test_policy_town: 593 tests / 361.478秒、Failures=0、Errors=0、exit 0。
+- 切替後 tests.test_policy_shop: 275 tests / 30.804秒、合格（skip 1）、exit 0。
+- 切替後 tests.test_policy_home: 171 tests / 52.595秒、合格（skip 4）、exit 0。
+- test_goldburn_shopping_constructed 8件、test_crosstown_alt_recorded 5件、
+  test_town_structure_lint 19件、test_ownership_s2b1_ladder 52件も各単独で合格。
+- 解呪の巻物なし・解呪時の盲目・強化時の盲目の3盤面で、実際の本体を使い、
+  テーブルのmodeだけをSHADOW/ENFORCEにして比較した。
+  全ケースでキーNone・last_reason空文字・拒否コードが一致。
+  巻物なしはno-remove-curse-scroll、盲目2ケースはcannot-read-scroll。
+  ログ: round9-mode-control.log。録画データ・既存のwallは変更していない。
+- 新しいテストは追加していない。未承認の期待値変更も行っていない。
+
+最終ガード（ソースコミット4cd2d3267db12f0c5ed8b2d3296bd52fd8642167後、指定順）
+- preflight: exit 0、35 changed files / 0 findings。
+- mutation_check --record: exit 2、78 source hunks。
+  同じ2件の失敗で、逆適用前の基準テストにてSTOP。
+  今回の差分検知検証は未実施、記録の保存なし。round 8のMUTATION OKは今回のHEADの証拠にしない。
+  テストを除外して合格扱いにすることも、STOP条件を越えた修正もしていない。
+- fast_tier直前の指定パターン・更新70分以内の並行ゲート確認: 稼働0件。
+  以下に3コマンドの出力をそのまま掲載する。
+
+--- preflight ---
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_affordable_shelf_keeps_shopping_owner
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_destination_discards_origin_stockout_and_store_bounds
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_first_alternating_board_quest_return_yields_and_records_arrival
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_observed_stockout_releases_quest_return
+[preflight] NOTE existing-test MODIFIED: tests/test_policy_shop.py::ShopPurchaseSellPolicyTest.test_expired_recall_restock_wait_routes_to_released_store_publicly
+[preflight] NOTE existing-test MODIFIED: tests/test_policy_town.py::TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_commit_pins.py::LedgerRestoreAndRecordTest.test_each_decision_records_its_own_admission
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_3_direct_producers_are_listed
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_4_codes_and_table_agree
+[preflight] PREFLIGHT OK: 35 changed files, 0 findings (town-claim-s2-1023 vs 90947a65)
+
+--- mutation_check --record ---
+[mutation] 78 source hunks, tests: tests.test_town_terminal_curse_remove tests.test_town_terminal_departure tests.test_town_terminal_home_deposit tests.test_town_terminal_home_withdraw tests.test_town_terminal_identify_carried tests.test_town_terminal_identify_equipped tests.test_town_terminal_need_evidence tests.test_town_terminal_quest_work tests.test_town_terminal_refusal_commit tests.test_town_terminal_routes_round6 tests.test_town_terminal_rung_applicability.RungOneApplicabilityTest tests.test_town_terminal_server_categories tests.test_town_terminal_shopping_fold tests.test_town_terminal_supplier tests.test_town_terminal_withdraw_release_round6 tests.test_town_terminal_declarations tests.test_goldburn_shopping_constructed tests.test_town_terminal_commit_pins tests.test_crosstown_alt_recorded tests.test_town_terminal_speed tests.test_town_terminal_plan_round7 tests.test_town_terminal_refusal_round7 tests.test_town_terminal_direct_round8
+[mutation] STOP: the tests are not green before any reversion (test_no_scroll_refuses_and_the_body_does_not_read, test_2_modes)
+
+--- fast_tier --shards 4 ---
+[fast] 3660 fast tests (<2.0s in 8f95933fa) + 23 changed modules, 4 shards
+[fast] excluded 45 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-2a9ennn4)
+Failures: ['tests.test_town_terminal_curse_remove.CurseRemoveTerminalTest.test_no_scroll_refuses_and_the_body_does_not_read', 'tests.test_town_terminal_declarations.TerminalDeclarationTest.test_2_modes']
+Errors: ['tests.test_melee_site_lint (import) ModuleNotFoundError("No module named \'tests.test_melee_site_lint\'")']
+Total: 4366 tests, 559.6s
+
+fast_tier結果: exit 1、4,366 tests / 559.6秒、Crashed shardsなし。
+Failuresは上記と同じ既存mode期待値2件のみ。Errorsは共有タイミングキャッシュ由来の
+存在しないtests.test_melee_site_lintのimport 1件だけで、最終節の指示どおり無視した。
+共有キャッシュの内容やテスト収集を手作業で変更していない。
+今回変更されたtest_policy_townもfast_tier内で全件実行された。
+既存アサーション変更禁止とround 9のSTOP条件を優先し、失敗を消すための追加修正は行っていない。
+preflightだけが合格であり、今回のHEADをmutation/fast_tier合格とは報告しない。
+
+残作業（次回）
+1. 上記curse-removeテストのmode期待値'shadow'→'enforce'の扱いを決める。
+   返るキーNone・空のreason・no-remove-curse-scrollの期待値は維持できる。
+   その後、今回の解呪・強化バッチとガードをgreenにする。
+2. 残る107 SHADOW rungをfamily単位でENFORCEに切り替え、各バッチで町モジュールを検証する。
+   18件には現在終端関数がある（Home関連、鑑定、町間移動、資金稼ぎ、階段、出発・帰還）。
+   89件は現在TerminalDecl(None, SHADOW)なので、町での適用性と終端を実装／確認する必要がある。
+   内訳の実測はround9-remaining.log。SHADOW_RUNGS 107→0と、承認済みtest_2_modesの
+   非EXEMPT全件ENFORCE・SHADOW集合空の最終変更、S1_SHADOW_CENSUS 109→0は未実施。
+3. 従前の設計指定キャプチャ窓の受入れ・前進証拠・盤面ごとの1.1倍以内の性能確認と、
+   最終ソースHEADでの3ガードが残る。今回の単独テストをこれらの完了とは扱わない。
+   全スイートは取り込みゲートの担当のまま。
+
+運用制約
+- 指定worktree・branch town-claim-s2-1023だけで変更し、push・merge・stashはしていない。
+- プロセスの停止・ゲーム/BOTの操作・リモートへの書込みは行っていない。
+- 大規模なtest_parallel_runnerや全スイートは実行していない。
+  単独モジュール検証と指定fast_tier --shards 4だけを使用した。
+- 作業開始時の未追跡ファイルは保持し、今回のログも未追跡の作業記録として保持した。
+  本報告のコミットによる差分は報告だけで、ガード対象のsrc/tests treeは変わらない。
