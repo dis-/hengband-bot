@@ -1,0 +1,23 @@
+{
+  "base": "90947a6505a48524efe8bb216818a56ecfa41f52",
+  "measured_head": "1b6fb1e9f8b1d46f709165618186bb049b77923f",
+  "measured_source_tree": "21219f4a92b50551574b847757897f96778f308a",
+  "helper_sha256": "a6a28a2fb10c37c83fca3b0c9c8f3685d92425ef64c06077844674a4e8976e57",
+  "p90": "nearest rank, ceil(0.9*n); n=5 uses maximum, n=10 uses second largest",
+  "scope": "last two wall-clock minutes; leading response knowledge retained; one policy per window",
+  "timing_order": "old then new, sequential; round-trip paired samples only",
+  "other_test_process_checks": [
+    {
+      "phase": "before final first timing pass",
+      "count": 0
+    },
+    {
+      "phase": "before window repetitions",
+      "count": 0
+    }
+  ],
+  "four_board_initial_five_round_stop": "index 2 p90 ratio 1.1246011869933175; all samples retained in final ten rounds",
+  "pilot_excluded": "round16-timing: overlapped with initial diagnostic replay and fixture extraction",
+  "stop": "capture 20261018-071312, six board p90 ratios over 1.1 after five round trips; no demonstrated S2 defect",
+  "remaining": "074006 has three paired rounds; eleven other windows have one; window timing acceptance is incomplete"
+}

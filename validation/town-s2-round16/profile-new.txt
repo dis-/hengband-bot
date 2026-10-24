@@ -1,0 +1,71 @@
+         880265 function calls (880232 primitive calls) in 0.761 seconds
+
+   Ordered by: cumulative time
+   List reduced from 493 to 65 due to restriction <65>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.795    0.795 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_work.py:130(run)
+        1    0.000    0.000    0.795    0.795 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\item_reservation.py:191(run)
+        1    0.000    0.000    0.795    0.795 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:2651(choose_key)
+        1    0.000    0.000    0.788    0.788 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:2836(choose_ladder)
+        1    0.000    0.000    0.788    0.788 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:7510(_choose_key_with_latch_capture)
+        1    0.006    0.006    0.787    0.787 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:7902(_choose_key)
+        1    0.001    0.001    0.458    0.458 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:10446(_decide)
+       14    0.000    0.000    0.253    0.018 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:5921(_town_producer_entry)
+        1    0.000    0.000    0.251    0.251 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:10980(<lambda>)
+        1    0.000    0.000    0.251    0.251 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:5139(_town_kill_mob_key)
+        1    0.000    0.000    0.251    0.251 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_supply.py:1893(_nearest_goal_step)
+        1    0.019    0.019    0.251    0.251 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_supply.py:1911(_nearest_goal_route)
+        2    0.109    0.055    0.204    0.102 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_navigation.py:1118(_build_grid_index)
+        1    0.003    0.003    0.177    0.177 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:2633(_begin_map_predicate_cache)
+        5    0.028    0.006    0.167    0.033 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:104(_refresh_town_facts)
+     1713    0.036    0.000    0.164    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:19785(_walkable_neighbors)
+   170972    0.093    0.000    0.138    0.000 <string>:38(__hash__)
+        1    0.026    0.026    0.105    0.105 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:2564(_with_grid_memory)
+    10306    0.042    0.000    0.088    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:150(<genexpr>)
+    34598    0.039    0.000    0.075    0.000 {method 'get' of 'dict' objects}
+    83055    0.050    0.000    0.063    0.000 {method 'add' of 'set' objects}
+    12083    0.029    0.000    0.061    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:8026(_on_town_border)
+    83195    0.046    0.000    0.046    0.000 {method 'discard' of 'set' objects}
+171016/171014    0.045    0.000    0.045    0.000 {built-in method builtins.hash}
+   131928    0.042    0.000    0.042    0.000 <string>:8(__eq__)
+        1    0.000    0.000    0.041    0.041 {method 'difference_update' of 'set' objects}
+       10    0.006    0.001    0.041    0.004 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_supply.py:1915(<genexpr>)
+    11330    0.012    0.000    0.038    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:5276(<lambda>)
+        1    0.012    0.012    0.031    0.031 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_observation.py:74(_observe)
+    12083    0.014    0.000    0.026    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:20044(_is_avoidable_hazard_grid)
+    11337    0.016    0.000    0.026    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\model.py:133(distance_to)
+    10320    0.008    0.000    0.017    0.000 {method 'pop' of 'dict' objects}
+       81    0.003    0.000    0.014    0.000 {built-in method builtins.sorted}
+    10305    0.011    0.000    0.011    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:646(_persistent_grid_signature)
+        1    0.000    0.000    0.010    0.010 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\exploration_ledger.py:146(note_decision)
+        1    0.000    0.000    0.010    0.010 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\exploration_ledger.py:23(_sample)
+    20797    0.008    0.000    0.008    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\model.py:777(is_rubble)
+        4    0.005    0.001    0.008    0.002 {method 'update' of 'dict' objects}
+    26198    0.007    0.000    0.007    0.000 {built-in method builtins.abs}
+     9520    0.007    0.000    0.007    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\exploration_ledger.py:24(<genexpr>)
+    10399    0.006    0.000    0.006    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:2635(<genexpr>)
+    12185    0.005    0.000    0.005    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\model.py:922(in_town)
+    11950    0.004    0.000    0.004    0.000 {method 'append' of 'list' objects}
+    11517    0.004    0.000    0.004    0.000 {built-in method builtins.max}
+        4    0.000    0.000    0.003    0.001 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:219(_town_arbiter_progress_vector)
+     1758    0.002    0.000    0.003    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_combat.py:3987(_monster_cast_distance)
+     6907    0.002    0.000    0.002    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:20037(_is_damaging_grid)
+      162    0.001    0.000    0.002    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_arbiter.py:1073(_emission_item_state)
+        5    0.000    0.000    0.002    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_arbiter.py:1116(_owner_progress_core)
+        5    0.000    0.000    0.002    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_arbiter.py:1124(_progress_core_of)
+        1    0.000    0.000    0.002    0.002 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_quest.py:1083(_conquest_departure_ready)
+        1    0.000    0.000    0.002    0.002 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:2191(_town_departure_ready)
+        1    0.000    0.000    0.002    0.002 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:2211(_town_departure_conjuncts)
+     1782    0.001    0.000    0.002    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_arbiter.py:1075(<genexpr>)
+        2    0.000    0.000    0.002    0.001 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:945(_town_retirement_clearance_key)
+        4    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_town.py:1318(_town_progress_fingerprint)
+       90    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_arbiter.py:1144(<genexpr>)
+3414/3385    0.001    0.000    0.001    0.000 {built-in method builtins.getattr}
+        1    0.000    0.000    0.001    0.001 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:4405(_record_decision_claim)
+      108    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_arbiter.py:1083(_town_progress_item_state)
+       65    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:5609(_claim_errand_hold)
+        4    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_supply.py:185(_supply_ledger)
+        4    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy_supply.py:248(_compute_supply_ledger)
+       55    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\town_arbiter.py:1148(<genexpr>)
+       10    0.000    0.000    0.001    0.000 C:\hengband\bot-client\.worktrees\town-claim-s2-1023\src\hengbot\policy.py:5840(_defer_town_errand)

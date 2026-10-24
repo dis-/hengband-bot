@@ -1,0 +1,661 @@
+{
+  "four": {
+    "rounds": 10,
+    "boards": 4,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "shop:travel": 4
+    },
+    "new_reasons": {
+      "shop:travel": 4
+    },
+    "recorded_reasons": {},
+    "refused": 12,
+    "yielded": 8,
+    "closed": 4,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 12
+    },
+    "max_median_ratio": 1.0616485199375187,
+    "max_p90_ratio": 1.074750893917041,
+    "over_limit": 0
+  },
+  "20261018-071312": {
+    "rounds": 5,
+    "boards": 61,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "inventory:destroy-worthless-junk": 6,
+      "shop:travel:await-entry": 1,
+      "store:entry-await-observation": 2,
+      "shop:travel": 1,
+      "shop:approach": 1,
+      "town:kill-mob-approach": 47,
+      "policy:none-wait": 1,
+      "home:request-knowledge-scan": 1,
+      "breakout": 1
+    },
+    "new_reasons": {
+      "inventory:destroy-worthless-junk": 6,
+      "shop:travel:await-entry": 1,
+      "store:entry-await-observation": 2,
+      "shop:travel": 1,
+      "shop:approach": 1,
+      "town:kill-mob-approach": 47,
+      "policy:none-wait": 1,
+      "home:request-knowledge-scan": 1,
+      "breakout": 1
+    },
+    "recorded_reasons": {
+      "periodic:skill-exp-knowledge": 1,
+      "town:restore-combat-weapon": 2,
+      "town:entrance-step-off:policy:none-wait": 1,
+      "shop:travel": 6,
+      "home:weight-overload-deposit": 1,
+      "home:request-knowledge-scan": 2,
+      "town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach": 1,
+      "shop:in-store-done": 3,
+      "town:enchant-launcher-tohit": 1,
+      "town:kill-mob-approach": 6,
+      "periodic:game-save": 1,
+      "periodic:character-dump": 1,
+      "melee": 1,
+      "town:blocked:no-actionable-claim-owner": 2,
+      "home:atomic-deposit": 1,
+      "shop:travel:await-entry": 1,
+      "home:scan-incomplete-open-page": 1,
+      "town:entrance-step-off:shop:observed-operation-uncomposable": 1,
+      "shop:approach": 9,
+      "home:route-claim-unfulfilled": 9,
+      "probe": 2,
+      "town-progress-invariant:boxed-breakout-travel": 7,
+      "shop:observe-and-leave": 1
+    },
+    "refused": 2,
+    "yielded": 0,
+    "closed": 2,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 2
+    },
+    "max_median_ratio": 1.0630446264041917,
+    "max_p90_ratio": 1.3642702909753213,
+    "over_limit": 6
+  },
+  "20261018-074006": {
+    "rounds": 3,
+    "boards": 56,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "return:wait-recall": 4,
+      "ranged:fire": 1,
+      "inventory:destroy-worthless-junk": 3,
+      "shop:travel:await-entry": 1,
+      "store:entry-await-observation": 6,
+      "shop:travel": 3,
+      "store:entry-interrupted-replan": 2,
+      "town:kill-mob-approach": 33,
+      "no-wait:melee": 1,
+      "policy:none-wait": 1,
+      "home:request-knowledge-scan": 1
+    },
+    "new_reasons": {
+      "return:wait-recall": 4,
+      "ranged:fire": 1,
+      "inventory:destroy-worthless-junk": 3,
+      "shop:travel:await-entry": 1,
+      "store:entry-await-observation": 6,
+      "shop:travel": 3,
+      "store:entry-interrupted-replan": 2,
+      "town:kill-mob-approach": 33,
+      "no-wait:melee": 1,
+      "policy:none-wait": 1,
+      "home:request-knowledge-scan": 1
+    },
+    "recorded_reasons": {
+      "return:wait-recall": 4,
+      "ranged:fire": 1,
+      "periodic:skill-exp-knowledge": 1,
+      "shop:travel": 5,
+      "home:weight-overload-deposit": 1,
+      "home:request-knowledge-scan": 1,
+      "town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach": 1,
+      "shop:in-store-done": 2,
+      "probe": 2,
+      "town:kill-mob-approach": 7,
+      "melee": 2,
+      "home:route-claim-unfulfilled": 10,
+      "town:blocked:no-actionable-claim-owner": 2,
+      "shop:approach": 9,
+      "town-progress-invariant:boxed-breakout-travel": 7,
+      "shop:observe-and-leave": 1
+    },
+    "refused": 3,
+    "yielded": 0,
+    "closed": 3,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 3
+    },
+    "max_median_ratio": 1.2038585222496234,
+    "max_p90_ratio": 1.235639109652477,
+    "over_limit": 7
+  },
+  "20261018-091516": {
+    "rounds": 1,
+    "boards": 32,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 2,
+      "shop:travel": 7,
+      "store:entry-await-observation": 12,
+      "store:entry-interrupted-replan": 2,
+      "home:scan-await-observation": 2,
+      "shop:approach": 5,
+      "breakout": 1
+    },
+    "new_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 2,
+      "shop:travel": 7,
+      "store:entry-await-observation": 12,
+      "store:entry-interrupted-replan": 2,
+      "home:scan-await-observation": 2,
+      "shop:approach": 5,
+      "breakout": 1
+    },
+    "recorded_reasons": {
+      "stuck:wander": 15,
+      "town:repetition-required-shopping": 2,
+      "town:kill-mob-approach": 1,
+      "melee": 1,
+      "home:identify-staff-reserve-unavailable": 1,
+      "town:blocked:repetition": 9,
+      "periodic:game-save": 1,
+      "periodic:character-dump": 1,
+      "town:blocked:owner-retired-burst": 1
+    },
+    "refused": 29,
+    "yielded": 0,
+    "closed": 29,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 29
+    },
+    "max_median_ratio": 1.0973738800294848,
+    "max_p90_ratio": 1.0973738800294848,
+    "over_limit": 0
+  },
+  "20261018-140156": {
+    "rounds": 1,
+    "boards": 20,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 1,
+      "shop:travel": 1,
+      "store:entry-await-observation": 1,
+      "shop:approach": 13,
+      "town:kill-mob-approach": 2,
+      "no-wait:melee": 1
+    },
+    "new_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 1,
+      "shop:travel": 1,
+      "store:entry-await-observation": 1,
+      "shop:approach": 13,
+      "town:kill-mob-approach": 2,
+      "no-wait:melee": 1
+    },
+    "recorded_reasons": {
+      "stuck:wander": 13,
+      "periodic:game-save": 1,
+      "periodic:character-dump": 1,
+      "town:kill-mob-approach": 2,
+      "melee": 1,
+      "seek-loot": 1,
+      "town:blocked:owner-retired-burst": 1
+    },
+    "refused": 14,
+    "yielded": 0,
+    "closed": 14,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 14
+    },
+    "max_median_ratio": 1.2470382841314944,
+    "max_p90_ratio": 1.2470382841314944,
+    "over_limit": 1
+  },
+  "20261018-144235": {
+    "rounds": 1,
+    "boards": 59,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "shop:travel": 2,
+      "store:entry-await-observation": 3,
+      "store:entry-interrupted-replan": 1,
+      "shop:approach": 23,
+      "town:blocked:owner-retired": 23,
+      "breakout": 3,
+      "home:request-knowledge-scan": 1,
+      "town:entrance-step-off:policy:none-wait": 1,
+      "survival:mana-absorb": 2
+    },
+    "new_reasons": {
+      "shop:travel": 2,
+      "store:entry-await-observation": 3,
+      "store:entry-interrupted-replan": 1,
+      "shop:approach": 23,
+      "town:blocked:owner-retired": 23,
+      "breakout": 3,
+      "home:request-knowledge-scan": 1,
+      "town:entrance-step-off:policy:none-wait": 1,
+      "survival:mana-absorb": 2
+    },
+    "recorded_reasons": {
+      "shop:travel": 16,
+      "shop:observe-and-leave": 15,
+      "town:wait-restock:temple": 25,
+      "store:entry-interrupted-replan": 1,
+      "survival:mana-absorb": 2
+    },
+    "refused": 51,
+    "yielded": 0,
+    "closed": 51,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 51
+    },
+    "max_median_ratio": 1.2087509732325465,
+    "max_p90_ratio": 1.2087509732325465,
+    "over_limit": 3
+  },
+  "20261018-144457": {
+    "rounds": 1,
+    "boards": 84,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 2,
+      "shop:travel": 1,
+      "store:entry-await-observation": 5,
+      "store:entry-interrupted-replan": 4,
+      "town:kill-mob-approach": 29,
+      "no-wait:melee": 3,
+      "melee": 11,
+      "seek-loot": 28
+    },
+    "new_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 2,
+      "shop:travel": 1,
+      "store:entry-await-observation": 5,
+      "store:entry-interrupted-replan": 4,
+      "town:kill-mob-approach": 29,
+      "no-wait:melee": 3,
+      "melee": 11,
+      "seek-loot": 28
+    },
+    "recorded_reasons": {
+      "seek-loot": 16,
+      "shop:observe-and-leave": 1,
+      "town:kill-mob-approach": 52,
+      "melee": 14,
+      "town:blocked:owner-retired-burst": 1
+    },
+    "refused": 1,
+    "yielded": 0,
+    "closed": 1,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 1
+    },
+    "max_median_ratio": 1.109950427291316,
+    "max_p90_ratio": 1.109950427291316,
+    "over_limit": 1
+  },
+  "20261019-0050": {
+    "rounds": 1,
+    "boards": 18,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 1,
+      "shop:travel": 6,
+      "store:entry-await-observation": 6,
+      "shop:approach": 4
+    },
+    "new_reasons": {
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 1,
+      "shop:travel": 6,
+      "store:entry-await-observation": 6,
+      "shop:approach": 4
+    },
+    "recorded_reasons": {
+      "stuck:wander": 16,
+      "periodic:game-save": 1,
+      "periodic:character-dump": 1
+    },
+    "refused": 21,
+    "yielded": 0,
+    "closed": 21,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 21
+    },
+    "max_median_ratio": 1.1508970121606086,
+    "max_p90_ratio": 1.1508970121606086,
+    "over_limit": 2
+  },
+  "20261019-080433": {
+    "rounds": 1,
+    "boards": 50,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "ranged:fire-target": 2,
+      "melee": 1,
+      "return:wait-recall": 1,
+      "inventory:destroy-worthless-junk": 11,
+      "identify:normal": 7,
+      "shop:travel": 5,
+      "store:entry-await-observation": 8,
+      "shop:approach": 8,
+      "shop:travel:await-entry": 2,
+      "home:request-knowledge-scan": 1,
+      "town:entrance-step-off:shop:observed-operation-uncomposable": 1,
+      "town:blocked:no-actionable-claim-owner": 1,
+      "store:entry-interrupted-replan": 2
+    },
+    "new_reasons": {
+      "ranged:fire-target": 2,
+      "melee": 1,
+      "return:wait-recall": 1,
+      "inventory:destroy-worthless-junk": 11,
+      "identify:normal": 7,
+      "shop:travel": 5,
+      "store:entry-await-observation": 8,
+      "shop:approach": 8,
+      "shop:travel:await-entry": 2,
+      "home:request-knowledge-scan": 1,
+      "town:entrance-step-off:shop:observed-operation-uncomposable": 1,
+      "town:blocked:no-actionable-claim-owner": 1,
+      "store:entry-interrupted-replan": 2
+    },
+    "recorded_reasons": {
+      "ranged:fire-target": 2,
+      "melee": 1,
+      "return:wait-recall": 1,
+      "periodic:skill-exp-knowledge": 1,
+      "periodic:character-dump": 2,
+      "town:recover": 1,
+      "shop:travel": 5,
+      "home:weight-overload-deposit": 1,
+      "identify:normal": 3,
+      "town-progress-invariant:defect:identify:normal=>town-progress-invariant:approach": 1,
+      "town-progress-invariant:continue-observed-shop": 2,
+      "equipment:suppress-random-teleport": 2,
+      "equipment-transaction:takeoff": 2,
+      "equipment-transaction:equip": 2,
+      "equipment-transaction:travel-home": 2,
+      "home:leave-after-one-operation": 2,
+      "equipment-transaction:travel-home:await-entry": 1,
+      "equipment-transaction:defer-identification": 1,
+      "shop:approach": 1,
+      "shop:in-store-buy": 2,
+      "shop:in-store-done": 5,
+      "town-progress-invariant:defect:identify:full-equipped=>town-progress-invariant:approach": 1,
+      "identify:full-equipped": 1,
+      "home:store-context-exit": 1,
+      "equipment-transaction:deposit": 1,
+      "shop:travel:await-entry": 1,
+      "home:scan-incomplete-open-page": 1,
+      "home:request-knowledge-scan": 1,
+      "town:entrance-step-off:shop:observed-operation-uncomposable": 1,
+      "periodic:game-save": 1,
+      "town:blocked:departure-unsatisfiable": 1
+    },
+    "refused": 42,
+    "yielded": 0,
+    "closed": 42,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 42
+    },
+    "max_median_ratio": 2.4551259810744748,
+    "max_p90_ratio": 2.4551259810744748,
+    "over_limit": 3
+  },
+  "20261020-135723": {
+    "rounds": 1,
+    "boards": 53,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "inventory:destroy-worthless-junk": 7,
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 1,
+      "equipment-transaction:catalogue-await-knowledge": 20,
+      "shop:travel": 9,
+      "store:entry-await-observation": 11,
+      "store:entry-interrupted-replan": 3,
+      "town:blocked:owner-retired": 1
+    },
+    "new_reasons": {
+      "inventory:destroy-worthless-junk": 7,
+      "home:request-knowledge-scan": 1,
+      "policy:none-wait": 1,
+      "equipment-transaction:catalogue-await-knowledge": 20,
+      "shop:travel": 9,
+      "store:entry-await-observation": 11,
+      "store:entry-interrupted-replan": 3,
+      "town:blocked:owner-retired": 1
+    },
+    "recorded_reasons": {
+      "shop:in-store-done": 5,
+      "survival:mana-absorb": 1,
+      "shop:approach": 6,
+      "shop:observe-and-leave": 2,
+      "seek-loot": 34,
+      "inventory:destroy-after-superior-item-refusal": 1,
+      "town:entrance-step-off:town:identify-staff-stockout-mining": 1,
+      "probe": 1,
+      "policy:none-store-exit": 1,
+      "town:blocked:departure-unsatisfiable": 1
+    },
+    "refused": 9,
+    "yielded": 0,
+    "closed": 9,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 9
+    },
+    "max_median_ratio": 1.725461919592888,
+    "max_p90_ratio": 1.725461919592888,
+    "over_limit": 5
+  },
+  "20261020-140000": {
+    "rounds": 1,
+    "boards": 29,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "shop:travel:await-entry": 1,
+      "store:entry-await-observation": 3,
+      "inventory:destroy-worthless-junk": 6,
+      "identify:full": 12,
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 2,
+      "shop:approach": 3,
+      "town:entrance-step-off:shop:observed-operation-uncomposable": 1
+    },
+    "new_reasons": {
+      "shop:travel:await-entry": 1,
+      "store:entry-await-observation": 3,
+      "inventory:destroy-worthless-junk": 6,
+      "identify:full": 12,
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 2,
+      "shop:approach": 3,
+      "town:entrance-step-off:shop:observed-operation-uncomposable": 1
+    },
+    "recorded_reasons": {
+      "home:request-knowledge-scan": 6,
+      "home:atomic-withdraw": 2,
+      "home-errand:atomic-withdraw:identification-catalog": 1,
+      "town:entrance-step-off:home:atomic-withdraw-complete": 1,
+      "home:weight-overload-deposit": 1,
+      "town:entrance-step-off:home:atomic-deposit-await-confirmation": 1,
+      "home:atomic-deposit-await-confirmation": 6,
+      "policy:none-store-exit": 1,
+      "home-errand:atomic-withdraw:full-home-sale": 1,
+      "shop:approach": 2,
+      "home:scan-leave-store": 1,
+      "shop:travel": 1,
+      "home:atomic-deposit": 1,
+      "home-errand:request-knowledge:identification-catalog": 1,
+      "town:entrance-step-off:policy:none-wait": 1,
+      "home:identify-staff-reserve-unavailable": 1,
+      "town:blocked:departure-unsatisfiable": 1
+    },
+    "refused": 5,
+    "yielded": 0,
+    "closed": 5,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 5
+    },
+    "max_median_ratio": 1.177128123429387,
+    "max_p90_ratio": 1.177128123429387,
+    "over_limit": 1
+  },
+  "20261023-183351": {
+    "rounds": 1,
+    "boards": 82,
+    "stable": true,
+    "key_reason_differences": 6,
+    "old_reasons": {
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 5,
+      "store:entry-await-observation": 5,
+      "shop:approach": 57,
+      "town:morivant-full-identify:travel-2": 14
+    },
+    "new_reasons": {
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 5,
+      "store:entry-await-observation": 5,
+      "shop:approach": 57,
+      "town:morivant-full-identify:travel-2": 14
+    },
+    "recorded_reasons": {
+      "town:morivant-full-identify:travel-2": 41,
+      "quest:enter:approach": 41
+    },
+    "refused": 154,
+    "yielded": 15,
+    "closed": 139,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 154
+    },
+    "max_median_ratio": 2.443018647209708,
+    "max_p90_ratio": 2.443018647209708,
+    "over_limit": 17
+  },
+  "20261023-183418": {
+    "rounds": 1,
+    "boards": 45,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 1,
+      "store:entry-await-observation": 1,
+      "shop:approach": 41,
+      "breakout": 1
+    },
+    "new_reasons": {
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 1,
+      "store:entry-await-observation": 1,
+      "shop:approach": 41,
+      "breakout": 1
+    },
+    "recorded_reasons": {
+      "periodic:skill-exp-knowledge": 1,
+      "home:request-knowledge-scan": 2,
+      "periodic:game-save": 1,
+      "periodic:character-dump": 1,
+      "town:blocked:equipment-departure-incomplete": 8,
+      "shop:travel": 1,
+      "home:atomic-deposit": 1,
+      "quest:enter:approach": 29,
+      "town:blocked:owner-retired-burst": 1
+    },
+    "refused": 129,
+    "yielded": 0,
+    "closed": 129,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 129
+    },
+    "max_median_ratio": 1.6106400519969668,
+    "max_p90_ratio": 1.6106400519969668,
+    "over_limit": 5
+  },
+  "20261023-183436": {
+    "rounds": 1,
+    "boards": 26,
+    "stable": true,
+    "key_reason_differences": 0,
+    "old_reasons": {
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 1,
+      "store:entry-await-observation": 1,
+      "shop:approach": 22,
+      "breakout": 1
+    },
+    "new_reasons": {
+      "home:request-knowledge-scan": 1,
+      "shop:travel": 1,
+      "store:entry-await-observation": 1,
+      "shop:approach": 22,
+      "breakout": 1
+    },
+    "recorded_reasons": {
+      "periodic:skill-exp-knowledge": 1,
+      "home:request-knowledge-scan": 1,
+      "periodic:game-save": 1,
+      "periodic:character-dump": 1,
+      "town:blocked:equipment-departure-incomplete": 8,
+      "shop:travel": 1,
+      "shop:in-store-done": 1,
+      "quest:enter:approach": 11,
+      "town:blocked:owner-retired-burst": 1
+    },
+    "refused": 72,
+    "yielded": 0,
+    "closed": 72,
+    "unexplained": 0,
+    "modes": {
+      "enforce": 72
+    },
+    "max_median_ratio": 1.4140071042833022,
+    "max_p90_ratio": 1.4140071042833022,
+    "over_limit": 2
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "old": [
+    {
+      "file": "src/hengbot/policy_supply.py",
+      "line": 1911,
+      "function": "_nearest_goal_route",
+      "calls": 1,
+      "self_seconds": 0.016688,
+      "cumulative_seconds": 0.22159130000000002
+    },
+    {
+      "file": "src/hengbot/policy.py",
+      "line": 2615,
+      "function": "_begin_map_predicate_cache",
+      "calls": 1,
+      "self_seconds": 0.0043707,
+      "cumulative_seconds": 0.17835220000000002
+    },
+    {
+      "file": "src/hengbot/policy_town.py",
+      "line": 5129,
+      "function": "_town_kill_mob_key",
+      "calls": 1,
+      "self_seconds": 4.64e-05,
+      "cumulative_seconds": 0.22201990000000002
+    },
+    {
+      "file": "src/hengbot/policy_navigation.py",
+      "line": 1118,
+      "function": "_build_grid_index",
+      "calls": 2,
+      "self_seconds": 0.07905770000000001,
+      "cumulative_seconds": 0.1435413
+    },
+    {
+      "file": "src/hengbot/policy_town.py",
+      "line": 103,
+      "function": "_refresh_town_facts",
+      "calls": 5,
+      "self_seconds": 0.0271276,
+      "cumulative_seconds": 0.164601
+    },
+    {
+      "file": "src/hengbot/policy.py",
+      "line": 2633,
+      "function": "choose_key",
+      "calls": 1,
+      "self_seconds": 0.0004105,
+      "cumulative_seconds": 0.7165329
+    },
+    {
+      "file": "src/hengbot/policy_equipment.py",
+      "line": 778,
+      "function": "_prepare_equipment_optimization",
+      "calls": 1,
+      "self_seconds": 1.86e-05,
+      "cumulative_seconds": 0.00021490000000000002
+    },
+    {
+      "file": "src/hengbot/town_terminal.py",
+      "line": 423,
+      "function": "may_take_board",
+      "calls": 11,
+      "self_seconds": 1.01e-05,
+      "cumulative_seconds": 1.45e-05
+    }
+  ],
+  "new": [
+    {
+      "file": "src/hengbot/policy.py",
+      "line": 2633,
+      "function": "_begin_map_predicate_cache",
+      "calls": 1,
+      "self_seconds": 0.0033084000000000004,
+      "cumulative_seconds": 0.17679270000000002
+    },
+    {
+      "file": "src/hengbot/town_terminal.py",
+      "line": 2011,
+      "function": "may_take_board",
+      "calls": 14,
+      "self_seconds": 2.1000000000000002e-05,
+      "cumulative_seconds": 6.03e-05
+    },
+    {
+      "file": "src/hengbot/policy_town.py",
+      "line": 104,
+      "function": "_refresh_town_facts",
+      "calls": 5,
+      "self_seconds": 0.0275672,
+      "cumulative_seconds": 0.1674333
+    },
+    {
+      "file": "src/hengbot/policy_supply.py",
+      "line": 1911,
+      "function": "_nearest_goal_route",
+      "calls": 1,
+      "self_seconds": 0.0187006,
+      "cumulative_seconds": 0.2510066
+    },
+    {
+      "file": "src/hengbot/policy_equipment.py",
+      "line": 778,
+      "function": "_prepare_equipment_optimization",
+      "calls": 1,
+      "self_seconds": 1.69e-05,
+      "cumulative_seconds": 0.0002211
+    },
+    {
+      "file": "src/hengbot/policy_navigation.py",
+      "line": 1118,
+      "function": "_build_grid_index",
+      "calls": 2,
+      "self_seconds": 0.10932410000000001,
+      "cumulative_seconds": 0.20362670000000002
+    },
+    {
+      "file": "src/hengbot/policy_town.py",
+      "line": 5139,
+      "function": "_town_kill_mob_key",
+      "calls": 1,
+      "self_seconds": 4.4800000000000005e-05,
+      "cumulative_seconds": 0.2513754
+    },
+    {
+      "file": "src/hengbot/policy.py",
+      "line": 2651,
+      "function": "choose_key",
+      "calls": 1,
+      "self_seconds": 0.00034720000000000004,
+      "cumulative_seconds": 0.7945408
+    }
+  ]
+}

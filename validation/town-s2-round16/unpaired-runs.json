@@ -1,0 +1,452 @@
+{
+  "20261018-074006-3-old": [
+    {
+      "turn": 901251,
+      "key": "5",
+      "reason": "return:wait-recall",
+      "seconds": 0.062069599982351065,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901262,
+      "key": "5",
+      "reason": "return:wait-recall",
+      "seconds": 0.04344349994789809,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901274,
+      "key": "fp1",
+      "reason": "ranged:fire",
+      "seconds": 0.002585100010037422,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901282,
+      "key": "5",
+      "reason": "return:wait-recall",
+      "seconds": 0.045622400008141994,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901290,
+      "key": "5",
+      "reason": "return:wait-recall",
+      "seconds": 0.04246829997282475,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901298,
+      "key": "01kk",
+      "reason": "inventory:destroy-worthless-junk",
+      "seconds": 0.9316019000252709,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901298,
+      "key": "01kk",
+      "reason": "inventory:destroy-worthless-junk",
+      "seconds": 1.3400187999941409,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901701,
+      "key": "01kk",
+      "reason": "inventory:destroy-worthless-junk",
+      "seconds": 1.260170300025493,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901711,
+      "key": "5",
+      "reason": "shop:travel:await-entry",
+      "seconds": 0.9496261000167578,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 901711,
+      "key": "",
+      "reason": "store:entry-await-observation",
+      "seconds": 0.37981249997392297,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902046,
+      "key": "\u001b`n(.",
+      "reason": "shop:travel",
+      "seconds": 0.8023758999770507,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902058,
+      "key": "",
+      "reason": "store:entry-await-observation",
+      "seconds": 0.3842282999539748,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902110,
+      "key": "\u001b`n(.",
+      "reason": "shop:travel",
+      "seconds": 0.8129903000080958,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902121,
+      "key": "",
+      "reason": "store:entry-await-observation",
+      "seconds": 0.37530870002228767,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902134,
+      "key": "\u001b`n(.",
+      "reason": "shop:travel",
+      "seconds": 0.7897609999636188,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902305,
+      "key": "",
+      "reason": "store:entry-await-observation",
+      "seconds": 0.3763306000037119,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902316,
+      "key": "\u001b`n(.",
+      "reason": "store:entry-interrupted-replan",
+      "seconds": 0.24346070003230125,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902326,
+      "key": "",
+      "reason": "store:entry-await-observation",
+      "seconds": 0.3736281000310555,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902334,
+      "key": "\u001b`n(.",
+      "reason": "store:entry-interrupted-replan",
+      "seconds": 0.2429388000164181,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902349,
+      "key": "",
+      "reason": "store:entry-await-observation",
+      "seconds": 0.24214599991682917,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902357,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.6288368999958038,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902368,
+      "key": "9",
+      "reason": "no-wait:melee",
+      "seconds": 0.4080198999727145,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902377,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4172650999389589,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902391,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "seconds": 0.4100609999150038,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902402,
+      "key": "~9\u001b\u001b",
+      "reason": "home:request-knowledge-scan",
+      "seconds": 0.27010449999943376,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902617,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.44525059999432415,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902630,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.44523349998053163,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902639,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45004019991029054,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902639,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.44400959997437894,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902648,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.7505500999977812,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902662,
+      "key": "8",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4568997999886051,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902662,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.49363610008731484,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902672,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45573230006266385,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902678,
+      "key": "1",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45596060005482286,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902678,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45103160000871867,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902687,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4976524000521749,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902853,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4285002000397071,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 902865,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4328870999161154,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903037,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4560026000253856,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903044,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.453585600014776,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903055,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45418170001357794,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903055,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4570035000797361,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903067,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4569285000907257,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903074,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4579054999630898,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903074,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45343290001619607,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903086,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4598849000176415,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903094,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4860752000240609,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903094,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4657277000369504,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903103,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.46049850003328174,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903113,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4551138000097126,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903113,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.46144720003940165,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903121,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45710869994945824,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903132,
+      "key": "7",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.46360719995573163,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903132,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45937559998128563,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903144,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.4640183999435976,
+      "admissions": [],
+      "preempted": false
+    },
+    {
+      "turn": 903155,
+      "key": "9",
+      "reason": "town:kill-mob-approach",
+      "seconds": 0.45800250000320375,
+      "admissions": [],
+      "preempted": false
+    }
+  ]
+}

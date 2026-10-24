@@ -1,0 +1,840 @@
+{
+  "63": {
+    "old": [
+      {
+        "turn": 873529,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": []
+      },
+      {
+        "turn": 873529,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "admissions": []
+      },
+      {
+        "turn": 873540,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": []
+      },
+      {
+        "turn": 873549,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": []
+      },
+      {
+        "turn": 873549,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "admissions": []
+      }
+    ],
+    "new": [
+      {
+        "turn": 873529,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                true,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "not-at-home-entrance"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:not-at-home-entrance"
+          }
+        ]
+      },
+      {
+        "turn": 873529,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "admissions": []
+      },
+      {
+        "turn": 873540,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                true
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 873549,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": []
+      },
+      {
+        "turn": 873549,
+        "key": "\u001b",
+        "reason": "home:route-claim-unfulfilled",
+        "admissions": []
+      }
+    ]
+  },
+  "64": {
+    "old": [
+      {
+        "turn": 1062908,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "admissions": []
+      },
+      {
+        "turn": 1063378,
+        "key": "\u001b",
+        "reason": "home:queue-catalogue-shortage",
+        "admissions": []
+      },
+      {
+        "turn": 1063394,
+        "key": "5pn4\r\u001b",
+        "reason": "home:atomic-withdraw",
+        "admissions": []
+      }
+    ],
+    "new": [
+      {
+        "turn": 1062908,
+        "key": "\u001b`n(.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "town-item-processing",
+            "terminal": [
+              "identify-carried",
+              [
+                [
+                  "アニマルスレイヤーのスモール・ソード (1d6) (+5,+3) (+2)",
+                  23,
+                  8
+                ]
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "no-identification-source"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:no-identification-source"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                true,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "not-at-home-entrance"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:not-at-home-entrance"
+          }
+        ]
+      },
+      {
+        "turn": 1063378,
+        "key": "\u001b",
+        "reason": "home:queue-catalogue-shortage",
+        "admissions": []
+      },
+      {
+        "turn": 1063394,
+        "key": "5pn4\r\u001b",
+        "reason": "home:atomic-withdraw",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-digging-tool",
+              "fundraising-no-detection"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+          }
+        ]
+      }
+    ]
+  },
+  "66b": {
+    "old": [
+      {
+        "turn": 1746826,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": []
+      },
+      {
+        "turn": 1746833,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": []
+      }
+    ],
+    "new": [
+      {
+        "turn": 1746826,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-detection"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:fundraising-no-detection"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 1746833,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": []
+      }
+    ]
+  },
+  "66c": {
+    "old": [
+      {
+        "turn": 2946070,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": []
+      }
+    ],
+    "new": [
+      {
+        "turn": 2946070,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-detection"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:fundraising-no-detection"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      }
+    ]
+  },
+  "68": {
+    "old": [
+      {
+        "turn": 2476797,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2476805,
+        "key": "{f@1\r",
+        "reason": "shop:batch-inscribe",
+        "admissions": []
+      },
+      {
+        "turn": 2476957,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2476965,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "admissions": []
+      },
+      {
+        "turn": 2479229,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": []
+      },
+      {
+        "turn": 2481545,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": []
+      },
+      {
+        "turn": 2483887,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": []
+      },
+      {
+        "turn": 2486158,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": []
+      },
+      {
+        "turn": 2488530,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": []
+      },
+      {
+        "turn": 2488662,
+        "key": "\u001b",
+        "reason": "town:recall-stockout-mining",
+        "admissions": []
+      },
+      {
+        "turn": 2488669,
+        "key": "7",
+        "reason": "shop:approach",
+        "admissions": []
+      },
+      {
+        "turn": 2488766,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2488771,
+        "key": "\u001b`n!.",
+        "reason": "shop:travel",
+        "admissions": []
+      },
+      {
+        "turn": 2488931,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2488938,
+        "key": "\u001b`n!.",
+        "reason": "shop:travel",
+        "admissions": []
+      }
+    ],
+    "new": [
+      {
+        "turn": 2476797,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2476805,
+        "key": "{f@1\r",
+        "reason": "shop:batch-inscribe",
+        "admissions": []
+      },
+      {
+        "turn": 2476957,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2476965,
+        "key": "\u001b`n$.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 2479229,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": []
+      },
+      {
+        "turn": 2481545,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 2483887,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 2486158,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 2488530,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 2488662,
+        "key": "\u001b",
+        "reason": "town:recall-stockout-mining",
+        "admissions": []
+      },
+      {
+        "turn": 2488669,
+        "key": "7",
+        "reason": "shop:approach",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-digging-tool"
+            ],
+            "live": [
+              [
+                "shop-buy",
+                "fundraising-digger"
+              ]
+            ],
+            "yields": 1,
+            "closed": null
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 2488766,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2488771,
+        "key": "\u001b`n!.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-digging-tool"
+            ],
+            "live": [
+              [
+                "shop-buy",
+                "fundraising-digger"
+              ]
+            ],
+            "yields": 0,
+            "closed": null
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      },
+      {
+        "turn": 2488931,
+        "key": "\u001b",
+        "reason": "shop:observe-and-leave",
+        "admissions": []
+      },
+      {
+        "turn": 2488938,
+        "key": "\u001b`n!.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-digging-tool"
+            ],
+            "live": [
+              [
+                "shop-buy",
+                "fundraising-digger"
+              ]
+            ],
+            "yields": 0,
+            "closed": null
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      }
+    ]
+  },
+  "94": {
+    "old": [
+      {
+        "turn": 3090008,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": []
+      }
+    ],
+    "new": [
+      {
+        "turn": 3090008,
+        "key": "\u001b`n%.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-detection"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:fundraising-no-detection"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                true
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      }
+    ]
+  },
+  "76": {
+    "old": [
+      {
+        "turn": 660575,
+        "key": "\u001b`n&.",
+        "reason": "shop:travel",
+        "admissions": []
+      }
+    ],
+    "new": [
+      {
+        "turn": 660575,
+        "key": "\u001b`n&.",
+        "reason": "shop:travel",
+        "admissions": [
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": [
+              "fundraising",
+              [
+                "prepare"
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "fundraising-no-digging-tool",
+              "fundraising-no-detection"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": [
+              "home-atomic-withdraw",
+              [
+                false,
+                false
+              ]
+            ],
+            "mode": "enforce",
+            "verdict": "refused",
+            "codes": [
+              "wrong-surface-or-pending"
+            ],
+            "live": [],
+            "yields": 0,
+            "closed": "terminal-refused-unserved:wrong-surface-or-pending"
+          }
+        ]
+      }
+    ]
+  }
+}
