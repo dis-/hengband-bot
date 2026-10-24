@@ -27,10 +27,20 @@ EXPECTED = frozenset({
 
 class NoRefusalDeclarationTest(unittest.TestCase):
     def test_the_13_classified_rungs_have_reasons_and_no_shadow(self):
-        self.assertTrue(EXPECTED <= set(tt.NO_REFUSAL_REASONS))
-        self.assertTrue(EXPECTED <= {name for name, decl in tt.TERMINALS.items()
-                          if decl.mode == tt.NO_REFUSAL})
-        self.assertLessEqual(len(tt.SHADOW_RUNGS), 67)
+        round12 = {
+            "_conquest_loot_key", "_esp_threat_hunt_key",
+            "_fundraising_combat_equipment_key", "_pack_pressure_identify_key",
+            "_return_to_town_key#1", "_return_to_town_key#2", "_return_to_town_key#3",
+            "_unprofitable_unique_disengage_key", "_wield_digging_tool_key",
+            "_step_toward", "_step_toward:departure", "_step_toward:escape",
+            "_step_toward:hunt", "_step_toward:positioning",
+            "_dig_to_known_downstairs_key", "_entrance_travel_key", "idle-fallback",
+            "navigator.decide",
+        }
+        self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12)
+        self.assertEqual({name for name, decl in tt.TERMINALS.items()
+                          if decl.mode == tt.NO_REFUSAL}, EXPECTED | round12)
+        self.assertEqual(len(tt.SHADOW_RUNGS), 56)
         self.assertTrue(EXPECTED.isdisjoint(tt.SHADOW_RUNGS))
         for name in EXPECTED:
             decl = tt.TERMINALS[name]
