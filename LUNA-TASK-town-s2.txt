@@ -231,3 +231,26 @@ commit it, then implement by class: 2 (one commit), 3 (one commit), 4 (per famil
 test_2_modes final change, structural checks limited to ENFORCE / NO_REFUSAL / EXEMPT_SURVIVAL. Same STOP rule for main's
 existing tests. If a rung fits none of 1-5, list it and STOP for it only (continue the others). Then the three guards. Token
 budget 300k; stop at the budget and report precisely what remains.
+
+=== SUPERVISOR DECISIONS 2026-10-24 (round 13; read the report's round-12 section first) ===
+ISSUE: #47
+Round 12 accepted (19 rungs, guards green; the tests.test_melee_site_lint import error stays out of scope).
+Decisions for what you STOPped or left:
+  A. The 8 unclassified rungs (_chest_processing_key#1/#2, _finish_mining_floor, _kill_quest_floor_recovery_key,
+     _normal_loot_key#1/#2, _start_kill_quest_regeneration, _victory_loot_key): the test is not "has a depth guard" but "does
+     this branch take a town board server" (store buy/sell, Home withdraw/deposit/disposal, identify, remove curse, enchant,
+     cross-town travel, fundraising, departure recall). A branch that only picks up / opens / walks / waits / leaves a floor by
+     stairs is NO_REFUSAL with reason "not a town errand: <what it does>" and file:line, even when it is town-reachable; its
+     behavior stays byte-identical. A branch inside them that starts one of those errands (e.g. reading recall to go home with a
+     full pack) gets that errand's existing terminal per board, the same rule as the round-11 departure dispatcher. Same
+     structural census as round 12 so the reason cannot hide a later errand.
+  B. Class 5 (17 rungs): do it now, first, in one commit (it is mechanical), not after class 4.
+  C. Class 4 (31 rungs): per family, reusing the round-9..12 verdicts and servers: (1) store sell / shop transaction / restock /
+     staged store op, (2) Home rearm / relief / catalogue / knowledge / atomic withdraw / after-exit, (3) equipment transaction
+     town / home / owner, (4) destroy / overflow / worthless junk / full pack / overweight surplus sale, (5) the rest (q34 town,
+     restore weapon, heavy curse inscription, town_order_step4, town_blocked, town-progress-committed-loot). Named closes and
+     visible blocked states are NO_REFUSAL as in round 11. One commit per family.
+  D. Fix the trailing blank line at tests/test_town_terminal_dungeon_round12.py:112.
+End state unchanged: SHADOW_RUNGS empty, census 0, test_2_modes final change, structural checks limited to ENFORCE /
+NO_REFUSAL / EXEMPT_SURVIVAL, main's existing tests unchanged (STOP rule), then the three guards. Token budget 300k; stop at the
+budget and report precisely what remains.
