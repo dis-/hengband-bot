@@ -787,12 +787,18 @@ _DEPARTURE_LEAF_SERVERS: dict[str, tuple[Server, ...]] = {
     "home_pending_item_clear": (Server("home-errand"),),
     "home_pending_batch_clear": (Server("home-errand"),),
     "home_batch_review_clear": (Server("home-errand"),),
-    "home_atomic_withdraw_clear": (Server("home-errand"),),
+    "home_atomic_withdraw_clear": (Server("home-errand"), Server("home-visit")),
     "digger_withdrawal_resolved": (Server("home-errand"),),
     "identification_need_clear": (Server("identification"),),
     # Always ready (the quest-entry contract owns quest carry).
     "quest_carry_ready": (),
     "combat_weapon_ready": _TRANSACTION_SERVERS,
+    # The forced-visit departure's existing HARD-only gate.
+    "depth_abilities": _TRANSACTION_SERVERS,
+    "equipment_observed": (),
+    "store_transfer_clear": (
+        Server("store-router"), Server("shop-buy"), Server("shop-sell"), Server("home-visit")),
+    "equipment_transfer_clear": _TRANSACTION_SERVERS,
     "departure_home_pending_item_clear": (Server("home-errand"),),
     "departure_home_pending_batch_clear": (Server("home-errand"),),
     "departure_home_batch_review_clear": (Server("home-errand"),),
@@ -1213,7 +1219,50 @@ def _commit_item_command(policy: Any, board: Any, terminal: TerminalRef,
     # Retain the denied serializer's ownership/invalid-quantity diagnostic.
     # The caller still owns its no-step, failed-attempt or alternative choice.
     kind, target, owner, address = policy._terminal_item_command
+    if kind in {"wield", "takeoff"}:
+        item_available(policy, board, target, owner, kind)
+        return
     reserved_item_command(policy, board, kind, target, owner, address=address)
+
+
+def gather_blocked_recall(policy: Any, board: Any) -> DepartureMaterial:
+    dungeon_id, minimum, strict = policy._terminal_blocked_recall
+    if strict and not minimum:
+        return gather_recall_departure(policy, board)
+    depth = policy._dungeon_entry_depth(board, dungeon_id, via_recall=True)
+    if minimum:
+        values = policy._departure_minimum(board, depth)["values"]
+    else:
+        # The repetition remedy's ordinary branch checks food/two scrolls
+        # and _dungeon_entry_allowed, not the optional supply/loadout leaves
+        # of the normal town-recall dispatcher. Preserve that exact boundary.
+        expedition = policy._morivant_full_identify
+        recall = policy._supply_ledger(board, depth)["recall"]
+        values = {
+            "food_ready": policy._food_ready(board),
+            "recall_departure_ready": policy._count_recall_scrolls(board) >= 2
+                and recall.count >= max(1, recall.required_return),
+            "equipment_transfer_clear": not (expedition is not None and expedition.temporary_deposits),
+            "digger_withdrawal_resolved": not policy._home_digger_withdraw_pending
+                or policy._digger_fallback_bought_this_visit,
+            "depth_abilities": policy._destination_depth_allowed(board, depth),
+            "equipment_departure_ready": policy._equipment_departure_ready(
+                board, destination_depth=depth, commit=False),
+        }
+    return DepartureMaterial(tuple(name for name, value in values.items() if value is not True))
+
+
+def blocked_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    context = getattr(policy, "_terminal_blocked_recall", None)
+    if context is not None:
+        return TerminalRef("blocked-recall", context)
+    return TerminalRef(NO_REFUSAL, ("town-blocked-dispatch",))
+
+
+def opening_town_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    # Q34's readiness/blocked states must still select their suppliers. Gear,
+    # shopping and fixed-quest actions keep their own operation verdicts.
+    return TerminalRef(NO_REFUSAL, ("opening-q34-dispatch",))
 
 
 def home_atomic_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
@@ -1512,17 +1561,11 @@ def _shadow_rungs() -> frozenset[str]:
     # The fixed S1->S2 list: these rungs only record (design 3.7 item 2).
     return frozenset({
         "_chest_processing_key#1", "_chest_processing_key#2",
-        "_heavy_curse_inscription_key",
         "_kill_quest_floor_recovery_key",
         "_normal_loot_key#1", "_normal_loot_key#2",
         "_start_kill_quest_regeneration",
-        "_town_order_step4_key#1", "_town_order_step4_key#2",
-        "_town_restore_weapon_key",
         "_victory_loot_key",
-        "town-progress-committed-loot",
         "_finish_mining_floor",
-        "_opening_q34_town_key",
-        "_town_blocked_key",
     })
 
 
@@ -1548,6 +1591,9 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
+    "_town_order_step4_key#1": "Walk to the bounty office and answer its cash-out prompt for observed wanted remains; unavailable routes are named closes; src/hengbot/policy_town.py:2354",
+    "_town_order_step4_key#2": "Walk to the bounty office and answer its cash-out prompt for observed wanted remains; unavailable routes are named closes; src/hengbot/policy_town.py:2354",
+    "town-progress-committed-loot": "not a town errand: continue pickup or walking to committed floor loot; src/hengbot/policy_town.py:1668",
     "_home_catalogue_work_key": "Request or observe a read-only Home catalogue, adopt its observed rows, or exit; src/hengbot/policy.py:6945",
     "_home_full_knowledge_key": "Request or await a read-only Home census, or exit an incompatible store; src/hengbot/policy_home.py:1390",
     "home-errand-knowledge": "Request or await a filed take's read-only census, or exit before requesting; src/hengbot/policy_home.py:1416",
@@ -1611,6 +1657,10 @@ NO_REFUSAL_REASONS = {
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
+    "_town_blocked_key": TerminalDecl(blocked_intended_terminal, ENFORCE),
+    "_opening_q34_town_key": TerminalDecl(opening_town_intended_terminal, ENFORCE),
+    "_town_restore_weapon_key": TerminalDecl(item_command_intended_terminal, ENFORCE),
+    "_heavy_curse_inscription_key": TerminalDecl(item_command_intended_terminal, ENFORCE),
     **{name: TerminalDecl(item_command_intended_terminal, ENFORCE) for name in (
         "_overweight_surplus_sale_key", "_town_overflow_destroy_key", "_worthless_junk_destroy_key",
         "_full_pack_destroy_key", "_town_destroy_key", "verified-disposal")},
@@ -1659,6 +1709,7 @@ TERMINALS: dict[str, TerminalDecl] = {
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
 _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
+    "blocked-recall": lambda policy, board: verdict_departure(gather_blocked_recall(policy, board)),
     "item-command": lambda policy, board: verdict_item_command(gather_item_command(policy, board)),
     "equipment-command": lambda policy, board: verdict_equipment_command(
         gather_equipment_command(policy, board)),

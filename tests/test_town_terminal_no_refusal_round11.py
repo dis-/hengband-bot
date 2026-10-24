@@ -39,11 +39,12 @@ class NoRefusalDeclarationTest(unittest.TestCase):
         }
         round13 = {'_released_restock_store_key', '_recall_restock_key', '_summoner_ranged_kill_key', '_unseen_retreat_key', '_emergency_item', '_fruitless_disengage_key', '_town_random_teleport_suppression_key', '_blocking_escape_melee_key', '_paralyzer_prevention_key', '_ranged_attack_key#2', '_immobile_breeder_giveup_key', '_detected_threat_preparation_key', '_breeder_breakthrough_key', '_item_destroying_breeder_leave_key', '_ranged_attack_key#1', '_choke_engagement_key', '_esp_threat_rest_key', '_melee_swarm_combat_key', '_breeder_breakthrough_escape_key'}
         round14 = {"_home_catalogue_work_key", "_home_full_knowledge_key",
-                   "home-errand-knowledge", "home-full-knowledge", "home-knowledge-after-exit"}
+                   "home-errand-knowledge", "home-full-knowledge", "home-knowledge-after-exit",
+                   "_town_order_step4_key#1", "_town_order_step4_key#2", "town-progress-committed-loot"}
         self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12 | round13 | round14)
         self.assertEqual({name for name, decl in tt.TERMINALS.items()
                           if decl.mode == tt.NO_REFUSAL}, EXPECTED | round12 | round13 | round14)
-        self.assertEqual(len(tt.SHADOW_RUNGS), 15)
+        self.assertEqual(len(tt.SHADOW_RUNGS), 8)
         self.assertTrue(EXPECTED.isdisjoint(tt.SHADOW_RUNGS))
         for name in EXPECTED:
             decl = tt.TERMINALS[name]

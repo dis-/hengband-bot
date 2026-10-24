@@ -1762,6 +1762,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._terminal_home_take = None
         self._terminal_equipment_command = None
         self._terminal_item_command = None
+        self._terminal_blocked_recall = None
         self._decision_terminal_admissions = []
         # The maximum existing Home bound is installed once per town epoch.
         # Ordinary route bounds may stop earlier; no optimizer/session rebuild
@@ -16745,7 +16746,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             cleaned = stale_tag.inscription.replace(HEAVY_CURSE_TAG, "").strip()
             if not cleaned:
                 self.last_reason = "equipment:clear-heavy-curse-tag"
-                key = reserved_item_command(self, snapshot, "uninscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
+                key = self._town_item_command_entry_key(snapshot, "uninscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
                 if key is None:
                     return None
                 self._offer_execution(
@@ -16755,7 +16756,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 return key
             self.last_reason = "equipment:remove-heavy-curse-tag"
-            prefix = reserved_item_command(self, snapshot, "inscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
+            prefix = self._town_item_command_entry_key(snapshot, "inscribe-equipped", stale_tag, "equipment-txn", address=slot_key)
             if prefix is None:
                 return None
             key = prefix + cleaned + "\r"
@@ -16808,7 +16809,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # end and switches to insert mode before the persistent marker is added.
         suffix = "\x05 " + HEAVY_CURSE_TAG
         self.last_reason = "equipment:mark-heavy-curse"
-        prefix = reserved_item_command(self, snapshot, "inscribe-equipped", target, "equipment-txn", address=slot_key)
+        prefix = self._town_item_command_entry_key(snapshot, "inscribe-equipped", target, "equipment-txn", address=slot_key)
         if prefix is None:
             return None
         key = prefix + suffix + "\r"

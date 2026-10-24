@@ -3920,13 +3920,29 @@ class EquipmentMixin:
             return frozenset()
         return frozenset(selected_ids)
 
+    def _town_equipment_item_available(self, snapshot, kind, item, *, address=None):
+        """Admit a gear operation without reselecting its caller's town owner."""
+        if not snapshot.in_town:
+            return item_available(self, snapshot, item, "equipment-txn", kind)
+        from hengbot.town_terminal import commit_refusal, may_take_board, rung_terminal
+        previous = getattr(self, "_terminal_item_command", None)
+        self._terminal_item_command = (kind, item, "equipment-txn", address)
+        try:
+            terminal = rung_terminal(self, "_town_restore_weapon_key", snapshot)
+            if not may_take_board(self, "_town_restore_weapon_key", "equipment-txn", snapshot, terminal):
+                commit_refusal(self, snapshot, terminal, rung_name="_town_restore_weapon_key")
+                return False
+            return item_available(self, snapshot, item, "equipment-txn", kind)
+        finally:
+            self._terminal_item_command = previous
+
     def _equipment_wield(
         self, snapshot: Snapshot, goal: str, item: InventoryItem,
         target_slot: str | None, *, quest_contract_exempt: bool = False,
     ) -> str | None:
         if target_slot is None:
             return None
-        if not item_available(self, snapshot, item, "equipment-txn", "wield"):
+        if not self._town_equipment_item_available(snapshot, "wield", item, address=target_slot):
             return None
         if (
             not quest_contract_exempt
@@ -3972,7 +3988,10 @@ class EquipmentMixin:
         item = next((candidate for candidate in snapshot.equipment
                      if EQUIPMENT_SLOT_KEY.get(candidate.slot) == slot_key), slot_key)
         verdict = reservation_verdict(self, snapshot, item, "equipment-txn", "takeoff")
-        if verdict.owner is not None:
+        if snapshot.in_town and not isinstance(item, str):
+            if not self._town_equipment_item_available(snapshot, "takeoff", item, address=slot_key):
+                return None
+        elif verdict.owner is not None:
             return None
         result = self._equipment_mutation.request_takeoff(
             snapshot, goal, slot_key, verdict=verdict, policy=self)

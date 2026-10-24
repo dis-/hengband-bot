@@ -6066,6 +6066,7 @@ class TownMixin:
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
                     selection = ""
+                    strict_departure_gate = False
                     recall_dungeon_id = snapshot.recall_dungeon_id
                     if snapshot.in_town:
                         recall_dest, recall_dungeon_id = (
@@ -6079,6 +6080,7 @@ class TownMixin:
                             )
                             if gated_dest is None:
                                 return WAIT_KEY
+                            strict_departure_gate = not bool(self._visit_departure_committed)
                             if not (self._departure_minimum(snapshot,
                                     self._dungeon_entry_depth(snapshot, gated_dungeon,
                                                               via_recall=True))["holds"]
@@ -6128,9 +6130,20 @@ class TownMixin:
                         )
                         if selection is None:
                             return WAIT_KEY
-                    self.last_reason = "town:repetition-depart:recall"
-                    self._emergency_recall_sanctioned = True
-                    key = self._read_key(snapshot, recall, selection)
+                    from hengbot.town_terminal import may_take_board, rung_terminal
+                    previous = getattr(self, "_terminal_blocked_recall", None)
+                    self._terminal_blocked_recall = (
+                        recall_dungeon_id, bool(self._visit_departure_committed), strict_departure_gate)
+                    try:
+                        terminal = rung_terminal(self, "_town_blocked_key", snapshot)
+                        if snapshot.in_town and not may_take_board(
+                                self, "_town_blocked_key", "departure", snapshot, terminal):
+                            return WAIT_KEY
+                        self.last_reason = "town:repetition-depart:recall"
+                        self._emergency_recall_sanctioned = True
+                        key = self._read_key(snapshot, recall, selection)
+                    finally:
+                        self._terminal_blocked_recall = previous
                     self._offer_execution(
                         key, producer="departure",
                         work_id=f"town:repetition-recall:{recall_dungeon_id}",

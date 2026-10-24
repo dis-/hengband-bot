@@ -52,7 +52,8 @@ class DepartureLeafTest(unittest.TestCase):
         snap = board()
         policy = policy_on(snap)
         leaves = (set(policy._town_departure_conjuncts(snap, commit=False))
-                  | set(policy._recall_town_departure_conjuncts(snap, commit=False)))
+                  | set(policy._recall_town_departure_conjuncts(snap, commit=False))
+                  | set(policy._departure_minimum(snap, 1)["values"]))
         declared = {code.partition(":")[2] for code in REFUSAL_SERVERS
                     if code.startswith("departure:") and code != "departure:*"}
         self.assertEqual(leaves, declared)
