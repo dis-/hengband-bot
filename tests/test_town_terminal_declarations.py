@@ -89,6 +89,8 @@ class TerminalDeclarationTest(unittest.TestCase):
         enforce = {name for name, decl in TERMINALS.items() if decl.mode == ENFORCE}
         self.assertEqual(enforce, {"_fixed_quest_key#1", "_fixed_quest_key#2",
                                    "_town_remove_curse_key", "_town_enchant_launcher_key"})
+        self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset(
+            name for name, decl in TERMINALS.items() if decl.mode == SHADOW))
         for name, decl in TERMINALS.items():
             self.assertIn(decl.mode, {ENFORCE, SHADOW, EXEMPT_SURVIVAL}, name)
             if decl.mode == EXEMPT_SURVIVAL:
