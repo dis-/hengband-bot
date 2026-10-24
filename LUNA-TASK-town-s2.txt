@@ -342,3 +342,23 @@ board). The store-buy material and the supplier reachability are evaluated ~12 t
      Get-Process); report the numbers as indicative. The supervisor re-measures on Linux after your commit.
   4. The three guards on the final HEAD (wait for fast_tier to exit).
 Main's existing tests unchanged (STOP rule). LF only. Token budget 200k.
+
+=== SUPERVISOR DECISIONS 2026-10-25 06:05 (round 18: merge-gate full-suite failures; read the report's round-17 section first) ===
+ISSUE: #47
+Round 17 accepted. The supervisor re-measured 2d1cc8192 on the Linux machine (10 alternating rounds, all 13 windows + four
+boards): every board within 1.1x (max board p90 1.083x, total ratios 0.909-1.003). Timing is DONE; do not measure again.
+The merge gate (main 8f95933f + this branch c57400e0, log C:\hengband-backups\suite-logs\gate-town-claim-s2-1023.run.log) passed
+preflight, mutation record and fast_tier (4487 tests, 0 failures, 0 errors) but the FULL suite (6531 tests) has 2 failing tests
+that fast_tier does not run (slow modules; you never ran them):
+  A. tests.test_declarations_r14.DeclarationR14Test.test_overweight_home_tail_keeps_its_operation_at_3715
+     AssertionError: (list_index, historical_sequence) (5, 5) != (3715, 3714) - the OFF/ON first divergence of the "overweight"
+     replay (measure("overweight", "s33")) moved from row 3715 to row 5.
+  B. tests.test_live37_home_scan.Live37HomeScanTest.test_second_recorded_board_public_off_shadow_and_on_continuation, subtests
+     (restored=False, enforced=True) and (restored=True, enforced=True): ('3', 'shop:approach') != ('\x1b`n(.', 'shop:travel').
+Both are main's existing tests (STOP rule applies to changing them). Diagnose each FIRST with file:line and the measured rows /
+decisions (what row 5 is in OFF and ON, which S2 terminal/verdict or memo changed it; for B which rung now wins and why the
+enforced board approaches instead of travelling): is it R (an S2 defect: fix in source, tests unchanged) or a consequence of an
+already-approved S2 rule (then STOP with old/new and why; no test change without the supervisor). Run each of these modules
+alone (they are slow: test_declarations_r14 and test_live37_home_scan) before and after. Also run alone, after any fix, every
+module listed as "excluded ... measured over 60s" in C:\hengband-backups\suite-logs\gate-town-claim-s2-1023-fast.log that touches
+town/home/shop (list which you ran). Then the three guards. LF only. Token budget 200k, 150 minutes.
