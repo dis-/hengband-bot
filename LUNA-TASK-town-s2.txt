@@ -254,3 +254,13 @@ Decisions for what you STOPped or left:
 End state unchanged: SHADOW_RUNGS empty, census 0, test_2_modes final change, structural checks limited to ENFORCE /
 NO_REFUSAL / EXEMPT_SURVIVAL, main's existing tests unchanged (STOP rule), then the three guards. Token budget 300k; stop at the
 budget and report precisely what remains.
+
+=== SUPERVISOR NOTE 2026-10-24 18:05 (round 13, continued) ===
+ISSUE: #47
+Your round-13 run stopped at 18:02 with "Selected model is at capacity" after committing 9e2a5de79 (class 5). Its uncommitted
+work is still in the worktree (src/hengbot/policy.py, src/hengbot/town_terminal.py, tests/test_town_terminal_declarations.py,
+tests/test_town_terminal_no_refusal_round11.py: the store family of class 4, _released_restock_store_key / _recall_restock_key
+and the commit_refusal return change). Keep it: review it, re-run its module tests (it was running tests.test_policy_shop /
+home / town / test_town_structure_lint), and commit it as the store-family commit. The files now have CRLF line endings in the
+working copy (written via PowerShell Set-Content); write them back with LF only (as the repository has them) before committing,
+and write files with Python newline="\n" from now on. Then continue round 13 (C families 2-5, A, D) as written above.
