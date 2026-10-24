@@ -4931,7 +4931,7 @@
       "home-withdraw"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0e3768edb2f033a5445a7eefc69a94b170771d1805f34242b655bea51461df76"
+    "ast_sha256": "08f15c38de62b0256fd78c5c8041e2d74fb8eff97025dea17c1ee3bb3ad226fa"
   },
   "policy_home.py:HomeMixin._atomic_home_withdraw_key": {
     "classification": "adapter",
@@ -5158,7 +5158,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "aa699013b7bcc0c02c316f136e4de4d00442f6a8338ce90be02af76102c82abe"
+    "ast_sha256": "43e006afb78d7c78d8ec3472aa51a9de8216fc723ec049ca7099290bc0d66f50"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
@@ -5210,6 +5210,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "92f45926ec311e65e8105d88dc091139cf0c46025ea79da222ca102de3e40d27"
+  },
+  "policy_home.py:HomeMixin._home_take_entry_key": {
+    "classification": "adapter",
+    "rows": [
+      "home-withdraw"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "ef54889fbc218c15394e455e1d149e05f2d650fa7bdd23866f49a216b35d87a9"
   },
   "policy_home.py:HomeMixin._home_visit_keep_set": {
     "classification": "data",
@@ -6875,6 +6883,16 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "da023ce89f01c595392d51b2a736b0dab62bfffb0f76f405fd7c752fbd321781"
   },
+  "policy_shop.py:ShopMixin._store_sale_entry_key": {
+    "classification": "adapter",
+    "rows": [
+      "sale",
+      "sale-address",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e9ba432a5ed0e9fabd5bca93d0faf7effb9e68229e5bba910752053afaf6d096"
+  },
   "policy_shop.py:ShopMixin._store_sell_key": {
     "classification": "producer",
     "rows": [
@@ -6883,7 +6901,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "4977a9d45b4cdcc42109762c74bf01db0fc86c449b55af753b46f13d441c7199"
+    "ast_sha256": "c1640059d11f576c3324cb69402d7a9460744f828d9bb897ace2fce35e329d4a"
   },
   "policy_shop.py:_ShoppingApproachEmission.__new__": {
     "classification": "adapter",

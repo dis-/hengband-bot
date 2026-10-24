@@ -15,6 +15,8 @@ from hengbot.equipment_optimizer import equipment_identity
 # Queued candidates/selection observations retain their existing non-exclusive
 # semantics. Ownership is acquired at the existing atomic/transaction seam.
 ITEM_RESERVATION_SOURCES = {
+    '_terminal_home_take': ('selection', 'Scoped observed Home take target for admission; no additional exclusive owner'),
+    '_terminal_store_sale': ('selection', 'Scoped exact sale target and refusal reason for admission; no additional exclusive owner'),
     '_overweight_surplus_disposal': ('selection', 'F3 shop-sell surplus transaction selection/observation; retained units acquire no new exclusive owner'),
     '_batch_sell_pending': ('selection', 'batch sell pending; selection/observation intent, no additional exclusive owner'),
     '_destroy_watch': ('selection', 'destroy watch; selection/observation intent, no additional exclusive owner'),

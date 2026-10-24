@@ -827,7 +827,9 @@ class HomeMixin:
                 # keep the items for the next visit (2026-10-07 13:02).
                 self._home_full_retry_deposits = None
                 return None
-            return self._shopping_approach_key(snapshot, step, "shop:travel")
+            return self._town_producer_entry(
+                "_shopping_approach_key", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"),
+                family="store-router")
         if self._home_full_relief is None and self._home_is_full(snapshot):
             first = self._find_home_deposit(snapshot)
             if first is not None:
@@ -996,7 +998,7 @@ class HomeMixin:
                 if snapshot.store is not None:
                     if snapshot.store.store_type != store_type:
                         return self._home_full_leave_key("home:full-leave-with-surplus")
-                    key = self._store_sell_key(snapshot, target,
+                    key = self._store_sale_entry_key(snapshot, target,
                         "shop:sell-home-full-surplus",
                         rejected_reason="shop:unsellable-home-full-surplus-sale-refused")
                     if (key and key.startswith(("d", "{"))
@@ -1374,7 +1376,9 @@ class HomeMixin:
         if step is None:
             self._town_blocked_reason = "home-full-surplus-store-unreachable"
             return self._town_blocked_key(snapshot)
-        return self._shopping_approach_key(snapshot, step, "shop:travel")
+        return self._town_producer_entry(
+            "_shopping_approach_key", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"),
+            family="store-router")
 
     @staticmethod
     def _store_page_can_request_knowledge(snapshot: Snapshot) -> bool:
@@ -3182,6 +3186,18 @@ class HomeMixin:
             "home-atomic-withdraw", lambda: self._atomic_home_withdraw_dispatch_key(
                 snapshot, step), family=family)
 
+    def _home_take_entry_key(self, snapshot, item, owner, quantity, letter):
+        """Admit the observed shelf target before composing its physical take."""
+        previous = getattr(self, "_terminal_home_take", None)
+        self._terminal_home_take = (item, owner, quantity, letter)
+        try:
+            return self._town_producer_entry(
+                "home-atomic-withdraw", lambda: store_item_key(
+                    self, snapshot, "withdraw", item, owner, quantity=quantity, address=letter),
+                family=owner)
+        finally:
+            self._terminal_home_take = previous
+
     def _atomic_home_withdraw_dispatch_key(
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
@@ -3536,8 +3552,7 @@ class HomeMixin:
         # The completed address scan binds the shelf letter and stack count to
         # this one-shot entry.  A multi-item stack therefore proves that the
         # quantity prompt will consume this response before the leave key.
-        withdrawal = store_item_key(self, snapshot, "withdraw", item, owner,
-                                    quantity=take_count, address=letter)
+        withdrawal = self._home_take_entry_key(snapshot, item, owner, take_count, letter)
         if withdrawal is None:
             return None
         operation_key = (" " * page) + withdrawal + LEAVE_STORE_KEY

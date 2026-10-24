@@ -3904,6 +3904,19 @@ class ShopMixin(InStoreMixin):
         )
 
     @claims(ClaimOwner.SHOP_SELL)
+    def _store_sale_entry_key(self, snapshot, item, reason, **kwargs):
+        """Bind the caller's exact sale target and refusal reason to admission."""
+        previous = getattr(self, "_terminal_store_sale", None)
+        self._terminal_store_sale = (
+            item.slot, self._item_signature(item),
+            kwargs.get("rejected_reason", "shop:unsellable-leave"))
+        try:
+            return self._town_producer_entry(
+                "_store_sell_key", lambda: self._store_sell_key(snapshot, item, reason, **kwargs),
+                family="shop-sell")
+        finally:
+            self._terminal_store_sale = previous
+
     def _store_sell_key(
         self,
         snapshot: Snapshot,

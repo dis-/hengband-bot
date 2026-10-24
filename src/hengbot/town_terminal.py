@@ -426,6 +426,40 @@ def verdict_home_withdraw(material: HomeWithdrawMaterial) -> Admission:
     return ADMIT
 
 
+@dataclass(frozen=True)
+class HomeAtomicWithdrawMaterial:
+    surface_ready: bool
+    at_entrance: bool
+
+
+def gather_home_atomic_withdraw(policy: Any, board: Any) -> HomeAtomicWithdrawMaterial:
+    visit = policy._store_visit
+    step_off = getattr(policy, "_store_entrance_step_off", None)
+    surface_ready = bool(
+        board.store is None
+        and policy._shopping_approach_store_type == STORE_HOME
+        and policy._home_atomic_withdraw_pending is None
+        and (visit is None or visit.store_type == STORE_HOME)
+        and (step_off is None or step_off[0] == policy._decision_sequence))
+    entrance = board.grid_at(board.player.position)
+    return HomeAtomicWithdrawMaterial(
+        surface_ready, entrance is not None and entrance.store_number == STORE_HOME)
+
+
+def verdict_home_atomic_withdraw(material: HomeAtomicWithdrawMaterial) -> Admission:
+    if not material.surface_ready:
+        return refused(("wrong-surface-or-pending",))
+    if not material.at_entrance:
+        return refused(("not-at-home-entrance",))
+    return ADMIT
+
+
+def gather_home_take(policy: Any, board: Any) -> HomeWithdrawMaterial:
+    target, owner, _quantity, _letter = policy._terminal_home_take
+    return HomeWithdrawMaterial(True, any(item is target for item in policy._home_knowledge_items)
+                                and item_available(policy, board, target, owner, "withdraw"))
+
+
 def plan_stop_admission(policy: Any, board: Any, need: Any) -> Admission:
     """Judge the same supplier before putting it in the town route.
 
@@ -690,7 +724,9 @@ ENCHANT_LAUNCHER_CODES = frozenset({"cannot-read-scroll"})
 IDENTIFY_CODES = frozenset({"no-identification-source"})
 IDENTIFY_CARRIED_CODES = IDENTIFY_CODES | {"full-identification-exhausted"}
 # Codes the Home withdrawal verdict can return (verdict_home_withdraw).
-HOME_WITHDRAW_CODES = frozenset({"reservation-unavailable"})
+HOME_WITHDRAW_CODES = frozenset({
+    "reservation-unavailable", "wrong-surface-or-pending", "not-at-home-entrance",
+})
 # Codes the entrance deposit verdict can return.
 HOME_ATOMIC_DEPOSIT_CODES = frozenset({"home-full-relief-pending"})
 # Categories are ``_town_need_registry`` names (design 3.4, S2 (c)).
@@ -828,6 +864,8 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
         Server("shop-buy", "identification-source"),
         Server("cross-town"),
     ),
+    "wrong-surface-or-pending": (),
+    "not-at-home-entrance": (),
     # A Home-full relief owns the page first (``_home_full_relief_key``).
     "home-full-relief-pending": (Server("home-visit"),),
     "cross-town-fare-unaffordable": (
@@ -1061,6 +1099,29 @@ def home_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalRef | No
     return TerminalRef("home-withdraw", (target,))
 
 
+def home_atomic_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    if board is None:
+        return None
+    context = getattr(policy, "_terminal_home_take", None)
+    if context is not None:
+        target, owner, quantity, letter = context
+        return TerminalRef("home-take", (
+            policy._item_signature(target), getattr(target, "slot", ""), owner, quantity, letter))
+    return TerminalRef("home-atomic-withdraw", ())
+
+
+def home_relief_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    # Like town-special, this dispatcher must retain its effect confirmations,
+    # candidate misses and scan requests. Its child entries admit actual work.
+    return TerminalRef(NO_REFUSAL, ("home-relief-dispatch",))
+
+
+def home_rearm_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    # This selector only files a request or advances/exits a Home page. The
+    # physical take belongs to home-atomic-withdraw, after address observation.
+    return TerminalRef(NO_REFUSAL, ("home-rearm-file-or-scan",))
+
+
 def home_atomic_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     """``home-atomic-deposit``: the entrance deposit bound to its stay."""
     if (board.store is not None or policy._shopping_approach_store_type != STORE_HOME
@@ -1243,6 +1304,10 @@ class StoreSaleMaterial:
 
 
 def store_sale_target(policy: Any, board: Any) -> Any:
+    context = getattr(policy, "_terminal_store_sale", None)
+    if context is not None:
+        return next((item for item in board.inventory
+                     if item.slot == context[0] and policy._item_signature(item) == context[1]), None)
     state = policy._overweight_surplus_disposal
     pending = state.get("pending") if state is not None else None
     if pending is None:
@@ -1275,6 +1340,9 @@ def verdict_store_sale(material: StoreSaleMaterial) -> Admission:
 
 
 def store_sale_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    context = getattr(policy, "_terminal_store_sale", None)
+    if context is not None:
+        return TerminalRef("store-sell", (context[1], context[0], context[2]))
     state = policy._overweight_surplus_disposal
     pending = state.get("pending") if state is not None else None
     if pending is None:
@@ -1300,6 +1368,7 @@ def _commit_store_sale(policy: Any, board: Any, terminal: TerminalRef,
         policy._store_sell_stuck_count = 0
     policy.last_reason = ("shop:retain-standing-digging-tool"
                           if material.target_present and material.available and material.retained
+                          else terminal.args[2] if len(terminal.args) > 2
                           else "shop:unsellable-leave")
     policy._offer_store_sale_leave(board)
     return LEAVE_STORE_KEY
@@ -1353,9 +1422,6 @@ def _shadow_rungs() -> frozenset[str]:
         "_equipment_transaction_town_key", "_equipment_transaction_town_key#1",
         "_equipment_transaction_town_key#2", "_equipment_transaction_town_owner_key",
         "_heavy_curse_inscription_key",
-        "_home_catalogue_work_key",
-        "_home_full_knowledge_key", "_home_full_relief_key",
-        "_home_rearm_key",
         "_kill_quest_floor_recovery_key",
         "_normal_loot_key#1", "_normal_loot_key#2",
         "_overweight_surplus_sale_key",
@@ -1364,8 +1430,6 @@ def _shadow_rungs() -> frozenset[str]:
         "_town_overflow_destroy_key",
         "_town_restore_weapon_key",
         "_victory_loot_key", "_worthless_junk_destroy_key",
-        "home-atomic-withdraw", "home-errand-knowledge",
-        "home-full-knowledge", "home-knowledge-after-exit",
         "town-progress-committed-loot",
         "verified-disposal",
         "_finish_mining_floor",
@@ -1398,6 +1462,11 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
+    "_home_catalogue_work_key": "Request or observe a read-only Home catalogue, adopt its observed rows, or exit; src/hengbot/policy.py:6945",
+    "_home_full_knowledge_key": "Request or await a read-only Home census, or exit an incompatible store; src/hengbot/policy_home.py:1390",
+    "home-errand-knowledge": "Request or await a filed take's read-only census, or exit before requesting; src/hengbot/policy_home.py:1416",
+    "home-full-knowledge": "Request or await a read-only Home census, or exit before requesting; src/hengbot/policy_home.py:1390",
+    "home-knowledge-after-exit": "Request or await a read-only Home census after the observed exit; src/hengbot/policy_home.py:1390",
     "_released_restock_store_key": "Delegate each supplier walk to the shopping terminal; unreachable suppliers produce a visible named close; src/hengbot/policy_shop.py:1015",
     "_recall_restock_key": "Observe stock turnover or queue mining preparation; supplier walking delegates to the shopping terminal; src/hengbot/policy.py:15758",
     '_blocking_escape_melee_key': 'tactical survival/combat: not a town errand; src/hengbot/policy.py:19599',
@@ -1456,6 +1525,9 @@ NO_REFUSAL_REASONS = {
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
+    "home-atomic-withdraw": TerminalDecl(home_atomic_withdraw_intended_terminal, ENFORCE),
+    "_home_full_relief_key": TerminalDecl(home_relief_intended_terminal, ENFORCE),
+    "_home_rearm_key": TerminalDecl(home_rearm_intended_terminal, ENFORCE),
     "_store_sell_key": TerminalDecl(store_sale_intended_terminal, ENFORCE),
     "_release_staged_store_operation": TerminalDecl(staged_store_intended_terminal, ENFORCE),
     "_atomic_shop_transaction_key": TerminalDecl(shop_page_intended_terminal, ENFORCE),
@@ -1494,6 +1566,9 @@ TERMINALS: dict[str, TerminalDecl] = {
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
 _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
+    "home-atomic-withdraw": lambda policy, board: verdict_home_atomic_withdraw(
+        gather_home_atomic_withdraw(policy, board)),
+    "home-take": lambda policy, board: verdict_home_withdraw(gather_home_take(policy, board)),
     "store-route": lambda policy, board: verdict_store_route(gather_store_route(policy, board)),
     "staged-store-operation": lambda policy, board: verdict_staged_store(gather_staged_store(policy, board)),
     "store-sell": lambda policy, board: verdict_store_sale(gather_store_sale(policy, board)),
@@ -1602,6 +1677,12 @@ def _commit_home_withdraw(policy: Any, board: Any, terminal: TerminalRef,
         policy._close_store_visit("reservation-unavailable")
 
 
+def _commit_home_atomic_withdraw(policy: Any, board: Any, terminal: TerminalRef,
+                                 admission: Admission) -> None:
+    if terminal.terminal_id == "home-atomic-withdraw":
+        policy._offer_home_atomic_no_step("withdraw", admission.codes[0])
+
+
 def _commit_curse_remove(policy: Any, board: Any, terminal: TerminalRef,
                          admission: Admission) -> None:
     # The body's no-step causes are the verdict's codes.
@@ -1654,6 +1735,7 @@ def _commit_fundraising_run(policy: Any, board: Any, terminal: TerminalRef,
 # Rung-specific confirmation takes precedence when a terminal is shared by
 # different producers; the other entries apply to the terminal kind.
 REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], str | None]] = {
+    "home-atomic-withdraw": _commit_home_atomic_withdraw,
     "shop-page": _commit_shop_page,
     "store-sell": _commit_store_sale,
     "_fundraising_key#1": _commit_fundraising_run,
