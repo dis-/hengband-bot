@@ -114,6 +114,22 @@ class HomeReliefIdentificationTest(unittest.TestCase):
         self.assertEqual(policy._identify_fail_streak, 0)
         self.assertEqual(policy._decision_terminal_admissions, [])
 
+    def test_inscription_changes_use_the_same_identity_as_the_relief_body(self):
+        for old_name in ("carried sword", "carried sword {old}"):
+            with self.subTest(old_name=old_name):
+                snap = carried_board()
+                old_target = replace(snap.inventory[0], name=old_name)
+                policy, _ = relief_policy(replace(snap, inventory=[old_target]))
+                target = replace(old_target, name="carried sword {new}")
+                current = replace(snap, inventory=[target])
+                self.assertEqual(policy._sale_item_identity(old_target),
+                                 policy._sale_item_identity(target))
+                terminal = tt.rung_terminal(policy, RUNG, current)
+                self.assertEqual(terminal, tt.TerminalRef(
+                    "home-full-identify", (policy._item_signature(target),)))
+                self.assertEqual(tt.terminal_admission(policy, current, terminal).codes,
+                                 ("no-identification-source",))
+
     def test_absent_or_departed_target_leaves_the_parent_to_settle_its_state(self):
         snap = carried_board()
         policy, _ = relief_policy(snap)

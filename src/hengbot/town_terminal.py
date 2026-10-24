@@ -10,6 +10,7 @@ the commit that only the terminal's own call site performs.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import re
 from typing import Any, Callable, NamedTuple
 
 from hengbot.policy_constants import (
@@ -360,8 +361,11 @@ def home_full_identification_target(policy: Any, board: Any) -> Any:
     sale = relief.get("sale") if relief is not None else None
     if sale is None:
         return None
+    # The relief body follows its sale identity across inscription changes.
+    name, tval, sval = sale[0]
+    identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", name), tval, sval)
     return next((item for item in board.inventory
-                 if policy._item_signature(item) == sale[0]), None)
+                 if policy._sale_item_identity(item) == identity), None)
 
 
 def gather_home_full_identify(policy: Any, board: Any) -> IdentifyMaterial:
