@@ -1,0 +1,41 @@
+{
+  "matching": "same capture, board index, rung, and terminal",
+  "totals": {
+    "old_refused": 143,
+    "old_enforce": 143,
+    "matched": 143,
+    "yield": 7,
+    "closed": 136
+  },
+  "per_capture": {
+    "20261018-071312": {},
+    "20261018-074006": {},
+    "20261018-091516": {},
+    "20261018-140156": {},
+    "20261018-144235": {},
+    "20261018-144457": {},
+    "20261019-0050": {},
+    "20261019-080433": {},
+    "20261020-135723": {},
+    "20261020-140000": {},
+    "20261023-183351": {
+      "old_refused": 76,
+      "old_enforce": 76,
+      "matched": 76,
+      "yield": 7,
+      "closed": 69
+    },
+    "20261023-183418": {
+      "old_refused": 43,
+      "old_enforce": 43,
+      "matched": 43,
+      "closed": 43
+    },
+    "20261023-183436": {
+      "old_refused": 24,
+      "old_enforce": 24,
+      "matched": 24,
+      "closed": 24
+    }
+  }
+}

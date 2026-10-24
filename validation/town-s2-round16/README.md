@@ -6,6 +6,7 @@ Issue #47、round 16 の測定資料。S2 の受入れは未完了。
 宣言した補完状態であり、実記録の盤面を新しいコマンドの結果へ更新する閉ループ再生ではない。
 
 - [replay-comparison.json](replay-comparison.json): 13窓の旧新版の全キー・理由・拒否行。
+- [s1-refusal-audit.json](s1-refusal-audit.json): 基準版の拒否143件を新版へ対応付け、譲り7件・名前付きの閉じ136件、未対応0件を確認。
 - [constructed-context-replays.json](constructed-context-replays.json): 既存の7本の recorded test の補完状態による診断再生。時間統計には含めない。
 - [board-timings.csv](board-timings.csv) / [JSON](board-timings.json): 各盤面の全生値、中央値、nearest-rank p90、旧新版比。
 - [summary.json](summary.json): 窓ごとの反復数、shape、拒否件数、最大の時間比。
