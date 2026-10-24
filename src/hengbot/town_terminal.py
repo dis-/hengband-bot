@@ -1020,6 +1020,26 @@ def carried_identification_intended_terminal(policy: Any, board: Any) -> Termina
     return TerminalRef("identify-carried", (policy._item_signature(target),))
 
 
+def home_disposal_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """Only the sale pipeline's actual identify branch owns identification.
+
+    Destruction delegates to verified-disposal; absent/completed targets and
+    leaving that pipeline are its settlements, never identification refusals.
+    """
+    pending = policy._home_disposal_pending
+    if pending is None or not board.in_town or board.store is not None:
+        return None
+    target = policy._home_disposal_inventory_item(board)
+    if pending[1] != "destroy" and target is not None and not target.known:
+        return TerminalRef("home-disposal-identify", (policy._item_signature(target),))
+    return TerminalRef(NO_REFUSAL, ("home-disposal-settle-or-delegate",))
+
+
+def gather_home_disposal_identify(policy: Any, board: Any) -> IdentifyMaterial:
+    return IdentifyMaterial(source_held=policy._find_identification_source(
+        board, full=False, reliable_only=True) is not None)
+
+
 def home_full_identify_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     target = home_full_identification_target(policy, board)
     if target is None:
@@ -1159,7 +1179,7 @@ def _shadow_rungs() -> frozenset[str]:
          "_esp_threat_rest_key",
         "_fruitless_disengage_key",
         "_heavy_curse_inscription_key",
-        "_home_catalogue_work_key", "_home_disposal_processing_key",
+        "_home_catalogue_work_key", 
         "_home_full_knowledge_key", "_home_full_relief_key",
         "_home_rearm_key",
         "_immobile_breeder_giveup_key", "_item_destroying_breeder_leave_key",
@@ -1274,6 +1294,7 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_town_device_processing_key": TerminalDecl(
         device_identification_intended_terminal, ENFORCE),
     "town-item-processing": TerminalDecl(carried_identification_intended_terminal, ENFORCE),
+    "_home_disposal_processing_key": TerminalDecl(home_disposal_intended_terminal, ENFORCE),
     "home-full-identification": TerminalDecl(home_full_identify_intended_terminal, ENFORCE),
     **{name: TerminalDecl(home_withdraw_intended_terminal, ENFORCE) for name in (
         "_shopping_approach_key", "_shopping_approach_key#1",
@@ -1304,6 +1325,8 @@ _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
         gather_identify_equipped(policy, board)),
     "identify-device": lambda policy, board: verdict_identify_equipped(
         gather_identify_device(policy, board)),
+    "home-disposal-identify": lambda policy, board: verdict_identify_equipped(
+        gather_home_disposal_identify(policy, board)),
     "home-full-identify": lambda policy, board: verdict_identify_equipped(
         gather_home_full_identify(policy, board)),
     "identify-carried": lambda policy, board: verdict_identify_carried(
@@ -1358,6 +1381,11 @@ def _commit_identify_device(policy: Any, board: Any, terminal: TerminalRef,
         arguments=("normal", terminal.args[0]),
         expected_effect="reliable-identification-source-ready",
     )
+
+
+def _commit_home_disposal_identify(policy: Any, board: Any, terminal: TerminalRef,
+                                   admission: Admission) -> None:
+    policy._request_identification("normal")
 
 
 def _commit_identify_carried(policy: Any, board: Any, terminal: TerminalRef,
@@ -1447,6 +1475,7 @@ REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] =
     "identify-equipped": _commit_identify_equipped,
     "identify-device": _commit_identify_device,
     "identify-carried": _commit_identify_carried,
+    "home-disposal-identify": _commit_home_disposal_identify,
     "home-withdraw": _commit_home_withdraw,
     "home-atomic-deposit": _commit_home_atomic_deposit,
     "cross-town": _commit_cross_town,

@@ -88,6 +88,7 @@ class TerminalDeclarationTest(unittest.TestCase):
             families[name] = family or (rung.family if rung is not None else None)
         enforce = {name for name, decl in TERMINALS.items() if decl.mode == ENFORCE}
         self.assertEqual(enforce, {
+            "_home_disposal_processing_key",
             "_defer_home_full_deposit",
             "_descent_step",
             "_fixed_quest_key#1",
