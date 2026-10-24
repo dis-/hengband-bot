@@ -1317,11 +1317,32 @@ def _commit_enchant_launcher(policy: Any, board: Any, terminal: TerminalRef,
         cause="enchant-context-unavailable")
 
 
+def _commit_home_atomic_deposit(policy: Any, board: Any, terminal: TerminalRef,
+                                 admission: Admission) -> None:
+    policy._offer_home_atomic_no_step("deposit", "home-full-sale-pending")
+
+
+def _commit_cross_town(policy: Any, board: Any, terminal: TerminalRef,
+                       admission: Admission) -> None:
+    if "cross-town-fare-unaffordable" in admission.codes:
+        destination = terminal.args[0]
+        policy.town_teleport_refusal = {
+            "current_town_id": policy._effective_town_id(board),
+            "destination_town_id": destination,
+            "gold": board.player.gold,
+            "required_gold": (TOWN_TELEPORT_COST if destination == 0
+                              else 2 * TOWN_TELEPORT_COST),
+        }
+        policy.last_reason = "town:teleport-refused-fare"
+
+
 REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] = {
     "identify-equipped": _commit_identify_equipped,
     "identify-device": _commit_identify_device,
     "identify-carried": _commit_identify_carried,
     "home-withdraw": _commit_home_withdraw,
+    "home-atomic-deposit": _commit_home_atomic_deposit,
+    "cross-town": _commit_cross_town,
     "curse-remove": _commit_curse_remove,
     "enchant-launcher": _commit_enchant_launcher,
 }
