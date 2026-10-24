@@ -9400,7 +9400,7 @@ class TownRecallReturnTest(unittest.TestCase):
                     8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
                 )
                 current._recall_town_departure_conjuncts = (
-                    lambda _snapshot, values=candidate: dict(values)
+                    lambda _snapshot, values=candidate, **_kwargs: dict(values)
                 )
                 with patch.object(current, "_town_claims_active", return_value=False):
                     key = current.choose_key(current_snap)
