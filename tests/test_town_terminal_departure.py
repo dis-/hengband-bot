@@ -85,7 +85,10 @@ class DescentTerminalTest(unittest.TestCase):
             with self.subTest(quest_entrance=quest_entrance):
                 snap = board()
                 policy = policy_on(snap)
-                with patch.object(HengbotPolicy, "_step_raises_unintended_confirm",
+                decl = town_terminal.TERMINALS["direct-descent"]
+                with patch.dict(town_terminal.TERMINALS, {
+                        "direct-descent": decl._replace(mode=town_terminal.SHADOW)}), \
+                        patch.object(HengbotPolicy, "_step_raises_unintended_confirm",
                                   return_value=quest_entrance):
                     key = policy._town_producer_entry(
                         "direct-descent", lambda: ">", family="departure")
@@ -98,6 +101,30 @@ class DescentTerminalTest(unittest.TestCase):
                                       "terminal-refused-unserved:quest-entrance-target"))
                 else:
                     self.assertEqual(rows, [])
+
+    def test_default_mode_blocks_quest_destinations_before_routing(self):
+        for rung in ("direct-descent", "_descent_step"):
+            for quest_entrance in (True, False):
+                with self.subTest(rung=rung, quest_entrance=quest_entrance):
+                    snap = board()
+                    policy = policy_on(snap)
+                    target = Position(snap.player.position.y + 1, snap.player.position.x)
+                    policy._nav_ledger.commit_descent_route(target, ())
+                    value = ">" if rung == "direct-descent" else target
+                    calls = []
+                    with patch.object(HengbotPolicy, "_step_raises_unintended_confirm",
+                                      return_value=quest_entrance):
+                        key = policy._town_producer_entry(
+                            rung, lambda: calls.append(value) or value, family="departure")
+                    self.assertEqual(key, None if quest_entrance else value)
+                    self.assertEqual(calls, [] if quest_entrance else [value])
+                    rows = policy._decision_terminal_admissions
+                    if quest_entrance:
+                        row, = rows
+                        self.assertEqual((row["codes"], row["mode"]),
+                                         (["quest-entrance-target"], "enforce"))
+                    else:
+                        self.assertEqual(rows, [])
 
     def test_route_terminal_is_the_committed_target(self):
         snap = board()
