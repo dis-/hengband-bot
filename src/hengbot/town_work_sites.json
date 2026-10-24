@@ -4995,7 +4995,7 @@
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "41d7f1447b80f427aa2b2764e775de25fba58eefa38670a776bb2a8b437036ad"
+    "ast_sha256": "7b1c9e461386e2464effbb7f195cd77ec11460db51939704545cb24635fd7eb8"
   },
   "policy_home.py:HomeMixin._ensure_home_visit_request": {
     "classification": "data",
@@ -5289,7 +5289,7 @@
       "overweight-surplus"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e099987455460e25c64ee93433607f83ea0959c35c8c9ecd3a27ba3c3d5bd223"
+    "ast_sha256": "8c88132f602ff5706cc4ced3e8bd6cdd959d258bc199971b09b6e0435b99ac9d"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
     "classification": "data",
@@ -5373,6 +5373,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "462e631d5e6c90b1682729c9ebe626e45da7cc4e256ea73e97920d4a3062f049"
+  },
+  "policy_home.py:HomeMixin._town_item_command_entry_key": {
+    "classification": "adapter",
+    "rows": [
+      "destruction"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "60a265ae292d8a561585b8881656135ca1eb6d94157224335d923c47170257b4"
   },
   "policy_home.py:HomeMixin._weight_deposit_candidates": {
     "classification": "data",

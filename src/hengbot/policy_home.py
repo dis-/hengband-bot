@@ -252,7 +252,7 @@ class HomeMixin:
                 return key
         elif snapshot.store is None:
             pending["mode"] = "destroy"
-            key = reserved_item_command(self, snapshot, "overweight-surplus", item, "shop-sell")
+            key = self._town_item_command_entry_key(snapshot, "overweight-surplus", item, "shop-sell")
             if key is not None:
                 pending["key"] = key
                 pending["gold"] = snapshot.player.gold
@@ -4886,6 +4886,21 @@ class HomeMixin:
         self.last_reason = "home:queue-dominated-withdraw"
         return LEAVE_STORE_KEY
 
+    def _town_item_command_entry_key(self, snapshot, kind, item, owner, *, address=None):
+        """Ask admission for the selected town item before serializing its key."""
+        previous = getattr(self, "_terminal_item_command", None)
+        self._terminal_item_command = (kind, item, owner, address)
+        inscription = kind in {"inscribe-equipped", "uninscribe-equipped"}
+        family = ("equipment-txn" if inscription else "shop-sell" if kind == "overweight-surplus"
+                  else "home-visit" if owner == "home-visit" else "identification")
+        try:
+            return self._town_producer_entry(
+                "_heavy_curse_inscription_key" if inscription else "verified-disposal",
+                lambda: reserved_item_command(self, snapshot, kind, item, owner, address=address),
+                family=family)
+        finally:
+            self._terminal_item_command = previous
+
     @staticmethod
     def _destroy_item_key(item: InventoryItem, snapshot: Snapshot | None = None,
                           owner: str = "identification", *, policy=None) -> str | None:
@@ -4899,6 +4914,8 @@ class HomeMixin:
         if snapshot is not None:
             if policy is None:
                 raise ValueError("a decision destruction requires its policy")
+            if snapshot.in_town:
+                return policy._town_item_command_entry_key(snapshot, "destroy", item, owner)
             return reserved_item_command(policy, snapshot, "destroy", item, owner)
         # Legacy standalone helper calls are not town decisions. The lint
         # requires every production caller to provide its snapshot.

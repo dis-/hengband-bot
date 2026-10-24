@@ -1761,6 +1761,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._terminal_store_sale = None
         self._terminal_home_take = None
         self._terminal_equipment_command = None
+        self._terminal_item_command = None
         self._decision_terminal_admissions = []
         # The maximum existing Home bound is installed once per town epoch.
         # Ordinary route bounds may stop earlier; no optimizer/session rebuild

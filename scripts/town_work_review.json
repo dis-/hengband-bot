@@ -11199,5 +11199,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "existing item effect and store exit observers",
     "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._town_item_command_entry_key": {
+    "classification": "adapter",
+    "rows": [
+      "destruction"
+    ],
+    "context": "Exact selected item at the Home operation call site.",
+    "evidence": "Scope the item and owner, ask the existing terminal entry, then compose the child operation.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "existing item effect and store exit observers",
+    "delegation": "selected child; no independent success"
   }
 }

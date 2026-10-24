@@ -716,5 +716,6 @@
   "town_terminal.py:verdict_quest_entry": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "town_terminal.py:verdict_quest_work": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "policy_home.py:HomeMixin._home_take_entry_key": "delegated adapter: scope the selected item, ask its existing town terminal entry, and restore the context after the child operation",
-  "policy_shop.py:ShopMixin._store_sale_entry_key": "delegated adapter: scope the selected item, ask its existing town terminal entry, and restore the context after the child operation"
+  "policy_shop.py:ShopMixin._store_sale_entry_key": "delegated adapter: scope the selected item, ask its existing town terminal entry, and restore the context after the child operation",
+  "policy_home.py:HomeMixin._town_item_command_entry_key": "delegated adapter: scope the selected item, ask its existing town terminal entry, and restore the context after the child operation"
 }

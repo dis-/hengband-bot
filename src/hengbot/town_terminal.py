@@ -31,7 +31,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
-from hengbot.item_reservation import item_available
+from hengbot.item_reservation import item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
@@ -696,6 +696,7 @@ QUEST_ENTRY_CODES = frozenset({
     "home-route-unavailable", "town-owner-retired",
     # The existing session.prepare refusal, before its caller's failure commit.
     "equipment-dispatch-rejected",
+    "item-command-reserved", "disposal-quantity-invalid",
     # The incomplete item owned by the identification flow (policy_equipment).
     "identification-flow",
     # _equipment_departure_ready branches that had no string.
@@ -818,6 +819,8 @@ TERMINAL_CODES |= CROSS_TOWN_CODES | FUNDRAISING_CODES
 # Who serves each refusal code.  An empty right side is explicit: no town
 # owner can satisfy it, so the terminal closes for the visit.
 REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
+    "item-command-reserved": (),
+    "disposal-quantity-invalid": (),
     "equipment-dispatch-rejected": (),
     "identification-flow": _IDENTIFICATION_SERVERS,
     "incomplete-equipment-catalog": (
@@ -1166,6 +1169,52 @@ def equipment_transaction_intended_terminal(policy: Any, board: Any) -> Terminal
          material.right_surface, material.prepared_matches)))
 
 
+@dataclass(frozen=True)
+class ItemCommandMaterial:
+    available: bool
+    partial: bool
+    quantity: int | None
+    count: int
+
+
+def gather_item_command(policy: Any, board: Any) -> ItemCommandMaterial:
+    kind, target, owner, _address = policy._terminal_item_command
+    sink = kind if kind == "overweight-surplus" else kind.split("-")[0]
+    verdict = reservation_verdict(policy, board, target, owner, sink)
+    return ItemCommandMaterial(verdict.owner is None, kind == "overweight-surplus",
+                               verdict.quantity, target.count)
+
+
+def verdict_item_command(material: ItemCommandMaterial) -> Admission:
+    if not material.available:
+        return refused(("item-command-reserved",))
+    if material.partial and (material.quantity is None
+                             or not 0 < material.quantity <= material.count):
+        return refused(("disposal-quantity-invalid",))
+    return ADMIT
+
+
+def item_command_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    context = getattr(policy, "_terminal_item_command", None)
+    if context is None:
+        # Keep candidate selection, effect settlement, alternative buyers and
+        # named failures; their actual serializer is admitted at its own seam.
+        return TerminalRef(NO_REFUSAL, ("item-command-dispatch",))
+    kind, target, owner, address = context
+    material = gather_item_command(policy, board)
+    return TerminalRef("item-command", (
+        kind, policy._item_signature(target), getattr(target, "slot", ""), owner, address,
+        material.available, material.partial, material.quantity, material.count))
+
+
+def _commit_item_command(policy: Any, board: Any, terminal: TerminalRef,
+                          admission: Admission) -> None:
+    # Retain the denied serializer's ownership/invalid-quantity diagnostic.
+    # The caller still owns its no-step, failed-attempt or alternative choice.
+    kind, target, owner, address = policy._terminal_item_command
+    reserved_item_command(policy, board, kind, target, owner, address=address)
+
+
 def home_atomic_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     """``home-atomic-deposit``: the entrance deposit bound to its stay."""
     if (board.store is not None or policy._shopping_approach_store_type != STORE_HOME
@@ -1465,19 +1514,14 @@ def _shadow_rungs() -> frozenset[str]:
         "_heavy_curse_inscription_key",
         "_kill_quest_floor_recovery_key",
         "_normal_loot_key#1", "_normal_loot_key#2",
-        "_overweight_surplus_sale_key",
         "_start_kill_quest_regeneration",
         "_town_order_step4_key#1", "_town_order_step4_key#2",
-        "_town_overflow_destroy_key",
         "_town_restore_weapon_key",
-        "_victory_loot_key", "_worthless_junk_destroy_key",
+        "_victory_loot_key",
         "town-progress-committed-loot",
-        "verified-disposal",
         "_finish_mining_floor",
-        "_full_pack_destroy_key",
         "_opening_q34_town_key",
         "_town_blocked_key",
-        "_town_destroy_key",
     })
 
 
@@ -1566,6 +1610,9 @@ NO_REFUSAL_REASONS = {
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
+    **{name: TerminalDecl(item_command_intended_terminal, ENFORCE) for name in (
+        "_overweight_surplus_sale_key", "_town_overflow_destroy_key", "_worthless_junk_destroy_key",
+        "_full_pack_destroy_key", "_town_destroy_key", "verified-disposal")},
     **{name: TerminalDecl(equipment_transaction_intended_terminal, ENFORCE) for name in (
         "_equipment_transaction_home_key", "_equipment_transaction_town_key",
         "_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
@@ -1611,6 +1658,7 @@ TERMINALS: dict[str, TerminalDecl] = {
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
 _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
+    "item-command": lambda policy, board: verdict_item_command(gather_item_command(policy, board)),
     "equipment-command": lambda policy, board: verdict_equipment_command(
         gather_equipment_command(policy, board)),
     "home-atomic-withdraw": lambda policy, board: verdict_home_atomic_withdraw(
@@ -1782,6 +1830,7 @@ def _commit_fundraising_run(policy: Any, board: Any, terminal: TerminalRef,
 # Rung-specific confirmation takes precedence when a terminal is shared by
 # different producers; the other entries apply to the terminal kind.
 REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], str | None]] = {
+    "item-command": _commit_item_command,
     "home-atomic-withdraw": _commit_home_atomic_withdraw,
     "shop-page": _commit_shop_page,
     "store-sell": _commit_store_sale,
