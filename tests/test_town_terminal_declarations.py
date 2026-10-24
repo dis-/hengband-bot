@@ -107,6 +107,7 @@ class TerminalDeclarationTest(unittest.TestCase):
             "_town_special_key",
             "direct-descent",
             "home-atomic-deposit",
+            "home-full-identification",
             "supply-stockout-mining",
             "town-item-processing",
             "town-teleport",

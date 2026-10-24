@@ -352,6 +352,28 @@ def verdict_identify_carried(material: CarriedIdentifyMaterial) -> Admission:
     return refused(("no-identification-source",))
 
 
+def home_full_identification_target(policy: Any, board: Any) -> Any:
+    """The already withdrawn Home-relief item, not the free pack target."""
+    if not board.in_town or board.store is not None:
+        return None
+    relief = policy._home_full_relief
+    sale = relief.get("sale") if relief is not None else None
+    if sale is None:
+        return None
+    return next((item for item in board.inventory
+                 if policy._item_signature(item) == sale[0]), None)
+
+
+def gather_home_full_identify(policy: Any, board: Any) -> IdentifyMaterial:
+    """Read the same source tier as _carried_identify_command, no watch writes."""
+    target = home_full_identification_target(policy, board)
+    return IdentifyMaterial(source_held=target is not None and (
+        policy._find_identification_source(
+            board, full=target.known, reliable_only=(
+                policy._identify_staff_success_rate(board) < STAFF_IDENTIFY_MIN_SUCCESS
+            )) is not None))
+
+
 def home_withdraw_target(policy: Any, board: Any) -> Any:
     """The Home item the filed visit request walks to withdraw, or None.
 
@@ -994,6 +1016,13 @@ def carried_identification_intended_terminal(policy: Any, board: Any) -> Termina
     return TerminalRef("identify-carried", (policy._item_signature(target),))
 
 
+def home_full_identify_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    target = home_full_identification_target(policy, board)
+    if target is None:
+        return None
+    return TerminalRef("home-full-identify", (policy._item_signature(target),))
+
+
 def home_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     """The approach rungs: walk to Home for the filed withdrawal.  Other
     stores (store-buy) and other Home requests have no terminal here yet."""
@@ -1142,7 +1171,7 @@ def _shadow_rungs() -> frozenset[str]:
         "_town_overflow_destroy_key", "_town_random_teleport_suppression_key",
         "_town_restore_weapon_key",
         "_unseen_retreat_key", "_victory_loot_key", "_worthless_junk_destroy_key",
-        "home-atomic-withdraw", "home-errand-knowledge", "home-full-identification",
+        "home-atomic-withdraw", "home-errand-knowledge",
         "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
         "navigator.decide",
         "town-progress-committed-loot",
@@ -1222,6 +1251,7 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_town_device_processing_key": TerminalDecl(
         device_identification_intended_terminal, ENFORCE),
     "town-item-processing": TerminalDecl(carried_identification_intended_terminal, ENFORCE),
+    "home-full-identification": TerminalDecl(home_full_identify_intended_terminal, ENFORCE),
     **{name: TerminalDecl(home_withdraw_intended_terminal, ENFORCE) for name in (
         "_shopping_approach_key", "_shopping_approach_key#1",
         "_shopping_approach_key#2")},
@@ -1251,6 +1281,8 @@ _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {
         gather_identify_equipped(policy, board)),
     "identify-device": lambda policy, board: verdict_identify_equipped(
         gather_identify_device(policy, board)),
+    "home-full-identify": lambda policy, board: verdict_identify_equipped(
+        gather_home_full_identify(policy, board)),
     "identify-carried": lambda policy, board: verdict_identify_carried(
         gather_identify_carried(policy, board)),
     "home-withdraw": lambda policy, board: verdict_home_withdraw(

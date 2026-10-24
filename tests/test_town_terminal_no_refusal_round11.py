@@ -30,7 +30,7 @@ class NoRefusalDeclarationTest(unittest.TestCase):
         self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED)
         self.assertEqual({name for name, decl in tt.TERMINALS.items()
                           if decl.mode == tt.NO_REFUSAL}, EXPECTED)
-        self.assertEqual(len(tt.SHADOW_RUNGS), 76)
+        self.assertEqual(len(tt.SHADOW_RUNGS), 75)
         self.assertTrue(EXPECTED.isdisjoint(tt.SHADOW_RUNGS))
         for name in EXPECTED:
             decl = tt.TERMINALS[name]
