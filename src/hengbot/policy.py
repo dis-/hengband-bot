@@ -5942,9 +5942,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             raise ValueError(f"unknown town producer rung: {rung_name}")
         # The rung's terminal admission precedes every hold, on or off the
         # --enforce-town-claims switch (town_terminal, design 3.6).
-        if not may_take_board(self, rung_name, rung.family, board, terminal):
-            # The skipped body's confirmation on this refusal (design 3.2).
-            return commit_refusal(self, board, terminal, rung_name=rung_name)
+        admitted = may_take_board(self, rung_name, rung.family, board, terminal)
+        if (terminal is not None and terminal.terminal_id == "no-refusal"
+                and terminal.args == ("town-special-dispatch",)):
+            # This dispatcher also selects remedies and named closes. Its
+            # selected child owns admission; a departure hold must not hide
+            # the reactions to an unsatisfied departure.
+            return call()
         session = self._equipment_transaction_session
         holder = self._claim_errand_hold("__none__", enforced=True, arrival_board=board)
         before = len(getattr(self, "_decision_errand_deferred", ()) or ())
@@ -5993,6 +5997,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "token_would_admit": False, "token_work_identity": None,
             })
             return None
+        if not admitted:
+            # Confirm a refusal only when this producer would actually run.
+            # A foreign holder or earlier plan stop also skips the body's
+            # confirmation writes, so they must precede this commit too.
+            return commit_refusal(self, board, terminal, rung_name=rung_name)
         key = call()
         # OFF runs the same admission probe, then runs the historical producer.
         # Bind a refused entry to that producer's actual result. A later output
