@@ -1122,7 +1122,7 @@ def _shadow_rungs() -> frozenset[str]:
         "_equipment_transaction_town_key#2", "_equipment_transaction_town_owner_key",
         "_esp_threat_hunt_key", "_esp_threat_rest_key", "_explore_step#2",
         "_flee_step#2", "_flee_step#3", "_flee_step#4", "_fruitless_disengage_key",
-        "_fundraising_key#1", "_fundraising_key#2", "_heavy_curse_inscription_key",
+        "_heavy_curse_inscription_key",
         "_home_catalogue_work_key", "_home_disposal_processing_key",
         "_home_full_knowledge_key", "_home_full_relief_key", "_home_full_skip_key",
         "_home_rearm_key", "_hunt_step#1", "_hunt_step#2", "_hunt_step#3",
@@ -1143,7 +1143,7 @@ def _shadow_rungs() -> frozenset[str]:
         "direct-descent", "frontier-probe",
         "home-atomic-withdraw", "home-errand-knowledge", "home-full-identification",
         "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
-        "navigator.decide", "oscillating-probe", "supply-stockout-mining",
+        "navigator.decide", "oscillating-probe",
         "town-progress-committed-loot",
         "_town_special_key", "_read_dungeon_recall_scroll_key",
         "verified-disposal",
@@ -1211,9 +1211,9 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_descent_step": TerminalDecl(descent_route_intended_terminal, SHADOW),
     "direct-descent": TerminalDecl(direct_descent_intended_terminal, SHADOW),
     "town-teleport": TerminalDecl(cross_town_intended_terminal, ENFORCE),
-    **{name: TerminalDecl(fundraising_intended_terminal, SHADOW) for name in (
+    **{name: TerminalDecl(fundraising_intended_terminal, ENFORCE) for name in (
         "_fundraising_key#1", "_fundraising_key#2")},
-    "supply-stockout-mining": TerminalDecl(stockout_mining_intended_terminal, SHADOW),
+    "supply-stockout-mining": TerminalDecl(stockout_mining_intended_terminal, ENFORCE),
     "_town_special_key": TerminalDecl(departure_intended_terminal, SHADOW),
     "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, SHADOW),
 }
@@ -1347,7 +1347,27 @@ def _commit_cross_town(policy: Any, board: Any, terminal: TerminalRef,
         policy.last_reason = "town:teleport-refused-fare"
 
 
+def _commit_fundraising_run(policy: Any, board: Any, terminal: TerminalRef,
+                            admission: Admission) -> None:
+    # These town rungs run the dungeon driver, not the departure dispatcher.
+    # Keep its no-step confirmation and detection observation on a refused run.
+    if policy._fundraising_mode not in {"mine", "scavenge"}:
+        cause = "fundraising-mode-inactive"
+    elif (policy._fundraising_mode == "scavenge"
+          and not policy._detectionless_scavenge_allowed(board)):
+        policy._settle_fundraising_detection(board)
+        return
+    else:
+        cause = "outside-mining-floor"
+    policy._offer_execution_no_step(
+        producer="fundraising", work_id="fundraise:run", cause=cause)
+
+
+# Rung-specific confirmation takes precedence when a terminal is shared by
+# different producers; the other entries apply to the terminal kind.
 REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] = {
+    "_fundraising_key#1": _commit_fundraising_run,
+    "_fundraising_key#2": _commit_fundraising_run,
     "identify-equipped": _commit_identify_equipped,
     "identify-device": _commit_identify_device,
     "identify-carried": _commit_identify_carried,
@@ -1359,9 +1379,11 @@ REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], None]] =
 }
 
 
-def commit_refusal(policy: Any, board: Any, terminal: TerminalRef | None) -> None:
+def commit_refusal(policy: Any, board: Any, terminal: TerminalRef | None, *,
+                   rung_name: str | None = None) -> None:
     """Called by the entry when ``may_take_board`` refused (ENFORCE only)."""
-    commit = REFUSAL_COMMITS.get(terminal.terminal_id) if terminal is not None else None
+    commit = (REFUSAL_COMMITS.get(rung_name or "")
+              or REFUSAL_COMMITS.get(terminal.terminal_id)) if terminal is not None else None
     if commit is not None:
         commit(policy, board, terminal, terminal_admission(policy, board, terminal))
 

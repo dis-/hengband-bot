@@ -91,6 +91,8 @@ class TerminalDeclarationTest(unittest.TestCase):
             "_defer_home_full_deposit",
             "_fixed_quest_key#1",
             "_fixed_quest_key#2",
+            "_fundraising_key#1",
+            "_fundraising_key#2",
             "_open_home_deposit_key",
             "_shopping_approach_key",
             "_shopping_approach_key#1",
@@ -101,6 +103,7 @@ class TerminalDeclarationTest(unittest.TestCase):
             "_town_remove_curse_key",
             "_town_space_deposit_key",
             "home-atomic-deposit",
+            "supply-stockout-mining",
             "town-item-processing",
             "town-teleport",
         })

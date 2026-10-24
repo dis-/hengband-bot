@@ -3659,7 +3659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f1028f42c4850b98f10693457e3bc0958f5d2500d430e365886b4d3e03ac546d"
+    "ast_sha256": "3fa1d0134680328e987176aaa7839df60d832ad8875b392dfc1c8fca322b2142"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -8195,6 +8195,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "5eb0800959e319723cb6ac0b529268f4292542e9d0183f6bd0416cdc71cda452"
+  },
+  "town_terminal.py:_commit_fundraising_run": {
+    "classification": "adapter",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "afbc9c0b2188eca3347cf512ab55ae3aa6f245790440d521b6a543cd240b6a95"
   },
   "town_terminal.py:_commit_identify_carried": {
     "classification": "adapter",
