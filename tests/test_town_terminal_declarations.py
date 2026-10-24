@@ -102,6 +102,7 @@ class TerminalDeclarationTest(unittest.TestCase):
             "_town_space_deposit_key",
             "home-atomic-deposit",
             "town-item-processing",
+            "town-teleport",
         })
         self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset(
             name for name, decl in TERMINALS.items() if decl.mode == SHADOW))

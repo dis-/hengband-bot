@@ -1144,7 +1144,7 @@ def _shadow_rungs() -> frozenset[str]:
         "home-atomic-withdraw", "home-errand-knowledge", "home-full-identification",
         "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
         "navigator.decide", "oscillating-probe", "supply-stockout-mining",
-        "town-progress-committed-loot", "town-teleport",
+        "town-progress-committed-loot",
         "_town_special_key", "_read_dungeon_recall_scroll_key",
         "verified-disposal",
         "_dig_to_known_downstairs_key",
@@ -1210,7 +1210,7 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_defer_home_full_deposit": TerminalDecl(home_full_defer_intended_terminal, ENFORCE),
     "_descent_step": TerminalDecl(descent_route_intended_terminal, SHADOW),
     "direct-descent": TerminalDecl(direct_descent_intended_terminal, SHADOW),
-    "town-teleport": TerminalDecl(cross_town_intended_terminal, SHADOW),
+    "town-teleport": TerminalDecl(cross_town_intended_terminal, ENFORCE),
     **{name: TerminalDecl(fundraising_intended_terminal, SHADOW) for name in (
         "_fundraising_key#1", "_fundraising_key#2")},
     "supply-stockout-mining": TerminalDecl(stockout_mining_intended_terminal, SHADOW),

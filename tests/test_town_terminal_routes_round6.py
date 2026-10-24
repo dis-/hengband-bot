@@ -136,7 +136,9 @@ class Round6RouteTerminalTest(unittest.TestCase):
             policy._morivant_full_identify = MorivantFullIdentifyExpedition(1, ())
             # The selected trip goes home, costing one fare; the other held
             # Morivant trip would cost two. Geometry is an isolated route read.
-            with patch.object(policy, "_town_teleport_building_positions", return_value=None), \
+            with patch.dict(tt.TERMINALS, {"town-teleport": tt.TERMINALS[
+                    "town-teleport"]._replace(mode=tt.SHADOW)}), \
+                    patch.object(policy, "_town_teleport_building_positions", return_value=None), \
                     patch.object(policy, "_town_teleport_dispatch_key", return_value="travel"):
                 self.assertEqual(policy._town_teleport_key(snap, 0, producer=producer), "travel")
             self.assertIsNone(policy._terminal_town_travel)
@@ -147,6 +149,18 @@ class Round6RouteTerminalTest(unittest.TestCase):
                 self.assertEqual(row["codes"], ["cross-town-route-unavailable"])
             else:
                 self.assertEqual(rows, [])
+
+    def test_default_mode_refuses_the_actual_trip_before_dispatch(self):
+        snap = replace(board(), player=replace(board().player, gold=TOWN_TELEPORT_COST))
+        policy = policy_on(snap)
+        with patch.object(policy, "_town_teleport_building_positions", return_value=None), \
+                patch.object(policy, "_town_teleport_dispatch_key",
+                             side_effect=AssertionError("refused trip must not dispatch")):
+            self.assertIsNone(policy._town_teleport_key(snap, 0, producer="cross-town"))
+        row, = policy._decision_terminal_admissions
+        self.assertEqual((row["terminal"], row["codes"], row["mode"]),
+                         (["cross-town", [0]], ["cross-town-route-unavailable"], "enforce"))
+        self.assertIsNone(policy._terminal_town_travel)
 
     def test_restored_checkpoint_defaults_the_temporary_travel_context(self):
         policy = HengbotPolicy()
