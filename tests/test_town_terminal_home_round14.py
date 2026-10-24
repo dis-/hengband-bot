@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 
 from hengbot import town_terminal as tt
+from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE, ClaimOwner
+from hengbot.policy import HengbotPolicy
 from hengbot.model import STORE_GENERAL, STORE_HOME, StoreState, TVAL_SCROLL, SV_SCROLL_IDENTIFY
 from hengbot.policy_constants import LEAVE_STORE_KEY
 from hengbot.policy_state import normalize_policy_state
@@ -25,6 +27,10 @@ KNOWLEDGE = {
 
 
 class HomeAdmissionTest(unittest.TestCase):
+    def test_sale_body_keeps_its_owner_and_the_entry_adapter_has_no_independent_owner(self):
+        self.assertEqual(getattr(HengbotPolicy._store_sell_key, CLAIM_OWNER_ATTRIBUTE), ClaimOwner.SHOP_SELL)
+        self.assertFalse(hasattr(HengbotPolicy._store_sale_entry_key, CLAIM_OWNER_ATTRIBUTE))
+
     def test_scoped_operation_contexts_are_registered_as_nonexclusive_selection(self):
         for field in ("_terminal_home_take", "_terminal_store_sale"):
             self.assertEqual(ITEM_RESERVATION_SOURCES[field][0], "selection")

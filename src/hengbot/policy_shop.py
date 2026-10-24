@@ -3903,7 +3903,6 @@ class ShopMixin(InStoreMixin):
             expected_effect="outside-store",
         )
 
-    @claims(ClaimOwner.SHOP_SELL)
     def _store_sale_entry_key(self, snapshot, item, reason, **kwargs):
         """Bind the caller's exact sale target and refusal reason to admission."""
         previous = getattr(self, "_terminal_store_sale", None)
@@ -3917,6 +3916,7 @@ class ShopMixin(InStoreMixin):
         finally:
             self._terminal_store_sale = previous
 
+    @claims(ClaimOwner.SHOP_SELL)
     def _store_sell_key(
         self,
         snapshot: Snapshot,

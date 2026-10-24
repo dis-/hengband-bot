@@ -6899,7 +6899,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e9ba432a5ed0e9fabd5bca93d0faf7effb9e68229e5bba910752053afaf6d096"
+    "ast_sha256": "d3fcc57e8ebddd29e1fd8e666e851cf1c37792f08063498cadb81735a7aac342"
   },
   "policy_shop.py:ShopMixin._store_sell_key": {
     "classification": "producer",
@@ -6909,7 +6909,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c1640059d11f576c3324cb69402d7a9460744f828d9bb897ace2fce35e329d4a"
+    "ast_sha256": "4977a9d45b4cdcc42109762c74bf01db0fc86c449b55af753b46f13d441c7199"
   },
   "policy_shop.py:_ShoppingApproachEmission.__new__": {
     "classification": "adapter",
