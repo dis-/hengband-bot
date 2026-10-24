@@ -31,7 +31,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
-from hengbot.item_reservation import item_available, reservation_verdict, reserved_item_command
+from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
@@ -155,17 +155,10 @@ def gather_store_buy(policy: Any, board: Any, need: Any) -> StoreBuyMaterial:
     category without a supply kind keeps the earlier evidence (any ware within
     the carried gold).
     """
-    # A board is an immutable observation. Retain it in the memo (rather than
-    # only its id), and discard all entries on the next decision or board.
-    memo = getattr(policy, "_store_buy_material_memo", None)
-    if (memo is None or memo[0] != policy._decision_sequence
-            or memo[1] is not board):
-        memo = (policy._decision_sequence, board, {})
-        policy._store_buy_material_memo = memo
     store = need.store_type
     page = policy._town_supplier_stock.get(store)
     key = (
-        need, policy._town_need_supplier_reachable,
+        policy._decision_sequence, need, policy._town_need_supplier_reachable,
         id(policy._town_map), policy._town_map_active,
         tuple((town, id(layout)) for town, layout in policy._town_maps.items()),
         tuple(page.items) if page is not None else None,
@@ -175,9 +168,9 @@ def gather_store_buy(policy: Any, board: Any, need: Any) -> StoreBuyMaterial:
                           "purchase_churn_class_exclusions", ())),
         policy._town_visit_sale_identify_charges, policy._fundraising_mode,
     )
-    if key not in memo[2]:
-        memo[2][key] = _compute_store_buy_material(policy, board, need)
-    return memo[2][key]
+    return decision_memo(
+        policy, "gather_store_buy", board, key,
+        lambda: _compute_store_buy_material(policy, board, need))
 
 
 def _compute_store_buy_material(

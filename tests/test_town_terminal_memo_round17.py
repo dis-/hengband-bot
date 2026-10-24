@@ -4,12 +4,13 @@ import tests  # noqa: F401
 from collections import Counter
 from dataclasses import replace
 import json
+import pickle
 import unittest
 from unittest.mock import patch
 
 from hengbot import town_terminal as tt
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_state import normalize_policy_state
+from hengbot.item_reservation import reservation_decision, decision_caches_disabled
 from hengbot.policy_types import TownNeed
 from hengbot.model import STORE_TEMPLE, StoreState, StoreItem, TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL
 from tests import test_town_terminal_plan_round7 as plan_tests
@@ -28,21 +29,22 @@ class DecisionMaterialMemoTest(unittest.TestCase):
         need = TownNeed(STORE_TEMPLE, "recall", "normal")
         compute = tt._compute_store_buy_material
         route = policy._compute_town_need_supplier_reachable
-        with patch.object(tt, "_compute_store_buy_material", wraps=compute) as material, \
-                patch.object(policy, "_compute_town_need_supplier_reachable", wraps=route) as reachable:
-            first = tt.gather_store_buy(policy, board, need)
-            self.assertIs(tt.gather_store_buy(policy, board, replace(need)), first)
-            self.assertEqual((material.call_count, reachable.call_count), (1, 1))
-            # Route is independent of category; the material is not.
-            tt.gather_store_buy(policy, board, replace(need, category="food"))
-            self.assertEqual((material.call_count, reachable.call_count), (2, 1))
-            policy._decision_sequence += 1
-            tt.gather_store_buy(policy, board, need)
-            self.assertEqual((material.call_count, reachable.call_count), (3, 2))
-            self.assertEqual(len(policy._store_buy_material_memo[2]), 1)
-            tt.gather_store_buy(policy, replace(board), need)
-            self.assertEqual((material.call_count, reachable.call_count), (4, 3))
-            self.assertEqual(len(policy._supplier_reachability_memo[2]), 1)
+        @reservation_decision
+        def exercise(_policy, _board):
+            with patch.object(tt, "_compute_store_buy_material", wraps=compute) as material, \
+                    patch.object(policy, "_compute_town_need_supplier_reachable", wraps=route) as reachable:
+                first = tt.gather_store_buy(policy, board, need)
+                self.assertIs(tt.gather_store_buy(policy, board, replace(need)), first)
+                self.assertEqual((material.call_count, reachable.call_count), (1, 1))
+                # Route is independent of category; the material is not.
+                tt.gather_store_buy(policy, board, replace(need, category="food"))
+                self.assertEqual((material.call_count, reachable.call_count), (2, 1))
+                policy._decision_sequence += 1
+                tt.gather_store_buy(policy, board, need)
+                self.assertEqual((material.call_count, reachable.call_count), (3, 2))
+                tt.gather_store_buy(policy, replace(board), need)
+                self.assertEqual((material.call_count, reachable.call_count), (4, 3))
+        exercise(policy, board)
 
     def test_policy_material_writes_invalidate_within_a_decision(self):
         board = self.board
@@ -51,44 +53,62 @@ class DecisionMaterialMemoTest(unittest.TestCase):
         recall = StoreItem("a", "recall", 1, TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, 40)
         policy._town_supplier_stock[STORE_TEMPLE] = StoreState(STORE_TEMPLE, [recall])
         compute = tt._compute_store_buy_material
-        with patch.object(tt, "_compute_store_buy_material", wraps=compute) as material:
-            self.assertTrue(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
-            policy._town_store_attempted[STORE_TEMPLE] = 1
-            self.assertTrue(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
-            policy._town_supplier_stock[STORE_TEMPLE].items[:] = [replace(recall, price=1000)]
-            self.assertEqual(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).codes,
-                             ("no-matching-offer",))
-            policy._town_supplier_stock[STORE_TEMPLE].items[:] = [recall]
-            policy._town_visit_sale_signatures.add((recall.tval, recall.sval))
-            self.assertFalse(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
-            policy._town_visit_sale_signatures.clear()
-            policy._town_visit_ledger.purchase_churn_class_exclusions.add(
-                (STORE_TEMPLE, recall.tval, recall.sval))
-            self.assertFalse(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
-            policy._town_visit_sale_identify_charges = 1
-            tt.gather_store_buy(policy, board, need)
-            policy._fundraising_mode = "prepare"
-            tt.gather_store_buy(policy, board, need)
-            self.assertEqual(material.call_count, 7)
+        @reservation_decision
+        def exercise(_policy, _board):
+            with patch.object(tt, "_compute_store_buy_material", wraps=compute) as material:
+                self.assertTrue(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
+                policy._town_store_attempted[STORE_TEMPLE] = 1
+                self.assertTrue(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
+                policy._town_supplier_stock[STORE_TEMPLE].items[:] = [replace(recall, price=1000)]
+                self.assertEqual(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).codes,
+                                 ("no-matching-offer",))
+                policy._town_supplier_stock[STORE_TEMPLE].items[:] = [recall]
+                policy._town_visit_sale_signatures.add((recall.tval, recall.sval))
+                self.assertFalse(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
+                policy._town_visit_sale_signatures.clear()
+                policy._town_visit_ledger.purchase_churn_class_exclusions.add(
+                    (STORE_TEMPLE, recall.tval, recall.sval))
+                self.assertFalse(tt.verdict_store_buy(tt.gather_store_buy(policy, board, need)).admitted)
+                policy._town_visit_sale_identify_charges = 1
+                tt.gather_store_buy(policy, board, need)
+                policy._fundraising_mode = "prepare"
+                tt.gather_store_buy(policy, board, need)
+                self.assertEqual(material.call_count, 7)
+        exercise(policy, board)
 
     def test_changed_layout_recomputes_route_and_material(self):
         policy = plan_tests.PlanAdmissionTest().policy()
         need = TownNeed(STORE_TEMPLE, "recall", "normal")
         # An unseen store relies on remembered town topology.
         board = replace(self.board, grids={}, store=None)
-        first = tt.gather_store_buy(policy, board, need)
-        self.assertTrue(first.reachable)
-        policy._town_maps = {}
-        self.assertFalse(tt.gather_store_buy(policy, board, need).reachable)
+        @reservation_decision
+        def exercise(_policy, _board):
+            first = tt.gather_store_buy(policy, board, need)
+            self.assertTrue(first.reachable)
+            policy._town_maps = {}
+            self.assertFalse(tt.gather_store_buy(policy, board, need).reachable)
+        exercise(policy, board)
 
-    def test_old_checkpoint_defaults_and_constructor(self):
-        policy = HengbotPolicy()
-        self.assertIsNone(policy._store_buy_material_memo)
-        self.assertIsNone(policy._supplier_reachability_memo)
-        del policy._store_buy_material_memo, policy._supplier_reachability_memo
-        normalize_policy_state(policy, restart=True)
-        self.assertIsNone(policy._store_buy_material_memo)
-        self.assertIsNone(policy._supplier_reachability_memo)
+    def test_material_memos_never_enter_checkpoint_state(self):
+        policy = plan_tests.PlanAdmissionTest().policy()
+        board = self.board
+        policy._town_map_active(board)
+        need = TownNeed(STORE_TEMPLE, "recall", "normal")
+        before = pickle.dumps(vars(policy))
+
+        @reservation_decision
+        def exercise(_policy, _board):
+            first = tt.gather_store_buy(policy, board, need)
+            self.assertEqual(tt.gather_store_buy(policy, board, need), first)
+            self.assertEqual(pickle.dumps(vars(policy)), before)
+
+        exercise(policy, board)
+        with decision_caches_disabled():
+            exercise(policy, board)
+        tt.gather_store_buy(policy, board, need)
+        self.assertEqual(pickle.dumps(vars(policy)), before)
+        self.assertNotIn("_store_buy_material_memo", vars(policy))
+        self.assertNotIn("_supplier_reachability_memo", vars(policy))
 
     def test_183351_real_computations_once_per_distinct_key(self):
         materials, routes = Counter(), Counter()

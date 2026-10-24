@@ -1756,8 +1756,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Terminal admission (town_terminal): the per-decision verdict memo
         # and the admission rows of the current decision.
         self._terminal_admission_memo = None
-        self._store_buy_material_memo = None
-        self._supplier_reachability_memo = None
         self._terminal_town_travel = None
         self._terminal_town_recall_read = False
         self._terminal_store_sale = None

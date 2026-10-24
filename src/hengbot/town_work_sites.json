@@ -7597,7 +7597,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ee8fbad86ca2fd3d2eb637d879d00f52f338b957efb1f443d310537e15a18c46"
+    "ast_sha256": "35c5885b047aa6e654484407ce9c19896f19702760a5370b2577a19ba49428b0"
   },
   "policy_town.py:TownMixin._town_observed_purchase_is_composable": {
     "classification": "data",
@@ -8357,7 +8357,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e4bf1047f7d4e762dcb6fb0e35163faa7a18486112882a19ac1b00ec8d084c7a"
+    "ast_sha256": "decd954588fe71b6e9eae1e024f30e43122c97df1226ecb4b529b667ff3b5463"
   },
   "town_terminal.py:home_withdraw_intended_terminal": {
     "classification": "data",
