@@ -1513,3 +1513,343 @@ Total: 4372 tests, 527.1s
   開発中は単独モジュール検証、対照は失敗ケースの隔離実行、最終検証は指定 fast_tier を使用した。
 - 開始時の未追跡ファイルは保持した。診断スクリプトと実行ログは未追跡の作業証拠として保持。
   このレポート追記のコミットは src/tests tree を変えない。
+
+
+=== round 11 / ISSUE #47 / 2026-10-24 ===
+
+到達点
+- round 10 の main 回帰49条件を source で修正した。14メソッドの期待値は変更していない。
+  出発2 rung を ENFORCE のまま合格させ、SHADOW / ENFORCE の比較も常設した。
+- 分類 b の13 rung を理由付き NO_REFUSAL にした。分類 a は Home整理中の鑑定1 rung を実装。
+  残る75 rung は SHADOW のまま。S2完了、SHADOW空、最終 census 109→0は未達である。
+  残りの作業予算を検証・修復・報告に充て、未実装の終端を例外へ移して完了扱いにしていない。
+
+出発 dispatcher の修正
+- _town_special_key は読書以外に、不足への対処・確認・名前付きの閉じを実行する。
+  全体を departure-recall として拒否したことが49回帰の原因だった。
+- 通常の dispatcher 盤面は明示した no-refusal / town-special-dispatch を返す。
+  実際の読書分岐だけで _terminal_town_recall_read を立て、同じ名前の入口を通す。
+  その盤面だけ departure-recall の材料・純粋 verdict を適用する。
+  blocked の表示と理由、資金稼ぎ、R300 の再入荷待ち、装備評価 timeout、Home の確認は
+  出発拒否で抑止しない。子の購入・旅行・資金稼ぎは各自の入口で判断する。
+- 実際の読書の拒否は watch / pending / execution offer より前。
+  一時状態は try/finally で復元し、読書処理の例外時にも復元するテストを追加した。
+- 追加した policy 属性は _terminal_town_recall_read のみ。初期値 False、旧 checkpoint の
+  normalize_policy_state にも False の既定値を追加。他の追加属性はない。
+- _read_dungeon_recall_scroll_key は既に実際の _read_key を入口で囲んでいた。
+  町では出発の可否を判定し、ダンジョン内の帰路は通過する既存配置を維持した。
+- 新しい拒否コード・last_reason・政策閾値はない。NO_REFUSAL は round 10 指定の宣言モード。
+  REFUSAL_SERVERS / STUCK_FAMILY_REASONS の追加変更は不要だった。
+
+比較とテストの範囲
+- tests/test_town_terminal_dispatch_round11.py を追加。T=5メソッド/36条件、S=2/2、E=6/10、
+  A=1/1、計14メソッド/49条件を両モードで実行する。元の assertion をそのまま実行し、
+  キー・last_reason・blocked reason・機器の延期・Home確認の一致も検査する。
+- 読書直前だけ commit=False の材料を拒否する対照では、SHADOW は元の rra と watch を出す。
+  ENFORCE は読書0回・watch/pending未登録で departure:combat_weapon_ready を記録する。
+  これにより「dispatcher は通すが実際の出発は判定する」境界を固定した。
+- main 90947a65 にあった test_policy_town / shop / home / equipment / ability_sources_incident は
+  このラウンドでは編集していない。新しい collaborator stub の拡張もない。
+- ブランチ追加テストのみ、round 11 の修正要求に合わせて次を更新した。
+  * routes_round6 の test_special_departure_declares_gate_and_defers_to_live_expedition を
+    test_special_departure_declares_only_the_selected_read へ変更。
+    旧: 通常=departure-recall、遠征=None、prepare=fundraising。
+    新: dispatcher は明示した no-refusal、読書選択中だけ departure-recall。
+  * fundraising_round10 の test_departure_dispatcher_does_not_borrow_a_run_confirmation を
+    test_dispatcher_runs_the_reaction_without_borrowing_a_run_confirmation へ変更。
+    旧 callback は dispatcher が呼ばれると fail、新 callback は実行されたことを assert。
+    key=None と資金稼ぎの no-step offer がないことの既存 assertion は維持した。
+- test_2_modes は NO_REFUSAL と非空の理由を検査できるよう拡張。
+  Home鑑定追加時は ENFORCE集合22→23、今回追加の NO_REFUSAL テストの SHADOW数76→75。
+  未実装75を隠す最終 census 0への変更はしていない。
+- tests/test_town_terminal_no_refusal_round11.py で13 rungの集合・理由・SHADOWとの非重複・
+  明示した終端・元の戻り値・拒否や閉じがないことを固定した。
+
+Home整理中の鑑定
+- home-full-identification は relief が選択済みの対象を読み、normal/full と既存の杖成功率境界を
+  _carried_identify_command と一致させる。既存の純粋鑑定 verdict と Server 表を共有する。
+- 供給源なしの本体は確認を書かず None を返すため、新しい refusal commit は不要。
+  呼出側の awaiting_identification_source / skip は同じ None を受けて従来どおり処理する。
+  所持した device の失敗監視は本体を通して更新し、終端判定では先取りしない。
+  材料の source lookup に伴う鑑定源予約の bind 観測は、既存の鑑定gatherと同じものだけを許容。
+  staged prompt / 失敗監視は材料読みでは作らない。
+- tests/test_town_terminal_home_identify_round11.py を追加。
+  対象・normal/full・杖の成功率境界・元のキー・供給源なしの両モード同値・対象消失・
+  本体の失敗監視を検査した。実録の home_full_identification_procurement_recorded 3件も合格。
+- 最初の実装では署名の完全一致で対象を探していたが、既存の relief 本体は刻銘を除いた
+  sale identity で追う。この差を source 確認で発見したため、刻銘変更の対照を追加し、
+  同じ対象を選ぶよう修復した。修復前後の結果と最終HEADは下記の検証記録に記載する。
+- 新 helper は home_full_identification_target / gather_home_full_identify /
+  home_full_identify_intended_terminal。manifest の候補集合は増えず、不要な baseline / review
+  例外は追加していない。再生成と既存構造検査で zero unmapped を確認した。
+
+分類の実装表（round 10 の89行表からの差分）
+| rung | 分類 | NO_REFUSAL の理由／実装した終端 | 状態 |
+| --- | --- | --- | --- |
+| _direction_key#1 | b | 隣接座標を方向キーへ変換。取引・使用・入場を選ばない。 | 完了 |
+| _direction_key#2 | b | 同上。 | 完了 |
+| _explore_step#2 | b | 座標の選択。ゲームへの移動は別の入口が所有。 | 完了 |
+| _flee_step#2 | b | 退避座標の選択。実際の移動は別入口が所有。 | 完了 |
+| _flee_step#3 | b | 同上。 | 完了 |
+| _flee_step#4 | b | 同上。 | 完了 |
+| _home_full_skip_key | b | 未解決品を保持し選択を解除する閉じ。新しい取引・使用を始めない。 | 完了 |
+| _hunt_step#1 | b | 追跡座標の選択。実際の移動は別入口が所有。 | 完了 |
+| _hunt_step#2 | b | 同上。 | 完了 |
+| _hunt_step#3 | b | 同上。 | 完了 |
+| _unseen_retreat_intercept_key | b | 成立済みchokeを方向キー又は待機で維持。旅行・入場・資源使用なし。 | 完了 |
+| frontier-probe | b | probe先座標の選択。実際の移動は別入口が所有。 | 完了 |
+| oscillating-probe | b | 同上。 | 完了 |
+| home-full-identification | a | 選択した対象に必要な鑑定源の材料・純粋verdictを宣言しENFORCE。 | 完了 |
+
+帳簿とコミット
+- 開始HEAD f3c626652。74cb807fd: 出発の読書分岐だけで判定。
+  933b965d9: ブランチ追加の dispatcher 確認テストを修正。
+  859b231e3: 分類bの13 rungを宣言（SHADOW 89→76）。
+  8a2121ec5: Home鑑定をENFORCE（76→75）。刻銘対応の修復は fbb4dc3343272aaafad136fa04d938721d22771e。
+- 読書 callback は delegated adapter として producer baseline と work review に登録。
+  独立した選択・進捗を与えていない。開発時の構造検査で未登録を検出し、登録して修正した。
+  また、callback が自分の盤面から recall_count を集計する形にし、観測値の台帳と一致させた。
+  同じ既存構造テスト19件は再実行で合格。既存 assertion は変更していない。
+- 最終宣言は ENFORCE 23、NO_REFUSAL 13、SHADOW 75、EXEMPT_SURVIVAL 21（計132）。
+  DIRECT_PRODUCERS_S1 / PARALLEL_PREDICATES_S1 は空のまま。
+
+検証記録
+- 最終コード・帳簿HEAD: fbb4dc3343272aaafad136fa04d938721d22771e。開始時から main の5モジュールへの新たな編集は0。
+- 出発修正時は町593・店275・Home171・装備197・ability_sources_incident8件が合格。
+  NO_REFUSAL バッチでは町・店・Homeと全terminalモジュールを単独で順番に検証した。
+  その際のブランチ追加fundraisingテスト1件は前述の旧dispatcher前提を更新し、同じモジュール2件を再実行して合格。
+- 刻銘対応の修復前: 8テスト中、新しい1メソッドの2条件が失敗。
+  保存した名前が「刻銘なし」「別の刻銘あり」の両方で、終端が None になった。
+  修復後: 8件合格。現在の名前の TerminalRef と no-identification-source を取得できる。
+- 刻銘対応後の単独モジュール検証:
+  - tests.test_home_full_identification_procurement_recorded: Ran 3 tests in 1.413s; OK
+  - tests.test_policy_home: Ran 171 tests in 41.068s; OK (skipped=4)
+  - tests.test_policy_shop: Ran 275 tests in 22.499s; OK (skipped=1)
+  - tests.test_policy_town: Ran 593 tests in 330.616s; OK
+  - tests.test_town_terminal_dispatch_round11: Ran 5 tests in 19.304s; OK
+  - tests.test_town_terminal_declarations: Ran 7 tests in 4.958s; OK
+  - tests.test_town_terminal_home_identify_round11: Ran 8 tests in 0.026s; OK
+  - tests.test_town_structure_lint: Ran 19 tests in 64.216s; OK
+- manifest: 861 candidates / 21,955 sites / zero unmapped。
+- 最初の 8a2121ec5 では preflight合格、mutationは80/80差分を検知。
+  その実行の完了後に刻銘対応を修復したため、その記録を最終検証の代用にしていない。
+  修復コミット fbb4dc3343272aaafad136fa04d938721d22771e 後、preflight→mutation→並行ゲート確認→fast_tierを順番に実行した。
+  修復枠は1/2。3ガードは並行実行せず、mutation中のsource/test編集もしていない。
+- 49条件のSHADOW/ENFORCE比較は通常のモジュール検証とfast_tierで実行。
+  mutationでは読書境界・復元・宣言・Home鑑定等の軽量pinを選択した。実行した全test IDは下の出力に列挙する。
+- fast_tier直前の並行ゲート確認:
+2026-10-24T16:20:54 active=0
+
+--- preflight (exit 0) ---
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_affordable_shelf_keeps_shopping_owner
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_destination_discards_origin_stockout_and_store_bounds
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_first_alternating_board_quest_return_yields_and_records_arrival
+[preflight] NOTE existing-test MODIFIED: tests/test_goldburn_shopping_constructed.py::GoldburnShoppingConstructedTest.test_observed_stockout_releases_quest_return
+[preflight] NOTE existing-test MODIFIED: tests/test_policy_shop.py::ShopPurchaseSellPolicyTest.test_expired_recall_restock_wait_routes_to_released_store_publicly
+[preflight] NOTE existing-test MODIFIED: tests/test_policy_town.py::TownRecallReturnTest.test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_commit_pins.py::LedgerRestoreAndRecordTest.test_each_decision_records_its_own_admission
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_2_modes
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_3_direct_producers_are_listed
+[preflight] NOTE existing-test MODIFIED: tests/test_town_terminal_declarations.py::TerminalDeclarationTest.test_4_codes_and_table_agree
+[preflight] PREFLIGHT OK: 39 changed files, 0 findings (town-claim-s2-1023 vs 90947a65)
+
+--- mutation_check --record (exit 0) ---
+[mutation] 80 source hunks, tests: tests.test_town_terminal_declarations.TerminalDeclarationTest.test_3_direct_producers_are_listed tests.test_town_terminal_curse_remove.CurseRemoveTerminalTest.test_no_scroll_refuses_and_the_body_does_not_read tests.test_town_terminal_departure.DepartureLeafTest.test_every_leaf_of_the_gate_has_a_declared_row tests.test_town_terminal_home_deposit.SpaceDepositBodyTest.test_the_body_no_longer_asks_the_quest_predicate tests.test_town_terminal_routes_round6.Round6RouteTerminalTest.test_read_refusal_does_not_arm_a_watch_or_read tests.test_town_terminal_routes_round6.Round6RouteTerminalTest.test_restored_checkpoint_defaults_the_temporary_travel_context tests.test_town_terminal_shopping_fold.OpeningQ34AsksTheVerdictTest.test_trip_holds_the_quest_body tests.test_crosstown_alt_recorded.CrosstownAltRecordedTest.test_after_refusal_travel_reaches_recorded_target_without_reentry tests.test_goldburn_shopping_constructed.GoldburnShoppingConstructedTest.test_finished_q2_return_also_yields tests.test_town_terminal_curse_remove.CurseRemoveTerminalTest.test_scroll_held_admits_and_the_body_reads tests.test_town_terminal_declarations.TerminalDeclarationTest.test_4_codes_and_table_agree tests.test_town_terminal_departure.DepartureLeafTest.test_material_read_does_not_commit_the_equipment_leaf tests.test_town_terminal_direct_round8.DirectEntryTest.test_quest_return_applicability_is_asked_by_its_terminal tests.test_town_terminal_plan_round7.PlanAdmissionTest.test_missing_withdrawal_is_refused_before_visit_filing tests.test_town_terminal_quest_work.QuestWorkHoldTest.test_hold_is_the_entry_refusal_of_the_quest_terminal tests.test_town_terminal_refusal_round7.RefusalConfirmationTest.test_fare_refusal_preserves_the_body_record_and_reason tests.test_town_terminal_routes_round6.Round6RouteTerminalTest.test_special_dispatcher_normal_decision_uses_its_entry tests.test_town_terminal_supplier.DepartureSupplierTest.test_affordable_other_ware_is_not_a_recall_supplier tests.test_town_terminal_need_evidence.NeedEvidenceTest.test_supplied_need_keeps_the_server_live tests.test_town_terminal_need_evidence.AttributeDefaultsTest.test_new_and_restored_policies_have_the_decision_memos tests.test_town_terminal_need_evidence.ClaimsEvaluationStampTest.test_claims_evaluation_stamps_its_need_list tests.test_town_terminal_need_evidence.PreparationReadOncePerDecisionTest.test_material_and_need_list_share_the_read tests.test_town_terminal_declarations.TerminalDeclarationTest.test_2_modes tests.test_town_terminal_fundraising_round10 tests.test_town_terminal_dispatch_round11.DepartureDispatcherTest.test_read_refusal_precedes_watch_and_offer_and_restores_context tests.test_town_terminal_dispatch_round11.DepartureDispatcherTest.test_raised_read_restores_context tests.test_town_terminal_dispatch_round11.DepartureDispatcherTest.test_old_checkpoint_defaults_the_read_context tests.test_town_terminal_dispatch_round11.DepartureDispatcherTest.test_dispatch_is_a_named_no_refusal_but_the_read_owns_departure tests.test_town_terminal_no_refusal_round11 tests.test_town_terminal_home_identify_round11
+[mutation] caught     src/hengbot/policy.py:473 (from hengbot.town_terminal import (): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] caught     src/hengbot/policy.py:1578 (# (decision_sequence, board, preparation): the decision's one read.): test_new_and_restored_policies_have_the_decision_memos
+[mutation] caught     src/hengbot/policy.py:1756 (self._terminal_town_travel = None): test_restored_checkpoint_defaults_the_temporary_travel_context, test_read_refusal_precedes_watch_and_offer_and_restores_context, test_raised_read_restores_conte
+[mutation] caught     src/hengbot/policy.py:5922 (# A rung that does not apply on this board is skipped on and off town.): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] caught     src/hengbot/policy.py:5936 (if not may_take_board(self, rung_name, rung.family, board, terminal):): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] caught     src/hengbot/policy.py:10443 (cancel_unsafe_recall = self._town_producer_entry("_town_cancel_unsafe_): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10547 (warning_response = self._town_producer_entry("_warning_prompt_response): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10565 (return self._town_producer_entry("_town_blocked_key", lambda: self._to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10648 (key = self._town_producer_entry("_town_blocked_key", lambda: self._tow): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10776 (return self._town_producer_entry("_wilderness_survival_key", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10877 (darkness_recovery = self._town_producer_entry("_darkness_recovery_key"): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10892 (or self._town_producer_entry("_dig_to_known_downstairs_key", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:10967 (return self._town_producer_entry("_wilderness_survival_key", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11044 (unprofitable_unique = self._town_producer_entry("_unprofitable_unique_): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11054 (combat_equip = self._town_producer_entry("_fundraising_combat_equipmen): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11134 (escape = self._town_producer_entry("_escape_by_stairs", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11167 (return self._town_producer_entry("_step_toward:survival", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11185 (escape = self._town_producer_entry("_escape_by_stairs", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11228 (return self._town_producer_entry("_step_toward:escape", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11296 (return self._town_producer_entry("_step_toward:escape", lambda: self._): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11388 (return self._town_producer_entry("_step_toward:positioning", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11401 (return self._town_producer_entry("_step_toward:hunt", lambda: self._st): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11426 (cancel_unsafe_recall = self._town_producer_entry("_town_cancel_unsafe_): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11444 (key = self._town_producer_entry("_step_toward:departure", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11490 (return self._town_producer_entry("_step_toward:survival", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11510 (# Rung #1 applies only while stage-2 quest travel owns the town): test_quest_return_applicability_is_asked_by_its_terminal
+[mutation] caught     src/hengbot/policy.py:11576 (identify = self._town_producer_entry("_pack_pressure_identify_key", la): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11587 (destroy = self._town_producer_entry("_full_pack_destroy_key", lambda: ): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11665 (junk = self._town_producer_entry("_worthless_junk_destroy_key", lambda): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11873 (town_cycle_repair = self._town_producer_entry("_town_special_key", lam): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11941 (destroy = self._town_producer_entry("_town_destroy_key", lambda: self.): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:11965 (town_special = self._town_producer_entry(): test_3_direct_producers_are_listed, test_quest_return_applicability_is_asked_by_its_terminal, test_special_dispatcher_normal_decision_uses_its_entry
+[mutation] caught     src/hengbot/policy.py:12013 (return self._town_producer_entry("_recall_restock_key", lambda: self._): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12178 (return self._town_producer_entry("_step_toward:positioning", lambda: s): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12197 (key = self._town_producer_entry("_step_toward:departure", lambda: self): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12212 (travel = self._town_producer_entry("_entrance_travel_key", lambda: sel): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12242 (return self._town_producer_entry("_step_toward:hunt", lambda: self._st): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12274 (dig = self._town_producer_entry("_dig_to_known_downstairs_key", lambda): test_2_modes, test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12294 (return self._town_producer_entry("_read_dungeon_recall_scroll_key", la): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12313 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12345 (return self._town_producer_entry("_step_toward:detectors", lambda: sel): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12379 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12398 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12430 (return self._town_producer_entry("_step_toward", lambda: self._step_to): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:12453 (return self._town_producer_entry("_step_toward:detectors", lambda: sel): test_3_direct_producers_are_listed
+[mutation] caught     src/hengbot/policy.py:17469 (if not verdict_quest_work(gather_quest_work(self, snapshot)).admitted:): test_finished_q2_return_also_yields
+[mutation] caught     src/hengbot/policy_equipment.py:2835 (# One preparation read per decision and board, shared by the terminal): test_material_and_need_list_share_the_read
+[mutation] caught     src/hengbot/policy_quest.py:23 (from hengbot.town_terminal import gather_quest_work, verdict_quest_wor): test_trip_holds_the_quest_body
+[mutation] caught     src/hengbot/policy_quest.py:585 (# This direct call has no entry: the fixed-quest terminals' shared): test_trip_holds_the_quest_body
+[mutation] caught     src/hengbot/policy_shop.py:1711 (def _cross_town_shopping_hold(self, snapshot: Snapshot) -> bool:): test_trip_holds_the_quest_body, test_after_refusal_travel_reaches_recorded_target_without_reentry, test_finished_q2_return_also_yields, test_hold_is_the_entry_r
+[mutation] caught     src/hengbot/policy_shop.py:1734 (if self._cross_town_shopping_hold(snapshot):): test_after_refusal_travel_reaches_recorded_target_without_reentry
+[mutation] caught     src/hengbot/policy_state.py:193 (restored.__dict__.setdefault("_terminal_town_travel", None)): test_restored_checkpoint_defaults_the_temporary_travel_context, test_old_checkpoint_defaults_the_read_context
+[mutation] caught     src/hengbot/policy_town.py:60 (from hengbot.town_terminal import gather_store_buy, verdict_store_buy,): test_the_body_no_longer_asks_the_quest_predicate, test_quest_return_applicability_is_asked_by_its_terminal, test_missing_withdrawal_is_refused_before_visit_fili
+[mutation] caught     src/hengbot/policy_town.py:2209 (self, snapshot: Snapshot, *, ignore_free_slots: bool = False,): test_every_leaf_of_the_gate_has_a_declared_row, test_after_refusal_travel_reaches_recorded_target_without_reentry, test_material_read_does_not_commit_the_equipm
+[mutation] caught     src/hengbot/policy_town.py:2250 (# The default read keeps its historical call (tests stub it).): test_material_read_does_not_commit_the_equipment_leaf
+[mutation] caught     src/hengbot/policy_town.py:2330 (# Stage-2 quest travel (rung #1) keeps the shortage actionable for): test_the_body_no_longer_asks_the_quest_predicate
+[mutation] caught     src/hengbot/policy_town.py:2409 (def _recall_town_departure_conjuncts(): test_every_leaf_of_the_gate_has_a_declared_row, test_raised_read_restores_context
+[mutation] caught     src/hengbot/policy_town.py:3751 (claimed_needs: list[TownNeed] = []): test_after_refusal_travel_reaches_recorded_target_without_reentry, test_quest_return_applicability_is_asked_by_its_terminal, test_special_dispatcher_normal_deci
+[mutation] caught     src/hengbot/policy_town.py:3872 (claimed_needs.append(need)): test_claims_evaluation_stamps_its_need_list
+[mutation] caught     src/hengbot/policy_town.py:4123 (# The supplier's store-buy verdict (town_terminal, S2): reachable,): test_affordable_other_ware_is_not_a_recall_supplier
+[mutation] caught     src/hengbot/policy_town.py:4246 (needs = [need for need in needs): test_missing_withdrawal_is_refused_before_visit_filing
+[mutation] caught     src/hengbot/policy_town.py:6785 (# The dispatcher's reactions are not a departure. Ask the): test_read_refusal_precedes_watch_and_offer_and_restores_context
+[mutation] caught     src/hengbot/policy_town.py:7090 (previous = getattr(self, "_terminal_town_travel", None)): test_fare_refusal_preserves_the_body_record_and_reason
+[mutation] caught     src/hengbot/policy_town.py:7198 () -> str | None:): test_read_refusal_does_not_arm_a_watch_or_read
+[mutation] caught     src/hengbot/policy_town.py:7215 (return key): test_read_refusal_does_not_arm_a_watch_or_read
+[mutation] caught     src/hengbot/town_terminal.py:9 (from dataclasses import dataclass, replace): test_the_body_no_longer_asks_the_quest_predicate, test_quest_return_applicability_is_asked_by_its_terminal, test_missing_withdrawal_is_refused_before_visit_fili
+[mutation] caught     src/hengbot/town_terminal.py:95 (@dataclass(frozen=True)): test_town_terminal_declarations, test_town_terminal_curse_remove, test_town_terminal_departure, test_town_terminal_home_deposit, test_town_terminal_routes_round
+[mutation] caught     src/hengbot/town_terminal.py:619 (NO_REFUSAL = "no-refusal"): non-zero exit
+[mutation] caught     src/hengbot/town_terminal.py:640 (no_refusal_reason: str = ""): non-zero exit
+[mutation] caught     src/hengbot/town_terminal.py:668 (# The fixed-quest terminals' shared verdict (verdict_quest_work).): non-zero exit
+[mutation] caught     src/hengbot/town_terminal.py:791 ("overweight": (): test_no_scroll_refuses_and_the_body_does_not_read, test_every_leaf_of_the_gate_has_a_declared_row, test_4_codes_and_table_agree
+[mutation] caught     src/hengbot/town_terminal.py:856 (# A supplier that cannot serve the need: no town owner serves it.): test_4_codes_and_table_agree
+[mutation] caught     src/hengbot/town_terminal.py:913 (if policy._fixed_quest_prepare_return_required(board):): test_hold_is_the_entry_refusal_of_the_quest_terminal
+[mutation] caught     src/hengbot/town_terminal.py:940 (# A taken kill quest descends by ordinary stairs from the town.): non-zero exit
+[mutation] caught     src/hengbot/town_terminal.py:1152 ("_detected_threat_preparation_key",): test_3_direct_producers_are_listed, test_2_modes, test_the_13_classified_rungs_have_reasons_and_no_shadow
+[mutation] caught     src/hengbot/town_terminal.py:1220 (# Non-refusable selectors and named closes (round-10 classification b)): test_town_terminal_declarations, test_town_terminal_curse_remove, test_town_terminal_departure, test_town_terminal_home_deposit, test_town_terminal_routes_round
+[mutation] caught     src/hengbot/town_terminal.py:1453 (verdict = _TERMINAL_VERDICTS.get(terminal.terminal_id)): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_read_refusal_precedes_watch_and_offer_and_restores_conte
+[mutation] caught     src/hengbot/town_terminal.py:1487 (def _need_served_now(policy: Any, board: Any, server: Server) -> bool:): test_no_scroll_refuses_and_the_body_does_not_read, test_fare_refusal_preserves_the_body_record_and_reason, test_supplied_need_keeps_the_server_live, test_run_ru
+[mutation] caught     src/hengbot/town_terminal.py:1517 (if server.category is not None and _need_served_now(policy, board, ser): test_supplied_need_keeps_the_server_live
+[mutation] caught     src/hengbot/town_terminal.py:1541 (def may_take_board(policy: Any, rung_name: str, family: str, board: An): test_no_scroll_refuses_and_the_body_does_not_read, test_read_refusal_does_not_arm_a_watch_or_read, test_after_refusal_travel_reaches_recorded_target_without_ree
+[mutation] MUTATION OK: 0 of 80 hunks are not pinned by a test
+[mutation] recorded for fbb4dc33
+
+--- fast_tier --shards 4 (exit 1) ---
+[fast] 3660 fast tests (<2.0s in 8f95933fa) + 27 changed modules, 4 shards
+[fast] excluded 45 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-5q0eujca)
+Failures: none
+Errors: ['tests.test_melee_site_lint (import) ModuleNotFoundError("No module named \'tests.test_melee_site_lint\'")']
+Total: 4387 tests, 546.8s
+
+最終結果の解釈
+- preflight exit 0、mutation exit 0（80/80差分を検知、最終コードHEADに記録）。
+- fast_tier exit 1、4,387テスト / 546.8秒、Failuresなし、crashed shardsなし。
+  Errorsは1件のみ。共有タイミングキャッシュにしか存在しない tests.test_melee_site_lint のimportエラーで、
+  round 7以降の明示指示どおり対象外扱いとする。終了コード1は改変せず記録した。
+- round 10の49失敗は解消した。新たなmain期待値変更で失敗を隠していない。
+- これは今回の差分検証の結果であり、75 rungが残るS2全体の完了や全スイート合格を意味しない。
+
+残作業
+1. 下記75 rungは分類aのまま、実際の intended_terminal / 材料 / 純粋verdict /
+   必要なrefusal commitが未実装。家族ごとのバッチで実装し、mainテストは引き続き変更しない。
+   特に複数の仕事を行うdispatcher全体を1つの拒否可能な終端にしないこと。
+2. 全SHADOWの撤去（現在75→0、当初のcensus109→0）と、構造検査の最終形
+   ENFORCE / NO_REFUSAL / EXEMPT_SURVIVALのみへの限定は未達。
+3. 設計指定の全capture窓の受入れ・前進証拠と、盤面ごとの1.1倍以内の性能確認は未完了。
+   既存録画モジュールやtest_town_terminal_speedの合格を、その全受入れの完了とは扱わない。
+4. 後続source変更後は指定3ガードを再取得する。全スイートと取り込みはmerge gateの担当のまま。
+
+残る75 rung（現在のSHADOW_RUNGSと照合）
+- _atomic_shop_transaction_key
+- _blocking_escape_melee_key
+- _breeder_breakthrough_escape_key
+- _breeder_breakthrough_key
+- _chest_processing_key#1
+- _chest_processing_key#2
+- _choke_engagement_key
+- _conquest_loot_key
+- _detected_threat_preparation_key
+- _dig_to_known_downstairs_key
+- _emergency_item
+- _entrance_travel_key
+- _equipment_transaction_home_key
+- _equipment_transaction_town_key
+- _equipment_transaction_town_key#1
+- _equipment_transaction_town_key#2
+- _equipment_transaction_town_owner_key
+- _esp_threat_hunt_key
+- _esp_threat_rest_key
+- _finish_mining_floor
+- _fruitless_disengage_key
+- _full_pack_destroy_key
+- _fundraising_combat_equipment_key
+- _heavy_curse_inscription_key
+- _home_catalogue_work_key
+- _home_disposal_processing_key
+- _home_full_knowledge_key
+- _home_full_relief_key
+- _home_rearm_key
+- _immobile_breeder_giveup_key
+- _item_destroying_breeder_leave_key
+- _kill_quest_floor_recovery_key
+- _melee_swarm_combat_key
+- _normal_loot_key#1
+- _normal_loot_key#2
+- _opening_q34_town_key
+- _overweight_surplus_sale_key
+- _pack_pressure_identify_key
+- _paralyzer_prevention_key
+- _ranged_attack_key#1
+- _ranged_attack_key#2
+- _recall_restock_key
+- _release_staged_store_operation
+- _released_restock_store_key
+- _return_to_town_key#1
+- _return_to_town_key#2
+- _return_to_town_key#3
+- _start_kill_quest_regeneration
+- _step_toward
+- _step_toward:departure
+- _step_toward:escape
+- _step_toward:hunt
+- _step_toward:positioning
+- _store_sell_key
+- _summoner_ranged_kill_key
+- _town_blocked_key
+- _town_destroy_key
+- _town_order_step4_key#1
+- _town_order_step4_key#2
+- _town_overflow_destroy_key
+- _town_random_teleport_suppression_key
+- _town_restore_weapon_key
+- _unprofitable_unique_disengage_key
+- _unseen_retreat_key
+- _victory_loot_key
+- _wield_digging_tool_key
+- _worthless_junk_destroy_key
+- home-atomic-withdraw
+- home-errand-knowledge
+- home-full-knowledge
+- home-knowledge-after-exit
+- idle-fallback
+- navigator.decide
+- town-progress-committed-loot
+- verified-disposal
+
+運用制約
+- 指定worktree / branchだけで作業し、push・merge・stashは行っていない。
+- ゲーム/BOT操作、リモートへの書込み、他人のプロセス停止は行っていない。
+- 開発中は単独モジュールを順次実行。大規模test_parallel_runner / 全スイートは実行していない。
+- 新しいgameデータのコピー、新しい録画wallの変更、未承認のmain期待値変更はない。
+- 初回診断で既存のround10-departure-control.pyを再利用し、未追跡の旧ENFORCE比較JSONを4件上書きした。
+  round10-control-test_policy_town-enforce.json / round10-control-test_policy_shop-enforce.json /
+  round10-control-test_policy_equipment-enforce.json / round10-control-test_ability_sources_incident-enforce.json。
+  元の4件の全traceは保全できていない。旧comparison-all/final、SHADOW出力、round-10ログと既存報告は残存。
+  初回修正後の4出力はround11-initial-control-*-enforce.jsonにも保存し、旧データとの混同を避けた。
+- その他の開始時未追跡ファイルと、今回の診断スクリプト・ログは保持した。
+- この日本語報告の追記コミットはsource/tests treeを変更しない。
