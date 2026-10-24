@@ -1176,23 +1176,23 @@ def _shadow_rungs() -> frozenset[str]:
         "_town_restore_weapon_key",
         "_unseen_retreat_key", "_victory_loot_key", "_worthless_junk_destroy_key",
         "home-atomic-withdraw", "home-errand-knowledge",
-        "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
-        "navigator.decide",
+        "home-full-knowledge", "home-knowledge-after-exit", 
+        
         "town-progress-committed-loot",
         "verified-disposal",
-        "_dig_to_known_downstairs_key",
-        "_entrance_travel_key",
+        
+        
         "_finish_mining_floor",
         "_full_pack_destroy_key",
         
         "_opening_q34_town_key",
         
         "_recall_restock_key",
-        "_step_toward",
-        "_step_toward:escape",
-        "_step_toward:positioning",
-        "_step_toward:hunt",
-        "_step_toward:departure",
+        
+        
+        
+        
+        
         "_town_blocked_key",
         "_town_destroy_key",
         
@@ -1222,6 +1222,16 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
+    '_dig_to_known_downstairs_key': "delegated: caller's terminal governs; src/hengbot/policy_fundraising.py:829",
+    '_entrance_travel_key': "delegated: caller's terminal governs; src/hengbot/policy.py:16497",
+    '_step_toward': "delegated: caller's terminal governs; src/hengbot/policy_navigation.py:1828",
+    '_step_toward:departure': "delegated: caller's terminal governs; src/hengbot/policy_navigation.py:1828",
+    '_step_toward:escape': "delegated: caller's terminal governs; src/hengbot/policy_navigation.py:1828",
+    '_step_toward:hunt': "delegated: caller's terminal governs; src/hengbot/policy_navigation.py:1828",
+    '_step_toward:positioning': "delegated: caller's terminal governs; src/hengbot/policy_navigation.py:1828",
+    'idle-fallback': "delegated: caller's terminal governs; src/hengbot/policy.py:12465",
+    'navigator.decide': "delegated: caller's terminal governs; src/hengbot/policy.py:10944",
+
     '_conquest_loot_key': 'dungeon-only: not a town errand; src/hengbot/policy_quest.py:1578',
     '_esp_threat_hunt_key': 'dungeon-only: not a town errand; src/hengbot/policy_combat.py:942',
     '_fundraising_combat_equipment_key': 'dungeon-only: not a town errand; src/hengbot/policy_fundraising.py:496',
