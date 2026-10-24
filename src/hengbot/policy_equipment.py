@@ -2705,10 +2705,9 @@ class EquipmentMixin:
                 snapshot, STORE_HOME, goal_satisfied=False
             )
             self.last_reason = "equipment-transaction:approach-home"
-            key = self._town_producer_entry(
-                "_shopping_approach_key#1", lambda: self._shopping_approach_key(
-                    snapshot, step, "equipment-transaction:travel-home"),
-                family="equipment-txn")
+            key = self._shopping_approach_key(
+                snapshot, step, "equipment-transaction:travel-home"
+            )
             return self._equipment_town_outcome(
                 key, label="approach-home", effect="home-reached",
             )

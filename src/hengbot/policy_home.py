@@ -827,9 +827,7 @@ class HomeMixin:
                 # keep the items for the next visit (2026-10-07 13:02).
                 self._home_full_retry_deposits = None
                 return None
-            return self._town_producer_entry(
-                "_shopping_approach_key", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"),
-                family="store-router")
+            return self._shopping_approach_key(snapshot, step, "shop:travel")
         if self._home_full_relief is None and self._home_is_full(snapshot):
             first = self._find_home_deposit(snapshot)
             if first is not None:
@@ -1376,9 +1374,7 @@ class HomeMixin:
         if step is None:
             self._town_blocked_reason = "home-full-surplus-store-unreachable"
             return self._town_blocked_key(snapshot)
-        return self._town_producer_entry(
-            "_shopping_approach_key", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"),
-            family="store-router")
+        return self._shopping_approach_key(snapshot, step, "shop:travel")
 
     @staticmethod
     def _store_page_can_request_knowledge(snapshot: Snapshot) -> bool:

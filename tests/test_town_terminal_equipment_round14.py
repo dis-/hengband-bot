@@ -139,7 +139,7 @@ class EquipmentCommandAdmissionTest(unittest.TestCase):
                 patch.object(policy, "_shopping_approach_step", side_effect=route):
             self.assertIsNone(policy._equipment_transaction_town_key(snap))
         row, = policy._decision_terminal_admissions
-        self.assertEqual(row["rung"], "_shopping_approach_key#1")
+        self.assertEqual(row["rung"], "_shopping_approach_key")
         self.assertEqual(row["codes"], ["reservation-unavailable"])
 
     def test_every_dispatcher_keeps_its_recovery_and_observation_branches(self):

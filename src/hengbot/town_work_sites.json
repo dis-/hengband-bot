@@ -4495,7 +4495,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "7e045379bb189b625230a97522224ab63003b6ef41f0f1d4826bfb6315a644a2"
+    "ast_sha256": "3e3ae06107a37458cac8f3630c099c5cacd5854bf35b2171dce8c30f2e252b6e"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_owner_key": {
     "classification": "producer",
@@ -5158,7 +5158,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "43e006afb78d7c78d8ec3472aa51a9de8216fc723ec049ca7099290bc0d66f50"
+    "ast_sha256": "e74081c9514dc53f745981b32eef4c747e3ae7ff639380aa51bc23a39ac41e3b"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
