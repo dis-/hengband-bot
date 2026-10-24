@@ -95,10 +95,13 @@ class TerminalDeclarationTest(unittest.TestCase):
             "_shopping_approach_key",
             "_shopping_approach_key#1",
             "_shopping_approach_key#2",
+            "_town_device_processing_key",
             "_town_enchant_launcher_key",
+            "_town_equipped_identification_key",
             "_town_remove_curse_key",
             "_town_space_deposit_key",
             "home-atomic-deposit",
+            "town-item-processing",
         })
         self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset(
             name for name, decl in TERMINALS.items() if decl.mode == SHADOW))

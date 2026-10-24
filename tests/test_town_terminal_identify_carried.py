@@ -47,7 +47,7 @@ def refusal_result(snap, *, enforce, exhausted):
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
     decl = town_terminal.TERMINALS[RUNG]
     modes = {RUNG: town_terminal.TerminalDecl(
-        decl.intended_terminal, town_terminal.ENFORCE)} if enforce else {}
+        decl.intended_terminal, town_terminal.ENFORCE if enforce else town_terminal.SHADOW)}
     offers, no_steps = [], []
 
     def producer():
@@ -86,7 +86,7 @@ class CarriedIdentificationTest(unittest.TestCase):
                         self.assertEqual(rows, [])
                     else:
                         self.assertEqual(rows[0]["codes"], ["no-identification-source"])
-                        self.assertEqual(rows[0]["mode"], "shadow")
+                        self.assertEqual(rows[0]["mode"], "enforce")
                         self.assertEqual(policy._identification_need,
                                          "full" if full else "normal")
 

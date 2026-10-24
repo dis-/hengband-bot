@@ -67,7 +67,7 @@ class IdentifyEquippedTerminalTest(unittest.TestCase):
         self.assertIsNone(key)
         row, = rows
         self.assertEqual((row["codes"], row["mode"]),
-                         (["no-identification-source"], "shadow"))
+                         (["no-identification-source"], "enforce"))
         self.assertIn(Server("shop-buy", "identification-source"),
                       REFUSAL_SERVERS["no-identification-source"])
 

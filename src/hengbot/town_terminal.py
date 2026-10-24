@@ -1134,8 +1134,7 @@ def _shadow_rungs() -> frozenset[str]:
         "_release_staged_store_operation", "_released_restock_store_key",
         "_return_to_town_key#1", "_return_to_town_key#2", "_return_to_town_key#3",
         "_start_kill_quest_regeneration",
-        "_store_sell_key", "_summoner_ranged_kill_key", "_town_device_processing_key",
-        "_town_equipped_identification_key",
+        "_store_sell_key", "_summoner_ranged_kill_key",
         "_town_order_step4_key#1", "_town_order_step4_key#2",
         "_town_overflow_destroy_key", "_town_random_teleport_suppression_key",
         "_town_restore_weapon_key",
@@ -1145,7 +1144,7 @@ def _shadow_rungs() -> frozenset[str]:
         "home-atomic-withdraw", "home-errand-knowledge", "home-full-identification",
         "home-full-knowledge", "home-knowledge-after-exit", "idle-fallback",
         "navigator.decide", "oscillating-probe", "supply-stockout-mining",
-        "town-item-processing", "town-progress-committed-loot", "town-teleport",
+        "town-progress-committed-loot", "town-teleport",
         "_town_special_key", "_read_dungeon_recall_scroll_key",
         "verified-disposal",
         "_dig_to_known_downstairs_key",
@@ -1199,10 +1198,10 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_town_remove_curse_key": TerminalDecl(curse_remove_intended_terminal, ENFORCE),
     "_town_enchant_launcher_key": TerminalDecl(enchant_launcher_intended_terminal, ENFORCE),
     "_town_equipped_identification_key": TerminalDecl(
-        identify_equipped_intended_terminal, SHADOW),
+        identify_equipped_intended_terminal, ENFORCE),
     "_town_device_processing_key": TerminalDecl(
-        device_identification_intended_terminal, SHADOW),
-    "town-item-processing": TerminalDecl(carried_identification_intended_terminal, SHADOW),
+        device_identification_intended_terminal, ENFORCE),
+    "town-item-processing": TerminalDecl(carried_identification_intended_terminal, ENFORCE),
     **{name: TerminalDecl(home_withdraw_intended_terminal, ENFORCE) for name in (
         "_shopping_approach_key", "_shopping_approach_key#1",
         "_shopping_approach_key#2")},
