@@ -1,0 +1,12 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-spectate-followup.txt (read your LUNA-REPORT-spectate-followup.txt first).
+Supervisor answer to your question (the supervisor wrote the original spec and may change it): the body subtest of
+tests.test_spectator_melee_expected.MeleeExpectedTest.test_equipment_changes_and_refresh encoded the supervisor's first,
+flawed spec ("any equipment change makes the value old"), not an owner decision. The owner decision is only "show the
+average melee damage of one action" (「1回の行動の分だけ」). Change that subtest so a body armour change keeps
+stale == false (say in the report: old value true, new value false, reason). Keep the main_hand / sub_hand subtests.
+Then run the guards to completion. fast_tier and mutation_check wait while the merge gate runs its full suite (a merge
+gate is running now, about one hour); that wait is expected - let them wait (do not kill them; there is no 60 s limit).
+remote_slow: run it once more to completion (it now keeps in-use trees; the base tree for 4d239862f will be built).
+Remove validation/ files from the branch if you committed any (git rm; logs do not belong in the repo).
+Token budget 60k HARD, wall time 150 minutes (most of it waiting). Append round 2 to the report and commit.
