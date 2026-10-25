@@ -1,0 +1,15 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-spectate-frames.txt (read your LUNA-REPORT-spectate-frames.txt first). First `git merge main`
+(main is dace87f32; no rebase). scripts/town_work_manifest.json.gz conflicts: resolve it by regenerating it
+(python scripts\town_work_manifest.py --write with PYTHONPATH=src) and commit the merge.
+Supervisor answer (the supervisor wrote the spec; these are spec changes, not owner decisions to reopen): the two
+existing tests encode the old single-file, throttled-colour behaviour that the new spec replaces. Update them to the new
+spec and say old/new expectations in the report:
+  - tests.test_spectator.SpectatorFollowReplayTest.test_without_the_flag_no_file_and_the_same_keys_as_with_it: with
+    --spectate-file the directory now holds spectate.json AND spectate-frames.jsonl (keys/reasons still identical).
+  - tests.test_spectator_v2.SpectatorColourFollowTest.test_no_flag_no_colour_request_and_one_request_per_due_write:
+    with frames, one colour request per posted action (5 posts -> 5 requests); without the flag still none.
+Nothing else changes. Then guards to completion: preflight / mutation_check --record / fast_tier with base dace87f32
+(they wait while a merge gate runs - let them), then remote_slow once (the tool now uses a separate tree per run; if
+it still reports hundreds of failures not on base, report and do not rerun). Token budget 60k HARD, wall time 120 minutes
+(mostly waiting). Append round 2 to the report (Japanese, Python UTF-8) and commit.
