@@ -9,13 +9,14 @@ Nothing here is read back by a decision; only already received state and the
 public screen are copied (fair play is unchanged).
 
 The file is replaced atomically (``PATH.tmp`` then ``os.replace``) at most once
-per wall-clock second.  A failed write never reaches the bot: it is reported on
+per 0.25 seconds. Posted decisions also append unthrottled JSONL frames.  A failed write never reaches the bot: it is reported on
 stderr at most once per hour and the next decision simply tries again.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import time
@@ -28,6 +29,10 @@ from hengbot.control_client import raw_keys_to_macro_notation
 # and one stderr line per hour at most for a failing write.
 # Owner decision 2026-10-25 (「0.25秒ごと」): at most one write per 0.25 s (was one per second).
 SPECTATE_WRITE_INTERVAL_SECONDS = 0.25
+# Compact the complete newest records to half the budget, using atomic replace.
+SPECTATE_FRAMES_MAX_BYTES = 16 * 1024 * 1024
+SPECTATE_PLAYED_MAX_AGE_SECONDS = 10.0
+SPECTATE_BACKLOG_POLL_SECONDS = 0.05
 SPECTATE_MESSAGE_LINES = 20
 SPECTATE_ERROR_REPORT_INTERVAL_SECONDS = 3600.0
 # Fields of the control server's screen reply (bot-screen.cpp, handle_screen_request)
@@ -168,13 +173,17 @@ def spectator_recall_destination(policy, snapshot) -> dict | None:
 
 
 class SpectatorWriter:
-    """Throttled, atomic, never-raising writer of the spectator snapshot."""
+    """Atomic snapshot plus bounded, unthrottled frames; I/O fails open."""
 
     def __init__(self, path: Path, *, clock: Callable[[], float] = time.time,
                  stderr=None) -> None:
         self.path = Path(path)
         self.clock = clock
         self.stderr = stderr
+        self.frames_path = self.path.with_name("spectate-frames.jsonl")
+        self.played_path = self.path.with_name("spectate-played.json")
+        self.last_frame = self._resume_frame()
+        self.pending_frame: dict | None = None
         self.messages: list[str] = []
         self.last_write: float | None = None
         self.last_error_report: float | None = None
@@ -183,22 +192,35 @@ class SpectatorWriter:
                 decision_sequence: int | None,
                 screen_value: Mapping[str, object] | None, *,
                 state_line: str | None = None, screen_client=None,
-                policy=None) -> bool:
-        """Record one decision; write the file when a second has passed.
+                policy=None, append_frame: bool = False,
+                defer_frame: bool = False) -> bool:
+        """Project a decision; refresh the snapshot at most every 0.25 seconds.
 
-        Returns True when the file was replaced by this call.
+        append_frame requests colours even between snapshot writes. defer_frame
+        holds that pre-action projection until the caller confirms a real post.
+        Returns True when the compatibility snapshot was replaced by this call.
         """
+        if append_frame:
+            self.pending_frame = None
         self.messages = merge_seen_messages(
             self.messages, getattr(snapshot, "messages", ()) or ()
         )[-SPECTATE_MESSAGE_LINES:]
         now = self.clock()
-        if self.last_write is not None and \
-                now - self.last_write < SPECTATE_WRITE_INTERVAL_SECONDS:
+        snapshot_due = (self.last_write is None or
+                        now - self.last_write >= SPECTATE_WRITE_INTERVAL_SECONDS)
+        if not snapshot_due and not append_frame:
             return False
-        self.last_write = now
+        if snapshot_due:
+            self.last_write = now
         try:
             if screen_client is not None:
-                coloured = screen_client.request("screen", term=0, attrs=True)
+                try:
+                    coloured = screen_client.request("screen", term=0, attrs=True)
+                except Exception as error:
+                    if not append_frame:
+                        raise
+                    self._report(now, error)
+                    coloured = None
                 if coloured is not None:
                     screen_value = coloured
             player = snapshot.player
@@ -235,13 +257,106 @@ class SpectatorWriter:
             temporary = self.path.with_name(self.path.name + ".tmp")
             if state_line is not None:
                 content.update(spectator_details(json.loads(state_line), snapshot))
-            temporary.write_text(
-                json.dumps(content, ensure_ascii=False), encoding="utf-8", newline="\n")
-            os.replace(temporary, self.path)
+            # The two outputs fail independently; a broken compatibility snapshot
+            # must not suppress frames (or vice versa).
+            if append_frame:
+                self.pending_frame = content
+                if not defer_frame:
+                    self.commit_frame()
+            if snapshot_due:
+                temporary.write_text(
+                    json.dumps(content, ensure_ascii=False), encoding="utf-8", newline="\n")
+                os.replace(temporary, self.path)
         except Exception as error:
             self._report(now, error)
             return False
-        return True
+        return snapshot_due
+
+    def commit_frame(self) -> None:
+        """Publish the pre-action screen only after the action was posted."""
+        content, self.pending_frame = self.pending_frame, None
+        if content is not None:
+            try:
+                self._append_frame(content)
+            except Exception as error:
+                self._report(content["time"], error)
+
+    def _resume_frame(self) -> int:
+        """Resume numbering across bot restarts without scanning a large log."""
+        try:
+            with self.frames_path.open("rb") as stream:
+                stream.seek(0, 2)
+                size = stream.tell()
+                stream.seek(max(0, size - SPECTATE_FRAMES_MAX_BYTES))
+                tail = stream.read()
+            # A torn last append is ignored; only complete JSONL rows count.
+            for line in reversed(tail.split(b"\n")[:-1]):
+                try:
+                    value = json.loads(line).get("frame")
+                    if type(value) is int and value >= 0:
+                        return value
+                except (ValueError, AttributeError, UnicodeError):
+                    continue
+        except OSError:
+            pass
+        return 0
+
+    def _append_frame(self, content: dict) -> None:
+        number = self.last_frame + 1
+        row = (json.dumps(dict(content, frame=number), ensure_ascii=False)
+               + "\n").encode("utf-8")
+        # An exceptional oversized screen cannot make the bounded file unbounded.
+        if len(row) > SPECTATE_FRAMES_MAX_BYTES:
+            raise ValueError("spectator frame exceeds file budget")
+        try:
+            size = self.frames_path.stat().st_size
+        except FileNotFoundError:
+            size = 0
+        if size + len(row) > SPECTATE_FRAMES_MAX_BYTES:
+            # Compact BEFORE appending. If replace fails (e.g. a Windows reader
+            # holds the file open), do not grow a file we cannot compact.
+            keep = max(0, SPECTATE_FRAMES_MAX_BYTES // 2 - len(row))
+            tail = b""
+            if keep:
+                with self.frames_path.open("rb") as stream:
+                    stream.seek(max(0, size - keep))
+                    if stream.tell():
+                        stream.readline()
+                    tail = stream.read()
+                # A previous failed write may have left a torn final record.
+                tail = tail[:tail.rfind(b"\n") + 1]
+            temporary = self.frames_path.with_name(self.frames_path.name + ".tmp")
+            temporary.write_bytes(tail + row)
+            os.replace(temporary, self.frames_path)
+        else:
+            with self.frames_path.open("ab+") as stream:
+                if size:
+                    stream.seek(-1, 2)
+                    if stream.read(1) != b"\n":
+                        stream.seek(max(0, size - SPECTATE_FRAMES_MAX_BYTES))
+                        tail = stream.read()
+                        end = tail.rfind(b"\n")
+                        stream.truncate(size - len(tail) + end + 1 if end >= 0 else 0)
+                stream.write(row)
+        self.last_frame = number
+
+    def backlog_full(self, maximum: int) -> bool:
+        """Fail open on absent, invalid or expired server acknowledgements."""
+        if maximum <= 0:
+            return False
+        try:
+            played = json.loads(self.played_path.read_text(encoding="utf-8"))
+            frame, stamp = played["frame"], played["time"]
+            if type(frame) is not int or frame < 0 or frame > self.last_frame:
+                return False
+            if type(stamp) not in (int, float) or not math.isfinite(stamp):
+                return False
+            age = self.clock() - stamp
+            if age < 0 or age > SPECTATE_PLAYED_MAX_AGE_SECONDS:
+                return False
+            return self.last_frame - frame >= maximum
+        except (OSError, ValueError, KeyError, TypeError, OverflowError):
+            return False
 
     def _report(self, now: float, error: BaseException) -> None:
         if self.last_error_report is not None and \
