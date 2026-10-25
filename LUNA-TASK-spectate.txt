@@ -69,3 +69,9 @@ Rules (mandatory):
 - Write every text file (reports, diagnoses) with Python, encoding='utf-8', newline='
 '. PowerShell Set-Content / Out-File
   turned all Japanese into '?' on 2026-10-25.
+
+=== SUPERVISOR ADDENDUM 2026-10-25 12:1x (owner: 「追加で現在地情報 地上/何のダンジョンの地下何階 と 加速の現在値がほしい」) ===
+ISSUE: #47
+The viewer already shows the location from the existing "dungeon" (floor_key[0]) and "depth" fields. For the speed, also
+write "speed": player.speed (110 = normal) at the top level of the snapshot, besides status.speed (speed_display). If you
+read this after finishing, add it as one more small commit with a test.
