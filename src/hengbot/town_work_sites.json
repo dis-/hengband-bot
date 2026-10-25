@@ -8158,7 +8158,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "bcf981b76b7b361ae3cc163285a8a52ad31f66ad91defc235e7c5d685c132201"
+    "ast_sha256": "fc8f065add16dee9151c1bc6eea58105bbfbc56e5e5cd10308a4401c3ea7df9d"
   },
   "sol_events.py:append_event": {
     "classification": "data",

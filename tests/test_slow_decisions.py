@@ -224,6 +224,18 @@ class SlowDecisionTest(unittest.TestCase):
                 self.assertEqual(len(file.read_text(encoding="utf-8").splitlines()), 1)
                 self.assertEqual(json.loads(file.read_text(encoding="utf-8"))["reason"], "rest")
 
+    def test_clock_failure_after_choice_still_stops_sampler(self):
+        samples = Mock()
+        policy = SimpleNamespace(choose_key=Mock(return_value="5"))
+        with TemporaryDirectory() as directory:
+            recorder = SlowDecisionRecorder(
+                1, Path(directory) / "decisions.jsonl",
+                clock=Mock(side_effect=[0, RuntimeError("clock")]),
+                sampler_factory=Mock(return_value=samples),
+            )
+            self.assertEqual(recorder.choose_key(policy, None), "5")
+        samples.finish.assert_called_once()
+
     def test_diagnostic_failures_preserve_key_and_policy_exception(self):
         for target in ("start", "finish", "aggregate"):
             with self.subTest(target=target), TemporaryDirectory() as directory:

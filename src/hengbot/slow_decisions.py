@@ -132,8 +132,11 @@ class SlowDecisionRecorder:
             self._finish(samples)
             raise
         try:
-            elapsed = self.clock() - started
-            if self._finish(samples) and elapsed > self.seconds:
+            try:
+                elapsed = self.clock() - started
+            finally:
+                finished = self._finish(samples)
+            if finished and elapsed > self.seconds:
                 self._append({
                     "decision_sequence": getattr(policy, "_decision_sequence", None),
                     "reason": policy.last_reason,
