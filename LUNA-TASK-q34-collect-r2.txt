@@ -1,0 +1,22 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-q34-collect.txt (read your LUNA-DIAG-q34-collect.txt and LUNA-REPORT-q34-collect.txt first). The
+branch now contains main dace87f32 (merged by the supervisor).
+Owner decision (AskUserQuestion 2026-10-25 23:xx, LOCKED, verbatim choice 「その場で開けて中身を拾う」): a chest found in
+a quest is opened on that floor when it is safe (no hostile in view), with the existing chest procedure (check and
+disarm traps, then open), and its contents are picked up; the chest itself is not carried home. Plain/unidentified gear
+is picked up and identified per the existing decision (2026-10-20).
+Build:
+1. The fixed-quest sweep considers every known item on the floor (_known_loot / found_items), not only the current
+   cell's object_count, through the existing loot/claim judgment (no quest-34 scene rule).
+2. Chests in a quest go to the existing chest procedure at the floor when safe; the contents are then collected like any
+   other floor item; the chest stays on the floor.
+3. Fix the quest-34 chest reservation that points at a wall (10,8) while the chest is at (10,9) - say whether it is data
+   or code, and fix it at its source.
+Pins from your recorded rows (state 189-287) through the public choose_key AND the follow executor for every key the game
+answers with a prompt (disarm/open questions): before -> walks past (seq 215-313 recorded); after -> the two swords are
+picked up and the chest is opened with its contents collected, then exit. Controls: existing quest-34, chest and loot
+tests unchanged. Per-pin revert proofs.
+Guards: preflight / mutation_check --record / fast_tier with base dace87f32 (they wait while a merge gate runs - let
+them), then remote_slow once; if remote_slow again shows the base side failing to import tests, report it and do not
+rerun (the supervisor checks the tool). Token budget 150k HARD, wall time 150 minutes. Append round 2 to the report
+(Japanese, Python UTF-8) and commit. Same rules as before.
