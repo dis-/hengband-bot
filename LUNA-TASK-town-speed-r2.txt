@@ -1,0 +1,22 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-town-speed.txt (read your LUNA-REPORT-town-speed.txt / LUNA-DIAG-town-speed.txt first). If the
+`git merge main` the supervisor started left conflicts, finish it (regenerate scripts/town_work_manifest.json.gz).
+Your replay could not reproduce the live 17-30 s choose_key. The owner decided (AskUserQuestion 2026-10-26, LOCKED,
+verbatim choice 「ボットに測る仕組みを足す」): add a light in-process sampling recorder to the bot, used on the two viewing
+bots, to find where the live time goes. No external tools. Decisions must not change.
+Build:
+1. Option --slow-decision-sample SECONDS (default 0 = off). While choose_key runs, a daemon thread samples the main
+   thread's stack every 10 ms (sys._current_frames; function, file:line of each frame, depth-limited). When that
+   decision's choose_key exceeds SECONDS, aggregate the samples (per function: self and cumulative sample counts; the top
+   few full stacks) and append one JSON line to <decision-log dir>/slow-decisions.jsonl with decision_sequence, reason,
+   choose_key_ms and the aggregate (bounded size, e.g. top 40 functions and 5 stacks). Below SECONDS discard the samples.
+   Bound the file size (rotate). Never raise into the follow loop; the sampler thread must not hold the GIL long
+   (sampling cost per tick small; measure and report overhead per decision with the option on).
+2. Pins (no wall-clock dependence; inject the clock/sampler the way pacing/frames tests do): a decision over the limit
+   writes one record with the expected structure; under the limit writes nothing; option off starts no thread; keys and
+   reasons identical with and without the option. Per-pin revert proofs.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control; no push/merge to main/
+rebase/reset --hard/stash; existing tests (= tests at main dace87f32) unchanged; no logs committed. Guards:
+preflight / mutation_check --record / fast_tier with base dace87f32 (they wait while a merge gate runs - let them), then
+remote_slow once. Token budget 120k HARD, wall time 150 minutes. Append round 2 to LUNA-REPORT-town-speed.txt (Japanese,
+Python UTF-8) and commit.
