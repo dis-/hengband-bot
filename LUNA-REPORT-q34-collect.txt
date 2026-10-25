@@ -1,0 +1,276 @@
+Issue #47 — Q34回収調査の報告
+2026-10-25 / q34-collect-1025 / 基準4d239862f
+
+調査結果
+剣2本と箱1個の置き去りを確認した。原因は固定クエスト巡回が現在のセルの
+object_countだけを候補にし、_known_lootとfound_itemsに残った視界外の品を
+対象にしないこと。箱については、予約位置(10,8)が壁で、実配置(10,9)と
+食い違う別の不整合も見つかった。通常のloot target選択は呼ばれておらず、junk・重量・
+クエスト携行要件で回収を拒否した記録ではない。
+詳細な行番号、記録行、入力SHA-256、再現方法、仕様上の選択肢は
+LUNA-DIAG-q34-collect.txtにまとめた。
+
+監督メモから訂正した点
+・(6,6)、(6,8)、(9,17)、(11,14)、(11,15)の薬は自動拾得されていた。
+  メッセージと所持数の増加が一致する。
+・(11,20)の金塊も実際に踏んで回収し、所持金は49から126へ増加していた。
+・最終的な残留は(9,9)のショート・ソード、(9,11)のサーベル、
+  (10,9)の小さな木の箱の3品。
+・記録は開始行が2件あり、対象事象直前のargvの版名は4d239862。
+  git_commitはnullなので、タスク記載の0aa8069bだけの実行とは断定しない。
+
+実施範囲と停止理由
+未鑑定装備は回収・鑑定後に要否判定する既決定の対象だった。
+一方、クエスト内の箱については、クエスト内で開封する・持ち帰る・放置する
+いずれの方針かを所有者の明示決定として確定できなかった、と判断した。
+既存の箱処理手順と、この階で開けて内容だけ持ち出す実装の意図は確認した。
+ただし、既知の拾得/drop交互問題もあるクエスト中の箱の扱いを、それだけで
+所有者の明示決定と読み替えてはいない。箱の位置設定の誤りを、放置する仕様の
+根拠にしてもいない。実配置と予約位置、構成テストの不整合は診断書9に記した。
+LUNA-TASK-q34-collect.txt第2項の「未決定なら診断後に停止」に従い、
+製品修正・回帰テスト追加は行わず、診断と報告を作成した。
+クエスト番号依存の新規ルール、定数、閾値は追加していない。
+
+再現と検証の範囲
+記録前半を観測として蓄積し、記録内のskill_exp knowledgeを消費した後、
+state189～287を公開choose_keyで再生した。seq215～313の全99件について、
+キーと理由が実録に一致した。collect87回、pickup1回、exit:route10回、
+exit1回で、targetは常にNone、deferredは空、最後に3地点が残った。
+明示gは偽transportを使う実follow executorでもcompletedを確認した。
+その次の盤面は実録だが画面は構成したもので、実プロンプト画面の録画再生ではない。
+修正後に回収できるというpinや、新規の箱操作のprompt検証を完了したとは扱わない。
+再現スクリプトはC:/hengband-backups/q34-collect-verification-1025/replay.py。
+既存のsrc/hengbotとtestsのGit treeは基準と完全一致する。
+
+検証ガード
+基準: 4d239862f / 検証対象HEAD: c5a52597a
+preflight: 終了コード0、変更2ファイル、指摘0件。
+文書を含む差分3ファイルも --no-tests で再確認し、終了コード0、指摘0件。
+mutation_check --record: 終了コード0、対象ソース0ハンク。
+既存対照 tests.test_quest_navigator と tests.test_loot_triage が成功し、記録を保存。
+総経過3108.3秒にはマージ検証の終了待ち約52分を含む。
+fast_tier: 終了コード0、2049テスト、失敗0、エラー0、異常終了した分割プロセスなし。
+テスト実行109.3秒、4分割。
+remote_slow: 指定どおり1回実行し、終了コード1（SLOW FAIL）。
+Linux検証環境、50モジュール、3並列、総経過2341.3秒。
+対象HEAD側は36モジュール非成功、基準側は50モジュールすべて非成功。
+ツールは基準にない失敗を300件と報告した。この比較ガードは未解決の失敗として残す。
+基準側の37モジュールでは tests (unittest.loader._FailedTest.tests) が記録され、
+testsパッケージの読み込みで止まっている。実テストの比較が成立していない項目がある。
+export元のsrc・tests・scripts・pyproject.tomlはすべて基準と一致するため、
+300件を今回のコード変更による回帰と認定してはいない。一方、比較成功とも扱わない。
+基準側の読み込み異常の原因は未確定。検証環境の調査と信頼できる再比較は残作業。
+指定された1回を終え、追加のremote_slowやテストの再実行は行っていない。
+
+src/hengbot tree: f3434461881e3bf74990f2a48e673a8559f535fc
+tests tree: 6305d4c40f064a4b859e4bc4ffdee3c1d180e428
+いずれも基準コミットと一致する。後続の報告コミットも文書のみの変更である。
+ログ保存先: C:/hengband-backups/q34-collect-verification-1025/
+検証環境はLinux検証環境と記載し、固有の接続先情報は本文へ転載しない。
+
+次に必要な仕様決定
+A: クエスト内の箱もその階の安全時に既存手順で開封し、内容を回収する。
+B: クエスト内の箱は持ち帰る（既存drop経路との所有権整理が必要）。
+C: クエスト内の箱は理由を明記して放置し、装備等の回収漏れを修正する。
+いずれも今回の所有者決定とはみなしていない。方針決定後は共通のloot/claim
+judgmentを通す修正と小さなgzip fixtureによる公開入口・prompt経路のpinを行う。
+
+ゲーム／BOTへの接続・操作・停止、push・merge・rebase・stashは行っていない。
+開始時から存在したsol-q34.out.logとsol-q34.err.logはコミット対象から除外した。
+両文書はPythonのwrite_text(..., encoding="utf-8")で作成した。
+
+
+ラウンド2 — 所有者決定に基づく回収修正（Issue #47）
+2026-10-26 / 基準 dace87f32 / 検証対象HEAD 1745fc07c
+
+確定方針と変更
+所有者の2026-10-25の決定Aに従い、クエストで見つけた箱は敵が見えない安全時に
+その階で既存の罠確認・解除・開封手順へ渡す。内容を回収し、箱本体は持ち帰らない。
+前ラウンドの仕様確認待ちは、この決定で解消した。未鑑定装備は回収後に既存の
+鑑定・要否判断へ進める方針を維持する。
+
+固定クエストの巡回は、現在のセルのobject_countだけでなく、公開found_itemsと
+地形記憶を合成して候補を認識する。地形の可視性は変更しない。通常の_loot_stepから
+候補の価値・安全判断を_loot_candidatesへ抽出し、巡回でも再利用した。
+未鑑定の剣をjunk扱いせず、残骸、deferred、見えない攻撃、危険領域等の既存判断を通す。
+固定地形の経路、ガラス扉回避、既存の空き枠対策と巡回予算は維持する。
+巡回が選んだ_loot_targetを記録し、既存のfloor-loot／_normal_loot_keyのrungへ
+割り当て、実際のclaimがReachと対象セルを持つことを検査する。Q34専用の回収場面ルールや
+製品コードの新しい定数・閾値、重量による装備比較は追加していない。
+
+箱の処理対象をQ34の一座標へ限定する制約を外し、承認済み固定クエストで安全時に
+既存の箱処理へ渡す。戦略が指定した箱は優先するが、指定外の箱も処理する。
+箱へ接近する経路も固定地形と回避扉を使う。箱へ処理を切り替える際は、前の巡回目標と
+その移動台帳を解放する。箱処理の停止時間が前の目標へ加算され、他の品を諦める問題も
+state189からの追加検証で検出し、修正した。箱内容の拾得には空き枠・junk・deferredの
+判断を適用し、箱と内容が同じセルに重なる場合は床の選択画面で内容だけ選び、ESCで
+箱を残す。follow executorはこの選択列を実際の質問に合わせて送る。
+D/oの方向も質問が出たときだけ送る。easy_open/disarmで方向が自動選択された場合、
+不要になった方向キーは破棄する。
+
+予約位置の原因
+実配置データの誤りではなく、BOT側の予約データと重複したコード定数の誤りだった。
+実クエスト定義の木箱と記録のfound_itemsは(10,9)、(10,8)は壁で一致する。
+strategy/quests/QUEST_34.jsoncのchest_positionを(10,9)へ修正し、誤った位置定数を
+削除した。優先位置の出所は戦略データへ一本化した。
+既存の構成テストが(10,8)を床として扱う点は変更せず、それらも対照として成功した。
+
+記録とpinの証拠
+追加したgzip fixtureは48,911バイト。287行の盤面・knowledge、実録99判断、
+クエスト地形と登場3種の公開モンスター定義を含み、元gzipのSHA-256も保持する。
+巨大なJSON・実行ログはリポジトリへ追加していない。
+基準のソースと戦略データを作業ツリー外へ展開し、前半188行を観測、knowledgeを消費してから
+state189〜287を公開choose_keyで再生した。seq215〜313の全99件のキー・理由が
+実録に一致し、_loot_targetは常にNone、最終的に剣2本と箱が残った。
+実録のgは実follow executorでもcompletedを確認した。
+
+修正後のpinは次を分けて確認する。
+・state189の公開入口で、近い壊れた箱より実配置の木箱(10,9)を優先する。
+・state287の記憶済み剣2本を共通候補から選び、targetとclaimを記録する。
+・found_itemsからの復元、予約位置以外の箱の処理、座標と元地形の一致を確認する。
+・state189とstate287から、それぞれの構成応答で、剣2本の拾得、箱の既存罠確認・解除・開封と内容回収を
+  済ませて退出するまで、公開choose_keyと実follow executorを全判断で通す。
+・箱と内容の同一セル、方向自動選択、内容のjunk/deferred、通常巡回のjunk/deferredを確認する。
+箱が先に開くため、剣と内容の実際の拾得順は経路に従う。木箱の本体は床に残り、
+剣2本と構成した内容は床に残らないことを検査する。残骸は回収対象にしない。
+
+証拠の範囲
+変更後の行動による実ゲーム録画は存在しない。移動後の盤面、箱の質問、内容物の出現と
+拾得はゲームの手順に基づいて構成した偽transportの応答であり、実録の新しいプレイ結果とは
+称さない。実録の能力値・所持品・地形を出発点にしている。
+完成済みQ34の退出にはゲーム側の確認質問がないこともソースに合わせた。
+ゲーム／BOTへの接続・操作・停止は一切行っていない。
+
+検査カタログ
+新しい2つの関数はキーを返さないデータ補助関数として個別の根拠を登録した。
+既存呼び出しの引数・条件変更と箱内容の空き枠判断への委譲を監査カタログへ登録し、
+town work manifestを再生成した。既存テストの期待値・本体は変更していない。
+
+リバート証明とガード結果
+新規12テストが成功した。既存の巡回・loot・箱・Q34対照55件も変更せず成功し、
+通常lootの移動台帳対照9件も成功した。最終fast tierの集計は下記のとおり。
+既存tests配下のファイルは基準から一切変更せず、新しいテストモジュールとgzipのみ追加した。
+
+各pinのリバート証明:
+・記憶された剣の選択、found_items復元、state189の箱優先、指定外の箱、
+  state287の回収完了、同一セルの内容拾得、方向自動選択の7件は、基準ソースで失敗した。
+・箱内容のjunk/deferred判断のpinも基準ソースで別途失敗した。
+・予約座標のpinは戦略データだけを(10,8)へ戻すと失敗し、元データを復元した。
+・state189のfound_itemsにある非junk品を回収するpinは、箱への切替時の目標解放だけを取り消すと
+  クロークと薬を残して失敗した。修正を復元して成功を確認した。
+・箱への接近時のReachが箱の隣接セルを指すことと、足下の残骸を拾わないことも追加した。
+  それぞれの実装だけを戻して、そのpinが単独で失敗することを確認した。
+・junk/deferred除外は既存方針の対照として基準側でも成功する。
+上記の基準側失敗は、全ソースを戻した対照であり、方向送信など各変更の単独検出は
+下記のハンク単位mutation_checkの結果と分けて評価する。
+
+基準 dace87f32 / 検証対象HEAD 1745fc07cb68f5737ad0d78284762ffb394739f9
+preflight: 終了コード0、19変更ファイル、指摘0件、132.0秒。
+mutation_check --record: 終了コード0、20ハンクすべて検証済み、36.8秒。
+  60560815dで20/20の単独リバートを検出して記録した。通常経路の互換修正後は
+  その成功記録を使い、変更のない19ハンクをGREEN EARLIER、変更1ハンクを再検査し検出した。
+  最新HEADおよびsrc/testsのtreeに対応する成功記録を保存した。
+  最初の検査では目標宣言と足下junk判断の2ハンクがNOT CAUGHTだったため、
+  上記のpinを補強してから成功を確認した。未検証ハンクを残して成功扱いしていない。
+fast_tier: 終了コード0、2068テスト、失敗0、エラー0、異常終了したshardなし。
+  4分割、テスト実行99.3秒（コマンド全体99.6秒）。
+  最初のfast tierの通常loot対照2件のエラーは、補完時以外にも盤面参照を追加したためだった。
+  通常経路の従来の入力要件を維持し、追加の床情報確認を補完経路に限定して修正した。
+  既存対照テストは変更せず、2エラーが消えたことを確認した。
+remote_slow: 指定どおり1回実行。終了コード1（SLOW FAIL）、4179.4秒。
+  Linux検証環境、50モジュール、3並列。追加失敗は2件。
+  対象HEAD側は37モジュール非成功、基準側は36モジュール非成功。
+  追加失敗が残っており、この比較は未解決の失敗として記録する。
+  いずれも結果を記録し、remote_slowの再実行はしていない。
+
+src/hengbot tree: 5e9f6193e6f4d9eb89079e636f7222070e055663
+tests tree: aca514c88e3d310a6f6e38da39f7fd0ba746b28c
+報告のみのコミットは検証対象のsrc/tests treeを変更しない。
+
+ログと単独リバート証拠の保存先:
+C:/hengband-backups/q34-collect-r2-verification-1026/
+録画由来のbefore.py、before.log、reservation-revert.log、chest-handoff-revert.log、
+chest-goal-revert.log、underfoot-junk-revert.log、claim-revert-*.log、各ガードのログを保存した。
+再生成カタログ以外の新しい大きなログやJSONをリポジトリへ追加していない。
+開始時からのsol-q34*.logは変更・コミット対象から除外する。
+ゲーム／BOTの操作・停止、push・merge・rebase・stashは実施していない。
+本ラウンドもPythonのwrite_text(..., encoding="utf-8")で追記し、日本語の保持を検査した。
+
+
+ラウンド2の未完了事項（150分上限による終了）
+Linux比較で追加失敗2件を確認した。基準側のパッケージ読み込み異常ではない。
+tests.test_ownership_s2a_classification.CensusSeparationTest の次の2件:
+  test_a_census_only_family_can_never_arbitrate
+  test_the_census_refines_arbitration_and_never_contradicts_it
+今回のtown_arbiter.pyでquest:sweep:をfloor-lootのcensusへ先行分類した一方、
+既存のarbitrationはquest-requestのままなので、既存のcensus/arbitration不変条件に矛盾する。
+回収・箱・promptの機能pinとローカルガードは成功したが、この分類変更の整合は未解決であり、
+ラウンド2全体を検証完了とは扱わない。既存テストの期待値を変更して失敗を隠してはいない。
+残作業は、既存の所有権・arbitration契約を保った回収claimの表現への修正と、その再検証。
+新しい分類・予算を独断で追加せずに直す必要がある。150分の作業上限に従ってここで終了する。
+remote_slowは1回のみで、追加の実行はしていない。
+
+
+ラウンド3 — census と arbitration の整合修正（Issue #47）
+2026-10-26 / 基準 dace87f32 / 検証対象HEAD 487ee079cefc172bea764bd929b7a5d6b4491a0d
+
+修正内容
+town_arbiter.py の floor-loot 登録を既存の census-only 群の位置へ戻し、
+quest:sweep: の先行分類を撤去した。登録順と分類表は基準 dace87f32 と一致する。
+quest: の理由は従来どおり quest-request に所属し、census と arbitration が一致する。
+新しい分類・予算・定数・閾値は追加していない。
+
+公開判断で床上回収の移動を返すとき、QuestFloorNavigator.decide は内部の
+quest:sweep:collect を既存の loot: 名前空間の loot:seek-quest-sweep に置き換え、
+選択済み _loot_target の Reach をその所有者で再宣言する。これにより内部の
+クエスト名義の goal を引き継がず、既存 floor-loot / _normal_loot_key の rung と
+対象セルを維持する。内部 _sweep の理由と既存の直接呼び出し契約は維持した。
+不要になった floor-loot 向け quest:sweep: の goal typing 2行も削除した。
+
+ラウンド2で追加した記録テストでは公開出力の理由名の期待値2か所だけを変更した。
+回収対象・claim所有者・Reach・rung・違反なし・follow executor の各検証は維持した。
+既存テストは変更していない。基準との差分で tests 配下はラウンド2の追加モジュールと
+小さな gzip fixture だけである。生成メタデータを更新した。
+
+検証結果
+指定の CensusSeparationTest の2件: 成功、2件、3.526秒。
+tests.test_ownership_s2a_classification 全体: 成功、16件、46.878秒。
+tests.test_q34_collect_recorded 全体: 成功、12件、26.941秒。
+上記は codex runtime Python 3.12.14、PYTHONPATH=src;tests;scripts で実行した。
+最初の2件実行は scripts を PYTHONPATH に含めず import error となったため、
+正しい検索パスで実行し直した。テスト本体の失敗を期待値変更で隠していない。
+
+preflight の初回は runtime Python 3.12 の AST ハッシュで既存3.13版の生成情報が
+全面変化し、生成情報の不一致で失敗した。既存環境と同じ実体の Python 3.13.14 で
+再生成し、不要な大量差分を解消した。その同じ版で以下のゲートを実行した。
+preflight: 終了コード0、経過141.2秒
+mutation_check: 終了コード0、経過47.6秒
+fast_tier: 終了コード0、経過136.6秒
+
+mutation_check --record（基準 dace87f32）:
+[mutation] incremental: green record at 1745fc07c; hunks unchanged since then are skipped
+[mutation] caught     src/hengbot/quest_navigator.py:202 (if owner.last_reason == "quest:sweep:collect":): test_found_items_work_after_restart_without_loot_observation_history, test_recorded_invisible_swords_enter_shared_loot_candidates
+[mutation] MUTATION OK: 0 of 19 hunks are not pinned by a test
+[mutation] recorded for 487ee079
+既存の成功記録を継承した GREEN EARLIER は18ハンク。変更されたハンクは
+今回あらためて単独リバートで検出した。全ハンクの再検証を行ったという意味ではない。
+
+fast_tier（基準 dace87f32、4分割）:
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-x03gytko)
+Failures: none
+Errors: none
+Total: 2068 tests, 136.3s
+
+検証対象ソース・テスト tree:
+src/hengbot: d00e5212128c34df8fcb26f6d4dbe9bceab29204
+tests: f7f83abb2df88f8c5c2ac5b852069be02d6eeb8f
+報告のみの後続コミットはこれらの tree を変更しない。
+ログと実行スクリプトの保存先:
+C:/hengband-backups/q34-collect-r3-verification-1026/
+
+ラウンド2で残った既存所有権テスト2件の失敗は解消した。回収・箱処理・prompt応答の
+12件もすべて成功した。変更後の実ゲーム録画を追加取得したものではなく、以前の記録と
+構成した応答による回帰検証である。remote_slow は今回の指示どおり実行していない。
+ゲーム・BOT の接続・操作・停止、push・merge・rebase・stash は実施していない。
+開始時から存在した sol-q34*.log は変更・コミット対象から除外した。
+本節は Python の write_text(..., encoding="utf-8") で追記した。

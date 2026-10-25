@@ -11310,5 +11310,27 @@
       "loot-exploration",
       "bookkeeping"
     ]
+  },
+  "policy_identification.py:IdentificationMixin._loot_candidates": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Shared loot candidate selection and safety deferral, extracted from _loot_step; consumed by ordinary loot routing and fixed-quest sweep; emits no key or independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_navigator.py:QuestFloorNavigator.with_loot_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Snapshot adapter combines public found_items with remembered terrain without changing visibility; consumed only by approved fixed-quest chest and sweep decisions; emits no key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

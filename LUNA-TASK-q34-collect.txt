@@ -1,0 +1,33 @@
+ISSUE: #47
+The owner asked (verbatim): 「Q34内のアイテム回収失敗を確認」. Branch q34-collect-1025 at main 4d239862f
+(worktree C:\hengband\bot-client\.worktrees\q34-collect-1025).
+
+Incident (n1-a life-014, 2026-10-25 21:20:48-21:21:57, quest 34, bot main 0aa8069b; saved by the supervisor):
+  C:\hengband-backups\state-logs\q34-collect-1025-2124\q34-dec.jsonl.gz (every decision 21:19:30-21:23:30) and
+  q34-state.jsonl.gz (the 287 state rows on the quest floor).
+  Supervisor reading: after the final door and the melee (seq 214), quest:sweep:collect ran 87 decisions
+  (21:21:33-21:21:55), pressed 'g' once (seq 229 quest:sweep:pickup at (7,15)), walked the room perimeter
+  ((6,6) (7,3) (11,3) (9,1) (1,1) ... (10,20)) and left by quest:exit:route / quest:exit. Throughout, the decision rows'
+  loot.target is null and loot.deferred empty while loot.known lists (9,9) (9,11) (10,9) (11,20) - at the end it passed
+  (11,20) at distance 1. The last state row's grid_map.found_item_names: (9,9) ショート・ソード (1d7), (9,11) サーベル (1d7),
+  (10,9) 小さな木の箱; earlier visible items at (6,6) (6,8) (9,17) (11,14) (11,15) also vanished from the lists.
+  Verify all of it.
+Do:
+1. LUNA-DIAG-q34-collect.txt: why quest:sweep:collect never set a loot target (file:line): the items judged not
+   worth taking (which rule - plain-gear junk scope, chest handling, weight, quest carry requirements), or a target
+   selection that never ran / was overridden by the sweep route. What the owner decisions say for each item kind
+   (memory notes are summarized in the code comments; the relevant ones: plain gear is picked up, identified and destroyed
+   if useless (2026-10-20); quest-34 chests (a known low-priority pickup/drop alternation); Q34 lantern/oil facts).
+2. If a decision covers the case, fix it so the sweep collects what the decisions say to collect, through the existing
+   loot/claim judgment (no scene rule keyed to quest 34). If what to do with these items is NOT decided (for example
+   chests in a quest), STOP after the diagnosis with the options.
+3. Pins from the recorded rows through the public choose_key, and through the follow executor for any key that the game
+   answers with a prompt (a pin that stops at choose_key missed a confirm prompt today): before -> no target / walks
+   past; after -> the decided items are picked (or a named reason not to). Controls: existing quest-34 and loot tests
+   unchanged.
+Rules: Python UTF-8 for text files (PowerShell turns Japanese into '?'); never stop processes you did not start; no
+game/bot control (the viewing bots are live and public); no push/merge/rebase/reset --hard/stash; existing tests
+(= tests at 4d239862f) unchanged; no new constant or threshold; small gzip fixtures only, no log/JSON dumps in the repo.
+Guards before reporting: preflight / mutation_check --record / fast_tier with base 4d239862f, then remote_slow once
+(fast_tier and mutation_check wait by themselves while the merge gate runs). Token budget 150k HARD, wall time 120
+minutes. Write LUNA-REPORT-q34-collect.txt in Japanese and commit.

@@ -3044,7 +3044,8 @@ def _floor_pile_pickup_continuations(
     if snapshot is None or snapshot.store is not None:
         # In the Home ``g`` is the store's "get an item" command.
         return None
-    if re.fullmatch(r"ga{2,}", key) is None:
+    selective_chest_contents = re.fullmatch(r"g[a-z]+\x1b", key) is not None
+    if re.fullmatch(r"ga{2,}", key) is None and not selective_chest_contents:
         return None
     chooser = dict(
         kinds=frozenset({ScreenKind.ITEM_SOURCE}),
@@ -3054,7 +3055,8 @@ def _floor_pile_pickup_continuations(
         feature_pattern=True,
     )
     continuations = [
-        Continuation(keys="a", **chooser) for _item in key[1:]
+        Continuation(keys=letter, **chooser)
+        for letter in (key[1:-1] if selective_chest_contents else key[1:])
     ]
     continuations.append(Continuation(keys="\x1b", **chooser))
     return key[0], continuations

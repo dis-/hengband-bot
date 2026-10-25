@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections import Counter, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
-from hengbot.model import Position, Snapshot
+from hengbot.model import Position, Snapshot, TVAL_CHEST
 from hengbot.policy_constants import QUEST_STATUS_TAKEN, WAIT_KEY
 from hengbot.policy_types import DecisionCandidate, QuestTravelDeclaration
 from hengbot.quest_knowledge import QuestBattlefield
@@ -202,6 +202,12 @@ class QuestFloorNavigator:
         if self.phase == QuestPhase.SWEEP:
             action = self._sweep(owner, snapshot, hostiles)
             if action is not None:
+                if owner.last_reason == "quest:sweep:collect":
+                    # The navigator reports its sweep phase; the completed
+                    # decision walks toward floor loot. Use the existing loot
+                    # namespace without stealing quest-request's census reasons.
+                    owner.last_reason = "loot:seek-quest-sweep"
+                    owner._declare_reach(owner._loot_target)
                 return action
             self.phase = QuestPhase.EXIT
 
@@ -211,6 +217,17 @@ class QuestFloorNavigator:
         profile = owner.approved_quest_strategy(self.quest_id)
         plan = profile.engagement_plan if profile is not None else {}
         return int(plan.get("hold_budget", DEFAULT_HOLD_BUDGET))
+
+    @staticmethod
+    def with_loot_memory(snapshot: Snapshot) -> Snapshot:
+        """Use public remembered objects without changing terrain visibility."""
+        grids = dict(snapshot.grids)
+        for y, x, count, *tvals in snapshot.found_items or ():
+            pos = Position(y, x)
+            grid = grids.get(pos)
+            if grid is not None and grid.object_count == 0:
+                grids[pos] = replace(grid, object_count=count, object_tvals=tuple(tvals))
+        return replace(snapshot, grids=grids)
 
     def _sweep(self, owner: Any, snapshot: Snapshot, hostiles: list[Any]) -> str | None:
         if hostiles:
@@ -233,6 +250,8 @@ class QuestFloorNavigator:
             and here.position not in processed_chests
             and here.position not in reserved_chests
             and here.position not in getattr(owner, "_deferred_loot", set())
+            and not owner._floor_pile_is_junk(snapshot, here)
+            and TVAL_CHEST not in here.object_tvals
         ):
             pack_space = owner._quest_sweep_pack_space_key(snapshot, here)
             if pack_space is not None:
@@ -241,13 +260,17 @@ class QuestFloorNavigator:
             if here.object_count > 1:
                 return PICKUP_KEY + ("a" * here.object_count)
             return PICKUP_KEY
+        # Reuse ordinary loot value/safety judgment; only routing belongs to
+        # the fixed-map navigator (including its avoided doors).
         loot = {
-            pos for pos, grid in snapshot.grids.items()
-            if grid.object_count > 0
-            and self._static_walkable(pos)
+            pos for pos in owner._loot_candidates(snapshot, include_unsafe=True)
+            if self._static_walkable(pos)
             and pos not in processed_chests
             and pos not in reserved_chests
-            and pos not in getattr(owner, "_deferred_loot", set())
+            and not (
+                (grid := snapshot.grid_at(pos)) is not None
+                and TVAL_CHEST in grid.object_tvals
+            )
         }
         if loot and self.sweep_turns < SWEEP_BUDGET:
             blocked = {
@@ -262,7 +285,9 @@ class QuestFloorNavigator:
             )
             if len(path) > 1:
                 self.sweep_turns += 1
+                owner._loot_target = path[-1]
                 owner.last_reason = "quest:sweep:collect"
+                owner._declare_reach(owner._loot_target)
                 return owner._step_toward(snapshot, path[1])
         return None
 

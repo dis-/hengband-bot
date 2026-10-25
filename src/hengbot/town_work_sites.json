@@ -2086,7 +2086,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b19b7e6e81230f67eda78a7a5ff4e8d59924040d4298377bd3a4ade4a7a9054f"
+    "ast_sha256": "03e26f7be45fdbe0240ee829b4ebbb94bba1360544e7cd95ed1673e6f22868f7"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5431,7 +5431,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a881d27e2a8dee0edaa59299e6be0a6a56bddcc884bb08beaf1be63a7489baaa"
+    "ast_sha256": "9e3d8741e7dcdf5ad0076d2f604cb0230efc1b171d39cce9a0298c15a9e43356"
   },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
@@ -5522,13 +5522,21 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "31fd2923cc93971619fde41acaa14af6f8d5549fa5f0a11416d8fd98ef03cefb"
   },
+  "policy_identification.py:IdentificationMixin._loot_candidates": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "45e2b4c2d082edc62a5865a152f5f64b0d69998f830ec3d4c9c348d633e5c1ae"
+  },
   "policy_identification.py:IdentificationMixin._loot_step": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "07b1fbff825f1ebaae9f122ac9e79508a8e15247b39cfe991f45d793b3fda8f1"
+    "ast_sha256": "c4b49c2bdd54740cee1ff40b0dfaf9f48d89f11b6208c736ef28e397695cb9cd"
   },
   "policy_identification.py:IdentificationMixin._normal_loot_key": {
     "classification": "producer",
@@ -8075,7 +8083,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "079f22e15bd8271788af7893d153d9a1829d07b5179797e2d8fe96dd676b6ceb"
+    "ast_sha256": "a6551809cf7f77a08c0c28a3a7243fab606d3ca76e082ceb863d0bf1c325a027"
   },
   "quest_navigator.py:QuestFloorNavigator._unavailable_entry_candidate": {
     "classification": "producer",
@@ -8092,7 +8100,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1936cf51ceb257e127482a3fc59636290f1e0d18c3338277a5002665211aa64e"
+    "ast_sha256": "5a14f0703c6dd1c8ad97426953e50ee5389754f6e393cb658ab75ffdd282c5d6"
   },
   "quest_navigator.py:QuestFloorNavigator.enter_from_town": {
     "classification": "producer",
@@ -8118,6 +8126,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "d2c1c6d63528e4b9e426d742308c8a79657324289ee1774e5d88db68c4338b27"
+  },
+  "quest_navigator.py:QuestFloorNavigator.with_loot_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "2bebccbb9df8eeae7630baacf9edfddb8072a63d16433021ce9c77cb80c40d62"
   },
   "slow_decisions.py:SlowDecisionRecorder.choose_key": {
     "classification": "adapter",

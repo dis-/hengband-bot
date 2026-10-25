@@ -42,7 +42,7 @@
     "opening": "[1,20] から右外周を南下し、[9,20] の油つぼを回収してから [10,20] の真鍮ランタンを回収・装備する。油つぼがなければランタンへ進む。その後、右外周を北へ戻り、上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を開ける。外周のガラス扉は開けない。",
     "final_door": [4, 14],
     "final_door_approach": [5, 14],
-    "chest_position": [10, 8],
+    "chest_position": [10, 9],
     "placement_sweep": true,
     "placement_sweep_scope": "battlefield",
     "max_sweep_rounds": 3,

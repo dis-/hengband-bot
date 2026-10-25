@@ -1,0 +1,13 @@
+ISSUE: #47
+ROUND 3 of LUNA-TASK-q34-collect.txt (round 2 report in LUNA-REPORT-q34-collect.txt, last section). Narrow scope.
+Two EXISTING tests fail with your round 2 (they are not in fast_tier; run them locally):
+  tests.test_ownership_s2a_classification.CensusSeparationTest.test_a_census_only_family_can_never_arbitrate
+  tests.test_ownership_s2a_classification.CensusSeparationTest.test_the_census_refines_arbitration_and_never_contradicts_it
+Your own diagnosis: town_arbiter.py now classifies quest:sweep: into the floor-loot census while arbitration still
+attributes it to quest-request, which breaks the census/arbitration invariant. Fix it in the source so census and
+arbitration agree (keep the existing ownership contract; the existing tests' assertions do not change). Keep all your
+round-2 behaviour pins green.
+Run: the two tests, the whole tests.test_ownership_s2a_classification module, tests.test_q34_collect_recorded, then
+mutation_check --record and fast_tier with base dace87f32 (they wait while a merge gate runs - let them). remote_slow is
+not needed this round (the merge gate runs the full suite). Token budget 60k HARD (round 2 used 629k - stop and
+report at the budget), wall time 90 minutes. Append round 3 to the report (Japanese, Python UTF-8) and commit.

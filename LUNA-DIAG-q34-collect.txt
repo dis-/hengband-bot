@@ -1,0 +1,211 @@
+Issue #47 — Q34内のアイテム回収失敗の診断
+作業ブランチ: q34-collect-1025
+基準: 4d239862f、調査開始HEAD: 489e50d21（基準との差はタスクファイルのみ）
+対象: 2026-10-25 21:20:48～21:21:57、クエスト34、稼働版 0aa8069b
+結論: 未鑑定の剣2本と箱1個の残留を確認。薬5地点と金塊の回収失敗という見方は訂正する。
+クエスト内の箱の回収・処理方針の明示決定を確定できないため、タスク第2項に従って診断で停止し、製品コード・テストは変更しない。
+
+1. 記録の範囲と照合方法
+入力は C:/hengband-backups/state-logs/q34-collect-1025-2124/ の次の2ファイル。
+q34-dec.jsonl.gz: 672行（session-start 2行、判断670行）。
+q34-state.jsonl.gz: 287行（player_turn 284行、skill_exp knowledge 3行）。
+「287 state rows」はすべてが行動盤面という意味ではない。
+gzip自体のSHA-256:
+  decision: 5fcb6729458f940772bcc9ac281d2a2ddaf149230a5d8089f4cb23177bcdddb2
+  state: ca4e1f6452effac17e2e186870839e42d6dce79e6165f476449ac735c0a3b85b
+以下のstate行番号は1始まり。時刻は記録どおり日本時間、座標は(y,x)。
+ゲーム／BOTの操作・停止は行っていない。巨大な記録のコピーやJSONダンプもリポジトリへ追加しない。
+
+2. 監督メモの検証と訂正
+seq214、turn77851、(4,14)、quest-strategy:melee、キー9。
+次のseq215、turn77861では達成メッセージがあり、quest:sweep:collect、キー8。
+seq215～302は collect 87判断と pickup 1判断の計88判断。
+唯一の明示的gはseq229、turn77997、(7,15)、quest:sweep:pickup。
+その次のstate204、turn78004でクローク[1]が所持品に加わる。
+薬・松明・金塊は移動時にも自動拾得されるので、gの回数だけでは回収成否を判定できない。
+
+(9,17) 紫色の薬: state210、turn78058、拾得文と所持数2→3。
+(11,15) 金色の薬: state214、turn78099、拾得文と所持数0→1。
+(11,14) 金色の薬: state215、turn78109、拾得文と所持数1→2。
+(6,8) 紫色の薬: state226、turn78220、拾得文と所持数3→4。
+(6,6) 紫色の薬: state228、turn78240、拾得文と所持数4→5。
+この5地点がリストから消えたのは回収成功であり、見落としではない。
+
+(11,20)はtval127の金塊。seq302、turn78720、(10,20)からキー2を出し、
+state277、turn78728では実際に(11,20)へ到達している。
+「$77 の価値がある金塊を見つけた。」のメッセージ、所持金49→126、
+セルのobject_count消失、knownからの除去が一致する。
+「距離1を通り過ぎて金塊を置き去り」は誤り。
+seq303からquest:exit:routeが10判断、seq313、turn78829、(1,20)でquest:exit、キー<。
+最後まで残るのは(9,9)、(9,11)、(10,9)の3地点だけ。
+
+3. 実際に残った品
+(9,9) ショート・ソード(1d7)、tval23。
+  state166、turn76921、デスソード撃破直後に出現。
+  state176、turn77000以降はgrid_map.cellsから消えるがfound_itemsとfound_item_namesには残る。
+(9,11) サーベル(1d7)、tval23。
+  state143、turn76703で確認。state152、turn76784以降は同様にcellsから消える。
+(10,9) 小さな木の箱、tval7。
+  state162、turn76886で確認。state176以降は同様にcellsから消える。
+  設定上の予約位置(10,8)から1列ずれている。実配置については下記9を参照。
+最終state287のfound_item_names、found_itemsとも3品を示す。所持品にこれらはない。
+品名だけから武器の隠れた性能や箱の内容・罠の状態は判断しない。
+
+4. 原因と呼び出し経路（現在HEADのfile:line）
+src/hengbot/policy.py:10927 の承認済みクエスト分岐は、
+生存判断・明かり補充・箱処理の後、同:10971のnavigator.decideで戻る。
+通常の_normal_loot_key（policy_identification.py:1322）には到達しない。
+既に選ばれた通常loot targetを巡回が上書きしたのではなく、通常の選択経路が走っていない。
+
+quest_navigator.py:215の_sweepは、同:244の集合内包表記で
+snapshot.grids中のobject_count > 0を候補にする。
+_known_lootもsnapshot.found_itemsも参照せず、_loot_targetを設定しない。
+同:265でquest:sweep:collectを表示するため、loot.target=nullはこの独自経路では普通に起こる。
+同:229の足下拾得も、処理済み／予約済み箱・deferred・空き枠を見てgを出す独自処理である。
+
+model.py:64の_decode_grid_mapはrunsとcellsからgridsを生成し、object_countの初期値は0（同:113）。
+found_itemsは同:1436で別フィールドとして解析されるだけで、セルのobject_countへは統合されない。
+policy.py:2571の_with_grid_memoryは記憶地形のobject_countを0、object_tvalsを空、
+currently_observedをFalseにする（同:2616付近）。
+一方、policy_observation.py:1187はアイテムを_known_lootへ記憶し、
+同:1188は消失時の除去を距離1以内に限る。離れた3地点はknownに残る。
+この結果、記憶された3品はtelemetryには残るが、巡回の候補集合から落ちる。
+最終盤面を記憶と合成しても3地点は静的地形floor、object_count=0、
+currently_observed=False、found_itemsはそれぞれ(9,9,1,23)、(9,11,1,23)、(10,9,1,7)となる。
+
+quest_navigator.py:202～208では_sweepがNoneならEXITへ移行する。
+実測sweep_turns=87、既存SWEEP_BUDGET=200（同:31）なので予算切れではない。
+静的経路探索不能・重量超過・plain-gear junk・クエスト携行予約による除外でもない。
+残留地点はいずれも静的に歩けるfloorで、deferredは空。
+足下空き枠処理（policy_quest.py:1000）は未踏の品には呼ばれず、当時の所持枠も6～8/23で余裕がある。
+この経路には重量によるfloor候補除外はない。装備比較にも重量を導入してはならない。
+
+5. 所有者の既決定と未決定の区別
+通常装備:
+  policy.py:15433の_is_plain_gearは鑑定済みknownの非ego装備だけを対象にする。
+  コメントは「未鑑定品は保持して先に鑑定」と明記する。
+  policy_helpers.py:350は所有者2026-10-20の決定を、不要な通常装備は鑑定後に破壊と記録する。
+  同:380の床junk判断は床で分かるtvalだけを用い、残骸・不使用弾を対象にする。
+  床上の未鑑定の剣を、装備中のブロード・ソードより弱そうという理由で放置する決定ではない。
+  武器はAC100に対する現在能力値・攻撃回数込みの期待ダメージで判定する。
+  よって2本は回収・鑑定後の既存judgmentへ渡す対象で、今回それが実行されていない。
+
+薬・クローク:
+  回収済み。未知の薬を品名の色だけで有害と断定してはいけない。
+  クロークも未鑑定なので、通常装備の鑑定後判定の対象となる。
+
+松明・ランタン・油:
+  strategy/quests/QUEST_34.jsonc:8のopening_lightとpolicy_quest.py:2905は、
+  (9,20)の油→(10,20)の真鍮ランタン回収・装備という明示済みの順序を持つ。
+  記録にもpickup-opening-oil、pickup-opening-lantern、equip-opening-lantern、
+  refill-lightが各1回ある。終了時もランタンを装備している。
+  松明は固定敵への投擲弾薬として回収する既存方針で、油は松明を補充できない
+  （policy_quest.py:4779の所有者2026-10-25決定）。
+  完了後のsweepが剣・箱を無視する理由に、この携行要件は使われていない。
+
+箱:
+  policy_identification.py:88には所有者指定のdrop→隣接→search→disarm→open手順がある。
+  これは箱を処理するときの方法である。policy.py:10957には木箱をこの階で開けて
+  内容だけ持ち出すという既存実装の意図もある。この意図は記録するが、所有者メモとして
+  確認できた処理手順と、クエスト内での回収の時期・優先順位の決定は分けて扱った。
+  policy.py:10957～10967はクエスト34の床箱処理を既存予約位置
+  Q34_WOODEN_CHEST_POSITIONに限定する。実際の(10,9)は対象外。
+  quest_navigator.py:226は戦略ファイルの予約位置を一般拾得から外す。
+  ただし(10,9)の箱は予約位置ではなく、もし可視になれば一般sweep候補には入り得る。
+  拾得／drop交互の既知問題もある。位置制限の誤りを、箱を放置する仕様の根拠にはできない。
+  この木箱は配置データとも一致し、予約外の追加箱だとする説明は撤回する（下記9）。
+  ただし今回のQ34記録にchest:*判断は0件で、交互動作が今回の残留原因だと確認されたわけではない。
+  空・破損した箱の破棄規則（policy_helpers.py:279、同:316）は存在するが、
+  「小さな木の箱」の表示だけでは空箱と判断できない。
+  今回は処理意図と位置設定の不整合まで確定した。一方、クエスト中の箱の回収方針については、
+  タスクが挙げた未決定時STOP条件を解除できる所有者の明示決定としては確認できず、診断で止めた。
+
+6. 公開choose_keyによる再現
+実データのquest knowledge・strategy・monrace definitionsをロードしてHengbotPolicyを作成。
+state1～188は観測のwarm-upとしてparse_snapshot→_with_grid_memory→_observeへ渡す。
+knowledge行125/144/167は盤面として解析せずconsume_skill_knowledgeへ渡す。
+state189～287は生のplayer_turnをparse_snapshotし、公開choose_keyを順に実行、
+各キーはconfirm_key_postedで確定する。入力盤面、所持品、スキル値に改変はない。
+前半の戦術内部状態・鑑定校正を完全復元した試験ではなく、観測を蓄積した完了後の巡回再現である。
+
+state行 / seq / turn / 選択キー / reason:
+189 / 215 / 77861 / 8 / quest:sweep:collect
+203 / 229 / 77997 / g / quest:sweep:pickup
+228 / 254 / 78240 / 4 / quest:sweep:collect
+276 / 302 / 78720 / 2 / quest:sweep:collect
+277 / 303 / 78728 / 8 / quest:exit:route
+287 / 313 / 78829 / < / quest:exit
+計99判断（collect87、pickup1、exit:route10、exit1）で残留を再現。
+targetは終始None、最後のknownは剣2本と箱1個。
+修正をしないため「修正後に拾えた」というpinは存在せず、成功扱いしない。
+新たな移動先や箱操作を実装しないため、それに伴う新規promptも検証済みとはしない。
+
+7. 仕様を確定する選択肢と今後の修正範囲
+A. クエスト内の箱も、その階の安全時に既存開封手順へ渡し、内容だけ回収する。
+   予約・低優先順位・拾得/drop交互防止の扱いを明示してから実装する。
+B. クエスト内の箱は持ち帰り対象とする。
+   既存の所持箱drop経路がその場で再度動くため、持ち帰り所有権の方針も必要。
+C. クエスト内の箱は放置する。明示的な理由で除外し、通常装備・薬等の回収漏れを直す。
+いずれも現時点で所有者の選択とみなしてはいない。
+箱の方針決定後は、クエスト番号34に依存する新規場面ルールではなく、
+既存のloot/claim judgmentを通して、記憶された回収対象も到達・拾得の候補にする。
+既存の予約箱・ガラス扉回避・生存判断・携行保護を維持する。
+同じ録画から小さなgzip fixtureを作り、公開choose_keyと、
+実際にpromptが発生するキーについてfollow executorまで通す回帰pinを追加する。
+今回はSTOP条件を満たしたため、コード・テスト・fixtureの追加に進まない。
+
+8. 追加照合
+監督メモの稼働版表記にも注意が必要。
+decision記録のsession-startは21:20:26と21:20:36の2件で、git_commitはいずれもnull。
+argv内の版名は前者が0aa8069b、後者が4d239862。
+今回の21:20:48以降の事象は後者の開始後であり、「0aa8069bだけの記録」とは断定できない。
+argvの版名は実行ディレクトリの証拠であり、作業ツリーの完全なSHAやclean状態の証明ではない。
+本診断の再現対象コードは明示された基準4d239862fと同一である。
+
+巡回の通過点も確認した:
+(6,6) seq254 → (7,3) seq258 → (11,3) seq262 → (9,1) seq266 →
+(1,1) seq274 → (10,20) seq302 → (11,20) seq303。
+既存のガラス扉回避を維持した静的経路でも、(11,20)から残留3地点への経路は存在する
+（剣(9,9):53辺、剣(9,11):59辺、箱(10,9):54辺）。
+この経路長は静的地形での診断値であり、新たな予算・閾値にはしていない。
+
+_sweepは通常の_floor_pile_is_junkも呼ばないため、可視の骨や空箱も歩行候補にする。
+state190～194では(3,14)～(3,18)の「あばかれた箱」をゲーム側が自動破壊し、
+state201/206/208では人間の骨の自動破壊メッセージが出る。
+87回歩いたこと自体は、未鑑定装備を含む既存loot judgmentを通した証拠にはならない。
+
+追加のassert付き再生で、seq215～313の全99件について実録の(key,reason)と一致、
+target=None、deferredが空であることを確認した。
+gは既存ProductionHarnessの偽transportを使い、実follow executorの
+_send_decision_key_with_prompt_chainまで通してcompleted、送信列['g']を確認した。
+次の状態には実録state204を使用したが、画面は既存command_screenを用いた構成試験である。
+今回の記録に当該prompt画面は含まれないため、実ゲームの全prompt列を録画再生したとは扱わない。
+再現用スクリプトは C:/hengband-backups/q34-collect-verification-1025/replay.py に保存。
+
+9. 木箱の予約位置と実配置の不整合（追加確認と説明の訂正）
+C:/hengband/lib/edit/quests/034_DumpWitness.jsonc:103の'&'はobject 338で、
+同:155のmapを0始まり(y,x)で数えると(10,9)にある。静的terrainでも同位置はfloor。
+(10,8)はその左隣の壁であり、木箱の配置位置ではない。
+録画state162、turn76886をparse_snapshotした結果も以下で一致する:
+  (10,8): known=True、passable=False、object_count=0
+  (10,9): known=True、passable=True、object_count=1、object_tvals=(7,)
+よって、現在の定義が録画と異なるため生じたずれではない。
+
+一方、policy.py:1247のQ34_WOODEN_CHEST_POSITIONと
+strategy/quests/QUEST_34.jsonc:45のchest_positionは両方とも(10,8)。
+policy.py:10963のallowed_positionsが実在する木箱を拾えない別の不具合である。
+「実際の箱が予約位置にない」という事実だけから、追加の別の箱だったと解釈してはならない。
+診断初稿の「非予約位置の箱」という表現は、コード上の座標比較の説明に限られる。
+実配置の木箱が既存の処理対象から誤って外れる点を、独立した原因として訂正・追記する。
+
+既存のtest_completed_q34_opens_floor_chest_before_sweep_pickupと
+test_completed_q34_ignores_ruined_chests_for_wooden_chest
+（tests/test_policy_quest.py:3538、同:3562）は、床として作った(10,8)に箱を置く構成試験。
+実際の配置データとの座標一致を検証していないため、この不整合を検出しない。
+テストと期待値は変更していない。
+
+履歴では、位置定数は7d3139c95、戦略の位置はd6cd39751で追加されている。
+「現場で処理したい」という実装の意図は確認できるが、これを所有者の新しい明示判断と
+読み替えて、既知の拾得/drop交互問題のあるクエスト中の箱の優先順や扱いを独断で確定しない。
+仕様確定後の修正では、記憶lootの候補欠落だけでなく、この配置との不整合、
+予約箱の扱いと一般loot/claim judgmentの接続も検証対象にする必要がある。
