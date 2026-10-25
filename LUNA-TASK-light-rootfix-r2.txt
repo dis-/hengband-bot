@@ -1,0 +1,20 @@
+ISSUE: #47
+ROUND 2 of the light ROOT-FIX (branch light-rootfix-1025, tip 5622b2175; the first round is reported in
+LUNA-REPORT-light-rootfix.txt - read it first, and LUNA-TASK-light-rootfix.txt for the rules).
+The owner decided (AskUserQuestion 2026-10-25 17:1x, LOCKED, verbatim choice 「松明では入らない」): a character whose
+light is torches only does NOT enter a one-shot (ONCE fixed) quest at all - oil cannot refuel a torch, so the round-1
+rule "oil >= OIL_TARGET for any fuel-using light" was wrong for torches. The rules are now:
+  - worn lantern (fuel-using, refillable with oil): entry needs oil >= OIL_TARGET (unchanged);
+  - light that needs no fuel: entry admitted (unchanged);
+  - torch only (no lantern and no fuel-less light owned): entry refused (new; a distinct reject reason, e.g.
+    light-torch-only), until the character owns a lantern or a fuel-less light.
+  - The release inside the quest (faint, no refill, no swap -> leave) is unchanged and applies to every light.
+Change LightJudgment.one_shot_quest_entry_ready (policy_supply.py) accordingly - the judgment stays the one place.
+Pins through the real producer (the quest entry check you pinned in round 1): torch-only refused with the new reason
+even when carrying oil; lantern with oil admitted; lantern without oil refused (light-oil); fuel-less admitted. The
+round-1 pin test_one_shot_quest_entry_refused_without_oil may stay as is if it uses a lantern; your own round-1 tests may
+change, existing tests (= tests at f0930437) may not. Per-pin revert proofs. Append round 2 to the report (Japanese,
+written with Python UTF-8), commit. Guards: preflight / mutation_check --record / fast_tier with base f0930437, then
+remote_slow once (same commands as LUNA-TASK-light-rootfix.txt). fast_tier's error "No module named
+tests.test_spectator_v2" is a tool artifact (a module of newer main in its cache) - report it, do not chase it.
+Token budget 100k HARD, wall time 60 minutes.

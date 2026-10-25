@@ -1,0 +1,67 @@
+LUNA-DIAG-light-rootfix (2026-10-25, branch light-rootfix-1025 @ f0930437)
+結論: 診断の後で STOP。根治に新しい持ち主の決定が要る（下の「3. 決めること」）。src・tests は変更していない。
+
+1. 光源の問いに答えている箇所（静的に列挙、行番号は f0930437）
+[問1] 今の光源は使えるか・どれだけ持つか
+- src/hengbot/policy.py:13209 _has_light_equipped: 光源の装備の有無だけ
+- src/hengbot/policy.py:13247 _is_usable_light: 永続光源か燃料>0
+- src/hengbot/policy.py:13239 _light_rank: 永続2 > ランタン1 > たいまつ0
+- src/hengbot/policy_supply.py:119 _owns_usable_permanent_light: 装備か所持の永続光源（#82）
+- src/hengbot/policy.py:13402 _is_dark: 自分のマスが見えない（半径0）
+- src/hengbot/policy_navigation.py:469 _dark_without_recovery: 未鑑定ランタンで暗く補給も無い
+- src/hengbot/equipment_optimizer.py:314/326/345/386 light_source_quality / permanent_light_radius / worn_light_radius / loadout_light_radius: 半径は装備全体の合計（#101）
+- src/hengbot/equipment_optimizer.py:949 usable_light_candidate
+- src/hengbot/protocol.py:345 printed_light_turns、src/hengbot/equipment_mutation.py:137 _fuel: 残りターンの読み取り
+[問2] 旅（出発・クエスト・資金稼ぎ・採掘）に足りる光を持つか
+- src/hengbot/policy_supply.py:404 _light_ready: 鑑定済みランタンは「油 OIL_TARGET 本以上」か「燃料 > LANTERN_REFILL_FUEL(1000)」で可。旅の長さは見ない
+- src/hengbot/policy_supply.py:423 _expedition_light_ready: 燃料 >= LANTERN_DIM_WARNING_FUEL(100) か補給品ありで可
+- src/hengbot/policy_fundraising.py:390 _fundraising_light_ready（_expedition_light_ready と装備できる光源）
+- _light_ready の利用: policy_town.py:2231 / 3561 / 4758 / 4964 / 5751、policy.py:16337、policy_shop.py:120
+- _fundraising_light_ready の利用: policy_town.py:3283 / 3296 / 4869 / 6284 / 6430、policy.py:15781、policy_shop.py:3388 / 3438、policy_navigation.py:1022、town_terminal.py:606
+- _expedition_light_ready の利用: policy.py:12938、policy_fundraising.py:392 / 1291、policy_town.py:7388
+- src/hengbot/policy.py:13512 _oil_departure_count、16404 _owns_lantern、16410 _count_oil、16413 _oil_below_departure_target、13635 _count_usable_torches、policy_supply.py:1123 _torch_carry_requirement
+- クエストの入場（policy_quest.py:4719 _evaluate_fixed_quest_readiness）: grep の限りでは光源・燃料を見ていない。効くのは出発の _light_ready だけ
+[問3] いつ補給・交換するか
+- src/hengbot/policy_supply.py:134 _light_refill_item: ランタン<=1000、たいまつ<=500 のとき所持の油/たいまつ
+- src/hengbot/policy.py:13498 _unknown_lantern_departure_refill_item
+- src/hengbot/policy.py:10932-10936 クエストの分岐の静かな手番の補給（油があるときだけ）
+- src/hengbot/policy.py:13437 _darkness_torch、13298 _empty_lantern_to_restore（#85）
+- src/hengbot/policy_supply.py:169 _unknown_light_last_resort（燃料<=100）
+- src/hengbot/policy.py:12926 _is_spare_lantern
+- src/hengbot/policy_equipment.py:3953（未鑑定光源の最後の手段）、policy_quest.py:2905-2945（Q34 の油とランタン）
+[問4] ダンジョンで光が切れた・切れそうなときどうするか
+- src/hengbot/policy.py:10899 -> 13460 _darkness_recovery_key: 暗いときだけ。補給・たいまつ・空ランタンの装備
+- src/hengbot/policy.py:10902 -> policy_navigation.py:325 _dark_locomotion_key: dark:backtrack / dark:probe / dark:locomotion-exhausted
+- src/hengbot/policy_town.py:7388 _should_start_town_return の light-low（燃料<100 で補給なし）、7394 no-light
+- src/hengbot/policy_town.py:7484 _return_exit_locked: ONCE のクエストでは通常の荷物・光・補給の帰還でクエストを失敗させない
+- src/hengbot/policy_quest.py:4514 _quest_floor_exit_locked: 解除は escape kit 切れ・HP の panic・飢えだけ。暗さは無い
+- src/hengbot/policy_town.py:7772 #81 の光の無い帰り道での帰還の巻物（帰還中の explore の段だけ）
+- src/hengbot/policy_town.py:7563 / 7602 帰還中の暗さの回復と dark locomotion、policy_combat.py:1763 戦闘中の暗さの回復
+- src/hengbot/policy_quest.py:1732 / 2234 / 2336 Q2 の光の巻物（部屋を照らす。光源の代わりではない）
+[問5] どれを付けるか
+- src/hengbot/policy.py:13253 _light_to_wield、13212 _find_light、policy_fundraising.py:396 _fundraising_wieldable_light、policy_shop.py:457 _find_light_sale、equipment_optimizer.py の半径の比較（#86 #101）
+
+食い違い
+- 出発（_light_ready）は燃料>1000 なら油なしで通す。補給を始める閾値（_light_refill_item の 1000）と同じ数で、旅の長さは見ない。
+- ダンジョンの「切れそう」の持ち主は light-low（<100）の帰還。しかしクエストの分岐（policy.py:10921 以降）はナビゲーターが盤面を持ち、この帰還を呼ばない。呼んでも ONCE のクエストでは _return_exit_locked が抑える。
+- 「切れた」の答え（#81 の帰還の巻物）は帰還中の explore の段にしか無い。クエストの分岐では dark:backtrack（10902）とクエストの掃引が交互になる。
+- クエストの出口の鍵の解除（4514）に暗さは無い。飢え・panic と違い「クエストを失うより悪い」に入っていない。
+
+2. 記録の計測（state-logs/c4a-q2-dark-1025/20261025-143507-loop-detected）
+- クエスト 2 は lib/edit/quests/002_TheSewer.jsonc で KILL_ALL、flags PRESET・ONCE。離れると失敗する。
+- state 139 行: 行0 turn 1551699 燃料104・半径2、行4 turn 1551734 燃料100、行5 燃料99（ここで _expedition_light_ready が偽になる）、行102 turn 1552731 燃料0。油・たいまつは無い。帰還の詔の巻物・テレポートの巻物・光の杖(19回分)はある。
+- decisions 18076..18365（turn 1550213〜1553086）: q2-residual-86-sweep 270、dark:backtrack 19、nav:break-oscillation 1。半径2の間も、掃引は 60 手の周期で同じ位置を回り、進まずに燃料を使った（seq 18076 / 18136 / 18196 / 18256 / 18316 がどれも (1,4) で key 6）。
+- 半径0の後: 掃引が '6' で (1,4) へ、dark:backtrack が '4' で (1,5) へ戻す。これが交互になり loop-detected。
+(a) 出発・入場: 記録の窓（最初の decision は turn 1550213）に町の出発・クエストの入場の行は無い。入場時の燃料・油の数は分からない。コードの上では、油なしでも燃料>1000 なら _light_ready は通り、クエストの入場は光を見ない。
+(b) 104 から 0 まで誰も動かなかった理由: 補給品が無いので _light_refill_item と 10932 の補給は None。燃料<100 で light-low の条件は成り立つが、クエストの分岐はこの帰還を呼ばず、ONCE の鍵（7484 / 4514）も暗さでは解けない。#81 の答えは帰還中にしか無い。よって掃引が続き、0 で dark:backtrack と交互になった。
+- 別の型の欠陥: 光があった間の掃引の 60 手周期の空回り（q2-residual-86-sweep が収束しない）が燃料を食った。光の型ではなく、クエストの掃引の型。
+
+3. 決めること（新しい持ち主の決定が要る。STOP の理由）
+クエスト 2 は ONCE。帰還の巻物を読むか階段で出ると失敗になる。今の決まり（policy_town.py:7484「通常の光の帰還で ONCE のクエストを失敗させない」、4514 の解除は escape kit 切れ・panic・飢えだけ）では、光が切れても出られない。#81 の決定は「帰還中の光の無い帰り道で帰還の巻物を読む」で、ONCE のクエストの鍵を解く決定ではない。
+選択肢:
+ A. 光が切れて補給も装備もできないことを、出口の鍵の解除（飢え・panic と同じ「クエストを失うより悪い」）に加える。燃料0で帰還の巻物を読む（クエスト 2 は失敗）。ピン (a) はこれで書ける。帰還の発動まで 15〜34 手は暗いまま。
+ B. A に加え、燃料 < LANTERN_DIM_WARNING_FUEL(100。ゲームの「明かりが微かになってきている」と同じ値で、light-low の帰還の閾値) で補給が無ければ、クエストの床でも鍵を解いて帰還する。暗くなる前に出られる（帰還の遅れ 15〜34 手 < 100）。クエストは失敗。104 の行ではまだ動かず、100 を切った行で動く（ピン (b) は 104 の行ではなく 99 の行になる）。
+ C. 出ずに続ける: 燃料0では光の杖・光の巻物で部屋を照らし、掃引の目標が照らされた所だけ進む。暗い通路で敵に会う危険がある。新しい振る舞い。
+ D. 根を出発の側で断つ: 燃料を使う光源で fixed クエストに入るときは油 OIL_TARGET 本を要件にする（今は燃料>1000 なら油なしで通る）。A〜C のどれかと併用。
+ E. 104 の行で「足りなくなる」と言うには、出口までの道のりと燃料の比較など、新しい余裕の量が要る。値を決める決定は無い。
+注: どれを選んでも、光の判断を一つにまとめる作業（手順3）と国勢調査のテストは、この決定の後に行う。

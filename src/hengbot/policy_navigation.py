@@ -331,6 +331,12 @@ class NavigationMixin:
             # makes the removed legacy clause impossible.
             or self._light_refill_item(snapshot) is not None
             or self._darkness_torch(snapshot) is not None
+            # The released one-shot quest is left by the return, which walks
+            # the dark itself once latched (#47).
+            or (
+                not self._returning_to_town
+                and self._light_releases_quest_exit(snapshot)
+            )
         ):
             return None
     
