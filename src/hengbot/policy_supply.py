@@ -487,12 +487,12 @@ class SupplyMixin:
         )
 
     def _expedition_light_ready(self, snapshot: Snapshot) -> bool:
-        judgment = self._light_judgment(snapshot)
-        equipped = judgment.worn
+        equipped = next((item for item in snapshot.equipment if item.is_light), None)
         if equipped is None:
             return False
-        if not judgment.fuel_using:
+        if equipped.sval > SV_LITE_LANTERN:
             return True
+        judgment = self._light_judgment(snapshot)
         if not equipped.known:
             return (
                 equipped.is_lantern

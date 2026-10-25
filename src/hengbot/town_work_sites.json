@@ -1974,14 +1974,6 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "6caf6f83d6c1de7c414592b76400955c5e8ea4cc28057674f8ac6c3443a0325b"
   },
-  "policy.py:HengbotPolicy._count_oil": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "e0c3e52d2d26c1898dcf2e286e82f07bd0402cea010bf3c2bfb3ae4e3ca31544"
-  },
   "policy.py:HengbotPolicy._count_potion": {
     "classification": "data",
     "rows": [
@@ -7007,7 +6999,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ab2e9a93b5f51c42626ce586db2c979f9c21dfce816d91948a4214675c87898b"
+    "ast_sha256": "674b2a21cc2e2b44cce8d3b8ba2cf02fc1881bdab90f2b1fb62ab3ca14e1eebf"
   },
   "policy_supply.py:SupplyMixin._find_capped_identify_staff_release": {
     "classification": "data",
@@ -7080,14 +7072,6 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "d57fc7c18f63bc5fbc17bc148978c3491fa0b4db5e70f105e144cad9b1f563e0"
-  },
-  "policy_supply.py:SupplyMixin._light_judgment": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "2b9a86e540855db0c71377fd870452ac2fbc9e15a36df55267a066176e55d75d"
   },
   "policy_supply.py:SupplyMixin._light_ready": {
     "classification": "data",
