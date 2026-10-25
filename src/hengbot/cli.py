@@ -4284,10 +4284,20 @@ def _run_follow(
         # Screen acquisition and all intentional waiting precede response budgets.
         post_at = time.monotonic()
         post_kwargs["deadline"] = post_at + args.stall_timeout
+        previous_result = getattr(send, "last_result", None)
         result = _send_decision_key_with_prompt_chain(*post_args, **post_kwargs)
         if result[0]:
             last_action_post_at = post_at
-            if spectator is not None:
+        if spectator is not None:
+            posted = bool(result[0])
+            if isinstance(send, _ExecutorInputPort):
+                current_result = send.last_result
+                # A posted action can end in death or an executor stop. The
+                # ACKed prefix still belongs in the viewer's frame stream.
+                posted = posted or (current_result is not None
+                                    and current_result is not previous_result
+                                    and bool(current_result.operation.accepted_segments))
+            if posted:
                 spectator.commit_frame()
         return result
 

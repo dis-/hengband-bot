@@ -199,12 +199,14 @@ class FramesFollowTest(unittest.TestCase):
 
 
 class FramesColourFollowTest(executor_pins.ProductionHarness):
-    def recorded_exchange(self, root, *, spectate):
+    def recorded_exchange(self, root, *, spectate, death=False):
         recorded = [json.loads(line) for line in spectator_pins._recorded_lines()]
         game = executor_pins.FaithfulHookGame()
         game.state = copy.deepcopy(recorded[0])
         game.screen = executor_pins.command_screen(recorded[0]["turn"])
         game.states = copy.deepcopy(recorded[1:])
+        if death:
+            game.screens = [executor_pins.prompt_screen("You die.")]
         game.jsonl.append(copy.deepcopy(recorded[0]))
         _, _, executor = self.make(game)
         self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
@@ -283,6 +285,16 @@ class FramesColourFollowTest(executor_pins.ProductionHarness):
             self.assertEqual(len(calls), len(keys))
             self.assertEqual([row["frame"] for row in frames], list(range(1, len(keys) + 1)))
             self.assertTrue(all("screen" in row for row in frames))
+
+    def test_post_that_ends_in_death_still_has_frame(self):
+        with TemporaryDirectory() as directory:
+            result, keys, _, frames = self.recorded_exchange(
+                Path(directory), spectate=True, death=True)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(len(frames), 1)
+        self.assertEqual(frames[0]["frame"], 1)
+        self.assertEqual(frames[0]["key"], printable_key(keys[0]))
 
 
 class FramesWriterTest(unittest.TestCase):

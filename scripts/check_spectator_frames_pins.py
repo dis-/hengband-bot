@@ -20,6 +20,8 @@ WRITER = "tests.test_spectator_frames.FramesWriterTest."
 MUTANTS = [
     ("append", "cli.py", "                spectator.commit_frame()", "                pass",
      FOLLOW + "test_every_post_appends_in_order_without_snapshot_throttle"),
+    ("terminal_post", "cli.py", "posted = posted or (current_result is not None", "posted = posted or (False and current_result is not None",
+     "tests.test_spectator_frames.FramesColourFollowTest.test_post_that_ends_in_death_still_has_frame"),
     ("number", "spectator.py", "number = self.last_frame + 1", "number = 1",
      FOLLOW + "test_every_post_appends_in_order_without_snapshot_throttle"),
     ("backlog_wait", "cli.py", 'maximum = getattr(args, "spectate_max_backlog", 0)', "maximum = 0",

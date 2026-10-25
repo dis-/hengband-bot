@@ -5,7 +5,8 @@ With `--spectate-file PATH`, posted policy decisions are also appended to
 same screen, colours, panels, key (macro notation), reason, decision_sequence
 and Unix time as the snapshot projection, plus `frame` (integer, starting at 1).
 The pre-action screen is acquired before the action's response deadline; the
-row is committed only when the policy action is actually posted. Refused
+row is committed only when the policy action is actually posted, including an
+ACKed action that ends in death or an executor stop. Refused
 posts, executor continuations, prompt answers and recovery keys add no frames.
 No-key decisions still refresh the compatibility snapshot when due.
 
