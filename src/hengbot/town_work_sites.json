@@ -3659,7 +3659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9434c6a060282e2ec0758dbe040a15d4d368b9db7da9cdfcf3caef81f3beb3d0"
+    "ast_sha256": "950084155d373e169db3b1a2b414ea65983a54a3461b5eef181ec3214dc92edc"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -6842,7 +6842,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "88b814e87c1bbb3f859d7837b9b7b01a7b6650dd7206227f1fc689001e034cf2"
+    "ast_sha256": "0594479c8dc54c6ea1ca8de8e461b6a13875102ad83eb35e4b549a7ee32446ad"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
     "classification": "data",
@@ -6850,7 +6850,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d27164a5e954f6e406658f90add55ec8e4d0d05df7084ee70879a100eea5cda0"
+    "ast_sha256": "7209a4edfb7cd64f1cb51999a573328fd432ba1496163eba3b9459e49ab99d19"
   },
   "policy_shop.py:ShopMixin._stage_shopping_approach_key": {
     "classification": "producer",
@@ -7305,7 +7305,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "102cbf2c7ed0c2cfdf024401ff310735c2f57b9e7cb3dc7e1757e509f8bbaa86"
+    "ast_sha256": "9e0423fb8928308b2f79ff061d997edacc0d9393568e7eaef8101d8eb052467d"
   },
   "policy_town.py:TownMixin._compute_town_need_supplier_reachable": {
     "classification": "data",
@@ -7689,7 +7689,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3f850c224bee622bd1a26839cec76af99d4856f584cd782d1746d11e99ecc2fd"
+    "ast_sha256": "a1a2b8f703617c4041a14617ebb5bd32c56c7d0ad93f5ced3354b31e2dd6e343"
   },
   "policy_town.py:TownMixin._town_procurement_progress_key": {
     "classification": "adapter",
@@ -7793,7 +7793,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6755d8aaf81ed772011ed52c317487b04f987292a6df1c28ced5312eb9458a7f"
+    "ast_sha256": "f3cb68abedbf0fa5f4eebb56d7b6bd51138eb4a1b4ca2c258f8282b24d0a6209"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",
@@ -8303,6 +8303,14 @@
     "delegation": "no independent success",
     "ast_sha256": "43046c2598c012f1427f97fba7f12a167aa3ad98a6db8fa64214572fadac7550"
   },
+  "town_terminal.py:_commit_visit_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "7f9aaf075cc5df713010c67fa0fde983336f31ea49a32fb678c506e3fa2988f0"
+  },
   "town_terminal.py:_compute_store_buy_material": {
     "classification": "data",
     "rows": [
@@ -8326,6 +8334,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "6aa4135e541a5a68b035abafc6018b8d98538f62a52fbee950e35c0e6c12968d"
+  },
+  "town_terminal.py:equipment_transaction_intended_terminal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "b70305a445ee9781a8e03f7ef2ca50bba468f3e5f47769918f6d968f24964bbf"
+  },
+  "town_terminal.py:gather_equipment_command": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "f3b9b97db12135a1d09f03acdf84167fe514d4f29ce61d674601f9564a3f3a4c"
   },
   "town_terminal.py:gather_home_withdraw": {
     "classification": "data",
@@ -8365,7 +8389,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "2e79f2b1e016ae438dce474730043a9a9acc8b82533a0979f529d898944b4fb3"
+    "ast_sha256": "14ac03b2701065a1c0ba48b9cf7386928227dea749b9fff3bc62c778f7706239"
   },
   "town_terminal.py:home_withdraw_target": {
     "classification": "data",
@@ -8413,7 +8437,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "ee4eb4c6a4fac0a953ab576a4ecb86b181ac84a564a108a5e1bd83f868d17789"
+    "ast_sha256": "ed953db377528b447e80496d93554c77d420f4b7f89b68936c0191613a2022a0"
   },
   "town_terminal.py:verdict_home_withdraw": {
     "classification": "data",
@@ -8446,6 +8470,30 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "1829f882cb479cdb69384111be6da39172b30fdb16ece7488f68eefcda61a64f"
+  },
+  "town_terminal.py:verdict_store_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "b22e5c61394c338c7929e38d3244546f567738c45c556a4400252007d1db4cad"
+  },
+  "town_terminal.py:verdict_visit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "7e7e7297166349c447de0091f9456e71c383c9bd626d17b3de4cda36b3208e17"
+  },
+  "town_terminal.py:visit_intended_terminal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "0b7a940b88203ce57d85a8d585cb83c52a071c2aeec8a93f1593725d5a9a0a75"
   },
   "town_work.py:bind_driver_override": {
     "classification": "driver",

@@ -87,3 +87,90 @@ Linuxの既存失敗は上記の通り全件報告し、新規退行と区別し
 検査対象609fa77f8以降に本体コードやテストの変更はなく、
 後続コミットは診断・報告・測定資料・ログの補完のみ。
 最終状態は「新しい裁定の選択待ちの診断」であり、ISSUE #47の根治完了ではない。
+
+
+第2ラウンド（2026-10-25、所有者の選択Aに基づく実装）
+前節までの「診断後停止」は第1ラウンドの状態である。本節は追加決定後の作業記録。
+
+変更:
+- 実行する複合操作をS2のADMIT結果と、その判断内の実行提案に結び付けた。
+  同じ鍵・reasonの操作を、後段の進捗指紋だけで別用事へ差し替えない。
+  通常の単一歩行、native travel、既存の待機・退出はこの保護に含めない。
+- detectorが実来店を作る場合に、借りる取り出し・購入・預け・装備・観測の
+  終端をS2へ渡す。具体的作業も未観測情報もないRECOVERYは
+  home-recovery-no-work、既に試行済みで新しい用事もない店は
+  store-observation-currentとして既存のS2帳簿でnamed closeする。
+  別のランドマーク往復カウンタは追加していない。
+- Home取り出し終端のidentityに、file済みの同じbatchを含めた。
+  named closeした要求に属し、現カタログにも存在しない保留品だけを
+  既存の延期処理で清算する。別作業の数量や実在する品は一括削除しない。
+  posted済みの取り出しはその操作の観測を維持する。
+- 資金稼ぎdispatcherのdeparture-blocked待機も、同じfundraising終端の
+  判定を通す。REFUSED後の並行する無条件WAITをやめ、町の後続処理へ返す。
+  必須出発条件、耐性、速度、物品実在判定は緩めていない。
+- 賞金の合成キーは入力実行器でも分割し、建物メニュー、受渡し確認、
+  回答、退出を順に観測する。別の確認質問へyを流用しない。
+
+基準版との比較・pin:
+tests.test_town_post_s2_r2を追加。既存テストのassertionは変更していない。
+A1/A2/Bは保存済みgzip盤面を公開choose_keyに通す。
+checkpointはないため、空でcurrentなHomeカタログ、既知の重い呪い、
+任意強化の試行済み状態、supplier試行履歴等は明示した補完条件である。
+A1は同じ盤面の選択処理を送信せず一度行い、その選択状態を含む反復指紋を
+補う。これにより57cbb35e4では7cy\x1bがESC+native travelのMagic行きへ
+置換される。修正後は7cy\x1bを維持し、入力実行器で7→c→y→ESC、
+bounty消失まで確認した。質問画面と結果盤面はC++ソースに基づく構成対照で、
+実ゲームから得た新しいキャプチャではない。異なる質問は回答せず停止する。
+Bは記録されたoscillationへの付着のため無関係な出発dispatcherを抑制する
+補完条件を明示した。S2・router・進捗裁定自体は実処理を使用する。
+基準版のHome行きは、修正後にはHomeと空振り店のnamed closeになり、
+空の来店を作らず既存の移動へ戻る。実運転の出発成功とは認定しない。
+A2は診断10節の財宝感知の巻物と2本のつるはしを同じbatchとして補う。
+native travelの未保存の入力状態は模造せず、既存の歩行fallbackを明示した
+構成対照で検証する。拒否と保留清算が同じidentityで行われ、無関係な数量を
+保持し、必須出発条件の不成立も残ることを確認する。
+追加対照はdetector直呼び、未知店の観測可否、具体的Home終端の対応。
+第1ラウンドの制限付き再生を完全checkpoint再生と呼び替えていない。
+
+開発中の既存失敗の分類:
+(R) test_town_terminal_exit_round16.test_76_captureが、追加した来店前判定を
+通常のrouterにも適用した版で失敗。既存期待値の変更は行わず、detectorの
+実来店へ適用範囲を修正した。同テストの再実行は成功。
+既存のHome取り出し11件、S2 ladder52件、S2 bar30件、
+refusal_commit対照、宣言対照、fakery lintも単独moduleで確認した。
+最終ソースに対するguard結果とrevert証拠は後続追記で確定する。
+
+帳簿・整理:
+validation/town-post-s2-1025/の27ファイルをGit管理から削除した。
+ディスク上の調査資料は保持し、ログ・JSON dump・replay scriptは新規追跡しない。
+小さい記録抜粋は既存のtests/fixtures/を使用する。
+新helperの分類をproducer baseline/reviewへ追加し、manifestをPythonで再生成する。
+新しい永続policy属性はない。admitted_commandsは既存WeakKeyDictionaryの
+判断内提案bufferのfieldであり、_choose_key開始時に破棄される。
+古いcheckpointからも新しいbufferのdefault_factory=dictで初期化される。
+
+重複修正:
+開始時および実装中のmainは0aa8069bdで、bounty-loop-1025を含まなかった。
+そのためmain mergeは行っていない。禁止された賞金専用hunkは編集していない。
+一般ADMIT保護が最終受渡しを含むため、40c886c9cの同目的の特例は
+統合時に重複として監督側で解消できる。賞金への通常歩行の既存裁定は維持する。
+
+実ゲーム・botの制御、他のprocessの停止、push、rebase、mainへのmergeは行っていない。
+約2秒のstuck:wanderについては第1ラウンドの計測のみで、性能修正は行っていない。
+
+最終実装の参照箇所（guard前のソース）:
+src/hengbot/policy.py:5929 _town_producer_entry
+src/hengbot/policy_town.py:1603 _town_procurement_decision
+src/hengbot/policy_town.py:2095 _commit_boxed_town_breakout_key
+src/hengbot/policy_town.py:6261 _town_special_key
+src/hengbot/policy_shop.py:5477 _shopping_approach_step
+src/hengbot/policy_shop.py:5828 _shopping_approach_key
+src/hengbot/town_terminal.py:1579 visit_intended_terminal
+src/hengbot/town_terminal.py:1600 verdict_visit
+src/hengbot/town_terminal.py:1881 _commit_home_withdraw
+src/hengbot/town_terminal.py:1914 _commit_visit_route
+src/hengbot/town_terminal.py:2019 terminal_admission
+src/hengbot/town_terminal.py:2115 may_take_board
+src/hengbot/observed_input.py:59 compile_observed_input
+再生成census: candidates 886 / call_sites 22381 / registry_sites 112 / ladder_sites 102 / unmapped 0。
+baseline 727 / review 886。新規pin・対照moduleは7件成功。

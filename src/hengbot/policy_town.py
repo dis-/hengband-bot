@@ -1641,6 +1641,8 @@ class TownMixin:
                 )
             return None
         proposed_reason = self.last_reason or ""
+        if self._decision_offer_buffer().admitted_commands.get(key) == proposed_reason:
+            return key
         if (key == "" and self._home_knowledge_scan_inflight
                 and self._home_knowledge_scan_epoch is not None
                 and proposed_reason == "home:scan-await-observation"
@@ -2098,7 +2100,7 @@ class TownMixin:
             if store_type == current_store:
                 continue
             step = self._shopping_approach_step(
-                snapshot, store_type, router_plan_stop=True
+                snapshot, store_type, router_plan_stop=True, route_family="detectors"
             )
             if step is None:
                 continue
@@ -6403,6 +6405,13 @@ class TownMixin:
             return restock
 
         if self._fundraising_mode in {"mine", "scavenge"}:
+            from hengbot.town_terminal import (
+                fundraising_intended_terminal, may_take_board,
+            )
+            terminal = fundraising_intended_terminal(self, snapshot)
+            if not may_take_board(self, "_fundraising_key#1", "fundraising",
+                                  snapshot, terminal):
+                return None
             if not self._fundraising_departure_ready(snapshot):
                 # Do not let this early fundraising wait starve the ordinary
                 # town pack-pressure pipeline below.  Descent deliberately

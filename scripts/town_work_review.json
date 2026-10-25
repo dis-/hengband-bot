@@ -11233,5 +11233,71 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "terminal refusal confirmation",
     "delegation": "no independent success"
+  },
+  "town_terminal.py:visit_intended_terminal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "town_terminal.py:verdict_visit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "town_terminal.py:_commit_visit_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "town_terminal.py:verdict_store_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "town_terminal.py:equipment_transaction_intended_terminal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "town_terminal.py:gather_equipment_command": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
   }
 }

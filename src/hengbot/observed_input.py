@@ -98,6 +98,20 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
         # Split its historical p+slot prefix without inserting a narrower
         # _BUY gate in front of that authoritative continuation.
         return "p", [replace(continuations[0], optional=False), *continuations[1:]]
+    if owner == "bounty:cashout" and re.fullmatch(r"[1-9]cy+\x1b", key):
+        # market/bounty.cpp: input_check flushes before each hand-over. Keep
+        # the admitted terminal through its observed building and questions.
+        confirmations = [
+            _answer(ScreenKind.CONFIRM, "y", (
+                r"(?:Hand .+ over\? |Convert .+ into money\? |.+を渡しますか？|.+ を換金しますか？)\s*\[[Yy]/n\]",
+            ), exact_feature=True, feature_pattern=True, optional=True)
+            for _ in key[2:-1]
+        ]
+        return key[0], [
+            _answer(ScreenKind.BUILDING, "c"),
+            *confirmations, _answer(ScreenKind.BUILDING, "\x1b"),
+            *continuations,
+        ]
     command, tail = key[0], key[1:]
     # The once-mode sender also enters this common port. Reuse the same
     # established plans as the ordinary decision router instead of bypassing

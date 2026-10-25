@@ -1,6 +1,0 @@
-Artifact integrity: PASS
-6 gzip excerpts, 105 rows, 305818 bytes, hashes and source-row counts verified.
-a1404: 99 decisions, same key/reason between source versions
-a1426: 80 decisions, same key/reason between source versions
-b: 111 decisions, same key/reason between source versions
-UTF-8 / no BOM / LF / no raw control characters: 20 text files.

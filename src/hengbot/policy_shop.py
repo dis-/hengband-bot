@@ -5477,6 +5477,7 @@ class ShopMixin(InStoreMixin):
     def _shopping_approach_step(
         self, snapshot: Snapshot, store_type: int | None = None,
         *, requester: str | None = None, router_plan_stop: bool = False,
+        route_family: str | None = None,
     ) -> Position | None:
         if router_plan_stop and self._can_resume_magic_shelf(snapshot):
             if store_type not in (None, STORE_MAGIC):
@@ -5541,6 +5542,14 @@ class ShopMixin(InStoreMixin):
                     owners=CLAIM_ENTRANCE_OWNERS,
                 )
                 self._shopping_approach_goal = None
+                return None
+        if route_family == "detectors":
+            from hengbot.town_terminal import (
+                commit_refusal, may_take_board, visit_intended_terminal,
+            )
+            terminal = visit_intended_terminal(self, snapshot, store_type)
+            if not may_take_board(self, "_shopping_approach_key", "detectors", snapshot, terminal):
+                commit_refusal(self, snapshot, terminal)
                 return None
         equipment_owner = (
             store_type == STORE_HOME
@@ -5834,11 +5843,16 @@ class ShopMixin(InStoreMixin):
         writer_family = self._claim_family_of(travel_reason)
         # Restock and Home-relief dispatchers also call this route directly.
         # Their walk must ask the same terminal as the ladder approach rungs.
-        if not self._town_gate_exempt(writer_family, travel_reason, snapshot):
+        if (writer_family == "detectors"
+                or not self._town_gate_exempt(writer_family, travel_reason, snapshot)):
             from hengbot.town_terminal import (
                 commit_refusal, may_take_board, shopping_intended_terminal,
+                visit_intended_terminal,
             )
-            terminal = shopping_intended_terminal(self, snapshot)
+            terminal = (visit_intended_terminal(
+                self, snapshot, self._shopping_approach_store_type)
+                if writer_family == "detectors"
+                else shopping_intended_terminal(self, snapshot))
             if not may_take_board(self, "_shopping_approach_key", writer_family,
                                   snapshot, terminal):
                 return commit_refusal(self, snapshot, terminal,
