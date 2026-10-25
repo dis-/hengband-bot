@@ -138,7 +138,10 @@ class QuestTorchStallRecordedTest(unittest.TestCase):
                 initial = {"turn": outside.turn, "grid_map": {"runs": []},
                            "floor": {"dungeon_id": 0, "level": 0}, "equipment": [],
                            "player": {"gold": board.player.gold}, "inventory": []}
-                shelf = {**initial, "store": {"store_type": STORE_GENERAL, "items": []}}
+                stock = {"letter": "a", "name": "Torch", "count": 99,
+                         "tval": TVAL_LITE, "sval": SV_LITE_TORCH,
+                         "fuel": 2500, "price": 1, "aware": True, "known": True}
+                shelf = {**initial, "store": {"store_type": STORE_GENERAL, "items": [stock]}}
                 final = {**initial, "turn": outside.turn + 2,
                          "player": {"gold": board.player.gold - 10},
                          "inventory": [{"slot": "i", "name": "Torch", "count": 10,
@@ -146,10 +149,16 @@ class QuestTorchStallRecordedTest(unittest.TestCase):
                                         "fuel": 2500, "aware": True, "known": True}]}
                 game = FaithfulHookGame()
                 game.state = initial
-                game.screens = [store_screen(), prompt_screen("Quantity (1-99): 1"),
-                                prompt_screen("Buy it? [Y/n]"), store_screen(),
+                before_screen = store_screen()
+                before_screen["lines"][5] = "a) 99 Torch   1 gold"
+                after_screen = store_screen()
+                after_screen["lines"][5] = "a) 89 Torch   1 gold"
+                game.screens = [before_screen, prompt_screen("Quantity (1-99): 1"),
+                                prompt_screen("Buy it? [Y/n]"), after_screen,
                                 command_screen(final["turn"])]
-                game.states = [shelf, shelf, shelf, {**final, "store": shelf["store"]}, final]
+                after_shelf = {**final, "store": {
+                    "store_type": STORE_GENERAL, "items": [{**stock, "count": 89}]}}
+                game.states = [shelf, shelf, shelf, after_shelf, final]
                 _game, _client, executor = ProductionHarness.make(self, game)
                 self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
                                  "ready")
