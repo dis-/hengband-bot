@@ -1,0 +1,37 @@
+ISSUE: #47 (spectator)
+The owner asked (verbatim): 「観戦用botだが、bot側が速いときはある程度描写ログをキャッシュすることで配信をなるべくムラ無く見せる
+ことはできないだろうか」. Clarification answered (LOCKED): 「数秒遅れで流す+溜まりすぎたらbot側が待つ。bot側の待ちは溜まりすぎた
+場合のみにする。」
+So: the spectator server (written by the supervisor, not you) will play frames at a constant 0.25 s per frame a few
+seconds behind live; the bot waits ONLY when too many frames are not yet played. The fixed per-action pacing
+(--min-action-seconds) stays in the code but the viewing bots will stop using it.
+Branch spectate-frames-1025 at main 4d239862f (worktree C:\hengband\bot-client\.worktrees\spectate-frames-1025).
+Another branch (spectate-followup-1025) is changing the melee staleness in spectator.py at the same time; keep your
+changes to separate functions where you can.
+
+What to build (bot side only):
+1. Frames: with --spectate-file set, every decision the bot posts appends one frame to <spectate dir>/spectate-frames.jsonl
+   - the same content SpectatorWriter writes today (screen with colours, panels, key, reason, decision_sequence, time)
+   plus a monotonically increasing "frame" number. No 0.25 s throttle for the frames file (spectate.json keeps its
+   current throttled behaviour for compatibility). Bound the file: when it exceeds a size you choose (state it), rotate it
+   (keep the newest part) so the server can always read the tail; never block the bot on I/O errors (the writer
+   never raises, as today).
+2. Backpressure: a new option --spectate-max-backlog N (default 0 = off). Before posting an action, read
+   <spectate dir>/spectate-played.json ({"frame": <last played frame>, "time": <unix seconds>}, written by the server). If
+   (last written frame - played frame) >= N, wait (short polls) until it drops below N. If the played file is missing,
+   unreadable or older than 10 s (server down), do not wait. Treat the wait exactly like the min-action pacing wait:
+   outside decision timing, watchdog cancelled/re-armed, response deadlines created after the wait, no detector fooled.
+   The viewing bots will run with N = 20 (5 s at 0.25 s per frame).
+3. The colour screen for each frame: today the attrs screen is requested at most every 0.25 s; per frame it is needed
+   for every decision. Measure the cost (ms per decision) and report it; if it is large, propose (do not decide) a cheaper
+   way.
+Pins through the real follow loop with an injected clock/fake files (no wall-clock dependence - a pacing test of today
+flaked under load): frames appended in order with increasing numbers; backlog >= N waits until the played file
+advances; stale or missing played file does not wait; default N=0 never reads the file; keys and reasons identical with
+and without both features. Per-pin revert proofs.
+Rules: Python UTF-8 for text files (PowerShell turns Japanese into '?'); never stop processes you did not start; no
+game/bot control (the viewing bots are live and public); no push/merge/rebase/reset --hard/stash; existing tests
+(= tests at 4d239862f) unchanged; small fixtures only, no log dumps in the repo. Guards before reporting: preflight /
+mutation_check --record / fast_tier with base 4d239862f, then remote_slow once (fast_tier and mutation_check wait by
+themselves while the merge gate runs). Token budget 150k HARD, wall time 120 minutes. Write
+LUNA-REPORT-spectate-frames.txt in Japanese (frame format, rotation size, backlog semantics, measured cost) and commit.

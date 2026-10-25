@@ -91,7 +91,7 @@ from hengbot.ownership_metrics import (
     OwnershipMetricsLedger,
 )
 from hengbot.save_archive import LIVE_SAVE_PATH, SaveArchiveCoordinator
-from hengbot.spectator import SpectatorWriter
+from hengbot.spectator import SPECTATE_BACKLOG_POLL_SECONDS, SpectatorWriter
 from hengbot.input_executor import (
     FLOOR_PICKUP_PROMPT_PATTERN,
     Continuation,
@@ -3624,8 +3624,13 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--spectate-file",
         type=Path,
-        help="after each decision write a spectator JSON snapshot here "
-             "(at most once per second, atomically; default: off)",
+        help="write spectator JSON here (atomic, at most every 0.25 s) and "
+             "append each posted decision to spectate-frames.jsonl (default: off)",
+    )
+    parser.add_argument(
+        "--spectate-max-backlog", type=int, default=0,
+        help="wait before actions when this many spectator frames are unplayed "
+             "(0 disables; requires --spectate-file)",
     )
     return parser
 
@@ -4265,26 +4270,54 @@ def _run_follow(
         nonlocal last_activity
         # Pace whole policy operations, before response deadlines are created.
         # Executor continuations, prompt answers, and driver reads bypass this.
+        # Capture the decision before intentional waiting so the compatibility
+        # snapshot throttle sees the same decisions with and without pacing.
+        if spectator is not None:
+            spectator.observe(
+                post_kwargs["snapshot"], post_args[2], policy.last_reason,
+                getattr(policy, "_decision_sequence", None),
+                executor.ready_screen_value if executor is not None else None,
+                state_line=post_args[1],
+                screen_client=executor.client if executor is not None else None,
+                policy=policy, append_frame=True, defer_frame=True,
+            )
         post_at = time.monotonic()
-        if last_action_post_at is not None:
-            remaining = args.min_action_seconds - (post_at - last_action_post_at)
-            if remaining > 0:
-                wait_started = time.perf_counter()
-                faulthandler.cancel_dump_traceback_later()
-                try:
+        remaining = (args.min_action_seconds - (post_at - last_action_post_at)
+                     if last_action_post_at is not None else 0.0)
+        maximum = getattr(args, "spectate_max_backlog", 0)
+        backlog_full = (spectator is not None and spectator.backlog_full(maximum))
+        if remaining > 0 or backlog_full:
+            wait_started = time.perf_counter()
+            faulthandler.cancel_dump_traceback_later()
+            try:
+                if remaining > 0:
                     time.sleep(remaining)
-                finally:
-                    _arm_decision_watchdog()
+                while spectator is not None and spectator.backlog_full(maximum):
+                    time.sleep(SPECTATE_BACKLOG_POLL_SECONDS)
+            finally:
                 waited = time.perf_counter() - wait_started
                 decision_started_at += waited
                 phase_started_at += waited
                 last_activity += waited
-                post_at = time.monotonic()
-        # The wait consumes neither the prompt deadline nor the executor budget.
-        post_kwargs["deadline"] = time.monotonic() + args.stall_timeout
+                _arm_decision_watchdog()
+        # Screen acquisition and all intentional waiting precede response budgets.
+        post_at = time.monotonic()
+        post_kwargs["deadline"] = post_at + args.stall_timeout
+        previous_result = getattr(send, "last_result", None)
         result = _send_decision_key_with_prompt_chain(*post_args, **post_kwargs)
         if result[0]:
             last_action_post_at = post_at
+        if spectator is not None:
+            posted = bool(result[0])
+            if isinstance(send, _ExecutorInputPort):
+                current_result = send.last_result
+                # A posted action can end in death or an executor stop. The
+                # ACKed prefix still belongs in the viewer's frame stream.
+                posted = posted or (current_result is not None
+                                    and current_result is not previous_result
+                                    and bool(current_result.operation.accepted_segments))
+            if posted:
+                spectator.commit_frame()
         return result
 
     def finish_pending_batch() -> None:
@@ -4673,7 +4706,7 @@ def _run_follow(
                     phase_started_at = time.perf_counter()
                     key = policy.validate_read_key(snapshot, chosen_key)
                     key = _handle_owner_retirement(args, snapshot, key, policy, emit_visit)
-                    if spectator is not None:
+                    if spectator is not None and not key:
                         spectator.observe(
                             snapshot, key, policy.last_reason,
                             getattr(policy, "_decision_sequence", None),
@@ -4946,7 +4979,7 @@ def _run_follow(
                         "prompt_owner_handoff": policy.prompt_owner_handoff,
                     }
                     sent, posted_decision_line, chain, chain_result = (
-                        (post_decision if args.min_action_seconds > 0
+                        (post_decision if args.min_action_seconds > 0 or spectator is not None
                          else _send_decision_key_with_prompt_chain)(
                         send,
                         snapshot_line,
@@ -5069,7 +5102,7 @@ def _run_follow(
                             "prompt_owner_handoff": policy.prompt_owner_handoff,
                         }
                         sent, posted_decision_line, chain, chain_result = (
-                            (post_decision if args.min_action_seconds > 0
+                            (post_decision if args.min_action_seconds > 0 or spectator is not None
                              else _send_decision_key_with_prompt_chain)(
                             send,
                             snapshot_line,
