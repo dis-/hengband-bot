@@ -1,0 +1,413 @@
+{
+  "head": "93d6fe12700d80c3666cc5b5a9583dbf5e239aa1",
+  "base": "dace87f32320738873f861a7c15e1d9c8974ba0d",
+  "modules": 50,
+  "new_failures": 0,
+  "head_non_green_modules": 36,
+  "base_non_green_modules": 36,
+  "head_result_sha256": "df32b6b9abf0cabb99ca9df6403917cdc68f944315b3ee3f24df0f076e28bbff",
+  "base_cache_sha256": "b0c08b73b22cbb550335ef8aaa86635ef7337de9281e0d821c43cb47f6fbf052",
+  "comparison": "remote_slow.py main の failed 名集合差分と同じ比較。完了済みの同一基準HEADキャッシュを使用。",
+  "results": [
+    {
+      "module": "tests.test_town_decision_speed_caches",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 6,
+      "base_failed_count": 6,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_latch_onset_capture",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 4,
+      "base_failed_count": 4,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_town_terminal_exit_round16",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_experience_potion",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_unaffordable_claim_tour_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_pure_decision_telemetry",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_declarations_r14",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_town_fact_refresh_once",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_overweight_home_unreachable_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_home_light_alternation",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 29,
+      "base_failed_count": 29,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_recall_stockout_set_end_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_town_cure_supplier_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_equipment_homefull_step15a",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_policy_quest",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 173,
+      "base_failed_count": 173,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_ownership_s2a1_closure",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_purchase_retention_root_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_anti_melee_dungeon_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_protocol3_client",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_guardian_recall_pingpong_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_store_reentry_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 27,
+      "base_failed_count": 27,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_supply_shortfall_owner_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_esp_threat_rest_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_town_approach_retired_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 9,
+      "base_failed_count": 9,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_junk_town_weight_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_overweight_homefull_step15b",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_morivant_return_walks_away_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_junk_home_sweep_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_policy_home",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 6,
+      "base_failed_count": 6,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_town_terminal_memo_round17",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_junk_scope_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_reverse_choke_loot_loop_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_home_withdraw_failed_stock_present_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_light_rootfix_q2_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 5,
+      "base_failed_count": 5,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_oneshot_inflight_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_supervisor_check",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_identify_staff_swap_churn_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_store_op_compose_root_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_ownership_s2a_classification",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_policy_supply",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 10,
+      "base_failed_count": 10,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_town_decision_speed2_caches",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 4,
+      "base_failed_count": 4,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_spectator_melee_expected",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 5,
+      "base_failed_count": 5,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_spectator_recall_destination",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 2,
+      "base_failed_count": 2,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_overflow_gear_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_town_unseen_travel_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_recall_read_cancel_pingpong_recorded",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_ownership_s3a_record",
+      "head_exit": 0,
+      "base_exit": 0,
+      "head_failed_count": 0,
+      "base_failed_count": 0,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_departure_unsatisfiable_weight_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_junk_plain_gear_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_ownership_claims",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    },
+    {
+      "module": "tests.test_homefull3_recorded",
+      "head_exit": 1,
+      "base_exit": 1,
+      "head_failed_count": 1,
+      "base_failed_count": 1,
+      "new_failures": []
+    }
+  ]
+}

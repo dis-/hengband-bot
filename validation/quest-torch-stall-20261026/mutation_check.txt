@@ -1,0 +1,4 @@
+[mutation] 1 source hunks, tests: tests.test_quest_torch_stall_recorded
+[mutation] caught     src/hengbot/policy_supply.py:1257 (if quest is None or quest.status != QUEST_STATUS_UNTAKEN:): test_level_boundary_uses_the_same_existing_procurement_route, test_public_route_buys_torches_through_executor_then_requests_quest
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 39ca5ab0
