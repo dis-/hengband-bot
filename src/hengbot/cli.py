@@ -4253,6 +4253,17 @@ def _run_follow(
         nonlocal last_activity
         # Pace whole policy operations, before response deadlines are created.
         # Executor continuations, prompt answers, and driver reads bypass this.
+        # Capture the decision before intentional waiting so the compatibility
+        # snapshot throttle sees the same decisions with and without pacing.
+        if spectator is not None:
+            spectator.observe(
+                post_kwargs["snapshot"], post_args[2], policy.last_reason,
+                getattr(policy, "_decision_sequence", None),
+                executor.ready_screen_value if executor is not None else None,
+                state_line=post_args[1],
+                screen_client=executor.client if executor is not None else None,
+                policy=policy, append_frame=True, defer_frame=True,
+            )
         post_at = time.monotonic()
         remaining = (args.min_action_seconds - (post_at - last_action_post_at)
                      if last_action_post_at is not None else 0.0)
@@ -4272,15 +4283,6 @@ def _run_follow(
                 phase_started_at += waited
                 last_activity += waited
                 _arm_decision_watchdog()
-        if spectator is not None:
-            spectator.observe(
-                post_kwargs["snapshot"], post_args[2], policy.last_reason,
-                getattr(policy, "_decision_sequence", None),
-                executor.ready_screen_value if executor is not None else None,
-                state_line=post_args[1],
-                screen_client=executor.client if executor is not None else None,
-                policy=policy, append_frame=True, defer_frame=True,
-            )
         # Screen acquisition and all intentional waiting precede response budgets.
         post_at = time.monotonic()
         post_kwargs["deadline"] = post_at + args.stall_timeout

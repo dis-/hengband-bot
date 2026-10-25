@@ -2,6 +2,7 @@
 import tests  # noqa: F401
 
 import copy
+import gzip
 import io
 import json
 import time
@@ -18,18 +19,31 @@ from tests.test_action_pacing import Clock, ExchangeDone, ScriptPolicy, board, R
 from tests import test_spectator as spectator_pins
 from tests import test_input_executor as executor_pins
 from hengbot.control_client import ControlClient
+from hengbot.policy import HengbotPolicy
+from hengbot.monrace_knowledge import load_monrace_knowledge
 
 
 class FramesFollowTest(unittest.TestCase):
     def exchange(self, maximum=0, played="fresh", spectate=True, minimum=0,
-                 refuse=False):
+                 refuse=False, recorded=False):
         clock = Clock()
-        policy = ScriptPolicy(clock, 0.05)
+        knowledge = (load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")) if recorded else {})
+        policy = (HengbotPolicy(monrace_knowledge=knowledge)
+                  if recorded else ScriptPolicy(clock, 0.05))
+        if recorded:
+            fixture = Path(__file__).parent / "fixtures" / "esp-threat-rest-20260921.jsonl.gz"
+            with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+                lines = [line for line in stream
+                         if json.loads(line).get("type") == "player_turn"
+                         and json.loads(line).get("floor", {}).get("level", 0) > 0][2:5]
+        else:
+            lines = [board(turn) for turn in range(4)]
         posts, watchdogs, frames_at_post, deadlines, cancellations = [], [], [], [], []
         with TemporaryDirectory() as directory:
             root = Path(directory)
             state = root / "state.jsonl"
-            state.write_text(board(0), encoding="utf-8")
+            state.write_text(lines[0], encoding="utf-8")
             argv = ["--state-file", str(state), "--decision-log", str(root / "decisions.jsonl"),
                     "--game-save-path", str(root / "absent"), "--dump-interval-seconds", "0",
                     "--spectate-max-backlog", str(maximum),
@@ -60,12 +74,14 @@ class FramesFollowTest(unittest.TestCase):
             def poll():
                 nonlocal appended
                 watchdogs.append(clock.now)
-                if len(posts) == 3:
+                if len(posts) == len(lines) - 1:
                     raise ExchangeDone
                 if appended <= len(posts):
                     with state.open("a", encoding="utf-8") as stream:
-                        stream.write(board(appended + 1))
+                        stream.write(lines[appended + 1])
                     appended += 1
+                    if recorded:
+                        clock.now += 0.05
 
             original_sleep = clock.sleep
 
@@ -114,7 +130,7 @@ class FramesFollowTest(unittest.TestCase):
                   patch("hengbot.cli._send_decision_key_with_prompt_chain", side_effect=chain),
                   patch("hengbot.cli.faulthandler.cancel_dump_traceback_later", side_effect=cancel)):
                 with self.assertRaises(ExchangeDone):
-                    run_follow(args, policy, send, {},
+                    run_follow(args, policy, send, knowledge,
                                posting_contract=RefuseOnce() if refuse else None)
             frames = ([json.loads(row) for row in writer.frames_path.read_text(
                 encoding="utf-8").splitlines()] if writer.frames_path.exists() else [])
@@ -190,6 +206,32 @@ class FramesFollowTest(unittest.TestCase):
         self.assertTrue(on.clock.sleeps)
         self.assertEqual([row["timing"]["total_ms"] for row in on.rows], [50.0] * 3)
         self.assertEqual(off.frames, [])
+
+    def test_recorded_policy_keys_reasons_and_compatibility_snapshot_with_waits(self):
+        plain = self.exchange(spectate=False, recorded=True)
+        frames = self.exchange(recorded=True)
+        paced_frames = self.exchange(minimum=0.25, recorded=True)
+        for spectate, maximum, minimum in ((False, 0, 0.25), (True, 1, 0),
+                                           (True, 1, 0.25)):
+            with self.subTest(spectate=spectate, maximum=maximum, minimum=minimum):
+                run = self.exchange(spectate=spectate, maximum=maximum,
+                                    minimum=minimum, recorded=True)
+                self.assertEqual([(k, r) for k, r, _ in plain.posts],
+                                 [(k, r) for k, r, _ in run.posts])
+                self.assertEqual([(r["key"], r["reason"]) for r in plain.rows],
+                                 [(r["key"], r["reason"]) for r in run.rows])
+                self.assertTrue(run.clock.sleeps)
+                if spectate:
+                    self.assertEqual([(r["key"], r["reason"]) for r in run.frames],
+                                     [(printable_key(k), r) for k, r, _ in run.posts])
+        self.assertEqual([(k, r) for k, r, _ in frames.posts],
+                         [(k, r) for k, r, _ in paced_frames.posts])
+        self.assertEqual([(r["key"], r["reason"]) for r in frames.rows],
+                         [(r["key"], r["reason"]) for r in paced_frames.rows])
+        self.assertEqual((frames.snapshot["key"], frames.snapshot["reason"]),
+                         (paced_frames.snapshot["key"], paced_frames.snapshot["reason"]))
+        self.assertEqual(len(frames.frames), 2)
+        self.assertTrue(paced_frames.clock.sleeps)
 
     def test_refused_post_has_no_frame_and_retry_is_backpressured(self):
         run = self.exchange(1, refuse=True)
