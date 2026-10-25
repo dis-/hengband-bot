@@ -216,6 +216,18 @@ class SpectatorWriter:
                 destination = spectator_recall_destination(policy, snapshot)
                 if destination is not None:
                     content["recall_destination"] = destination
+                # getattr also handles checkpoints made before this display cache.
+                expected = getattr(policy, "_spectator_melee_expected", None)
+                if expected is not None:
+                    per_round = expected["per_round"]
+                    content["melee_expected"] = {
+                        "per_round": per_round,
+                        "total": sum(per_round) if per_round is not None else None,
+                        "stale": sorted(
+                            (item.slot, item.name) for item in snapshot.equipment
+                        ) != expected["equipment"],
+                        "turn": expected["turn"],
+                    }
             screen = spectator_screen(screen_value)
             if screen is not None:
                 content["screen"] = screen

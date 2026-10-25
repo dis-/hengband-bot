@@ -1,0 +1,52 @@
+ISSUE #47: 観戦用近接平均ダメージの実装・検証報告
+作成日: 2026-10-25
+作業ブランチ: melee-expected-1025
+実装コミット: e88a1ab75bcf31dd419b7e5fb7dfa6ff5a7e9e40
+ローカル検証の比較基準: 0b669fe33
+
+1行動分の近接平均ダメージを観戦スナップショットに追加した。ゲームが返す character.melee.expected_damage_per_round は既に打撃回数を含むため、そのまま保存し、両手の値だけを合計する。速度・命中率・打撃回数の再乗算は行わない。
+
+キャラクター応答の受信時、表示専用属性 _spectator_melee_expected に各手の値、応答の取得ターン、全装備のスロットと名前を保存する。参照箇所は観戦出力だけであり、判断処理からは参照しない。現在の装備名との比較は並び順に依存しない。
+
+SpectatorWriter の実出力に、既存の melee と同じ階層の melee_expected を追加した。
+例: {"per_round": [55, 17], "total": 72, "stale": false, "turn": 取得ターン}
+damage_nil の場合は per_round と total が null となる。装備名が変われば保存値を残して stale=true とし、新しいキャラクター応答で更新する。取得前および属性を持たない旧チェックポイントではフィールドを省略する。
+
+stale は装備のスロットと名前の差分を表す。能力値・一時効果だけの変化や経過時間を判定するものではないため、装備が同じでも値が古い場合がある。取得元の turn を併記し、追加のゲーム要求は行わない。
+
+変更した本体は src/hengbot/policy_observation.py と src/hengbot/spectator.py。ページHTMLは編集していない。判断ロジック・送信キーを変更していない。ゲームや稼働中BOTの操作、push、merge、rebase、stash、reset --hard は行っていない。
+
+tests.test_spectator_melee_expected に5件を追加した。既存テストのアサーション変更は0件。CLIの実キャラクター応答配送から observe_character_snapshot を経由し、実際の SpectatorWriter が書くJSONを確認する。記録済みfollow実行では、表示属性の有無で送信キー、判断理由、ターン、判断シーケンス、終了結果が一致した。
+
+個別の変異検証は毎回この単一モジュールを実行し、7件すべて終了コード1で検出した。最後に元のソースへ復元した。
+- per_round を [0, 0] に変更: 値・取得ターンのテストが検出。
+- total を 0 に変更: 合計値のテストが検出。
+- null時のtotalを0に変更: damage_nil のテストが検出。
+- 装備比較を反転: main_hand、sub_hand、防具の変更・再取得テストが検出。
+- 取得turnを現在turnに変更: 取得後12ターン進めるテストが検出。
+- 取得済み判定を反転: 未取得時の省略テストが検出。
+- getattr の既定値を削除: 属性欠落時のテストが検出。通常版では実際にpickle復元した旧状態からの出力と、その後の再取得も成功した。
+
+manifestは PYTHONPATH=src で scripts/town_work_manifest.py --write を実行し、生成物をコミット済み。880候補、22,293サイト、未対応0だった。
+
+最後の本体編集・実装コミット後、指定順に以下を実行した。
+- preflight.py: 終了コード0。変更5ファイル、指摘0件。
+- mutation_check.py --tests tests.test_spectator_melee_expected --record: 終了コード0。変更2か所を個別に戻すとテストが失敗し、未検出0件。e88a1ab75 の成功記録を作成。
+- fast_tier.py --shards 4: 最終実行は終了コード0。3,835件、333.1秒、失敗0、エラー0、停止分割0。
+- remote_slow.py: 起動は指定どおり1回。Linux検証環境の結果は後記。
+
+fast tier の途中結果も省略しない。
+初回は3,835件、435.6秒、終了コード1。tests.test_control_client の5件、tests.test_input_executor の1件が失敗し、tests.test_cli の子プロセス起動が5秒でタイムアウトした。
+各モジュールの単独再実行はすべて終了コード0: tests.test_cli 240件/23.384秒、tests.test_control_client 34件/15.808秒、tests.test_input_executor 73件/3.218秒。
+
+1回目の修復確認では、キャラクターダンプの読み取り要求失敗が1件発生した。さらに既存の空キーテストがwatchdog設定処理で停止し、読み取り診断2回で同じスタックを確認した。自身が起動した該当テスト分割だけを、親プロセスと実行引数で識別して終了した。この回は2,974件、964.6秒、終了コード1、失敗1、停止分割1だった。
+その後、tests.test_headless_character_dump は3件/2.012秒、tests.test_cli_empty_key は1件/0.127秒で単独成功した。
+2回目の修復確認が上記の最終fast tierであり、3,835件で失敗・エラー・停止分割0だった。本体・既存テスト・タイムアウト設定を変更して通したものではない。
+
+Linux検証環境での最終比較も終了コード0、SLOW OK。対象HEADは e88a1ab75、比較元は main の 124fa2ac9。各HEADについて47モジュールを3並列で実行した。ブランチ・比較元とも33モジュールが非成功で、その失敗は比較元と同じだった。新規失敗は0件。排他待ちを経て比較元も実行し、メモリ制限終了時の単独再実行は検証ツール標準の処理に従った。
+
+比較元に存在しない tests.test_spectator_melee_expected と tests.test_spectator_recall_destination はLinux比較から除外された。今回追加した前者はローカルの単独5件、正式mutation検証、最終fast tierで成功している。
+
+指定の検証コマンドの最終終了コードはすべて0。修復確認は2回以内で終え、既存アサーションの変更は不要だった。自身が起動していないプロセスの停止・再起動は行っていない。
+
+このレポートはPythonで encoding='utf-8', newline='\n' を指定して作成し、BOMなし・LFを確認する。コミット前に指定の匿名化チェックスクリプトも実行する。検証した実装コミットの後に、このレポートだけを追加コミットする。

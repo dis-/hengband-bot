@@ -1,0 +1,47 @@
+ISSUE: #47 (spectator)
+The owner asked (verbatim): 「観戦画面UI 近接攻撃力の表示に1ターンあたりの期待値を追加」 (with a picture of the game's
+character screen: 打撃回数 2+0 / 平均ダメージ 55+0).
+Clarification the owner answered (LOCKED): 「1回の行動の分だけ」 - show the average melee damage of ONE action, i.e. the
+sum over both hands of the game's own per-round value. Do NOT multiply by speed, do NOT include hit chance.
+Fact (supervisor, verified in C:\hengband\src): the game's 平均ダメージ is already blows x per-blow damage
+(src/view/status-first-page.cpp:342-346, English label AverageDmg/Rnd); never multiply by blows again. The emitter
+sends it in the on-demand character snapshot: character.melee.expected_damage_per_round = [main, sub] or null when
+damage_nil (src/bot/bot-json-output.cpp:1897, 2012-2019; present in the game build 04e95fb5 the soaks run).
+The bot receives that snapshot only when it requests one (character dump / save, cli.py:5693 ->
+policy_observation.observe_character_snapshot), so the value can be old.
+Branch melee-expected-1025 at recall-reason-1025 0b669fe33 (unmerged; it also edits spectator.py - build on it, do not
+rebase). Worktree C:\hengband\bot-client\.worktrees\melee-expected-1025.
+
+What to build (display-only; the bot's decisions and the keys it sends must not change; no new game requests):
+1. When a character snapshot is observed, remember its melee.expected_damage_per_round and the equipped weapon
+   identity at that moment (the equipment slots that change melee: main_hand, sub_hand and anything the snapshot's
+   own melee depends on that the bot can see - keep it simple: the names of the equipped items) in a display-only
+   attribute. No decision may read it. Restored-checkpoint default required.
+2. The spectator snapshot gains one field next to "melee", e.g. "melee_expected": {"per_round": [main, sub] or null,
+   "total": main+sub or null, "stale": true when the current equipment differs from the remembered one, "turn": the game
+   turn of the snapshot it came from}. Omit the field when no character snapshot has been seen.
+3. Do NOT edit C:\hengband-backups\guard-tools\spectator\index.html; the supervisor writes the page text.
+Pins through real producers (the CLI dispatch of a recorded or constructed character response -> observe ->
+the real SpectatorWriter output): value and total; null when damage_nil; stale flips when the equipped weapon changes;
+field absent before any character snapshot; restored checkpoint without the attribute. Control: keys and reasons of a
+recorded follow run identical with and without the field. Per-pin revert proofs.
+
+Rules (mandatory):
+- Write every text file with Python, encoding='utf-8', newline='\n'. PowerShell Set-Content / Out-File turns Japanese
+  into '?'.
+- NEVER stop, kill or restart a process you did not start yourself. No game/bot control, no push, no merge, no rebase,
+  no git reset --hard, no git stash. Commit on this branch.
+- Existing tests (= tests at 0b669fe33) keep their assertions; if one must change, STOP and report it. Your own new
+  tests of this branch may change.
+- New test modules need `import tests  # noqa: F401`. UTF-8 without BOM. At most 3 collaborators patched per test
+  function; no source-text/AST assertions. No new constant or threshold.
+- Bookkeeping: stale manifest (python scripts\town_work_manifest.py --write with PYTHONPATH=src, commit).
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\melee-expected-1025 0b669fe33
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\melee-expected-1025 0b669fe33 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\melee-expected-1025 0b669fe33 --shards 4
+  then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\melee-expected-1025
+  Fix every FAIL / NOT CAUGHT; at most two repair rounds. If fast_tier fails only in the timing-dependent
+  tests.test_control_client / test_input_executor modules, rerun those modules alone and report both results.
+- Token budget 150k HARD. Wall time 90 minutes. Write LUNA-REPORT-melee-expected.txt in Japanese and commit.
