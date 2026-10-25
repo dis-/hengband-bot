@@ -1,0 +1,56 @@
+Issue #47 賞金首往復の診断（修正前、2026-10-25）
+
+計測対象と欠落
+基準 0f8835a74。運転中の n1-b/life-001 を読み取りだけで調査した。
+記録は tests/fixtures/bounty-cashout-1025.jsonl.gz に小さい窓として保存。
+各行の source_line は元ファイルの物理行。decision_sequence のある行だけを決定として数えた。
+CLI の復元用チェックポイントは無い。再生は記録盤面に、記録で確認できる自宅の知識完了・錬金術店の記憶・繰り返し fingerprint を補う構成であり、完全な運転再現とは区別する。
+
+実測した用事
+state.jsonl:4613-4643 の inventory s は1体、スナガ『ムズガッシュ』の死体 {賞金首}、is_bounty=true、pval=1095。
+state.jsonl:4617 の所持金8835、袋の空き4。現金不足や空き不足による拒否ではない。
+換金先は (25,71)、building_type=13 の賞金首事務所。実際のマップと盤面の両方で一致する。
+state.jsonl:4620 の (37,91) は store_type=4、錬金術の店。
+policy.py:17744-17816 は死体を持って事務所へ歩き、最後の一歩に c + y×賞金首品数 + ESC を付ける。
+この盤面の本来のキーは 7cy\x1b。c は引き渡し、y は1体の確認への返事、ESC は建物を出る操作。
+報酬は通常の賞金首の累計達成数による品である。ゲーム側 C:/hengband/src/market/bounty.cpp:143-180 と bounty-prize-table.cpp:7-32。
+本窓には達成済み賞金首の総数・受領メッセージがないため、具体的な報酬品名は未確定。
+初回なら癒しの薬、2・3回目ならスピードの薬等となる。ムズガッシュ固有の金額報酬と断定しない。記録中の換金は未実行である。
+
+往復の因果（基準版の行番号）
+policy_town.py:1208-1211 は単独の方向キーだけを方向と認める。7cy\x1b は方向と一致しない。
+policy_town.py:1236-1261 の宣言先に対する BFS 前進判定を通れず、1297-1314 の汎用マクロ判定へ進む。
+fingerprint (1318-1349) は位置を含まない。歩いている間も所持品等が同じなので history と一致し、TOWN_OSCILLATION_DEFECT として false。
+_town_procurement_decision (1597-1960) はその false を受け、_town_procurement_progress_key (1402-1536) が覚えている購入可能な供給先を選ぶ。
+その結果、bot-decisions.jsonl:7431 / seq4951 / turn519142 / (26,72) で bounty:cashout が native travel の ESC`n%. に置換される。
+bot-decisions.jsonl:7432 / seq4952 / turn519320 は錬金術店に到着し bounty:leave-supplier の ESC。
+policy_town.py:2384-2395 は賞金首の用事を通常の店では実行できないため、その店を nothing-to-do-here:supplier:4 として出る。
+死体は渡していないので step4_pending (2344-2350) が残る。7433 / seq4953 から再び事務所へ7で歩く。
+7452 / seq4972 で同じ差し替え、7453 / seq4973 で同じ店を出る。
+
+回数と過去の実例
+調査時点の n1-b の jsonlog 2ファイルの decision_sequence 行は計18229。
+本件の「cashout=>approach」は12件、seq4951,4972,...,5182。連続する差し替え間の完結した往復は11回、最後を含め12回の換金妨害。
+その後の cashout=>cashout は76件で別の書き換え形であり、12回に混ぜない。leave-supplier は13件。
+C:/hengband-backups/state-logs/c4a-loops-20261016 の105キャプチャを検索。
+20261020-115024-town-blocked-owner-retired-burst/bot-decisions.jsonl.gz:26 (turn2959897) 等に同じ cashout=>approach が4件、leave-supplier 5件、approach 76件。重複の可能性があるキャプチャ総計として示す。
+n1-a/life-001/jsonlog の検索では cashout=>approach 29件、cashout=>cashout 271件、leave-supplier 34件。
+初例 bot-decisions.jsonl.4:1315 / turn1140457、(26,71) から別の店への native travel。
+n1-a/life-002 は通常の bounty:cashout 1件（bot-decisions.jsonl:2006、8cy\\\x1b）、同じ差し替え理由は0件。
+ROOT-TYPE-LEDGER.md:13 の町の用事打ち切り型（9件、S2設計中）とも関連するが、この具体的な最終マクロ誤判定はS2以前にも存在する。
+
+旧版比較（公開 choose_key、同じ独立盤面・同じ補った状態）
+90947a65、8f95933f、0f8835a74 の3版とも以下が一致した。
+state:4613 => 1 / bounty:approach
+state:4617 => ESC`n%. / town-progress-invariant:defect:bounty:cashout=>town-progress-invariant:approach
+state:4620 => ESC / bounty:leave-supplier
+state:4621 => 7 / bounty:approach
+旧版は一時 detached worktree で実行し、共有の作業ツリーや stash は変更していない。
+
+修正方針（既存決定内）
+S2設計の3.5は、実行可能な終端はADMIT、拒否は生きている供給者に譲るか名前付きで閉じる。
+本件は終端そのものが拒否されているのではなく、実行可能な換金操作を後段が誤って捨てる不具合。
+既存の宣言先・経路の前進判定に、実在する賞金首品数から組み立てた最終コマンドを渡す。
+任意の方向始まりマクロや理由名だけを許可しない。到着先が宣言先そのものになる最終操作に限る。
+無効な歩行・無効果の操作は既存arbiterの予算で閉じる。新しい閾値、定数、店・階・キャプチャによる例外、新しい判断ルールは不要。
+town-idle-1025 が扱う policy.py:11965 / town_terminal.py:1850 付近は変更しない。

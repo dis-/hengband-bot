@@ -54,6 +54,19 @@ class ObservationMixin:
         """Refresh visible mutations and consume an acknowledged equipped dump."""
         if not isinstance(character, dict):
             return
+        # Viewer-only cache: the game already includes blows in each hand's value.
+        # Use the response's equipment, not a later board's loadout.
+        melee = character.get("melee", {})
+        if "expected_damage_per_round" in melee and envelope is not None:
+            per_round = melee["expected_damage_per_round"]
+            self._spectator_melee_expected = {
+                "per_round": list(per_round) if per_round is not None else None,
+                "equipment": sorted(
+                    (row.get("slot"), row.get("name"))
+                    for row in envelope.get("equipment", [])
+                ),
+                "turn": envelope.get("turn"),
+            }
         mutations = character.get("mutations")
         if mutations is not None:
             try:

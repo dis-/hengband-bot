@@ -1,0 +1,41 @@
+ISSUE: #47 (spectator)
+The owner asked (verbatim): 「hengband.netの観戦用botは1行動0.25秒より早い場合はwaitを入れたい。早すぎて人間がついていけない」.
+So: an optional minimum time per bot action. When the previous action was posted less than N seconds ago, wait for the
+remainder before posting the next one. Off by default (0); the viewing characters on hengband.net will run with 0.25
+(the supervisor sets that in linux_soak.py / the services, not you).
+Branch spectate-pace-1025 at main 124fa2ac9 (worktree C:\hengband\bot-client\.worktrees\spectate-pace-1025).
+
+What to build:
+1. A CLI option, e.g. --min-action-seconds FLOAT (default 0.0 = today's behavior, byte for byte the same timing).
+2. "One action" = one decision the policy posts to the game (one choose_key result sent through the follow loop),
+   measured from the previous post. Do NOT delay the keystrokes inside one composed post, the answers the input
+   executor gives to game prompts/-more- within one action, or control-server reads; do not change any decision, key,
+   reason, timeout or detector. Waiting happens before the post, so the game is idle while the bot waits.
+3. Check that time-based logic is not fooled by the wait: decision timing telemetry (do not count the wait as decision
+   time), stall/loop detectors, the save/dump intervals, response timeouts. List each time-based site you checked
+   (file:line) and why the wait is outside it.
+4. The spectator snapshot keeps being written as today (it is throttled separately to 0.25 s).
+Pins through the real follow loop (recorded or constructed game exchange, a fake clock injected the way the existing
+follow tests do it): (a) with 0.25, two posts 0.05 s apart wait 0.20 s before the second; (b) a post later than
+0.25 s does not wait; (c) with the default 0 no wait at all; (d) keys and reasons of a recorded follow run are identical
+with and without the option. Per-pin revert proofs.
+
+Rules (mandatory):
+- Write every text file with Python, encoding='utf-8', newline='\n'. PowerShell Set-Content / Out-File / here-strings
+  turn Japanese into '?' (this happened three times on 2026-10-25).
+- NEVER stop, kill or restart a process you did not start yourself. No game/bot control, no push, no merge, no rebase,
+  no git reset --hard, no git stash. Commit on this branch.
+- Existing tests (= tests at 124fa2ac9) keep their assertions; if one must change, STOP and report it.
+- New test modules need `import tests  # noqa: F401`. UTF-8 without BOM. At most 3 collaborators patched per test
+  function; no source-text/AST assertions. No new constant or threshold other than the option's default 0.
+- Bookkeeping: stale manifest (python scripts\town_work_manifest.py --write with PYTHONPATH=src, commit).
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\spectate-pace-1025 124fa2ac9
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\spectate-pace-1025 124fa2ac9 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\spectate-pace-1025 124fa2ac9 --shards 4
+  then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\spectate-pace-1025
+  Fix every FAIL / NOT CAUGHT; at most two repair rounds. If fast_tier fails only in the timing-dependent
+  tests.test_control_client / test_input_executor modules, rerun those modules alone and report both results.
+- Token budget 150k HARD. Wall time 90 minutes. Write LUNA-REPORT-spectate-pace.txt in Japanese (with Python) and
+  commit it.

@@ -1255,6 +1255,18 @@ class TownMixin:
                     # that same distance on subsequent boards; an ineffective
                     # posted step still consumes the existing owner budget.
                     return True
+            arrival = (goal.y - snapshot.player.position.y,
+                       goal.x - snapshot.player.position.x)
+            bounties = sum(1 for item in snapshot.inventory if item.is_bounty)
+            if (direction is None and snapshot.store is None and bounties
+                    and arrival in DIRECTION_KEYS
+                    and key == DIRECTION_KEYS[arrival] + "c" + "y" * bounties
+                    + LEAVE_STORE_KEY):
+                # The final step lands on the declared office itself and hands
+                # over every carried wanted remain.  The command, not the
+                # unchanged pre-walk fingerprint, is the effect; a refused
+                # hand-over still consumes the existing owner budget.
+                return True
         if direction is not None:
             if goal is not None:
                 before = snapshot.player.position.distance_to(goal)
@@ -7449,10 +7461,30 @@ class TownMixin:
 
         Shared by the return owner and the emergency-return loot gate.
         """
+        return (
+            self._one_shot_quest_exit_lock_held(snapshot)
+            and not self._light_releases_quest_exit(snapshot)
+        )
+
+    def _one_shot_quest_exit_lock_held(self, snapshot: Snapshot) -> bool:
+        """The quest lock before the light release (pure move)."""
         active_fixed = self._active_fixed_quest_id(snapshot)
         return bool(
             self._quest_floor_exit_locked(snapshot)
             or active_fixed is not None and self._fixed_quest_is_once(active_fixed)
+        )
+
+    def _light_releases_quest_exit(self, snapshot: Snapshot) -> bool:
+        """USER DECISION 2026-10-25「油を持って入り、微かなら帰る」(B).
+
+        A faint light with nothing to refill or wield releases the one-shot
+        quest lock; the ordinary light-low return then leaves (the quest
+        fails).
+        """
+        return (
+            not snapshot.in_town
+            and self._light_judgment(snapshot).releases_one_shot_quest
+            and self._one_shot_quest_exit_lock_held(snapshot)
         )
 
     def _emergency_return_progressing(self, snapshot: Snapshot) -> bool:

@@ -11299,5 +11299,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "terminal refusal confirmation",
     "delegation": "no independent success"
+  },
+  "policy.py:HengbotPolicy._count_oil": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: sums carried oil counts for LightJudgment; returns int and emits no action.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "policy_supply.py:LightJudgment.one_shot_quest_entry_reject_reason": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: returns a rejection reason or None for one-shot quest entry from the shared light judgment; emits no action and owns no independent progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "policy_supply.py:SupplyMixin._light_judgment": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: constructs LightJudgment from worn/carried lights, refill and swap choices, and carried oil. Used by departure and one-shot quest entry/exit; emits no action.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
   }
 }

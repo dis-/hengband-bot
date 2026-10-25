@@ -1,0 +1,70 @@
+Issue #47 観戦用アクション間隔 実装・検証報告
+日付: 2026-10-25
+ブランチ: spectate-pace-1025
+比較元: 124fa2ac9
+検証対象HEAD: 4705ea0ae
+
+実装
+--min-action-seconds FLOAT を追加。既定値は 0.0（無効）。
+follow ループで前回の送信開始からの経過時間を測り、不足分だけ次の行動の送信前に待つ。初回は待たない。正の値が指定された場合だけ専用の送信経路を使うため、既定値では追加の時計読み取りも sleep も発生しない。
+対象は choose_key の結果を送る通常経路と、posting contract 拒否後の再選択経路。マクロ内のキー、executor の継続入力・プロンプト回答・-more-、回復用入力、control-server の個別読み取りには間隔制御を追加していない。
+判断内容・キー・理由・既存の閾値は変更していない。運用サービスや supervisor の設定も変更していない。
+
+時刻依存箇所の確認（行番号は上記HEAD）
+1. src/hengbot/cli.py:4246 — 行動間隔の制御。送信処理全体の外で待つ。送信処理が完了するまでの時間も前回の行動開始からの経過時間に含める。
+2. src/hengbot/cli.py:4653, 4961, 4975, 5078, 5083, 5245 — choose_key_ms / send_ms / total_ms。choose_key の計測終了後に待ち、decision_started_at と phase_started_at に実測の待機時間を加算して send_ms と total_ms から待機分を除く。後続の停止ログの total_ms にも同じ補正が効く。
+3. src/hengbot/cli.py:4372, 4380, 4978, 5086 — poll/read 計測。待機は読み取り後で、次の poll 計測の開始前。
+4. src/hengbot/cli.py:149, 4256 — 判断処理の watchdog。意図した待機中はキャンセルし、待機後に再設定する。既存の期限値は変更しない。
+5. src/hengbot/cli.py:4494, 4615, 4627 — look barrier、移動応答待ち、intentional action wait。既存応答の確認・消費は今回の待機前に行う。新たな応答待ちの開始は送信後。
+6. src/hengbot/cli.py:4717, 4767, 5233 — 理由反復、コマンド停止、位置ループの検出は観測・判断回数に基づき、sleep は判断や観測を増やさない。
+7. src/hengbot/cli.py:4264, 5147, 5167, 5282 — last_activity と無通信回復、rest の応答猶予。待機分を活動時刻に加算し、通常送信後には実時刻を記録する。待機が無通信停止や回復 nudge を誘発しない。
+8. src/hengbot/cli.py:4371, 4637 — dump/save の要求周期。既存の monotonic 実時間を維持し、待機分で周期を延長しない。安全な判断境界で要求する既存方式を維持。
+9. src/hengbot/cli.py:4377, 4760, 5146 / src/hengbot/save_archive.py:149, 161 — save archive の確認。before_post は変更前の保存状態を採取し、確認期限は送信後の posted 時点から始まる。待機が確認予算を消費しない。
+10. src/hengbot/cli.py:4267, 2613, 3086 / src/hengbot/input_executor.py:1123, 1164, 1229, 1284 / src/hengbot/control_client.py:179, 242, 301 — 入力・応答期限。follow の prompt deadline は待機後に設定し直し、executor 自身の期限も待機後に作成する。内部の投稿・応答・再試行予算の値は変更していない。
+11. src/hengbot/cli.py:4660 / src/hengbot/spectator.py:150, 170 — 観戦スナップショットは従来どおり判断後に observe。別系統の時計と 0.25 秒の更新制限を維持。
+12. src/hengbot/wait_telemetry.py:56 / src/hengbot/flight_recorder.py:278, 574 — 集計の flush 周期とログ I/O の再試行は独立した既存処理。アクション待機をこれらの処理内へ挿入していない。
+
+13. src/hengbot/equipment_optimizer.py:1428, 1486, 1513, 1644 — 装備探索の開始時刻・時間制限・所要時間は同期的な choose_key 内で完結する。アクション待機はその返却後なので探索予算を消費しない。
+14. src/hengbot/policy_instore.py:357, 369, 821, 873, 994, 1021 — 店内処理の局所的な処理時間計測も choose_key 内で完結し、送信前待機を含めない。
+15. src/hengbot/policy_home.py:122, 2837 / src/hengbot/policy_instore.py:121 / src/hengbot/flight_recorder.py:222, 319, 403, 471, 533 — 記録用の日時は実時間のまま。経過時間の検出や判断の予算ではなく、時計の差し替えや停止は行っていない。
+
+新規テスト（tests.test_action_pacing、実際の follow ループを使用）
+(a) test_short_interval_waits_only_the_remainder:
+    0.25 秒指定、前回の投稿から判断処理が 0.05 秒進むと 0.20 秒だけ待つ。投稿間隔は 0.25 秒。choose_key_ms / total_ms は双方 50 ms、send_ms は 0 ms。
+(b) test_late_post_does_not_wait:
+    0.30 秒経過していれば sleep なし。
+(c) test_default_never_waits:
+    CLI オプション省略時は既定値 0.0、sleep なし、投稿間隔は元の 0.05 秒。
+(d) test_recorded_follow_keeps_keys_and_reasons:
+    既存の記録済み JSONL の 41F データを加工せず再生し、実際の policy と follow を通す。無効／0.25 秒指定で投稿キー・理由と判断ログのキー・理由が一致。指定時に待機が実際に発生することも確認。
+追加: 送信処理が 0.30 秒続けば完了後にさらに待たないこと、posting contract 拒否後の再選択で送信された行動も次の間隔の起点になることを検証。
+
+差分の取り消しによる検証
+mutation_check.py --tests tests.test_action_pacing --record を実行。
+4 個のソース差分を一つずつ戻す検証はすべて caught、NOT CAUGHT は 0。
+- cli.py:3568 CLI 追加部分: (b)(c)(d) を含むテストで検出。
+- cli.py:4241 待機処理: (b)(d) と送信所要時間・再選択のテストで検出。
+- cli.py:4928 通常送信経路: (a)(d) と再選択のテストで検出。
+- cli.py:5051 再選択送信経路: test_retry_post_sets_the_next_action_deadline で検出。
+記録は検証対象HEADに対応する guard-tools の mutation record に保存済み。
+
+検証結果
+- 開発中: tests.test_action_pacing 6 件 OK、tests.test_cli 240 件 OK。単一モジュールで実行。
+- 最終 preflight: PREFLIGHT OK、5 changed files、0 findings、終了コード 0。
+- 最終 mutation_check: MUTATION OK、4/4 caught、NOT CAUGHT 0、終了コード 0、--record 済み。
+- 最終 fast_tier --shards 4: 3,836 件、414.0 秒、Failures none、Errors none、Crashed shards none、終了コード 0。時刻依存テストの単独再実行は不要だった。
+- 最終 remote_slow（Linux検証環境、1 回だけ実行）: SLOW OK、47 モジュール、比較元 124fa2ac9、追加失敗 0、終了コード 0。33 モジュールは非 green だが、失敗は比較元にも存在し、今回の変更で増えた失敗はなかった。比較元の 47 モジュール分の結果は既存キャッシュを再利用した。
+順番は preflight → mutation_check → fast_tier → remote_slow。対象はすべて 4705ea0ae。
+
+作業上の確認
+既存テストの本文・assertion は変更していない。
+新規テストの patched collaborator は各実行につき 2 個。ソーステキスト／AST の assertion は追加していない。
+town_work_manifest.py --write を PYTHONPATH=src で実行し、圧縮manifestと補助索引をコミット済み（880 candidates、22293 sites、zero unmapped）。
+最初の preflight は補助索引の未コミットを検出して失敗。補助索引を追加コミット後、preflight から指定順に再実行した。
+テキストの作成・変更は Python で UTF-8、LF、BOM なしとして行った。
+ゲーム／bot の起動・停止・制御、他者のプロセス停止、push、merge、rebase、reset、stash は実行していない。既存の未追跡ログは保持した。
+
+コミット
+f95dd2760: 機能、新規テスト、圧縮manifest
+4705ea0ae: 生成済み補助索引
+本レポートは検証後に別コミット。レポート追加による実装・テストの変更はない。
