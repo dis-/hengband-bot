@@ -14831,7 +14831,7 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
         # (equipped C-sheet calibration rework) an unavailable calibration is
         # no Home/shop work: with departure walled ready the attempted surplus
         # deposit still does not block it, and the recall is read.
-        self.assertEqual(str(key), "7")
+        self.assertEqual(str(key), "rga")
         self.assertTrue(policy.last_reason.endswith("town:recall-to-angband"),
                         policy.last_reason)
         self.assertNotIn("deposit", policy.last_reason)

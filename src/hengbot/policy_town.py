@@ -6417,13 +6417,6 @@ class TownMixin:
             return restock
 
         if self._fundraising_mode in {"mine", "scavenge"}:
-            from hengbot.town_terminal import (
-                fundraising_intended_terminal, may_take_board,
-            )
-            terminal = fundraising_intended_terminal(self, snapshot)
-            if not may_take_board(self, "_fundraising_key#1", "fundraising",
-                                  snapshot, terminal):
-                return None
             if not self._fundraising_departure_ready(snapshot):
                 # Do not let this early fundraising wait starve the ordinary
                 # town pack-pressure pipeline below.  Descent deliberately
@@ -6459,6 +6452,20 @@ class TownMixin:
                     if neighbors:
                         self.last_reason = "fundraise:departure-blocked-step-off"
                         return self._step_toward(snapshot, neighbors[0])
+                # Admission governs the fundraising wait, not the pack,
+                # exhausted-plan or entrance remedies above. A refused wait
+                # yields to live town work. After cycle recovery has exhausted
+                # that work and S2 has named the close, retain the existing
+                # visible handoff instead of resuming the errand.
+                from hengbot.town_terminal import (
+                    fundraising_intended_terminal, may_take_board,
+                )
+                terminal = fundraising_intended_terminal(self, snapshot)
+                if not may_take_board(self, "_fundraising_key#1", "fundraising",
+                                      snapshot, terminal):
+                    if (not self._town_restock_suppressed
+                            or terminal not in self._town_visit_ledger.closed_terminals):
+                        return None
                 self.last_reason = "fundraise:departure-blocked"
                 self.prompt_owner_handoff = "town:blocked:departure-no-light"
                 return WAIT_KEY

@@ -7817,7 +7817,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f3cb68abedbf0fa5f4eebb56d7b6bd51138eb4a1b4ca2c258f8282b24d0a6209"
+    "ast_sha256": "f7f42d5fb0eadc5afe5b6f21c349eaa9f3d3c1d0d2150afc16b79ac2a3afab57"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",
