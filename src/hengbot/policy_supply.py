@@ -1389,7 +1389,12 @@ class SupplyMixin:
         exit locks are respected via _return_to_town_key's own guards.
         """
         player = snapshot.player
-        if not player.hungry:
+        # A one-shot quest floor whose faint light cannot be refilled or
+        # swapped is left by the same ordinary return (#47); the quest
+        # navigator owns the floor and would otherwise sweep on until the
+        # light is gone.
+        light_exit = not player.hungry
+        if light_exit and not self._light_releases_quest_exit(snapshot):
             return None
         # Only a NEARBY threat defers the gate: a monster merely visible across
         # the floor may never engage at all, and waiting on it indefinitely is
@@ -1397,7 +1402,7 @@ class SupplyMixin:
         near_hostiles = [
             monster for monster in hostiles if monster.distance <= 4
         ]
-        food = self._find_edible(snapshot)
+        food = None if light_exit else self._find_edible(snapshot)
         if snapshot.in_town:
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
@@ -1434,7 +1439,7 @@ class SupplyMixin:
         # the quest may still be finished first, but weak-or-worse means
         # starvation (paralysis death with full HP) is now closer than any
         # kill count: leave via the exit stairs and take the visible loss.
-        if player.food_state not in {"weak", "fainting"}:
+        if light_exit or player.food_state not in {"weak", "fainting"}:
             return None
         here = snapshot.grid_at(player.position)
         exit_reason = (

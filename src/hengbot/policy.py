@@ -10899,14 +10899,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         darkness_recovery = self._town_producer_entry("_darkness_recovery_key", lambda: self._darkness_recovery_key(snapshot), family="survival")
         if darkness_recovery is not None:
             return darkness_recovery
-        # A one-shot quest floor whose faint light cannot be refilled or
-        # swapped is left by the ordinary return (USER DECISION 2026-10-25
-        # 「油を持って入り、微かなら帰る」); the dark walk and the quest
-        # navigator would otherwise alternate until the light is gone.
-        if profile is not None and self._light_judgment(snapshot).releases_one_shot_quest:
-            light_return = self._town_producer_entry("_return_to_town_key#1", lambda: self._return_to_town_key(snapshot, strategic_hostiles))
-            if light_return is not None:
-                return light_return
         dark_locomotion = self._town_producer_entry("_dark_locomotion_key", lambda: self._dark_locomotion_key(snapshot))
         if dark_locomotion is not None:
             return dark_locomotion

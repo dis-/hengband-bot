@@ -7440,15 +7440,31 @@ class TownMixin:
 
         Shared by the return owner and the emergency-return loot gate.
         """
+        return (
+            self._one_shot_quest_exit_lock_held(snapshot)
+            and not self._light_releases_quest_exit(snapshot)
+        )
+
+    def _one_shot_quest_exit_lock_held(self, snapshot: Snapshot) -> bool:
+        """The quest lock before the light release (pure move)."""
         active_fixed = self._active_fixed_quest_id(snapshot)
-        locked = bool(
+        return bool(
             self._quest_floor_exit_locked(snapshot)
             or active_fixed is not None and self._fixed_quest_is_once(active_fixed)
         )
-        # USER DECISION 2026-10-25「油を持って入り、微かなら帰る」: a faint light
-        # with nothing to refill or wield releases the one-shot quest lock, and
-        # the ordinary light-low return reads recall (the quest fails).
-        return locked and not self._light_judgment(snapshot).releases_one_shot_quest
+
+    def _light_releases_quest_exit(self, snapshot: Snapshot) -> bool:
+        """USER DECISION 2026-10-25「油を持って入り、微かなら帰る」(B).
+
+        A faint light with nothing to refill or wield releases the one-shot
+        quest lock; the ordinary light-low return then leaves (the quest
+        fails).
+        """
+        return (
+            not snapshot.in_town
+            and self._light_judgment(snapshot).releases_one_shot_quest
+            and self._one_shot_quest_exit_lock_held(snapshot)
+        )
 
     def _emergency_return_progressing(self, snapshot: Snapshot) -> bool:
         """Whether the emergency return is actually under way on this board.

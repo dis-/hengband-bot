@@ -2078,7 +2078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0fca38ad7cbfb0a4814122fbb6d2c2a689212e64ac345bc285111eefb93d65f9"
+    "ast_sha256": "b19b7e6e81230f67eda78a7a5ff4e8d59924040d4298377bd3a4ade4a7a9054f"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5716,7 +5716,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "56bc86324cb446312206e49bc06fee416c69ea2e65a141ec0f6a40ebfebd25a8"
+    "ast_sha256": "fa4bcb5df47b0ef8fdd21c609b4a44ca0089f25cb8e8e4392e492a8903082db3"
   },
   "policy_navigation.py:NavigationMixin._descent_step": {
     "classification": "producer",
@@ -7225,7 +7225,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3c442ef7eea3f804c6089c2ff74f75ff48de661f39b799da93f8928e00b46c78"
+    "ast_sha256": "c7cbe4ee912375bf1b002dfd0a08d1d4364f53b3512d457abbd3fe9a2109b7c5"
   },
   "policy_supply.py:SupplyMixin._unknown_light_last_resort": {
     "classification": "data",

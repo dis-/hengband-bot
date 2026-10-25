@@ -19,9 +19,14 @@ POLICY_ROOT = Path(__file__).resolve().parents[1] / "src" / "hengbot"
 # (file, function) sites that must ask the judgment.
 ROUTED_SITES = {
     ("policy_supply.py", "_expedition_light_ready"),
-    ("policy_town.py", "_return_exit_locked"),
+    ("policy_town.py", "_light_releases_quest_exit"),
     ("policy_quest.py", "_evaluate_fixed_quest_readiness"),
-    ("policy.py", "_decide"),
+}
+# Sites that answer the one-shot quest exit question through the release.
+RELEASE_SITES = {
+    ("policy_town.py", "_return_exit_locked"),
+    ("policy_supply.py", "_survival_gate_key"),
+    ("policy_navigation.py", "_dark_locomotion_key"),
 }
 # Functions allowed to name the faint value.  _unknown_light_last_resort
 # compares ``fuel > 100`` (inclusive at 100) for the unknown-light fallback;
@@ -47,6 +52,13 @@ def _calls_judgment(node):
     )
 
 
+def _calls_release(node):
+    return any(
+        isinstance(sub, ast.Attribute) and sub.attr == "_light_releases_quest_exit"
+        for sub in ast.walk(node)
+    )
+
+
 def _names_faint_value(node):
     return any(
         isinstance(sub, ast.Name) and sub.id == "LANTERN_DIM_WARNING_FUEL"
@@ -62,6 +74,17 @@ class LightJudgmentCensusTest(unittest.TestCase):
             if (name, node.name) in ROUTED_SITES
         }
         self.assertEqual(set(found), ROUTED_SITES)
+        self.assertEqual(
+            sorted(site for site, routed in found.items() if not routed), []
+        )
+
+    def test_quest_exit_sites_ask_the_light_release(self):
+        found = {
+            (name, node.name): _calls_release(node)
+            for name, node in _functions()
+            if (name, node.name) in RELEASE_SITES
+        }
+        self.assertEqual(set(found), RELEASE_SITES)
         self.assertEqual(
             sorted(site for site, routed in found.items() if not routed), []
         )
