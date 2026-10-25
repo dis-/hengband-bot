@@ -181,3 +181,8 @@ named close済み・posted操作なし・同じheld batchに属する・現カ�
 という条件を個別レビューし、scripts/item_sink_adapters.jsonへ正確な式と
 回数1を登録した。lint本体と既存assertionは変更していない。
 これはguard修復ラウンド1であり、コードの保護条件は維持した。
+
+同じpreflightのもう1件は、非producerである_commit_visit_routeを
+producer baselineにも入れた分類誤りだった。town_work_reviewのdata分類は保持し、
+不要なbaseline entryを削除した。baseline確定値は726、reviewは886。
+いずれも修復ラウンド1内の帳簿修正であり、既存テストの変更はない。

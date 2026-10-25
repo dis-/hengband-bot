@@ -722,7 +722,6 @@
   "town_terminal.py:_compute_store_buy_material": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "town_terminal.py:visit_intended_terminal": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "town_terminal.py:verdict_visit": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
-  "town_terminal.py:_commit_visit_route": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "town_terminal.py:verdict_store_route": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "town_terminal.py:equipment_transaction_intended_terminal": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "town_terminal.py:gather_equipment_command": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry"
