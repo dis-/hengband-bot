@@ -4557,17 +4557,22 @@ class QuestMixin:
 
         cmd-move.cpp confirm_leave_level asks it on an incomplete RANDOM (or
         ONCE) quest floor, and 'y' forfeits the quest.  The stair operation
-        answers it only when the runtime kill quest's exit lock has released
-        (the progress-based give-up or a survival release); a stair posted
-        while the lock holds, or on a fixed-quest floor, leaves the question
-        unowned so the executor stops visibly.
+        answers it when the shared light judgment releases the return exit
+        lock (fixed ONCE or runtime kill quest), or when the runtime kill
+        quest's own exit lock has released.  A stair posted while the lock
+        holds leaves the question unowned so the executor stops visibly.
         """
         return (
             key in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}
             and not snapshot.in_town
-            and self._active_fixed_quest_id(snapshot) is None
-            and self._active_kill_quest_id(snapshot) is not None
-            and not self._quest_floor_exit_locked(snapshot)
+            and (
+                self._light_releases_quest_exit(snapshot)
+                or (
+                    self._active_fixed_quest_id(snapshot) is None
+                    and self._active_kill_quest_id(snapshot) is not None
+                    and not self._quest_floor_exit_locked(snapshot)
+                )
+            )
         )
 
     def _quest_exit_would_fail(self, snapshot: Snapshot) -> bool:
