@@ -1,0 +1,95 @@
+..FFFFF.......
+======================================================================
+FAIL: test_64_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_64_capture)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 55, in test_64_capture
+    self.check_window('20261018-091516')
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 40, in check_window
+    self.assertEqual([[row['turn'], row['key'], row['reason']] for row in trace], expected['trace'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [[106[58 chars]66, '9', 'stuck:wander'], [1062672, '8', 'stuc[1015 chars]ed']] != [[106[58 chars]66, '5', 'policy:none-wait'], [1062672, '\x1b`[1255 chars]ch']]
+
+First differing element 1:
+[1062666, '9', 'stuck:wander']
+[1062666, '5', 'policy:none-wait']
+
+Diff is 2691 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_66_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_66_second_capture)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 58, in test_66_second_capture
+    self.check_window('20261018-140156')
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 40, in check_window
+    self.assertEqual([[row['turn'], row['key'], row['reason']] for row in trace], expected['trace'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [[174[58 chars]78, '4', 'stuck:wander'], [1746986, '4', 'stuc[571 chars]er']] != [[174[58 chars]78, '5', 'policy:none-wait'], [1746986, '\x1b`[610 chars]ch']]
+
+First differing element 1:
+[1746978, '4', 'stuck:wander']
+[1746978, '5', 'policy:none-wait']
+
+Diff is 1344 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_66_third_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_66_third_capture)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 61, in test_66_third_capture
+    self.check_window('20261019-0050')
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 40, in check_window
+    self.assertEqual([[row['turn'], row['key'], row['reason']] for row in trace], expected['trace'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [[294[58 chars]04, '7', 'stuck:wander'], [2947109, '7', 'stuc[486 chars]er']] != [[294[58 chars]04, '5', 'policy:none-wait'], [2947109, '\x1b`[626 chars]ch']]
+
+First differing element 1:
+[2947104, '7', 'stuck:wander']
+[2947104, '5', 'policy:none-wait']
+
+Diff is 1389 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_68_first_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_68_first_capture)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 64, in test_68_first_capture
+    self.check_window('20261018-144235')
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 40, in check_window
+    self.assertEqual([[row['turn'], row['key'], row['reason']] for row in trace], expected['trace'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [[247[1008 chars]94, 'R300\r', 'town:wait-restock:temple'], [25[1288 chars]ch']] != [[247[1008 chars]94, '1', 'town:entrance-step-off:policy:none-w[1311 chars]ch']]
+
+First differing element 24:
+[2500894, 'R300\r', 'town:wait-restock:temple']
+[2500894, '1', 'town:entrance-step-off:policy:none-wait']
+
+Diff is 2640 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_68_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_68_second_capture)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 67, in test_68_second_capture
+    self.check_window('20261018-144457')
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\town-idle-1025\tests\test_town_terminal_exit_round16.py", line 40, in check_window
+    self.assertEqual([[row['turn'], row['key'], row['reason']] for row in trace], expected['trace'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [[253[58 chars]84, 'R300\r', 'town:wait-restock:temple'], [25[2937 chars]ee']] != [[253[58 chars]84, '5', 'policy:none-wait'], [2534992, '\x1b`[2924 chars]ee']]
+
+First differing element 1:
+[2534984, 'R300\r', 'town:wait-restock:temple']
+[2534984, '5', 'policy:none-wait']
+
+Diff is 3342 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 14 tests in 707.760s
+
+FAILED (failures=5)

@@ -1,0 +1,5304 @@
+{
+  "095121": {
+    "scan": "~9\u001b\u001b",
+    "trace": [
+      {
+        "sequence": 2,
+        "turn": 584559,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 3,
+        "turn": 584570,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 4,
+        "turn": 584578,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 5,
+        "turn": 584588,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 6,
+        "turn": 584597,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 7,
+        "turn": 584605,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 8,
+        "turn": 584615,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 9,
+        "turn": 584627,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 10,
+        "turn": 584640,
+        "key": "8",
+        "reason": "breakout",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          }
+        ]
+      },
+      {
+        "sequence": 11,
+        "turn": 584643,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 12,
+        "turn": 584653,
+        "key": "5",
+        "reason": "town:blocked:owner-retired",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 0, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 0: ('mana-food-sale',), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 0: frozenset({'shop-sell'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      }
+    ]
+  },
+  "100744": {
+    "scan": "~9\u001b\u001b",
+    "trace": [
+      {
+        "sequence": 2,
+        "turn": 699921,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "home:request-knowledge-scan"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 3,
+        "turn": 699933,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 4,
+        "turn": 699946,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 5,
+        "turn": 699954,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 6,
+        "turn": 699961,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 7,
+        "turn": 699971,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 8,
+        "turn": 699981,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 9,
+        "turn": 699986,
+        "key": "",
+        "reason": "store:entry-await-observation",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      },
+      {
+        "sequence": 10,
+        "turn": 699998,
+        "key": "8",
+        "reason": "breakout",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          }
+        ]
+      },
+      {
+        "sequence": 11,
+        "turn": 700009,
+        "key": "1",
+        "reason": "shop:approach",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_esp_threat_hunt_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10781",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_summoner_ranged_kill_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10786",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_emergency_item",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10791",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_item_destroying_breeder_leave_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10808",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_mana_food_survival_override_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10815",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_paralyzer_prevention_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10819",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_unseen_retreat_intercept_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10825",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_unseen_retreat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10830",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_detected_threat_preparation_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10838",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_dark_locomotion_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10864",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_kill_mob_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10956",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_breeder_breakthrough_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10973",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_choke_engagement_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:10986",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_fruitless_disengage_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11013",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_melee_swarm_combat_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11078",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_ranged_attack_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11319",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_survival_gate_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11392",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_mana_food_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11396",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_kill_quest_floor_recovery_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11402",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_home_disposal_processing_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11406",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_restore_weapon_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11490",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_space_deposit_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11502",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_victory_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11506",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_conquest_loot_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11510",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_fixed_quest_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11514",
+            "terminal_definition": "src/hengbot/town_terminal.py:220",
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_stat_restore_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11518",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_experience_potion_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11524",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_stat_gain_quaff_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11530",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_order_step4_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11534",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_fundraising_key#1",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11544",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_chest_processing_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11582",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_navigation_livelock_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11618",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_return_to_town_key#3",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11660",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_heavy_curse_inscription_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11752",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_remove_curse_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11756",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_enchant_launcher_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11761",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_town_random_teleport_suppression_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11765",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_equipment_transaction_town_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11775",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_normal_loot_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11788",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "breakout"
+          },
+          {
+            "rung": "_shopping_approach_key#2",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy.py:11925",
+            "terminal_definition": null,
+            "key": "1",
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-withdraw",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3181",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          },
+          {
+            "rung": "home-atomic-deposit",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_home.py:3899",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "shop:approach"
+          }
+        ]
+      },
+      {
+        "sequence": 12,
+        "turn": 700021,
+        "key": "5",
+        "reason": "town:blocked:owner-retired",
+        "admissions": [],
+        "plan": "TownErrandPlan(stops=[7, 4], need_categories={7: ('fundraising-kit', 'stored-digger'), 4: ('fundraising-detection',)}, index=0, inserted_this_visit=[], skipped_latched=[], completed_this_visit=[], blocked_this_visit=[], current_stop_passes=0, requester_families={7: frozenset({'home-errand'}), 4: frozenset({'shop-buy'})})",
+        "request": "HomeVisitRequest(kind=<HomeVisitKind.WITHDRAW: 'withdraw'>, requester='legacy-withdrawal', item_identity=('財宝感知の巻物', 70, 26), address=('財宝感知の巻物', 70, 26), quantity=1, keep_set=frozenset(), shelving_plan=(), batch=())",
+        "rungs": [
+          {
+            "rung": "_atomic_shop_transaction_key",
+            "terminal": "None",
+            "verdict": "unjudged",
+            "codes": [],
+            "entry": "src/hengbot/policy_town.py:1450",
+            "terminal_definition": null,
+            "key": null,
+            "reason": "store:entry-await-observation"
+          }
+        ]
+      }
+    ]
+  }
+}

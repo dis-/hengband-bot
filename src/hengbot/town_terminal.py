@@ -1847,6 +1847,11 @@ def _commit_home_withdraw(policy: Any, board: Any, terminal: TerminalRef,
     visit = policy._store_visit
     if visit is not None and visit.store_type == STORE_HOME:
         policy._close_store_visit("reservation-unavailable")
+    home = policy._home_visit
+    if home.report_unoperated("reservation-unavailable"):
+        report = home.consume_report()
+        policy._pending_home_visit_report = (
+            f"home-visit:{report.request.requester}:{report.outcome}")
 
 
 def _commit_home_atomic_withdraw(policy: Any, board: Any, terminal: TerminalRef,

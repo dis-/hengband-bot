@@ -479,6 +479,7 @@ from hengbot.town_terminal import (
     gather_quest_work,
     may_take_board,
     rung_terminal,
+    terminal_admission,
     verdict_quest_work,
 )
 from hengbot.town_arbiter import (
@@ -11961,7 +11962,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             lambda: self._home_full_knowledge_key(snapshot),
                             family="home-scan")
                     self.last_reason = "shop:approach"
-                    return self._town_producer_entry("_shopping_approach_key#2", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"))
+                    terminal = rung_terminal(self, "_shopping_approach_key#2", snapshot)
+                    refused = (terminal is not None and terminal != NOT_APPLICABLE
+                               and not terminal_admission(self, snapshot, terminal).admitted)
+                    approach = self._town_producer_entry("_shopping_approach_key#2", lambda: self._shopping_approach_key(snapshot, step, "shop:travel"))
+                    if approach is not None or not refused:
+                        return approach
 
         destroy = self._town_producer_entry("_town_destroy_key", lambda: self._town_destroy_key(snapshot), family="equipment-txn")
         if destroy is not None:

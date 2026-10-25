@@ -1,0 +1,2531 @@
+{
+  "095121": [
+    {
+      "time": "2026-10-25T09:51:17+0900",
+      "decision_sequence": 3682,
+      "turn": 584548,
+      "key": "9",
+      "reason": "town:entrance-step-off:policy:none-wait",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:17+0900",
+      "decision_sequence": 3683,
+      "turn": 584559,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:17+0900",
+      "decision_sequence": 3684,
+      "turn": 584570,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:18+0900",
+      "decision_sequence": 3685,
+      "turn": 584578,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:18+0900",
+      "decision_sequence": 3686,
+      "turn": 584588,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:18+0900",
+      "decision_sequence": 3687,
+      "turn": 584597,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:18+0900",
+      "decision_sequence": 3688,
+      "turn": 584605,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:19+0900",
+      "decision_sequence": 3689,
+      "turn": 584615,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:19+0900",
+      "decision_sequence": 3690,
+      "turn": 584627,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:19+0900",
+      "decision_sequence": 3691,
+      "turn": 584640,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:20+0900",
+      "decision_sequence": 3692,
+      "turn": 584643,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T09:51:20+0900",
+      "decision_sequence": 3693,
+      "turn": 584653,
+      "key": "5",
+      "reason": "town:blocked:owner-retired-burst",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": null,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "General Store",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 563,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 14,
+          "target": 15,
+          "missing": 1
+        },
+        {
+          "item": "Cure Critical Wounds potions",
+          "current": 9,
+          "target": 10,
+          "missing": 1
+        },
+        {
+          "item": "Treasure Detection scrolls",
+          "current": 1,
+          "target": 5,
+          "missing": 4
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool",
+            "fundraising-no-detection"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:fundraising-no-digging-tool"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 0,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    }
+  ],
+  "100744": [
+    {
+      "time": "2026-10-25T10:07:35+0900",
+      "decision_sequence": 10437,
+      "turn": 699911,
+      "key": "9",
+      "reason": "town:entrance-step-off:policy:none-wait",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [
+            [
+              "shop-buy",
+              "fundraising-digger"
+            ]
+          ],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [
+            [
+              "shop-buy",
+              "identify-staff"
+            ],
+            [
+              "shop-buy",
+              "identification-source"
+            ]
+          ],
+          "yields": 1,
+          "closed": null
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:35+0900",
+      "decision_sequence": 10438,
+      "turn": 699921,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [
+            [
+              "shop-buy",
+              "identify-staff"
+            ],
+            [
+              "shop-buy",
+              "identification-source"
+            ]
+          ],
+          "yields": 2,
+          "closed": null
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:36+0900",
+      "decision_sequence": 10439,
+      "turn": 699933,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [
+            [
+              "shop-buy",
+              "identify-staff"
+            ],
+            [
+              "shop-buy",
+              "identification-source"
+            ]
+          ],
+          "yields": 3,
+          "closed": null
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:36+0900",
+      "decision_sequence": 10440,
+      "turn": 699946,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [
+            [
+              "shop-buy",
+              "identify-staff"
+            ],
+            [
+              "shop-buy",
+              "identification-source"
+            ]
+          ],
+          "yields": 4,
+          "closed": null
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:36+0900",
+      "decision_sequence": 10441,
+      "turn": 699954,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:37+0900",
+      "decision_sequence": 10442,
+      "turn": 699961,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:37+0900",
+      "decision_sequence": 10443,
+      "turn": 699971,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:37+0900",
+      "decision_sequence": 10444,
+      "turn": 699981,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:38+0900",
+      "decision_sequence": 10445,
+      "turn": 699986,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:38+0900",
+      "decision_sequence": 10446,
+      "turn": 699998,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:39+0900",
+      "decision_sequence": 10447,
+      "turn": 700009,
+      "key": "5",
+      "reason": "policy:none-wait",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-25T10:07:39+0900",
+      "decision_sequence": 10448,
+      "turn": 700021,
+      "key": "5",
+      "reason": "town:blocked:owner-retired-burst",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "fundraising": {
+        "mode": "prepare",
+        "planned_runs": 1,
+        "kit_secured": false,
+        "gold_trigger": false
+      },
+      "town_plan": {
+        "stops": [
+          "Home",
+          "Magic Shop",
+          "Alchemist"
+        ],
+        "index": 0,
+        "inserted_this_visit": [],
+        "skipped_latched": []
+      },
+      "fixedquest_readiness": {
+        "quest_id": 18,
+        "roster_size": 43,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 536,
+        "hasted": false,
+        "verdict": false,
+        "reason": "departure"
+      },
+      "procurement_requirements": [
+        {
+          "item": "Teleport scrolls",
+          "current": 12,
+          "target": 15,
+          "missing": 3
+        },
+        {
+          "item": "Digging tool",
+          "current": 0,
+          "target": 2,
+          "missing": 2
+        },
+        {
+          "item": "Identify source",
+          "current": 0,
+          "target": 1,
+          "missing": 1
+        },
+        {
+          "item": "Identify staff charges",
+          "current": 19,
+          "target": 20,
+          "missing": 1
+        }
+      ],
+      "admissions": [
+        {
+          "rung": "_fundraising_key#1",
+          "terminal": [
+            "fundraising",
+            [
+              "prepare"
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "fundraising-no-digging-tool"
+          ],
+          "live": [],
+          "yields": 8,
+          "closed": "yield-without-server-progress"
+        },
+        {
+          "rung": "_shopping_approach_key#2",
+          "terminal": [
+            "home-withdraw",
+            [
+              [
+                "財宝感知の巻物",
+                70,
+                26
+              ]
+            ]
+          ],
+          "mode": "enforce",
+          "verdict": "refused",
+          "codes": [
+            "reservation-unavailable"
+          ],
+          "live": [],
+          "yields": 4,
+          "closed": "terminal-refused-unserved:reservation-unavailable"
+        }
+      ]
+    }
+  ]
+}
