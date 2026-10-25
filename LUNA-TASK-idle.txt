@@ -1,0 +1,63 @@
+ISSUE: #47
+S2 was merged to main 0f8835a7 and both soaks resumed at 09:45 today. The second soak (n1-a, hengband.net, Lv20->26) stopped
+twice within 22 minutes with town:blocked:owner-retired-burst - the ledger type S2 is meant to remove. Branch town-idle-1025
+at main 0f8835a7 (worktree C:\hengband\bot-client\.worktrees\town-idle-1025).
+Evidence (read only; never write there, never pkill -f):
+  ssh -o BatchMode=yes -o IdentitiesOnly=yes -i C:\Users\user\.ssh\xserver_adminops dis@hengband.net
+  ~/hengbot-soak/n1-a/life-002/captures/20261025-095121-town-blocked-owner-retired-burst and .../20261025-100744-town-blocked-
+  owner-retired-burst (bot-decisions.jsonl.gz, state.jsonl.gz, control-at-stop.json.gz), plus ~/hengbot-soak/n1-a/life-002/
+  jsonlog/ for the hours before. Copy what you need into the worktree (small gzip fixtures for pins only).
+Measured by the supervisor (both stops have the same shape): full HP (563/563, 536/536), no hostiles. Home work finishes
+(home:atomic-withdraw '5pf\x1b' or home:atomic-deposit 'dl\x1b'), then home:request-knowledge-scan '~9\x1b', then
+town:entrance-step-off:policy:none-wait '9', then 10 x '5' policy:none-wait at (44,124), then owner-retired-burst.
+town_plan {"stops": ["Home", "Magic Shop", "Alchemist"], "index": 0} never advances. fundraising mode "prepare",
+fixedquest_readiness verdict false reason "departure", procurement missing: Teleport scrolls 12/15, Digging tool 0/2, Identify
+source 0/1, Identify staff charges 19/20; identification_need "normal". The final producer is the fallback (town_work
+producer _low_hp_walk_gate in one stop, _prepare_equipment_optimization in the other).
+Do:
+1. LUNA-DIAG-idle.txt first: replay the last minutes of both captures with state carried (as round 16 did) on 0f8835a7 and on
+   90947a65: per idle board, every rung that was asked, its intended_terminal, admission verdict and code, which REFUSED rows
+   were closes and which servers were live; why the plan stop "Magic Shop" / "Alchemist" is never taken; why neither departure,
+   fundraising (prepare) nor any supplier acts; and why the result is a silent '5' wait instead of a named close or progress
+   (design 3 / 5.3: every refusal ends in a yield to a live server or a named close). file:line for each.
+2. Fix the cause under the S2 design and the decisions in plans/DESIGN-town-claim-rootfix-1023.md only. If a new rule is
+   needed (e.g. what to do when every server is refused), STOP after the diagnosis and report options.
+3. Pins from both captures (the idle boards; small gzip fixture) through the public choose_key: on 0f8835a7 the silent wait,
+   after the fix a yield/progress or a named close. Controls: round 16's 13 windows unchanged (tests.test_town_terminal_exit_round16).
+Token budget 250k.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at 0f8835a7) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
+  New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions. New
+  policy attributes need restored-checkpoint defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- NEVER use git stash (the stash list is shared by every worktree; another implementer's pop takes your changes). To
+  compare before/after, use `git apply -R` of your own diff or a temporary detached worktree.
+- No new constant or threshold; no special case keyed to one store, one floor or one capture.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), scripts/town_producer_baseline.json /
+  scripts/town_work_review.json entries for new helpers (json.dumps ensure_ascii=False indent=2 + trailing newline,
+  no sorting), census counts in structural tests (report the change), STUCK_FAMILY_REASONS if a new reason is added.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8), not the console code page. They also hold
+  non-decision rows; filter on "decision_sequence".
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\town-idle-1025 0f8835a7
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\town-idle-1025 0f8835a7 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\town-idle-1025 0f8835a7 --shards 4
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
+  outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 250k is a HARD limit: when you reach it, stop and report what is done. Wall time 150 minutes. Write
+  LUNA-REPORT-idle.txt (measured diagnosis, changes, pins before/after, controls, guard outputs) and commit.
+
+- Guards at the end (owner decision 2026-10-25, "検査の重複を省く" / "遅いテストをhengband.netで"): preflight, mutation_check
+  (it now reverts only the hunks changed since this branch's last green record), fast_tier, and then ONCE
+  python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\town-idle-1025  (the slow modules on the Linux machine, compared with main; about
+  15 minutes; paste its last lines). Also run tests.test_policy_town alone locally (it is not run remotely).
