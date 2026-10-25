@@ -1413,6 +1413,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._no_depth_progress_dives = 0
         self._last_overextended_depth = 0  # recall depth we could not loot at
         self._alternate_dungeon: int | None = None  # switched-to level-fit dungeon
+        # Display-only (spectator, #47): why _alternate_dungeon was switched to.
+        # Set at every assignment of the alternate; no decision reads it.
+        self._alternate_dungeon_reason: str | None = None
         self._pending_recall_dungeon_id: int | None = None
         # destination, command turn, and pre-read stack count.  JSON snapshots
         # can redraw several times at the same game turn before ``recalling`` is
