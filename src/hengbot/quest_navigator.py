@@ -202,6 +202,12 @@ class QuestFloorNavigator:
         if self.phase == QuestPhase.SWEEP:
             action = self._sweep(owner, snapshot, hostiles)
             if action is not None:
+                if owner.last_reason == "quest:sweep:collect":
+                    # The navigator reports its sweep phase; the completed
+                    # decision walks toward floor loot. Use the existing loot
+                    # namespace without stealing quest-request's census reasons.
+                    owner.last_reason = "loot:seek-quest-sweep"
+                    owner._declare_reach(owner._loot_target)
                 return action
             self.phase = QuestPhase.EXIT
 

@@ -150,11 +150,6 @@ class TownTurnArbiter:
                  "town:ascend", "town:descend")),
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness", "town:repetition-required-shopping"), "completed plan or claim delta"),
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
-            # S2b.1 round 2 (F5): ``_normal_loot_key``'s own pickup and
-            # auto-destroy reasons, which fell through to ``unregistered``.
-            # Fixed-quest recovery is floor loot. Its census must precede
-            # the broad quest-request prefix; arbitration remains unchanged.
-            classification("floor-loot", ("seek-loot", "loot:", "chest:", "victory:", "conquest:", "pickup", "trigger-autodestroy", "quest:sweep:"), "carried inventory delta"),
             registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:"), "quest request or phase advance"),
             registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:", "ownership:"), "block release or visible stop"),
             # -- S2a: the families behind the two catch-alls -----------------
@@ -171,6 +166,9 @@ class TownTurnArbiter:
             classification("combat", ("melee", "ranged:", "summoner:ranged-kill", "unique:quaff-"), "hostile hit points or count delta"),
             classification("hunt", ("hunt",), "distance to the chosen hostile"),
             classification("explore", ("explore", "search", "seek-secret-wall", "probe"), "newly seen floor cells"),
+            # S2b.1 round 2 (F5): ``_normal_loot_key``'s own pickup and
+            # auto-destroy reasons, which fell through to ``unregistered``.
+            classification("floor-loot", ("seek-loot", "loot:", "chest:", "victory:", "conquest:", "pickup", "trigger-autodestroy"), "carried inventory delta"),
             classification("quest-sweep", ("quest-strategy:",), "quest objective or phase advance"),
             classification("bookkeeping", ("periodic:", "town:character-dump"), "save file, dump or skill knowledge written"),
             # Design 4's generic fallback: the board on which no producer

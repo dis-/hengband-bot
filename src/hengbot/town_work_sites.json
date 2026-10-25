@@ -8100,7 +8100,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1936cf51ceb257e127482a3fc59636290f1e0d18c3338277a5002665211aa64e"
+    "ast_sha256": "5a14f0703c6dd1c8ad97426953e50ee5389754f6e393cb658ab75ffdd282c5d6"
   },
   "quest_navigator.py:QuestFloorNavigator.enter_from_town": {
     "classification": "producer",

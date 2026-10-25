@@ -108,7 +108,7 @@ class Q34CollectRecordedTest(ProductionHarness):
         # remaining ordinary equipment from the independent chest procedure.
         policy._processed_chest_positions.add(Position(10, 9))
         key = policy.choose_key(board)
-        self.assertEqual(policy.last_reason, "quest:sweep:collect")
+        self.assertEqual(policy.last_reason, "loot:seek-quest-sweep")
         self.assertIn(policy._loot_target, {Position(9, 9), Position(9, 11)})
         self.assertEqual(policy.decision_claim["owner"], "floor-loot")
         self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
@@ -132,7 +132,7 @@ class Q34CollectRecordedTest(ProductionHarness):
         policy._observe(policy._with_grid_memory(board))
         policy._processed_chest_positions.add(Position(10, 9))
         policy.choose_key(board)
-        self.assertEqual(policy.last_reason, "quest:sweep:collect")
+        self.assertEqual(policy.last_reason, "loot:seek-quest-sweep")
         self.assertIn(policy._loot_target, {Position(9, 9), Position(9, 11)})
 
     def test_first_completed_record_prioritizes_reserved_chest_over_ruins(self):
