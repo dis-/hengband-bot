@@ -1,3 +1,9 @@
+RESUME NOTE (2026-10-25 13:4x, supervisor): the first implementer (sol) wrote the diagnosis and then hit its usage
+limit before any source edit. Its diagnosis is in LUNA-DIAG-bounty.txt (rewritten by the supervisor from the
+implementer's own log in correct UTF-8; read it, re-verify the key facts, do not redo the full survey). Its fixture
+tests/fixtures/bounty-cashout-1025.jsonl.gz is untracked in this worktree. The branch now contains main f0930437
+(town-idle-1025 + q2-sweep-1025 merged); all guard commands below use f0930437 as the base. Continue from Do 2.
+
 ISSUE: #47
 The owner reported (verbatim): 「n1-bが町でループ挙動をしている」. n1-b is the second, viewing character on hengband.net
 (new character since 12:30 today, bot main 0f8835a7, Lv21 in town). Branch bounty-loop-1025 at main 0f8835a7 (worktree C:\hengband\bot-client\.worktrees\bounty-loop-1025).
@@ -30,7 +36,7 @@ Rules (mandatory):
   Set-Content / Out-File turned all Japanese into '?' on 2026-10-25 (LUNA-REPORT-idle.txt).
 - NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
   running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
-- Existing tests (= tests at 0f8835a7) keep their assertions: do not edit, rename, weaken or make them conditional; if
+- Existing tests (= tests at f0930437) keep their assertions: do not edit, rename, weaken or make them conditional; if
   one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
   regression (fix src) or report it.
 - Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
@@ -49,9 +55,9 @@ Rules (mandatory):
   non-decision rows; filter on "decision_sequence".
 - While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
 - BEFORE you report, after the last source edit and commit, one after the other:
-    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\bounty-loop-1025 0f8835a7
-    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\bounty-loop-1025 0f8835a7 --tests <your new test modules> --record
-    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\bounty-loop-1025 0f8835a7 --shards 4
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\bounty-loop-1025 f0930437
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\bounty-loop-1025 f0930437 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\bounty-loop-1025 f0930437 --shards 4
   Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
   outputs.
 - Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
