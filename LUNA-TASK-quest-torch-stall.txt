@@ -1,0 +1,30 @@
+ISSUE: #47
+The owner asked (verbatim): 「現在アクティブな2キャラクターがQ34以降クエストを受けていない。要調査」.
+Branch quest-torch-stall-1026 at main dace87f32 (worktree C:\hengband\bot-client\.worktrees\quest-torch-stall-1026).
+
+Measured by the supervisor (2026-10-26 02:2x, viewing bots on main dace87f32 / 4d239862):
+  n1-a life-015 Lv25 and n1-b life-010 Lv25, after quest 34: every decision row's fixedquest_readiness is
+  {"quest_id": 1, "verdict": false, "reason": "strategy-force", "strategy_force": {... "carries":
+  {"throwing_items.lit_torch": {"measured": 0, "required": 5, "ready": false}}, "failed": ["throwing_items.lit_torch"]}}
+  (n1-a 2063 rows, n1-b 4651 rows in the newest log). Every other force item is met. abandoned_quest_carry_requirements
+  is {} (not abandoned) and neither pack holds a torch. Quest 34 itself throws torches (quest-strategy:throw-torch).
+  Saved: C:\hengband-backups\state-logs\quest-stall-torch-1026\n1-a-decisions-tail.jsonl.gz and n1-b-... (last 3000
+  decision rows each; procurement_requirements, shop_selector, store_visit, requested_store fields are in the rows).
+  Code seen: policy_town.py:3473-3496 adds STORE_GENERAL "quest-throwing-items" (and Home first) when lit_torch is
+  missing; policy_quest.py:833 / 852-895 obtainability; policy_shop.py:200 maps it to (TVAL_LITE, SV_LITE_TORCH).
+Do (diagnosis first, narrow scope):
+1. LUNA-DIAG-quest-torch-stall.txt: from the saved rows, does the town plan ever route to the General Store for
+   quest-throwing-items? If yes, what happened there (no torches in stock, unaffordable, bought but not counted as
+   "lit", sold/dropped later, ...); if no, which gate keeps the quest-carry procurement from running (quest target not
+   selected, readiness only evaluated, a suppression latch, ...). file:line for each step. Also: what does "lit"
+   require for measured (a torch with fuel? any torch?) and does Hengband sell torches that count.
+2. If the fix restores already-decided behaviour (buy the quest's carries before the quest), fix it through the existing
+   procurement path, no quest-1 scene rule. If a new rule is needed (e.g. what to do when the store never stocks
+   torches), STOP after the diagnosis with the options.
+3. Pins from the saved rows through the public choose_key (and the executor for any prompted key): before -> no
+   torch purchase / quest never taken; after -> the torches are bought and the quest readiness passes. Controls unchanged.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control (the viewing bots are
+live); no push/merge to main/rebase/reset --hard/stash; existing tests (= tests at dace87f32) unchanged; no new constant
+or threshold; small fixtures only. Guards: preflight / mutation_check --record / fast_tier with base dace87f32 (they
+wait while a merge gate runs - let them), then remote_slow once. Token budget 120k HARD, wall time 150 minutes. Write
+LUNA-REPORT-quest-torch-stall.txt in Japanese and commit.
