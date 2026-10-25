@@ -25,7 +25,7 @@ src/ の代入はこの6か所だけ（grep で確認）。scripts/minimum_table
 使われないため、手を入れていない。
 
 ■ 理由コードと意味（ページの文言の対応づけ用）
-- initial_yeek_cave: 起動時の既定の帰還先（ヨークの洞窟）のまま
+- initial_yeek_cave: 起動時の既定の帰還先（イークの洞窟）のまま
 - angband_recall_unlocked: アングバンドへの帰還が解禁されたため
 - alternate_dungeon: 深すぎる等で切り替えた代わりのダンジョンを引き続き目標にしているため
 - conquest: 倒せる最終ガーディアンがいる未制覇のダンジョンを制覇するため
@@ -94,3 +94,99 @@ fast_tier（2回目）:
   Total: 3857 tests, 360.6s
 remote_slow:
   [slow] SLOW OK: 0 failures not on base f0930437d (47 modules, head 4d2a6a6d1)
+
+
+======================================================================
+■ 第2回（オーナー決定 2026-10-25「ずっと出す」）
+
+訂正: 1回目の報告で「ヨークの洞窟」と書いたのは誤りで、正しくは「イークの洞窟」。
+
+■ 結論
+代わりのダンジョンが目標のあいだ、切り替えた理由を表示し続けるようにした。表示専用の属性
+self._alternate_dungeon_reason を足し、_alternate_dungeon に新しいダンジョンを入れるすべての箇所で記録する。
+観察が代わりのダンジョンを付け直すとき（policy_observation.py:615-617）は、その理由を目標の理由に写す。
+理由が分からないとき（この変更より前の状態から復元したとき）だけ alternate_dungeon にする。判断はこの属性を読まない。
+
+■ コミット（第2回）
+- f8692cd2a feat: keep showing why an alternate dungeon was switched to (#47)
+  src/hengbot/policy.py, policy_observation.py, policy_state.py, tests/test_spectator_recall_destination.py
+- fa0fd5e1a chore: town work manifest の再生成
+- a45c20d18 refactor: コンストラクタの既定値を状態の更新に任せる
+  → 既存のテスト（新しい policy と復元した状態の属性の集合が一致すること）が失敗したので、
+- dd66c2699 fix: a45c20d18 を打ち消してコンストラクタの既定値を戻した（git revert。既存のテストは変えていない）
+- 7ab5634b9, 140773a8b chore: town work manifest の再生成
+- この報告のコミット
+
+■ 記録した箇所（第2回で増えたもの、現在の行番号）
+- src/hengbot/policy.py:1418 __init__ で _alternate_dungeon_reason = None
+- src/hengbot/policy.py:14828 _activate_safe_recall_fallback で guardian_valve / safe_fallback
+  （14833 で目標の理由にも同じ値を入れる）
+- src/hengbot/policy_observation.py:568 空振りの潜りが続いたときの弁。ガーディアンに跳ね返されただけなら
+  guardian_bounce_valve、それ以外は over_extended_dives
+- src/hengbot/policy_observation.py:606 深さが伸びない潜りが続いたとき no_depth_progress
+- src/hengbot/policy_observation.py:615-617 付け直すときに代わりの理由を写す（無ければ alternate_dungeon）
+- src/hengbot/policy_state.py:207 復元時の既定値 None
+policy_observation.py:544 の「ガーディアンを倒したので代わりを解除」（None を入れる）では理由を消していない。
+代わりが None のあいだは理由が読まれず、次に代わりを選ぶときは必ず新しい理由で上書きするので、表示に影響が無い
+（消す行を足しても、どのテストでも固定できない）。
+
+■ 理由コードの表（更新版）
+- initial_yeek_cave: 起動時の既定の帰還先（イークの洞窟）のまま
+- angband_recall_unlocked: アングバンドへの帰還が解禁されたため
+- conquest: 倒せる最終ガーディアンがいる未制覇のダンジョンを制覇するため
+- quest_dungeon: 受けた討伐クエストのダンジョンへ向かうため
+- safe_fallback: 本来の帰還先の到着階が危険（必要な能力が足りない）なので、安全な別のダンジョンにしたため
+- guardian_valve: 本来の帰還先の到着階が倒せないガーディアンの階なので、別のダンジョンにしたため
+- guardian_bounce_valve（新）: ガーディアンに跳ね返されて何も得られない往復が続いたので、別のダンジョンにしたため
+- over_extended_dives（新）: 深すぎて何も得られない潜りが続いたので、浅い別のダンジョンにしたため
+- no_depth_progress（新）: 何度潜っても帰還の深さが伸びないので、別のダンジョンで稼ぐことにしたため
+- alternate_dungeon: 代わりのダンジョンを目標にしているが、切り替えた理由が分からない（変更前の状態から復元した）
+- null: 理由の記録より前に保存されたチェックポイントから復元したため不明
+safe_fallback・guardian_valve・guardian_bounce_valve・over_extended_dives・no_depth_progress は、その代わりの
+ダンジョンが目標のあいだ表示され続ける。
+
+■ 復元したチェックポイントの既定値
+_target_dungeon_reason = None（第1回）、_alternate_dungeon_reason = None（第2回）。
+どちらも policy_state.normalize_policy_state の、版5で早く戻る前の setdefault に置いた。
+代わりのダンジョンがあるのに理由が None なら、付け直したときの表示は alternate_dungeon。
+
+■ テスト（第2回）と巻き戻しの結果
+変えた自分の新しいテスト（第1回で足したもの。既存のテストではない）:
+- RecordedRecallDestinationTest.test_the_next_observation_reapplies_the_alternate
+  9番目の判断の期待値を alternate_dungeon から safe_fallback に変えた（オーナー決定のため）。
+- RecordedRecallDestinationTest.test_guardian_valve_is_told_apart_from_the_safe_fallback
+  次の判断（choose_key をもう一度）でも guardian_valve のままであることを足した。
+新しいテスト（ObservedAlternateReasonTest。test_policy_observation の OverExtensionDungeonSwitchTest の潜りを使う）:
+- test_over_extended_dives_switch_and_keep_their_reason（次の観察の後も over_extended_dives のまま）
+- test_guardian_bounces_only_switch_through_the_bounce_valve
+- test_looted_dives_without_new_depth_switch_for_no_depth_progress
+- test_restored_alternate_without_its_reason_shows_the_generic_reason（deepcopy で __setstate__ の更新を通す。
+  この盤面の装備の準備はクロージャを持つので pickle できないため）
+巻き戻し（各行を消すか入れ替え、該当テストが失敗に変わることを確かめた）:
+- policy.py:14828 を消す → test_the_next_observation_reapplies_the_alternate 失敗（alternate_dungeon）、
+  test_guardian_valve_is_told_apart_from_the_safe_fallback 失敗（None）
+- policy_observation.py:568 を消す → over_extended_dives と guardian_bounce_valve の2つが失敗（alternate_dungeon）
+- 568 の条件を反転 → 同じ2つが失敗（理由が入れ替わる）
+- policy_observation.py:606 を消す → no_depth_progress のテスト失敗（alternate_dungeon）
+- 616 を常に alternate_dungeon にする → reapplies と over_extended_dives のテスト失敗
+- 616 の「or "alternate_dungeon"」を外す → 復元のテスト失敗（None）
+- policy_state.py:207 を消す → 復元のテスト失敗（AttributeError）
+- policy.py:1418（__init__）を消す → 既存の test_calibration_checkpoint の2件と
+  test_town_terminal_commit_pins.LedgerRestoreAndRecordTest.test_restore_defaults_are_the_fresh_attributes が失敗
+  （fast_tier で実際に起きた。mutation_check にも test_calibration_checkpoint を渡して固定を確かめた）
+
+■ ガードの出力（第2回、最後のソースのコミット 140773a8b の後）
+preflight:
+  [preflight] PREFLIGHT OK: 11 changed files, 0 findings (recall-reason-1025 vs c6601c3e)
+mutation_check（--tests tests/test_spectator_recall_destination.py tests/test_calibration_checkpoint.py）:
+  [mutation] MUTATION OK: 0 of 14 hunks are not pinned by a test
+  [mutation] recorded for 140773a8
+fast_tier（a45c20d18 の時点）: 上の4件が失敗 → dd66c2699 で直した（修正の1回目）
+fast_tier（140773a8b）:
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 3845 tests, 239.4s
+  （今回は test_control_client / test_input_executor のタイミングの失敗は出なかった）
+remote_slow:
+  [slow] SLOW OK: 0 failures not on base f0930437d (47 modules, head 140773a8b)
