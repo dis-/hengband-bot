@@ -237,8 +237,9 @@
     "self._defer_unobserved_home_withdrawal(signature) @ ": 1
   },
   "policy_identification.py:_chest_processing_key": {
-    "self._chest_processing_key(snapshot, hostiles, allowed_positions=allowed_positions) @ If:body:floor_chests": 1,
-    "self._direction_key(player.position, chest_pos) @ If:body:self._chest_position is not None": 1
+    "self._direction_key(player.position, chest_pos) @ If:body:self._chest_position is not None": 1,
+    "self._chest_processing_key(snapshot, hostiles, allowed_positions=allowed_positions, preferred_position=preferred_position) @ If:body:floor_chests": 1,
+    "self._quest_sweep_pack_space_key(snapshot, here) @ If:body:self._chest_position is not None / If:body:counts.get('open', 0) > 0 / If:body:contents / If:body:player.position in contents and here is not None / If:body:quest_profile is not None": 1
   },
   "policy_identification.py:_full_pack_destroy_key": {
     "self._verified_destroy_key(snapshot, self._find_disposable_item, 'inventory:destroy-disposable-item') @ ": 1
@@ -447,7 +448,7 @@
     "self._town_restock_wait_key(snapshot) @ If:body:recall_dest is not None and (not departure_ok) / If:body:not self._town_claims_active(snapshot)": 1
   },
   "quest_navigator.py:_sweep": {
-    "owner._quest_sweep_pack_space_key(snapshot, here) @ If:body:here is not None and here.object_count > 0 and (here.position not in processed_chests) and (here.position not in reserved_chests) and (here.position not in getattr(owner, '_deferred_loot', set()))": 1
+    "owner._quest_sweep_pack_space_key(snapshot, here) @ If:body:here is not None and here.object_count > 0 and (here.position not in processed_chests) and (here.position not in reserved_chests) and (here.position not in getattr(owner, '_deferred_loot', set())) and (not owner._floor_pile_is_junk(snapshot, here)) and (TVAL_CHEST not in here.object_tvals)": 1
   },
   "quest_navigator.py:decide": {
     "owner._direction_key(snapshot.player.position, owner._weakest(adjacent).position) @ If:body:completed and adjacent and (not snapshot.player.afraid) and owner._can_fight_in_dungeon(snapshot.floor_key[0])": 1

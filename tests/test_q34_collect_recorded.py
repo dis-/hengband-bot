@@ -253,6 +253,27 @@ class Q34CollectRecordedTest(ProductionHarness):
         following["grid_map"]["cells"][-1] = {"y": 10, "x": 9, "o": 1, "t": [7]}
         self.post(policy, raw, key, following)
 
+    def test_opened_chest_does_not_collect_deferred_or_junk_contents(self):
+        policy = make_policy(self.data)
+        observe_until(policy, self.data["rows"], 286)
+        raw = copy.deepcopy(self.data["rows"][286])
+        # DECLARED CONSTRUCTED: generated junk and an explicitly deferred
+        # content pile are subject to the same rules as ordinary quest loot.
+        raw["player"]["y"], raw["player"]["x"] = 9, 9
+        raw["grid_map"]["found_items"] = [[9, 9, 1, 1], [11, 9, 1, 75], [10, 9, 1, 7]]
+        raw["grid_map"]["cells"] += [
+            {"y": 9, "x": 9, "o": 1, "t": [1]},
+            {"y": 11, "x": 9, "o": 1, "t": [75]},
+            {"y": 10, "x": 9, "o": 1, "t": [7]},
+        ]
+        policy._chest_position = Position(10, 9)
+        policy._chest_phase_counts = {"search": 6, "disarm": 2, "open": 1}
+        policy._chest_preopen_objects = {Position(10, 9): (1, 0)}
+        policy._deferred_loot.add(Position(11, 9))
+        key = str(policy.choose_key(parse_snapshot(raw, {})))
+        self.assertEqual((key, policy.last_reason), ("o2", "chest:open"))
+        self.post(policy, raw, key, dict(raw, turn=raw["turn"] + 10))
+
     def test_shared_junk_and_deferral_rules_filter_quest_sweep(self):
         policy = make_policy(self.data)
         observe_until(policy, self.data["rows"], 286)
