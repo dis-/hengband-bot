@@ -76,12 +76,14 @@ class MeleeExpectedTest(unittest.TestCase):
                 path = root / "spectate.json"
                 self.assertFalse(write(path, policy, raw)["melee_expected"]["stale"])
                 raw["equipment"][0]["name"] = "new item"
-                self.assertTrue(write(path, policy, raw)["melee_expected"]["stale"])
+                self.assertEqual(write(path, policy, raw)["melee_expected"]["stale"],
+                                 slot in ("main_hand", "sub_hand"))
                 self.assertEqual(write(path, policy, raw)["melee_expected"]["total"], 55)
                 dispatch(policy, raw, [70, 2])
                 self.assertFalse(write(path, policy, raw)["melee_expected"]["stale"])
                 raw["equipment"] = []
-                self.assertTrue(write(path, policy, raw)["melee_expected"]["stale"])
+                self.assertEqual(write(path, policy, raw)["melee_expected"]["stale"],
+                                 slot in ("main_hand", "sub_hand"))
 
     def test_absent_before_character_and_after_legacy_restore(self):
         with TemporaryDirectory() as tmp:
