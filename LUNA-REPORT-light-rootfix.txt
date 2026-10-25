@@ -15,3 +15,61 @@ LUNA-REPORT-light-rootfix（2026-10-25）
 別の型: 掃引の空回り（クエストの掃引の型）は、光の型とは別に台帳に載せるとよい。
 光の判断の一つへのまとめ・国勢調査のテスト・ピン・復元チェックポイントの既定値: 未着手（決定待ち）。
 ガード（preflight / mutation_check / fast_tier / remote_slow）: src の変更が無いので流していない。
+
+
+== 2 回目（持ち主の決定の後、2026-10-25）==
+決定（AskUserQuestion 2026-10-25、LOCKED）「油を持って入り、微かなら帰る」= D + B。
+ D: 一度きりのクエストに、燃料を使う光源（ランタン・たいまつ）で入るときは、油を OIL_TARGET 本持つ。
+ B: 中では、燃料が light-low の値（100）未満で、補給も付け替えもできなければ、出口の鍵を解く。いつもの帰還が帰還の巻物を読む（クエストは失敗）。104 の行では動かず、99 の行で動く。
+ 退けた案: 燃料0まで待つ（A だけ）、光の杖で照らして続ける（C）、新しい余裕の量（E）。
+ほかに使った決定: 光の半径は装備全体の合計（2026-10-23、#101。変えていない）、劣る光源（#86。変えていない）、#81 の光の無い帰り道での帰還（変えていない）。
+
+一つの光の判断
+- src/hengbot/policy_supply.py:49 LightJudgment、458 _light_judgment。答えるのは、装備中の光源、燃料を使うか、微か（鑑定済みで燃料 < LANTERN_DIM_WARNING_FUEL）、補給品、付け替え（_darkness_torch / _empty_lantern_to_restore / _light_to_wield）、油の数。
+  ・releases_one_shot_quest = 微か かつ 補給なし かつ 付け替えなし
+  ・one_shot_quest_entry_ready = 燃料を使わない光源、または 油 >= OIL_TARGET
+- この判断を通す箇所:
+  ・policy_supply.py:489 _expedition_light_ready: 「微かで補給なし」を判断に読ませる。値は同じで、純粋な移動。light-low の帰還はここで決まる。
+  ・policy_town.py:7456 _light_releases_quest_exit: B の解除。7448 _one_shot_quest_exit_lock_held は今までの鍵（純粋な移動）。
+  ・policy_town.py:7438 _return_exit_locked: 鍵 かつ 解除なし。
+  ・policy_supply.py:1380 _survival_gate_key: 飢えで帰るときと同じ、いつもの帰還に床を渡す。近くの敵（4マス以内）がいれば先に戦う。
+  ・policy_navigation.py:325 _dark_locomotion_key: 解除の間、帰還がまだ始まっていなければ譲る。帰還が始まった後は、その中の暗がりの歩きとして動く。
+  ・policy_quest.py:4784 _evaluate_fixed_quest_readiness: D の入場条件。reject("light-oil")。ONCE の fixed クエストだけ。
+- 新しい決定の段（rung）は足していない。最初の版で _decide に足した呼び出しは、段の数を 81 で固定した既存のテスト（test_ownership_s2b1_ladder）に反するので、既存の survival の段に移した。
+
+国勢調査（ここで許された構造のテストは1つだけ）: tests/test_light_judgment_census.py
+- test_enumerated_sites_ask_the_light_judgment: _expedition_light_ready、_light_releases_quest_exit、_evaluate_fixed_quest_readiness が _light_judgment を呼ぶ。
+- test_quest_exit_sites_ask_the_light_release: _return_exit_locked、_survival_gate_key、_dark_locomotion_key が _light_releases_quest_exit を呼ぶ。
+- test_faint_value_is_named_only_by_the_judgment: LANTERN_DIM_WARNING_FUEL を書いてよいのは、_light_judgment と _unknown_light_last_resort だけ。後者は「> 100」で 100 を含む別の境目なので、名前を挙げた例外として残した。まとめると、燃料ちょうど100のときに付ける光源が変わる。
+
+ピン（tests/test_light_rootfix_q2_recorded.py。記録の盤面は tests/fixtures/light-rootfix-q2-20261025.jsonl.gz の 6 行で、state の 0/4/5/102/103/104 行）
+- (a) test_faint_board_releases_the_quest_lock_and_reads_recall: 燃料99・油なしの行 → ('rf', 'return:recall')、帰還の理由は light-low。f0930437 では掃引の '6'。
+- (b) test_lightless_pair_leaves_instead_of_alternating: 燃料0の 103 行 → ('4', 'dark:backtrack')、104 行（上り階段の上）→ ('<', 'return:ascend')。f0930437 では '4' の後に掃引の '6' が出て、交互になる。
+  注: 暗い所では帰還の巻物を読めない（ゲームが断る。policy_town.py の帰還の中の注記）。だから燃料0では、帰還は自分の暗がりの段で階段まで歩いて上る。どちらで出てもクエストは失敗。
+- (c) test_control_104_and_100_boards_keep_sweeping: 104 と 100 の行は前と同じ ('6', 'quest-strategy:q2-post-blue-upper-left-puddle')。
+- (d) test_one_shot_quest_entry_refused_without_oil（理由 light-oil）/ test_one_shot_quest_entry_admitted_with_oil / test_one_shot_quest_entry_admitted_for_a_fuelless_light。
+  記録の盤面はクエストの途中のキャラなので、プロファイルの戦力の確認に落ちる。_approved_strategy_force_ready を True に差し替えた（差し替えは1つ）。
+- 対照: test_control_faint_board_with_oil_keeps_the_quest（油があれば補給できるので鍵は解けない）、test_fixture_is_the_recorded_lantern_run_out。
+- 戻した版で落ちるかの確認: 一時的な detached worktree（f0930437）に新しいテストを置いて流した。
+  ・失敗が 5、エラーが 4。(a) と (c) と油の対照は、_light_judgment が無いのでエラー。(b) と (d) の拒否と国勢調査の 3 つは失敗。
+  ・判断に依らない振る舞いは、前の probe で確かめた。f0930437 の 99 の行は掃引の '6'、103/104 は '4' の後に '6'、0/4 は掃引。
+- 既存の光源のテスト・Q2 の掃引のテストの期待値は変えていない。
+  ・関係する 27 モジュール（743 テスト）を流した。
+  ・失敗した既存のテストは test_q2_unmet_average_damage_continues_into_real_shop_progression の 1 つ。最初の版で light-oil の確認を strategy-force より前に置いたため。確認を random-teleport の後に戻して直した（R の回帰を src で直した）。
+
+復元チェックポイントの既定値: 新しい policy の属性は足していない（足したのはメソッドだけ）ので、無し。
+純粋な移動の hunk: _expedition_light_ready の微かの判定、_one_shot_quest_exit_lock_held への鍵の移動。
+
+ガード（最後のコミット ae0b8b01a）
+- preflight: [preflight] PREFLIGHT OK: 12 changed files, 0 findings (light-rootfix-1025 vs f0930437)
+- mutation_check: [mutation] MUTATION OK: 0 of 8 hunks are not pinned by a test / recorded for ae0b8b01
+- fast_tier: Crashed shards: none / Failures: none / Errors: ['tests.test_spectator_v2 (import) ModuleNotFoundError'] / Total: 3834 tests, 317.9s
+  test_spectator_v2 は f0930437 にも無いモジュールで、fast_tier の一覧の側の問題（この変更とは関係ない）。
+- remote_slow: [slow] SLOW OK: 0 failures not on base 124fa2ac9 (47 modules, head ae0b8b01a)
+- 修正は 2 回。1 回目は preflight の sink lint と、fast_tier の段の順のテスト。2 回目は mutation の NOT CAUGHT（到達しない条件を消した）。
+
+残り・注意
+- D は fixed の ONCE クエストの入場だけに入れた。RANDOM クエストは階段を下りて入るので、入場の確認の箇所が無い。B の解除は RANDOM にも効く（_quest_floor_exit_locked の鍵を含むため）。
+- D で入場を断ると、燃料が 1000 を超えるランタンでは _light_ready が油を買わない。そのため、クエストは燃料が 1000 以下になって油を買うまで先に延びる。止まることはない。
+- たいまつだけのキャラも、決定のとおり油 OIL_TARGET 本が要る（たいまつには油を足せない）。
+- 別の型（直していない）: Q2 の残り探し（q2-residual-86-sweep）が、光のある間も 60 手ごとに (1,4) へ戻り、進まずに燃料を使った。別の作業で扱う。
