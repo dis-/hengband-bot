@@ -186,7 +186,7 @@ class SpectatorColourFollowTest(executor_pins.ProductionHarness):
             with TemporaryDirectory() as directory:
                 self._replay(Path(directory), spectate=True, clock=clock)
                 written = json.loads((Path(directory) / "spectate.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(colour_calls), 1)
+            self.assertEqual(len(colour_calls), 5)
             self.assertIn("equipment", written)
             self.assertIn("status", written)
             self.assertIn("abilities", written)

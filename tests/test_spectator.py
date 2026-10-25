@@ -121,7 +121,8 @@ class SpectatorFollowReplayTest(executor_pins.ProductionHarness):
         self.assertEqual(self._decided(off_rows), self._decided(on_rows))
         self.assertEqual(len(self._decided(off_rows)), REPLAYED)
         self.assertNotIn("spectate.json", off_files)
-        self.assertEqual(sorted(off_files + ["spectate.json"]), on_files)
+        self.assertNotIn("spectate-frames.jsonl", off_files)
+        self.assertEqual(sorted(off_files + ["spectate.json", "spectate-frames.jsonl"]), on_files)
 
     def test_recorded_replay_writes_every_field_of_the_last_written_decision(self):
         clock = _Clock()
