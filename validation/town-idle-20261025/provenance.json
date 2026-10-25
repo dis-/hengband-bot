@@ -1,0 +1,12 @@
+{
+  "095121": {
+    "bot-decisions.jsonl.gz": "2c68ac8f7488a1fc74a6f830d4d39220ac508269efe4936eb1e146da20fcdbf7",
+    "state.jsonl.gz": "8148631e8b0a237f56f774e5dab9e2de9c799aa358fec3195722ec2401fd599f",
+    "control-at-stop.json.gz": "c537feb0968f4c7bdfb9dc94ac5e2f4eb8ec29b792e9fc8ec4bcafe0a391121e"
+  },
+  "100744": {
+    "bot-decisions.jsonl.gz": "ceaee666d7a370de62b1f4e8ef78fa5e5c81d44f971a60987afcbf13b9cd674f",
+    "state.jsonl.gz": "9693dbbe953c0b5835d3a1dde92012a03fe70652da0d86f52f4ef88633a91935",
+    "control-at-stop.json.gz": "7e412941725d6d4dbedf157fa4aed708825f69ebaae46dbd886bccd56e2fe0f4"
+  }
+}
