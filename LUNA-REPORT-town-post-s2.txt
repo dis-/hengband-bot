@@ -418,3 +418,102 @@ LUNA-TASK-town-post-s2-r4.txt の明示STOP条件を適用する。
 - ゲーム/BOT操作、push、mainへのmerge、他人のprocess制御は行っていない。
 - 未追跡の既存ログ・validation資料はそのまま保持し、commit対象に含めない。
 - 本追記はPythonのencoding='utf-8', newline='\n'で保存する。
+
+
+第5ラウンド（2026-10-26、ISSUE #47）
+基準: dace87f32。第4ラウンドのSTOPに対する監督回答を適用した。
+修正・テスト・manifestの固定commit: dd4c159da。
+
+許可された既存期待値の変更:
+tests.test_policy_town.TownPriorityStage3Round1RecordedTest.
+test_p4_attempted_surplus_deposit_does_not_block_departure のキー期待値だけを
+旧 '7' から新 'rga' へ変更した。同テストの他の記述・assertionは変更していない。
+旧 '7' は別の店へ歩く用事であり、S2でADMIT済みの複合帰還操作 'rga' を
+後段の進捗指紋で別用事に差し替える。所有者決定「S2 の判定を広げる」はこれを禁じる。
+新 'rga' は帰還を実行し、「出発を妨げない」というテストの目的も満たす。
+
+(R)として修正した3件（assertion変更なし）:
+- test_blocked_fundraising_steps_off_store_instead_of_reentering:
+  S2判定より先に既存の店入口からの退避を行い、期待値 '6' を維持。
+- test_completed_town_plan_immediately_downgrades_blocked_fundraising:
+  完了済み計画の既存fallbackを先に行い、mode='prepare' への移行を維持。
+- test_ready_mining_cycle_break_promotes_back_from_scavenge:
+  既存cycle回復後のmode='mine'への復帰を保持する。S2が支援処理なしとして
+  named closeし、町の回復処理が既に抑制されている時は、従来のWAIT_KEY='5'と
+  prompt_owner_handoff='town:blocked:departure-no-light'を維持する。
+
+修正の境界:
+資金稼ぎの通常待機を同じS2判定に通す。pack整理・完了計画の処理・
+入口からの退避を、資金稼ぎ終端の拒否で遮断しない。
+拒否時に生きた支援処理がある場合は、後続の町処理へ譲る。
+町の回復処理が未抑制の場合も、拒否後の無条件待機には戻さない。
+既に回復処理を使い切り、同じterminalがS2でnamed closeされた場合だけ、
+従来の明示的な引き渡しを返す。資金稼ぎや降下のADMITへの変更ではない。
+所有者決定、出発必須条件、物品の実在判定を緩めていない。
+
+追加対照:
+test_town_post_s2_visit_controls に、既存A2小型gzip盤面と明示した回復状態を
+使う対照を追加した。通常拒否、回復済み・支援なし、回復済み・支援ありの
+3通りで、S2のrefused/codes/live/yields/closedと、待機・引き渡しの有無を照合。
+支援判定自体は実処理で、差し替えはdeparture readinessとrestock待機の2箇所。
+この追加対照はdispatcherの直接呼出しであり、完全checkpoint再生ではない。
+
+検証:
+- 指定の4件: 4件成功、28.266秒、終了0。
+- tests.test_policy_town全体: 指定どおり1回実行。
+  593件成功、348.388秒、終了0。新たな失敗なし。
+- tests.test_town_post_s2_r2: 7件成功、29.909秒、終了0。
+- tests.test_town_post_s2_visit_controls: 2件成功、0.789秒、終了0。
+- tests.test_town_post_s2_r3: 2件成功、9.774秒、終了0。
+
+- preflight（基準dace87f32、対象dd4c159da）:
+  27変更ファイル、指摘0、PREFLIGHT OK、終了0、実行時間136.953秒。
+  既存テスト変更のNOTEは監督が許可したキー期待値1箇所のみ。
+
+帳簿・制約:
+manifestをPYTHONPATH=srcで再生成した。
+889 candidates / 22428 call_sites / 112 registry_sites / 102 ladder_sites / unmapped 0。
+producer baseline 729 / review 889。新helper追加なし、分類の追加不要。
+新しい定数・閾値・永続policy属性はないため、復元checkpoint defaultの追加も不要。
+既存3件のassertionと既存S2 controlsは変更していない。
+ゲーム/BOT操作、他のprocessの停止、push、merge、rebase、reset、stashは行っていない。
+ログ・検査用資料は未追跡のまま保持し、コミット対象に含めない。
+既存S2の記録盤面・Home取り出し、およびmutation/fast tierの確定結果は後続追記とする。
+
+第5ラウンド・既存S2検証の確定:
+- tests.test_town_terminal_exit_round16: 14件成功、582.289秒、終了0。
+- tests.test_town_terminal_home_withdraw: 11件成功、0.029秒、終了0。
+上記は全て固定commit dd4c159da のソースで実行した結果である。
+町方針全体と指定moduleの実行完了後、mutationを開始した。
+
+第5ラウンド・mutation検証の確定:
+- mutation_check --record（基準dace87f32、対象dd4c159da88e7c97e2236d760875f17851056eff）:
+  MUTATION OK、19/19 source hunksを単独revertで検出、NOT CAUGHT 0、終了0。
+  実行時間824.290秒。HEADとsrc/hengbot・testsのtreeに対応する成功記録を保存済み。
+- --testsには第2/第3ラウンドとvisit controlsの3 modules、およびassertion不変の
+  3退行テストを指定した。町方針モジュール全体の手動再実行は行っていない。
+- 今回の資金稼ぎhunkは、
+  test_refused_fundraising_wait_yields_until_recovery_has_named_close と
+  test_a2_dispatcher_uses_the_refused_fundraising_terminal が検出した。
+- mutation終了後、src・tests・scriptsに固定commitからの差分がないことを確認した。
+- その後、fast_tierを基準dace87f32、4 shardsで開始。
+  基準自身のgreen timingsから2056 fast testsと変更4 modulesが選ばれた。
+  変更moduleにはtests.test_policy_town全体も含まれるため、guard内では自動実行される。
+  guardの選択処理やテスト一覧を変更していない。
+
+第5ラウンド・最終確定（2026-10-26）:
+- fast_tier（基準dace87f32、対象dd4c159da、4 shards）:
+  2660件、405.7秒、終了0。Failuresなし、Errorsなし、Crashed shardsなし。
+  60秒を超えると計測済みの51 modulesはguard既定でfast対象から除外された。
+  今回変更したtests.test_policy_townは変更moduleとして自動選択されており、
+  別途1回の全593件実行に加えて、このguardの総件数にも含まれる。
+- preflight → mutation_check --record → fast_tierは同じ基準・固定ソースで順に成功。
+  guard失敗0、追加修復ラウンド0。成功済みソースの追加編集は行っていない。
+- 指定の既存3件はソースで修正し、assertionを維持。許可された1件だけ
+  期待値を旧 '7' から新 'rga' へ変更した。追加のSTOP条件は発生していない。
+- 本ラウンド指定の修正・検証は完了。remote_slowは本ラウンドの指定に含まれず未実行。
+  新しい実ゲーム運転や継続キャプチャは行っておらず、実運転の出発成功を新たに
+  確認したという意味ではない。第1〜4ラウンドの停止・未完了記録とは区別する。
+- 報告はPythonのencoding='utf-8', newline='\n'で保存。
+  UTF-8、BOMなし、CRなしを確認し、privacy検査を通して報告だけを追加コミットする。
+  固定commit以後の変更は本報告のみで、mutationのsrc/hengbot・tests tree成功記録は有効。
