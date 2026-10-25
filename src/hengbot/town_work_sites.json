@@ -7225,7 +7225,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c7cbe4ee912375bf1b002dfd0a08d1d4364f53b3512d457abbd3fe9a2109b7c5"
+    "ast_sha256": "296c8b4959f6253a9162c419fa606b3784a759f58931e687fa2bfb83061356f6"
   },
   "policy_supply.py:SupplyMixin._unknown_light_last_resort": {
     "classification": "data",

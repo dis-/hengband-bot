@@ -1439,7 +1439,7 @@ class SupplyMixin:
         # the quest may still be finished first, but weak-or-worse means
         # starvation (paralysis death with full HP) is now closer than any
         # kill count: leave via the exit stairs and take the visible loss.
-        if light_exit or player.food_state not in {"weak", "fainting"}:
+        if player.food_state not in {"weak", "fainting"}:
             return None
         here = snapshot.grid_at(player.position)
         exit_reason = (
