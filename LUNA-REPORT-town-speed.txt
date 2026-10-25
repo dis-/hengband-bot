@@ -1,0 +1,95 @@
+町の判断遅延・調査報告（Issue #47）
+
+結論: 診断のみ。速度改善の修正は未採用。Issueの遅延問題を解決済みとは扱わない。
+最大の共通処理を対象に判断内キャッシュを試したが、交互比較で遅くなったため撤回した。
+閾値や探索予算、挙動を変更する代案へは進まず、タスクの停止条件に沿って結果と選択肢を記録する。
+
+対象と再生条件:
+基準4d239862f、調査開始HEAD 31c97945c（タスク指示書のみ追加）。
+指定の92件の遅延decision記録と、state末尾を読み込んだ。stateの先頭は途中行のため除外した。
+元の遅延に対応するturn 938808 / 940553 / 940760を公開choose_keyからcProfile計測した。
+Codex同梱Python 3.12.14を使用。各盤面を新規policyにprimeし、記録にある技能値4000/4000、
+自宅の全41品、対象より前の最新character行を与えた。
+自宅41品はturn 940714時点の観測であり、先の2盤面には未来の情報を与える制御条件である。
+元のclaim・訪問履歴・判断直前checkpointはない。元の理由や16〜30秒の完全再現ではない。
+同一turnに複数のplayer_turn行がある場合は最初を選んだ。decision_sequenceとの一意な対応は復元していない。
+今回は屋外の3盤面が対象で、店内の遅延原因まで特定したものではない。
+この制約があるため、今回の最大処理を元の稼働時の最大原因と断定しない。
+
+計測結果:
+cProfile付きchoose_key時間（秒、参考値。別時刻の実行なので負荷差があり、速度改善の根拠にはしない）:
+  turn 938808: 基準 0.602374 / 不採用案 0.458164、キー/理由一致=True
+  turn 940553: 基準 0.776564 / 不採用案 0.820865、キー/理由一致=True
+  turn 940760: 基準 1.551396 / 不採用案 0.834847、キー/理由一致=True
+
+地形索引構築は各判断に2回。同じ13068セルの分類・照明距離を再計算していた。
+純粋な分類だけのキャッシュ案では分類本体が1回へ減り、3盤面のキー/理由は3/3一致した。
+ただし索引構築2回を同一判断で行い、基準と試作を交互に30回ずつ測ると:
+  turn 938808: 中央値 36.864ms → 43.074ms（16.8%増）
+  turn 940553: 中央値 37.530ms → 44.328ms（18.1%増）
+  turn 940760: 中央値 38.255ms → 43.781ms（14.4%増）
+分類結果の確保・再走査の費用が勝ち、更新対象の集合操作自体は残る。
+可変の記憶・通行不可・失効状態を読むため、索引全体の単純な一度限りの実行は採用できない。
+
+試作時の検証と撤回:
+既存A/B記録のキー/理由/チェックポイント比較、および記憶更新・判断間失効・別snapshot・直接呼出の
+3テストは51.194秒で成功。性能キャッシュ削除時に計算回数が増えるピンも試作に含めた。
+ただし有効な速度改善ではないためソースも新規テストも撤回し、バックアップ側にのみ保存した。
+最終成果物はこのレポートとLUNA-DIAG-town-speed.txt。既存テストの変更は0件。
+src/tests/scriptsは4d239862fとgit diffで一致。新規コードがないため恒久的な回数ピン追加も対象外。
+
+指定ガード:
+  preflight: 終了コード 1
+    [preflight] FAIL manifest: the town work manifest was stale; it has been regenerated - commit it (regenerate after the LAST source edit)
+    [preflight] PREFLIGHT FAIL: 2 changed files, 1 findings (town-speed-1025 vs 4d239862)
+  mutation_check: 終了コード 0
+    [mutation] 0 source hunks, tests: tests.test_policy_structure
+    [mutation] MUTATION OK: 0 of 0 hunks are not pinned by a test
+    [mutation] recorded for 988844d7
+  fast_tier: 終了コード 1
+    [fast] 2049 fast tests (<2.0s in 9a9dc41de) + 0 changed modules, 4 shards
+    [fast] excluded 51 modules measured over 60s
+    Crashed shards: none
+    Failures: ['tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop']
+    Errors: none
+    Total: 2049 tests, 98.2s
+  remote_slow: 終了コード 1
+    [slow] 988844d75: running 50 modules, 3 at a time
+    [slow] 988844d75: done 50 modules, 36 not green
+    [slow] base 4d239862f: reused the result on the remote
+    [slow] SLOW FAIL: 300 failures not on base 4d239862f (50 modules, head 988844d75)
+    作業ツリー側: 50モジュール、不合格36、単独再試験3
+    保存済み基準側: 50モジュール、不合格50、単独再試験0
+
+検証結果の解釈:
+同梱Python 3.12.14でのpreflightは、未変更の883関数のASTハッシュの版差をstaleとして検出した。
+Python 3.13.14で同じ生成スクリプトを実行するとsrc/tests/scriptsは基準との差分0に戻ることを確認。
+このため3.12由来の生成物はコミットしていない。preflightの不合格を成功とは報告しない。
+fast_tierの失敗はログ容量管理テストのstat回数5 != 4で、単独再実行でも1件/0.045秒で再現した。
+src/tests/scriptsが基準と同一のまま再現しており、今回の文書変更による新規回帰ではない。修正対象には含めない。
+Linuxの自動比較は「基準にない失敗300件」で不合格。保存済み基準結果を再利用している。
+Linuxに展開されたsrc/tests/scriptsも、作業ツリー側と基準側のファイルハッシュの差分は0件だった。
+追加の切り分けとして、比較で新規とされた次の1テストだけを両ツリーで単独再実行した。
+  tests.test_experience_potion.ExperiencePotionRestoredCheckpointTest.test_restored_checkpoint_reads_the_new_paths
+両側とも終了コード1で、restore_checkpointのpickle.loadsからWindowsPathを復元する際の
+pathlib.UnsupportedOperationを同じ箇所で再現した。保存済み基準結果にはこのテストの失敗がない。
+少なくともこの代表例は現在の基準コードでも失敗し、保存済み比較基準と現環境の間に不整合がある。
+全300件を分類し終えたわけではない。Linux検証の成功や「新規失敗0件」とは報告しない。
+remote_slow本体の呼出は指定どおり一度だけで、追加実行は上記1テストを両側で比較したもの。
+互換性や検証ツールの修正は町の最大ホットスポットの判断内キャッシュという範囲外なので行っていない。
+mutation_check --recordは基準4d239862fに対して実施。ソース変更が0なので回帰ピンの有効性の証明ではない。
+fast_tierも基準4d239862fを指定し、remote_slowは一度だけ同じ基準に対して実行した。
+ただしfast_tierが選択した時間分類表は9a9dc41de由来で、2049件+変更モジュール0件の範囲である。
+検証結果の対象HEADは988844d75（診断コミット）。以後の差分は本レポートだけ。
+
+次の選択肢:
+第一候補は遅延時点の判断直前checkpointを含む再現資料を用意し、元の理由まで一致する再生で再計測すること。
+そのうえで可変入力に正しくキーを付けられる最大処理だけを対象にする。
+地形索引をさらに扱うなら、記憶更新の世代と集合共有・列挙順序の同値性を別途検証する。
+今回は挙動を保ったまま、診断と不採用案の証拠を残す。
+
+運用上の操作:
+ゲーム/BOT操作、他者プロセス停止、push/merge/rebase/reset --hard/stashは行っていない。
+生ログ・プロファイル・不採用コードは指定バックアップ配下に置き、Gitには追加していない。
+Linux検証環境の固有名・接続情報はレポートに記載していない。
+両文書はPythonのwrite_text(..., encoding="utf-8")で作成した。
