@@ -4302,6 +4302,7 @@ class QuestMixin:
                 return None
             # A taken kill quest uses ordinary entrance routing and stair descent.
             self._target_dungeon_id = info.dungeon
+            self._target_dungeon_reason = "quest_dungeon"
             return None
         if snapshot.floor_key[2] == quest_id:
             if quest.status == QUEST_STATUS_COMPLETED:

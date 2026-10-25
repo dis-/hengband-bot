@@ -395,6 +395,7 @@ class ObservationMixin:
         pursued_target = self._target_dungeon_id
         if snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND
+            self._target_dungeon_reason = "angband_recall_unlocked"
             self._rumor_unlock_pending = False
         elif (
             (quest_14 := snapshot.quests.get(14)) is not None
@@ -564,6 +565,10 @@ class ObservationMixin:
             )
             if alt is not None:
                 self._alternate_dungeon = alt
+                self._alternate_dungeon_reason = (
+                    "guardian_bounce_valve" if guardian_bounces_only
+                    else "over_extended_dives"
+                )
                 # The safety valve must demote even a latched conquest target.
                 # It may be selected again after the existing alternate period,
                 # but must not immediately override the alternate below.
@@ -598,6 +603,7 @@ class ObservationMixin:
             )
             if alt is not None:
                 self._alternate_dungeon = alt
+                self._alternate_dungeon_reason = "no_depth_progress"
                 self._conquest_committed = None
             self._no_depth_progress_dives = 0
         # A switched target overrides the ordinary selection until its lifecycle
@@ -605,6 +611,10 @@ class ObservationMixin:
         if self._alternate_dungeon is not None:
             if self._alternate_dungeon in snapshot.entered_dungeon_ids:
                 self._target_dungeon_id = self._alternate_dungeon
+                # The alternate keeps the reason it was switched to.
+                self._target_dungeon_reason = (
+                    self._alternate_dungeon_reason or "alternate_dungeon"
+                )
 
         # HIGHEST PRIORITY target: clear an unconquered dungeon whose bottom is within
         # our resistance limit, for the final guardian's gear. It normally overrides
@@ -617,6 +627,7 @@ class ObservationMixin:
         )
         if conquest is not None:
             self._target_dungeon_id = conquest
+            self._target_dungeon_reason = "conquest"
             # Fundraising is only superseded when the conquest expedition can
             # actually leave town.  In particular, poverty plus a supply gap is
             # still a fundraising problem even when the guardian fight itself is

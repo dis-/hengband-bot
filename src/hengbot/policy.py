@@ -1414,6 +1414,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._no_depth_progress_dives = 0
         self._last_overextended_depth = 0  # recall depth we could not loot at
         self._alternate_dungeon: int | None = None  # switched-to level-fit dungeon
+        # Display-only (spectator, #47): why _alternate_dungeon was switched to.
+        # Set at every assignment of the alternate; no decision reads it.
+        self._alternate_dungeon_reason: str | None = None
         self._pending_recall_dungeon_id: int | None = None
         # destination, command turn, and pre-read stack count.  JSON snapshots
         # can redraw several times at the same game turn before ``recalling`` is
@@ -2093,6 +2096,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_wander_streak = 0
         self._deepest_level = 0
         self._target_dungeon_id = DUNGEON_YEEK_CAVE
+        # Display-only (spectator, #47): why _target_dungeon_id holds its value.
+        # Set at every assignment of the target; no decision reads it.
+        self._target_dungeon_reason: str | None = "initial_yeek_cave"
         self._yeek_victory_loot = False
         # Generic conquest-loot: which dungeons we already know are conquered, and the
         # dungeon whose final-guardian drop we are collecting before we recall out.
@@ -14825,7 +14831,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if alternate is None:
             return None
         self._alternate_dungeon = alternate
+        self._alternate_dungeon_reason = (
+            "guardian_valve" if guardian_bounced_dungeon is not None
+            else "safe_fallback"
+        )
         self._target_dungeon_id = alternate
+        self._target_dungeon_reason = self._alternate_dungeon_reason
         self._conquest_committed = None
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
