@@ -1654,6 +1654,14 @@ class TownMixin:
             return None
         proposed_reason = self.last_reason or ""
         if self._decision_offer_buffer().admitted_commands.get(key) == proposed_reason:
+            if (
+                key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}
+                and self._town_result_makes_progress(
+                    snapshot, key, reason=proposed_reason
+                )
+            ):
+                # ADMIT preserves the command and its emit-time bookkeeping.
+                self._home_scan_source = "~9"
             return key
         if (key == "" and self._home_knowledge_scan_inflight
                 and self._home_knowledge_scan_epoch is not None

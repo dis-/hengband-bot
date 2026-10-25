@@ -7713,7 +7713,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a1a2b8f703617c4041a14617ebb5bd32c56c7d0ad93f5ced3354b31e2dd6e343"
+    "ast_sha256": "82cef143ffb20e0cb5b380b20512117cb9aaa2146ceb9db203aa7e5799f745d1"
   },
   "policy_town.py:TownMixin._town_procurement_progress_key": {
     "classification": "adapter",
