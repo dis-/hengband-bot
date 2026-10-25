@@ -330,7 +330,7 @@ _RUNGS: tuple[Rung, ...] = (
             "equipment-txn"),                                          # 6830
     _decide("_equipment_transaction_town_key", "equipment-txn",
             ordinary=True),                                            # 6847
-    _decide("_normal_loot_key", "floor-loot", "seek-loot", "loot:",
+    _decide("_normal_loot_key", "floor-loot", "seek-loot", "loot:", "quest:sweep:",
             ordinary=True),                                            # 6855
     _decide("_home_full_knowledge_key", "home-scan"),  # posted named-take prerequisite
     _decide("_shopping_approach_key", "store-router",

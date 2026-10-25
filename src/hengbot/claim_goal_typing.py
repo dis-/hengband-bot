@@ -610,6 +610,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "floor-loot",
         ("seek-loot", R, WALK_TARGET),
+        ("quest:sweep:", T, EFFECT),
+        ("quest:sweep:collect", R, WALK_TARGET),
         ("loot:", T, EFFECT),
         ("loot:seek-", R, WALK_TARGET),
         ("chest:", T, EFFECT),

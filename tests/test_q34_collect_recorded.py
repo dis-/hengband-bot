@@ -110,7 +110,11 @@ class Q34CollectRecordedTest(ProductionHarness):
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "quest:sweep:collect")
         self.assertIn(policy._loot_target, {Position(9, 9), Position(9, 11)})
-        self.assertIsNotNone(policy.decision_claim)
+        self.assertEqual(policy.decision_claim["owner"], "floor-loot")
+        self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
+        self.assertEqual(policy.decision_claim["goal"]["cell"], [policy._loot_target.y, policy._loot_target.x])
+        self.assertTrue(policy.decision_claim["rung"].startswith("_normal_loot_key"))
+        self.assertIsNone(policy.decision_claim["violation"])
         self.post(policy, raw, key, dict(raw, turn=raw["turn"] + 10))
 
     def test_found_items_work_after_restart_without_loot_observation_history(self):
