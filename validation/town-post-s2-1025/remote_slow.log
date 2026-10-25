@@ -1,0 +1,53 @@
+[slow] 609fa77f8: running 48 modules, 3 at a time
+[slow] 609fa77f8: done 48 modules, 34 not green
+[slow] 0aa8069bd: running 48 modules, 3 at a time
+[slow] 0aa8069bd: done 48 modules, 34 not green
+[slow] same as base tests.test_town_decision_speed_caches 17.0s
+[slow] same as base tests.test_latch_onset_capture 4.6s
+[slow] same as base tests.test_town_terminal_exit_round16 217.6s
+[slow] same as base tests.test_experience_potion 168.1s
+[slow] same as base tests.test_unaffordable_claim_tour_recorded 161.9s
+[slow] same as base tests.test_pure_decision_telemetry 135.5s
+[slow] same as base tests.test_declarations_r14 119.2s
+[slow] same as base tests.test_town_fact_refresh_once 7.0s
+[slow] same as base tests.test_overweight_home_unreachable_recorded 98.8s
+[slow] same as base tests.test_home_light_alternation 0.3s
+[slow] same as base tests.test_recall_stockout_set_end_recorded 83.3s
+[slow] same as base tests.test_town_cure_supplier_recorded 72.0s
+[slow] same as base tests.test_equipment_homefull_step15a 96.9s
+[slow] same as base tests.test_policy_quest 3.8s
+[slow] same as base tests.test_ownership_s2a1_closure 62.9s
+[slow] ok           tests.test_purchase_retention_root_recorded 49.6s
+[slow] ok           tests.test_anti_melee_dungeon_recorded 38.5s
+[slow] ok           tests.test_protocol3_client 48.4s
+[slow] same as base tests.test_guardian_recall_pingpong_recorded 46.4s
+[slow] same as base tests.test_store_reentry_recorded 10.1s
+[slow] same as base tests.test_supply_shortfall_owner_recorded 42.4s
+[slow] ok           tests.test_esp_threat_rest_recorded 35.2s
+[slow] same as base tests.test_town_approach_retired_recorded 211.5s
+[slow] ok           tests.test_junk_town_weight_recorded 33.2s
+[slow] ok           tests.test_overweight_homefull_step15b 28.4s
+[slow] ok           tests.test_morivant_return_walks_away_recorded 38.2s
+[slow] same as base tests.test_junk_home_sweep_recorded 22.0s
+[slow] same as base tests.test_policy_home 15.9s
+[slow] same as base tests.test_town_terminal_memo_round17 0.8s
+[slow] ok           tests.test_junk_scope_recorded 30.6s
+[slow] ok           tests.test_reverse_choke_loot_loop_recorded 32.9s
+[slow] same as base tests.test_home_withdraw_failed_stock_present_recorded 13.9s
+[slow] same as base tests.test_oneshot_inflight_recorded 20.2s
+[slow] same as base tests.test_supervisor_check 0.2s
+[slow] same as base tests.test_identify_staff_swap_churn_recorded 3.5s
+[slow] same as base tests.test_store_op_compose_root_recorded 25.9s
+[slow] ok           tests.test_ownership_s2a_classification 13.1s
+[slow] same as base tests.test_policy_supply 1.6s
+[slow] same as base tests.test_town_decision_speed2_caches 7.0s
+[slow] same as base tests.test_spectator_recall_destination 14.9s
+[slow] ok           tests.test_overflow_gear_recorded 20.4s
+[slow] ok           tests.test_town_unseen_travel_recorded 18.0s
+[slow] ok           tests.test_recall_read_cancel_pingpong_recorded 16.3s
+[slow] ok           tests.test_ownership_s3a_record 24.0s
+[slow] same as base tests.test_departure_unsatisfiable_weight_recorded 16.4s
+[slow] same as base tests.test_junk_plain_gear_recorded 14.3s
+[slow] same as base tests.test_ownership_claims 16.2s
+[slow] same as base tests.test_homefull3_recorded 19.8s
+[slow] SLOW OK: 0 failures not on base 0aa8069bd (48 modules, head 609fa77f8)

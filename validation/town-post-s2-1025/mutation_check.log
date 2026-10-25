@@ -1,0 +1,3 @@
+[mutation] 0 source hunks, tests: tests.test_town_terminal_home_withdraw
+[mutation] MUTATION OK: 0 of 0 hunks are not pinned by a test
+[mutation] recorded for 609fa77f

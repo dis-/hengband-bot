@@ -6,7 +6,7 @@
 - measurements.json.gz: 元判断ログの集計、行番号、採用した証拠。
 - replay-base-*.json.gz / replay-s2-*.json.gz: 公開choose_keyの新規policy再生。
 - timing.txt: 実運転のstage別時間と、cold replay profileの制約。
-- refusal-sites.txt / .json: 拒否・退役・転送候補の保守的なソース棚卸し。
+- refusal-sites.txt / .json.gz: 拒否・退役・転送候補の保守的なソース棚卸し。
 - census.json: 既存manifestと登録表の件数。
 - provenance.json: 小さなgzip抜粋の元ファイル・行番号・hash。
 
@@ -27,3 +27,8 @@ PowerShellでの再生例（1プロセスずつ）:
 結果の出力先はOSの一時領域/town-post-s2-replay。
 同一turnに複数の観測がある場合にはそのturnの最後の盤面を選ぶ制限がある。
 判断の前後境界を完全に証明できるcheckpoint replayとは区別する。
+
+- linux-head-results.json / linux-base-results.json: Linux検証環境のrunner結果。
+- linux-failures.txt / linux-failure-classification.json: 既存失敗の全件対応と新規失敗0件。
+- *tier.log / *check.log / preflight.log / remote_slow.log: 指定guard結果。
+- source-scope.log / integrity.log: 変更範囲と保存資料の確認。

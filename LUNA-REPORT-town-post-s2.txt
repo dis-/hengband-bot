@@ -17,6 +17,8 @@ S2の拒否帳簿には既にnamed closeがあるが、用事の清算・出発�
 Bの18:47の整理後は買い物・探索も進んでおり、
 保存末尾19:05のHome(43,91)↔Magic(27,76)の反復と区別が必要。
 監督メモの全件数とAの直前600判断はコピー不足のため独立検証できない。
+A2の保持診断は試行12・進捗なし47・帰還準備Trueで、監督値とは異なる。
+両停止の退役は連続失敗予算ではなく、同じ進捗ベクトルの再出現2/2で発火。
 未観測のHomeVisitRequestのkindは断定しない。
 
 公開choose_keyで両版の記録盤面を再生:
@@ -34,7 +36,8 @@ parse59.3055ms、facts33.9405ms、send19.081ms。
 性能修正はしていない。参考cold profileの関数配分を実運転と同一視しない。
 
 実装・帳簿:
-ソース変更0、既存テストassertion変更0、新しいpolicy属性0。
+本体src変更0、既存テストassertion変更0、新しいpolicy属性0。
+検証用replay.pyと測定資料はvalidation配下に追加。
 新規helper登録・復元checkpoint default追加は不要。
 manifestを再生成し差分なし。
 880候補 / 22297 call_sites / 112 registry_sites / 102 ladder_sites / unmapped0。
@@ -44,3 +47,43 @@ baseline721項目、review880項目。
 禁止操作:
 ゲーム・botの操作、保存キャラの継続運転、他人のプロセス停止、push/merge/rebaseは行っていない。
 検査結果は最終追記に記録する。
+
+
+検証（本体srcは57cbb35e4と同一）:
+- 既存S2記録窓: tests.test_town_terminal_exit_round16、14件、830.081秒、終了0。
+- 既存Home取り出し: tests.test_town_terminal_home_withdraw、11件、終了0。
+- preflight: 終了0、23変更ファイル、指摘0。
+- mutation_check --record: 終了0、ソースhunk0、NOT CAUGHT 0/0。
+  診断後停止により新規テストはない。ツールがモジュール指定を必須とするため、
+  --testsには既存のtests.test_town_terminal_home_withdrawを渡した。
+  これを根治修正のmutation pinが揃ったという証拠にはしない。
+- fast_tier --shards 4: 終了0、3830件、222.7秒。
+  失敗0、エラー0、異常終了shard0。
+- 上記guardの対象HEAD: 609fa77f8ab01e8020f9cb58a92ecd87fb23abf8。
+- Linux検証環境のremote_slowは指定通り1回起動し、終了0。SLOW OK。
+  対象609fa77f8、比較0aa8069bdca3a14b24029ee744930c472407c709（コマンド既定のmain）。
+  48モジュール。両版とも34モジュールが非成功、14モジュールが成功。
+  失敗識別子の比較版との共通は301件、(R)新規失敗0件、比較版のみ0件。
+  Linuxの全テスト成功という意味ではない。既存失敗を直したとも報告しない。
+  全失敗をlinux-failures.txtとlinux-failure-classification.jsonに分類・保存。
+  個々の例外原因はrunnerの保存内容だけでは確定しない。
+
+追加資料:
+retirement-vector-evidence.jsonは、退役直前に保持されていたgateの抽出値。
+refusal-sitesはNone/False・名前付き拒否を含め2317箇所の保守的候補一覧。
+6個のgzip抜粋は計105行・305818 bytes。元行番号とSHA256を記録。
+本体src・既存Pythonテスト・producer baseline/reviewへの変更はない。
+検査後に更新するのは診断の補完・測定資料・ログ・この報告のみ。
+
+
+確定:
+指定の4 guardはpreflight → mutation_check → fast_tier → remote_slowの順で実行し、
+全て終了0。修復ラウンドは0。remote_slowの外側の起動は1回。
+Linuxの既存失敗は上記の通り全件報告し、新規退行と区別した。
+既存assertionの変更を要する修正は行っていない。
+本体src・既存Pythonテストが固定基準と同一である証拠はsource-scope.log。
+
+この報告と補完資料を追加コミットする。
+検査対象609fa77f8以降に本体コードやテストの変更はなく、
+後続コミットは診断・報告・測定資料・ログの補完のみ。
+最終状態は「新しい裁定の選択待ちの診断」であり、ISSUE #47の根治完了ではない。

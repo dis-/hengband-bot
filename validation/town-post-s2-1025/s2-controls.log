@@ -1,0 +1,8 @@
+Command: PYTHONPATH=src;tests;scripts python -X utf8 -m unittest tests.test_town_terminal_exit_round16
+Source equals 57cbb35e4 (no src changes).
+Ran 14 tests in 830.081s
+OK
+
+Command: PYTHONPATH=src;tests;scripts python -X utf8 -m unittest tests.test_town_terminal_home_withdraw
+Ran 11 tests in 0.042s
+OK

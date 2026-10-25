@@ -18,9 +18,10 @@ B0は9837判断、B1は111判断、B2は完全JSON598行（元の2..599行）。
 B2の1行目は途中で切れているため除外。末尾だけで前半18:47の状態は復元できない。
 ポリシーチェックポイント、owner-retired-log-only.jsonl、その直前600判断は指定コピーにない。
 control-at-stop.json.gzは画面とゲーム状態でありポリシーチェックポイントではない。
-したがってneed_attempts=9/8、passes_since_progress=45、出発失敗葉の全組、
+need_attempts=9/8、passes_since_progress=45という監督値と、
 「直前600判断」の166/121/47/41/20/19はこのコピーからは独立検証不能。
-推測で検証済みにしない。A2の47回だけは同名reasonの実数と一致する。
+ただしA2のtown_idle_d0内に保持された以前のdeparture診断は復元できる（10節）。
+A2の47回は同名reasonの実数と一致する。
 
 2. A1（14:04）は賞金受取の反復
 A1/bot-decisions.jsonl.gz:1..99: bounty:approach 92、
@@ -36,12 +37,12 @@ arbiterはtenure4、progress=false、残予算0、retired=true。
 賞金受取の直前に、鍵がESC+`n&.に置換され、Magicへ送られる。
 同:96はMagic(38,106)のbounty:leave-supplier。
 同:97..99は再び賞金窓口へ戻る途中。これが3回繰り返された。
-賞金の本体: src/hengbot/policy.py:17761、受取の合成:17818付近。
+賞金の本体: src/hengbot/policy.py:17761、受取の合成:17829。
 上位の町順序: src/hengbot/policy_town.py:2354。
 S2宣言: src/hengbot/town_terminal.py:1618..1619 はNO_REFUSAL。
 つまり賞金はS2でREFUSEDになったのではなく、ADMITの後で別の裁定に負けた。
 後段裁定: policy_town.py:1146 _town_result_makes_progress、
-:1298付近の指紋再訪、:1600 _town_procurement_decision、
+:1298付近の指紋再訪、:1603 _town_procurement_decision、
 :1797付近の代案生成、:1953の鍵置換。
 賞金の「7cy\\x1b」は純粋方向キーに一致せず、通常の歩行証明を通らない。
 指紋が再訪だと、受取という複合コマンドも非進捗とされる。
@@ -70,6 +71,12 @@ liveなしのterminal-refused-unservedとして既に閉じている。
 yields8、closed=yield-without-server-progressとなっている。
 従って「S2が拒否を見落とした」だけではない。既に記録上は閉じている。
 その後もfundraise:departure-blockedのWAITが繰り返され、別のランドマーク移動が続く。
+WAITの具体的な出口はpolicy_town.py:6441..6443、町dispatcherの
+_fundraising_departure_ready=Falseの分岐（:6406）。
+この準備判定の本体はpolicy_fundraising.py:452。
+S2のfundraising rungを拒否した後にも、NO_REFUSALのtown-special dispatcherは
+同じ準備不成立からWAITを返せる。closed terminalを町dispatcherの結果に
+接続していないことが、47回の待機を可能にしている。
 :111はHomeでleave-for-pending-withdraw、:112がrepetitionの退役停止。
 Homeの途中退出: policy.pyのHome処理、S2拒否commit:town_terminal.py:1843。
 そのcommitはStoreVisitとHomeVisit報告を閉じるが、
@@ -77,11 +84,11 @@ legacyの_home_pending_item/_home_pending_batchを消費・延期する処理で
 既存の延期処理はpolicy_home.py:3846 _defer_unobserved_home_withdrawal。
 S2帳簿closed_terminalsの参照はtown_terminal.py:2061付近だけ。
 他の出発・資金稼ぎ・供給先から同帳簿を直接参照する経路はない。
-admission.admittedは:2052で先にTrueを返すため、
+admission.admittedは:2053で先にTrueを返すため、
 閉じた終端に後からADMITが出た場合も、その場で閉じを優先する仕様ではない。
 「帳簿に閉じがある」と「その用事が清算され、出発できる」は異なる。
-stdout:23460はhard_stop、:23461が停止。失敗したminimumの葉はこのログには出ていない。
-監督メモの失敗葉の組は未検証のままとする。
+stdout:23460はhard_stop、:23461が停止。失敗したminimumの葉はstdoutには出ていない。
+town_idle_d0内の保持診断から検証できた別の失敗葉の組は10節参照。
 
 4. B: 前半の整理と末尾の反復を区別する
 B0:1330 seq2245 18:47:14、Home(45,123)でjunk-sweep-withdraw。
@@ -112,15 +119,16 @@ Homeでroute-claim-unfulfilledによるESC、
 来店のstore_visitはowner=town-errand、purpose=shopping、
 operation_posted=false。移動claimはdetectors、work_id route:store:43,91。
 識別のための特定品withdraw要求と断定できる記録ではない。
-Homeに保留品はなく（home_candidate_waiting=false）、
+home_candidate_waiting=falseが記録され、10節のHome所有目標もfalse。
 後述のRECOVERYが生成される型と整合するが、
+このwaiting旗だけでlegacy保留全体の不在を判定してはいけない。
 HomeVisitRequestそのものは判断行に記録されていないため、kindの実測ではない。
 
 決定する経路:
-policy_town.py:2036 _boxed_town_breakout_route は別の店を順に選ぶ。
-:2089 _commit_boxed_town_breakout_key がrouter_plan_stop=Trueで本当に来店を作る。
+policy_town.py:2054 _boxed_town_breakout_route は別の店を順に選ぶ。
+:2093 _commit_boxed_town_breakout_key がrouter_plan_stop=Trueで本当に来店を作る。
 policy_shop.py:5477はHomeの要求をfileし、store visitを取得する。
-policy_quest.py:420..526 _derived_home_visit_request は、
+policy_quest.py:420..512 _derived_home_visit_request は、
 取出し・預け・scanがなければ最後にhome-recovery/RECOVERYを作れる。
 town_terminal.py:407はWITHDRAW以外をHome取り出しの終端としない。
 :1564..1573はHomeでWITHDRAWがなければterminal=None。
@@ -153,8 +161,10 @@ BはHomeカタログと解呪方針の欠落により初手がrh/town:remove-cur
 タスク2の「S2設計または所有者決定で直せない新しい規則なら診断後で止める」を適用する。
 A1はADMIT済み賞金操作の後段置換、Bは終端なしのdetector来店であり、
 既存S2のREFUSEDに対するserver/closeだけを調整しても両方を包含しない。
-S2設計3.5（設計書:148..149）は終端Noneを判定対象外、detectorsを免除とし、
-後段置換されたADMITコマンドの扱いやRECOVERYの有用性判定を規定しない。
+S2設計3.5（設計書:148..150）はdetectorsを免除、終端Noneを従来規則のままとし、
+さらに「ADMITなら今の規則のまま」と明記する。
+ADMITコマンドの後段置換を新しく保護したり、RECOVERYの有用性を新しく
+拒否条件にしたりする裁定は、この判定の単なる適用漏れの補修ではない。
 そこを「当然こうする」と新しい規則で埋める修正は行わない。
 A2の拒否commitだけ直す部分修正でもA1/Bを解消したことにはならない。
 
@@ -177,7 +187,8 @@ detectors免除は維持し、landmark往復を独立の持続する用事とし
 Homeだけの欠品延期や賞金コマンドだけの場面分岐を足す。
 効果: 一部の症状だけ変わり、一般のdetector横取りを残す。今回の制約に反するため不採用。
 
-本診断ではソース・既存テストの期待値は変更しない。
+本診断では本体src・既存テストの期待値は変更しない。
+検証用の再生スクリプトはvalidation配下に追加した。
 修正後の進捗pinと出発確認は未実施。反復解消済みとは報告しない。
 保存キャラの継続運転は、追加の判定決定と完全なチェックポイントが揃った後の確認には有用。
 今回は指示通り実行していない。
@@ -199,9 +210,9 @@ A1/Bの経路を新しく導入した変更ではない。
 既存の欠陥がS2の適用外に残ったことと、S2が欠陥を作ったことを分ける。
 
 8. 参照箇所の全数一覧と範囲
-validation/town-post-s2-1025/refusal-sites.txt と同JSONに、
+validation/town-post-s2-1025/refusal-sites.txt と同gzip JSONに、
 拒否・退役・転送の呼び口、町の選択状態の代入、および
-policy/Home/arbiterのreturn-Noneを保守的に列挙した。
+policy/Home/arbiterのreturn-None/False・名前付き拒否を保守的に列挙した。
 通常の非適用や純粋関数のNoneも含むため、全行が町の拒否とは主張しない。
 関数ごとの式もJSONで読める。イベント別の具体的な決定箇所は2..4節に記した。
 S2: town_terminal.pyの各verdict、may_take_board、commit_refusal。
@@ -238,3 +249,46 @@ town_producer_baseline721項目、town_work_review880項目。
 validation/town-post-s2-1025/provenance.jsonに記録する。
 抜粋のstate/decisionsは同一turnが複数ある場合も保持し、
 単なるturn一致で実運転の判断境界が完全復元できるとは認定しない。
+
+
+10. 退役直前診断の補完（town_idle_d0を確認）
+A1:99、A2:112のtown_idle_d0は共にtrigger_category=recurrence、
+recurrence_count=2 / recurrence_limit=2、own_unsuccessful_count=1 / bound=3。
+retirement_entry_pointsの実運転ラベルはpolicy.py:3086。
+従って残予算0の表示だけで「3回の連続失敗を使い切った」とは言えない。
+同じ(owner, progress_vector)の再出現が退役を発火させている。
+現基準の相当する退役呼出しはpolicy.py:3075と3164、town_arbiter.py:569..645。
+実運転のentry_pointラベル文字列は現基準のラベルと同じではなく、
+ラベルを現基準の実ファイル行番号と混同しない。
+
+A2:56、:107、:112ではlast_pair_before.progress_vectorに以前の
+departure_blockが文字列化されている。ast.literal_evalだけで値を復元した。
+これは過去に保持された診断であり、最終盤面でgateを再評価した値ではない。
+保持診断のfailedは:
+inventory_weight_ready / equipment_departure_ready / home_candidate_resolved /
+home_pending_item_clear / home_pending_batch_clear。
+recall_departure_readyはTrue。town_claimsはweight-overload /
+fundraising-detection / stored-digger / equipment-work。
+need_attemptsはrecall1、identification-source1、fundraising-kit12。
+stored-diggerのattempt項目はない。passes_since_progress=47。
+したがって監督値9/8/45やrecall_departure_ready=Falseはこの保持診断とは一致しない。
+legacy保留は財宝感知の巻物と2種類のつるはし。
+保持診断の来店数はHome12、Magic11、Temple1、Alchemist1。
+抽出値をretirement-vector-evidence.jsonに保存し、
+元のtown_idle_d0もmeasurements.json.gzのselectedに追加した。
+
+B1:1のequipment_optimization.home_route_projectionでは、
+home_owner_goal_pending=false / equipment_work_need_present=false /
+outstanding_equipment_work=false、home_unsatisfied_passes=207、
+home_visit_limit=3、home_blocked=false。
+home_scan_complete=true / home_knowledge_current=true。
+未完了Home装備は1点だが、そのヘヴィ・ランスはdeferred_home_item_signaturesに入る。
+新しい作業を表す証拠がないのにplan projectionはHomeを再構築している。
+この診断値は、detectorの一般来店が具体的取り出し作業を満たせないという
+経路解析を裏付ける。HomeVisitRequestのkind自体の記録は引き続き存在しない。
+
+11. 指定検査の確定結果
+preflight/ mutation_check/ fast_tier/ remote_slowは指定順で全て終了0。
+既存S2対照14件とHome対照11件は成功。fast tierは3830件成功。
+Linux比較48モジュールは両版34モジュール非成功、共通失敗識別子301、新規0。
+これを全テスト成功や修正済みの証拠とはしない。全件分類は別添、詳細は最終報告参照。

@@ -1,0 +1,5 @@
+application-source: diff exit 0 against 57cbb35e4
+existing-python-tests: diff exit 0 against 57cbb35e4
+town-bookkeeping: diff exit 0 against 57cbb35e4
+57cbb35e4 src tree 3db4973ae2e19b609e612a4921913bcb0b85c0fa
+609fa77f8 src tree 3db4973ae2e19b609e612a4921913bcb0b85c0fa
