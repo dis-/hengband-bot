@@ -1,0 +1,29 @@
+ISSUE: #47
+The owner asked (verbatim): 「n1-bが町でかなり遅いことがある。調査して」. Branch town-speed-1025 at main 4d239862f
+(worktree C:\hengband\bot-client\.worktrees\town-speed-1025).
+
+Measured by the supervisor (n1-b life-009, bot main 4d239862, 2026-10-25 21:24-22:36, 12220 decisions): in town, the
+time is spent in choose_key itself (timing.choose_key_ms), not in I/O. 92 decisions took over 5 s; worst 29.5 s
+(seq 12840 town-progress-invariant:defect:periodic:character-dump=>approach), 22.4 s (seq 11092 shop:in-store-sell),
+21.6 s (seq 4865 town:travel-entrance, its in_store.dry_run_ms was 4148). Per-reason medians: town:travel-entrance
+9.2 s (8), town:blocked:no-actionable-claim-owner 9.5 s, shop:observe-and-leave 4.2 s (max 17.5 s).
+Saved: C:\hengband-backups\state-logs\n1b-town-slow-1025-2240\n1b-slow-decisions.jsonl.gz (the 92 slow decision rows,
+full rows) and n1b-slow-state-tail.jsonl.gz (the last ~40 MB of state rows; covers the 22:3x window).
+Earlier speed work for reference: tests test_town_decision_speed_caches / test_town_decision_speed2_caches, the
+memoized town supplier materials (bf37eecce), LUNA-REPORT-town-decision-speed*.txt in git history.
+
+Do (scope is deliberately narrow; token budget 150k HARD - two recent tasks overran 2.5x, stop and report when you reach it):
+1. Measure first: replay at least 3 of the slow boards through the public choose_key with cProfile (cumulative time
+   per function) on main 4d239862f. Write LUNA-DIAG-town-speed.txt: for each board, the top functions with seconds and
+   call counts, and what repeated work dominates (same computation recomputed per candidate / per cell / per store...).
+2. Fix only the single largest hotspot, and only by not recomputing the same result within one decision (a per-decision
+   cache keyed by what it depends on, like bf37eecce), never by changing a decision, a threshold or a search budget.
+   If the hotspot cannot be sped up without changing behaviour, STOP after the diagnosis with the options.
+3. Pins: the same recorded boards give identical keys and reasons before and after (control), plus a call-count pin that
+   fails if the cache is removed (no wall-clock assertions - a timing test flaked under load today). Report the
+   measured before/after choose_key time on the boards (informational, not asserted).
+Rules: Python UTF-8 for text files (PowerShell turns Japanese into '?'); never stop processes you did not start; no
+game/bot control; no push/merge/rebase/reset --hard/stash; existing tests (= tests at 4d239862f) unchanged; no logs or
+profiles committed to the repo (keep them under C:\hengband-backups\state-logs\n1b-town-slow-1025-2240\). Guards before
+reporting: preflight / mutation_check --record / fast_tier with base 4d239862f (they wait while a merge gate runs - let
+them), then remote_slow once. Wall time 150 minutes. Write LUNA-REPORT-town-speed.txt in Japanese and commit.
