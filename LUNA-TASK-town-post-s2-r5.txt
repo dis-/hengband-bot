@@ -1,0 +1,18 @@
+ISSUE: #47
+ROUND 5 of LUNA-TASK-town-post-s2.txt (round 4 report at LUNA-REPORT-town-post-s2.txt line 339).
+Supervisor answer to your STOP:
+  - tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p4_attempted_surplus_deposit_does_not_block_departure:
+    the old expected key '7' (walking to another store) is exactly what the owner decision 「S2 の判定を広げる」 forbids
+    (an ADMITted composite terminal - here the admitted recall 'rga' - must not be replaced by another errand). The new
+    key 'rga' also satisfies the test's purpose (departure is not blocked). Change that expectation to the new key and
+    record in the report: old '7', new 'rga', reason as above. Change nothing else in that test.
+  - The other three are regressions of your change (your own classification): fix them in the source; their assertions
+    must not change:
+      tests.test_policy_town.TownAndFundraisingPolicyTest.test_blocked_fundraising_steps_off_store_instead_of_reentering
+      tests.test_policy_town.TownAndFundraisingPolicyTest.test_completed_town_plan_immediately_downgrades_blocked_fundraising
+      tests.test_policy_town.TownCycleDetectorTest.test_ready_mining_cycle_break_promotes_back_from_scavenge
+    If one of them can only pass by breaking an owner decision, STOP and report it like the fourth.
+Then run: the whole tests.test_policy_town module once, tests.test_town_post_s2_r2 tests.test_town_post_s2_visit_controls,
+the existing S2 modules (test_town_terminal_exit_round16, test_town_terminal_home_withdraw), then
+mutation_check --record with base dace87f32 (it waits while a merge gate runs - let it), then fast_tier with base
+dace87f32. Token budget 100k HARD, wall time 150 minutes. Append round 5 to the report (Japanese, Python UTF-8), commit.
