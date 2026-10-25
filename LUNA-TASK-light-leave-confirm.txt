@@ -1,0 +1,33 @@
+ISSUE: #47
+Follow-up defect of the light ROOT-FIX (merged in main 0aa8069b, report LUNA-REPORT-light-rootfix.txt in git history of
+branch light-rootfix-1025, merge commit 0aa8069bd). Branch light-leave-confirm-1025 at main 0aa8069bd
+(worktree C:\hengband\bot-client\.worktrees\light-leave-confirm-1025).
+
+Live incident (2026-10-25 19:34, c4-a life-016, quest 2 floor (0,15,2), lantern fuel 0, no oil): with the new release
+the bot posted '<' (return:ascend) on the up staircase, the game asked 「本当にこの階を去りますか？[y/n]」 (confirm,
+input_context kind=confirm), nobody answered, and the runner stopped on stuck-prompt:return:ascend three times.
+Capture on the soak machine is not needed; the facts: src/hengbot/cli.py:2869-2885 _QUEST_LEAVE_QUESTIONS /
+_quest_leave_continuations binds 'y' only when policy.quest_leave_confirmation_owned(snapshot, key) is true, and
+src/hengbot/policy_quest.py:4555 quest_leave_confirmation_owned requires no active FIXED quest and a runtime kill quest
+whose _quest_floor_exit_locked released. The owner-decided light release (LightJudgment.releases_one_shot_quest, owner
+decision 2026-10-25 「油を持って入り、微かなら帰る」: faint/no refill/no swap -> leave, the quest fails) is not part of
+it, so for a fixed ONCE quest like quest 2 the confirm is never owned.
+
+What to build: the stair key posted by the return while the light release holds (the same predicate
+_light_releases_quest_exit / _return_exit_locked uses) owns the leave confirm, for fixed ONCE and runtime kill quests
+alike. Nothing else changes: a stair key while the quest lock holds still leaves the question unowned (visible stop).
+Pins through the real follow executor (the recorded light-rootfix fixture rows 103/104 already in
+tests/fixtures/light-rootfix-q2-20261025.jsonl.gz, plus a constructed confirm screen with the exact Japanese prompt):
+(a) released + '<' -> the confirm is answered 'y' by the same post; (b) lock held (fuel 104 row, or oil carried) ->
+'<' is not posted / confirm stays unowned; (c) existing quest-leave pins unchanged. Per-pin revert proofs. Also explain
+in the report why round 1's pin (b) did not catch this (it stopped at choose_key) and make the new pin go through the
+executor.
+
+Rules (mandatory): same as LUNA-TASK-light-rootfix.txt in branch light-rootfix-1025 (git show
+light-rootfix-1025:LUNA-TASK-light-rootfix.txt is gone with the merged worktree; use
+git show 0aa8069bd:LUNA-TASK-light-rootfix.txt). Write text files with Python UTF-8 (PowerShell turns Japanese
+into '?'). Never stop processes you did not start, no game/bot control, no push/merge/rebase/reset --hard/stash.
+Existing tests (= tests at 0aa8069bd) keep their assertions. Guards before reporting: preflight / mutation_check
+--record / fast_tier with base 0aa8069bd, then remote_slow once (fast_tier and mutation_check wait by themselves
+while the merge gate runs its full suite - expected). Token budget 100k HARD, wall time 60 minutes. Write
+LUNA-REPORT-light-leave-confirm.txt in Japanese and commit.
