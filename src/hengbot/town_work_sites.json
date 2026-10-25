@@ -2078,7 +2078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "50948b5dbf20bf02510dfe724e5ff59c332a48970b638f17d9e67d91ab9c4b25"
+    "ast_sha256": "b19b7e6e81230f67eda78a7a5ff4e8d59924040d4298377bd3a4ade4a7a9054f"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -6099,7 +6099,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c491f40a75d303aa6389a473c69cf89ff20b824d355f2deb01d3739a2097993c"
+    "ast_sha256": "92a47e7da754b5faf00bba6c8c89106a863cc0745adefd29021fd4d0a8743b12"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.light_after_opening": {
     "classification": "dungeon-only",

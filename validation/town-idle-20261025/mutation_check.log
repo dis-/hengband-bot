@@ -1,0 +1,5 @@
+[mutation] 2 source hunks, tests: tests.test_town_idle_capture
+[mutation] caught     src/hengbot/policy.py:11961 (approach = self._town_producer_entry("_shopping_approach_key#2", lambd): test_first_capture, test_second_capture
+[mutation] caught     src/hengbot/town_terminal.py:1847 (home = policy._home_visit): test_first_capture, test_second_capture
+[mutation] MUTATION OK: 0 of 2 hunks are not pinned by a test
+[mutation] recorded for 121e476b

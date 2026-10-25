@@ -1,0 +1,60 @@
+ISSUE: #47
+The Linux soak c4-a (life-016, Lv24, bot main 0f8835a7) was paused at 11:12 today after two loop-detected stops 40 s apart
+inside fixed quest 2 (floor (0, 15, 2), dungeon_id 0 level 15 quest_id 2). Branch q2-sweep-1025 at main 0f8835a7 (worktree C:\hengband\bot-client\.worktrees\q2-sweep-1025).
+Evidence (read only; never write there, never pkill -f; the runner there is paused):
+  ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/hengbot-soak newtech@49.212.149.243
+  ~/hengbot-soak/c4-a/life-016/captures/20261025-111126-loop-detected and .../20261025-111208-loop-detected
+  (bot-decisions.jsonl.gz, state.jsonl.gz, control-at-stop.json.gz, bot-stderr.log), and life-016/jsonlog/ for the minutes before.
+Measured by the supervisor: HP 437/437, no visible hostiles; the last 11 decisions alternate '6' / '4' between (1,3) and (1,4),
+all with reason quest-strategy:q2-residual-86-sweep (src/hengbot/policy_quest.py:2595 builds that reason; the -clear branch is at
+2575; policy_helpers.py:198 treats the q2-residual reasons specially). The runner's loop detector saw cells
+[(1,3),(1,4),(1,5),(1,6),(1,7),(2,8)]. Monster race 86 is the residual target.
+Do:
+1. LUNA-DIAG-q2.txt first: MEASURED facts with file:line: what the residual sweep is supposed to do (which race 86 is, from
+   C:\hengband\lib\edit\MonraceDefinitions.jsonc; how many remain per the quest state), the sweep's target cell on each of the
+   alternating boards and why it flips between two cells (target selection, reachability, a cell it cannot enter, the map
+   memory), whether this reason was seen before (grep the c4-a / n1-a jsonlogs and C:\hengband-backups\state-logs\ROOT-TYPE-LEDGER.md
+   - the oscillation rows), and whether it is new with 0f8835a7 (replay the same boards on 8f95933f and 90947a65).
+2. Fix the cause under existing decisions only (no new rule: if a new rule is needed - e.g. give up the residual sweep - STOP
+   after the diagnosis with options).
+3. Pins from the recorded boards (small gzip fixture, last minutes) through the public choose_key: on 0f8835a7 the
+   alternation, after the fix progress (a committed target reached, or an existing named close). Controls: the existing
+   quest-2 tests unchanged.
+Token budget 200k.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at 0f8835a7) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
+  New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions. New
+  policy attributes need restored-checkpoint defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- NEVER use git stash (the stash list is shared by every worktree; another implementer's pop takes your changes). To
+  compare before/after, use `git apply -R` of your own diff or a temporary detached worktree.
+- No new constant or threshold; no special case keyed to one store, one floor or one capture.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), scripts/town_producer_baseline.json /
+  scripts/town_work_review.json entries for new helpers (json.dumps ensure_ascii=False indent=2 + trailing newline,
+  no sorting), census counts in structural tests (report the change), STUCK_FAMILY_REASONS if a new reason is added.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8), not the console code page. They also hold
+  non-decision rows; filter on "decision_sequence".
+- Another implementer works in parallel (branch town-idle-1025, town code). Do not edit policy_town.py / town_terminal.py
+  unless the diagnosis proves the cause is there (then STOP and report instead).
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\q2-sweep-1025 0f8835a7
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\q2-sweep-1025 0f8835a7 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\q2-sweep-1025 0f8835a7 --shards 4
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
+  outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 250k is a HARD limit: when you reach it, stop and report what is done. Wall time 150 minutes. Write
+  LUNA-REPORT-q2.txt (measured diagnosis, changes, pins before/after, controls, guard outputs) and commit.
+
+- Guards at the end (owner decision 2026-10-25): preflight, mutation_check (it reverts only hunks changed since this
+  branch's last green record), fast_tier, then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\q2-sweep-1025 (slow modules on
+  the Linux machine compared with main, about 15 minutes; paste its last lines).
