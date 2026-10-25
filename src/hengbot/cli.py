@@ -3568,6 +3568,10 @@ def _build_argument_parser() -> argparse.ArgumentParser:
             "Phase 1; default: off, Phase 0 shadow only)"
         ),
     )
+    parser.add_argument(
+        "--min-action-seconds", type=float, default=0.0,
+        help="minimum seconds between policy action posts (0 disables pacing)",
+    )
     parser.add_argument("--poll-interval", type=float, default=0.02)
     parser.add_argument("--send-to-window", action="store_true")
     parser.add_argument("--window-title")
@@ -4237,6 +4241,35 @@ def _run_follow(
     input_delays = _input_delay_values(args)
     prompt_japanese = getattr(args, "prompt_japanese", True)
 
+    last_action_post_at = None
+
+    def post_decision(*post_args, **post_kwargs):
+        nonlocal last_action_post_at, decision_started_at, phase_started_at
+        nonlocal last_activity
+        # Pace whole policy operations, before response deadlines are created.
+        # Executor continuations, prompt answers, and driver reads bypass this.
+        post_at = time.monotonic()
+        if last_action_post_at is not None:
+            remaining = args.min_action_seconds - (post_at - last_action_post_at)
+            if remaining > 0:
+                wait_started = time.perf_counter()
+                faulthandler.cancel_dump_traceback_later()
+                try:
+                    time.sleep(remaining)
+                finally:
+                    _arm_decision_watchdog()
+                waited = time.perf_counter() - wait_started
+                decision_started_at += waited
+                phase_started_at += waited
+                last_activity += waited
+                post_at = time.monotonic()
+        # The wait consumes neither the prompt deadline nor the executor budget.
+        post_kwargs["deadline"] = time.monotonic() + args.stall_timeout
+        result = _send_decision_key_with_prompt_chain(*post_args, **post_kwargs)
+        if result[0]:
+            last_action_post_at = post_at
+        return result
+
     def finish_pending_batch() -> None:
         nonlocal pending_batch_row
         if pending_batch_row is not None:
@@ -4895,7 +4928,8 @@ def _run_follow(
                         "prompt_owner_handoff": policy.prompt_owner_handoff,
                     }
                     sent, posted_decision_line, chain, chain_result = (
-                        _send_decision_key_with_prompt_chain(
+                        (post_decision if args.min_action_seconds > 0
+                         else _send_decision_key_with_prompt_chain)(
                         send,
                         snapshot_line,
                         key,
@@ -5017,7 +5051,8 @@ def _run_follow(
                             "prompt_owner_handoff": policy.prompt_owner_handoff,
                         }
                         sent, posted_decision_line, chain, chain_result = (
-                            _send_decision_key_with_prompt_chain(
+                            (post_decision if args.min_action_seconds > 0
+                             else _send_decision_key_with_prompt_chain)(
                             send,
                             snapshot_line,
                             key,
