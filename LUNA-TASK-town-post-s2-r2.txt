@@ -1,0 +1,32 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-town-post-s2.txt (read it and your LUNA-DIAG-town-post-s2.txt / LUNA-REPORT-town-post-s2.txt first).
+Your STOP was correct. The owner decided (AskUserQuestion 2026-10-25 19:5x, LOCKED, verbatim choice 「S2 の判定を広げる」 =
+your option A):
+  - when detectors create a real visit (Home or a store), the visit goes through the one S2 verdict with the terminal
+    of the errand it borrows; a RECOVERY visit with no concrete operation and no unobserved information to read is
+    closed by name (named close) instead of repeating;
+  - an ADMITted composite terminal (e.g. the bounty hand-over macro 7cy\x1b) must not be replaced by a later stage
+    with another errand just because of the progress fingerprint;
+  - the A2 refusal record and the settlement of the held Home/fundraising items are tied by the same work identity;
+  - departure conditions and item-existence checks are NOT relaxed; existing S2 controls stay.
+Rejected: a separate landmark-cycle counter (two verdict systems), not fixing.
+
+Overlap: the bounty branch bounty-loop-1025 (commit 40c886c9c, admits the final bounty office hand-over at the town
+progress seam, policy_town.py) is being merged into main right now. Do not edit that hunk; if your general ADMIT rule
+makes it redundant, say so in the report (the supervisor resolves it at the merge). Merge main into your branch first if
+it already contains bounty-loop-1025 (git log main --oneline | grep bounty) - a plain `git merge main`, no rebase.
+
+Do (pins from your recorded fixtures through the public choose_key AND, for any key the game answers with a question,
+through the follow executor to the answer - a pin that stops at choose_key missed a confirm prompt today):
+  A1: the admitted hand-over is not rewritten; B: the detector Home<->store cycle ends in a named close and the town
+  work continues or departs; A2: the refusal and the held items settle together, no owner-retired burst.
+  Controls: existing S2 pins (test_town_terminal_exit_round16, test_town_terminal_home_withdraw, the S2 ladder tests)
+  unchanged. Per-pin revert proofs.
+
+Housekeeping (required): remove the validation/town-post-s2-1025/ directory from the branch (git rm -r; keep it on disk
+if you like). Logs, JSON dumps and replay scripts do not belong in the repository; keep only small test fixtures under
+tests/fixtures/ and your LUNA-*.txt files. The 300k token budget is HARD: round 1 used 636k. This round: 250k HARD,
+wall time 150 minutes; stop and report what is done when you reach either.
+Rules: as in LUNA-TASK-town-post-s2.txt (Python UTF-8 for text files, no process control, no push/merge-to-main/rebase/
+reset --hard/stash, existing tests unchanged, guards preflight / mutation_check --record / fast_tier with base
+57cbb35e4 (or the main you merged), then remote_slow once). Append round 2 to LUNA-REPORT-town-post-s2.txt in Japanese.
