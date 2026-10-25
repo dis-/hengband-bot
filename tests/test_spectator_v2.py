@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 from hengbot.control_client import ControlClient
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.spectator import SpectatorWriter, spectator_details
+from hengbot.spectator import SPECTATE_WRITE_INTERVAL_SECONDS, SpectatorWriter, spectator_details
 from tests import test_input_executor as executor_pins
 from tests.test_esp_threat_rest_recorded import EDIT
 from tests import test_spectator as spectator_pins
@@ -112,6 +112,19 @@ class SpectatorDetailsTest(unittest.TestCase):
         self.assertEqual(result["status"], {
             "flags": ["blind"], "cut": "graze", "bar": state["player"]["status_bar"]})
 
+    def test_writes_four_times_a_second_at_most(self):
+        # Owner decision 2026-10-25 (「0.25秒ごと」): a decision 0.3 s after a write is written again,
+        # one 0.1 s after that is not.
+        clock = spectator_pins._Clock()
+        with TemporaryDirectory() as directory:
+            writer = SpectatorWriter(Path(directory) / "spectate.json", clock=clock,
+                                     stderr=io.StringIO())
+            self.assertTrue(writer.observe(self.snapshot, "6", "one", 1, None))
+            clock.now += 0.3
+            self.assertTrue(writer.observe(self.snapshot, "6", "two", 2, None))
+            clock.now += 0.1
+            self.assertFalse(writer.observe(self.snapshot, "6", "three", 3, None))
+
     def test_colour_request_is_inside_write_throttle_and_failure_isolated(self):
         clock = spectator_pins._Clock()
         screen = {"width": 2, "height": 1, "lines": ["ab"], "attrs": ["010e"]}
@@ -124,11 +137,11 @@ class SpectatorDetailsTest(unittest.TestCase):
             self.assertTrue(writer.observe(self.snapshot, "6", "one", 1, None,
                                            screen_client=client))
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["screen"], screen)
-            clock.now += 0.5
+            clock.now += SPECTATE_WRITE_INTERVAL_SECONDS / 2
             self.assertFalse(writer.observe(self.snapshot, "6", "two", 2, None,
                                             screen_client=client))
             client.request.assert_called_once_with("screen", term=0, attrs=True)
-            clock.now += 0.5
+            clock.now += SPECTATE_WRITE_INTERVAL_SECONDS / 2
             self.assertTrue(writer.observe(self.snapshot, "6", "three", 3, None,
                                            screen_client=client))
             self.assertEqual(client.request.call_count, 2)

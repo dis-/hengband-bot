@@ -24,9 +24,10 @@ from pathlib import Path
 
 from hengbot.control_client import raw_keys_to_macro_notation
 
-# Owner request 2026-10-23: at most one write per second, the last 20 messages,
+# Owner request 2026-10-23: the last 20 messages,
 # and one stderr line per hour at most for a failing write.
-SPECTATE_WRITE_INTERVAL_SECONDS = 1.0
+# Owner decision 2026-10-25 (「0.25秒ごと」): at most one write per 0.25 s (was one per second).
+SPECTATE_WRITE_INTERVAL_SECONDS = 0.25
 SPECTATE_MESSAGE_LINES = 20
 SPECTATE_ERROR_REPORT_INTERVAL_SECONDS = 3600.0
 # Fields of the control server's screen reply (bot-screen.cpp, handle_screen_request)

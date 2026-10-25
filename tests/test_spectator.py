@@ -20,7 +20,8 @@ from hengbot import cli
 from hengbot.cli import _ExecutorInputPort
 from hengbot.model import parse_snapshot
 from hengbot.spectator import (
-    SpectatorWriter, merge_seen_messages, printable_key, spectator_screen,
+    SPECTATE_WRITE_INTERVAL_SECONDS, SpectatorWriter, merge_seen_messages, printable_key,
+    spectator_screen,
 )
 from tests import test_input_executor as executor_pins
 from tests.run_follow_hygiene import run_follow as _run_follow
@@ -184,16 +185,16 @@ class SpectatorWriterTest(unittest.TestCase):
         raw["turn"] = turn
         return parse_snapshot(raw, {})
 
-    def test_two_decisions_within_one_second_write_once(self):
+    def test_two_decisions_within_one_interval_write_once(self):
         clock = _Clock()
         with TemporaryDirectory() as directory:
             path = Path(directory) / "spectate.json"
             writer = SpectatorWriter(path, clock=clock)
             self.assertTrue(writer.observe(self._snapshot(["a"]), "5", "first", 1, None))
-            clock.now += 0.5
+            clock.now += SPECTATE_WRITE_INTERVAL_SECONDS / 2
             self.assertFalse(writer.observe(self._snapshot(["b"]), "6", "second", 2, None))
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["reason"], "first")
-            clock.now += 0.5
+            clock.now += SPECTATE_WRITE_INTERVAL_SECONDS / 2
             self.assertTrue(writer.observe(self._snapshot(["c"]), "\x1b\r", "third", 3, None))
             written = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(
