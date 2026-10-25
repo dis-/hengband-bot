@@ -1255,6 +1255,18 @@ class TownMixin:
                     # that same distance on subsequent boards; an ineffective
                     # posted step still consumes the existing owner budget.
                     return True
+            arrival = (goal.y - snapshot.player.position.y,
+                       goal.x - snapshot.player.position.x)
+            bounties = sum(1 for item in snapshot.inventory if item.is_bounty)
+            if (direction is None and snapshot.store is None and bounties
+                    and arrival in DIRECTION_KEYS
+                    and key == DIRECTION_KEYS[arrival] + "c" + "y" * bounties
+                    + LEAVE_STORE_KEY):
+                # The final step lands on the declared office itself and hands
+                # over every carried wanted remain.  The command, not the
+                # unchanged pre-walk fingerprint, is the effect; a refused
+                # hand-over still consumes the existing owner budget.
+                return True
         if direction is not None:
             if goal is not None:
                 before = snapshot.player.position.distance_to(goal)
