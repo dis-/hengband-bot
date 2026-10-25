@@ -112,7 +112,7 @@ def spectator_details(state: Mapping[str, object], snapshot=None) -> dict:
             dice = row.get("damage_dice", {})
             if slot in ("main_hand", "sub_hand") and \
                     "num" in dice and "sides" in dice:
-                melee[slot + "_dice"] = f"{dice['num']}d{dice['sides']}"
+                melee[slot + "_dice"] = "{num}d{sides}".format(**dice)
         details["melee"] = melee
     abilities = {}
     for source, target in (("ability_sources", "sources"),
@@ -181,6 +181,7 @@ class SpectatorWriter:
                 "key": printable_key(key),
                 "reason": reason,
                 "level": player.level,
+                "speed": player.speed,
                 "depth": snapshot.dungeon_level,
                 "dungeon": snapshot.floor_key[0],
                 "hp": [player.hp, player.max_hp],

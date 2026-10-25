@@ -71,6 +71,9 @@ class SpectatorDetailsTest(unittest.TestCase):
             self.assertTrue(writer.observe(self.snapshot, "6", "melee", 1, None,
                                            state_line=FIXTURE.read_text(encoding="utf-8")))
             written = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(written["speed"], state["player"]["speed"])
+        self.assertEqual(written["depth"], 45)
+        self.assertEqual(written["dungeon"], 17)
         for key, value in details.items():
             self.assertEqual(written[key], value)
 
