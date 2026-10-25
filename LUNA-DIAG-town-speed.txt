@@ -1,0 +1,138 @@
+町の判断遅延の診断（Issue #47）
+
+基準: 4d239862f。調査開始時HEAD 31c97945cとの差はタスク指示書だけで、src/testsは基準と一致。
+Python: Codex同梱ランタイム。公開choose_keyをcProfileで3盤面それぞれ計測。
+入力: 指定バックアップのstate末尾。先頭の途中行だけを除外した。対象turnは元の遅延記録と照合。
+初期条件: 各盤面で新規policyを作成してprime。保存された技能知識の二刀流/盾4000を使用。
+自宅はturn 940714の全41品をconsume_home_knowledgeで投入し、対象より前の最新character行を観測。
+940714の自宅は先の2盤面より後の観測である。元の稼働時のclaim、訪問履歴、チェックポイントは復元していない。
+したがって元の29.5秒等の完全再現ではなく、同じ遅延盤面に固定した初期条件を与える制御実験である。
+初期状態だけの試行は技能照会/自宅照会で早期終了したため、遅い経路の根拠には採用しなかった。
+
+各盤面の上位累積時間（秒、呼出回数。親子の時間は重複し、加算不可）:
+
+turn 938808: choose_key実測 0.602374秒、key='rfi'、reason=identify:device
+  town_work.py:130 run: 0.602283秒 / 1回
+  item_reservation.py:191 run: 0.602093秒 / 1回
+  policy.py:2658 choose_key: 0.602020秒 / 1回
+  policy.py:2843 choose_ladder: 0.583270秒 / 1回
+  policy.py:7526 _choose_key_with_latch_capture: 0.580603秒 / 1回
+  policy.py:7918 _choose_key: 0.579834秒 / 1回
+  policy.py:10466 _decide: 0.240702秒 / 1回
+  policy_navigation.py:1124 _build_grid_index: 0.212694秒 / 2回
+  policy.py:2640 _begin_map_predicate_cache: 0.114210秒 / 1回
+  policy_town.py:104 _refresh_town_facts: 0.091851秒 / 2回
+  <string>:2 __hash__: 0.083612秒 / 72255回
+  ~:0 <method 'add' of 'set' objects>: 0.062902秒 / 84715回
+  policy_observation.py:87 _observe: 0.055398秒 / 1回
+  ~:0 <method 'discard' of 'set' objects>: 0.045592秒 / 104544回
+  policy.py:2571 _with_grid_memory: 0.029980秒 / 1回
+  ~:0 <built-in method builtins.hash>: 0.026661秒 / 72369回
+  ~:0 <method 'get' of 'dict' objects>: 0.024281秒 / 13711回
+  policy.py:5928 _town_producer_entry: 0.023334秒 / 44回
+  ~:0 <method 'pop' of 'dict' objects>: 0.017921秒 / 13073回
+  policy_combat.py:3994 _monster_cast_distance: 0.011955秒 / 6802回
+  policy.py:42 _fixed_quest_offers_from_grids: 0.010499秒 / 1回
+  model.py:777 is_rubble: 0.010088秒 / 26136回
+  policy.py:11784 <lambda>: 0.008367秒 / 1回
+  policy.py:2642 <genexpr>: 0.008063秒 / 13069回
+  policy_town.py:2509 _town_device_processing_key: 0.007704秒 / 1回
+
+turn 940553: choose_key実測 0.776564秒、key='\x1b`n(.'、reason=shop:travel
+  town_work.py:130 run: 0.776506秒 / 1回
+  item_reservation.py:191 run: 0.776354秒 / 1回
+  policy.py:2658 choose_key: 0.776320秒 / 1回
+  policy.py:2843 choose_ladder: 0.766383秒 / 1回
+  policy.py:7526 _choose_key_with_latch_capture: 0.766264秒 / 1回
+  policy.py:7918 _choose_key: 0.766247秒 / 1回
+  policy.py:10466 _decide: 0.579873秒 / 1回
+  policy_shop.py:5477 _shopping_approach_step: 0.232449秒 / 1回
+  policy_navigation.py:1124 _build_grid_index: 0.213105秒 / 2回
+  item_reservation.py:156 reservation_query_memo: 0.153905秒 / 960回
+  policy_town.py:4994 _find_town_organization_surplus: 0.138057秒 / 9回
+  policy_home.py:2540 _retention_surplus: 0.137711秒 / 689回
+  policy_helpers.py:227 _first_item: 0.134721秒 / 143回
+  policy_home.py:2048 _retention_reservation: 0.131947秒 / 271回
+  policy_home.py:2546 <lambda>: 0.130923秒 / 241回
+  policy_home.py:2549 _compute_retention_surplus: 0.130632秒 / 241回
+  policy_home.py:2061 <lambda>: 0.129271秒 / 271回
+  policy_home.py:2064 _retention_reservation_detail: 0.128781秒 / 271回
+  policy_home.py:2107 _retention_reservation_baseline_detail: 0.118302秒 / 271回
+  item_reservation.py:143 run: 0.115170秒 / 7回
+  policy_town.py:2876 _town_need_candidates: 0.114931秒 / 7回
+  policy.py:2640 _begin_map_predicate_cache: 0.110771秒 / 1回
+  policy_quest.py:420 _derived_home_visit_request: 0.097893秒 / 2回
+  <string>:2 __hash__: 0.093912秒 / 93505回
+  policy_shop.py:1154 _next_required_store_type: 0.092766秒 / 1回
+
+turn 940760: choose_key実測 1.551396秒、key='5'、reason=shop:travel:await-entry
+  town_work.py:130 run: 1.551310秒 / 1回
+  item_reservation.py:191 run: 1.551081秒 / 1回
+  policy.py:2658 choose_key: 1.551021秒 / 1回
+  policy.py:2843 choose_ladder: 1.354785秒 / 1回
+  policy.py:7526 _choose_key_with_latch_capture: 1.354635秒 / 1回
+  policy.py:7918 _choose_key: 1.354610秒 / 1回
+  policy.py:10466 _decide: 0.978748秒 / 1回
+  item_reservation.py:156 reservation_query_memo: 0.430536秒 / 1464回
+  policy_town.py:4994 _find_town_organization_surplus: 0.408161秒 / 13回
+  policy_home.py:2540 _retention_surplus: 0.404341秒 / 1056回
+  policy_navigation.py:1124 _build_grid_index: 0.387963秒 / 2回
+  policy_home.py:2546 <lambda>: 0.385522秒 / 376回
+  policy_home.py:2549 _compute_retention_surplus: 0.384681秒 / 376回
+  policy_home.py:2048 _retention_reservation: 0.369210秒 / 408回
+  policy_home.py:2061 <lambda>: 0.362248秒 / 408回
+  policy_home.py:2064 _retention_reservation_detail: 0.361063秒 / 408回
+  item_reservation.py:143 run: 0.354135秒 / 10回
+  policy_helpers.py:227 _first_item: 0.354036秒 / 201回
+  policy_town.py:2876 _town_need_candidates: 0.353762秒 / 10回
+  policy_home.py:2107 _retention_reservation_baseline_detail: 0.335982秒 / 408回
+  policy_shop.py:5477 _shopping_approach_step: 0.307177秒 / 1回
+  policy_home.py:4355 _find_home_deposit: 0.246828秒 / 3回
+  policy_shop.py:1081 _enumerate_live_store_claims: 0.234130秒 / 3回
+  policy_town.py:47 run: 0.224200秒 / 2回
+  policy_town.py:3760 _town_claims_active: 0.224068秒 / 2回
+
+支配的な重複:
+3盤面に共通する最大の独立した処理は_build_grid_index。各判断で2回、同じ13068セルを走査する。
+最初は町の外部producerの経路探索前、次は通常の探索処理前。両方が必要なため呼出自体は削除しない。
+各セルのis_rubble分類、閉じた扉/通行可能/壁の分類、プレイヤー照明内かの距離計算は同じ入力からの再計算。
+一方、階段失効、blocked集合、remembered集合は可変なので、索引全体を一度だけ作る変更は行わない。
+_retention_surplusも689/1056回など繰り返されるが、自宅/装備取引/保留操作など可変状態への依存が広い。今回は触れない。
+
+検証したキャッシュ案（不採用・コードは基準へ復元）:
+_build_grid_index内の純粋な地形分類と照明内判定だけを既存decision_memoで判断内にキャッシュした。
+policy・snapshot同一性で区別し、判断終了時に破棄。記憶集合・階段失効・blocked・モンスター処理は変更しなかった。
+3つの遅延盤面のキーと理由は変更前後で一致。分類本体は判断内で2回から1回へ減少。
+既存A/B記録を使う試験、および記憶更新・次判断の失効・別snapshot・直接呼出の試験も3件通過した。
+ただしこの試験コードと試作コードは採用していない。性能改善がないためコミット対象から外した。
+
+同じ条件の単独比較:
+基準コミットの_build_grid_indexをASTから取り出して実行し、試作との順番を交互にした30標本の中央値。
+1標本は同一判断コンテキストでの索引構築2回。時間は参考値でありassertしていない。
+  turn 938808: 基準 36.864ms、試作 43.074ms（16.8%増）
+  turn 940553: 基準 37.530ms、試作 44.328ms（18.1%増）
+  turn 940760: 基準 38.255ms、試作 43.781ms（14.4%増）
+
+なぜこの案では速くならないか:
+既知セルごとの分類結果を作るタプル/リストの確保と、その結果を再走査する費用が削減分を上回った。
+基準turn 940760の索引構築の内訳では、set.add 71618回/0.058秒、set.discard 104544回/0.090秒。
+is_rubbleは26136回/0.018秒、照明距離計算は6802回/0.021秒に留まる（プロファイラ値）。
+最大部分は純粋な分類ではなく、可変の記憶集合を更新する処理である。
+同一snapshotという理由だけで索引構築全体を省くと、その間の記憶・失効・通行不可状態の変更を反映できない。
+集合の共有/列挙順序やチェックポイントとの同値性も検証が必要で、今回の試作を広げて更新処理を省く判断はしない。
+
+停止判断:
+この制御実験では、対象の最大処理を単純な判断内キャッシュだけで速くする有効な変更を確認できなかった。
+元の16〜30秒も再現できていないため、この結果だけで実稼働時の最大原因を断定することもできない。
+タスクの停止条件に従い、性能が悪化した試作を捨てて診断のみを残す。修正完了とは扱わない。
+安全なキャッシュが原理的に存在しないと証明したわけではない。
+
+次の選択肢:
+1. 元の遅延時点の判断直前チェックポイント（claim/訪問履歴/自宅/校正/地形記憶を含む）を得て、
+   同じ理由まで再現したchoose_keyで再計測する。最大原因の確定にはこれを推奨。
+2. 地形索引の入力と変更履歴を明示した世代管理を別課題として設計し、集合更新を省略できる条件を検証する。
+   単なる同一snapshotによる省略は採用しない。閾値・検索予算の変更は不要。
+3. 現状の挙動を維持し、今回の診断と不採用案の測定結果だけを保管する（このコミットの状態）。
+
+生データ、cProfile、再生・比較スクリプト、不採用の試作は指定バックアップ配下だけに保管する。
+既存テスト、意思決定、閾値、探索予算、深度条件は変更していない。
