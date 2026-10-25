@@ -1,0 +1,4 @@
+mutation_check: interrupted while waiting for merge gate; no mutation run or record
+fast_tier: timeout after 60 seconds while waiting for merge gate
+remote_slow: timeout after 1050 seconds, seconds=1050.0
+remote cleanup: {"matched_own_scopes": 1, "stop_exit_codes": [0]}

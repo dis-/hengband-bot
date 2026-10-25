@@ -1,0 +1,26 @@
+test_recorded_follow_keeps_keys_and_reasons (old_action_pacing.ActionPacingTest.test_recorded_follow_keeps_keys_and_reasons) ... FAIL
+
+======================================================================
+FAIL: test_recorded_follow_keeps_keys_and_reasons (old_action_pacing.ActionPacingTest.test_recorded_follow_keeps_keys_and_reasons)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\spectate-followup-1025\tests\test_action_pacing.py", line 196, in test_recorded_follow_keeps_keys_and_reasons
+    [(row["key"], row["reason"]) for row in paced[2]],
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '7' != '8'
+- 7
++ 8
+
+
+----------------------------------------------------------------------
+Ran 1 test in 4.832s
+
+FAILED (failures=1)
+base: passed=False, failures=1, errors=0
+test_recorded_follow_keeps_keys_and_reasons (tests.test_action_pacing.ActionPacingTest.test_recorded_follow_keeps_keys_and_reasons) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 4.770s
+
+OK
+fixed: passed=True, failures=0, errors=0

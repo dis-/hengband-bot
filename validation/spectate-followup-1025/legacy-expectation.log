@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_equipment_changes_and_refresh (tests.test_spectator_melee_expected.MeleeExpectedTest.test_equipment_changes_and_refresh) (slot='body')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\spectate-followup-1025\tests\test_spectator_melee_expected.py", line 79, in test_equipment_changes_and_refresh
+    self.assertTrue(write(path, policy, raw)["melee_expected"]["stale"])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 1 test in 19.770s
+
+FAILED (failures=1)
