@@ -2593,7 +2593,9 @@ class QuestMixin:
                 )
             goals.discard(snapshot.player.position)
             residual_reason = f"quest-strategy:q2-residual-{race_id}-sweep"
-            for placement in unconfirmed:
+            # Visibility can temporarily confirm an owner before its route
+            # target is reached. Keep that commitment eligible on every board.
+            for placement in placements:
                 route_key = (snapshot.floor_key, -race_id, placement)
                 route_target = self._q2_phase_route_targets.get(route_key)
                 if route_target is None:

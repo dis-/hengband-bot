@@ -1,0 +1,308 @@
+{
+  "construction": "Recorded suffix boards with declared reconstructed phase boundary, not a live policy checkpoint. No post-divergence board is a simulated command effect.",
+  "captures": [
+    {
+      "label": "111126",
+      "source": "life-016/captures/20261025-111126-loop-detected/state.jsonl.gz",
+      "sha256": "dab8a156e83ce2a7c1fd41c1aae1f7e564daa6d04d1465f7117b89e28301cd3b",
+      "rows": 140,
+      "tail_decisions": [
+        {
+          "source_line": 200,
+          "decision_sequence": 18538,
+          "turn": 1097624,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 201,
+          "decision_sequence": 18539,
+          "turn": 1097633,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 202,
+          "decision_sequence": 18540,
+          "turn": 1097643,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 203,
+          "decision_sequence": 18541,
+          "turn": 1097657,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 204,
+          "decision_sequence": 18542,
+          "turn": 1097663,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 205,
+          "decision_sequence": 18543,
+          "turn": 1097676,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 206,
+          "decision_sequence": 18544,
+          "turn": 1097684,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 207,
+          "decision_sequence": 18545,
+          "turn": 1097692,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 208,
+          "decision_sequence": 18546,
+          "turn": 1097700,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 209,
+          "decision_sequence": 18547,
+          "turn": 1097705,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 210,
+          "decision_sequence": 18548,
+          "turn": 1097712,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        }
+      ]
+    },
+    {
+      "label": "111208",
+      "source": "life-016/captures/20261025-111208-loop-detected/state.jsonl.gz",
+      "sha256": "09cbc2294ab9fb2be8387aa6012a4d00eb7f3c34b26094d9dd243220f22245dc",
+      "rows": 139,
+      "tail_decisions": [
+        {
+          "source_line": 289,
+          "decision_sequence": 418,
+          "turn": 1101905,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 290,
+          "decision_sequence": 419,
+          "turn": 1101916,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 291,
+          "decision_sequence": 420,
+          "turn": 1101926,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 292,
+          "decision_sequence": 421,
+          "turn": 1101940,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 293,
+          "decision_sequence": 422,
+          "turn": 1101949,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 294,
+          "decision_sequence": 423,
+          "turn": 1101957,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 295,
+          "decision_sequence": 424,
+          "turn": 1101965,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 296,
+          "decision_sequence": 425,
+          "turn": 1101971,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 297,
+          "decision_sequence": 426,
+          "turn": 1101982,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        },
+        {
+          "source_line": 298,
+          "decision_sequence": 427,
+          "turn": 1101990,
+          "key": "4",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 4
+          }
+        },
+        {
+          "source_line": 299,
+          "decision_sequence": 428,
+          "turn": 1101999,
+          "key": "6",
+          "reason": "quest-strategy:q2-residual-86-sweep",
+          "position": {
+            "y": 1,
+            "x": 3
+          }
+        }
+      ]
+    }
+  ],
+  "fixture_sha256": "914381d4749ebbd9de53de289a63b08940655a371e276fe5d044d43a9166c974",
+  "skill_knowledge_source": "life-016/state.jsonl:3073 (recorded skill_exp, level 24); only knowledge and player.level retained",
+  "skill_knowledge": {
+    "knowledge": {
+      "category": "skill_exp",
+      "menu_key": "f",
+      "skills": [
+        {
+          "at_max": false,
+          "exp": 0,
+          "id": 0,
+          "max": 8000,
+          "name": "マーシャルアーツ",
+          "rank": 0
+        },
+        {
+          "at_max": false,
+          "exp": 4000,
+          "id": 1,
+          "max": 8000,
+          "name": "二刀流",
+          "rank": 1
+        },
+        {
+          "at_max": false,
+          "exp": 0,
+          "id": 2,
+          "max": 5000,
+          "name": "乗馬",
+          "rank": 0
+        },
+        {
+          "at_max": false,
+          "exp": 4000,
+          "id": 3,
+          "max": 8000,
+          "name": "盾",
+          "rank": 1
+        }
+      ]
+    },
+    "player": {
+      "level": 24
+    }
+  }
+}
