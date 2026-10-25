@@ -78,3 +78,37 @@ a64eca09b: フレーム列、バックログ制御、新規テスト、費用測
 8c3f4b71b: 多バイト文字を使うローテーション検証のサンプル保持。
 この報告はPythonでUTF-8、LF、BOMなしとして作成し、コード・テストの変更を伴わない別コミットに保存する。
 ゲーム・公開botの起動、停止、制御は行っていない。自分が起動していないプロセスの停止、push、merge、rebase、reset --hard、stash、GitHub等への投稿は行っていない。元からある未追跡ログ2件はそのまま保持した。
+
+第2ラウンド（Issue #47）
+日付: 2026-10-26
+報告確定時刻: 2026-10-26T03:54:54+09:00
+比較元: dace87f32320738873f861a7c15e1d9c8974ba0d
+検証対象のコード・テストHEAD: a64cbe592781a30385acb578322af2da7b5bed9d
+
+mainの統合
+最初にgit merge mainを実行した。mainは指定のdace87f32だった。scripts/town_work_manifest.json.gzの競合は、PYTHONPATH=srcで scripts/town_work_manifest.py --write を実行して再生成した。883候補・22,345サイト、未対応0件。再生成結果を採用し、マージコミットe5f1a7807に保存した。rebaseは行っていない。
+
+監督者の仕様変更に対応した既存テスト2件
+・tests.test_spectator.SpectatorFollowReplayTest.test_without_the_flag_no_file_and_the_same_keys_as_with_it
+  旧期待値: --spectate-file指定時に増えるファイルはspectate.jsonだけ。
+  新期待値: spectate.jsonとspectate-frames.jsonlの両方が増える。フラグなしではどちらも作られない。既存のキー・理由・判断列の一致検証は維持した。
+・tests.test_spectator_v2.SpectatorColourFollowTest.test_no_flag_no_colour_request_and_one_request_per_due_write
+  旧期待値: 時計固定時、間引かれた互換JSONの出力に対応して色要求は1回。
+  新期待値: フレームは投稿ごとに必要なので、投稿5件に対して色要求5回。フラグなしでは引き続き色要求0回。
+テストメソッド名は既存のまま維持した。変更はa64cbe592に保存した。第1ラウンドの「既存テストを変更しなかった」という記述は当時の記録であり、本ラウンドでは明示された仕様変更に従って上記2件を更新した。mainのマージ以外に、本ラウンドで実装ソースや他のテストを変更していない。
+
+検証結果
+比較元はすべてdace87f32、対象のコード・テストはa64cbe592。
+・関連3モジュール（tests.test_spectator / tests.test_spectator_v2 / tests.test_spectator_frames）: 32テスト、87.725秒、成功、終了コード0。補助実行の初回はPYTHONPATH=srcだけではテスト用ヘルパーをimportできず、src;testsへ補正して成功した。コード変更による回避は行っていない。
+・preflight: PREFLIGHT OK。変更13ファイル、指摘0件、終了コード0。変更した既存テストは上記2件として表示された。
+・mutation_check --tests tests.test_spectator_frames --record: 統合ゲートのフルテスト終了までツール内で約40分待機した後に実行。ソース差分11/11か所を検出、未検出0件、MUTATION OK、終了コード0。a64cbe592とソース・テストのツリーに対する記録を保存済み。
+・fast_tier --shards 4: 2,076テスト、133.5秒。失敗・エラー・異常終了なし、終了コード0。計測済みの重い51モジュールはツールの規則により除外された。
+・remote_slow --base dace87f32: Linux検証環境で1回だけ起動した。対象HEADの50モジュールは完了し、36モジュールが非成功となった。比較元の50モジュールとの比較は未完了。最終確認では今回の比較元ランナーは起動前の排他ロック待ちで、比較元の完了キャッシュも未作成だった。追加失敗数と最終終了コードは未確定。36モジュールの非成功を、そのまま追加失敗とは数えない。
+順序はpreflight、mutation_check --record、fast_tier、remote_slow。remote_slowには、実行ごとに別のツリーを作る更新済みのツールを使用した。Linux側でも他の検証との排他待ちが発生した。再実行はしていない。
+
+未完了事項と後続確認
+120分の作業上限を守るため、remote_slowが未完了の状態で本報告を確定した。したがって「全ガード完了」の要件は未達であり、remote_slow成功・全検証成功とは報告しない。起動済みの検証処理は停止していない。
+ログはリポジトリに追加せず、OS一時ディレクトリの spectate-frames-r2-validation-166f_i0e に保存した。remote_slow.logに実行記録があり、ツール終了時にresults.jsonへ終了コードと対象HEADが保存される。local_guards.jsonには本ラウンドのローカル検証結果を保存した。
+
+保存と作業範囲
+本追記はPythonでUTF-8、LF、BOMなしとして保存した。マージ・テスト修正とは別の報告コミットにする。元からある未追跡ログ4件は保持した。ゲーム・公開botの起動・停止・制御、自分が起動していないプロセスの停止、push、rebase、reset --hard、stash、外部サービスへの投稿は行っていない。
