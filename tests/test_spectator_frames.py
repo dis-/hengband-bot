@@ -321,7 +321,7 @@ class FramesWriterTest(unittest.TestCase):
             with patch("hengbot.spectator.SPECTATE_FRAMES_MAX_BYTES", 2048):
                 for number in range(30):
                     writer.observe(snapshot, "6", "test", number,
-                                   {"lines": ["???" * 25]}, append_frame=True)
+                                   {"lines": ["\u65e5\u672c\u8a9e" * 25]}, append_frame=True)
                 self.assertLessEqual(writer.frames_path.stat().st_size, 2048)
                 rows = [json.loads(line) for line in writer.frames_path.read_text(
                     encoding="utf-8").splitlines()]
