@@ -9,7 +9,7 @@ from pathlib import Path
 
 from hengbot.model import (
     Snapshot, Position, QuestState, StoreState, StoreItem,
-    STORE_GENERAL,
+    STORE_GENERAL, STORE_TEMPLE,
     TVAL_SWORD, TVAL_BOW, TVAL_ARROW, TVAL_LITE, SV_LITE_LANTERN,
     SV_LITE_TORCH, TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, SV_SCROLL_TELEPORT,
     TVAL_POTION, SV_POTION_CURE_CRITICAL, SV_POTION_SPEED, SV_POTION_HEALING,
@@ -53,6 +53,7 @@ class QuestTorchStallRecordedTest(unittest.TestCase):
         # supplied warrior board. This is not a byte-faithful state replay.
         row = case["decision"]
         actor = row["player"]
+        measured_force = row["fixedquest_readiness"]["strategy_force"]
         pos = Position(10, 9)
         return Snapshot(
             player(10, 9, level=actor["level"], hp=actor["hp"],
@@ -61,21 +62,24 @@ class QuestTorchStallRecordedTest(unittest.TestCase):
                    main_hand_to_h=50, main_hand_to_d=40),
             {pos: grid(10, 9),
              Position(10, 10): replace(grid(10, 10), store_number=STORE_GENERAL),
+             Position(10, 8): replace(grid(10, 8), store_number=STORE_TEMPLE),
              Position(11, 9): grid(11, 9, building_special=1)},
             [], town_flag=True, town_id=0, floor_key=(0, 0, 0),
             turn=row["turn"],
             quests={1: QuestState(1, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5),
                     34: QuestState(34, status=QUEST_STATUS_FINISHED, fixed=True, level=5)},
-            inventory=[
+            inventory=[held for held in [
                 item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10),
                 item("b", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
                 item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
-                item("d", TVAL_POTION, SV_POTION_SPEED, count=10),
-                item("e", TVAL_POTION, SV_POTION_HEALING, count=3),
+                item("d", TVAL_POTION, SV_POTION_SPEED,
+                     count=measured_force["speed_potions"]["measured"]),
+                item("e", TVAL_POTION, SV_POTION_HEALING,
+                     count=measured_force["heal_potions"]["measured"]),
                 item("f", TVAL_FOOD, 35, count=10),
                 item("g", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500),
                 item("h", TVAL_ARROW, 1, count=99),
-            ],
+            ] if held.count > 0],
             equipment=[
                 item("main_hand", TVAL_SWORD, 1, is_equipment=True,
                      damage_dice_num=2, damage_dice_sides=6, to_h=10, to_d=10),
@@ -117,6 +121,28 @@ class QuestTorchStallRecordedTest(unittest.TestCase):
                 self.assertFalse(policy._fixed_quest_ready(board, 1))
                 self.assertEqual(policy.fixed_quest_readiness_state()[
                     "strategy_force"]["failed"], ["throwing_items.lit_torch"])
+                measured = case["decision"]["fixedquest_readiness"]["strategy_force"]
+                self.assertEqual(policy._exact_potion_count(board, SV_POTION_SPEED),
+                                 measured["speed_potions"]["measured"])
+                self.assertEqual(policy._exact_potion_count(board, SV_POTION_HEALING),
+                                 measured["heal_potions"]["measured"])
+                if measured["heal_potions"]["measured"] < measured["heal_potions"]["required"]:
+                    # DECLARED CONSTRUCTED: the existing potion errand precedes
+                    # torches. Observe an empty Temple shelf through choose_key;
+                    # its ordinary stockout handling advances to General Store.
+                    self.assertEqual(policy.choose_key(board), "4")
+                    self.assertEqual(policy.last_reason, "shop:approach")
+                    policy.confirm_key_posted("4")
+                    temple = replace(board, player=replace(
+                        board.player, position=Position(10, 8)),
+                        store=StoreState(STORE_TEMPLE, []), turn=board.turn + 1)
+                    self.assertEqual(policy.choose_key(temple), "\x1b")
+                    policy.confirm_key_posted("\x1b")
+                    self.assertEqual(policy.choose_key(replace(
+                        temple, store=None, turn=board.turn + 2)), "6")
+                    self.assertEqual(policy.last_reason, "shop:approach")
+                    policy.confirm_key_posted("6")
+                    board = replace(board, turn=board.turn + 3)
                 self.assertEqual(policy.choose_key(board), "6")
                 self.assertEqual(policy.last_reason, "shop:approach")
                 policy.confirm_key_posted("6")
@@ -216,7 +242,7 @@ class QuestTorchStallRecordedTest(unittest.TestCase):
         for level in (9, 10, 25):
             with self.subTest(level=level):
                 policy = self.policy()
-                board = self.board(self.cases[0])
+                board = self.board(self.cases[1])
                 board = replace(board, player=replace(board.player, level=level))
                 self.assertEqual(policy.choose_key(board), "6")
                 self.assertEqual(policy.last_reason, "shop:approach")

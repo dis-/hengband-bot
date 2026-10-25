@@ -11,7 +11,9 @@ ISSUE: #47
 射影ファイル SHA256: c56ca3594f8edb272f898a770b9011ac1345d269b4b33a19216ee9daa5dabe8a
 各元行からdecision_sequence/turn/reason/key/floor/position/player/inventory、
 procurement_requirements/abandoned_quest_carry_requirements/fixedquest_readinessのみを保持。
-playerのlevel/hp/max_hp/goldと松明0/5を公開choose_keyの構成シナリオへ引き継ぐ。
-装備、職業、所持品詳細、町の地形、空のHome、在庫99本・価格1・燃料2500の棚、
+playerのlevel/hp/max_hp/gold、松明0/5、加速薬と体力回復薬の実測本数を
+公開choose_keyの構成シナリオへ引き継ぐ。
+装備、職業、その他の所持品詳細、町の地形、空のHome、空の寺院の棚、
+松明在庫99本・価格1・燃料2500の棚、
 英語UIの数量・確認画面、購入効果はテストで明示して構成する。
 元行にない実際の棚や購入を復元したという主張はしない。ゲーム・BOTには接続しない。
