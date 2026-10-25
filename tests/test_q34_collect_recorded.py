@@ -142,6 +142,12 @@ class Q34CollectRecordedTest(ProductionHarness):
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
         self.assertEqual(policy.last_reason, "chest:approach")
         self.assertEqual(policy._chest_position, Position(10, 9))
+        self.assertEqual(policy.decision_claim["owner"], "floor-loot")
+        self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
+        goal = Position(*policy.decision_claim["goal"]["cell"])
+        self.assertEqual(goal.distance_to(policy._chest_position), 1)
+        self.assertFalse(policy.decision_claim["goal_missing"])
+        self.assertIsNone(policy.decision_claim["violation"])
         self.post(policy, raw, key, dict(raw, turn=raw["turn"] + 10))
 
     def test_quest_chest_away_from_reservation_is_still_processed(self):
@@ -283,6 +289,21 @@ class Q34CollectRecordedTest(ProductionHarness):
         policy._deferred_loot.add(Position(11, 9))
         key = str(policy.choose_key(parse_snapshot(raw, {})))
         self.assertEqual((key, policy.last_reason), ("o2", "chest:open"))
+        self.post(policy, raw, key, dict(raw, turn=raw["turn"] + 10))
+
+    def test_visible_underfoot_junk_does_not_bypass_shared_judgment(self):
+        policy = make_policy(self.data)
+        observe_until(policy, self.data["rows"], 286)
+        raw = copy.deepcopy(self.data["rows"][286])
+        # DECLARED CONSTRUCTED: the observed pile underfoot consists only
+        # of remains; the immediate pickup branch must apply floor judgment.
+        raw["player"]["y"], raw["player"]["x"] = 9, 9
+        raw["grid_map"]["found_items"] = [[9, 9, 1, 1]]
+        raw["grid_map"]["cells"].append({"y": 9, "x": 9, "o": 1, "t": [1]})
+        policy._processed_chest_positions.add(Position(10, 9))
+        key = str(policy.choose_key(parse_snapshot(raw, {})))
+        self.assertFalse(key.startswith("g"))
+        self.assertNotEqual(policy.last_reason, "quest:sweep:pickup")
         self.post(policy, raw, key, dict(raw, turn=raw["turn"] + 10))
 
     def test_shared_junk_and_deferral_rules_filter_quest_sweep(self):
