@@ -1,0 +1,42 @@
+stuck:wanderの時間測定。性能変更は行っていない。
+実運転24判断のtiming欄（ミリ秒）:
+choose_key_ms: {"median": 1641.0815, "min": 1591.064, "max": 1727.79}
+parse_snapshot_ms: {"median": 59.305499999999995, "min": 56.092, "max": 118.283}
+facts_ms: {"median": 33.9405, "min": 31.074, "max": 37.261}
+send_ms: {"median": 19.081, "min": 16.967, "max": 31.101}
+total_ms: {"median": 1785.1995, "min": 1703.532, "max": 1928.606}
+
+主な時間はchoose_key内（中央値1641ms）、パース59ms・facts34ms・送信19ms。
+このstage別計測は実運転の記録。選択結果を再現できないcold replayのprofileとは区別する。
+以下は公開choose_keyの新規policy再生で同じ記録盤面seq21069を入力した参考profile。
+実際の選択はtown:blocked:owner-retired。stuck:wanderの同一内部状態のprofileではない。
+別窓の調査プロセスも走っていたため、絶対所要時間の比較には用いない。
+累積時間は親子で重複し、足し合わせない。
+town_work.py:130 run calls=1 self=0.000051 cumulative=0.905796
+item_reservation.py:191 run calls=1 self=0.000025 cumulative=0.905655
+policy.py:2658 choose_key calls=1 self=0.000326 cumulative=0.905596
+policy.py:2843 choose_ladder calls=1 self=0.000039 cumulative=0.692808
+policy.py:7526 _choose_key_with_latch_capture calls=1 self=0.000016 cumulative=0.692624
+policy.py:7918 _choose_key calls=1 self=0.003042 cumulative=0.692608
+policy.py:2640 _begin_map_predicate_cache calls=1 self=0.004131 cumulative=0.239468
+policy.py:10466 _decide calls=1 self=0.001010 cumulative=0.231069
+policy_town.py:104 _refresh_town_facts calls=36 self=0.039219 cumulative=0.227756
+policy_navigation.py:1118 _build_grid_index calls=2 self=0.123070 cumulative=0.217851
+policy_town.py:1603 _town_procurement_decision calls=1 self=0.000116 cumulative=0.175915
+item_reservation.py:143 run calls=7 self=0.000114 cumulative=0.155906
+policy_town.py:2864 _town_need_candidates calls=7 self=0.001229 cumulative=0.155751
+policy.py:2571 _with_grid_memory calls=1 self=0.036220 cumulative=0.155044
+policy_town.py:47 run calls=1 self=0.000031 cumulative=0.143619
+policy_town.py:3748 _town_claims_active calls=1 self=0.004044 cumulative=0.143548
+policy_town.py:150 <genexpr> calls=8992 self=0.055946 cumulative=0.119932
+policy_town.py:3965 _departure_blocking_town_needs calls=5 self=0.000296 cumulative=0.105382
+policy_helpers.py:227 _first_item calls=185 self=0.002883 cumulative=0.101206
+policy_town.py:4982 _find_town_organization_surplus calls=14 self=0.000445 cumulative=0.099684
+policy_shop.py:1081 _enumerate_live_store_claims calls=1 self=0.000033 cumulative=0.090868
+~:0 <method 'get' of 'dict' objects> calls=22218 self=0.040667 cumulative=0.086361
+policy_town.py:4045 _departure_supplier_core calls=4 self=0.000078 cumulative=0.083697
+policy_home.py:2540 _retention_surplus calls=1323 self=0.002138 cumulative=0.071834
+
+参考ではグリッド索引構築、町fact更新、need評価が主要な費用。
+実運転と同じstuck判断の関数内配分を確定するには、その直前の完全なpolicy checkpointが必要。
+この制約を隠してcold profileの費用を実運転の費用に読み替えていない。

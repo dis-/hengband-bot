@@ -1,0 +1,240 @@
+ISSUE #47 町の用事: S2後の診断（2026-10-25）
+対象: town-post-s2-1025 / 起点57cbb35e4 / タスク追加3ce9f559a
+比較: S2取り込み0f8835a7
+状態: 診断のみ。実装修正・出発成功の認定は行っていない。
+文字コード: Python write_text(encoding='utf-8', newline='\n')、BOMなし。
+
+1. 証拠と限界
+A1: n1a-ownerburst-1025/20261025-140428-town-blocked-owner-retired-burst/
+A2: 同/20261025-142631-town-blocked-owner-retired-burst/
+B0: n1b-town-osc-1025-1906/n1b-dec-onset-1845-1852.jsonl.gz
+B1: 同/n1b-dec-tail.gz
+B2: 同/n1b-state-tail.gz
+以下、キャプチャの行番号はgzip展開後の1始まり。判断行はdecision_sequenceのある行だけ。
+ソース行番号は57cbb35e4。実運転の版と調査版を混同しない。
+
+A1は99判断・状態106行、A2は112判断・状態109行。
+B0は9837判断、B1は111判断、B2は完全JSON598行（元の2..599行）。
+B2の1行目は途中で切れているため除外。末尾だけで前半18:47の状態は復元できない。
+ポリシーチェックポイント、owner-retired-log-only.jsonl、その直前600判断は指定コピーにない。
+control-at-stop.json.gzは画面とゲーム状態でありポリシーチェックポイントではない。
+したがってneed_attempts=9/8、passes_since_progress=45、出発失敗葉の全組、
+「直前600判断」の166/121/47/41/20/19はこのコピーからは独立検証不能。
+推測で検証済みにしない。A2の47回だけは同名reasonの実数と一致する。
+
+2. A1（14:04）は賞金受取の反復
+A1/bot-decisions.jsonl.gz:1..99: bounty:approach 92、
+town-progress-invariant:defect:bounty:cashout=>town-progress-invariant:approach 3、
+bounty:leave-supplier 3、停止1。
+停止行99: seq11869、turn850875、位置(36,104)、Lv29、gold4487。
+事前説明の「Lv31」はA2に該当し、A1には該当しない。
+退役はquest-request。claim7428、rung _town_order_step4_key#2、
+work_id normal-step4-bounty、目標Reach(25,71)、距離33。
+arbiterはtenure4、progress=false、残予算0、retired=true。
+
+同:95（seq11865、turn850505、位置26,72）:
+賞金受取の直前に、鍵がESC+`n&.に置換され、Magicへ送られる。
+同:96はMagic(38,106)のbounty:leave-supplier。
+同:97..99は再び賞金窓口へ戻る途中。これが3回繰り返された。
+賞金の本体: src/hengbot/policy.py:17761、受取の合成:17818付近。
+上位の町順序: src/hengbot/policy_town.py:2354。
+S2宣言: src/hengbot/town_terminal.py:1618..1619 はNO_REFUSAL。
+つまり賞金はS2でREFUSEDになったのではなく、ADMITの後で別の裁定に負けた。
+後段裁定: policy_town.py:1146 _town_result_makes_progress、
+:1298付近の指紋再訪、:1600 _town_procurement_decision、
+:1797付近の代案生成、:1953の鍵置換。
+賞金の「7cy\\x1b」は純粋方向キーに一致せず、通常の歩行証明を通らない。
+指紋が再訪だと、受取という複合コマンドも非進捗とされる。
+代案は町順序の賞金より低い店の用事でも選ばれる。
+S2の「拒否された終端はlive serverに譲る／named close」はここでは作動対象にならない。
+ADMITされた終端を後段が変更するため、S2を直すだけで拒否を減らしてもこの反復は残る。
+実行停止はcli.py:558..600。stdout:12076がhard_stop、:12077が停止。
+同じstdout:5123、:7114には以前のforced_departureもあり、
+owner-retired-burstが常に即停止したという意味ではない。
+
+3. A2（14:26）は別のHome保留と資金稼ぎの反復
+A2/bot-decisions.jsonl.gz:1..112:
+fundraise:departure-blocked 47、boxed-breakout-travel 26、
+home:leave-for-pending-withdraw 13、shop:observe-and-leave 12。
+停止:112、seq23089、turn1197330、位置45,123、Lv31、gold234。
+停止のclaimは15427 / town-plan / town:blocked:repetition。
+arbiterはtown-planを退役（tenure1、progress=false）。
+
+同:3はhome:queue-catalogue-shortage、
+:4はhome-errand:atomic-withdraw:identification-catalog。
+S2のfundraisingはprepareでno-digging-tool/no-detectionを拒否し、
+stored-digger、stored-detection等のserverへ譲る（yields1）。
+同:65..等ではfundraising/mineがfundraising-departure-unreadyで、
+liveなしのterminal-refused-unservedとして既に閉じている。
+同時にhome-withdrawの対象「財宝感知の巻物」(70,26)はreservation-unavailable、
+yields8、closed=yield-without-server-progressとなっている。
+従って「S2が拒否を見落とした」だけではない。既に記録上は閉じている。
+その後もfundraise:departure-blockedのWAITが繰り返され、別のランドマーク移動が続く。
+:111はHomeでleave-for-pending-withdraw、:112がrepetitionの退役停止。
+Homeの途中退出: policy.pyのHome処理、S2拒否commit:town_terminal.py:1843。
+そのcommitはStoreVisitとHomeVisit報告を閉じるが、
+legacyの_home_pending_item/_home_pending_batchを消費・延期する処理ではない。
+既存の延期処理はpolicy_home.py:3846 _defer_unobserved_home_withdrawal。
+S2帳簿closed_terminalsの参照はtown_terminal.py:2061付近だけ。
+他の出発・資金稼ぎ・供給先から同帳簿を直接参照する経路はない。
+admission.admittedは:2052で先にTrueを返すため、
+閉じた終端に後からADMITが出た場合も、その場で閉じを優先する仕様ではない。
+「帳簿に閉じがある」と「その用事が清算され、出発できる」は異なる。
+stdout:23460はhard_stop、:23461が停止。失敗したminimumの葉はこのログには出ていない。
+監督メモの失敗葉の組は未検証のままとする。
+
+4. B: 前半の整理と末尾の反復を区別する
+B0:1330 seq2245 18:47:14、Home(45,123)でjunk-sweep-withdraw。
+:1331 seq2246はfull-home-discardのatomic-withdraw。
+:1332 seq2247はjunk-sweep:plain-gear（鍵01ki）。
+:1333 seq2248でshop:travel:await-entryのWAITがMagicではなくAlchemistへ置換
+（鍵ESC+`n%.、実際の行先37,91）。
+診断markerが指すwinning_rungはshop:travel:await-entryであり、
+ジャンク破壊コマンド01kiそのものではない。
+S2のhome-atomic-withdrawはwrong-surface-or-pendingを拒否しnamed close。
+進捗裁定はWAITを非進捗とし、保存済みの購入候補を代案にして外へ送る
+（policy_town.py:1185付近、:1433以降、:1953）。
+その後も:1337..1339で次のジャンクを取り出して破壊している。
+:1342 seq2257がこの前半ファイル唯一のroute-claim-unfulfilled。
+:1343..1376で買い物へ歩き、:1379 seq2294では購入する。
+このコピーから「18:47から同じ往復が20分間継続」は裏付けられない。
+
+B0全体のroute-claim-unfulfilledは1、observe-and-leaveは13、
+boxed-breakout-travelは3。B1ではそれぞれ19、19、39。
+監督値253/256/466を検証する中間区間の判断ログは指定コピーにない。
+両ファイルの和を20分全体の総数に読み替えない。
+
+B1:1..10（seq20982..20991、19:05:18以降）:
+(27,76)からHome(43,91)へESC+`n(.、
+Homeでroute-claim-unfulfilledによるESC、
+そこからMagicへESC+`n&.、Magicでobserve-and-leaveによるESC。
+所持金14044で品の増減を伴わない。B1:2、:6、:10等で再びHome不成立。
+来店のstore_visitはowner=town-errand、purpose=shopping、
+operation_posted=false。移動claimはdetectors、work_id route:store:43,91。
+識別のための特定品withdraw要求と断定できる記録ではない。
+Homeに保留品はなく（home_candidate_waiting=false）、
+後述のRECOVERYが生成される型と整合するが、
+HomeVisitRequestそのものは判断行に記録されていないため、kindの実測ではない。
+
+決定する経路:
+policy_town.py:2036 _boxed_town_breakout_route は別の店を順に選ぶ。
+:2089 _commit_boxed_town_breakout_key がrouter_plan_stop=Trueで本当に来店を作る。
+policy_shop.py:5477はHomeの要求をfileし、store visitを取得する。
+policy_quest.py:420..526 _derived_home_visit_request は、
+取出し・預け・scanがなければ最後にhome-recovery/RECOVERYを作れる。
+town_terminal.py:407はWITHDRAW以外をHome取り出しの終端としない。
+:1564..1573はHomeでWITHDRAWがなければterminal=None。
+さらにpolicy.py:5911、town_terminal.py:685はdetectorsを免除する。
+policy_shop.py:5833付近もdetectorsのルートをその免除で通す。
+Home内のpolicy.py:9453..9486は実行できた操作がないと
+route-claim-unfulfilledを返し、店の試行だけを記録する。
+planが終わってもboxedは別のlandmarkへvisitを新規作成するので、
+「閉じた同じ町の用事」としてS2に戻っていない。
+記録中のS2 named closeは主に解呪のno-remove-curse-scrollと、
+取り出しのsurface/entrance条件。無目的な来店自体の拒否ではない。
+故にHomeで何の操作も完了せず、Magicの空振り観測と交互になる。
+
+B1:80以降では外の移動・戦闘が混ざり、stuck:wanderが24判断。
+最初は19:05:44、最後は19:06:25。保存末尾のreasonはgame-saveで停止ではない。
+
+5. 再生についての厳密な区別（結果は別添に確定する）
+公開choose_keyと_consume_response_sequenceを使用し、ゲームへの送信はlambdaで遮断。
+盤面はキャプチャの完全JSON行。各窓で同じ新規policyを保ち、confirm_key_postedを呼ぶ。
+~fの応答が窓にないため_skill_exp_request_keyだけを無効化した宣言済みの壁がある。
+Home履歴・校正ファイルは一時領域。実運転のファイルを書かない。
+チェックポイントのない新規起動再生なので、実運転と一致しない結果もそのまま保存する。
+A1では賞金の歩行を再現するが、受取直前は7cy\\x1bを選ぶ場合があり、
+観測された店への置換を同じ内部状態で再現できたとは言わない。
+A2では33行目より前の状態がなく、33行目以降の80判断だけが対象。
+BはHomeカタログと解呪方針の欠落により初手がrh/town:remove-curseになる。
+従ってこの再生を、反復の退治・実運転での出発成功・厳密な原因導入判定に使わない。
+
+6. 実装前の停止条件
+タスク2の「S2設計または所有者決定で直せない新しい規則なら診断後で止める」を適用する。
+A1はADMIT済み賞金操作の後段置換、Bは終端なしのdetector来店であり、
+既存S2のREFUSEDに対するserver/closeだけを調整しても両方を包含しない。
+S2設計3.5（設計書:148..149）は終端Noneを判定対象外、detectorsを免除とし、
+後段置換されたADMITコマンドの扱いやRECOVERYの有用性判定を規定しない。
+そこを「当然こうする」と新しい規則で埋める修正は行わない。
+A2の拒否commitだけ直す部分修正でもA1/Bを解消したことにはならない。
+
+選択肢A（推奨）:
+S2の1つの裁定に、実行結果の所有者・終端の対応も持たせる。
+ADMITされた複合終端を進捗の文字列形だけで別用事へ置換しない。
+detectorsが実際の来店を作る場合は、借りる用事の終端を判定し、
+具体的操作・未観測情報のないRECOVERYは名前付きで閉じる。
+これはdetectors免除とNone終端の境界の追加決定。
+効果: A1の横取りとBの無目的来店を共通の判断に載せられる。
+A2ではclosed terminalと保留の清算を同じwork identityで接続する必要がある。
+必須出発条件や物の実在確認を緩めない。既存のS2対照は維持する。
+
+選択肢B:
+detectors免除は維持し、landmark往復を独立の持続する用事として、
+既存上限に従って閉じる規則を加える。
+効果: 反復を有限にできるが裁定が二系統となり、要求の「1つのS2判断」から外れる。
+
+選択肢C:
+Homeだけの欠品延期や賞金コマンドだけの場面分岐を足す。
+効果: 一部の症状だけ変わり、一般のdetector横取りを残す。今回の制約に反するため不採用。
+
+本診断ではソース・既存テストの期待値は変更しない。
+修正後の進捗pinと出発確認は未実施。反復解消済みとは報告しない。
+保存キャラの継続運転は、追加の判定決定と完全なチェックポイントが揃った後の確認には有用。
+今回は指示通り実行していない。
+
+
+7. 比較再生の確定値
+公開choose_keyでA1=99判断、A2=80判断、B末尾=111判断を両版で再生。
+記録された鍵・reasonとの一致: A1 94/99、A2 6/80、B 5/111。
+0f8835a7と57cbb35e4の再生結果の鍵・reasonは全290判断で一致した。
+不一致をテストの成功に読み替えず、そのままreplay-*.json.gzに保存した。
+例: A1 seq11829/11865では新規policyは7cy\x1bを選び、元の横取りを再現しない。
+A2 seq23010ではrdj.../identify:full、B seq20982ではrh/town:remove-curse。
+S2直後と現基準の制限付き再生に、後発変更による鍵・reasonの差はなかった。
+町進捗裁定、boxed route、Home fallbackの当該関数は両版で同じ。
+後発の2e82d94aaはHome拒否報告とdispatcher継続を追加するが、
+A1/Bの経路を新しく導入した変更ではない。
+ただし元運転の内部状態を再現できていないので、
+「S2自身が症状を導入した」との因果判定までは認定できない。
+既存の欠陥がS2の適用外に残ったことと、S2が欠陥を作ったことを分ける。
+
+8. 参照箇所の全数一覧と範囲
+validation/town-post-s2-1025/refusal-sites.txt と同JSONに、
+拒否・退役・転送の呼び口、町の選択状態の代入、および
+policy/Home/arbiterのreturn-Noneを保守的に列挙した。
+通常の非適用や純粋関数のNoneも含むため、全行が町の拒否とは主張しない。
+関数ごとの式もJSONで読める。イベント別の具体的な決定箇所は2..4節に記した。
+S2: town_terminal.pyの各verdict、may_take_board、commit_refusal。
+並列: policy.py:5820のholder deferral、:5884のplan順序、:5911の免除、
+policy_town.py:1603の進捗裁定、:3749のclaim候補除外、
+:3989以降の供給先可否、:4413のstop/pass清算、
+policy_shop.py:1609のrearm、:1860のattempted、
+:5477の来店取得、:5819の歩行・原子的操作・観測不能stop、
+policy.py:9453のHome内空振り、policy_home.py:1390のscan待ち退役、
+home_visit.py:127..397のfile/approach/entry/operation/report、
+home_errand.py:57..112のfile/観測拒否/finish、
+town_arbiter.py:404のretire、:688以降のmay_select、
+policy.py:2843以降の選択後退役、cli.py:558の最終停止境界。
+これらはS2のREFUSEDだけで一本化されているわけではない。
+
+9. 時間測定と帳簿
+B1のstuck:wander 24判断のtiming欄:
+choose_key中央値1641.0815ms（1591.064..1727.790）、
+parse中央値59.3055ms、facts33.9405ms、send19.081ms、
+total中央値1785.1995ms（1703.532..1928.606）。
+約2秒の大部分は選択処理内。通信待ちが大半という記録ではない。
+参考のcold replay profileではグリッド索引、町fact、need評価が主な費用。
+これは別の選択結果のprofileであり、実運転のstuck処理の関数配分とは認定しない。
+詳細・計測の限界はvalidation/town-post-s2-1025/timing.txt。
+性能修正は行っていない。
+
+manifestはPythonで再生成。880候補、call_sites 22297、registry_sites112、
+ladder_sites102、unmapped0。生成結果は現HEADと同一でコミット差分なし。
+town_producer_baseline721項目、town_work_review880項目。
+新しいpolicy helperもpolicy属性も追加していないため、登録・復元defaultの追加はなし。
+既存テストのassertion変更は0。新しいテストモジュールは作らない
+（診断後停止のため、修正後pinを作っていない）。
+小さなgzip抜粋をtests/fixturesに保存し、元ファイル・行番号・SHA256を
+validation/town-post-s2-1025/provenance.jsonに記録する。
+抜粋のstate/decisionsは同一turnが複数ある場合も保持し、
+単なるturn一致で実運転の判断境界が完全復元できるとは認定しない。
