@@ -1974,6 +1974,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "6caf6f83d6c1de7c414592b76400955c5e8ea4cc28057674f8ac6c3443a0325b"
   },
+  "policy.py:HengbotPolicy._count_oil": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e0c3e52d2d26c1898dcf2e286e82f07bd0402cea010bf3c2bfb3ae4e3ca31544"
+  },
   "policy.py:HengbotPolicy._count_potion": {
     "classification": "data",
     "rows": [
@@ -2078,7 +2086,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b19b7e6e81230f67eda78a7a5ff4e8d59924040d4298377bd3a4ade4a7a9054f"
+    "ast_sha256": "0fca38ad7cbfb0a4814122fbb6d2c2a689212e64ac345bc285111eefb93d65f9"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5877,7 +5885,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "9fda312d7b5508ae9a2bf2b9f1452284ee4a58215f0c40921eaae42da5637066"
+    "ast_sha256": "b570a42178f01a96b9a9db412aa569e03cb30231c900728390e3f7a17772319f"
   },
   "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness.reject": {
     "classification": "data",
@@ -6999,7 +7007,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e0e0ae2dac44b1663646c60e66cab52afc889625a18f0ce9524bf86e182b951b"
+    "ast_sha256": "ab2e9a93b5f51c42626ce586db2c979f9c21dfce816d91948a4214675c87898b"
   },
   "policy_supply.py:SupplyMixin._find_capped_identify_staff_release": {
     "classification": "data",
@@ -7072,6 +7080,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "d57fc7c18f63bc5fbc17bc148978c3491fa0b4db5e70f105e144cad9b1f563e0"
+  },
+  "policy_supply.py:SupplyMixin._light_judgment": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "2b9a86e540855db0c71377fd870452ac2fbc9e15a36df55267a066176e55d75d"
   },
   "policy_supply.py:SupplyMixin._light_ready": {
     "classification": "data",

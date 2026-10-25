@@ -4,7 +4,7 @@ from hengbot.item_reservation import reserved_item_command
 from collections import deque
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.model import (
@@ -43,6 +43,41 @@ from hengbot.quest_strategies import StrategyProfile
 _SUPPLY_LEDGER_OBSERVER_MEMO: ContextVar[dict | None] = ContextVar(
     "_SUPPLY_LEDGER_OBSERVER_MEMO", default=None
 )
+
+
+@dataclass(frozen=True)
+class LightJudgment:
+    """光源の問いへの一つの答え（光源と燃料の ROOT-FIX、#47）。
+
+    worn: 装備中の光源。fuel_using: 燃料を使う光源（ランタン・たいまつ）。
+    faint: 鑑定済みの燃料を使う光源の燃料が LANTERN_DIM_WARNING_FUEL 未満
+    （ゲームの「明かりが微かになってきている」、lite-processor.cpp:71）。
+    refill: 所持の補給品。swap: 付け替えられる光源。oil: 所持の油の数。
+    """
+
+    worn: InventoryItem | None
+    fuel_using: bool
+    faint: bool
+    refill: InventoryItem | None
+    swap: InventoryItem | None
+    oil: int
+
+    @property
+    def faint_without_refill(self) -> bool:
+        return self.faint and self.refill is None
+
+    @property
+    def releases_one_shot_quest(self) -> bool:
+        """USER DECISION 2026-10-25「油を持って入り、微かなら帰る」の B。
+
+        微かで補給も付け替えもできなければ、一度きりのクエストの出口の鍵を解く。
+        """
+        return self.faint and self.refill is None and self.swap is None
+
+    @property
+    def one_shot_quest_entry_ready(self) -> bool:
+        """同じ決定の D: 燃料を使う光源なら油 OIL_TARGET 本を持って入る。"""
+        return not self.fuel_using or self.oil >= OIL_TARGET
 
 
 @contextmanager
@@ -420,22 +455,50 @@ class SupplyMixin:
             return not self._oil_below_departure_target(snapshot)
         return self._count_usable_torches(snapshot) >= FOOD_STOCK_TARGET
 
+    def _light_judgment(self, snapshot: Snapshot) -> LightJudgment:
+        """光源の問い（使えるか・微かか・補給・付け替え・油）の一つの答え。
+
+        出発の確認、一度きりのクエストの入場と出口の鍵、ダンジョンでの
+        light-low の帰還と暗がりの歩きは、これを通して答える
+        （tests/test_light_judgment_census.py が列挙した箇所を確かめる）。
+        """
+        worn = next((item for item in snapshot.equipment if item.is_light), None)
+        fuel_using = worn is not None and worn.sval <= SV_LITE_LANTERN
+        # Normal lights warn below 100 fuel at ten-step marks
+        # (src/object/lite-processor.cpp:71).
+        faint = (
+            fuel_using and worn.known and worn.fuel < LANTERN_DIM_WARNING_FUEL
+        )
+        refill = self._light_refill_item(snapshot)
+        swap = None
+        if faint and refill is None:
+            swap = (
+                self._darkness_torch(snapshot)
+                or self._empty_lantern_to_restore(snapshot)
+                or self._light_to_wield(snapshot)
+            )
+        return LightJudgment(
+            worn=worn,
+            fuel_using=fuel_using,
+            faint=faint,
+            refill=refill,
+            swap=swap,
+            oil=self._count_oil(snapshot),
+        )
+
     def _expedition_light_ready(self, snapshot: Snapshot) -> bool:
-        equipped = next((item for item in snapshot.equipment if item.is_light), None)
+        judgment = self._light_judgment(snapshot)
+        equipped = judgment.worn
         if equipped is None:
             return False
-        if equipped.sval > SV_LITE_LANTERN:
+        if not judgment.fuel_using:
             return True
         if not equipped.known:
             return (
                 equipped.is_lantern
                 and not self._oil_below_departure_target(snapshot)
             )
-        # Normal lights warn below 100 fuel at ten-step marks
-        # (src/object/lite-processor.cpp:73).
-        if equipped.fuel >= LANTERN_DIM_WARNING_FUEL:
-            return True
-        return self._light_refill_item(snapshot) is not None
+        return not judgment.faint_without_refill
 
     def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_quest_head=True) -> bool:
         # A loot-collecting quest (its reviewed profile opts in with
