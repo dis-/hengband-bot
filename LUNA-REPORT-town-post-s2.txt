@@ -186,3 +186,35 @@ named close済み・posted操作なし・同じheld batchに属する・現カ�
 producer baselineにも入れた分類誤りだった。town_work_reviewのdata分類は保持し、
 不要なbaseline entryを削除した。baseline確定値は726、reviewは886。
 いずれも修復ラウンド1内の帳簿修正であり、既存テストの変更はない。
+
+
+第2修復（実在品対照と最終検証の再実行）:
+追加したtest_town_post_s2_visit_controlsの実在品対照が失敗した。
+来店前にはshopping_approach_store_typeが前の店を指しているため、
+Home取り出しのmaterialが対象をNoneと読んでいた。terminal_admissionで
+file済みTerminalRefの品目identityをgather_home_withdrawへ明示的に渡す。
+カタログ内の実在判定自体はそのままで、実在品はADMIT、欠品はREFUSEDとなる。
+同対照は修正前に終了1、修正後に1件成功。既存assertionの変更はない。
+
+この対照を加えた中間fast tierは終了1。新規対照の失敗1件に加え、
+共有の最新timingsが別の木4d239862fの一覧だったため、
+基準57cbb35e4にも当枝にも存在しないtest_action_pacingと
+test_bounty_cashout_recorded_1025のimport errorが2件あった。
+これらは(R)実装修正の退行ではなく、共有検査入力の不整合である。
+guard本体は編集せず、標準の--timings引数で、基準の祖先124fa2ac9の
+全batch完了・greenな計測一覧を選ぶ。第1ラウンドで3830件成功した同じ一覧で、
+無いmoduleを空実装して通したり、既存期待値を変更したりしていない。
+
+中間の19 hunkのrevertはNOT CAUGHT 0で終了0だったが、
+最終ソースの証拠はこの修復後にpreflightから再実行して確定する。
+追加対照が未commitだったため、中間結果のgreen記録は保存されていない。
+中間fastが非成功のためLinux検証はまだ起動していない。
+修復ラウンドはこれで2回。以後のFAILは追加修復せず報告して停止する。
+
+開発中の既存失敗の補足:
+(R) test_town_terminal_declarations.test_4_codes_and_table_agree:
+新helperのreturn式にneedのnormal文字列まで含めたため宣言コード対照に違反した。
+materialの構成とverdictのreturnを分けて修正し、既存対照の成功を確認した。
+(R) test_item_sink_lint.test_repository_item_sinks:
+追加adapterの登録・helper分類不足。第1修復で解消した。
+前記(R) test_76_captureも通常routerへ判定を広げた退行として修正済み。

@@ -8437,7 +8437,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "ed953db377528b447e80496d93554c77d420f4b7f89b68936c0191613a2022a0"
+    "ast_sha256": "a2a3278bfbe540ac91faf8d58ed44a0e154e08c9891c705aba662d328b64b703"
   },
   "town_terminal.py:verdict_home_withdraw": {
     "classification": "data",

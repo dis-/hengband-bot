@@ -2025,6 +2025,9 @@ def terminal_admission(policy: Any, board: Any, terminal: TerminalRef) -> Admiss
     verdict = _TERMINAL_VERDICTS.get(terminal.terminal_id)
     admission = (verdict_quest_work(gather_quest_work(policy, board))
                  if terminal.terminal_id in QUEST_WORK_TERMINALS
+                 else verdict_home_withdraw(gather_home_withdraw(
+                     policy, board, target=terminal.args[0]))
+                 if terminal.terminal_id == "home-withdraw"
                  else verdict_visit(policy, board, terminal)
                  if terminal.terminal_id in {"store-route", "home-recovery"}
                  else verdict(policy, board) if verdict is not None else ADMIT)
