@@ -209,3 +209,68 @@ tests.test_ownership_s2a_classification.CensusSeparationTest の次の2件:
 残作業は、既存の所有権・arbitration契約を保った回収claimの表現への修正と、その再検証。
 新しい分類・予算を独断で追加せずに直す必要がある。150分の作業上限に従ってここで終了する。
 remote_slowは1回のみで、追加の実行はしていない。
+
+
+ラウンド3 — census と arbitration の整合修正（Issue #47）
+2026-10-26 / 基準 dace87f32 / 検証対象HEAD 487ee079cefc172bea764bd929b7a5d6b4491a0d
+
+修正内容
+town_arbiter.py の floor-loot 登録を既存の census-only 群の位置へ戻し、
+quest:sweep: の先行分類を撤去した。登録順と分類表は基準 dace87f32 と一致する。
+quest: の理由は従来どおり quest-request に所属し、census と arbitration が一致する。
+新しい分類・予算・定数・閾値は追加していない。
+
+公開判断で床上回収の移動を返すとき、QuestFloorNavigator.decide は内部の
+quest:sweep:collect を既存の loot: 名前空間の loot:seek-quest-sweep に置き換え、
+選択済み _loot_target の Reach をその所有者で再宣言する。これにより内部の
+クエスト名義の goal を引き継がず、既存 floor-loot / _normal_loot_key の rung と
+対象セルを維持する。内部 _sweep の理由と既存の直接呼び出し契約は維持した。
+不要になった floor-loot 向け quest:sweep: の goal typing 2行も削除した。
+
+ラウンド2で追加した記録テストでは公開出力の理由名の期待値2か所だけを変更した。
+回収対象・claim所有者・Reach・rung・違反なし・follow executor の各検証は維持した。
+既存テストは変更していない。基準との差分で tests 配下はラウンド2の追加モジュールと
+小さな gzip fixture だけである。生成メタデータを更新した。
+
+検証結果
+指定の CensusSeparationTest の2件: 成功、2件、3.526秒。
+tests.test_ownership_s2a_classification 全体: 成功、16件、46.878秒。
+tests.test_q34_collect_recorded 全体: 成功、12件、26.941秒。
+上記は codex runtime Python 3.12.14、PYTHONPATH=src;tests;scripts で実行した。
+最初の2件実行は scripts を PYTHONPATH に含めず import error となったため、
+正しい検索パスで実行し直した。テスト本体の失敗を期待値変更で隠していない。
+
+preflight の初回は runtime Python 3.12 の AST ハッシュで既存3.13版の生成情報が
+全面変化し、生成情報の不一致で失敗した。既存環境と同じ実体の Python 3.13.14 で
+再生成し、不要な大量差分を解消した。その同じ版で以下のゲートを実行した。
+preflight: 終了コード0、経過141.2秒
+mutation_check: 終了コード0、経過47.6秒
+fast_tier: 終了コード0、経過136.6秒
+
+mutation_check --record（基準 dace87f32）:
+[mutation] incremental: green record at 1745fc07c; hunks unchanged since then are skipped
+[mutation] caught     src/hengbot/quest_navigator.py:202 (if owner.last_reason == "quest:sweep:collect":): test_found_items_work_after_restart_without_loot_observation_history, test_recorded_invisible_swords_enter_shared_loot_candidates
+[mutation] MUTATION OK: 0 of 19 hunks are not pinned by a test
+[mutation] recorded for 487ee079
+既存の成功記録を継承した GREEN EARLIER は18ハンク。変更されたハンクは
+今回あらためて単独リバートで検出した。全ハンクの再検証を行ったという意味ではない。
+
+fast_tier（基準 dace87f32、4分割）:
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-x03gytko)
+Failures: none
+Errors: none
+Total: 2068 tests, 136.3s
+
+検証対象ソース・テスト tree:
+src/hengbot: d00e5212128c34df8fcb26f6d4dbe9bceab29204
+tests: f7f83abb2df88f8c5c2ac5b852069be02d6eeb8f
+報告のみの後続コミットはこれらの tree を変更しない。
+ログと実行スクリプトの保存先:
+C:/hengband-backups/q34-collect-r3-verification-1026/
+
+ラウンド2で残った既存所有権テスト2件の失敗は解消した。回収・箱処理・prompt応答の
+12件もすべて成功した。変更後の実ゲーム録画を追加取得したものではなく、以前の記録と
+構成した応答による回帰検証である。remote_slow は今回の指示どおり実行していない。
+ゲーム・BOT の接続・操作・停止、push・merge・rebase・stash は実施していない。
+開始時から存在した sol-q34*.log は変更・コミット対象から除外した。
+本節は Python の write_text(..., encoding="utf-8") で追記した。
