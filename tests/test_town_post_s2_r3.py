@@ -28,8 +28,14 @@ class AdmittedCompositeAndRefusalTest(recorded.ProductionHarness):
         policy._town_claim_bar_enforced = False
         # Fault only the downstream judgment; the bounty-specific positive
         # recognition must not mask missing general ADMIT protection.
-        with patch.object(policy, "_town_result_makes_progress", return_value=False):
+        progress_judgment = policy._town_result_makes_progress
+        with patch.object(
+                policy, "_town_result_makes_progress",
+                side_effect=lambda snapshot, proposed, **kwargs: (
+                    False if proposed == "7cy\x1b"
+                    else progress_judgment(snapshot, proposed, **kwargs))) as judgment:
             key = self.decide(policy, board)
+        judgment.assert_not_called()
         self.assertEqual((key, policy.last_reason), ("7cy\x1b", "bounty:cashout"))
         game, result = self.drive_cashout(
             raw, policy, key, "Hand wanted remains over? [y/n]")
