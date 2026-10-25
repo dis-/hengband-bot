@@ -334,3 +334,87 @@ mainへのmergeはしていない。既存テストのassertion変更0、本体�
 終了コードと最終件数は未確認。実行中の検証processは停止していない。
 5箇所のpinと全19 hunksのmutation成功は確定したが、fast tierを含む全検証の完了は宣言しない。
 日本語報告はPythonのencoding='utf-8', newline='\n'で追記し、privacyチェックPASSを確認した。
+
+
+第4ラウンド（2026-10-26、ISSUE #47）
+結論: 所有者決定と既存テストの旧期待値が直接衝突したため、指定のSTOP条件で停止する。
+実装・既存assertionは変更していない。修正完了・全検証成功とは報告しない。
+
+main統合:
+- 最初に git merge main を実行。基準mainは dace87f32。
+- scripts/town_work_manifest.json.gz のみ競合。PYTHONPATH=src で
+  python -X utf8 scripts/town_work_manifest.py --write により再生成して解消した。
+- merge commit: 0e54321117706e2daf6dc639ba46c6f08911f28b。
+- manifest: 889 candidates / 22427 sites / unmapped 0。
+
+指定4件の再現:
+PYTHONPATH=src;tests;scripts、実体のPython 3.13、-X utf8、unittestで
+指定の完全修飾名4件を一括選択した。4件実行、34.458秒、失敗4、終了1。
+個々の独立起動とモジュール全体の実行は、この後のSTOPにより実施していない。
+
+(R) tests.test_policy_town.TownAndFundraisingPolicyTest.
+    test_blocked_fundraising_steps_off_store_instead_of_reentering
+- tests/test_policy_town.py:3116。旧期待値 '6'、現値 None。
+- src/hengbot/policy_town.py:6420-6426 の追加S2判定がreturn Noneし、
+  既存の店入口からの退避処理（同:6454-6461）に到達しない。
+
+(R) tests.test_policy_town.TownAndFundraisingPolicyTest.
+    test_completed_town_plan_immediately_downgrades_blocked_fundraising
+- tests/test_policy_town.py:3141。旧期待値 mode='prepare'、現値 'mine'。
+- 同じ追加判定が、完了済み計画の既存fallback（policy_town.py:6435-6444）を
+  実行する前に返す。このためモードの切替が行われない。
+
+(R) tests.test_policy_town.TownCycleDetectorTest.
+    test_ready_mining_cycle_break_promotes_back_from_scavenge
+- tests/test_policy_town.py:12476。旧期待値 WAIT_KEY='5'、現値 None。
+- 同じ追加判定により、既存のdeparture-blocked待機とhandoff処理
+  （policy_town.py:6462-6464）へ到達しない。
+以上3件は追加判定が既存の準備・退避処理まで遮断した退行として分類する。
+4件目でSTOP条件を確認したため、これらの修正にも進んでいない。
+
+所有者決定との衝突（STOP対象）:
+tests.test_policy_town.TownPriorityStage3Round1RecordedTest.
+    test_p4_attempted_surplus_deposit_does_not_block_departure
+- 旧期待値: str(key) == '7'（tests/test_policy_town.py:14834）。
+- 新しい実測値: str(key) == 'rga'、reason='town:recall-to-angband'。
+- 該当する決定文（LUNA-TASK-town-post-s2-r2.txt:8-9、LOCKED）:
+  an ADMITted composite terminal (e.g. the bounty hand-over macro 7cy\x1b) must not be replaced by a later stage
+  with another errand just because of the progress fingerprint;
+
+実行時の切分け:
+1. 元のテストと同じ104盤面を公開choose_keyへ入力し、同じdeparture readinessの
+   既存wallを用いると、'rga' / town:recall-to-angband を返す。
+2. メモリ内の対照だけで、帰還reasonのときに限り後段seamの直前で
+   admitted_commandsを空にした。ソースやテストファイルへの編集は行っていない。
+3. seam直前の実測:
+   key='rga'、admitted_commands={'rga': 'town:recall-to-angband'}。
+   実行提案は producer='departure'、work_id='town:recall:1'、
+   next_step='recall.scroll.send'、arguments=('g', 1)、expected_effect='recall-activated'。
+4. 保護を外した後段は '7' に置換し、既存テスト1件が成功する。
+   実行提案は producer='detectors'、work_id='route:store:37,91'、
+   next_step='route.resume'、expected_effect='arrive:37,91'。
+   shopping_approach_store_type=4、decision goalは同座標へのReachだった。
+   これは帰還の入力ではなく、別の店へ向かう用事の移動である。
+5. 置換後のreasonは
+   town-progress-invariant:defect:town:recall-to-angband=>town:recall-to-angband
+   となる。両側のreason文字列が同じでも、実行提案・移動先・所有者は異なる。
+   reasonだけを見て旧キーを帰還操作と解釈してはならない。
+6. 対応コードはpolicy.py:6014-6021のADMIT複合操作の記録、
+   policy_town.py:1655-1657の後段置換防止。
+   保護を外すと同:1809の別用事の候補生成から同:1957-1971の置換へ進む。
+
+判断:
+旧期待値 '7' を満たすには、上記のADMIT済み帰還を別の店の移動へ差し替える
+旧挙動を復活させる必要がある。これは引用した所有者決定に反する。
+したがって本件を通常の(R)として直すことも、既存期待値を無断変更することもせず、
+LUNA-TASK-town-post-s2-r4.txt の明示STOP条件を適用する。
+旧期待値を 'rga' に改めるか、決定の適用範囲を変更するかの判断が必要である。
+本ラウンドではどちらも実施していない。
+
+検証・保存状況:
+- 上記の公開経路再現とメモリ内対照は完了。ソース・既存テスト変更0。
+- STOPに従いtests.test_policy_town全体、round-2/3 modules、
+  基準dace87f32のmutation_check --recordは未実施。
+- ゲーム/BOT操作、push、mainへのmerge、他人のprocess制御は行っていない。
+- 未追跡の既存ログ・validation資料はそのまま保持し、commit対象に含めない。
+- 本追記はPythonのencoding='utf-8', newline='\n'で保存する。
