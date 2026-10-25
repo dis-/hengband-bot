@@ -218,3 +218,23 @@ materialの構成とverdictのreturnを分けて修正し、既存対照の成�
 (R) test_item_sink_lint.test_repository_item_sinks:
 追加adapterの登録・helper分類不足。第1修復で解消した。
 前記(R) test_76_captureも通常routerへ判定を広げた退行として修正済み。
+
+
+最終ソース固定後の検証スナップショット（2026-10-25 21:42 JST）:
+- ソース・新規対照のコミット: 9e57dbf44。以後の追記は報告のみ。
+- 新規公開盤面pin・対照: test_town_post_s2_r2 7件成功（50.794秒）。
+- 実在品の追加対照: test_town_post_s2_visit_controls 1件成功（0.836秒）。
+- 最終preflight: 終了0、22変更ファイル、指摘0、184.670秒。
+- 最終mutation_check --record: 共有merge gateのフルスイート完了待ち。
+- 最終fast tier: mutation後に実行予定。基準祖先のgreen timingsを明示する。
+- Linux検証: 未起動。最終fastの後に1回だけ実行する。
+- 最終ソースの既存記録窓14件: mutation後、ソースを戻し終えてから再確認予定。
+
+中間版24b874c0cでは、既存記録窓14件が804.110秒で全件成功した。
+これは品目identityの明示前のソースであり、最終版の14件成功とは呼び替えない。
+同じ中間版のmutationは19 hunkすべてを検出しNOT CAUGHT 0、終了0だったが、
+最終版のgreen記録はまだない。最終検証未完了を「根治完了」と報告しない。
+既存テストへの変更は0。テスト差分は記録gzip抜粋6個と新規2 moduleだけ。
+
+最終census: 886 candidates / 22387 call_sites / 112 registry_sites / 102 ladder_sites / unmapped 0。
+baseline 726 / review 886。
