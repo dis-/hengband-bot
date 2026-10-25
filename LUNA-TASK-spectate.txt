@@ -66,3 +66,6 @@ Rules (mandatory):
 
 - Guards at the end (owner decision 2026-10-25): preflight, mutation_check (only hunks changed since this branch's last
   green record), fast_tier, then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\spectate-v2-1025 (paste its last lines).
+- Write every text file (reports, diagnoses) with Python, encoding='utf-8', newline='
+'. PowerShell Set-Content / Out-File
+  turned all Japanese into '?' on 2026-10-25.
