@@ -1,0 +1,109 @@
+ISSUE #47: 光源不足による退出の確認所有（2026-10-25）
+
+状態: 実装修正とローカル検証は完了。Linux検証環境のslow検証は、環境側の作業ディレクトリ消失により未完了。
+
+原因と修正
+光源ROOT-FIXの帰還は _light_releases_quest_exit で一度きりのクエストの退出制限を解除し、階段上で return:ascend の '<' を選んでいた。一方、quest_leave_confirmation_owned は「固定クエストではない、runtime kill クエストがある、その退出制限が解除済み」という経路しか認めず、固定ONCEのQ2では退出確認を所有できなかった。runtime killでも、光源不足だけによる解除は同じ問題を持っていた。
+
+src/hengbot/policy_quest.py の quest_leave_confirmation_owned に、既存の _light_releases_quest_exit(snapshot) を所有条件として追加した。これにより、帰還が使用する光源判断と確認所有が同じ解除条件を使う。階段キーであること・町ではないことの条件は両経路の外側で保持し、既存のruntime killの進捗・生存理由による解除経路も保持した。
+cli.py の確認文、Continuation、送信処理は変更していない。光源不足が退出を許可したとき、既存の送信処理が同じ操作に確認用 'y' を束縛する。鍵が残る階段操作は確認を未所有のまま残し、実行器が可視停止する。
+
+根拠は既決の「油を持って入り、微かなら帰る」（2026-10-25）。新しい定数・閾値・特定クエストや階専用の分岐は追加していない。新しいpolicy属性と復元チェックポイントの既定値は不要。純粋な移動のhunkはない。町の処理一覧 scripts/town_work_manifest.json.gz は最終ソースから再生成した（883 candidates / 22327 sites / zero unmapped）。
+
+前回のピンが見逃した理由
+前回のROOT-FIXの退出ピン(b)、test_lightless_pair_leaves_instead_of_alternating は、記録103行目の ('4', 'dark:backtrack') と104行目の ('<', 'return:ascend') を choose_key の戻り値まで検証していた。ゲームへの投稿後に出る確認画面、quest_leave_confirmation_owned、_quest_leave_continuations、実行器による継続送信には到達していなかった。そのため、正しい階段キーが選ばれても確認が未所有で停止する不具合を検出できなかった。
+
+追加ピンと戻し検証
+追加モジュール: tests/test_light_leave_confirm_recorded.py。
+既存の tests/fixtures/light-rootfix-q2-20261025.jsonl.gz をSHA-256で確認して使用した。新しい採取・ゲームデータのコピーはない。
+本番経路: choose_key → _send_decision_key_with_prompt_chain → _ExecutorInputPort → OperationExecutor → ControlClient。通信の相手は既存のFaithfulHookGameで、実ゲームは操作していない。policyメソッドの差し替えは0。skill-exp cache、runtime RANDOMへの変更、油ありの対照、確認画面と退出後の境界は構築した入力として明示した。
+確認文は正確に「本当にこの階を去りますか？[y/n]」。screen/stateに input_context.kind=confirm と同じpromptを与え、画面分類がCONFIRMであることも確認した。
+
+(a) test_fixed_once_light_return_answers_confirm_in_same_post
+記録103行目（fixture index 4）の '4' を実行器に送り、受理と completed を検証。続く104行目（index 5）で choose_key が選んだ '<' / return:ascend を同じ本番送信経路に通す。1回の送信呼出しで受理列 ['<', 'y']、completed。修正を戻すと '<' の後で stuck-prompt となり、この成功アサーションが失敗する。
+
+(a-runtime) test_runtime_kill_light_return_answers_confirm_in_same_post
+同じ燃料0の階段盤面をruntime RANDOMのクエストに変更した対照。通常の _quest_floor_exit_locked がTrueであることを確認し、光源解除だけが働く状態で choose_key → 送信を通す。受理列 ['<', 'y']、completed。修正を戻すと固定ONCEと同じく確認が未所有で失敗する。
+
+(b-104) test_fuel_104_keeps_lock_and_confirm_unowned
+燃料104の記録盤面では _return_exit_locked=True、choose_key は '<' を選ばない。送信境界へ意図的に '<' を注入した場合も、受理列は ['<'] のみ、stuck-prompt、input_contextはconfirmのまま。修正前後とも成功する対照。
+
+(b-oil) test_oil_keeps_lock_and_confirm_unowned
+燃料0でも油を携帯すれば同様に鍵を保持し、choose_key は '<' を選ばない。注入した階段操作は 'y' を送らず停止。修正前後とも成功する対照。
+
+追加対照 test_light_release_does_not_own_non_stair_or_town_confirm
+光源解除盤面でも通常移動キーや町の確認を所有しない。修正前後とも成功。
+
+戻し検証は自分のソース差分を git apply -R し、try/finallyで元の内容へ復元して実施した。5件中、固定ONCEとruntime killの2件だけが失敗、残る3件は成功（終了コード1、18.422秒）。その後、103行目の移動自体も実行器を通すよう補強した最終版では5件成功（20.688秒）。指定のmutation_checkでも最終版を対象に戻し検証し、同じ固定ONCE・runtime killの2件で検出できた。
+既存テストの本文・期待値・名前・条件は変更していない。
+
+検証結果と最終ガード
+実装・テストの検証対象HEAD: 040557314f37ba7a48f5e22ef263b3110a92b01a
+preflight / mutation_check / fast_tier の比較基準: 0aa8069bd。
+個別検証（すべて終了コード0）:
+- tests.test_light_leave_confirm_recorded: 5件成功、20.688秒。
+- tests.test_quest_leave_confirm_recorded: 既存の6件成功、45.693秒。進捗による解除と、鍵保持時の停止の送信ピンを含む。
+- tests.test_light_rootfix_q2_recorded: 既存の12件成功、59.401秒。
+ローカル検証で失敗した既存テストはない。ガード後の修正・修復ラウンドは0回。
+
+以下は実行順のガード出力。各コマンドは python -X utf8 と C:/hengband-backups/guard-tools のスクリプトを使用した。
+
+preflight.py <この作業ツリー> 0aa8069bd
+[preflight] PREFLIGHT OK: 4 changed files, 0 findings (light-leave-confirm-1025 vs 0aa8069b)
+
+EXIT_CODE=0
+
+mutation_check.py <この作業ツリー> 0aa8069bd --tests tests.test_light_leave_confirm_recorded --record
+[mutation] 1 source hunks, tests: tests.test_light_leave_confirm_recorded
+[mutation] caught     src/hengbot/policy_quest.py:4557 (answers it when the shared light judgment releases the return exit): test_fixed_once_light_return_answers_confirm_in_same_post, test_runtime_kill_light_return_answers_confirm_in_same_post
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 04055731
+
+EXIT_CODE=0
+
+fast_tier.py <この作業ツリー> 0aa8069bd --shards 4
+[fast] 2857 fast tests (<2.0s in 0aa8069bd) + 1 changed modules, 4 shards
+[fast] excluded 51 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-266dibq3)
+Failures: none
+Errors: none
+Total: 2862 tests, 176.6s
+
+EXIT_CODE=0
+
+remote_slow.py <この作業ツリー> --base 0aa8069bd
+[slow] 040557314: running 49 modules, 3 at a time
+[slow] 040557314:                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: PosixPath('Linux検証環境の作業ディレクトリ')
+Traceback (most recent call last):
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 131, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 109, in main
+    branch = run_tree(root, head, modules, workers, reuse=False)
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 91, in run_tree
+    return json.loads(ssh(f"cat {result}", check=True).stdout)
+                      ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 44, in ssh
+    return subprocess.run([*SSH, command], capture_output=True, text=True, errors="replace", **kwargs)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Linux検証環境のコマンドが失敗（接続引数は非掲載）
+
+EXIT_CODE=1
+
+slow検証の限界
+remote_slowは1回だけ実行した。修正HEADの49モジュールを3並列で開始した後、実行途中で作業ディレクトリが存在しなくなったことを示すFileNotFoundErrorが発生した。結果JSONの取得も失敗し、終了コード1となった。直前には自分が開始した検証ジョブ内で tests.test_experience_potion と tests.test_unaffordable_claim_tour_recorded が実行中であることを読み取り専用で確認できていた。
+失敗後の読み取り専用確認:
+target_tree_exists=false
+result_exists=false
+
+この結果からは完了したテスト件数、テストの成否、比較基準との差分は判定できない。比較基準の実行・比較段階にも到達していない。ソースの回帰を示すテスト失敗の情報は得られていないため、環境・検証ツール側の未完了として扱う。作業ディレクトリ消失の実行主体と原因は未確定。別プロセスへの操作やツールの変更は行っていない。「remote_slow once」の指示に従い、再実行していない。
+
+レポートはPythonの encoding='utf-8', newline='\n' で作成した。Linux検証環境の固有名・接続情報・絶対作業パスは匿名化し、例外の接続引数は非掲載とした。
+最終コミットはこのレポートだけで、検証済みのsrc/hengbotとtestsのツリーを変えない。mutationの記録は対象HEADと同じsrc/hengbot・testsのツリーをキーに保存されている。
+開始時から存在した sol-light-leave.err.log と sol-light-leave.out.log は変更・コミットしていない。既存のタスクファイルも変更していない。実ゲーム・BOTの操作、他者プロセスの停止、push・merge・rebase・reset --hard・stashは行っていない。

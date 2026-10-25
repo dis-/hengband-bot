@@ -1,0 +1,24 @@
+ISSUE: #47 (spectator follow-ups, two small defects found live after main 4d239862 went to the viewing bots)
+Branch spectate-followup-1025 at main 4d239862f (worktree C:\hengband\bot-client\.worktrees\spectate-followup-1025).
+
+1. melee_expected.stale is always true. Live 2026-10-25 21:2x on both viewing bots right after a restart (no equipment
+   change): {'per_round': [80, 42], 'total': 122, 'stale': True, ...}. Cause (supervisor): the remembered equipment and
+   the current snapshot.equipment are compared by (slot, name) over ALL slots, and some names change by themselves
+   every turn - the light's name carries its remaining turns 「真鍮のランタン(2609ターンの寿命)」, and activatable items
+   can show charging state. Owner decision (melee damage per action, 2026-10-25 「1回の行動の分だけ」) only needs
+   "the weapon changed" to mark the value old. Fix: compare only what changes melee damage and does not change by itself:
+   the main_hand and sub_hand slots (weapon identity). Keep everything else display-only and unchanged. Pins through the
+   real producers: a light's turns changing does not make it stale; swapping the main-hand weapon does; restored
+   checkpoints unaffected. Revert proofs.
+2. tests.test_action_pacing.ActionPacingTest.test_recorded_follow_keeps_keys_and_reasons failed once in the merge gate
+   under load and passed alone (gate 2026-10-25 20:5x, recorded as flaky). A new test must not depend on wall-clock
+   timing. Make it deterministic with the fake clock the other pacing pins use (or whatever makes it independent of
+   machine load) without weakening what it proves (keys and reasons identical with and without the option). This is a
+   test of branch spectate-pace-1025, merged in main; you may change it (say so in the report). Run it 5 times in a row
+   while another heavy test module runs beside it to show it no longer flakes.
+
+Rules: Python UTF-8 for text files (PowerShell turns Japanese into '?'); never stop processes you did not start; no
+game/bot control; no push/merge/rebase/reset --hard/stash; other existing tests (= tests at 4d239862f) unchanged. Guards
+before reporting: preflight / mutation_check --record / fast_tier with base 4d239862f, then remote_slow once
+(fast_tier and mutation_check wait by themselves while the merge gate runs). Token budget 80k HARD, wall time 45 min.
+Write LUNA-REPORT-spectate-followup.txt in Japanese and commit.
