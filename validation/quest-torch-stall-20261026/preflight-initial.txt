@@ -1,0 +1,2 @@
+[preflight] FAIL manifest: the town work manifest was stale; it has been regenerated - commit it (regenerate after the LAST source edit)
+[preflight] PREFLIGHT FAIL: 7 changed files, 1 findings (quest-torch-stall-1026 vs dace87f3)

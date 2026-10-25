@@ -1,0 +1,49 @@
+.FF..FF.
+======================================================================
+FAIL: test_level_boundary_uses_the_same_existing_procurement_route (tests.test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_level_boundary_uses_the_same_existing_procurement_route) (level=10)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-torch-stall-1026\tests\test_quest_torch_stall_recorded.py", line 213, in test_level_boundary_uses_the_same_existing_procurement_route
+    self.assertEqual(policy.last_reason, "shop:approach")
+AssertionError: 'explore' != 'shop:approach'
+- explore
++ shop:approach
+
+
+======================================================================
+FAIL: test_level_boundary_uses_the_same_existing_procurement_route (tests.test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_level_boundary_uses_the_same_existing_procurement_route) (level=25)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-torch-stall-1026\tests\test_quest_torch_stall_recorded.py", line 213, in test_level_boundary_uses_the_same_existing_procurement_route
+    self.assertEqual(policy.last_reason, "shop:approach")
+AssertionError: 'explore' != 'shop:approach'
+- explore
++ shop:approach
+
+
+======================================================================
+FAIL: test_public_route_buys_torches_through_executor_then_requests_quest (tests.test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_public_route_buys_torches_through_executor_then_requests_quest) (source='n1-a-decisions-tail.jsonl.gz')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-torch-stall-1026\tests\test_quest_torch_stall_recorded.py", line 121, in test_public_route_buys_torches_through_executor_then_requests_quest
+    self.assertEqual(policy.last_reason, "shop:approach")
+AssertionError: 'explore' != 'shop:approach'
+- explore
++ shop:approach
+
+
+======================================================================
+FAIL: test_public_route_buys_torches_through_executor_then_requests_quest (tests.test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_public_route_buys_torches_through_executor_then_requests_quest) (source='n1-b-decisions-tail.jsonl.gz')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-torch-stall-1026\tests\test_quest_torch_stall_recorded.py", line 121, in test_public_route_buys_torches_through_executor_then_requests_quest
+    self.assertEqual(policy.last_reason, "shop:approach")
+AssertionError: 'explore' != 'shop:approach'
+- explore
++ shop:approach
+
+
+----------------------------------------------------------------------
+Ran 6 tests in 7.330s
+
+FAILED (failures=4)
