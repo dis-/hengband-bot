@@ -28,6 +28,7 @@ class _DecisionOffers:
     steps: list = field(default_factory=list)
     no_steps: list = field(default_factory=list)
     waits: list = field(default_factory=list)
+    admitted_commands: dict = field(default_factory=dict)
     sequence: int = 0
 
     def next_sequence(self) -> int:
@@ -6009,6 +6010,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # confirmation writes, so they must precede this commit too.
             return commit_refusal(self, board, terminal, rung_name=rung_name)
         key = call()
+        if (admitted and terminal is not None and isinstance(key, str)
+                and len(key) > 1 and not key.startswith("\x1b`n")
+                and key not in {RESTOCK_WAIT_MACRO, "\x1b\x1b"}
+                and any(offer[0] == key and offer[8] == "acting"
+                        for offer in self._execution_offers_for())):
+            # Bind ADMIT to this producer's actual composite operation. A later
+            # fingerprint may judge its route, but cannot substitute an errand.
+            self._decision_offer_buffer().admitted_commands[key] = self.last_reason
         # OFF runs the same admission probe, then runs the historical producer.
         # Bind a refused entry to that producer's actual result. A later output
         # of the same family cannot borrow this evidence.

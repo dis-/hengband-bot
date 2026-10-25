@@ -1653,6 +1653,16 @@ class TownMixin:
                 )
             return None
         proposed_reason = self.last_reason or ""
+        if self._decision_offer_buffer().admitted_commands.get(key) == proposed_reason:
+            if (
+                key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}
+                and self._town_result_makes_progress(
+                    snapshot, key, reason=proposed_reason
+                )
+            ):
+                # ADMIT preserves the command and its emit-time bookkeeping.
+                self._home_scan_source = "~9"
+            return key
         if (key == "" and self._home_knowledge_scan_inflight
                 and self._home_knowledge_scan_epoch is not None
                 and proposed_reason == "home:scan-await-observation"
@@ -2110,7 +2120,7 @@ class TownMixin:
             if store_type == current_store:
                 continue
             step = self._shopping_approach_step(
-                snapshot, store_type, router_plan_stop=True
+                snapshot, store_type, router_plan_stop=True, route_family="detectors"
             )
             if step is None:
                 continue
@@ -6450,6 +6460,20 @@ class TownMixin:
                     if neighbors:
                         self.last_reason = "fundraise:departure-blocked-step-off"
                         return self._step_toward(snapshot, neighbors[0])
+                # Admission governs the fundraising wait, not the pack,
+                # exhausted-plan or entrance remedies above. A refused wait
+                # yields to live town work. After cycle recovery has exhausted
+                # that work and S2 has named the close, retain the existing
+                # visible handoff instead of resuming the errand.
+                from hengbot.town_terminal import (
+                    fundraising_intended_terminal, may_take_board,
+                )
+                terminal = fundraising_intended_terminal(self, snapshot)
+                if not may_take_board(self, "_fundraising_key#1", "fundraising",
+                                      snapshot, terminal):
+                    if (not self._town_restock_suppressed
+                            or terminal not in self._town_visit_ledger.closed_terminals):
+                        return None
                 self.last_reason = "fundraise:departure-blocked"
                 self.prompt_owner_handoff = "town:blocked:departure-no-light"
                 return WAIT_KEY

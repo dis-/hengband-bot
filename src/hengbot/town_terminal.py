@@ -736,7 +736,7 @@ QUEST_ENTRY_CODES = frozenset({
 })
 
 # Codes the store-buy verdict can return (verdict_store_buy).
-STORE_BUY_CODES = frozenset({"supplier-unreachable", "no-matching-offer", "page-not-composable", "store-page-not-fresh", "sale-item-unavailable", "sale-retains-digging-tool", "sale-not-accepted"})
+STORE_BUY_CODES = frozenset({"supplier-unreachable", "no-matching-offer", "page-not-composable", "store-page-not-fresh", "sale-item-unavailable", "sale-retains-digging-tool", "sale-not-accepted", "store-observation-current"})
 # Codes the Home deposit verdict can return (verdict_home_deposit).
 HOME_DEPOSIT_CODES = frozenset({"town-order-step4-pending"})
 # Codes the worn-curse removal verdict can return (verdict_curse_remove).
@@ -750,7 +750,7 @@ IDENTIFY_CODES = frozenset({"no-identification-source"})
 IDENTIFY_CARRIED_CODES = IDENTIFY_CODES | {"full-identification-exhausted"}
 # Codes the Home withdrawal verdict can return (verdict_home_withdraw).
 HOME_WITHDRAW_CODES = frozenset({
-    "reservation-unavailable", "wrong-surface-or-pending", "not-at-home-entrance",
+    "reservation-unavailable", "wrong-surface-or-pending", "not-at-home-entrance", "home-recovery-no-work",
 })
 # Codes the entrance deposit verdict can return.
 HOME_ATOMIC_DEPOSIT_CODES = frozenset({"home-full-relief-pending"})
@@ -847,6 +847,8 @@ TERMINAL_CODES |= CROSS_TOWN_CODES | FUNDRAISING_CODES
 # Who serves each refusal code.  An empty right side is explicit: no town
 # owner can satisfy it, so the terminal closes for the visit.
 REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
+    "home-recovery-no-work": (),
+    "store-observation-current": (),
     "item-command-reserved": (),
     "disposal-quantity-invalid": (),
     "equipment-dispatch-rejected": (),
@@ -1130,7 +1132,8 @@ def home_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalRef | No
     target = home_withdraw_target(policy, board)
     if target is None:
         return None
-    return TerminalRef("home-withdraw", (target,))
+    request = policy._home_visit.request
+    return TerminalRef("home-withdraw", (target, tuple(request.batch)))
 
 
 def home_atomic_withdraw_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
@@ -1573,6 +1576,41 @@ def shopping_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     return TerminalRef("store-route", (store, tuple(categories))) if categories else None
 
 
+def visit_intended_terminal(policy: Any, board: Any, store: int) -> TerminalRef | None:
+    """A detector borrows the concrete errand before acquiring a real visit."""
+    if store == STORE_HOME:
+        request = policy._home_visit.request
+        if request is None:
+            return None
+        if request.kind == HomeVisitKind.WITHDRAW:
+            target = request.address if request.address is not None else request.item_identity
+            return TerminalRef("home-withdraw", (target, tuple(request.batch)))
+        if request.kind == HomeVisitKind.RECOVERY:
+            return TerminalRef("home-recovery", (request.requester,))
+        if request.kind == HomeVisitKind.DEPOSIT:
+            return TerminalRef("home-deposit", (request.item_identity,))
+        if request.kind == HomeVisitKind.EQUIPMENT_MUTATION:
+            return equipment_transaction_intended_terminal(policy, board)
+        return TerminalRef(NO_REFUSAL, ("home-scan", request.requester))
+    plan = policy._town_errand_plan
+    categories = tuple(plan.need_categories.get(store, ())) if plan is not None else ()
+    return TerminalRef("store-route", (store, categories))
+
+
+def verdict_visit(policy: Any, board: Any, terminal: TerminalRef) -> Admission:
+    """Use the borrowed operation, or the information a visit can still read."""
+    if terminal.terminal_id == "home-recovery":
+        return (ADMIT if not policy._home_knowledge_current
+                else refused(("home-recovery-no-work",)))
+    store, categories = terminal.args
+    if not categories:
+        return (refused(("store-observation-current",))
+                if store in policy._town_store_attempted else ADMIT)
+    materials = tuple(gather_store_buy(policy, board, TownNeed(store, category, "normal"))
+                      for category in categories)
+    return verdict_store_route(materials)
+
+
 def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None:
     """The rung's declared terminal on ``board``: a TerminalRef, NOT_APPLICABLE,
     a reason-bearing NO_REFUSAL marker, or None (no board or terminal)."""
@@ -1847,11 +1885,46 @@ def _commit_home_withdraw(policy: Any, board: Any, terminal: TerminalRef,
     visit = policy._store_visit
     if visit is not None and visit.store_type == STORE_HOME:
         policy._close_store_visit("reservation-unavailable")
+    # The refusal, legacy hold and executor refer to the same immutable item.
+    # Yielding leaves it held; a named close settles only that work identity.
+    if (terminal in policy._town_visit_ledger.closed_terminals
+            and policy._home_atomic_withdraw_pending is None):
+        target = terminal.args[0]
+        batch = terminal.args[1] if len(terminal.args) > 1 else ()
+        held = (policy._home_pending_item, *policy._home_pending_batch)
+        stored = {policy._item_signature(item) for item in policy._home_knowledge_items}
+        for signature in dict.fromkeys((target, *batch)):
+            if signature in held and signature not in stored:
+                policy._defer_unobserved_home_withdrawal(signature)
+        if (target in held and policy._home_pending_item is None
+                and not policy._home_pending_batch):
+            policy._home_withdrawal_queued = False
+            policy._home_active_from_batch = False
+        errand = policy._home_errand
+        if errand.request is not None and errand.request.signature == target:
+            errand.state = type(errand.state).FAILED
+            errand.finish()
     home = policy._home_visit
     if home.report_unoperated("reservation-unavailable"):
         report = home.consume_report()
         policy._pending_home_visit_report = (
             f"home-visit:{report.request.requester}:{report.outcome}")
+
+
+def _commit_visit_route(policy: Any, board: Any, terminal: TerminalRef,
+                        admission: Admission) -> None:
+    cause = policy._town_visit_ledger.closed_terminals.get(terminal)
+    if cause is None:
+        return
+    policy._offer_execution_no_step(
+        producer="store-router", work_id=repr(terminal), cause=cause)
+    if terminal.terminal_id == "home-recovery":
+        home = policy._home_visit
+        if home.report_unoperated(admission.codes[0]):
+            report = home.consume_report()
+            policy._pending_home_visit_report = (
+                f"home-visit:{report.request.requester}:{report.outcome}")
+
 
 
 def _commit_home_atomic_withdraw(policy: Any, board: Any, terminal: TerminalRef,
@@ -1923,6 +1996,8 @@ REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], str | No
     "identify-carried": _commit_identify_carried,
     "home-disposal-identify": _commit_home_disposal_identify,
     "home-withdraw": _commit_home_withdraw,
+    "home-recovery": _commit_visit_route,
+    "store-route": _commit_visit_route,
     "home-atomic-deposit": _commit_home_atomic_deposit,
     "cross-town": _commit_cross_town,
     "curse-remove": _commit_curse_remove,
@@ -1950,6 +2025,11 @@ def terminal_admission(policy: Any, board: Any, terminal: TerminalRef) -> Admiss
     verdict = _TERMINAL_VERDICTS.get(terminal.terminal_id)
     admission = (verdict_quest_work(gather_quest_work(policy, board))
                  if terminal.terminal_id in QUEST_WORK_TERMINALS
+                 else verdict_home_withdraw(gather_home_withdraw(
+                     policy, board, target=terminal.args[0]))
+                 if terminal.terminal_id == "home-withdraw"
+                 else verdict_visit(policy, board, terminal)
+                 if terminal.terminal_id in {"store-route", "home-recovery"}
                  else verdict(policy, board) if verdict is not None else ADMIT)
     if admission.admitted and terminal.terminal_id == "quest-entry":
         quest_id = terminal.args[0]
@@ -2046,7 +2126,8 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
     when no server is live.  Closing never stops the bot.  SHADOW rungs only
     record.  Independent of --enforce-town-claims.
     """
-    if family in EXEMPT_FAMILIES or board is None or terminal is None:
+    if ((family in EXEMPT_FAMILIES and family != "detectors")
+            or board is None or terminal is None):
         return True
     decl = TERMINALS[rung_name]
     admission = terminal_admission(policy, board, terminal)

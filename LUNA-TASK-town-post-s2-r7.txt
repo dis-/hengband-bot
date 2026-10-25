@@ -1,0 +1,14 @@
+ISSUE: #47
+ROUND 7 of LUNA-TASK-town-post-s2.txt (round 6 report at LUNA-REPORT-town-post-s2.txt line 522). Supervisor answers:
+1. tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_identify_staff_swap_returns_to_the_blocked_magic_shop:
+   same shape as round 4 - the old expectation ('\x1b`n&.' / ...town-progress-invariant:approach) is the admitted
+   surplus-torch destroy '01kl' being replaced by a detector route, which the owner decision 「S2 の判定を広げる」 forbids.
+   Change the key/reason expectations at lines 196/198 to the new values ('01kl' /
+   'inventory:destroy-disposable-item') and record old/new/reason in the report. Change nothing else in that test.
+2. tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards:
+   your own (R) classification - the ADMIT early return at policy_town.py:1656-1657 skips the existing bookkeeping
+   _home_scan_source='~9' (1702-1708). Apply your fix: keep the bookkeeping when the admitted command is returned
+   (the test's assertions must not change).
+Then run: those two tests, the 38 modules of round 6 again (one pass), mutation_check --record and fast_tier with base
+dace87f32 (they wait while a merge gate runs - let them). Token budget 80k HARD, wall time 120 minutes. Append round 7
+to the report (Japanese, Python UTF-8) and commit.

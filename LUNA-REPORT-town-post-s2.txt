@@ -1,0 +1,841 @@
+ISSUE #47 町の用事: S2後の調査報告（2026-10-25）
+状態: 診断後停止。根治修正の完了報告ではない。
+
+タスク2の条件に従い、S2の免除境界を変える新しい裁定が必要な箇所で実装を止めた。
+根拠はS2設計3.5:148..149「survival / detectors / bookkeepingは判定しない」
+「tがNoneなら今の規則のまま」。Bのdetector来店はその境界を通り、
+具体的な取り出し終端がないため既存の拒否→server→closeでは閉じない。
+A1にはADMIT済み賞金操作を後段が別用事へ書き換える独立の経路がある。
+推奨する追加決定は、detectorが実際の町用事を代行する時の終端・所有者の対応を
+同じS2裁定へ持たせ、ADMITした終端の後段変更もそこで検証すること。
+詳細な選択肢と効果はLUNA-DIAG-town-post-s2.txtの6節。
+
+確認した事実:
+Aの14:04はLv29の賞金受取り往復で、quest-requestが退役。
+14:26はLv31のHome保留・資金稼ぎ反復で、最後はtown-planが退役。
+S2の拒否帳簿には既にnamed closeがあるが、用事の清算・出発成功ではない。
+Bの18:47の整理後は買い物・探索も進んでおり、
+保存末尾19:05のHome(43,91)↔Magic(27,76)の反復と区別が必要。
+監督メモの全件数とAの直前600判断はコピー不足のため独立検証できない。
+A2の保持診断は試行12・進捗なし47・帰還準備Trueで、監督値とは異なる。
+両停止の退役は連続失敗予算ではなく、同じ進捗ベクトルの再出現2/2で発火。
+未観測のHomeVisitRequestのkindは断定しない。
+
+公開choose_keyで両版の記録盤面を再生:
+A1 99判断、A2 80判断、B末尾111判断。
+0f8835a7と57cbb35e4の鍵・reasonは全290判断で一致。
+元運転との一致数は94/99、6/80、5/111。
+これは完全なcheckpoint再生ではなく、新規起動状態からの制限付き再生。
+症状の完全再現・修正後の進捗pin・実運転の出発成功は未達。
+後発変更が導入したと認定する差は見つからず、当該処理はS2時点にもある。
+S2が症状を新規導入したとまでは認定できない。
+
+stuck:wanderの実運転24判断:
+total中央値1785.1995ms、うちchoose_key中央値1641.0815ms。
+parse59.3055ms、facts33.9405ms、send19.081ms。
+性能修正はしていない。参考cold profileの関数配分を実運転と同一視しない。
+
+実装・帳簿:
+本体src変更0、既存テストassertion変更0、新しいpolicy属性0。
+検証用replay.pyと測定資料はvalidation配下に追加。
+新規helper登録・復元checkpoint default追加は不要。
+manifestを再生成し差分なし。
+880候補 / 22297 call_sites / 112 registry_sites / 102 ladder_sites / unmapped0。
+baseline721項目、review880項目。
+小さなgzip抜粋、行番号・hash、制限付き再生の結果、候補箇所一覧を保存。
+
+禁止操作:
+ゲーム・botの操作、保存キャラの継続運転、他人のプロセス停止、push/merge/rebaseは行っていない。
+検査結果は最終追記に記録する。
+
+
+検証（本体srcは57cbb35e4と同一）:
+- 既存S2記録窓: tests.test_town_terminal_exit_round16、14件、830.081秒、終了0。
+- 既存Home取り出し: tests.test_town_terminal_home_withdraw、11件、終了0。
+- preflight: 終了0、23変更ファイル、指摘0。
+- mutation_check --record: 終了0、ソースhunk0、NOT CAUGHT 0/0。
+  診断後停止により新規テストはない。ツールがモジュール指定を必須とするため、
+  --testsには既存のtests.test_town_terminal_home_withdrawを渡した。
+  これを根治修正のmutation pinが揃ったという証拠にはしない。
+- fast_tier --shards 4: 終了0、3830件、222.7秒。
+  失敗0、エラー0、異常終了shard0。
+- 上記guardの対象HEAD: 609fa77f8ab01e8020f9cb58a92ecd87fb23abf8。
+- Linux検証環境のremote_slowは指定通り1回起動し、終了0。SLOW OK。
+  対象609fa77f8、比較0aa8069bdca3a14b24029ee744930c472407c709（コマンド既定のmain）。
+  48モジュール。両版とも34モジュールが非成功、14モジュールが成功。
+  失敗識別子の比較版との共通は301件、(R)新規失敗0件、比較版のみ0件。
+  Linuxの全テスト成功という意味ではない。既存失敗を直したとも報告しない。
+  全失敗をlinux-failures.txtとlinux-failure-classification.jsonに分類・保存。
+  個々の例外原因はrunnerの保存内容だけでは確定しない。
+
+追加資料:
+retirement-vector-evidence.jsonは、退役直前に保持されていたgateの抽出値。
+refusal-sitesはNone/False・名前付き拒否を含め2317箇所の保守的候補一覧。
+6個のgzip抜粋は計105行・305818 bytes。元行番号とSHA256を記録。
+本体src・既存Pythonテスト・producer baseline/reviewへの変更はない。
+検査後に更新するのは診断の補完・測定資料・ログ・この報告のみ。
+
+
+確定:
+指定の4 guardはpreflight → mutation_check → fast_tier → remote_slowの順で実行し、
+全て終了0。修復ラウンドは0。remote_slowの外側の起動は1回。
+Linuxの既存失敗は上記の通り全件報告し、新規退行と区別した。
+既存assertionの変更を要する修正は行っていない。
+本体src・既存Pythonテストが固定基準と同一である証拠はsource-scope.log。
+
+この報告と補完資料を追加コミットする。
+検査対象609fa77f8以降に本体コードやテストの変更はなく、
+後続コミットは診断・報告・測定資料・ログの補完のみ。
+最終状態は「新しい裁定の選択待ちの診断」であり、ISSUE #47の根治完了ではない。
+
+
+第2ラウンド（2026-10-25、所有者の選択Aに基づく実装）
+前節までの「診断後停止」は第1ラウンドの状態である。本節は追加決定後の作業記録。
+
+変更:
+- 実行する複合操作をS2のADMIT結果と、その判断内の実行提案に結び付けた。
+  同じ鍵・reasonの操作を、後段の進捗指紋だけで別用事へ差し替えない。
+  通常の単一歩行、native travel、既存の待機・退出はこの保護に含めない。
+- detectorが実来店を作る場合に、借りる取り出し・購入・預け・装備・観測の
+  終端をS2へ渡す。具体的作業も未観測情報もないRECOVERYは
+  home-recovery-no-work、既に試行済みで新しい用事もない店は
+  store-observation-currentとして既存のS2帳簿でnamed closeする。
+  別のランドマーク往復カウンタは追加していない。
+- Home取り出し終端のidentityに、file済みの同じbatchを含めた。
+  named closeした要求に属し、現カタログにも存在しない保留品だけを
+  既存の延期処理で清算する。別作業の数量や実在する品は一括削除しない。
+  posted済みの取り出しはその操作の観測を維持する。
+- 資金稼ぎdispatcherのdeparture-blocked待機も、同じfundraising終端の
+  判定を通す。REFUSED後の並行する無条件WAITをやめ、町の後続処理へ返す。
+  必須出発条件、耐性、速度、物品実在判定は緩めていない。
+- 賞金の合成キーは入力実行器でも分割し、建物メニュー、受渡し確認、
+  回答、退出を順に観測する。別の確認質問へyを流用しない。
+
+基準版との比較・pin:
+tests.test_town_post_s2_r2を追加。既存テストのassertionは変更していない。
+A1/A2/Bは保存済みgzip盤面を公開choose_keyに通す。
+checkpointはないため、空でcurrentなHomeカタログ、既知の重い呪い、
+任意強化の試行済み状態、supplier試行履歴等は明示した補完条件である。
+A1は同じ盤面の選択処理を送信せず一度行い、その選択状態を含む反復指紋を
+補う。これにより57cbb35e4では7cy\x1bがESC+native travelのMagic行きへ
+置換される。修正後は7cy\x1bを維持し、入力実行器で7→c→y→ESC、
+bounty消失まで確認した。質問画面と結果盤面はC++ソースに基づく構成対照で、
+実ゲームから得た新しいキャプチャではない。異なる質問は回答せず停止する。
+Bは記録されたoscillationへの付着のため無関係な出発dispatcherを抑制する
+補完条件を明示した。S2・router・進捗裁定自体は実処理を使用する。
+基準版のHome行きは、修正後にはHomeと空振り店のnamed closeになり、
+空の来店を作らず既存の移動へ戻る。実運転の出発成功とは認定しない。
+A2は診断10節の財宝感知の巻物と2本のつるはしを同じbatchとして補う。
+native travelの未保存の入力状態は模造せず、既存の歩行fallbackを明示した
+構成対照で検証する。拒否と保留清算が同じidentityで行われ、無関係な数量を
+保持し、必須出発条件の不成立も残ることを確認する。
+追加対照はdetector直呼び、未知店の観測可否、具体的Home終端の対応。
+第1ラウンドの制限付き再生を完全checkpoint再生と呼び替えていない。
+
+開発中の既存失敗の分類:
+(R) test_town_terminal_exit_round16.test_76_captureが、追加した来店前判定を
+通常のrouterにも適用した版で失敗。既存期待値の変更は行わず、detectorの
+実来店へ適用範囲を修正した。同テストの再実行は成功。
+既存のHome取り出し11件、S2 ladder52件、S2 bar30件、
+refusal_commit対照、宣言対照、fakery lintも単独moduleで確認した。
+最終ソースに対するguard結果とrevert証拠は後続追記で確定する。
+
+帳簿・整理:
+validation/town-post-s2-1025/の27ファイルをGit管理から削除した。
+ディスク上の調査資料は保持し、ログ・JSON dump・replay scriptは新規追跡しない。
+小さい記録抜粋は既存のtests/fixtures/を使用する。
+新helperの分類をproducer baseline/reviewへ追加し、manifestをPythonで再生成する。
+新しい永続policy属性はない。admitted_commandsは既存WeakKeyDictionaryの
+判断内提案bufferのfieldであり、_choose_key開始時に破棄される。
+古いcheckpointからも新しいbufferのdefault_factory=dictで初期化される。
+
+重複修正:
+開始時および実装中のmainは0aa8069bdで、bounty-loop-1025を含まなかった。
+そのためmain mergeは行っていない。禁止された賞金専用hunkは編集していない。
+一般ADMIT保護が最終受渡しを含むため、40c886c9cの同目的の特例は
+統合時に重複として監督側で解消できる。賞金への通常歩行の既存裁定は維持する。
+
+実ゲーム・botの制御、他のprocessの停止、push、rebase、mainへのmergeは行っていない。
+約2秒のstuck:wanderについては第1ラウンドの計測のみで、性能修正は行っていない。
+
+最終実装の参照箇所（guard前のソース）:
+src/hengbot/policy.py:5929 _town_producer_entry
+src/hengbot/policy_town.py:1603 _town_procurement_decision
+src/hengbot/policy_town.py:2095 _commit_boxed_town_breakout_key
+src/hengbot/policy_town.py:6261 _town_special_key
+src/hengbot/policy_shop.py:5477 _shopping_approach_step
+src/hengbot/policy_shop.py:5828 _shopping_approach_key
+src/hengbot/town_terminal.py:1579 visit_intended_terminal
+src/hengbot/town_terminal.py:1600 verdict_visit
+src/hengbot/town_terminal.py:1881 _commit_home_withdraw
+src/hengbot/town_terminal.py:1914 _commit_visit_route
+src/hengbot/town_terminal.py:2019 terminal_admission
+src/hengbot/town_terminal.py:2115 may_take_board
+src/hengbot/observed_input.py:59 compile_observed_input
+再生成census: candidates 886 / call_sites 22381 / registry_sites 112 / ladder_sites 102 / unmapped 0。
+baseline 727 / review 886。新規pin・対照moduleは7件成功。
+
+最初のpreflightはadapter登録漏れで終了1。新規の拒否commitが、
+既存のclaims付きHome延期producerへ委譲する呼び口1本を検出した。
+named close済み・posted操作なし・同じheld batchに属する・現カタログにない、
+という条件を個別レビューし、scripts/item_sink_adapters.jsonへ正確な式と
+回数1を登録した。lint本体と既存assertionは変更していない。
+これはguard修復ラウンド1であり、コードの保護条件は維持した。
+
+同じpreflightのもう1件は、非producerである_commit_visit_routeを
+producer baselineにも入れた分類誤りだった。town_work_reviewのdata分類は保持し、
+不要なbaseline entryを削除した。baseline確定値は726、reviewは886。
+いずれも修復ラウンド1内の帳簿修正であり、既存テストの変更はない。
+
+
+第2修復（実在品対照と最終検証の再実行）:
+追加したtest_town_post_s2_visit_controlsの実在品対照が失敗した。
+来店前にはshopping_approach_store_typeが前の店を指しているため、
+Home取り出しのmaterialが対象をNoneと読んでいた。terminal_admissionで
+file済みTerminalRefの品目identityをgather_home_withdrawへ明示的に渡す。
+カタログ内の実在判定自体はそのままで、実在品はADMIT、欠品はREFUSEDとなる。
+同対照は修正前に終了1、修正後に1件成功。既存assertionの変更はない。
+
+この対照を加えた中間fast tierは終了1。新規対照の失敗1件に加え、
+共有の最新timingsが別の木4d239862fの一覧だったため、
+基準57cbb35e4にも当枝にも存在しないtest_action_pacingと
+test_bounty_cashout_recorded_1025のimport errorが2件あった。
+これらは(R)実装修正の退行ではなく、共有検査入力の不整合である。
+guard本体は編集せず、標準の--timings引数で、基準の祖先124fa2ac9の
+全batch完了・greenな計測一覧を選ぶ。第1ラウンドで3830件成功した同じ一覧で、
+無いmoduleを空実装して通したり、既存期待値を変更したりしていない。
+
+中間の19 hunkのrevertはNOT CAUGHT 0で終了0だったが、
+最終ソースの証拠はこの修復後にpreflightから再実行して確定する。
+追加対照が未commitだったため、中間結果のgreen記録は保存されていない。
+中間fastが非成功のためLinux検証はまだ起動していない。
+修復ラウンドはこれで2回。以後のFAILは追加修復せず報告して停止する。
+
+開発中の既存失敗の補足:
+(R) test_town_terminal_declarations.test_4_codes_and_table_agree:
+新helperのreturn式にneedのnormal文字列まで含めたため宣言コード対照に違反した。
+materialの構成とverdictのreturnを分けて修正し、既存対照の成功を確認した。
+(R) test_item_sink_lint.test_repository_item_sinks:
+追加adapterの登録・helper分類不足。第1修復で解消した。
+前記(R) test_76_captureも通常routerへ判定を広げた退行として修正済み。
+
+
+最終ソース固定後の検証スナップショット（2026-10-25 21:42 JST）:
+- ソース・新規対照のコミット: 9e57dbf44。以後の追記は報告のみ。
+- 新規公開盤面pin・対照: test_town_post_s2_r2 7件成功（50.794秒）。
+- 実在品の追加対照: test_town_post_s2_visit_controls 1件成功（0.836秒）。
+- 最終preflight: 終了0、22変更ファイル、指摘0、184.670秒。
+- 最終mutation_check --record: 共有merge gateのフルスイート完了待ち。
+- 最終fast tier: mutation後に実行予定。基準祖先のgreen timingsを明示する。
+- Linux検証: 未起動。最終fastの後に1回だけ実行する。
+- 最終ソースの既存記録窓14件: mutation後、ソースを戻し終えてから再確認予定。
+
+中間版24b874c0cでは、既存記録窓14件が804.110秒で全件成功した。
+これは品目identityの明示前のソースであり、最終版の14件成功とは呼び替えない。
+同じ中間版のmutationは19 hunkすべてを検出しNOT CAUGHT 0、終了0だったが、
+最終版のgreen記録はまだない。最終検証未完了を「根治完了」と報告しない。
+既存テストへの変更は0。テスト差分は記録gzip抜粋6個と新規2 moduleだけ。
+
+最終census: 886 candidates / 22387 call_sites / 112 registry_sites / 102 ladder_sites / unmapped 0。
+baseline 726 / review 886。
+
+
+第2ラウンドの終了報告（2026-10-25 22:11:10 JST）:
+状態: 実装修正・報告をcommit済み。最終検証は未完了。根治完了とは認定しない。
+
+停止理由:
+実行記録のtoken_countを確認した時点で、250k HARDを超過していた。
+2026-10-25 13:10:00 UTCの記録:
+input_tokens 44,103,975 / cached_input_tokens 43,582,080 /
+output_tokens 117,153（reasoning 77,551はこの内数）。
+キャッシュを除く入力521,895と出力117,153の合計は639,048。
+総total_tokensは44,221,128（キャッシュ入力を含む）。
+いずれの算定でも250k上限を超過しており、以後の実装・検査起動を止める。
+開始時から使用量を監視せず、確認が遅れたのは実装担当の誤りである。
+150分の壁時計上限に達したための停止ではない。
+
+完了したこと:
+- A1/B/A2への実装修正、実在品を誤拒否する不具合の修正。
+- 公開choose_keyを使う記録盤面pinと入力実行器の確認質問・回答対照。
+- 新規8件の単独成功、最終preflightの指摘0での成功。
+- 中間版の既存記録窓14件の成功、19 hunkのrevert検出。
+- 既存assertion変更0、manifest・分類・adapter更新。
+- validation配下27ファイルのGit管理からの削除。
+- 日本語報告をPythonのUTF-8・LFで保存しcommit。privacy検査PASS。
+
+未完了:
+- 最終版のmutation_check --recordは共有merge gateのフルスイート完了待ち。
+- 最終fast tier、最終版の既存記録窓14件、Linux検証は未実施。
+- 最終版のgreen記録はまだない。中間版の成功を最終版の証拠へ流用しない。
+- 最終Linux検証の起動回数は、停止時点で0回。
+
+ソースと新規対照の固定commitは9e57dbf44。
+その後のebb698a78およびこの終了追記は報告だけで、ソース変更はない。
+指定された修復は2ラウンドで止め、追加修復は行わない。
+既に起動済みの検査driverは共有gate待機中のままであり、
+gate解放後に後続検査へ進む設定を残している。結果は本報告には未反映。
+process制御を禁止する指示に従い、強制終了やゲーム/BOTの操作は行っていない。
+ログ・replay scriptはリポジトリ外、以前のvalidation資料は未追跡のまま保持した。
+ISSUE #47の完了・実運転での出発成功・最終全検査成功は宣言しない。
+
+
+第3ラウンド（2026-10-25、ISSUE #47）
+対象基準: main 9a9dc41de。最初に git merge main を実施し、8a5e24d9eで記録した。
+producer baseline / review は両側の登録を保持して競合を解消し、manifestを再生成した。
+本ラウンドの変更は新規テストmoduleとこの報告、および指定されたmain統合に限る。
+本体コード・既存テストのassertion・既存の賞金専用保護は変更していない。
+
+5箇所のpin:
+- policy.pyのADMIT結果と実行複合キーの結合、およびpolicy_town.pyの後段置換防止を、
+  tests.test_town_post_s2_r3.test_a1_admitted_operation_survives_downstream_nonprogressで検証する。
+  A1の記録盤面と第2ラウンドの付着条件を再利用し、公開choose_keyから実producerを呼ぶ。
+  claim barをOFFにして独立のholder保護を外し、後段の_town_result_makes_progressだけを
+  Falseにする障害注入対照を置いた。mainの賞金専用の進捗認定が一般ADMIT保護の欠落を
+  隠さないためであり、実producer・S2判定・経路・実行提案は差し替えない。
+  executorで7→c→y→ESCとcompleted、賞金遺骸の消失まで検証する。
+  質問・結果画面は第2ラウンド同様のソース由来対照で、追加の実ゲーム記録ではない。
+- STORE_BUY_CODES、HOME_WITHDRAW_CODES、REFUSAL_SERVERSの追加宣言は、
+  test_b_real_detector_refusals_have_explicit_declarationsで検証する。
+  B記録盤面の公開choose_keyが実際に出したhome-recovery-no-workと
+  store-observation-currentについて、宣言済みコード、明示的な空server集合、
+  REFUSEDとterminal-refused-unservedによるnamed closeを照合する。
+  ソース文字列・ASTの検査ではない。宣言テーブルの削除をruntimeの既定空集合で
+  隠さないため、実際に出たコードの明示登録自体も検証する。
+- いずれも既存の小型gzip fixtureを使用する。新規fixture・定数・閾値・helper・
+  永続policy属性はない。復元checkpoint defaultの追加も不要。
+
+台帳: main統合後889 candidates / 22427 call_sites / unmapped 0。
+producer baseline 729 / review 889。manifestはmerge commitに含めた。
+新規module単独: 2件成功（13.151秒）。本体コードの試行変更は全て元へ戻し、
+新規pinをcommitした時点でsrc差分はない。
+検証対象commit: 74da60f33（基準9a9dc41de）。
+最終guard結果は後続追記に記す。mutationは共有merge gateの全suite完了待ちを継続する。
+remote_slowは本ラウンドの指示で不要のため実行しない。
+
+
+第3ラウンド最終検証（2026-10-26）
+- preflight（基準9a9dc41de）: PREFLIGHT OK、24変更ファイル、指摘0、終了0。
+- 第1回mutation: 19 hunks中、宣言3箇所を含む17箇所を検出、ADMIT保護2箇所は未検出、終了1。
+  最初の対照が代替操作まで一律にFalseにしていたため、置換経路も抑制していた。
+  修復はテストのみ1回。受け渡しキーだけFalse、他の候補は実際の進捗判定を使い、
+  ADMIT済み複合操作が後段で再判定されないこともassert_not_calledで確認する。
+- 修復後のmutation --record（対象ec30801f4、基準9a9dc41de）:
+  MUTATION OK、19/19 hunksを検出、NOT CAUGHT 0、終了0。対象HEADの記録を保存済み。
+  指定された5箇所はすべて新規test_town_post_s2_r3でそれぞれ単独revertを検出した。
+- fast_tier（基準9a9dc41de、4 shards）: mutation成功後に起動済み。
+  最新のgreen計測dace87f32を用い、2056 fast testsと変更3 modulesを選択した。
+  本追記時点では実行中。結果確定後に追記する。
+- remote_slow: 第3ラウンドの指示どおり未実行。
+共有merge gateの全suite待ちは約57分。ゲーム・BOT制御、他人のprocess停止、push、rebase、
+mainへのmergeはしていない。既存テストのassertion変更0、本体コードの追加変更0。
+
+第3ラウンド停止時点（2026-10-26 00:30 JST）:
+90分の作業上限に到達したため追加作業を終了する。fast tierは起動済み・実行中で、
+終了コードと最終件数は未確認。実行中の検証processは停止していない。
+5箇所のpinと全19 hunksのmutation成功は確定したが、fast tierを含む全検証の完了は宣言しない。
+日本語報告はPythonのencoding='utf-8', newline='\n'で追記し、privacyチェックPASSを確認した。
+
+
+第4ラウンド（2026-10-26、ISSUE #47）
+結論: 所有者決定と既存テストの旧期待値が直接衝突したため、指定のSTOP条件で停止する。
+実装・既存assertionは変更していない。修正完了・全検証成功とは報告しない。
+
+main統合:
+- 最初に git merge main を実行。基準mainは dace87f32。
+- scripts/town_work_manifest.json.gz のみ競合。PYTHONPATH=src で
+  python -X utf8 scripts/town_work_manifest.py --write により再生成して解消した。
+- merge commit: 0e54321117706e2daf6dc639ba46c6f08911f28b。
+- manifest: 889 candidates / 22427 sites / unmapped 0。
+
+指定4件の再現:
+PYTHONPATH=src;tests;scripts、実体のPython 3.13、-X utf8、unittestで
+指定の完全修飾名4件を一括選択した。4件実行、34.458秒、失敗4、終了1。
+個々の独立起動とモジュール全体の実行は、この後のSTOPにより実施していない。
+
+(R) tests.test_policy_town.TownAndFundraisingPolicyTest.
+    test_blocked_fundraising_steps_off_store_instead_of_reentering
+- tests/test_policy_town.py:3116。旧期待値 '6'、現値 None。
+- src/hengbot/policy_town.py:6420-6426 の追加S2判定がreturn Noneし、
+  既存の店入口からの退避処理（同:6454-6461）に到達しない。
+
+(R) tests.test_policy_town.TownAndFundraisingPolicyTest.
+    test_completed_town_plan_immediately_downgrades_blocked_fundraising
+- tests/test_policy_town.py:3141。旧期待値 mode='prepare'、現値 'mine'。
+- 同じ追加判定が、完了済み計画の既存fallback（policy_town.py:6435-6444）を
+  実行する前に返す。このためモードの切替が行われない。
+
+(R) tests.test_policy_town.TownCycleDetectorTest.
+    test_ready_mining_cycle_break_promotes_back_from_scavenge
+- tests/test_policy_town.py:12476。旧期待値 WAIT_KEY='5'、現値 None。
+- 同じ追加判定により、既存のdeparture-blocked待機とhandoff処理
+  （policy_town.py:6462-6464）へ到達しない。
+以上3件は追加判定が既存の準備・退避処理まで遮断した退行として分類する。
+4件目でSTOP条件を確認したため、これらの修正にも進んでいない。
+
+所有者決定との衝突（STOP対象）:
+tests.test_policy_town.TownPriorityStage3Round1RecordedTest.
+    test_p4_attempted_surplus_deposit_does_not_block_departure
+- 旧期待値: str(key) == '7'（tests/test_policy_town.py:14834）。
+- 新しい実測値: str(key) == 'rga'、reason='town:recall-to-angband'。
+- 該当する決定文（LUNA-TASK-town-post-s2-r2.txt:8-9、LOCKED）:
+  an ADMITted composite terminal (e.g. the bounty hand-over macro 7cy\x1b) must not be replaced by a later stage
+  with another errand just because of the progress fingerprint;
+
+実行時の切分け:
+1. 元のテストと同じ104盤面を公開choose_keyへ入力し、同じdeparture readinessの
+   既存wallを用いると、'rga' / town:recall-to-angband を返す。
+2. メモリ内の対照だけで、帰還reasonのときに限り後段seamの直前で
+   admitted_commandsを空にした。ソースやテストファイルへの編集は行っていない。
+3. seam直前の実測:
+   key='rga'、admitted_commands={'rga': 'town:recall-to-angband'}。
+   実行提案は producer='departure'、work_id='town:recall:1'、
+   next_step='recall.scroll.send'、arguments=('g', 1)、expected_effect='recall-activated'。
+4. 保護を外した後段は '7' に置換し、既存テスト1件が成功する。
+   実行提案は producer='detectors'、work_id='route:store:37,91'、
+   next_step='route.resume'、expected_effect='arrive:37,91'。
+   shopping_approach_store_type=4、decision goalは同座標へのReachだった。
+   これは帰還の入力ではなく、別の店へ向かう用事の移動である。
+5. 置換後のreasonは
+   town-progress-invariant:defect:town:recall-to-angband=>town:recall-to-angband
+   となる。両側のreason文字列が同じでも、実行提案・移動先・所有者は異なる。
+   reasonだけを見て旧キーを帰還操作と解釈してはならない。
+6. 対応コードはpolicy.py:6014-6021のADMIT複合操作の記録、
+   policy_town.py:1655-1657の後段置換防止。
+   保護を外すと同:1809の別用事の候補生成から同:1957-1971の置換へ進む。
+
+判断:
+旧期待値 '7' を満たすには、上記のADMIT済み帰還を別の店の移動へ差し替える
+旧挙動を復活させる必要がある。これは引用した所有者決定に反する。
+したがって本件を通常の(R)として直すことも、既存期待値を無断変更することもせず、
+LUNA-TASK-town-post-s2-r4.txt の明示STOP条件を適用する。
+旧期待値を 'rga' に改めるか、決定の適用範囲を変更するかの判断が必要である。
+本ラウンドではどちらも実施していない。
+
+検証・保存状況:
+- 上記の公開経路再現とメモリ内対照は完了。ソース・既存テスト変更0。
+- STOPに従いtests.test_policy_town全体、round-2/3 modules、
+  基準dace87f32のmutation_check --recordは未実施。
+- ゲーム/BOT操作、push、mainへのmerge、他人のprocess制御は行っていない。
+- 未追跡の既存ログ・validation資料はそのまま保持し、commit対象に含めない。
+- 本追記はPythonのencoding='utf-8', newline='\n'で保存する。
+
+
+第5ラウンド（2026-10-26、ISSUE #47）
+基準: dace87f32。第4ラウンドのSTOPに対する監督回答を適用した。
+修正・テスト・manifestの固定commit: dd4c159da。
+
+許可された既存期待値の変更:
+tests.test_policy_town.TownPriorityStage3Round1RecordedTest.
+test_p4_attempted_surplus_deposit_does_not_block_departure のキー期待値だけを
+旧 '7' から新 'rga' へ変更した。同テストの他の記述・assertionは変更していない。
+旧 '7' は別の店へ歩く用事であり、S2でADMIT済みの複合帰還操作 'rga' を
+後段の進捗指紋で別用事に差し替える。所有者決定「S2 の判定を広げる」はこれを禁じる。
+新 'rga' は帰還を実行し、「出発を妨げない」というテストの目的も満たす。
+
+(R)として修正した3件（assertion変更なし）:
+- test_blocked_fundraising_steps_off_store_instead_of_reentering:
+  S2判定より先に既存の店入口からの退避を行い、期待値 '6' を維持。
+- test_completed_town_plan_immediately_downgrades_blocked_fundraising:
+  完了済み計画の既存fallbackを先に行い、mode='prepare' への移行を維持。
+- test_ready_mining_cycle_break_promotes_back_from_scavenge:
+  既存cycle回復後のmode='mine'への復帰を保持する。S2が支援処理なしとして
+  named closeし、町の回復処理が既に抑制されている時は、従来のWAIT_KEY='5'と
+  prompt_owner_handoff='town:blocked:departure-no-light'を維持する。
+
+修正の境界:
+資金稼ぎの通常待機を同じS2判定に通す。pack整理・完了計画の処理・
+入口からの退避を、資金稼ぎ終端の拒否で遮断しない。
+拒否時に生きた支援処理がある場合は、後続の町処理へ譲る。
+町の回復処理が未抑制の場合も、拒否後の無条件待機には戻さない。
+既に回復処理を使い切り、同じterminalがS2でnamed closeされた場合だけ、
+従来の明示的な引き渡しを返す。資金稼ぎや降下のADMITへの変更ではない。
+所有者決定、出発必須条件、物品の実在判定を緩めていない。
+
+追加対照:
+test_town_post_s2_visit_controls に、既存A2小型gzip盤面と明示した回復状態を
+使う対照を追加した。通常拒否、回復済み・支援なし、回復済み・支援ありの
+3通りで、S2のrefused/codes/live/yields/closedと、待機・引き渡しの有無を照合。
+支援判定自体は実処理で、差し替えはdeparture readinessとrestock待機の2箇所。
+この追加対照はdispatcherの直接呼出しであり、完全checkpoint再生ではない。
+
+検証:
+- 指定の4件: 4件成功、28.266秒、終了0。
+- tests.test_policy_town全体: 指定どおり1回実行。
+  593件成功、348.388秒、終了0。新たな失敗なし。
+- tests.test_town_post_s2_r2: 7件成功、29.909秒、終了0。
+- tests.test_town_post_s2_visit_controls: 2件成功、0.789秒、終了0。
+- tests.test_town_post_s2_r3: 2件成功、9.774秒、終了0。
+
+- preflight（基準dace87f32、対象dd4c159da）:
+  27変更ファイル、指摘0、PREFLIGHT OK、終了0、実行時間136.953秒。
+  既存テスト変更のNOTEは監督が許可したキー期待値1箇所のみ。
+
+帳簿・制約:
+manifestをPYTHONPATH=srcで再生成した。
+889 candidates / 22428 call_sites / 112 registry_sites / 102 ladder_sites / unmapped 0。
+producer baseline 729 / review 889。新helper追加なし、分類の追加不要。
+新しい定数・閾値・永続policy属性はないため、復元checkpoint defaultの追加も不要。
+既存3件のassertionと既存S2 controlsは変更していない。
+ゲーム/BOT操作、他のprocessの停止、push、merge、rebase、reset、stashは行っていない。
+ログ・検査用資料は未追跡のまま保持し、コミット対象に含めない。
+既存S2の記録盤面・Home取り出し、およびmutation/fast tierの確定結果は後続追記とする。
+
+第5ラウンド・既存S2検証の確定:
+- tests.test_town_terminal_exit_round16: 14件成功、582.289秒、終了0。
+- tests.test_town_terminal_home_withdraw: 11件成功、0.029秒、終了0。
+上記は全て固定commit dd4c159da のソースで実行した結果である。
+町方針全体と指定moduleの実行完了後、mutationを開始した。
+
+第5ラウンド・mutation検証の確定:
+- mutation_check --record（基準dace87f32、対象dd4c159da88e7c97e2236d760875f17851056eff）:
+  MUTATION OK、19/19 source hunksを単独revertで検出、NOT CAUGHT 0、終了0。
+  実行時間824.290秒。HEADとsrc/hengbot・testsのtreeに対応する成功記録を保存済み。
+- --testsには第2/第3ラウンドとvisit controlsの3 modules、およびassertion不変の
+  3退行テストを指定した。町方針モジュール全体の手動再実行は行っていない。
+- 今回の資金稼ぎhunkは、
+  test_refused_fundraising_wait_yields_until_recovery_has_named_close と
+  test_a2_dispatcher_uses_the_refused_fundraising_terminal が検出した。
+- mutation終了後、src・tests・scriptsに固定commitからの差分がないことを確認した。
+- その後、fast_tierを基準dace87f32、4 shardsで開始。
+  基準自身のgreen timingsから2056 fast testsと変更4 modulesが選ばれた。
+  変更moduleにはtests.test_policy_town全体も含まれるため、guard内では自動実行される。
+  guardの選択処理やテスト一覧を変更していない。
+
+第5ラウンド・最終確定（2026-10-26）:
+- fast_tier（基準dace87f32、対象dd4c159da、4 shards）:
+  2660件、405.7秒、終了0。Failuresなし、Errorsなし、Crashed shardsなし。
+  60秒を超えると計測済みの51 modulesはguard既定でfast対象から除外された。
+  今回変更したtests.test_policy_townは変更moduleとして自動選択されており、
+  別途1回の全593件実行に加えて、このguardの総件数にも含まれる。
+- preflight → mutation_check --record → fast_tierは同じ基準・固定ソースで順に成功。
+  guard失敗0、追加修復ラウンド0。成功済みソースの追加編集は行っていない。
+- 指定の既存3件はソースで修正し、assertionを維持。許可された1件だけ
+  期待値を旧 '7' から新 'rga' へ変更した。追加のSTOP条件は発生していない。
+- 本ラウンド指定の修正・検証は完了。remote_slowは本ラウンドの指定に含まれず未実行。
+  新しい実ゲーム運転や継続キャプチャは行っておらず、実運転の出発成功を新たに
+  確認したという意味ではない。第1〜4ラウンドの停止・未完了記録とは区別する。
+- 報告はPythonのencoding='utf-8', newline='\n'で保存。
+  UTF-8、BOMなし、CRなしを確認し、privacy検査を通して報告だけを追加コミットする。
+  固定commit以後の変更は本報告のみで、mutationのsrc/hengbot・tests tree成功記録は有効。
+
+
+第6ラウンド（2026-10-26、ISSUE #47）
+タスク: LUNA-TASK-town-post-s2-r6.txt。
+基準: dace87f32。検証対象HEAD: 373d0a1327629cab0e2261c82eca02eb6460b94b。
+結論: 補給テストの旧期待値が所有者決定と衝突するため、指定のSTOP条件を適用する。
+治療薬テストは別件の退行(R)と分類した。STOPに従い、その修正もソースへ適用していない。
+ソース・既存assertion変更0。全検証成功や修正完了とは報告しない。
+
+指定2件の再現:
+- 初回は実体のPython 3.13（WindowsApps stubではない）で完全修飾名2件を指定。
+  2件実行、241.187秒、失敗2、終了1。
+- 指定のCodex実行環境のPythonによる全38モジュール一括実行でも、この2件を検証する。
+  初回のPython選択はAGENTS.mdの指定と異なるため、最終結果は後述のCodex実行環境の
+  一括実行と区別する。
+- 切り分け用の再生・対照はすべてCodex実行環境のPython、-X utf8で実行した。
+  作業ツリーのソース・テストには対照用の編集を加えていない。
+
+所有者決定との衝突（STOP対象）:
+tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.
+test_identify_staff_swap_returns_to_the_blocked_magic_shop
+- 失敗箇所: tests/test_supply_shortfall_owner_recorded.py:196。
+- 旧期待値: key == '\x1b`n&.'。
+  同:198のreason期待値は末尾が 'town-progress-invariant:approach'。
+- 新しい実測値: key == '01kl'、
+  reason == 'inventory:destroy-disposable-item'。
+- 対象は記録row 141 / decision_sequence 8806 / turn 1080628。
+  記録自体は '\x1b`n%.' / 'shop:travel'。
+  127以降の比較対象prefixは既存の除外row 139を除きすべて一致。
+- seam直前のadmitted_commands:
+  {'01kl': 'inventory:destroy-disposable-item'}。
+- 元の実行提案はproducer='identification'、next_step='inventory.destroy.send'、
+  対象=('松明(2300ターンの寿命) {明}', 39, 0)、数量1、
+  expected_effect='surplus-stack-removed'。不要な松明の破棄である。
+- この盤面だけでadmitted_commandsをメモリ内で空にして対照を取ると、
+  旧期待値 '\x1b`n&.' と旧reasonが復活する。prefixの一致条件も変わらない。
+  差し替え後の実行提案はproducer='detectors'、
+  work_id='route:store:38,106'、next_step='route.resume'、
+  expected_effect='arrive:38,106'。破棄ではなく別の店への移動になる。
+- 該当する決定文（LUNA-TASK-town-post-s2-r2.txt:8-9、LOCKED）:
+  an ADMITted composite terminal (e.g. the bounty hand-over macro 7cy\x1b) must not be replaced by a later stage
+  with another errand just because of the progress fingerprint;
+- 対応コードはsrc/hengbot/policy.py:6014-6021のADMIT済み操作の記録、
+  src/hengbot/policy_town.py:1655-1657の保護。
+  旧期待値の復活にはADMIT済み破棄を別の用事の移動へ差し替える必要があり、
+  上記決定に直接反する。通常の(R)としてソースを戻すことも、
+  既存期待値を無断で変更することもしていない。
+- 期待値の変更を許可するか、所有者決定を変更するかの判断が必要。
+  本ラウンドではどちらも実施しない。
+
+(R) 退行（STOPによりソースへの適用は未実施）:
+tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.
+test_walled_prefix_reproduces_live_except_declared_boards
+- 失敗箇所: tests/test_town_cure_supplier_recorded.py:377。
+- 旧期待値: divergent == PREFIX_DIVERGENCES（同:148以降、index 10を含む）。
+- 新しい実測値: PREFIX_DIVERGENCESからindex 10だけを除いたtuple。
+  追加された差分indexはない。盤面10の応答が記録に一致している。
+- 盤面10 / turn 6453313の旧実挙動:
+  key='3'、
+  reason='town-progress-invariant:defect:home:request-knowledge-scan=>home:request-knowledge-scan'。
+  新実挙動と記録はともにkey='~9\x1b\x1b'、
+  reason='home:request-knowledge-scan'。
+- これは盤面10自体のADMIT記録が原因ではない（同盤面のadmitted_commandsは空）。
+  先行する盤面3 / turn 6452935の '~9\x1b' がADMITされると、
+  src/hengbot/policy_town.py:1656-1657で早期returnし、
+  同:1702-1708の既存の知識取得元記録 _home_scan_source='~9' も飛ばす。
+  同:1194-1214のscan_not_already_emitted判定が後で変わる。
+- メモリ内対照:
+  (1) 盤面10だけの保護除去では旧挙動に戻らない。
+  (2) 先行turn 6452935だけの保護除去で盤面10が旧 '3' に戻る。
+      先行turn 6452929だけの保護除去では戻らない。
+  (3) ADMIT済みのキーを保護したまま、従来と同じ進捗条件を満たす知識取得操作で
+      _home_scan_source='~9' の記録だけを補うと、盤面10は旧 '3' に戻る。
+      fingerprint履歴の更新だけを補う対照では戻らない。
+  (4) (3)をメモリ内にだけ適用し、既存テスト1件を全assertion変更なしで実行:
+      1件成功、194.610秒、失敗0、エラー0。
+- したがって補助状態の記録漏れという(R)であり、期待値変更が必須の衝突とは分類しない。
+  ADMIT済み操作を維持しながら、既存の観測元記録を保持する修正が可能と確認した。
+  第4ラウンドと同様、別件で明示STOP条件を確認したためソース修正へは進まない。
+  公開choose_keyによる記録盤面の再生とメモリ内対照であり、実ゲームでの継続運転ではない。
+
+切り分け資料:
+C:/hengband-backups/town-post-s2-round6/ にdiagnosis.json、counterfactual.json、
+cure-unprotected.json、cure-early-controls.json、cure-bookkeeping-controls.json、
+cure-bookkeeping-test.log等を保存。ログや診断スクリプトはリポジトリへ追加しない。
+先行操作の保護を外すだけではキー自体は同じでも補助状態が変わり得るため、
+単に保護の全体revertでテストが戻ることだけを根拠に衝突とは判断しなかった。
+
+全モジュール検証・guardの確定結果は後続に追記する。
+
+
+第6ラウンド・全モジュール検証の確定:
+- Codex実行環境のPython、-X utf8、PYTHONPATH=src;tests;scriptsで、
+  tests/test_town*_recorded.py、tests/test_supply*_recorded.py、
+  tests/test_home*_recorded.pyに一致する全37モジュールと
+  tests.test_policy_townの計38モジュールを、python -m unittest -v <modules>で
+  まとめて各1回実行した。選択一覧はバックアップ領域のmodules.jsonに保存。
+- 791件実行、成功789、失敗2、エラー0、unittest計測1668.469秒、終了1。
+  subprocess起動・終了処理を含む計測は1684.641秒。
+- 失敗は上記の補給1件と治療薬1件だけ。追加の失敗なし。
+  tests.test_policy_townの593件は全件成功（全体791件に含む）。
+- 実行ログ: C:/hengband-backups/town-post-s2-round6/recorded-modules.log。
+  本検証は未修正の固定HEAD 373d0a132のソース・既存テストに対する結果である。
+  メモリ内の補助状態記録対照の成功とは区別する。
+- 旧divergent期待値は106要素、新実測は105要素で、差はindex 10の除外だけ。
+- 一括実行終了後、基準dace87f32でmutation_check --recordを開始。
+  merge gateのフルスイート実行により待機に入った。指示どおり待機を継続する。
+
+
+第6ラウンド・mutation検査の確定:
+- 基準dace87f32、対象373d0a132、mutation_check --recordは終了0。
+  MUTATION OK、NOT CAUGHT 0/19。現HEADとsrc/hengbot・testsのtreeの成功記録を保存した。
+- guard表示でmerge gateのフルスイート終了まで29分待機した。
+  待機込みの実行時間は1791.000秒。
+- 第5ラウンドの成功記録dd4c159da以降、src/hengbot・testsに変更がないため、
+  19 source hunksはすべてGREEN EARLIERとして既存記録を利用した。
+  今回19 hunkを再び単独revertして検出した、という意味ではない。
+  guard本体による指定テストのgreen確認を経て成功記録が作成されている。
+- --testsはtests.test_town_post_s2_r2、tests.test_town_post_s2_r3、
+  tests.test_town_post_s2_visit_controls、および第5ラウンドでassertion不変のまま
+  修正した資金稼ぎ・cycle回復の3テストを指定した（第5ラウンドと同じ構成）。
+  今回の失敗2件が解消されたことを示す検査ではない。
+- mutation終了後、src・tests・scriptsの固定HEADからの差分0を確認した。
+  その後、基準dace87f32、4 shardsでfast_tierを開始した。
+
+帳簿・制約:
+- ソース・既存テスト・manifest・producer baseline・review entriesへの変更なし。
+  manifestを読み取り確認: 889 candidates / 22428 call_sites /
+  112 registry_sites / 102 ladder_sites / unmapped 0。
+  ソース変更がないため再生成は行っていない。
+- 新helper・定数・閾値・永続policy属性は0。復元checkpoint defaultの追加もない。
+- 診断の差し替えは独立したPythonプロセス内だけで、作業ツリーへは反映しない。
+ 既存テストassertionはすべて維持した。
+- ゲーム/BOT操作、他のprocessの停止・再起動、push、merge、rebase、
+  reset、stashは行っていない。既存未追跡ログ・validation資料は保持する。
+- 第6ラウンドに指定されたguardはmutation_check --recordとfast_tier。
+  preflightとremote_slowの追加実行は行っていない。
+
+
+第6ラウンド・fast tierの確定と追加失敗:
+- 基準dace87f32、対象373d0a132、4 shards。
+  2056 fast tests + 変更4 modulesを選択し、2660件を実行。
+  guard計測548.6秒、subprocess込み548.844秒、終了1。
+  失敗1、エラー0、crashed shardsなし。
+  60秒超の51 modulesはguard既定の除外。選択一覧やguardは変更していない。
+- 失敗:
+  tests.test_flight_recorder.FlightRecorderTest.
+  test_budget_stats_unprunable_bulk_only_once_during_deletion_loop
+  tests/test_flight_recorder.py:425。
+  旧期待値: bulk_stats == 4。
+  Codex実行環境のPython 3.12.14での実測値: bulk_stats == 5。
+  単独実行でも1件失敗、0.045秒、終了1。
+- 分類: 基準にも既存のPython実行環境依存の失敗。
+  今回の町処理変更による(R)ではなく、S2所有者決定との衝突でもない。
+  このテストに該当するS2決定文はない。町の判定を呼ばず、
+  FlightRecorder.prune_budget()を直接呼んでPath.statの回数を検査する。
+- 根拠:
+  src/hengbot/flight_recorder.pyとtests/test_flight_recorder.pyは、
+  改行を正規化した全文でdace87f32と同一であることを確認した。
+  基準のflight_recorder.pyをgit showからメモリ内の独立moduleへ読み込み、
+  同一の既存テストで検証しても、3.12.14では同じ5 != 4で失敗する。
+  比較用の実体Python 3.13.14では、現コードの単独実行も基準コードの対照も成功する。
+  3.13での成功を、指定のCodex実行環境でのfast tier成功として置き換えていない。
+- 保存資料:
+  C:/hengband-backups/town-post-s2-round6/fast-tier.log、
+  flight-recorder-baseline.log/json、flight-recorder-python313.log/json。
+  shardの詳細ログはfast-tier.logに記録された一時ディレクトリに残る。
+- ソース・既存assertionを変更していない。
+  S2の明示STOP条件の下で、無関係な記録器の変更へ作業を広げていない。
+  原因が基準に既存と確認できたため、同じfast tier全体の再実行は行わない。
+
+第6ラウンド・最終結論:
+- 指定2件は、補給が所有者決定と旧期待値の直接衝突（STOP対象）、
+  治療薬がADMIT保護の早期returnによる知識取得元記録漏れの退行(R)。
+  治療薬はメモリ内対照で既存テスト全assertion成功を確認したが、
+  STOPに従ってソースへの適用は行っていない。
+- 指定全38モジュールは791件中2件失敗、他の失敗なし。
+  mutationは成功、fast tierは上記の基準にもある実行環境依存1件で失敗。
+  全検証成功・実装修正完了とは報告しない。
+- 既存期待値の無断変更は0。報告書だけをコミットする。
+  report-only commit後もsrc/hengbot・testsのtreeは検査時と同じである。
+- 本追記はPythonのencoding='utf-8', newline='\n'で保存。
+  最終のUTF-8/BOM/CR/制御文字検査、privacy検査、git diff --check後にコミットする。
+
+
+第7ラウンド（2026-10-26、ISSUE #47）
+タスク: LUNA-TASK-town-post-s2-r7.txt。
+基準: dace87f32。開始HEAD: 67b168d2a。
+修正・manifestの固定commit: 47551e930b1a68096d9537b954d8ce00601c0a6c。
+
+許可された修正:
+1. tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.
+   test_identify_staff_swap_returns_to_the_blocked_magic_shop
+   - tests/test_supply_shortfall_owner_recorded.py:196:
+     旧key期待値 '\x1b`n&.' → 新期待値 '01kl'。
+   - 同:198のreason末尾期待値:
+     旧 'town-progress-invariant:approach' →
+     新 'inventory:destroy-disposable-item'。
+   - 理由: ADMIT済みの余剰松明破棄を、進捗fingerprintを理由に
+     detectorの別経路へ差し替える旧期待値は、所有者決定
+     「S2 の判定を広げる」と矛盾する。第7ラウンドの明示許可に従い変更した。
+   - このテストの変更は上記2行だけ。prefix、記録値、補給・在庫のassertion、
+     コメントその他は変更していない。
+2. src/hengbot/policy_town.py:1656以降:
+   - ADMIT済みcommandをそのまま返す前に、知識取得macroであり、既存の
+     _town_result_makes_progressが真の場合、従来と同じ_home_scan_source='~9'を記録する。
+   - ADMIT済みcommandの保護は維持する。対象macroと進捗条件は既存の
+     通常return経路と同じであり、新しい場面規則を追加していない。
+   - 第6ラウンドの治療薬(R)の原因だった補助状態記録の欠落を修正。
+     tests/test_town_cure_supplier_recorded.pyは一切変更していない。
+
+確定したテスト結果:
+- Codex実行環境のPython 3.12.14、-X utf8、PYTHONPATH=src;tests;scripts。
+- 指定の完全修飾名2件: 2件成功、失敗0、エラー0、終了0。
+  subprocess込み266.312秒。
+- 第6ラウンドと同じmodules.jsonの38モジュールを一括で各1回実行。
+  791件成功、失敗0、エラー0、終了0。
+  unittest計測1909.059秒、subprocess込み1926.469秒。
+  指定2件もこの791件に含む。tests.test_policy_townの593件を含む。
+- 第6ラウンドの失敗2件は両方解消した。38モジュール内の追加失敗なし。
+- ログ・実行引数・終了コード:
+  C:/hengband-backups/town-post-s2-round7/ のtargeted.log、
+  recorded-modules.log、および各-result.json。
+
+帳簿・変更範囲:
+- PYTHONPATH=srcでscripts/town_work_manifest.py --writeを実行。
+  従来と同じPython 3.13で生成し、runtime indexの変更は
+  policy_town.py:TownMixin._town_procurement_decisionのAST digest 1件だけ。
+- 初回はCodex実行環境の3.12で生成したが、PythonのAST表現差で全関数の
+  digestが変わるため、従来の3.13で再生成した。初回生成物はコミットしていない。
+  テスト実行環境を3.13へ差し替えたわけではない。
+- census: 889 candidates / 22428 call_sites /
+  112 registry_sites / 102 ladder_sites / unmapped 0。
+- producer baseline 729 entries / town_work_review 889 entries。
+  新helper 0のため両分類台帳の追加・変更はない。
+- 新constant・threshold・永続policy属性は0。復元checkpoint defaultの追加もない。
+- 新テストmodule・fixtureは追加していない。
+- source/test/manifestは上記固定commitに含む。既存未追跡ログ・validation資料は保持。
+- ゲーム/BOT操作、他processの停止・再起動、push、merge、rebase、
+  reset、stashは行っていない。
+- 第7ラウンドで指定されたguardはmutation_check --recordとfast_tier。
+  基準dace87f32で順次実行する。preflightとremote_slowの追加実行は行わない。
+
+guard検査:
+- mutation_check --recordはmerge gateのフルスイート終了待ちに入った。
+  指示どおり待機中。確定結果は完了後に追記する。
+
+
+第7ラウンド・mutation検査の確定:
+- 基準dace87f32、対象47551e930、mutation_check --recordは終了0。
+  MUTATION OK、NOT CAUGHT 0/19。src/hengbot・testsのtreeの成功記録を保存した。
+- merge gate終了までguard表示で16分待機した。
+  待機込みのsubprocess計測1528.625秒。
+- 前回の成功記録373d0a132を利用し、18 hunksはGREEN EARLIER。
+  今回変更したpolicy_town.py:1653のhunkだけを実際に反転して検査した。
+  19 hunksすべてを今回反転したという意味ではない。
+- 反転時の検出:
+  test_a1_admitted_operation_survives_downstream_nonprogress、
+  test_identify_staff_swap_returns_to_the_blocked_magic_shop。
+  ADMIT保護と今回の記録処理を含むhunk全体の反転検査であり、
+  この結果だけで記録処理単独の検出と解釈しない。
+  記録処理の退行解消は、前回の失敗再現・対照と今回の既存治療薬テスト成功で確認。
+- --testsは第6ラウンドと同じ3モジュール・資金稼ぎとcycle回復の3件に、
+  今回指定された補給・治療薬の2件を追加した。
+- 終了後、src・tests・scriptsが固定commitから差分0であることを確認した。
+- その後、基準dace87f32、4 shardsでfast_tierを開始。
+  別のmerge gateのフルスイート待ちに入った。指示どおり待機を継続している。
+- 保存資料: C:/hengband-backups/town-post-s2-round7/mutation.log、
+  mutation-result.json、fast-tier.log（実行中）。
+
+
+第7ラウンド・fast tierの確定:
+- 基準dace87f32、対象47551e930、4 shards。終了1。
+- merge gate終了までguard表示で46分待機後、最新の成功計測一覧d9f1f0eb4から
+  1929 fast testsと変更5モジュールを選択した。
+  2496件実行、guard計測441.2秒、待機込みsubprocess計測3201.609秒。
+  失敗1、importエラー4、crashed shardsなし。
+  60秒超の51モジュールはguard既定で除外。選択一覧やguardは変更していない。
+- 失敗:
+  tests.test_flight_recorder.FlightRecorderTest.
+  test_budget_stats_unprunable_bulk_only_once_during_deletion_loop
+  tests/test_flight_recorder.py:425。
+  既存期待値bulk_stats == 4に対し実測5。
+  分類: 第6ラウンドと同じ、基準にも存在するPython実行環境依存の失敗。
+  町処理の退行(R)やS2所有者決定との衝突ではない。
+- 本ラウンドでもsrc/hengbot/flight_recorder.pyとtests/test_flight_recorder.pyが
+  dace87f32と改行正規化後の全文で同一であることを確認。
+  基準の記録器コードをメモリ内moduleへ読み込み、同一の既存テストで対照実行:
+  Codex実行環境のPython 3.12.14で1件失敗、0.044秒、同じ5 != 4。
+  第6ラウンドで確認済みの3.13での成功を今回のguard成功へ置き換えていない。
+- importエラー（すべてModuleNotFoundError）:
+  tests.test_spectator_frames
+  tests.test_slow_decisions
+  tests.test_quest_torch_stall_recorded
+  tests.test_q34_collect_recorded
+  分類: 共用の最新計測一覧と、この作業ブランチとの不整合。
+  4つのtests/test_*.pyはいずれも作業ツリー、HEAD、基準dace87f32のすべてに
+  存在しないことをPath.exists / git cat-file -eで確認した。
+  今回のソース変更による削除・import退行ではない。
+  失敗1件とこの4エラー以外の追加失敗はguardから報告されていない。
+- このブランチにない他作業のテスト追加やguardの選択条件変更は行わず、
+  fast tier全体の再実行もしない。全検証成功とは報告しない。
+- 保存資料:
+  C:/hengband-backups/town-post-s2-round7/fast-tier.log、fast-tier-result.json、
+  flight-recorder-baseline.py/log/json、absent-modules.json。
+  shard詳細ログはfast-tier.logに記載された一時ディレクトリに残る。
+- 対照スクリプトの初回起動は、外部ディレクトリのscriptからtestsを解決するための
+  リポジトリルートがPYTHONPATHに不足し、importで終了した。
+  ルートを追加して上記の対照結果を確定した。ソース・テストの変更はない。
+
+第7ラウンド・最終結論:
+- 許可された補給期待値2行を更新し、ADMIT済み知識取得操作の記録漏れ(R)を修正した。
+  治療薬テストを含め、その他の既存assertionは維持した。
+- 指定2件成功、全38モジュール791件成功、mutation成功。
+  fast tierは基準にもある記録器の失敗1件と、最新計測一覧由来のimportエラー4件で終了1。
+  指定のguard実行はすべて終了したが、全検証成功という結論ではない。
+- guard完了後もsrc・tests・scriptsは固定commit 47551e930から差分0。
+  本報告のみを追加コミットする。mutationの成功記録が対象とするソース・テストtreeは不変。
+- 120分の作業上限内で確定結果を追記。報告はPythonで
+  encoding='utf-8', newline='\n'を指定して保存した。
+  UTF-8・BOMなし・CRなし・生制御文字なし、privacy検査、
+  git diff --checkを確認してコミットする。

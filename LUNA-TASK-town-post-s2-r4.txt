@@ -1,0 +1,16 @@
+ISSUE: #47
+ROUND 4 of LUNA-TASK-town-post-s2.txt. The merge gate (main dace87f32 + your tip) runs the full suite and these four
+EXISTING tests fail, and fail again when run alone (log C:\hengband-backups\suite-logs\gate-town-post-s2-1025-suite.log,
+batch 011):
+  tests.test_policy_town.TownAndFundraisingPolicyTest.test_blocked_fundraising_steps_off_store_instead_of_reentering
+  tests.test_policy_town.TownAndFundraisingPolicyTest.test_completed_town_plan_immediately_downgrades_blocked_fundraising
+  tests.test_policy_town.TownCycleDetectorTest.test_ready_mining_cycle_break_promotes_back_from_scavenge
+  tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p4_attempted_surplus_deposit_does_not_block_departure
+tests.test_policy_town is excluded from fast_tier and remote_slow (too heavy), so run it yourself:
+  PYTHONPATH="src;tests;scripts" python -m unittest <each name above>
+Classify each as (R) regression of your change and fix the source (existing test assertions must not change), or, if
+the owner decision itself contradicts the test's old expectation, STOP and report the test, old value, new value and
+the decision sentence. First `git merge main` (main dace87f32; regenerate scripts/town_work_manifest.json.gz on
+conflict). Then: run the four tests, the whole tests.test_policy_town module once, your round-2/3 test modules, then
+mutation_check --record with base dace87f32 (it waits while a merge gate runs - let it). Token budget 80k HARD, wall
+time 120 minutes. Append round 4 to the report (Japanese, Python UTF-8) and commit.

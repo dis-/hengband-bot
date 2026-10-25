@@ -1,0 +1,14 @@
+ISSUE: #47
+ROUND 6 of LUNA-TASK-town-post-s2.txt. The merge gate (main dace87f32 + your tip da0b542e1) ran the full suite; two
+EXISTING tests fail, and fail again alone (log C:\hengband-backups\suite-logs\gate-town-post-s2-1025-suite.log):
+  tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_identify_staff_swap_returns_to_the_blocked_magic_shop
+  tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards
+Classify each: (R) regression -> fix the source, assertions unchanged; or contradiction with the owner decision
+「S2 の判定を広げる」 (an admitted composite terminal must not be rewritten; borrowed detector visits judged by the
+borrowed errand's terminal; named close for an empty recovery visit) -> STOP and report test, old value, new value,
+decision sentence, like round 4.
+Before reporting, ALSO run every tests/test_town*_recorded.py, tests/test_supply*_recorded.py, tests/test_home*_recorded.py
+module and tests.test_policy_town once (python -m unittest <modules>), so the next gate does not find more of these;
+list any other failure the same way. Then mutation_check --record and fast_tier with base dace87f32 (they wait while a
+merge gate runs - let them). Token budget 100k HARD, wall time 150 minutes. Append round 6 to the report (Japanese,
+Python UTF-8) and commit.

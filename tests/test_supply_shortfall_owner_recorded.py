@@ -193,9 +193,9 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
             all(ok for row, ok in prefix if row >= 127 and row != 139), prefix)
         self.assertEqual((recorded["key"], recorded["reason"]),
                          ("\x1b`n%.", "shop:travel"))
-        self.assertEqual(key, "\x1b`n&.")
+        self.assertEqual(key, "01kl")
         self.assertTrue(
-            policy.last_reason.endswith("town-progress-invariant:approach"),
+            policy.last_reason.endswith("inventory:destroy-disposable-item"),
             policy.last_reason)
         self.assertIn(STORE_MAGIC, policy._town_errand_plan.blocked_this_visit)
         staves = policy._carried_identify_staves(board)
