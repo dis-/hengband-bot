@@ -144,6 +144,29 @@ def spectator_details(state: Mapping[str, object], snapshot=None) -> dict:
     return details
 
 
+def spectator_recall_destination(policy, snapshot) -> dict | None:
+    """The recall destination the policy pursues and why, or None without one.
+
+    Read only from what the bot already holds: the target and its reason
+    code, the dungeon's name from the bot's static dungeon knowledge (omitted
+    when it has none) and the arrival floor the bot itself expects
+    (``_dungeon_entry_depth`` with ``via_recall=True``).  No decision reads
+    this projection.
+    """
+    dungeon_id = getattr(policy, "_target_dungeon_id", None)
+    if dungeon_id is None:
+        return None
+    destination: dict[str, object] = {"dungeon_id": dungeon_id}
+    info = (getattr(policy, "_dungeon_knowledge", None) or {}).get(dungeon_id)
+    name = getattr(info, "name", None)
+    if name:
+        destination["dungeon_name"] = name
+    destination["depth"] = policy._dungeon_entry_depth(
+        snapshot, dungeon_id, via_recall=True)
+    destination["reason"] = getattr(policy, "_target_dungeon_reason", None)
+    return destination
+
+
 class SpectatorWriter:
     """Throttled, atomic, never-raising writer of the spectator snapshot."""
 
@@ -159,7 +182,8 @@ class SpectatorWriter:
     def observe(self, snapshot, key: str | None, reason: str | None,
                 decision_sequence: int | None,
                 screen_value: Mapping[str, object] | None, *,
-                state_line: str | None = None, screen_client=None) -> bool:
+                state_line: str | None = None, screen_client=None,
+                policy=None) -> bool:
         """Record one decision; write the file when a second has passed.
 
         Returns True when the file was replaced by this call.
@@ -188,6 +212,10 @@ class SpectatorWriter:
                 "dungeon": snapshot.floor_key[0],
                 "hp": [player.hp, player.max_hp],
             }
+            if policy is not None:
+                destination = spectator_recall_destination(policy, snapshot)
+                if destination is not None:
+                    content["recall_destination"] = destination
             screen = spectator_screen(screen_value)
             if screen is not None:
                 content["screen"] = screen

@@ -395,6 +395,7 @@ class ObservationMixin:
         pursued_target = self._target_dungeon_id
         if snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND
+            self._target_dungeon_reason = "angband_recall_unlocked"
             self._rumor_unlock_pending = False
         elif (
             (quest_14 := snapshot.quests.get(14)) is not None
@@ -605,6 +606,7 @@ class ObservationMixin:
         if self._alternate_dungeon is not None:
             if self._alternate_dungeon in snapshot.entered_dungeon_ids:
                 self._target_dungeon_id = self._alternate_dungeon
+                self._target_dungeon_reason = "alternate_dungeon"
 
         # HIGHEST PRIORITY target: clear an unconquered dungeon whose bottom is within
         # our resistance limit, for the final guardian's gear. It normally overrides
@@ -617,6 +619,7 @@ class ObservationMixin:
         )
         if conquest is not None:
             self._target_dungeon_id = conquest
+            self._target_dungeon_reason = "conquest"
             # Fundraising is only superseded when the conquest expedition can
             # actually leave town.  In particular, poverty plus a supply gap is
             # still a fundraising problem even when the guardian fight itself is
