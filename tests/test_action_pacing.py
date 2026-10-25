@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 
 from hengbot.cli import PostingContract, _build_argument_parser
 from hengbot.policy import HengbotPolicy
+from hengbot.spectator import SpectatorWriter
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.run_follow_hygiene import run_follow
 
@@ -132,6 +133,9 @@ class ActionPacingTest(unittest.TestCase):
 
             with (
                 patch("hengbot.cli.time", clock.module()),
+                # The viewer throttle must share the follow loop's fake clock.
+                patch("hengbot.cli.SpectatorWriter",
+                      lambda path: SpectatorWriter(path, clock=clock.read)),
                 patch("hengbot.cli._arm_decision_watchdog", side_effect=poll),
             ):
                 with self.assertRaises(ExchangeDone):
