@@ -41,6 +41,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
+from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
@@ -3497,6 +3498,14 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         help="append structured policy decisions for an external live viewer",
     )
     parser.add_argument(
+        "--slow-decision-sample",
+        type=float,
+        default=0.0,
+        metavar="SECONDS",
+        help="sample choose_key stacks every 10ms; log decisions exceeding SECONDS "
+             "beside --decision-log (0 disables)",
+    )
+    parser.add_argument(
         "--capture-home-entry",
         action="store_true",
         help="capture diagnostic policy state around home entry",
@@ -4116,7 +4125,10 @@ def main(argv: list[str] | None = None) -> int:
             policy.prime(snapshot)
             emit_visit = copy.copy(policy._store_visit)
             emit_approach_store = policy._shopping_approach_store_type
-            key = policy.choose_key(snapshot)
+            slow_decisions = SlowDecisionRecorder(
+                getattr(args, "slow_decision_sample", 0), args.decision_log,
+            )
+            key = slow_decisions.choose_key(policy, snapshot)
             key = policy.validate_read_key(snapshot, key)
             emit_ownership = emit_ownership_verdict(
                 emit_visit, snapshot, key, emit_approach_store
@@ -4206,6 +4218,9 @@ def _run_follow(
     knowledge_ledger_path: Path | None = None,
 ) -> int:
     path = args.state_file
+    slow_decisions = SlowDecisionRecorder(
+        getattr(args, "slow_decision_sample", 0), args.decision_log,
+    )
     wait_telemetry: WaitTelemetry = args.wait_telemetry
     # None for a --once run and for drivers built by tests, which write no
     # session of their own; every use below is guarded.
@@ -4645,7 +4660,7 @@ def _run_follow(
                     emit_visit = copy.copy(policy._store_visit)
                     emit_approach_store = policy._shopping_approach_store_type
                     policy.observe_store_screen(store_screen_verified)
-                    chosen_key = policy.choose_key(snapshot)
+                    chosen_key = slow_decisions.choose_key(policy, snapshot)
                     _record_atomic_home_page(
                         policy, snapshot, observed_store=last_observed_home_page,
                         path=knowledge_ledger_path,
@@ -5010,7 +5025,7 @@ def _run_follow(
                         phase_started_at = time.perf_counter()
                         emit_visit = copy.copy(policy._store_visit)
                         emit_approach_store = policy._shopping_approach_store_type
-                        key = policy.choose_key(snapshot)
+                        key = slow_decisions.choose_key(policy, snapshot)
                         decision_timing["choose_key_ms"] += round(
                             (time.perf_counter() - phase_started_at) * 1000, 3
                         )

@@ -11266,5 +11266,49 @@
     "rows": [
       "data/no-independent-credit"
     ]
+  },
+  "slow_decisions.py:SlowDecisionRecorder.choose_key": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "adapter",
+    "context": "Optional diagnostic wrapper around the same policy decision in town, stores, and dungeons.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Calls policy.choose_key exactly once, preserves its return value and exceptions, and only writes bounded stack sample diagnostics. No independent action or progress credit.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ]
   }
 }

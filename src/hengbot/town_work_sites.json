@@ -185,7 +185,7 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "1b3a6a45ad48e1052171519103322161a5a65e86d9bee3b1adf220e4f8b7d7e1"
+    "ast_sha256": "0d0dca6c2e03ac0634adfbba5a9b723074af292ffc3d7f6326f61a56a790c82c"
   },
   "cli.py:_send_decision_key_with_prompt_chain": {
     "classification": "driver",
@@ -235,7 +235,7 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "60fee8361401b60b3268b0f7d7b34e0c7d5cff1ab2c6f8563864470a195d53dc"
+    "ast_sha256": "42b56c37b94b34bd30a43d2342ba6f34b4a472bb36de4845bc1204c975eb0c89"
   },
   "cli.py:main.wm_post": {
     "classification": "driver",
@@ -8118,6 +8118,47 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "d2c1c6d63528e4b9e426d742308c8a79657324289ee1774e5d88db68c4338b27"
+  },
+  "slow_decisions.py:SlowDecisionRecorder.choose_key": {
+    "classification": "adapter",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bcf981b76b7b361ae3cc163285a8a52ad31f66ad91defc235e7c5d685c132201"
   },
   "sol_events.py:append_event": {
     "classification": "data",
