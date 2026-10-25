@@ -4628,6 +4628,8 @@ def _run_follow(
                             snapshot, key, policy.last_reason,
                             getattr(policy, "_decision_sequence", None),
                             executor.ready_screen_value if executor is not None else None,
+                            state_line=snapshot_line,
+                            screen_client=executor.client if executor is not None else None,
                         )
                     emit_ownership = emit_ownership_verdict(
                         emit_visit, snapshot, key, emit_approach_store

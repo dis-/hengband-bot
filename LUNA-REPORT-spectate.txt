@@ -1,71 +1,53 @@
-LUNA report - spectator snapshot file (--spectate-file), branch spectate-1023 from c378e9a5
-Commits: cb5124fd (feature), 61dae636 (screen copy no longer reads "lines"), 559a7f6a (manifest).
+Issue #47 観戦スナップショット拡張 作業報告
 
-== Diagnosis (measured)
-- The bot's decision point in _run_follow (cli.py) is the single place every decision passes:
-  key = _handle_owner_retirement(...) right after policy.choose_key/validate_read_key, before any
-  branch (no-key, stop, send).  At that point the executor's ready_screen_value is the screen reply
-  that produced the decision board (no extra request needed).
-- Messages: the control server's state carries the recent history (make_message_history_json,
-  oldest first); the JSONL output carries only the lines added since the previous snapshot
-  (make_recent_messages_json).  The executor's board takes them from the drained JSONL rows (diffs);
-  the writer merges by overlap so both shapes give the seen lines once.
-- The bot requests screens with attrs=False, so "attrs" is normally absent (kept if present).
+診断と変更
+既存の画面要求は attrs=False であり、観戦ファイルに色属性が届かなかった。
+SpectatorWriter.observe の既存1秒制限を通過した時だけ、既存クライアントへ
+screen(term=0, attrs=True) を1回要求する。入力待ち・プロンプト処理は変更しない。
+決定確定後に受信済み状態行と画面を複写し、ボットの判断は出力を参照しない。
+--spectate-file がない場合は従来の分岐だけで、要求・状態行再解析・書込はゼロ。
+ゲームの213×68設定は変更しない。160×64への切り出しと閲覧ページは対象外。
+取得失敗・不正行・書込失敗は観戦側で吸収し、既存のエラー通知間隔を維持する。
 
-== Changes
-- src/hengbot/spectator.py (new): SpectatorWriter.observe(snapshot, key, reason, sequence, screen)
-  merges messages (last 20 kept, every decision), writes at most once per wall-clock second
-  (time.time, injectable clock), PATH.tmp then os.replace, UTF-8 JSON (ensure_ascii=False);
-  OSError/TypeError/ValueError swallowed, one stderr line per hour at most.
-  Fields: time, decision_sequence, key (control-server macro notation via
-  raw_keys_to_macro_notation, e.g. ">\ry", "\e\r", "^A"), reason, level, depth (dungeon_level),
-  dungeon (floor_key[0]), hp [hp, max_hp], screen (reply minus cursor/input_context/term; omitted
-  when there is no reply, e.g. JSONL-only window mode), messages.
-  The values 1 s / 20 lines / 1 hour are the task's own numbers (named constants).
-- src/hengbot/cli.py: --spectate-file PATH (type Path, default None); _run_follow builds the writer
-  only when given; one call after the decision's key is fixed.  Without the flag no object is made
-  and no code runs.
-- Bookkeeping: scripts/town_work_manifest.json.gz + src/hengbot/town_work_sites.json regenerated
-  (_run_follow's ast hash).  No policy attribute, no reason, no structural census change.
-- Deviation note: the first version copied the screen with screen_value.get("lines"), which
-  tests.test_input_context_structure (LINES_READERS freeze) counted as a new input-inference site.
-  Instead of extending the frozen list (an existing test change), the copy passes the reply through
-  minus cursor/input_context/term and never reads the rows.  Any future reply field also passes.
+JSONフィールド
+既存: time, decision_sequence, key, reason, level, depth, dungeon, hp,
+      screen（存在時。attrsを含みcursor/input_context/termを除外）, messages。
+追加: equipment[{slot,name}], inventory[{slot,name,count}],
+monsters[{name,distance,hp,asleep,stunned,confused,fearful,friendly,pet,speed}],
+melee（player.meleeをそのまま複写しmain_hand_dice/sub_hand_diceを追加）, 
+abilities{sources,immunities,vulnerabilities}, status{bar,flags,cut,stun,speed}。
+装備・荷物は送信順、可視モンスターは近い順。距離と速度は既存Snapshotに
+あるものを利用する。直接HP/max_hpがなければhp:nullで、推定HPを実測値としない。
+欠けたフィールドは省略し、空のリストや能力集合が実際に送信された場合は残す。
+能力の各集合にはtrueの出典だけを残す。状態フラグもboolのtrueだけとする。
+日本語は既存の復号済みJSONのUnicodeを使用しUTF-8、BOMなしで出力する。
 
-== Tests (tests/test_spectator.py, 9 tests)
-Recorded replay: tests/fixtures/equip-swap-20260826.snapshots.jsonl.gz (first 6 recorded snapshots,
-Lv15, dungeon 2, 13F) served in order by test_input_executor.FaithfulHookGame to the REAL
-ControlClient + OperationExecutor + _ExecutorInputPort + _run_follow + real policy (_fresh_policy).
-Decisions: 7,7,7,8,3 (seek-loot) then a terminal no-key on the last board.
-- without the flag: no spectate.json, the sandbox has exactly one file fewer; accepted keys
-  (game.accepted) identical, decision rows (sequence, turn, reason, key) identical, result identical.
-- with the flag and a ticking clock: every field of the last decision (sequence, reason, key "",
-  time, level 15, depth 13, dungeon 2, hp, screen width/height/lines = the executor's last reply
-  without cursor/attrs, messages = all recorded message lines, last 20, oldest first); no .tmp left.
-- with a frozen clock: only the first decision is written (its own key "7", reason, messages of the
-  bootstrap board).
-- writer: two decisions within 1 s -> one write (messages of the throttled one kept), third at +1 s
-  writes, key "\e\r"; missing directory -> no raise, one stderr line, none within the hour, one
-  after it, write resumes when the directory exists; os.replace PermissionError swallowed;
-  history-shaped messages not duplicated; screen copy keeps attrs only when present; printable key.
+検証とピン（変更前／変更後）
+既存 tests.test_spectator: 9件成功。既存のテスト本文・期待値は変更していない。
+追加 tests.test_spectator_v2: 6件成功。記録状態行の全情報欄、日本語、非破壊性、
+古い出力の欠落、構成した真偽の能力・状態、両手ダイス、距離順・既知/未知HP、
+色属性、1秒制限、応答なし、要求例外、不正状態行、観戦なしの要求ゼロを確認。
+変更前は追加フィールドと色要求がなく、追加テストはこれらの欠落を検出する。
+既存リプレイは観戦の有無によるキー・理由・決定番号・終了結果の一致を確認する。
+記録fixture: tests/fixtures/spectator-board.json は既存の
+anti-melee-death-20261023.jsonl.gz の先頭行（turn 8823126）をそのまま複写。
+ゲームのデータファイルは複写していない。補助的な対照入力はテスト内に明記した。
 
-== Revert-proof (by hand, before the guards)
-- whole cli.py diff reverted: 3 replay tests error (flag unknown).
-- hook disabled (if False): replay tests fail (spectate.json missing; file list differs).
-- screen argument replaced by None: field test fails (KeyError 'screen').
+計時
+実ゲーム・稼働中ボットへの接続や操作は行っていない。既存の忠実な模擬ゲームと
+実ControlClient通信を使い、213×68の文字・hex属性画面を構成したローカル測定。
+1000決定、10決定/秒の模擬時計による100秒を測定した。これは実ゲームの遅延を
+保証する測定ではなく、観戦経路と追加要求回数・費用の測定である。
+観戦なし: 平均 0.00017770 ms/決定、追加要求 0回。
+観戦あり: 平均 0.864819 ms/決定、書込時 8.621728 ms、制限中 0.002940 ms。
+追加画面要求 100回（各模擬秒1回）、要求自体の平均 0.390820 ms、中央値 0.387600 ms。
+画面を含むJSONは47325 bytes。新情報欄の実記録例とサイズは最終検証後に追記する。
 
-== Guards (after the last source edit and commit, 559a7f6a)
-preflight:  [preflight] PREFLIGHT OK: 5 changed files, 0 findings (spectate-1023 vs c378e9a5)
-mutation:   [mutation] 5 source hunks, tests: tests.test_spectator
-            caught cli.py:90 (import), cli.py:3606 (add_argument), cli.py:4218 (spectate_path),
-            cli.py:4623 (if spectator is not None), spectator.py:1 (new module)
-            [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test / recorded for 559a7f6a
-fast_tier:  3645 fast tests + 1 changed module, 4 shards; Crashed shards: none; Failures: none;
-            Errors: ['tests.test_quest_door_confirm_recorded (import) ModuleNotFoundError'];
-            Total: 3641 tests, 216.5s; exit 1.
-  The one error is not a regression: that module does not exist at c378e9a5 or on this branch
-  (git ls-tree: 0 files); fast_tier takes it from the shared timing cache
-  C:\hengband-backups\fast-tier-module-seconds.json (written by the quest-door-confirm gate).
-  First fast_tier run (before 61dae636) also failed
-  test_input_context_structure...test_screen_lines_are_read_only_where_they_are_today (R, fixed in src).
-No existing test was edited.
+管理項目
+新しいポリシー属性・復元既定値・理由・閾値・定数は追加していない。
+manifestを再生成。spectator_detailsは判断系の依存外でありproducer censusの対象外。
+baseline/reviewに無関係な項目を足すとstaleとなるため追加なし。候補数880は不変。
+構造テストの既存件数の変更なし。新ヘルパーは観戦用のデータ射影のみ。
+他者のプロセスの停止・再起動、ゲーム操作、stash、push、mergeは行っていない。
+
+最終ガード出力: ソース確定コミット後、指定順に実行して追記する。

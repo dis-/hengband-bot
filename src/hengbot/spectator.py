@@ -4,8 +4,9 @@ The bot is the control server's only client, so a viewer cannot read the
 game itself.  After each decision the bot writes what it already holds -- the
 screen reply its executor observed, the decision's key and reason, a few player
 values and the recent messages -- to one JSON file that a separate web page
-serves.  Nothing here is read back by a decision, and nothing asks the game
-for anything (fair play is unchanged: only what the bot already saw).
+serves. A due write may request a colour screen through the existing client.
+Nothing here is read back by a decision; only already received state and the
+public screen are copied (fair play is unchanged).
 
 The file is replaced atomically (``PATH.tmp`` then ``os.replace``) at most once
 per wall-clock second.  A failed write never reaches the bot: it is reported on
@@ -75,6 +76,71 @@ def spectator_screen(screen_value: Mapping[str, object] | None) -> dict | None:
     }
 
 
+def spectator_details(state: Mapping[str, object], snapshot=None) -> dict:
+    """Small viewer-only projection; omitted emitter fields stay omitted."""
+    details = {}
+    for field, columns in (("equipment", ("slot", "name")),
+                           ("inventory", ("slot", "name", "count"))):
+        if field in state:
+            details[field] = [
+                {name: row[name] for name in columns if name in row}
+                for row in state[field]
+            ]
+    if "visible_monsters" in state:
+        monsters = []
+        known = {monster.index: monster for monster in snapshot.visible_monsters} \
+            if snapshot is not None else {}
+        for row in state["visible_monsters"]:
+            monster = {name: row[name] for name in (
+                "name", "distance", "asleep", "stunned", "confused",
+                "fearful", "friendly", "pet", "speed") if name in row}
+            observed = known.get(row.get("index"))
+            if observed is not None:
+                monster["distance"] = observed.distance
+                monster["speed"] = observed.speed
+            monster["hp"] = ([row["hp"], row["max_hp"]]
+                             if row.get("hp") is not None and
+                             row.get("max_hp") is not None else None)
+            monsters.append(monster)
+        details["monsters"] = sorted(
+            monsters, key=lambda row: row.get("distance", float("inf")))
+    player = state.get("player", {})
+    if "melee" in player:
+        melee = dict(player["melee"])
+        for row in state.get("equipment", []):
+            slot = row.get("slot")
+            dice = row.get("damage_dice", {})
+            if slot in ("main_hand", "sub_hand") and \
+                    "num" in dice and "sides" in dice:
+                melee[slot + "_dice"] = f"{dice['num']}d{dice['sides']}"
+        details["melee"] = melee
+    abilities = {}
+    for source, target in (("ability_sources", "sources"),
+                           ("immunities", "immunities"),
+                           ("vulnerabilities", "vulnerabilities")):
+        if source in player:
+            abilities[target] = {
+                name: [source for source, enabled in sources.items() if enabled is True]
+                for name, sources in player[source].items()
+                if any(enabled is True for enabled in sources.values())
+            }
+    if abilities:
+        details["abilities"] = abilities
+    status = {}
+    for source, target in (("status_bar", "bar"), ("speed_display", "speed")):
+        if source in player:
+            status[target] = player[source]
+    if "status" in player:
+        flags = player["status"]
+        status["flags"] = [name for name, enabled in flags.items() if enabled is True]
+        for source, target in (("cut_rank_name", "cut"), ("stun_rank_name", "stun")):
+            if source in flags:
+                status[target] = flags[source]
+    if status:
+        details["status"] = status
+    return details
+
+
 class SpectatorWriter:
     """Throttled, atomic, never-raising writer of the spectator snapshot."""
 
@@ -89,7 +155,8 @@ class SpectatorWriter:
 
     def observe(self, snapshot, key: str | None, reason: str | None,
                 decision_sequence: int | None,
-                screen_value: Mapping[str, object] | None) -> bool:
+                screen_value: Mapping[str, object] | None, *,
+                state_line: str | None = None, screen_client=None) -> bool:
         """Record one decision; write the file when a second has passed.
 
         Returns True when the file was replaced by this call.
@@ -102,27 +169,33 @@ class SpectatorWriter:
                 now - self.last_write < SPECTATE_WRITE_INTERVAL_SECONDS:
             return False
         self.last_write = now
-        player = snapshot.player
-        content: dict[str, object] = {
-            "time": now,
-            "decision_sequence": decision_sequence,
-            "key": printable_key(key),
-            "reason": reason,
-            "level": player.level,
-            "depth": snapshot.dungeon_level,
-            "dungeon": snapshot.floor_key[0],
-            "hp": [player.hp, player.max_hp],
-        }
-        screen = spectator_screen(screen_value)
-        if screen is not None:
-            content["screen"] = screen
-        content["messages"] = list(self.messages)
-        temporary = self.path.with_name(self.path.name + ".tmp")
         try:
+            if screen_client is not None:
+                coloured = screen_client.request("screen", term=0, attrs=True)
+                if coloured is not None:
+                    screen_value = coloured
+            player = snapshot.player
+            content: dict[str, object] = {
+                "time": now,
+                "decision_sequence": decision_sequence,
+                "key": printable_key(key),
+                "reason": reason,
+                "level": player.level,
+                "depth": snapshot.dungeon_level,
+                "dungeon": snapshot.floor_key[0],
+                "hp": [player.hp, player.max_hp],
+            }
+            screen = spectator_screen(screen_value)
+            if screen is not None:
+                content["screen"] = screen
+            content["messages"] = list(self.messages)
+            temporary = self.path.with_name(self.path.name + ".tmp")
+            if state_line is not None:
+                content.update(spectator_details(json.loads(state_line), snapshot))
             temporary.write_text(
-                json.dumps(content, ensure_ascii=False), encoding="utf-8")
+                json.dumps(content, ensure_ascii=False), encoding="utf-8", newline="\n")
             os.replace(temporary, self.path)
-        except (OSError, TypeError, ValueError) as error:
+        except Exception as error:
             self._report(now, error)
             return False
         return True
