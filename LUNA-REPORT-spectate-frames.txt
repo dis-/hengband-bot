@@ -112,3 +112,45 @@ mainの統合
 
 保存と作業範囲
 本追記はPythonでUTF-8、LF、BOMなしとして保存した。マージ・テスト修正とは別の報告コミットにする。元からある未追跡ログ4件は保持した。ゲーム・公開botの起動・停止・制御、自分が起動していないプロセスの停止、push、rebase、reset --hard、stash、外部サービスへの投稿は行っていない。
+
+第3ラウンド（Issue #47）
+日付: 2026-10-26
+比較元: dace87f32320738873f861a7c15e1d9c8974ba0d
+検証対象のコード・テストHEAD: 293b506d2dfc99f3532518dd70f0e6a5bc3f9ac6
+
+原因と修正
+指定された tests.test_action_pacing.ActionPacingTest.test_recorded_follow_keeps_keys_and_reasons の失敗を修正前に再現した。失敗箇所は tests/test_action_pacing.py:200。実際の送信キー・理由と判断ログの比較は成功しており、最後に保存された互換表示 spectate.json のキーだけが、待機なしでは7、固定間隔ありでは8となっていた。送信キー列自体が変わったという説明とは区別する。
+
+原因は修正前の src/hengbot/cli.py:4276 の post_decision 内の spectator.observe 呼び出し位置だった。固定間隔・バックログ待機の後に観戦情報を採取するため、spectator.py の0.25秒の互換表示更新判定に意図的な待機時間が入り、この再生では固定間隔ありの場合だけ2番目の判断で表示が更新された。
+修正後は cli.py:4259 で待機前に観戦情報を採取する。送信内容を再選択せず、フレームの確定は従来どおり投稿確認後に行う。画面取得と意図的な待機が完了してから応答期限を作成する順序、待機中のwatchdog解除・再設定、判断時間の補正を維持した。
+互換表示の0.25秒間隔、投稿ごとのフレーム、バックログ上限の仕様は維持している。
+
+回帰テストと取り消し検証
+tests/test_spectator_frames.py の既存follow用ヘルパーへ記録済み状態の再生を追加し、実際のHengbotPolicyを通す回帰テストを1件追加した。注入した時計と一時ファイルを使用し、観戦なし・フレームあり・バックログ待機あり、それぞれの固定間隔の有無について、投稿キー・理由と判断ログの一致を確認する。フレームと投稿の対応、実際に待機したこと、固定間隔による互換表示のキー・理由の不一致が解消したことも確認する。
+一時ディレクトリへ複製したsrcのcli.pyだけを修正前へ戻すと、新しいテストは互換表示の ('7', 'explore') と ('8', 'explore') の比較で失敗した。作業ツリーを変更せず、今回の修正に対する検出力を確認した。
+既存16件のフレームpinはすべて成功した。scripts/check_spectator_frames_pins.py は呼び出し順序の変更に合わせてwatchdog再設定の置換対象を更新し、全24/24件の取り消しを検出した。
+tests/test_action_pacing.py は変更していない。第2ラウンドで更新した既存の観戦テスト2件にも追加変更を行っていない。
+
+指定検証の結果
+実行にはCodex実行環境のPython 3.12.14を使用した。比較元はすべてdace87f32、対象HEADは293b506d2。
+・指定の recorded_follow テストを3回連続実行: すべて成功、各終了コード0。テスト本体の時間は4.912秒、4.096秒、4.192秒。
+・tests.test_action_pacing: 6件、4.859秒、成功、終了コード0。
+・tests.test_spectator_frames: 17件（従来16件と追加1件）、30.804秒、成功、終了コード0。
+・tests.test_spectator: 9件、24.569秒、成功、終了コード0。
+・tests.test_spectator_v2: 7件、14.260秒、成功、終了コード0。
+・最終preflight: 14変更ファイル、指摘0件、PREFLIGHT OK、終了コード0。ガード全体121.80秒。
+・mutation_check --tests tests.test_spectator_frames tests.test_action_pacing --record: MUTATION OK、未検出0/11か所、終了コード0。前回a64cbe592の成功記録により変更のない10か所を再利用し、今回変更した1か所の取り消しを検出した。293b506d2とソース・テストのツリーに対する記録を保存済み。79.11秒。
+・fast_tier --shards 4: 2,077件、129.1秒、失敗1件、エラーなし、異常終了したshardなし、終了コード1。計測済みの重い51モジュールはツールの規則どおり除外された。途中で打ち切らず終了まで待った。
+ガードはpreflight、mutation_check、fast_tierの順に実行した。今回はツールから統合ゲート待機の通知はなく、そのまま実行へ進んだ。第3ラウンドで要求されたローカル検証を実施し、remote_slowの追加実行は行っていない。
+
+fast_tierの既存の環境依存失敗
+唯一の失敗は tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop。tests/test_flight_recorder.py:425 のファイル情報取得回数が期待値4に対して5となった。
+このテストと src/hengbot/flight_recorder.py は比較元dace87f32から差分がない。比較元のsrc・tests・scripts全体をgit archiveで一時ディレクトリへ展開し、同じCodex実行環境Python 3.12.14で単独実行した結果も 5 != 4 で失敗した。一方、変更後HEADをインストール済みPython 3.13.14で単独実行すると成功した。今回の観戦修正による追加失敗ではなく、Pythonのバージョンに依存する既存のテスト失敗と判断する。関連のないソースや既存テストの期待値は変更していない。
+したがって、指定の観戦・固定間隔テストと取り消し検証、preflight、mutation_checkは成功したが、fast_tier全件成功とは報告しない。
+
+生成物・保存・作業範囲
+scripts/town_work_manifest.py --write を同じCodex実行環境で実行し、883候補・22,345サイト、未対応0件として生成索引を更新した。実行環境Pythonの違いに伴い索引内の既存ASTハッシュも再生成されたが、town_work_sites.jsonの分類・登録内容はハッシュを除いて変更前と一致する。
+最初のpreflightは生成索引のコミット前に起動していたため未コミットの生成物を検出した。実装・索引をコミット後に再実行し、上記の最終preflightは成功した。
+検証ログはリポジトリに追加していない。OS一時ディレクトリの spectate-frames-r3-validation-d22_ddjs に個別テスト、ガード、比較元確認のログと guards.json を保存した。取り消し検証ログは同じ一時ディレクトリ階層の spectate-frames-r3-pins.log、修正前ソースによる回帰確認ログは spectate-frames-r3-order-proof.log にある。
+本追記はPythonでUTF-8、LF、BOMなしとして保存する。実装修正コミット293b506d2とは別に報告をコミットする。元から存在した未追跡ログ6件は保持した。ゲーム・公開botの起動・停止・制御、他者のプロセスの停止、push、merge、rebase、reset --hard、stash、外部への投稿は行っていない。
+報告確定時刻: 2026-10-26T05:48:11+09:00
