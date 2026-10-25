@@ -1,0 +1,166 @@
+[
+  {
+    "source": "n1-a-decisions-tail.jsonl.gz",
+    "decision": {
+      "decision_sequence": 18866,
+      "turn": 968370,
+      "reason": "town:recall-to-yeek-cave",
+      "key": "rha",
+      "floor": {
+        "dungeon_id": 0,
+        "level": 0,
+        "quest_id": 0,
+        "feeling": 0
+      },
+      "position": {
+        "y": 31,
+        "x": 91
+      },
+      "player": {
+        "level": 25,
+        "hp": 452,
+        "max_hp": 452,
+        "mp": 0,
+        "max_mp": 0,
+        "gold": 7378,
+        "food_state": "normal",
+        "status": []
+      },
+      "inventory": {
+        "used": 17,
+        "free": 6
+      },
+      "procurement_requirements": [],
+      "abandoned_quest_carry_requirements": {},
+      "fixedquest_readiness": {
+        "quest_id": 1,
+        "roster_size": 4,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 452,
+        "hasted": false,
+        "verdict": false,
+        "strategy_force": {
+          "reference_ac": 24,
+          "dps": {
+            "measured": 134.4407163076923,
+            "required": 28.0
+          },
+          "hp": {
+            "measured": 452,
+            "required": 36
+          },
+          "carries": {
+            "throwing_items.lit_torch": {
+              "measured": 0,
+              "required": 5,
+              "ready": false
+            }
+          },
+          "speed_potions": {
+            "measured": 10,
+            "required": 1
+          },
+          "heal_potions": {
+            "measured": 1,
+            "required": 2
+          },
+          "resists": {
+            "ready": true,
+            "required": []
+          },
+          "lit_torch": {
+            "measured": 0,
+            "required": 5
+          },
+          "failed": [
+            "throwing_items.lit_torch"
+          ]
+        },
+        "reason": "strategy-force"
+      }
+    }
+  },
+  {
+    "source": "n1-b-decisions-tail.jsonl.gz",
+    "decision": {
+      "decision_sequence": 32744,
+      "turn": 635978,
+      "reason": "town:recall-to-alt-dungeon",
+      "key": "rgc",
+      "floor": {
+        "dungeon_id": 0,
+        "level": 0,
+        "quest_id": 0,
+        "feeling": 0
+      },
+      "position": {
+        "y": 31,
+        "x": 77
+      },
+      "player": {
+        "level": 24,
+        "hp": 419,
+        "max_hp": 419,
+        "mp": 0,
+        "max_mp": 0,
+        "gold": 6796,
+        "food_state": "normal",
+        "status": []
+      },
+      "inventory": {
+        "used": 14,
+        "free": 9
+      },
+      "procurement_requirements": [],
+      "abandoned_quest_carry_requirements": {},
+      "fixedquest_readiness": {
+        "quest_id": 1,
+        "roster_size": 4,
+        "toughest_r_idx": null,
+        "worst_adjacent": null,
+        "hp_healing_budget": 419,
+        "hasted": false,
+        "verdict": false,
+        "strategy_force": {
+          "reference_ac": 24,
+          "dps": {
+            "measured": 118.23379716923078,
+            "required": 28.0
+          },
+          "hp": {
+            "measured": 419,
+            "required": 36
+          },
+          "carries": {
+            "throwing_items.lit_torch": {
+              "measured": 0,
+              "required": 5,
+              "ready": false
+            }
+          },
+          "speed_potions": {
+            "measured": 0,
+            "required": 1
+          },
+          "heal_potions": {
+            "measured": 3,
+            "required": 2
+          },
+          "resists": {
+            "ready": true,
+            "required": []
+          },
+          "lit_torch": {
+            "measured": 0,
+            "required": 5
+          },
+          "failed": [
+            "throwing_items.lit_torch"
+          ]
+        },
+        "reason": "strategy-force"
+      }
+    }
+  }
+]

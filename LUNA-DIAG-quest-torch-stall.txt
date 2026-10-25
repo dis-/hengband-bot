@@ -1,0 +1,59 @@
+ISSUE: #47
+Q34後の松明調達停止の診断（2026-10-26、修正前）
+
+結論
+既存のクエスト携行品調達経路が、Lv10以上でQ1を対象外にする条件により停止している。
+新しい在庫切れ対応方針は不要。既存の「次の未受注クエストの携行品を買う」動作を復旧する。
+
+保存ログの実測
+対象: quest-stall-torch-1026/n1-a-decisions-tail.jsonl.gz と n1-b-decisions-tail.jsonl.gz。
+n1-a: 2261行、decision_sequence 18145〜20404、町100行。雑貨屋(store_type=0)への要求も店内行も0。
+n1-b: 3001行、decision_sequence 31182〜34177、町252行。雑貨屋要求1行、店内3行。
+全5262行で quest-throwing-items の出現は0。procurement_requirementsにも松明不足は載らない。
+両者ともfixedquest_readinessはQ1、strategy-forceで不合格、lit_torchは0/5。
+abandoned_quest_carry_requirementsは空。したがって在庫切れ後の放棄が発端ではない。
+n1-bの雑貨屋訪問: 32097/turn625009 shop:travel → 32098 shop:in-store-inscribe
+→ 32099 shop:in-store-sell → 32100 shop:in-store-done (後3行はturn625128)。
+これは松明調達ではなく売却訪問。松明購入の記録はない。保存データは意思決定ログであり、
+商品棚そのものは含まない。在庫・価格・過去の売却/投棄を実測したとは主張しない。
+n1-aの18866/turn968370では補給要求が空のままtown:recall-to-yeek-cave。
+Q1の不合格判定は残るが、その不足を調達する仕事が作られず通常探索へ戻っている。
+
+呼出し経路（修正前の行番号）
+1. policy_quest.py:4618 _fixed_quest_head / :4632 _uncached_fixed_quest_head は
+   :4653 _build_fixed_quest_head で受注・報酬待ちを優先し、次の未受注クエストを選ぶ。
+   ログのQ1 readinessはこの対象が未選択なのではなく、選択後に携行品で拒否されたことを示す。
+2. policy_quest.py:4712〜4765 の共通 readiness は approved strategy の force を検査し、
+   松明不足をstrategy-forceとして拒否する。レベルでQ1の松明条件を免除しない。
+3. policy_supply.py:1248〜1266 _carry_procurement_strategy はLv10以上で
+   quest.id == 1ならNoneを返す。これがreadinessと調達の不一致を作る直接のゲート。
+4. policy_town.py:3460〜3495 はstrategyが返る場合に限り不足を算出し、
+   Homeに松明があればhome-first、雑貨屋へquest-throwing-itemsの仕事を追加する。
+   今回はこの分岐に入らず、attemptedによる抑止やobtainabilityを調べる前に止まる。
+5. policy_quest.py:833〜895 は松明の供給元を雑貨屋と宣言し、未訪問・購入可能な棚・
+   Home候補から入手可能性を判定する。policy_quest.py:1496の既存quest carry購入選択と
+   _purchase_quantity(:3746〜)へ渡せば、数量付きの購入ができる。
+
+litの意味と販売品
+policy_quest.py:724〜732 _quest_named_item_count は inventory内のis_torchかつfuel > 0
+のcountを合計する。装備中だけの松明や燃料0の松明は含まない。点灯装備する必要はない。
+model.pyのis_torchはTVAL_LITE/SV_LITE_TORCH。松明なら何でもよいわけではない。
+ゲーム側 src/store/articles-on-sale.cpp:33 は雑貨屋の販売種に松明を含める。
+src/store/store.cpp:361〜364 は仕入れた松明のfuelをFUEL_TORCH / 2にする。
+src/system/gamevalue.h:10 のFUEL_TORCH=5000により2500燃料なので、購入後は数えられる。
+これは販売仕様の確認であり、保存ログの当時の棚に必ず在庫があったという意味ではない。
+
+修正範囲
+Lv10以上の次の未受注Q1だけを除外している条件を取り除く。低レベルの開幕補給方針、
+クエストの選択順、在庫切れ・所持金不足・放棄の方針、forceの数値は変更しない。
+保存行の小さな抜粋を根拠に公開choose_keyの再構成シナリオを追加し、
+実測行にない商品棚・プロンプト・購入後の状態は構成データと明示して検証する。
+
+再構成検証の補足
+採用行の加速薬・体力回復薬も実測本数を引き継ぐ。n1-aは加速10・体力回復1、
+n1-bは加速0・体力回復3。共に高HP/DPSの既存no_healing_tierにより、readinessでの
+不足は松明だけとなる。調達は従来どおり通常forceの薬も補給しようとする。
+n1-a相当の構成盤面では既存の回復薬調達優先順により寺院確認が先となる。
+寺院の空棚を明示的に構成して公開choose_keyで観測すると、既存の訪問終了処理により
+雑貨屋へ進み、松明を買える。実際の保存行の寺院在庫が空だったという主張ではない。
+この経路でも本体修正は調達入口の除外条件削除だけで足り、新しい在庫切れ方針は不要。

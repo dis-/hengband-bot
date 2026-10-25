@@ -6991,7 +6991,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ba406d80ea9e3fa455ddec1a224119563116b40e1ff9bec6e6613ca927ac8f8f"
+    "ast_sha256": "f610bfb57ccccf2c9f3144e7217826fa903466d3e54b951f48f07edd8ae4ba72"
   },
   "policy_supply.py:SupplyMixin._carry_strategy_potion_target": {
     "classification": "data",

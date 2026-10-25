@@ -1257,11 +1257,7 @@ class SupplyMixin:
             else self._uncached_fixed_quest_head(snapshot)
         )
         if snapshot.player.level >= 10:
-            if (
-                quest is None
-                or quest.id == 1
-                or quest.status != QUEST_STATUS_UNTAKEN
-            ):
+            if quest is None or quest.status != QUEST_STATUS_UNTAKEN:
                 return None
             profile = self.approved_quest_strategy(quest.id)
         else:

@@ -1,0 +1,19 @@
+ISSUE: #47
+保存意思決定ログからの小さな射影。完全なstate記録ではない。
+
+元ファイル: n1-a-decisions-tail.jsonl.gz
+圧縮ファイル SHA256: cbc3b684d01ecc251d91946a209eb36eef30309923309bfe3b7a0c7ffba0167e
+採用decision_sequence: 18866
+元ファイル: n1-b-decisions-tail.jsonl.gz
+圧縮ファイル SHA256: 43463eb533cef4a1909a4ac0c14b43dee03f14e78dc29881933390ce802efb10
+採用decision_sequence: 32744
+
+射影ファイル SHA256: c56ca3594f8edb272f898a770b9011ac1345d269b4b33a19216ee9daa5dabe8a
+各元行からdecision_sequence/turn/reason/key/floor/position/player/inventory、
+procurement_requirements/abandoned_quest_carry_requirements/fixedquest_readinessのみを保持。
+playerのlevel/hp/max_hp/gold、松明0/5、加速薬と体力回復薬の実測本数を
+公開choose_keyの構成シナリオへ引き継ぐ。
+装備、職業、その他の所持品詳細、町の地形、空のHome、空の寺院の棚、
+松明在庫99本・価格1・燃料2500の棚、
+英語UIの数量・確認画面、購入効果はテストで明示して構成する。
+元行にない実際の棚や購入を復元したという主張はしない。ゲーム・BOTには接続しない。
