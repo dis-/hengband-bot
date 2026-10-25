@@ -1,0 +1,14 @@
+ISSUE: #47
+ROUND 3 of LUNA-TASK-spectate-frames.txt. The merge gate (main dace87f32 + spectate-frames-1025 + town-speed-1025)
+failed on an EXISTING test, deterministically, and the supervisor bisected it to THIS branch (it passes on main and on
+town-speed-1025 alone, fails in this worktree alone):
+  tests.test_action_pacing.ActionPacingTest.test_recorded_follow_keeps_keys_and_reasons
+  AssertionError at test_action_pacing.py:200: plain[3]["key"] '7' != paced[3]["key"] '8'
+i.e. with --min-action-seconds the posted key sequence now differs from without it. Your post_decision changes
+(frames + backlog wrapper) must not change which keys are posted. Find why (file:line), fix the source so the pacing
+path posts exactly the same keys and reasons as the plain path (with and without frames/backlog), and keep your 16
+frames pins and the two updated tests green. Do not change test_action_pacing.
+Run: that test 3 times, tests.test_action_pacing, tests.test_spectator_frames, tests.test_spectator,
+tests.test_spectator_v2, then mutation_check --record and fast_tier with base dace87f32 (they wait while a merge gate
+runs - let them). Token budget 60k HARD, wall time 90 minutes. Append round 3 to the report (Japanese, Python UTF-8),
+commit.
