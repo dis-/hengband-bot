@@ -517,3 +517,186 @@ producer baseline 729 / review 889。新helper追加なし、分類の追加不�
 - 報告はPythonのencoding='utf-8', newline='\n'で保存。
   UTF-8、BOMなし、CRなしを確認し、privacy検査を通して報告だけを追加コミットする。
   固定commit以後の変更は本報告のみで、mutationのsrc/hengbot・tests tree成功記録は有効。
+
+
+第6ラウンド（2026-10-26、ISSUE #47）
+タスク: LUNA-TASK-town-post-s2-r6.txt。
+基準: dace87f32。検証対象HEAD: 373d0a1327629cab0e2261c82eca02eb6460b94b。
+結論: 補給テストの旧期待値が所有者決定と衝突するため、指定のSTOP条件を適用する。
+治療薬テストは別件の退行(R)と分類した。STOPに従い、その修正もソースへ適用していない。
+ソース・既存assertion変更0。全検証成功や修正完了とは報告しない。
+
+指定2件の再現:
+- 初回は実体のPython 3.13（WindowsApps stubではない）で完全修飾名2件を指定。
+  2件実行、241.187秒、失敗2、終了1。
+- 指定のCodex実行環境のPythonによる全38モジュール一括実行でも、この2件を検証する。
+  初回のPython選択はAGENTS.mdの指定と異なるため、最終結果は後述のCodex実行環境の
+  一括実行と区別する。
+- 切り分け用の再生・対照はすべてCodex実行環境のPython、-X utf8で実行した。
+  作業ツリーのソース・テストには対照用の編集を加えていない。
+
+所有者決定との衝突（STOP対象）:
+tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.
+test_identify_staff_swap_returns_to_the_blocked_magic_shop
+- 失敗箇所: tests/test_supply_shortfall_owner_recorded.py:196。
+- 旧期待値: key == '\x1b`n&.'。
+  同:198のreason期待値は末尾が 'town-progress-invariant:approach'。
+- 新しい実測値: key == '01kl'、
+  reason == 'inventory:destroy-disposable-item'。
+- 対象は記録row 141 / decision_sequence 8806 / turn 1080628。
+  記録自体は '\x1b`n%.' / 'shop:travel'。
+  127以降の比較対象prefixは既存の除外row 139を除きすべて一致。
+- seam直前のadmitted_commands:
+  {'01kl': 'inventory:destroy-disposable-item'}。
+- 元の実行提案はproducer='identification'、next_step='inventory.destroy.send'、
+  対象=('松明(2300ターンの寿命) {明}', 39, 0)、数量1、
+  expected_effect='surplus-stack-removed'。不要な松明の破棄である。
+- この盤面だけでadmitted_commandsをメモリ内で空にして対照を取ると、
+  旧期待値 '\x1b`n&.' と旧reasonが復活する。prefixの一致条件も変わらない。
+  差し替え後の実行提案はproducer='detectors'、
+  work_id='route:store:38,106'、next_step='route.resume'、
+  expected_effect='arrive:38,106'。破棄ではなく別の店への移動になる。
+- 該当する決定文（LUNA-TASK-town-post-s2-r2.txt:8-9、LOCKED）:
+  an ADMITted composite terminal (e.g. the bounty hand-over macro 7cy\x1b) must not be replaced by a later stage
+  with another errand just because of the progress fingerprint;
+- 対応コードはsrc/hengbot/policy.py:6014-6021のADMIT済み操作の記録、
+  src/hengbot/policy_town.py:1655-1657の保護。
+  旧期待値の復活にはADMIT済み破棄を別の用事の移動へ差し替える必要があり、
+  上記決定に直接反する。通常の(R)としてソースを戻すことも、
+  既存期待値を無断で変更することもしていない。
+- 期待値の変更を許可するか、所有者決定を変更するかの判断が必要。
+  本ラウンドではどちらも実施しない。
+
+(R) 退行（STOPによりソースへの適用は未実施）:
+tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.
+test_walled_prefix_reproduces_live_except_declared_boards
+- 失敗箇所: tests/test_town_cure_supplier_recorded.py:377。
+- 旧期待値: divergent == PREFIX_DIVERGENCES（同:148以降、index 10を含む）。
+- 新しい実測値: PREFIX_DIVERGENCESからindex 10だけを除いたtuple。
+  追加された差分indexはない。盤面10の応答が記録に一致している。
+- 盤面10 / turn 6453313の旧実挙動:
+  key='3'、
+  reason='town-progress-invariant:defect:home:request-knowledge-scan=>home:request-knowledge-scan'。
+  新実挙動と記録はともにkey='~9\x1b\x1b'、
+  reason='home:request-knowledge-scan'。
+- これは盤面10自体のADMIT記録が原因ではない（同盤面のadmitted_commandsは空）。
+  先行する盤面3 / turn 6452935の '~9\x1b' がADMITされると、
+  src/hengbot/policy_town.py:1656-1657で早期returnし、
+  同:1702-1708の既存の知識取得元記録 _home_scan_source='~9' も飛ばす。
+  同:1194-1214のscan_not_already_emitted判定が後で変わる。
+- メモリ内対照:
+  (1) 盤面10だけの保護除去では旧挙動に戻らない。
+  (2) 先行turn 6452935だけの保護除去で盤面10が旧 '3' に戻る。
+      先行turn 6452929だけの保護除去では戻らない。
+  (3) ADMIT済みのキーを保護したまま、従来と同じ進捗条件を満たす知識取得操作で
+      _home_scan_source='~9' の記録だけを補うと、盤面10は旧 '3' に戻る。
+      fingerprint履歴の更新だけを補う対照では戻らない。
+  (4) (3)をメモリ内にだけ適用し、既存テスト1件を全assertion変更なしで実行:
+      1件成功、194.610秒、失敗0、エラー0。
+- したがって補助状態の記録漏れという(R)であり、期待値変更が必須の衝突とは分類しない。
+  ADMIT済み操作を維持しながら、既存の観測元記録を保持する修正が可能と確認した。
+  第4ラウンドと同様、別件で明示STOP条件を確認したためソース修正へは進まない。
+  公開choose_keyによる記録盤面の再生とメモリ内対照であり、実ゲームでの継続運転ではない。
+
+切り分け資料:
+C:/hengband-backups/town-post-s2-round6/ にdiagnosis.json、counterfactual.json、
+cure-unprotected.json、cure-early-controls.json、cure-bookkeeping-controls.json、
+cure-bookkeeping-test.log等を保存。ログや診断スクリプトはリポジトリへ追加しない。
+先行操作の保護を外すだけではキー自体は同じでも補助状態が変わり得るため、
+単に保護の全体revertでテストが戻ることだけを根拠に衝突とは判断しなかった。
+
+全モジュール検証・guardの確定結果は後続に追記する。
+
+
+第6ラウンド・全モジュール検証の確定:
+- Codex実行環境のPython、-X utf8、PYTHONPATH=src;tests;scriptsで、
+  tests/test_town*_recorded.py、tests/test_supply*_recorded.py、
+  tests/test_home*_recorded.pyに一致する全37モジュールと
+  tests.test_policy_townの計38モジュールを、python -m unittest -v <modules>で
+  まとめて各1回実行した。選択一覧はバックアップ領域のmodules.jsonに保存。
+- 791件実行、成功789、失敗2、エラー0、unittest計測1668.469秒、終了1。
+  subprocess起動・終了処理を含む計測は1684.641秒。
+- 失敗は上記の補給1件と治療薬1件だけ。追加の失敗なし。
+  tests.test_policy_townの593件は全件成功（全体791件に含む）。
+- 実行ログ: C:/hengband-backups/town-post-s2-round6/recorded-modules.log。
+  本検証は未修正の固定HEAD 373d0a132のソース・既存テストに対する結果である。
+  メモリ内の補助状態記録対照の成功とは区別する。
+- 旧divergent期待値は106要素、新実測は105要素で、差はindex 10の除外だけ。
+- 一括実行終了後、基準dace87f32でmutation_check --recordを開始。
+  merge gateのフルスイート実行により待機に入った。指示どおり待機を継続する。
+
+
+第6ラウンド・mutation検査の確定:
+- 基準dace87f32、対象373d0a132、mutation_check --recordは終了0。
+  MUTATION OK、NOT CAUGHT 0/19。現HEADとsrc/hengbot・testsのtreeの成功記録を保存した。
+- guard表示でmerge gateのフルスイート終了まで29分待機した。
+  待機込みの実行時間は1791.000秒。
+- 第5ラウンドの成功記録dd4c159da以降、src/hengbot・testsに変更がないため、
+  19 source hunksはすべてGREEN EARLIERとして既存記録を利用した。
+  今回19 hunkを再び単独revertして検出した、という意味ではない。
+  guard本体による指定テストのgreen確認を経て成功記録が作成されている。
+- --testsはtests.test_town_post_s2_r2、tests.test_town_post_s2_r3、
+  tests.test_town_post_s2_visit_controls、および第5ラウンドでassertion不変のまま
+  修正した資金稼ぎ・cycle回復の3テストを指定した（第5ラウンドと同じ構成）。
+  今回の失敗2件が解消されたことを示す検査ではない。
+- mutation終了後、src・tests・scriptsの固定HEADからの差分0を確認した。
+  その後、基準dace87f32、4 shardsでfast_tierを開始した。
+
+帳簿・制約:
+- ソース・既存テスト・manifest・producer baseline・review entriesへの変更なし。
+  manifestを読み取り確認: 889 candidates / 22428 call_sites /
+  112 registry_sites / 102 ladder_sites / unmapped 0。
+  ソース変更がないため再生成は行っていない。
+- 新helper・定数・閾値・永続policy属性は0。復元checkpoint defaultの追加もない。
+- 診断の差し替えは独立したPythonプロセス内だけで、作業ツリーへは反映しない。
+ 既存テストassertionはすべて維持した。
+- ゲーム/BOT操作、他のprocessの停止・再起動、push、merge、rebase、
+  reset、stashは行っていない。既存未追跡ログ・validation資料は保持する。
+- 第6ラウンドに指定されたguardはmutation_check --recordとfast_tier。
+  preflightとremote_slowの追加実行は行っていない。
+
+
+第6ラウンド・fast tierの確定と追加失敗:
+- 基準dace87f32、対象373d0a132、4 shards。
+  2056 fast tests + 変更4 modulesを選択し、2660件を実行。
+  guard計測548.6秒、subprocess込み548.844秒、終了1。
+  失敗1、エラー0、crashed shardsなし。
+  60秒超の51 modulesはguard既定の除外。選択一覧やguardは変更していない。
+- 失敗:
+  tests.test_flight_recorder.FlightRecorderTest.
+  test_budget_stats_unprunable_bulk_only_once_during_deletion_loop
+  tests/test_flight_recorder.py:425。
+  旧期待値: bulk_stats == 4。
+  Codex実行環境のPython 3.12.14での実測値: bulk_stats == 5。
+  単独実行でも1件失敗、0.045秒、終了1。
+- 分類: 基準にも既存のPython実行環境依存の失敗。
+  今回の町処理変更による(R)ではなく、S2所有者決定との衝突でもない。
+  このテストに該当するS2決定文はない。町の判定を呼ばず、
+  FlightRecorder.prune_budget()を直接呼んでPath.statの回数を検査する。
+- 根拠:
+  src/hengbot/flight_recorder.pyとtests/test_flight_recorder.pyは、
+  改行を正規化した全文でdace87f32と同一であることを確認した。
+  基準のflight_recorder.pyをgit showからメモリ内の独立moduleへ読み込み、
+  同一の既存テストで検証しても、3.12.14では同じ5 != 4で失敗する。
+  比較用の実体Python 3.13.14では、現コードの単独実行も基準コードの対照も成功する。
+  3.13での成功を、指定のCodex実行環境でのfast tier成功として置き換えていない。
+- 保存資料:
+  C:/hengband-backups/town-post-s2-round6/fast-tier.log、
+  flight-recorder-baseline.log/json、flight-recorder-python313.log/json。
+  shardの詳細ログはfast-tier.logに記録された一時ディレクトリに残る。
+- ソース・既存assertionを変更していない。
+  S2の明示STOP条件の下で、無関係な記録器の変更へ作業を広げていない。
+  原因が基準に既存と確認できたため、同じfast tier全体の再実行は行わない。
+
+第6ラウンド・最終結論:
+- 指定2件は、補給が所有者決定と旧期待値の直接衝突（STOP対象）、
+  治療薬がADMIT保護の早期returnによる知識取得元記録漏れの退行(R)。
+  治療薬はメモリ内対照で既存テスト全assertion成功を確認したが、
+  STOPに従ってソースへの適用は行っていない。
+- 指定全38モジュールは791件中2件失敗、他の失敗なし。
+  mutationは成功、fast tierは上記の基準にもある実行環境依存1件で失敗。
+  全検証成功・実装修正完了とは報告しない。
+- 既存期待値の無断変更は0。報告書だけをコミットする。
+  report-only commit後もsrc/hengbot・testsのtreeは検査時と同じである。
+- 本追記はPythonのencoding='utf-8', newline='\n'で保存。
+  最終のUTF-8/BOM/CR/制御文字検査、privacy検査、git diff --check後にコミットする。
