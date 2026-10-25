@@ -10960,6 +10960,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else None,
                 ))
                 if chest is not None:
+                    # Chest work temporarily owns movement/search turns. The
+                    # previous sweep goal must not expire as stalled while we
+                    # deliberately process a different floor object.
+                    if self._loot_target is not None:
+                        self._release_claim_goal(
+                            "loot-chest-processing", self._loot_target, owners=CLAIM_LOOT_OWNERS
+                        )
+                        self._nav_ledger.release("loot", self._loot_target)
+                        self._loot_target = None
                     return chest
             return self._town_producer_entry("navigator.decide", lambda: navigator.decide(
                 self, snapshot, strategic_hostiles, strategic_adjacent

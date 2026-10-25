@@ -162,13 +162,19 @@ class Q34CollectRecordedTest(ProductionHarness):
         self.assertIn([10, 9, 1, TVAL_CHEST], self.data["rows"][286]["grid_map"]["found_items"])
 
     def test_collect_swords_open_chest_collect_contents_then_exit(self):
+        self.collect_from_recorded_row(286)
+
+    def test_first_completed_board_collects_every_nonjunk_item_then_exits(self):
+        self.collect_from_recorded_row(188)
+
+    def collect_from_recorded_row(self, row_index):
         policy = make_policy(self.data)
-        observe_until(policy, self.data["rows"], 286)
-        raw = copy.deepcopy(self.data["rows"][286])
+        observe_until(policy, self.data["rows"], row_index)
+        raw = copy.deepcopy(self.data["rows"][row_index])
         # DECLARED CONSTRUCTED: respond to the changed route on the recorded
         # final board. Only position, turn, floor objects and pickup inventory
         # evolve. The two chest drops are invented; contents were not recorded.
-        objects = {(9, 9): [23], (9, 11): [23], (10, 9): [7]}
+        objects = {(y, x): list(ts) for y, x, count, *ts in raw["grid_map"]["found_items"]}
         picked = []
         opened = False
         reasons = []
@@ -188,7 +194,7 @@ class Q34CollectRecordedTest(ProductionHarness):
             raw["messages"] = []
 
         render()
-        for _ in range(260):
+        for _ in range(600):
             before = copy.deepcopy(raw)
             key = str(policy.choose_key(parse_snapshot(before, {})))
             reason = policy.last_reason
@@ -221,7 +227,8 @@ class Q34CollectRecordedTest(ProductionHarness):
                 self.assertIn(((9, 11), 23), picked)
                 self.assertIn(((9, 9), 75), picked)
                 self.assertIn(((11, 9), 23), picked)
-                self.assertEqual(objects, {(10, 9): [7]})
+                self.assertTrue(all(t in {1, 3, 7, 10} for ts in objects.values() for t in ts), objects)
+                self.assertEqual(objects.get((10, 9)), [7])
                 raw["floor"]["quest_id"] = 0
                 raw["floor"]["level"] = 0
             raw["turn"] += 10
