@@ -1,0 +1,17 @@
+ISSUE: #47
+ROUND 3 of LUNA-TASK-town-post-s2.txt (round 2 report: LUNA-REPORT-town-post-s2.txt). The merge gate stopped on the
+mutation check of your tip 089a464cd (base main 9a9dc41de): 5 of 19 hunks are not pinned by any test
+(log C:\hengband-backups\suite-logs\gate-town-post-s2-1025-mutation.log):
+  NOT CAUGHT src/hengbot/policy.py:6011  (if (admitted and terminal is not None and isinstance(key, str)) ...)
+  NOT CAUGHT src/hengbot/policy_town.py:1653  (if self._decision_offer_buffer().admitted_commands.get(key) == propose ...)
+  NOT CAUGHT src/hengbot/town_terminal.py:736  (STORE_BUY_CODES = frozenset({...}))
+  NOT CAUGHT src/hengbot/town_terminal.py:750  ("reservation-unavailable", "wrong-surface-or-pending", ...)
+  NOT CAUGHT src/hengbot/town_terminal.py:847  ("home-recovery-no-work": (),)
+The first two are the owner-decided protection "an ADMITted composite terminal must not be rewritten by a later stage"
+(incident A1) - it must be pinned. For each hunk: add a pin through the real producer (recorded A1 fixture through the
+public choose_key; the executor if a prompt follows) whose lone revert fails, OR, if the hunk is dead/unreachable,
+remove it and say why. No other changes. First `git merge main` (main moved to 9a9dc41de; no rebase).
+Run: python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\town-post-s2-1025 9a9dc41de --tests tests.test_town_post_s2_r2 tests.test_town_post_s2_visit_controls <your new modules> --record
+(it waits while a merge gate runs its suite - let it), then fast_tier with base 9a9dc41de. remote_slow is not needed
+this round. Token budget 80k HARD (rounds 1 and 2 used 640k each - stop and report at the budget), wall time 90
+minutes. Append round 3 to the report (Japanese, Python UTF-8) and commit. Same rules as before.
