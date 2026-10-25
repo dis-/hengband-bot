@@ -469,5 +469,8 @@
   },
   "policy.py:_release_unposted_store_watch": {
     "self._batch_sell_key(replace(snapshot, store=StoreState(int(pending['store_type']), []))) @ If:body:pending is not None and pending.get('phase') == 'await-sale'": 1
+  },
+  "town_terminal.py:_commit_home_withdraw": {
+    "policy._defer_unobserved_home_withdrawal(signature) @ If:body:terminal in policy._town_visit_ledger.closed_terminals and policy._home_atomic_withdraw_pending is None / For:dict.fromkeys((target, *batch)) / If:body:signature in held and signature not in stored": 1
   }
 }

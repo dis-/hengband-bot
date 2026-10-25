@@ -174,3 +174,10 @@ src/hengbot/town_terminal.py:2115 may_take_board
 src/hengbot/observed_input.py:59 compile_observed_input
 再生成census: candidates 886 / call_sites 22381 / registry_sites 112 / ladder_sites 102 / unmapped 0。
 baseline 727 / review 886。新規pin・対照moduleは7件成功。
+
+最初のpreflightはadapter登録漏れで終了1。新規の拒否commitが、
+既存のclaims付きHome延期producerへ委譲する呼び口1本を検出した。
+named close済み・posted操作なし・同じheld batchに属する・現カタログにない、
+という条件を個別レビューし、scripts/item_sink_adapters.jsonへ正確な式と
+回数1を登録した。lint本体と既存assertionは変更していない。
+これはguard修復ラウンド1であり、コードの保護条件は維持した。
