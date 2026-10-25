@@ -1,0 +1,65 @@
+ISSUE: #47
+ROOT-FIX: 町の用事の打ち切り（owner-retired-burst 等）(#63 #64 #66 #67 #68 #74 #76 #94, 10-23 n1-a, and two new ones after
+S2 below; ledger C:\hengband-backups\state-logs\ROOT-TYPE-LEDGER.md row 町の用事の打ち切り, 11 incidents).
+S2 (the town claim ROOT-FIX, plans/DESIGN-town-claim-rootfix-1023.md and its review) is merged (main 0f8835a7 and later).
+Both incidents below happened on main f0930437 / 124fa2ac9, i.e. AFTER S2. Branch town-post-s2-1025 at main 57cbb35e4
+(worktree C:\hengband\bot-client\.worktrees\town-post-s2-1025).
+
+Incident A - n1-a life-002, Lv31, 2026-10-25 14:04 and 14:26, stop town:blocked:owner-retired-burst (twice -> paused).
+  Captures (copied): C:\hengband-backups\state-logs\n1a-ownerburst-1025\20261025-140428-... and ...-142631-...
+  (state.jsonl.gz, bot-decisions.jsonl.gz, control-at-stop.json.gz). The character itself is also on the verification
+  machine (verify_retired.py case n1-a-life-002) if you need a continued run - you do NOT run it; say if it would help.
+  Supervisor reading of owner-retired-log-only.jsonl at the stop: departure gate failed on recall_departure_ready,
+  inventory_weight_ready, equipment_departure_ready, home_candidate_resolved, home_pending_item/batch_clear,
+  departure_home_pending_item/batch_clear; town_claims weight-overload, stored-digger, equipment-work; town_ledger
+  need_attempts fundraising-kit 9, stored-digger 8; passes_since_progress 45. Last 600 decisions: seek-loot 166,
+  explore 121, fundraise:departure-blocked 47, town-progress-invariant:boxed-breakout-travel 41,
+  home:leave-for-pending-withdraw 20, return:wait-recall 19. Verify all of this.
+Incident B - n1-b life-003, Lv30, 2026-10-25 18:47 -> 19:06 (still going when saved), no stop yet.
+  Saved: C:\hengband-backups\state-logs\n1b-town-osc-1025-1906\ (n1b-dec-onset-1845-1852.jsonl.gz = every decision
+  18:45:30-18:52, n1b-dec-tail.gz, n1b-state-tail.gz = last 30 MB of state rows, n1b-spectate.json).
+  Shape (supervisor): at the Home (45,123) home:junk-sweep-withdraw / home-errand:atomic-withdraw:full-home-discard /
+  home:junk-sweep:plain-gear, then town-progress-invariant:defect:shop:travel:await-entry=>... sends it away; from then
+  the cycle store (27,76) shop:observe-and-leave -> boxed-breakout-travel '`n(' -> Home (43,91)
+  home:route-claim-unfulfilled -> boxed-breakout-travel '`n&' -> store ... about 250 times in 20 minutes
+  (home:route-claim-unfulfilled 253, shop:observe-and-leave 256, boxed-breakout-travel 466); at 19:05 it switched to
+  stuck:wander with about 2 s per decision. Verify, including which claim the Home visit was for and why it is
+  unfulfilled every time, and why the progress invariant treats the junk sweep as a defect.
+
+Do:
+1. LUNA-DIAG-town-post-s2.txt first: measured facts with file:line for both incidents - which owner/claim was refused or
+   retired, which S2 rule (ADMIT / yield to a live server / named close) applied or failed to apply, and why the town
+   loop did not end in a named close. Replay the recorded boards through the public choose_key on 57cbb35e4 (and on
+   0f8835a7 to tell whether S2 itself or a later change introduced it).
+2. Enumerate (file:line) every site that can refuse, retire or re-route a town errand after S2 and say which of them
+   decides each incident. Fix through the one S2 judgment (do not add a scene rule). If the fix needs a NEW rule that
+   neither the S2 design nor an owner decision fixes, STOP after the diagnosis with the options and their effects.
+3. Pins from the recorded boards through the public choose_key: each incident's cycle on 57cbb35e4, after the fix
+   progress (the errand done, or a named close and departure). Controls: existing S2 pins unchanged.
+4. The 2 s per decision in stuck:wander: measure only (where the time goes), do not fix in this task.
+
+Rules (mandatory):
+- Write every text file (reports, diagnoses) with Python, encoding='utf-8', newline='\n'. PowerShell Set-Content /
+  Out-File / here-strings turn Japanese into '?' (three times on 2026-10-25).
+- NEVER stop, kill or restart a process you did not start yourself. No game/bot control (the viewing bots on
+  hengband.net are live and public), no push, no merge, no rebase, no git reset --hard, no git stash. Commit on this
+  branch.
+- Existing tests (= tests at 57cbb35e4) keep their assertions; if one must change, STOP and report its name, old and
+  new value. Classify every failing existing test as (R) regression or report it.
+- New test inputs are tracked small gzip fixtures of the loop windows (`git add -f`). New test modules need
+  `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control characters. At most 3
+  collaborators patched per test function; no source-text/AST assertions. New policy attributes need
+  restored-checkpoint defaults (list them). No new constant or threshold; no special case keyed to one store, one town
+  or one capture.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8); filter decisions on "decision_sequence".
+- Bookkeeping: stale manifest (python scripts\town_work_manifest.py --write with PYTHONPATH=src, commit),
+  scripts/town_producer_baseline.json / town_work_review.json entries for new helpers, census counts (report).
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other (fast_tier and mutation_check now wait
+  by themselves while the merge gate runs its full suite - that is expected):
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\town-post-s2-1025 57cbb35e4
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\town-post-s2-1025 57cbb35e4 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\town-post-s2-1025 57cbb35e4 --shards 4
+  then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\town-post-s2-1025
+  Fix every FAIL / NOT CAUGHT; at most two repair rounds, then stop and report.
+- Token budget 300k HARD. Wall time 180 minutes. Write LUNA-REPORT-town-post-s2.txt in Japanese (with Python) and commit.
