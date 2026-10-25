@@ -277,3 +277,54 @@ gate解放後に後続検査へ進む設定を残している。結果は本報�
 process制御を禁止する指示に従い、強制終了やゲーム/BOTの操作は行っていない。
 ログ・replay scriptはリポジトリ外、以前のvalidation資料は未追跡のまま保持した。
 ISSUE #47の完了・実運転での出発成功・最終全検査成功は宣言しない。
+
+
+第3ラウンド（2026-10-25、ISSUE #47）
+対象基準: main 9a9dc41de。最初に git merge main を実施し、8a5e24d9eで記録した。
+producer baseline / review は両側の登録を保持して競合を解消し、manifestを再生成した。
+本ラウンドの変更は新規テストmoduleとこの報告、および指定されたmain統合に限る。
+本体コード・既存テストのassertion・既存の賞金専用保護は変更していない。
+
+5箇所のpin:
+- policy.pyのADMIT結果と実行複合キーの結合、およびpolicy_town.pyの後段置換防止を、
+  tests.test_town_post_s2_r3.test_a1_admitted_operation_survives_downstream_nonprogressで検証する。
+  A1の記録盤面と第2ラウンドの付着条件を再利用し、公開choose_keyから実producerを呼ぶ。
+  claim barをOFFにして独立のholder保護を外し、後段の_town_result_makes_progressだけを
+  Falseにする障害注入対照を置いた。mainの賞金専用の進捗認定が一般ADMIT保護の欠落を
+  隠さないためであり、実producer・S2判定・経路・実行提案は差し替えない。
+  executorで7→c→y→ESCとcompleted、賞金遺骸の消失まで検証する。
+  質問・結果画面は第2ラウンド同様のソース由来対照で、追加の実ゲーム記録ではない。
+- STORE_BUY_CODES、HOME_WITHDRAW_CODES、REFUSAL_SERVERSの追加宣言は、
+  test_b_real_detector_refusals_have_explicit_declarationsで検証する。
+  B記録盤面の公開choose_keyが実際に出したhome-recovery-no-workと
+  store-observation-currentについて、宣言済みコード、明示的な空server集合、
+  REFUSEDとterminal-refused-unservedによるnamed closeを照合する。
+  ソース文字列・ASTの検査ではない。宣言テーブルの削除をruntimeの既定空集合で
+  隠さないため、実際に出たコードの明示登録自体も検証する。
+- いずれも既存の小型gzip fixtureを使用する。新規fixture・定数・閾値・helper・
+  永続policy属性はない。復元checkpoint defaultの追加も不要。
+
+台帳: main統合後889 candidates / 22427 call_sites / unmapped 0。
+producer baseline 729 / review 889。manifestはmerge commitに含めた。
+新規module単独: 2件成功（13.151秒）。本体コードの試行変更は全て元へ戻し、
+新規pinをcommitした時点でsrc差分はない。
+検証対象commit: 74da60f33（基準9a9dc41de）。
+最終guard結果は後続追記に記す。mutationは共有merge gateの全suite完了待ちを継続する。
+remote_slowは本ラウンドの指示で不要のため実行しない。
+
+
+第3ラウンド最終検証（2026-10-26）
+- preflight（基準9a9dc41de）: PREFLIGHT OK、24変更ファイル、指摘0、終了0。
+- 第1回mutation: 19 hunks中、宣言3箇所を含む17箇所を検出、ADMIT保護2箇所は未検出、終了1。
+  最初の対照が代替操作まで一律にFalseにしていたため、置換経路も抑制していた。
+  修復はテストのみ1回。受け渡しキーだけFalse、他の候補は実際の進捗判定を使い、
+  ADMIT済み複合操作が後段で再判定されないこともassert_not_calledで確認する。
+- 修復後のmutation --record（対象ec30801f4、基準9a9dc41de）:
+  MUTATION OK、19/19 hunksを検出、NOT CAUGHT 0、終了0。対象HEADの記録を保存済み。
+  指定された5箇所はすべて新規test_town_post_s2_r3でそれぞれ単独revertを検出した。
+- fast_tier（基準9a9dc41de、4 shards）: mutation成功後に起動済み。
+  最新のgreen計測dace87f32を用い、2056 fast testsと変更3 modulesを選択した。
+  本追記時点では実行中。結果確定後に追記する。
+- remote_slow: 第3ラウンドの指示どおり未実行。
+共有merge gateの全suite待ちは約57分。ゲーム・BOT制御、他人のprocess停止、push、rebase、
+mainへのmergeはしていない。既存テストのassertion変更0、本体コードの追加変更0。
