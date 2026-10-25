@@ -1,0 +1,53 @@
+ISSUE: #47 (spectator)
+The owner asked (verbatim): 「観戦ページに帰還先の選択理由も付けたい」.
+Clarification the owner answered (LOCKED): show only the reason for the chosen destination - one line with the destination
+dungeon, the arrival floor and why it was chosen, e.g. 「帰還先: アングバンド 23階（アングバンドへの帰還が解禁されたため）」.
+Rejected candidates (deeper floors refused, guardian floors) are NOT shown. The bot's decisions must NOT change.
+Branch recall-reason-1025 at spectate-v2-1025 c6601c3e1 (worktree C:\hengband\bot-client\.worktrees\recall-reason-1025).
+spectate-v2-1025 is not merged into main yet; build on it, do not rebase.
+
+What to build:
+1. Where the voluntary recall target dungeon (self._target_dungeon_id) is assigned, record WHY at the same statement, as a
+   small reason code next to it (one attribute, e.g. self._target_dungeon_reason). Assignment sites found by the
+   supervisor (verify, and include any other assignment you find; every assignment must set the reason):
+     policy.py:2094 (initial Yeek cave), policy_observation.py:397 (Angband recall unlocked), policy_observation.py:607
+     (alternate dungeon), policy_observation.py:619 (conquest), policy_quest.py:4302 (quest dungeon),
+     policy.py:14822 _activate_safe_recall_fallback (safe fallback; with guardian_bounced_dungeon it is the guardian
+     valve - distinguish the two codes).
+   No decision may read the new attribute. It is display-only.
+2. The spectator snapshot (src/hengbot/spectator.py, SpectatorWriter.observe / spectator_details) gains one field,
+   e.g. "recall_destination": {"dungeon_id", "dungeon_name" (from the bot's static dungeon knowledge if it has a name;
+   omit otherwise), "depth" (the recall arrival floor the bot itself uses: _dungeon_entry_depth(snapshot, id,
+   via_recall=True)), "reason" (the code)}. Omit the field when there is no target. Fair play: only what the bot already
+   knows; no emitter change.
+3. Restored checkpoints: the new attribute needs a default for checkpoints saved before it (list it in the report).
+4. Do NOT edit the page C:\hengband-backups\guard-tools\spectator\index.html; the supervisor writes the Japanese text.
+   In the report, list every reason code with a one-line Japanese meaning so the supervisor can map it.
+Pins through the public path: for each assignment site, drive the real producer (choose_key / the observation that
+assigns it) and read the field out of the real SpectatorWriter output; revert of the recording line flips the pin.
+Control: a pin that the chosen keys/reasons of a recorded board are identical with and without the field.
+
+Rules (mandatory):
+- Write every text file (reports, diagnoses, READMEs) with Python, encoding='utf-8', newline='\n'. PowerShell
+  Set-Content / Out-File turns all Japanese into '?'.
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at c6601c3e1) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value.
+- New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions.
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- NEVER use git stash. To compare before/after, use `git apply -R` of your own diff or a temporary detached worktree.
+- No new constant or threshold.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), census counts in structural tests (report).
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\recall-reason-1025 c6601c3e1
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\recall-reason-1025 c6601c3e1 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\recall-reason-1025 c6601c3e1 --shards 4
+  then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\recall-reason-1025
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 200k is a HARD limit. Wall time 120 minutes. Write LUNA-REPORT-recall-reason.txt in Japanese
+  (sites, reason codes with Japanese meanings, changes, pins and revert results, guard outputs) and commit.
