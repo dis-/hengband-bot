@@ -1,0 +1,230 @@
+町の判断遅延・調査報告（Issue #47）
+
+結論: 診断のみ。速度改善の修正は未採用。Issueの遅延問題を解決済みとは扱わない。
+最大の共通処理を対象に判断内キャッシュを試したが、交互比較で遅くなったため撤回した。
+閾値や探索予算、挙動を変更する代案へは進まず、タスクの停止条件に沿って結果と選択肢を記録する。
+
+対象と再生条件:
+基準4d239862f、調査開始HEAD 31c97945c（タスク指示書のみ追加）。
+指定の92件の遅延decision記録と、state末尾を読み込んだ。stateの先頭は途中行のため除外した。
+元の遅延に対応するturn 938808 / 940553 / 940760を公開choose_keyからcProfile計測した。
+Codex同梱Python 3.12.14を使用。各盤面を新規policyにprimeし、記録にある技能値4000/4000、
+自宅の全41品、対象より前の最新character行を与えた。
+自宅41品はturn 940714時点の観測であり、先の2盤面には未来の情報を与える制御条件である。
+元のclaim・訪問履歴・判断直前checkpointはない。元の理由や16〜30秒の完全再現ではない。
+同一turnに複数のplayer_turn行がある場合は最初を選んだ。decision_sequenceとの一意な対応は復元していない。
+今回は屋外の3盤面が対象で、店内の遅延原因まで特定したものではない。
+この制約があるため、今回の最大処理を元の稼働時の最大原因と断定しない。
+
+計測結果:
+cProfile付きchoose_key時間（秒、参考値。別時刻の実行なので負荷差があり、速度改善の根拠にはしない）:
+  turn 938808: 基準 0.602374 / 不採用案 0.458164、キー/理由一致=True
+  turn 940553: 基準 0.776564 / 不採用案 0.820865、キー/理由一致=True
+  turn 940760: 基準 1.551396 / 不採用案 0.834847、キー/理由一致=True
+
+地形索引構築は各判断に2回。同じ13068セルの分類・照明距離を再計算していた。
+純粋な分類だけのキャッシュ案では分類本体が1回へ減り、3盤面のキー/理由は3/3一致した。
+ただし索引構築2回を同一判断で行い、基準と試作を交互に30回ずつ測ると:
+  turn 938808: 中央値 36.864ms → 43.074ms（16.8%増）
+  turn 940553: 中央値 37.530ms → 44.328ms（18.1%増）
+  turn 940760: 中央値 38.255ms → 43.781ms（14.4%増）
+分類結果の確保・再走査の費用が勝ち、更新対象の集合操作自体は残る。
+可変の記憶・通行不可・失効状態を読むため、索引全体の単純な一度限りの実行は採用できない。
+
+試作時の検証と撤回:
+既存A/B記録のキー/理由/チェックポイント比較、および記憶更新・判断間失効・別snapshot・直接呼出の
+3テストは51.194秒で成功。性能キャッシュ削除時に計算回数が増えるピンも試作に含めた。
+ただし有効な速度改善ではないためソースも新規テストも撤回し、バックアップ側にのみ保存した。
+最終成果物はこのレポートとLUNA-DIAG-town-speed.txt。既存テストの変更は0件。
+src/tests/scriptsは4d239862fとgit diffで一致。新規コードがないため恒久的な回数ピン追加も対象外。
+
+指定ガード:
+  preflight: 終了コード 1
+    [preflight] FAIL manifest: the town work manifest was stale; it has been regenerated - commit it (regenerate after the LAST source edit)
+    [preflight] PREFLIGHT FAIL: 2 changed files, 1 findings (town-speed-1025 vs 4d239862)
+  mutation_check: 終了コード 0
+    [mutation] 0 source hunks, tests: tests.test_policy_structure
+    [mutation] MUTATION OK: 0 of 0 hunks are not pinned by a test
+    [mutation] recorded for 988844d7
+  fast_tier: 終了コード 1
+    [fast] 2049 fast tests (<2.0s in 9a9dc41de) + 0 changed modules, 4 shards
+    [fast] excluded 51 modules measured over 60s
+    Crashed shards: none
+    Failures: ['tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop']
+    Errors: none
+    Total: 2049 tests, 98.2s
+  remote_slow: 終了コード 1
+    [slow] 988844d75: running 50 modules, 3 at a time
+    [slow] 988844d75: done 50 modules, 36 not green
+    [slow] base 4d239862f: reused the result on the remote
+    [slow] SLOW FAIL: 300 failures not on base 4d239862f (50 modules, head 988844d75)
+    作業ツリー側: 50モジュール、不合格36、単独再試験3
+    保存済み基準側: 50モジュール、不合格50、単独再試験0
+
+検証結果の解釈:
+同梱Python 3.12.14でのpreflightは、未変更の883関数のASTハッシュの版差をstaleとして検出した。
+Python 3.13.14で同じ生成スクリプトを実行するとsrc/tests/scriptsは基準との差分0に戻ることを確認。
+このため3.12由来の生成物はコミットしていない。preflightの不合格を成功とは報告しない。
+fast_tierの失敗はログ容量管理テストのstat回数5 != 4で、単独再実行でも1件/0.045秒で再現した。
+src/tests/scriptsが基準と同一のまま再現しており、今回の文書変更による新規回帰ではない。修正対象には含めない。
+Linuxの自動比較は「基準にない失敗300件」で不合格。保存済み基準結果を再利用している。
+Linuxに展開されたsrc/tests/scriptsも、作業ツリー側と基準側のファイルハッシュの差分は0件だった。
+追加の切り分けとして、比較で新規とされた次の1テストだけを両ツリーで単独再実行した。
+  tests.test_experience_potion.ExperiencePotionRestoredCheckpointTest.test_restored_checkpoint_reads_the_new_paths
+両側とも終了コード1で、restore_checkpointのpickle.loadsからWindowsPathを復元する際の
+pathlib.UnsupportedOperationを同じ箇所で再現した。保存済み基準結果にはこのテストの失敗がない。
+少なくともこの代表例は現在の基準コードでも失敗し、保存済み比較基準と現環境の間に不整合がある。
+全300件を分類し終えたわけではない。Linux検証の成功や「新規失敗0件」とは報告しない。
+remote_slow本体の呼出は指定どおり一度だけで、追加実行は上記1テストを両側で比較したもの。
+互換性や検証ツールの修正は町の最大ホットスポットの判断内キャッシュという範囲外なので行っていない。
+mutation_check --recordは基準4d239862fに対して実施。ソース変更が0なので回帰ピンの有効性の証明ではない。
+fast_tierも基準4d239862fを指定し、remote_slowは一度だけ同じ基準に対して実行した。
+ただしfast_tierが選択した時間分類表は9a9dc41de由来で、2049件+変更モジュール0件の範囲である。
+検証結果の対象HEADは988844d75（診断コミット）。以後の差分は本レポートだけ。
+
+次の選択肢:
+第一候補は遅延時点の判断直前checkpointを含む再現資料を用意し、元の理由まで一致する再生で再計測すること。
+そのうえで可変入力に正しくキーを付けられる最大処理だけを対象にする。
+地形索引をさらに扱うなら、記憶更新の世代と集合共有・列挙順序の同値性を別途検証する。
+今回は挙動を保ったまま、診断と不採用案の証拠を残す。
+
+運用上の操作:
+ゲーム/BOT操作、他者プロセス停止、push/merge/rebase/reset --hard/stashは行っていない。
+生ログ・プロファイル・不採用コードは指定バックアップ配下に置き、Gitには追加していない。
+Linux検証環境の固有名・接続情報はレポートに記載していない。
+両文書はPythonのwrite_text(..., encoding="utf-8")で作成した。
+
+
+ラウンド2追記（2026-10-26、Issue #47）
+
+結論:
+所有者の確定方針「ボットに測る仕組みを足す」に従い、任意のプロセス内スタック計測を追加した。
+最終実装HEADは206964166。既定では無効。方策、閾値、探索予算、装備・深度条件は変更していない。
+ゲームや稼働中の2つの閲覧用BOTは操作していないため、稼働環境への適用と実際の遅延原因の特定は未実施。
+前回の再生だけでは説明できなかった17～30秒の判断を、次回の実稼働時に調べるための実装である。
+
+実装と使い方:
+起動引数 --slow-decision-sample SECONDS を追加。0が既定で、無効時にはスレッドを作成しない。
+使用例: --slow-decision-sample 5 --decision-log <判断ログのパス>
+判断ログ未指定時もスレッドを作成しない。通常のfollow、投稿拒否後の再判断、--onceを対象にする。
+choose_keyの呼び出しごとにdaemonスレッドを開始し、Event.wait(0.010)で10msごとの採取を要求する。
+sys._current_framesで判断を実行しているスレッドのスタックを取得する。深さは最大48フレーム。
+各フレームは関数名・ファイル名・行番号のみを保存し、フレーム本体やローカル変数は保持しない。
+GILとOSのスケジューリングにより実際の採取間隔は延び得る。100Hzを厳密に保証するものではない。
+GILを保持し続けるネイティブ処理は採取スレッドも止め得るため、少ない採取数にも注意が必要である。
+
+choose_keyの実測時間が指定秒数を厳密に超えた場合だけ、判断ログと同じディレクトリの
+slow-decisions.jsonlへ1判断1行を追記する。同値および閾値未満はサンプルを破棄する。
+行にはdecision_sequence、reason、choose_key_ms、aggregateを含む。
+このchoose_key_msは方策呼び出し自体の時間で、既存の判断ログにはラッパーの追加時間も含まれる。
+aggregateには関数ごとのself_samples / cumulative_samplesと、スタック別のサンプル数を含む。
+selfは先頭フレーム、cumulativeはそのスタックに現れた関数を数える。再帰は1tickに1回まで。
+関数の識別には定義行を使い、スタック内の行番号は採取時の実行位置を表す。スタックは末端側から並ぶ。
+最大512関数・128種類のスタックを保持し、累積数順の上位40関数と上位5スタックだけを出力する。
+上限到達と破棄したスタック数も記録する。上限後に現れた種類は完全には集計されない。
+ファイルは2MiBでローテーションし、.1を1世代だけ保持する。各行はサイズ確認後にUTF-8で書く。
+巨大な行は破棄するため、通常ファイルと1世代を合わせて最大4MiBに抑える。
+
+安全性と処理の同値性:
+計測ラッパーは元のchoose_keyを1回だけ呼び、そのキーと理由を変更しない。policyへの計測状態追加もない。
+時計・スレッド開始・集計・ファイル書き込みの例外は診断内に閉じ込め、元の判断の例外は保持する。
+停止はEventで要求し、joinは最大50ms。終了確認できない採取結果は使わず、判断を長時間待たせない。
+判断終了後の時計が例外になってもfinallyで停止する。この経路は確認中に修正し、専用ピンを追加した。
+外部のプロファイラーは使用していない。Pythonから見える呼び出し元にネイティブ処理中の時間が現れることはある。
+町の処理一覧には元の方策への委譲アダプターとして明示登録し、独自の進捗実績を与えていない。
+マニフェストはPython 3.13.14で再生成し、884候補、未登録0件を確認した。
+
+機能ピン:
+新規tests/test_slow_decisions.pyに13件。時計とsamplerを注入し、実時間の長短をassertしない。
+閾値超過時の構造と1行追記、閾値以下で未作成、既定0でThread未作成を確認した。
+通常判断と投稿拒否後の再判断の両方について、有効・無効で送信キーと理由が一致する。
+実記録を使うfollowでも同値を確認し、--onceでも計測する。ゲームへの入力は行わない。
+実フレーム取得、深さ制限、daemon属性、10ms待機、停止、集計上限、回転、各診断失敗を確認した。
+Codex同梱Python 3.12.14で、新規13件＋既存pacing 6件＋構造検査の2件、計21件が成功（19.838秒）。
+先行の25件実行では、テスト用検索パス不足で構造検査の2件がimportエラーになった。
+PYTHONPATH=src;tests;scriptsとして当該2件を再実行し、上記21件に含めて通過を確認した。
+基準dace87f32に存在するテストファイルへの変更は0件。新規モジュール1個だけを追加した。
+
+各ピンの変更取り消し・故障注入による証明:
+最終コードを子Pythonに差し替えて18通りを個別実行し、18/18で対応テストが非0終了した。
+この最終確認は作業ツリーのソースを変更せず、ガードと干渉しない形で実施した。
+  over-record: 追記処理を外す → 超過ピンが行数0で失敗。
+  under-limit: 閾値判定を外す → 閾値未満の破棄ピンが失敗。
+  threshold-equality: >を>=へ変更 → 閾値同値の破棄ピンが失敗。
+  off-thread: 0の無効分岐を外す → Thread未作成ピンが失敗。
+  absent-log-thread: ログ未指定の無効分岐を外す → Thread未作成ピンが失敗。
+  follow-primary: 通常判断の計測を外す → 記録数1 != 2で失敗。
+  follow-retry: 再判断の計測を外す → 記録数1 != 2で失敗。
+  once-entry: onceの計測を外す → 計測ファイル不在で失敗。
+  key-control: 有効時のキーを変更 → 実記録の入力継続が不一致となり失敗。
+  main-stack: フレーム取得を空にする → 実フレームのピンが失敗。
+  worker-interval: 10msを20msへ変更 → 待機引数のピンが失敗。
+  self-count: 全フレームをselfに計上 → 集計構造のピンが失敗。
+  cumulative-recursion: 再帰を重複計上 → 累積数のピンが失敗。
+  function-bound: 関数上限を外す → 640 != 512で失敗。
+  stack-bound: スタック種類数上限を外す → 640 != 128で失敗。
+  rotate: 回転を外す → バックアップ・容量のピンが失敗。
+  clock-finalizer: 時計故障時のfinallyを外す → finish未呼出で失敗。
+  diagnostic-isolation: 診断例外を再送出 → 集計失敗・書込失敗ピンが失敗。
+最初の16通りは実ファイルの一時変更・復元でも全検出した。その後の時計停止修正を含む最終版が上記18通り。
+
+実スレッドによる追加時間の計測:
+対象は前回と同じ3盤面。毎回新規policyに技能4000/4000、自宅41品、直前characterを与えた。
+古い2盤面に後の自宅情報を与える点と、元のclaim・訪問履歴がない制御実験という制約も前回と同じ。
+入力準備は計測外。各盤面でoff／有効だが破棄（60秒閾値）／有効で追記（0.001秒閾値）を交互に実行。
+最初の3試行をウォームアップとして除外し、各条件8回の中央値を比較した。
+計測区間はラッパー全体で、スレッド起動・停止・集計・書込を含む。時間値はassertしない。
+  turn 938808: off 427.421ms / 破棄 388.567ms / 追記 395.720ms
+    offとの差: 破棄 -38.854ms、追記 -31.702ms。
+    有効時1判断あたりtick処理累積 平均 2.025ms、平均採取数 12.88、1tick平均 0.157ms。
+  turn 940553: off 753.422ms / 破棄 768.158ms / 追記 758.772ms
+    offとの差: 破棄 +14.736ms、追記 +5.350ms。
+    有効時1判断あたりtick処理累積 平均 5.000ms、平均採取数 23.56、1tick平均 0.212ms。
+  turn 940760: off 771.037ms / 破棄 717.570ms / 追記 718.805ms
+    offとの差: 破棄 -53.467ms、追記 -52.232ms。
+    有効時1判断あたりtick処理累積 平均 4.786ms、平均採取数 23.31、1tick平均 0.205ms。
+tick処理累積はperf_counterによる経過時間の合計で、専用CPU時間ではない。
+これは採取自体の小ささの参考値であり、起動・停止・GIL競合・I/Oまで含む追加費用は全区間差分を見る。
+同時実行負荷とばらつきがあり、中央値の負の差を速度改善と解釈しない。計測の追加費用を精密に分離できたとは扱わない。
+3盤面の全81試行で各盤面のキー／理由が一致した。元の17～30秒は今回も再現していない。
+
+指定ガード（基準dace87f32）:
+  preflight: 終了コード 0
+    [preflight] PREFLIGHT OK: 10 changed files, 0 findings (town-speed-1025 vs dace87f3)
+  mutation_check: 終了コード 0
+    [mutation] 7 source hunks, tests: tests.test_slow_decisions
+    [mutation] MUTATION OK: 0 of 7 hunks are not pinned by a test
+    [mutation] recorded for 20696416
+  fast_tier: 終了コード 1
+    [fast] 2056 fast tests (<2.0s in dace87f32) + 1 changed modules, 4 shards
+    Failures: ['tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop']
+    Errors: none
+    Total: 2069 tests, 128.2s
+  remote_slow: 終了コード 0
+    [slow] 206964166: done 50 modules, 36 not green
+    [slow] dace87f32: done 50 modules, 36 not green
+    [slow] SLOW OK: 0 failures not on base dace87f32 (50 modules, head 206964166)
+
+Linux比較は追加失敗0件、終了0。HEADと基準はともに50モジュール中36モジュールが非成功だった。
+基準も今回新規に実行して比較している。既存失敗を含むため、全モジュールの成功とは扱わない。
+新規テストモジュールの13件はWindowsのCodex同梱Pythonで実行し、Linux比較は共通50モジュールの範囲である。
+
+fast_tierは2,069件中1件失敗、エラー0件、異常終了した分割プロセス0件。
+60秒超と計測された51モジュールはfast_tierの対象外であり、全スイート成功を示すものではない。
+失敗はFlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop。
+同じCodex同梱PythonでHEADと、基準dace87f32のsrcを別ディレクトリへ展開した対照を単独比較した。
+HEADは1件/0.069秒、基準は1件/0.157秒、両方とも終了1、AssertionError: 5 != 4で一致。
+FlightRecorderと当該テストのファイル自体も基準と同一で、今回の新規回帰ではない。
+既存テストの期待値変更や、範囲外のログ容量管理の修正は行わない。fast_tierの終了1を成功とは扱わない。
+
+preflightの初回は生成物の未コミットで終了1。再生成物をコミット後、最終実装で終了0を確認した。
+preflightだけは既存生成物のAST版に合わせてPython 3.13.14を使用。他の指定ガードと機能ピンはCodex同梱Python。
+mutation_checkは既存マージ検証の終了まで約27分待機した。fast_tierも指定ゲートに従い実行し、迂回・停止していない。
+remote_slowの本体呼び出しは一度だけ。Linux検証環境の固有名・接続情報は掲載しない。
+ガード対象HEADは206964166。以後のコミットはこの報告書だけで、ソース／テストツリーは同一。
+
+運用と成果物:
+ゲーム/BOT操作、他者プロセス停止、push、mainへのmerge、rebase、reset --hard、stashは行っていない。
+調査開始時にマージ競合はなく、既存のマージは完了していた。
+生ログ・測定値・個別故障注入の出力とスクリプトは指定バックアップ配下のround2だけに保管し、Gitへ追加しない。
+既存の未追跡ログもコミットしない。報告書の追記はPythonのUTF-8指定で行う。
