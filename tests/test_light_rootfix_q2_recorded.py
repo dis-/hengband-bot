@@ -18,7 +18,8 @@ dark:backtrack '4' at radius 0 until the loop detector stopped the bot.
 USER DECISION 2026-10-25「油を持って入り、微かなら帰る」: below the faint
 value (100) with nothing to refill or wield, the one-shot quest lock is
 released and the ordinary return leaves (the quest fails); a one-shot quest
-is entered with OIL_TARGET flasks while a fuel light is worn.
+requires a lantern with OIL_TARGET flasks or an owned fuel-less light.
+Round 2: torches alone never admit entry, even with oil.
 
 DECLARED CONSTRUCTED: the ~f skill-exp cache; in the controls five flasks
 of oil, a permanent light and full HP.
@@ -36,7 +37,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
-from hengbot.model import SV_LITE_FEANOR, SV_FLASK_OIL, TVAL_FLASK
+from hengbot.model import SV_LITE_FEANOR, SV_LITE_TORCH, SV_FLASK_OIL, TVAL_FLASK
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import OIL_TARGET
 from test_esp_threat_rest_recorded import EDIT, _policy
@@ -164,8 +165,8 @@ class LightRootFixQ2RecordedTest(unittest.TestCase):
         self.assertEqual(self._entry_reason(self._entry_board()), "light-oil")
 
     def test_one_shot_quest_entry_admitted_with_oil(self):
-        self.assertNotEqual(
-            self._entry_reason(self._with_oil(self._entry_board())), "light-oil"
+        self.assertEqual(
+            self._entry_reason(self._with_oil(self._entry_board())), "ready"
         )
 
     def test_one_shot_quest_entry_admitted_for_a_fuelless_light(self):
@@ -179,7 +180,59 @@ class LightRootFixQ2RecordedTest(unittest.TestCase):
                 lamp if item.is_light else item for item in board.equipment
             ),
         )
-        self.assertNotEqual(self._entry_reason(board), "light-oil")
+        self.assertEqual(self._entry_reason(board), "ready")
+
+    @staticmethod
+    def _with_torch(board):
+        # DECLARED CONSTRUCTED: replace the recorded worn lantern with a torch.
+        return replace(
+            board, equipment=type(board.equipment)(
+                replace(item, sval=SV_LITE_TORCH) if item.is_light else item
+                for item in board.equipment
+            ),
+        )
+
+    def test_one_shot_quest_entry_refused_for_torch_only_even_with_oil(self):
+        board = self._with_torch(self._entry_board())
+        for oil in (False, True):
+            with self.subTest(oil=oil):
+                candidate = self._with_oil(board) if oil else board
+                self.assertEqual(
+                    self._entry_reason(candidate), "light-torch-only"
+                )
+
+    def test_one_shot_quest_entry_with_torch_and_spare_lantern_needs_oil(self):
+        board = self._entry_board()
+        lamp = next(item for item in board.equipment if item.is_light)
+        board = self._with_torch(board)
+        # DECLARED CONSTRUCTED: replace the unidentified rod in slot j with
+        # the recorded lantern, keeping room for oil and the entry pack gate.
+        board = replace(
+            board, inventory=type(board.inventory)(
+                replace(lamp, slot="j") if item.slot == "j" else item
+                for item in board.inventory
+            ),
+        )
+        self.assertEqual(self._entry_reason(board), "light-oil")
+        self.assertEqual(self._entry_reason(self._with_oil(board)), "ready")
+
+    def test_one_shot_quest_entry_with_torch_and_spare_fuelless_light_admitted(self):
+        board = self._with_torch(self._entry_board())
+        lamp = next(item for item in board.equipment if item.is_light)
+        # DECLARED CONSTRUCTED: carry a permanent light in a free pack slot.
+        used = {item.slot for item in board.inventory}
+        slot = next(letter for letter in "abcdefghijklmnopqrstuvw" if letter not in used)
+        board = replace(
+            board, inventory=type(board.inventory)(
+                (*board.inventory, replace(lamp, slot=slot, sval=SV_LITE_FEANOR, fuel=0))
+            ),
+        )
+        self.assertEqual(self._entry_reason(board), "ready")
+
+    def test_faint_torch_without_refill_or_swap_still_releases_quest(self):
+        board = self._with_torch(self._board(2))
+        self.assertTrue(self.policy._light_judgment(board).releases_one_shot_quest)
+        self.assertEqual(self._decide(board), READ_RECALL_FROM_F)
 
 
 if __name__ == "__main__":

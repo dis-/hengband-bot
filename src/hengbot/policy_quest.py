@@ -4775,13 +4775,12 @@ class QuestMixin:
             return reject("overweight")
         if profile is not None and self._teleport_blocked_by_equipment(snapshot):
             return reject("random-teleport")
-        # USER DECISION 2026-10-25「油を持って入り、微かなら帰る」: a one-shot
-        # quest is entered with OIL_TARGET flasks while a fuel light is worn.
-        if (
-            self._fixed_quest_is_once(quest_id)
-            and not self._light_judgment(snapshot).one_shot_quest_entry_ready
-        ):
-            return reject("light-oil")
+        # USER DECISION 2026-10-25 round 2: oil cannot refill a torch.
+        # The shared judgment owns entry readiness and its rejection reason.
+        if self._fixed_quest_is_once(quest_id):
+            light = self._light_judgment(snapshot)
+            if not light.one_shot_quest_entry_ready:
+                return reject(light.one_shot_quest_entry_reject_reason)
         if (
             profile is None
             and not self._opening_q34_active(snapshot)

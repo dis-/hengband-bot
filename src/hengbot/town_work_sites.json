@@ -1974,6 +1974,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "6caf6f83d6c1de7c414592b76400955c5e8ea4cc28057674f8ac6c3443a0325b"
   },
+  "policy.py:HengbotPolicy._count_oil": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e0c3e52d2d26c1898dcf2e286e82f07bd0402cea010bf3c2bfb3ae4e3ca31544"
+  },
   "policy.py:HengbotPolicy._count_potion": {
     "classification": "data",
     "rows": [
@@ -5877,7 +5885,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "b570a42178f01a96b9a9db412aa569e03cb30231c900728390e3f7a17772319f"
+    "ast_sha256": "737eeed46ad9acfd59a9b13e6599157a2038d12ca3c07df86a368b08a119a2ae"
   },
   "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness.reject": {
     "classification": "data",
@@ -6953,6 +6961,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "265fd1c34cd5a306d974e6057ff3f43b05107d5edf4092f5f3d852027522c10f"
   },
+  "policy_supply.py:LightJudgment.one_shot_quest_entry_reject_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "82ecd507b86668075f4ca054a77a39d7d1a048831f04e6731954a8fc284a95a0"
+  },
   "policy_supply.py:SupplyMixin._carried_identify_staves": {
     "classification": "data",
     "rows": [
@@ -7072,6 +7088,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "d57fc7c18f63bc5fbc17bc148978c3491fa0b4db5e70f105e144cad9b1f563e0"
+  },
+  "policy_supply.py:SupplyMixin._light_judgment": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "4f7639323ec1ec4e97897d33443f41fdecc0066b1a16ee66da8fea20d70a1c68"
   },
   "policy_supply.py:SupplyMixin._light_ready": {
     "classification": "data",

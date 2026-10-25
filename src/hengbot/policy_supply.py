@@ -61,6 +61,8 @@ class LightJudgment:
     refill: InventoryItem | None
     swap: InventoryItem | None
     oil: int
+    owns_lantern: bool
+    owns_fuelless_light: bool
 
     @property
     def faint_without_refill(self) -> bool:
@@ -76,8 +78,19 @@ class LightJudgment:
 
     @property
     def one_shot_quest_entry_ready(self) -> bool:
-        """同じ決定の D: 燃料を使う光源なら油 OIL_TARGET 本を持って入る。"""
-        return not self.fuel_using or self.oil >= OIL_TARGET
+        """Entry uses an oil-refillable lantern or an owned fuel-less light."""
+        return self.one_shot_quest_entry_reject_reason is None
+
+    @property
+    def one_shot_quest_entry_reject_reason(self) -> str | None:
+        """USER DECISION 2026-10-25 round 2: torches alone stay outside."""
+        if self.owns_fuelless_light or not self.fuel_using:
+            return None
+        if not self.owns_lantern:
+            return "light-torch-only"
+        if self.oil < OIL_TARGET:
+            return "light-oil"
+        return None
 
 
 @contextmanager
@@ -484,6 +497,10 @@ class SupplyMixin:
             refill=refill,
             swap=swap,
             oil=self._count_oil(snapshot),
+            owns_lantern=any(
+                item.is_lantern for item in (*snapshot.inventory, *snapshot.equipment)
+            ),
+            owns_fuelless_light=self._owns_usable_permanent_light(snapshot),
         )
 
     def _expedition_light_ready(self, snapshot: Snapshot) -> bool:
