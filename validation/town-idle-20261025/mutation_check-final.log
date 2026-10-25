@@ -1,0 +1,7 @@
+[mutation] 3 source hunks, tests: tests.test_town_idle_capture
+[mutation] incremental: green record at 121e476bc; hunks unchanged since then are skipped
+[mutation] caught     src/hengbot/policy.py:479 (terminal_admission,): test_first_capture, test_second_capture
+[mutation] caught     src/hengbot/policy.py:11962 (terminal = rung_terminal(self, "_shopping_approach_key#2", snapshot)): test_first_capture, test_second_capture
+[mutation] GREEN EARLIER src/hengbot/town_terminal.py:1847 (home = policy._home_visit)
+[mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+[mutation] recorded for ff6035fd

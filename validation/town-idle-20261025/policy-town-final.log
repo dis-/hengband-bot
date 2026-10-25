@@ -1,0 +1,47 @@
+.....<keep-running> fallback cause=departure-unsatisfiable free=20 method=yeek-income
+<keep-running> fallback cause=equipment-work-home-route-exhausted free=20 method=yeek-income
+...<keep-running> fallback cause=equipment-work-home-route-exhausted free=20 method=yeek-income
+........................................................................C:\Users\user\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:941: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmpbdq4meg6'>
+  _warnings.warn(warn_message, ResourceWarning)
+........C:\Users\user\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:941: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmps9j43zvg'>
+  _warnings.warn(warn_message, ResourceWarning)
+.....................................................................................................................C:\Users\user\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:941: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmpedhzxqe1'>
+  _warnings.warn(warn_message, ResourceWarning)
+.......................................................................................................................................................................C:\Users\user\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:941: ResourceWarning: Implicitly cleaning up <TemporaryDirectory 'C:\\Users\\user\\AppData\\Local\\Temp\\tmp4x6ipcj3'>
+  _warnings.warn(warn_message, ResourceWarning)
+........................................................................................................................<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+..<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+...<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+<keep-running> hard_stop cause=departure-unsatisfiable free=18 method=none
+................................................................................................
+----------------------------------------------------------------------
+Ran 593 tests in 314.680s
+
+OK
