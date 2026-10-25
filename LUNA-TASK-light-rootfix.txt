@@ -1,0 +1,66 @@
+ROOT-FIX: 光源と燃料（付けるか・補給するか・どれを付けるか）(#65 #81 #82 #85 #86 + 2026-10-25 c4-a)
+ISSUE: #47 (soak stop). The light/fuel type reached its ROOT-FIX threshold (ledger C:\hengband-backups\state-logs\
+ROOT-TYPE-LEDGER.md row 光源と燃料: "次に出たら ROOT-FIX"; owner rule 2026-10-20 「3回目で切り替える」). The owner chose
+(2026-10-25) to fix this one first. Branch light-rootfix-1025 at main f0930437 (worktree
+C:\hengband\bot-client\.worktrees\light-rootfix-1025).
+
+Incident (measured by the supervisor; re-verify): c4-a life-016, quest 2 floor (0,15,2), 2026-10-25 14:35 stop
+"loop-detected" x3 -> escalate. Captures copied to C:\hengband-backups\state-logs\c4a-q2-dark-1025\ (three
+directories, state.jsonl.gz + bot-decisions.jsonl.gz + control-at-stop.json.gz).
+  state row 0 (turn 1551699): light 2, worn 真鍮のランタン light_turns 104. Last row (turn 1553094): light_turns 0,
+  light radius 0. Inventory: no flask of oil, no torch; テレポートの巻物 15, 帰還の詔の巻物 11, 光の杖 (19回分).
+  Decisions 18076..18365: quest-strategy:q2-residual-86-sweep 270, dark:backtrack 19 - the sweep posts '6' to (1,4),
+  dark:backtrack posts '4' back to (1,5), alternating until the loop detector fires.
+So the character used up its fuel during the quest without a refill or a walk-out, then two movement producers fought
+in the dark. The earlier fixes of this type were scene fixes (#81: read recall on a lightless walk out; #85 empty torch
+beside an empty lantern; #86 inferior light). Read git log --grep for #65 #81 #82 #85 #86 first.
+
+What to build (ROOT-FIX, not another scene fix):
+1. Statically enumerate EVERY code site that answers one of the light questions, with file:line: is the current light
+   usable / how long it lasts; does the trip (departure gate light_ready, quest entry, fundraising, mining) carry
+   enough light for its length; when to refill (oil, torch) or swap lights; what to do when the light is out or about to
+   run out in the dungeon (walk out, recall, staff of light, dark:backtrack); which light to wear. Write the list into
+   LUNA-DIAG-light-rootfix.txt with what each site decides today and whether it agrees with the others on this board.
+2. Measure on the captured board why (a) the departure / quest entry let a 104-turn lantern with no refill in, if it did
+   (find the departure row in earlier logs if present in the capture; otherwise say what is missing), and (b) why no
+   site acted between light_turns 104 and 0 (refill impossible -> the existing walk-out/recall answer of #81 should own).
+3. Route all sites through ONE light judgment (one function/object that answers the questions above from the snapshot),
+   and add a check that fails if a site answers a light question without it (enumerated sites; a structural census test
+   is allowed for this single check only).
+4. Behavior must stay within existing owner decisions. Quote the ones you rely on (memory and plans: light radius is the
+   total over all equipment 2026-10-23; inferior light; #81 recall on a lightless walk out). If the fix needs a NEW rule
+   (e.g. a fuel reserve amount that no decision fixes), STOP after the diagnosis and list the options with their effect.
+Pins through the public choose_key from the recorded boards: (a) at light_turns 0 with no refill the character does not
+alternate and takes the existing lightless answer (e.g. reads recall); (b) before 0 (the 104-turn row) the light judgment
+already reports the coming shortage and its owner acts. Controls: existing light tests unchanged; the Q2 residual sweep
+pins of a3df7cde5 unchanged.
+
+Rules (mandatory):
+- Write every text file (reports, diagnoses, READMEs) with Python, encoding='utf-8', newline='\n'. PowerShell
+  Set-Content / Out-File turns all Japanese into '?'.
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and soaks may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at f0930437) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*,
+  small gzip windows only). New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in
+  source, never raw control characters. At most 3 collaborators of one object patched per test function; no
+  source-text/AST assertions except the single census check of step 3. New policy attributes need restored-checkpoint
+  defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; keep moves minimal and say which hunks are pure moves.
+- NEVER use git stash. To compare before/after, use `git apply -R` of your own diff or a temporary detached worktree.
+- No new constant or threshold unless an owner decision fixes its value; no special case keyed to one store, one floor,
+  one quest or one capture.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8). Filter decisions on "decision_sequence".
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\light-rootfix-1025 f0930437
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\light-rootfix-1025 f0930437 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\light-rootfix-1025 f0930437 --shards 4
+  then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\light-rootfix-1025
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 300k is a HARD limit. Wall time 180 minutes. Write LUNA-REPORT-light-rootfix.txt in Japanese
+  (enumerated sites, measured cause, the one judgment, census check, pins before/after with revert results, guard
+  outputs) and commit.
