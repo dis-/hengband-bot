@@ -124,6 +124,11 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
              "equipment-transaction:deposit")):
         raise ValueError("store command on map screen")
 
+    if command in "Do" and owner in {"chest:disarm", "chest:open"} and re.fullmatch(r"[1-9]", tail):
+        # get_rep_dir may infer the sole adjacent chest (easy_open/disarm).
+        # Otherwise release the direction only at the observed question.
+        return command, [_answer(ScreenKind.DIRECTION, tail, optional=True), *continuations]
+
     if command == "~" and tail in {"9", "f"} and continuations:
         return command, [_answer(ScreenKind.KNOWLEDGE, tail), *continuations]
     if key in {"~9\x1b", "~9\x1b\x1b", "~f\x1b"}:

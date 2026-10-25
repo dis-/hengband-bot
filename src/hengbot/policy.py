@@ -1244,7 +1244,6 @@ RESUME_DESCENT_BLOCK_DECISIONS = 16
 HEAL_POTION_EXPECTED_HP = {35: 18, 37: 300, 38: 1200}
 TELEPORT_SCROLL_SVALS = frozenset({9, 10})  # teleport, teleport level
 
-Q34_WOODEN_CHEST_POSITION = Position(10, 8)
 
 # Food svals that actually nourish (rations/biscuits/…); lower svals are mushrooms.
 
@@ -10948,20 +10947,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 profile.quest_id,
                 QuestFloorNavigator(profile.quest_id, info.battlefield),
             )
-            quest = snapshot.quests.get(profile.quest_id)
-            if (
-                quest is not None
-                and quest.status == QUEST_STATUS_COMPLETED
-                and not strategic_hostiles
-            ):
+            snapshot = navigator.with_loot_memory(snapshot)
+            if not physical_hostiles:
                 # Fixed-quest sweep would otherwise treat a chest as generic
                 # loot and carry it out unopened. Process it on this floor so
                 # only Chest::open() contents enter the pack.
                 chest = self._town_producer_entry("_chest_processing_key#1", lambda: self._chest_processing_key(
                     snapshot,
                     physical_hostiles,
-                    allowed_positions={Q34_WOODEN_CHEST_POSITION}
-                    if profile.quest_id == 34
+                    preferred_position=Position(*profile.engagement_plan["chest_position"])
+                    if profile.engagement_plan.get("chest_position") is not None
                     else None,
                 ))
                 if chest is not None:

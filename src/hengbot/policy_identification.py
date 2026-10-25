@@ -84,6 +84,7 @@ class IdentificationMixin:
         snapshot: Snapshot,
         hostiles: list[MonsterState],
         allowed_positions: set[Position] | None = None,
+        preferred_position: Position | None = None,
     ) -> str | None:
         """User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.
 
@@ -93,6 +94,7 @@ class IdentificationMixin:
         locked chest takes several picks. Budget exhaustion abandons the chest
         (whatever spilled is normal loot)."""
         player = snapshot.player
+        quest_profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if hostiles or player.blind or player.confused:
             return None
         floor_chests = [
@@ -195,7 +197,11 @@ class IdentificationMixin:
                             candidate.object_count > before_count
                             or non_chests > before_non_chests
                         )
-                    if is_new_content:
+                    if is_new_content and not (
+                        quest_profile is not None
+                        and (candidate.position in self._deferred_loot
+                             or self._floor_pile_is_junk(snapshot, candidate))
+                    ):
                         contents.add(candidate.position)
                 if contents:
                     self._chest_collecting = True
@@ -206,6 +212,23 @@ class IdentificationMixin:
                 if contents:
                     here = snapshot.grids.get(player.position)
                     if player.position in contents and here is not None:
+                        if quest_profile is not None:
+                            pack_space = self._quest_sweep_pack_space_key(snapshot, here)
+                            if pack_space is not None:
+                                return pack_space
+                            if TVAL_CHEST in here.object_tvals:
+                                # The chooser rebuilds after each pick. Leave
+                                # chests in place and cancel the remaining pick.
+                                skipped = 0
+                                selections = ""
+                                for tval in here.object_tvals:
+                                    if tval == TVAL_CHEST:
+                                        skipped += 1
+                                    else:
+                                        selections += chr(ord("a") + skipped)
+                                if selections:
+                                    self.last_reason = "chest:collect-contents"
+                                    return PICKUP_KEY + selections + "\x1b"
                         self.last_reason = "chest:collect-contents"
                         if here.object_count > 1:
                             return PICKUP_KEY + ("a" * here.object_count)
@@ -253,11 +276,25 @@ class IdentificationMixin:
             if distance > 1:
                 self._claim_target_capture = []
                 try:
-                    step = self._nearest_goal_step(
-                        snapshot,
-                        lambda g: g.position != chest_pos
-                        and g.position.distance_to(chest_pos) == 1,
-                    )
+                    profile = quest_profile
+                    navigator = self._quest_navigators.get(snapshot.floor_key[2])
+                    if profile is not None and navigator is not None:
+                        blocked = {Position(*p) for p in profile.engagement_plan.get("avoid_door_positions", ())}
+                        final_door = profile.engagement_plan.get("final_door")
+                        if final_door is not None:
+                            blocked.discard(Position(*final_door))
+                        blocked.update(self._engagement_avoid_cells)
+                        goals = {Position(y, x) for y, x in navigator.battlefield.terrain
+                                 if Position(y, x).distance_to(chest_pos) == 1
+                                 and navigator._static_walkable(Position(y, x))}
+                        path = navigator._static_path(player.position, goals, blocked=blocked)
+                        step = path[1] if len(path) > 1 else None
+                    else:
+                        step = self._nearest_goal_step(
+                            snapshot,
+                            lambda g: g.position != chest_pos
+                            and g.position.distance_to(chest_pos) == 1,
+                        )
                 finally:
                     step_target = self._take_claim_target()
                 if step is None:
@@ -266,7 +303,7 @@ class IdentificationMixin:
                     self._chest_preopen_objects = None
                     return None
                 self.last_reason = "chest:approach"
-                self._declare_reach(step_target)
+                self._declare_reach(path[-1] if profile is not None and navigator is not None and path else step_target)
                 return self._step_toward(snapshot, step)
             if counts.get("search", 0) < CHEST_SEARCH_BUDGET:
                 counts["search"] = counts.get("search", 0) + 1
@@ -308,13 +345,16 @@ class IdentificationMixin:
             self._chest_position = min(
                 floor_chests,
                 key=lambda position: (
+                    position.distance_to(preferred_position)
+                    if preferred_position is not None else 0,
                     player.position.distance_to(position), position.y, position.x
                 ),
             )
             self._chest_phase_counts = {}
             self._chest_preopen_objects = None
             return self._chest_processing_key(
-                snapshot, hostiles, allowed_positions=allowed_positions
+                snapshot, hostiles, allowed_positions=allowed_positions,
+                preferred_position=preferred_position,
             )
         chest = next(
             (it for it in snapshot.inventory if self._is_processable_chest(it)),
@@ -1119,13 +1159,10 @@ class IdentificationMixin:
             count += 1
         return count
 
-    def _loot_step(
-        self,
-        snapshot: Snapshot,
-        *,
-        include_unsafe: bool = False,
-        max_path_distance: int | None = None,
-    ) -> Position | None:
+    def _loot_candidates(
+        self, snapshot: Snapshot, *, include_unsafe: bool = False,
+    ) -> set[Position]:
+        """Shared floor value and safety judgment, independent of the router."""
         self._refresh_unseen_loot_deferral(snapshot)
         avoided_loot = self._known_loot & self._engagement_avoid_cells
         if avoided_loot:
@@ -1149,7 +1186,19 @@ class IdentificationMixin:
             position
             for position in candidates
             if not self._in_unseen_attack_area(snapshot, position)
+            and ((grid := snapshot.grid_at(position)) is None
+                 or not self._floor_pile_is_junk(snapshot, grid))
         }
+        return candidates
+
+    def _loot_step(
+        self,
+        snapshot: Snapshot,
+        *,
+        include_unsafe: bool = False,
+        max_path_distance: int | None = None,
+    ) -> Position | None:
+        candidates = self._loot_candidates(snapshot, include_unsafe=include_unsafe)
         if candidates and self._loot_defer_blocker == "navigation-ledger:loot":
             self._loot_defer_blocker = None
         if not candidates:
