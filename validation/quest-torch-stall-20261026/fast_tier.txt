@@ -1,6 +1,0 @@
-[fast] 2056 fast tests (<2.0s in dace87f32) + 1 changed modules, 4 shards
-[fast] excluded 51 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
-Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-tdai94rr)
-Failures: ['tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop']
-Errors: none
-Total: 2062 tests, 115.7s

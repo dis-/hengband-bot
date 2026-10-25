@@ -1,2 +1,0 @@
-UTF-8/LF/control-byte check: PASS (21 files)
-Fixture SHA256/provenance match: PASS (c56ca3594f8edb272f898a770b9011ac1345d269b4b33a19216ee9daa5dabe8a)

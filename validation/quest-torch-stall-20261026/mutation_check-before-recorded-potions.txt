@@ -1,6 +1,0 @@
-[mutation] waiting: the merge gate is running its full suite (gate town-post-s2-1025, since 02:00:03); owner decision 2026-10-25
-[mutation] the merge gate's full suite finished; starting after 5 min
-[mutation] 1 source hunks, tests: tests.test_quest_torch_stall_recorded
-[mutation] caught     src/hengbot/policy_supply.py:1257 (if quest is None or quest.status != QUEST_STATUS_UNTAKEN:): test_level_boundary_uses_the_same_existing_procurement_route, test_public_route_buys_torches_through_executor_then_requests_quest
-[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
-[mutation] recorded for 93d6fe12
