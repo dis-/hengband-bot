@@ -73,3 +73,106 @@ LUNA-REPORT-light-rootfix（2026-10-25）
 - D で入場を断ると、燃料が 1000 を超えるランタンでは _light_ready が油を買わない。そのため、クエストは燃料が 1000 以下になって油を買うまで先に延びる。止まることはない。
 - たいまつだけのキャラも、決定のとおり油 OIL_TARGET 本が要る（たいまつには油を足せない）。
 - 別の型（直していない）: Q2 の残り探し（q2-residual-86-sweep）が、光のある間も 60 手ごとに (1,4) へ戻り、進まずに燃料を使った。別の作業で扱う。
+
+
+== ROUND 2（たいまつだけでは入場しない、2026-10-25、issue #47）==
+状態: 実装修正は完了。slow検証は環境側の対象ディレクトリ消失により未完了。ほかの検証結果と既知のツール側エラーは、この節の最終ガード出力に記す。
+持ち主の決定（LUNA-TASK-light-rootfix-r2.txt、AskUserQuestion 2026-10-25 17:1x、LOCKED）「松明では入らない」を適用した。
+この節は、前節の「たいまつでも油 OIL_TARGET 本が要る」という説明を訂正する。油ではたいまつを補給できないため、たいまつしか持たない場合は、油の有無にかかわらず ONCE fixed クエストへ入らない。
+
+実装:
+- policy_supply.py の LightJudgment.one_shot_quest_entry_ready と one_shot_quest_entry_reject_reason が、入場の可否と理由を一か所で決める。
+  ・装備または携帯中に使える燃料不要光源があれば入場可。自宅にあるだけの光源は既存の #82 の判断どおり数えない。
+  ・燃料式の光源で、ランタンも使える燃料不要光源も持たなければ light-torch-only で拒否。油を持っていても拒否。
+  ・ランタンを持つ場合は既存の OIL_TARGET 本が必要。不足時は light-oil、充足時は入場可。
+- _light_judgment が装備・携帯中のランタンの有無と、既存の _owns_usable_permanent_light による燃料不要光源の有無を組み立てる。
+- policy_quest.py の _evaluate_fixed_quest_readiness は同じ判断の可否と拒否理由をそのまま使う。光源種別の判定を呼び出し側に増やしていない。
+- 微か・補給不可・付け替え不可なら退出する releases_one_shot_quest と、その帰還経路は変更していない。
+- scripts/town_work_review.json に _count_oil、_light_judgment、one_shot_quest_entry_reject_reason を、行動を送信しないデータ用ヘルパーとして登録。町の処理一覧と実行時索引を再生成した（883 candidates / 22299 sites / zero unmapped）。
+- 新しい定数・閾値・policy の永続属性はない。LightJudgment の新しい2フィールドは盤面ごとに計算する値であり、復元チェックポイント用の既定値は不要。このラウンドに純粋な移動の hunk はない。
+
+テストとピン別の戻し検証:
+- tests/test_light_rootfix_q2_recorded.py: 12件成功（115.004秒）。実際の入場判定 _evaluate_fixed_quest_readiness を通す。前回からの force-ready 差し替えは1つだけ。
+- tests/test_light_judgment_census.py: 3件成功（9.143秒）。構造の確認を追加していない。
+- f0930437 に存在するテストの変更はない。前回追加した入場許可テスト2つだけは、理由が light-oil 以外という確認から、理由が ready であるという強い確認へ改めた。
+- 戻し検証は b8dea02f8（第2ラウンドの修正前）の一時 detached worktree に最終版の同じテストを置き、同じモジュールを -v で実行した。12件中、2テストの3アサーションが失敗（124.115秒、終了コード1）。エラーはない。
+  ・test_one_shot_quest_entry_refused_for_torch_only_even_with_oil: 油なしでは旧版 light-oil、新版 light-torch-only。油ありでは旧版 ready、新版 light-torch-only。両 subtest が戻し検証で失敗した。
+  ・test_one_shot_quest_entry_admitted_with_oil: ランタンと油で ready。旧版・新版とも成功（対照）。
+  ・test_one_shot_quest_entry_refused_without_oil: ランタンに油なしで light-oil。旧版・新版とも成功（対照）。
+  ・test_one_shot_quest_entry_admitted_for_a_fuelless_light: 装備中の燃料不要光源なら ready。旧版・新版とも成功（対照）。
+  ・test_one_shot_quest_entry_with_torch_and_spare_lantern_needs_oil: たいまつ装備でも予備ランタンを携帯していれば、油なし light-oil、油あり ready。旧版・新版とも成功（対照）。
+  ・test_one_shot_quest_entry_with_torch_and_spare_fuelless_light_admitted: 燃料不要光源を携帯すれば油なしでも ready。旧版は light-oil で失敗、新版は成功。
+  ・test_faint_torch_without_refill_or_swap_still_releases_quest: 微か・補給と付け替えなしのたいまつは return:recall。旧版・新版とも成功（退出の対照）。記録されたランタンの退出・明るさ104/100・油ありの継続・暗がりの移動の5テストも両版成功。
+- テスト作成中、予備ランタンと油を同時に足した盤面は pack-space で拒否された。最終版では未鑑定ロッドの枠を予備ランタンに置き換え、光源の条件まで到達させた。既存テストや src の荷物条件は変えていない。
+
+ガード前後の補足:
+- 最初の preflight の既存テスト失敗は R（新しいヘルパーの登録漏れ）。item sink lint が参照する scripts/town_producer_baseline.json に同じ3ヘルパーが未登録だったため失敗した。実際にはキー送信を行わないデータ処理であることを確認して同ファイルにも登録した。検査自体や既存テストは変更していない。ガード後の修正はこの1回。
+- 修正前の出力:
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy.py:HengbotPolicy._count_oil: new [375 chars]ion'] != []
+[preflight] FAIL fakery/sink: + []
+[preflight] FAIL fakery/sink: - ['policy.py:HengbotPolicy._count_oil: new unregistered key-returning producer; '
+[preflight] PREFLIGHT FAIL: 14 changed files, 4 findings (light-rootfix-1025 vs f0930437)
+終了コード: 1
+
+最終ガード（この順序で実行、対象HEAD 1101279ff3a2d605d376c6ed2b2d669de73ea020）:
+各ツールは C:\hengband-backups\guard-tools 内のスクリプトを使用。preflight / mutation_check / fast_tier の基準は f0930437。
+
+python -X utf8 C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\light-rootfix-1025 f0930437
+[preflight] PREFLIGHT OK: 15 changed files, 0 findings (light-rootfix-1025 vs f0930437)
+終了コード: 0
+
+python -X utf8 C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\light-rootfix-1025 f0930437 --tests tests.test_light_rootfix_q2_recorded tests.test_light_judgment_census --record
+[mutation] 8 source hunks, tests: tests.test_light_rootfix_q2_recorded tests.test_light_judgment_census
+[mutation] incremental: green record at ae0b8b01a; hunks unchanged since then are skipped
+[mutation] GREEN EARLIER src/hengbot/policy_navigation.py:331 (# The released one-shot quest is left by the return, which walks)
+[mutation] caught     src/hengbot/policy_quest.py:4775 (# USER DECISION 2026-10-25 round 2: oil cannot refill a torch.): test_one_shot_quest_entry_refused_for_torch_only_even_with_oil, test_one_shot_quest_entry_refused_without_oil, test_one_shot_quest_entry_with_torch_and_spare_la
+[mutation] GREEN EARLIER src/hengbot/policy_supply.py:4 (from dataclasses import dataclass, replace)
+[mutation] caught     src/hengbot/policy_supply.py:45 (@dataclass(frozen=True)): test_control_104_and_100_boards_keep_sweeping, test_control_faint_board_with_oil_keeps_the_quest, test_faint_board_releases_the_quest_lock_and_reads_recall, tes
+[mutation] caught     src/hengbot/policy_supply.py:468 (def _light_judgment(self, snapshot: Snapshot) -> LightJudgment:): test_control_104_and_100_boards_keep_sweeping, test_control_faint_board_with_oil_keeps_the_quest, test_faint_board_releases_the_quest_lock_and_reads_recall, tes
+[mutation] GREEN EARLIER src/hengbot/policy_supply.py:1406 (# A one-shot quest floor whose faint light cannot be refilled or)
+[mutation] GREEN EARLIER src/hengbot/policy_supply.py:1419 (food = None if light_exit else self._find_edible(snapshot))
+[mutation] GREEN EARLIER src/hengbot/policy_town.py:7440 (return ()
+[mutation] MUTATION OK: 0 of 8 hunks are not pinned by a test
+[mutation] recorded for 1101279f
+終了コード: 0
+
+python -X utf8 C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\light-rootfix-1025 f0930437 --shards 4
+[fast] 3829 fast tests (<2.0s in 124fa2ac9) + 2 changed modules, 4 shards
+[fast] excluded 50 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-ynbv6_g5)
+Failures: none
+Errors: ['tests.test_spectator_v2 (import) ModuleNotFoundError("No module named \'tests.test_spectator_v2\'")']
+Total: 3838 tests, 340.2s
+終了コード: 1
+
+python -X utf8 C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\light-rootfix-1025
+[slow] not on base (run locally): tests.test_light_rootfix_q2_recorded
+[slow] 1101279ff: running 47 modules, 3 at a time
+[slow] 1101279ff:                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: PosixPath('Linux検証環境/1101279ff3a2')
+Traceback (most recent call last):
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 129, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 108, in main
+    branch = run_tree(root, head, modules, workers, reuse=False)
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 90, in run_tree
+    return json.loads(ssh(f"cat {result}", check=True).stdout)
+                      ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband-backups\guard-tools\remote_slow.py", line 43, in ssh
+    return subprocess.run([*SSH, command], capture_output=True, text=True, errors="replace", **kwargs)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: result.json の取得が終了コード1で失敗（接続引数は非掲載）
+終了コード: 1
+
+fast_tier の tests.test_spectator_v2 の ModuleNotFoundError は、タスクファイルに明示された新しい main のキャッシュ由来のツール側の問題。追跡・修正していない。ほかの失敗・エラーはガード出力のとおり。
+remote_slow は1回だけ実行したが、検証環境側の対象ディレクトリが実行途中で見つからなくなり、結果JSONも取得できず終了コード1。47モジュールを開始したことと、途中で3モジュールが動作中だったことは確認できたが、完了件数・テスト成否・mainとの差分は判定できない。失敗後の読み取り専用の確認でも target_tree_exists=false / result_exists=false だった。原因は未確定で、ソースの回帰を示すテスト失敗の結果は得られていない。「1回だけ」の指示に従い再実行していない。検証環境側の問題として報告し、slow 検証は未完了とする。
+Linux検証環境の固有名・接続情報は匿名化し、例外の接続コマンド引数は非掲載とした。
+最後のコミットは本レポートだけで、検証した src/hengbot と tests のツリーは変わらない。mutation の記録もこの2ツリーをキーに保存されている。
+作業開始時からあった sol-light-r2.err.log と sol-light-r2.out.log は変更・追加コミットしていない。ゲームやBOTの操作、push、mergeは行っていない。
