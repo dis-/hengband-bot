@@ -204,6 +204,7 @@ def normalize_policy_state(restored, *, restart=False):
     # Display-only recall-target reason (#47): a checkpoint saved before it
     # does not know why its target was chosen.
     restored.__dict__.setdefault("_target_dungeon_reason", None)
+    restored.__dict__.setdefault("_alternate_dungeon_reason", None)
     if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored
     retire_strip_calibration_state(restored)

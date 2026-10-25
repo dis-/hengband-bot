@@ -20,11 +20,18 @@ file.  Substrates (each declared):
   Forest's landing is moved onto its own guardian floor 31 (as that module's
   ``ALL_BLOCKED_LANDINGS``), so the recall reader switches through the valve;
 - the conquest and quest pins reuse the constructed boards of
-  test_policy_quest's DungeonConquestTest and FixedQuestTest.
+  test_policy_quest's DungeonConquestTest and FixedQuestTest;
+- the observation's own alternate switches (over-extended dives, guardian
+  bounces only, no depth progress) reuse test_policy_observation's
+  OverExtensionDungeonSwitchTest dives.
+Owner decision 2026-10-25 「ずっと出す」: while an alternate stays the target,
+the reason it was switched to is shown, not a generic one
+(``_alternate_dungeon_reason``, display-only like the target's reason).
 """
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+import copy
 import json
 import unittest
 from dataclasses import replace
@@ -34,11 +41,12 @@ from unittest.mock import patch
 
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE
-from hengbot.policy import HengbotPolicy
+from hengbot.policy import EMPTY_DIVE_LIMIT, NO_DEPTH_PROGRESS_DIVE_LIMIT, HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.spectator import SpectatorWriter
 from tests import test_guardian_recall_pingpong_recorded as pingpong
 from tests import test_input_executor as executor_pins
+from tests import test_policy_observation as observation_pins
 from tests import test_policy_quest as quest_pins
 from tests import test_spectator as spectator_pins
 
@@ -129,11 +137,14 @@ class RecordedRecallDestinationTest(unittest.TestCase):
         )
 
     def test_the_next_observation_reapplies_the_alternate(self):
+        # CHANGED 2026-10-25 by owner decision 「ずっと出す」 (own new test of
+        # this branch): the re-applied alternate keeps the reason it was
+        # switched to (was alternate_dungeon from the next decision on).
         policy, board, _key = self._decide_through(pingpong.FALLBACK + 1)
         destination = _destination(policy, board)
         self.assertEqual(destination["dungeon_id"], pingpong.FOREST)
         self.assertEqual(destination["depth"], pingpong.FOREST_LANDING)
-        self.assertEqual(destination["reason"], "alternate_dungeon")
+        self.assertEqual(destination["reason"], "safe_fallback")
 
     def test_guardian_valve_is_told_apart_from_the_safe_fallback(self):
         policy, _board, key = self._decide_through(pingpong.FIRST_RECALL - 1)
@@ -153,6 +164,70 @@ class RecordedRecallDestinationTest(unittest.TestCase):
             destination["depth"],
             blocked.dungeon_recall_depths[destination["dungeon_id"]])
         self.assertEqual(destination["reason"], "guardian_valve")
+        # The next decision's observation re-applies the alternate and keeps
+        # the valve's reason (owner decision 「ずっと出す」).
+        with pingpong._pre_p2_departure_count():  # DECLARED WALL (P2)
+            policy.choose_key(blocked)
+        again = _destination(policy, blocked)
+        self.assertEqual(again["dungeon_id"], destination["dungeon_id"])
+        self.assertEqual(again["reason"], "guardian_valve")
+
+
+class ObservedAlternateReasonTest(unittest.TestCase):
+    """The observation's own alternate switches, on test_policy_observation's boards."""
+
+    def setUp(self):
+        self.source = observation_pins.OverExtensionDungeonSwitchTest(
+            "test_switches_after_a_run_of_over_extended_dives")
+
+    def test_over_extended_dives_switch_and_keep_their_reason(self):
+        policy = self.source._policy()
+        for _ in range(EMPTY_DIVE_LIMIT):
+            self.source._run_dive(policy, **self.source.OVEREXTENDED)
+        town = self.source._town()
+        self.assertEqual(
+            _destination(policy, town),
+            {"dungeon_id": 3, "dungeon_name": "Orc Cave",
+             "depth": policy._dungeon_entry_depth(town, 3, via_recall=True),
+             "reason": "over_extended_dives"},
+        )
+        policy._observe(town)  # the next observation re-applies the alternate
+        self.assertEqual(_destination(policy, town)["reason"], "over_extended_dives")
+
+    def test_guardian_bounces_only_switch_through_the_bounce_valve(self):
+        policy = self.source._policy()
+        policy._conquest_committed = 4
+        policy._target_dungeon_id = 4
+        for _ in range(EMPTY_DIVE_LIMIT):
+            self.source._guardian_bounce(policy, "guardian-kit-insufficient")
+        town = self.source._town(conquered=(3, 7, 14), angband_unlocked=False)
+        destination = _destination(policy, town)
+        self.assertEqual(destination["dungeon_id"], 3)
+        self.assertEqual(destination["reason"], "guardian_bounce_valve")
+
+    def test_looted_dives_without_new_depth_switch_for_no_depth_progress(self):
+        policy = self.source._policy()
+        for _ in range(NO_DEPTH_PROGRESS_DIVE_LIMIT):
+            self.source._run_dive(
+                policy, loot=4, emergencies=0, level=19, recall_depth=19)
+        destination = _destination(policy, self.source._town(recall_depth=19))
+        self.assertEqual(destination["dungeon_id"], 7)
+        self.assertEqual(destination["reason"], "no_depth_progress")
+
+    def test_restored_alternate_without_its_reason_shows_the_generic_reason(self):
+        policy = self.source._policy()
+        for _ in range(EMPTY_DIVE_LIMIT):
+            self.source._run_dive(policy, **self.source.OVEREXTENDED)
+        del policy._alternate_dungeon_reason  # a state from before the round
+        # The fixture's optimizer closure is not picklable; a deep copy runs
+        # the same __setstate__ upgrade as an unpickled checkpoint.
+        restored = copy.deepcopy(policy)
+        self.assertIsNone(restored._alternate_dungeon_reason)
+        town = self.source._town()
+        restored._observe(town)
+        destination = _destination(restored, town)
+        self.assertEqual(destination["dungeon_id"], 3)
+        self.assertEqual(destination["reason"], "alternate_dungeon")
 
 
 class ConstructedRecallDestinationTest(unittest.TestCase):

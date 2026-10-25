@@ -565,6 +565,10 @@ class ObservationMixin:
             )
             if alt is not None:
                 self._alternate_dungeon = alt
+                self._alternate_dungeon_reason = (
+                    "guardian_bounce_valve" if guardian_bounces_only
+                    else "over_extended_dives"
+                )
                 # The safety valve must demote even a latched conquest target.
                 # It may be selected again after the existing alternate period,
                 # but must not immediately override the alternate below.
@@ -599,6 +603,7 @@ class ObservationMixin:
             )
             if alt is not None:
                 self._alternate_dungeon = alt
+                self._alternate_dungeon_reason = "no_depth_progress"
                 self._conquest_committed = None
             self._no_depth_progress_dives = 0
         # A switched target overrides the ordinary selection until its lifecycle
@@ -606,7 +611,10 @@ class ObservationMixin:
         if self._alternate_dungeon is not None:
             if self._alternate_dungeon in snapshot.entered_dungeon_ids:
                 self._target_dungeon_id = self._alternate_dungeon
-                self._target_dungeon_reason = "alternate_dungeon"
+                # The alternate keeps the reason it was switched to.
+                self._target_dungeon_reason = (
+                    self._alternate_dungeon_reason or "alternate_dungeon"
+                )
 
         # HIGHEST PRIORITY target: clear an unconquered dungeon whose bottom is within
         # our resistance limit, for the final guardian's gear. It normally overrides
