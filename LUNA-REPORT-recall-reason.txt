@@ -1,0 +1,96 @@
+LUNA-REPORT: 観戦ページの帰還先と選択理由 (#47)
+ブランチ recall-reason-1025（spectate-v2-1025 c6601c3e1 の上）
+
+■ 結論
+帰還先（自発的な帰還の目標ダンジョン _target_dungeon_id）を代入するすべての箇所で、同じ場所に理由コード
+self._target_dungeon_reason を記録した。観戦ファイルに recall_destination を足した。表示専用で、判断はこの
+属性を読まない（記録した盤面の follow 再生で、キーと理由が欄の有無で同一であることを確かめた）。
+
+■ コミット
+- 40d1285f4 feat: show the recall destination and why it was chosen on the spectator page (#47)
+  src/hengbot/cli.py, policy.py, policy_observation.py, policy_quest.py, policy_state.py, spectator.py,
+  tests/test_spectator_recall_destination.py（新規）
+- 4d2a6a6d1 chore: regenerate the town work manifest after the recall reason
+  scripts/town_work_manifest.json.gz, src/hengbot/town_work_sites.json（ast_sha256 の2件だけ）
+- この報告のコミット
+
+■ 記録した代入箇所（すべて、現在の行番号）
+- src/hengbot/policy.py:2097（__init__、初期値 洞窟）
+- src/hengbot/policy.py:14826（_activate_safe_recall_fallback。guardian_bounced_dungeon の有無で2つのコードを分ける）
+- src/hengbot/policy_observation.py:398（アングバンドの帰還が解禁）
+- src/hengbot/policy_observation.py:609（代わりのダンジョンを再適用）
+- src/hengbot/policy_observation.py:622（制覇の目標）
+- src/hengbot/policy_quest.py:4303（受けた討伐クエストのダンジョン）
+src/ の代入はこの6か所だけ（grep で確認）。scripts/minimum_table.py:40 の代入は解析用スクリプトで実運転には
+使われないため、手を入れていない。
+
+■ 理由コードと意味（ページの文言の対応づけ用）
+- initial_yeek_cave: 起動時の既定の帰還先（ヨークの洞窟）のまま
+- angband_recall_unlocked: アングバンドへの帰還が解禁されたため
+- alternate_dungeon: 深すぎる等で切り替えた代わりのダンジョンを引き続き目標にしているため
+- conquest: 倒せる最終ガーディアンがいる未制覇のダンジョンを制覇するため
+- quest_dungeon: 受けた討伐クエストのダンジョンへ向かうため
+- safe_fallback: 本来の帰還先の到着階が危険（必要な能力が足りない）なので、安全な別のダンジョンにしたため
+- guardian_valve: 本来の帰還先の到着階が倒せないガーディアンの階なので、別のダンジョンにしたため
+- null（None）: 理由の記録より前に保存されたチェックポイントから復元したため不明
+
+■ 新しい欄の形（観戦 JSON の最上位）
+"recall_destination": {"dungeon_id": int, "dungeon_name": str, "depth": int, "reason": str | null}
+- dungeon_name はボットの静的なダンジョン知識（_dungeon_knowledge）に名前があるときだけ。無ければ省く。
+- depth は _dungeon_entry_depth(snapshot, id, via_recall=True)（ボット自身が使う帰還の到着階）。
+- 目標が無い（None）ときは欄ごと省く。emitter は変えていない。
+- SpectatorWriter.observe にキーワード引数 policy=None を足し、cli の _run_follow から policy=policy を渡す。
+
+■ 復元したチェックポイントの既定値
+_target_dungeon_reason = None（policy_state.normalize_policy_state の、版5で早く戻る前の setdefault に置いた）。
+
+■ 注意（監督への申し送り）
+観察（_observe）は毎回の判断で、解禁されていればまずアングバンドに戻し、そのあと代わりのダンジョンを再適用する。
+そのため safe_fallback と guardian_valve は、それを選んだ判断の1回だけ表示され、次の判断からは
+alternate_dungeon に変わる（記録した盤面で 8 番目の判断が safe_fallback、9 番目から alternate_dungeon）。
+代わりのダンジョンの「切り替えた理由」を表示し続けたい場合は、_alternate_dungeon の代入（policy.py:14821、
+policy_observation.py:566・600 の深すぎる弁・ガーディアン跳ね返りの弁）にも理由を持たせる追加が要る。
+指示（属性は1つ、指定の箇所）を守り、今回は入れていない。
+
+■ 新しいテスト（tests/test_spectator_recall_destination.py）と巻き戻しの結果
+各テストは実際の生産者（コンストラクタ、記録した盤面の choose_key、_observe、_fixed_quest_key）を動かし、
+実際の SpectatorWriter が書いたファイルから欄を読む。記録の行を消すと（または入れ替えると）すべて失敗した。
+- RecordedRecallDestinationTest.test_initial_yeek_cave_target_before_any_retarget
+  policy.py:2097 を消す → 失敗（reason None != initial_yeek_cave）
+- RecordedRecallDestinationTest.test_angband_recall_unlocked_retargets_angband
+  policy_observation.py:398 を消す → 失敗（initial_yeek_cave != angband_recall_unlocked）
+- RecordedRecallDestinationTest.test_unsafe_recall_fallback_names_forest_and_its_landing
+  policy.py:14826 を常に guardian_valve にする → 失敗（森林 24階、guardian_valve != safe_fallback）
+- RecordedRecallDestinationTest.test_guardian_valve_is_told_apart_from_the_safe_fallback
+  policy.py:14826 を常に safe_fallback にする → 失敗（safe_fallback != guardian_valve）
+  （名前を付けた変更: 13番目の盤面で森林の到着階をそのガーディアンの階 31 に移す）
+- RecordedRecallDestinationTest.test_the_next_observation_reapplies_the_alternate
+  policy_observation.py:609 を消す → 失敗（angband_recall_unlocked != alternate_dungeon）
+- ConstructedRecallDestinationTest.test_conquest_target_overrides_angband
+  policy_observation.py:622 を消す → 失敗（angband_recall_unlocked != conquest）
+- ConstructedRecallDestinationTest.test_taken_kill_quest_targets_its_dungeon
+  policy_quest.py:4303 を消す → 失敗（initial_yeek_cave != quest_dungeon）
+- ConstructedRecallDestinationTest.test_checkpoint_saved_before_the_reason_restores_it_as_unknown
+  policy_state.py:206 を消す → 失敗（None であるべきところ initial_yeek_cave）
+- ConstructedRecallDestinationTest.test_a_target_without_a_known_name_omits_the_name
+- ConstructedRecallDestinationTest.test_no_target_omits_the_field
+- RecallDestinationFollowControlTest.test_keys_and_reasons_are_identical_with_and_without_the_field（対照）
+  記録した follow 再生を、欄ありと欄なし（spectator_recall_destination を None に差し替え）で2回走らせ、
+  結果・送ったキー・判断の理由が同一。spectator.py の欄の書き込みを消す → 失敗。
+既存のテストは変えていない。構造テストの数え上げの変更も無し。
+
+■ ガードの出力（最後のコミット 4d2a6a6d1 の後）
+preflight:
+  [preflight] PREFLIGHT OK: 10 changed files, 0 findings (recall-reason-1025 vs c6601c3e)
+mutation_check:
+  [mutation] MUTATION OK: 0 of 11 hunks are not pinned by a test
+  [mutation] recorded for 4d2a6a6d
+fast_tier（1回目）: test_control_client の6件と test_input_executor.AcceptedObservationRetryPins の1件が失敗。
+  変更と関係の無い通信の時間に依存するテストで、単独で流すと 39件 OK。修正の1回目として再実行した。
+fast_tier（2回目）:
+  Crashed shards: none
+  Failures: none
+  Errors: none
+  Total: 3857 tests, 360.6s
+remote_slow:
+  [slow] SLOW OK: 0 failures not on base f0930437d (47 modules, head 4d2a6a6d1)
