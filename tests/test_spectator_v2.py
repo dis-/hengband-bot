@@ -37,7 +37,7 @@ class SpectatorDetailsTest(unittest.TestCase):
         before = copy.deepcopy(state)
         details = spectator_details(state, self.snapshot)
         self.assertEqual(set(details), {
-            "equipment", "inventory", "monsters", "melee", "abilities", "status"})
+            "equipment", "inventory", "monsters", "melee", "abilities", "status", "speed"})
         self.assertEqual(details["equipment"], [
             {"slot": item["slot"], "name": item["name"]} for item in state["equipment"]])
         self.assertEqual(details["inventory"], [

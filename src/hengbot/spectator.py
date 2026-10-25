@@ -105,6 +105,8 @@ def spectator_details(state: Mapping[str, object], snapshot=None) -> dict:
         details["monsters"] = sorted(
             monsters, key=lambda row: row.get("distance", float("inf")))
     player = state.get("player", {})
+    if "speed" in player:
+        details["speed"] = player["speed"]
     if "melee" in player:
         melee = dict(player["melee"])
         for row in state.get("equipment", []):
@@ -181,7 +183,6 @@ class SpectatorWriter:
                 "key": printable_key(key),
                 "reason": reason,
                 "level": player.level,
-                "speed": player.speed,
                 "depth": snapshot.dungeon_level,
                 "dungeon": snapshot.floor_key[0],
                 "hp": [player.hp, player.max_hp],
