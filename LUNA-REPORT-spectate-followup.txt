@@ -1,0 +1,73 @@
+Issue #47 観戦表示の追補修正・検証報告
+日付: 2026-10-25
+ブランチ: spectate-followup-1025
+比較元: 4d239862f
+実装コミット: 1893f0e0d
+生成マニフェスト更新・検証対象HEAD: 6a30e76fd
+
+判定
+実装と対象の回帰テストは完了したが、全ガード成功・マージ可能とは判定しない。
+LUNA-TASK-spectate-followup.txt の「武器だけを比較」と「他の既存テストは変更しない」は、既存テスト1件と衝突する。既存テストの変更可否を問い合わせたが、回答は未受領であり変更していない。
+また、別のマージゲートの全体テストが実行中のため、ローカルの mutation_check と fast_tier は待機状態で終了した。差分取り消し記録や fast tier の成功記録はない。
+
+修正内容
+1. src/hengbot/spectator.py
+現在の snapshot.equipment と、character 応答から保存した装備の両方を、main_hand / sub_hand の (slot, name) に絞って stale を比較する。
+光源の残り時間や胴防具の充填状態が変化しても stale は false のまま。両手いずれかの武器の交換・着脱では true となり、character 応答の更新で false に戻る。
+保存済みの全装備キャッシュの形式、per_round / total / turn、装備表示、判断処理は変更していない。全装備を持つ既存チェックポイントも、キャッシュ導入前のチェックポイントも扱える。
+
+2. tests/test_action_pacing.py
+spectate-pace-1025 から main に取り込まれた既存テストの共通ヘルパーを変更した。
+follow は偽時計だったが、SpectatorWriter の更新制限は実時間を使っていた。ヘルパーで生成する実際の SpectatorWriter に同じ偽時計の read を渡し、観戦ファイルの更新タイミングも確定させた。
+6件の既存テスト本文・assertion は変更していない。キー・理由の送信結果、判断ログのキー・理由、待機回数、観戦ファイルのキーの一致を引き続き検証する。他の既存テストファイルは変更していない。
+
+新規の回帰テスト
+追加: tests/test_spectator_weapon_staleness.py、5件。
+記録済みスナップショットを土台に、実際の CLI character dispatch → policy のキャッシュ保存 → parse_snapshot → SpectatorWriter → JSONファイルの経路を通す。
+・光源の残り時間と胴防具の充填表示の変化では stale=false。装備表示は変化後の内容を保つ。
+・main_hand / sub_hand の交換では stale=true、character 再取得で更新される。
+・武器の取り外し・追加では stale=true。
+・全装備キャッシュを持つ policy の pickle 復元後も同じ判定になる。
+・キャッシュ導入前の復元後は値を表示せず、新しい character 応答後に表示する。
+
+検証結果
+・tests.test_action_pacing と tests.test_spectator_weapon_staleness: 計11件 OK、40.218秒。
+・負荷下の5連続実行: 対象 test_recorded_follow_keeps_keys_and_reasons を別プロセスで5回実行し、全て終了コード0。
+  各回のプロセス全体の時間: 8.68 / 7.83 / 7.78 / 7.89 / 9.93秒。
+  5回すべての開始前・終了後に、並走する tests.test_spectator_recall_destination のプロセスが稼働中であることを poll で確認。
+  負荷用モジュールは15件 OK、91.546秒、終了コード0。
+・実時間を使わない不安定性の再現: 観戦時計だけが無効時0.01秒、有効時1秒ずつ進む条件を設定。
+  比較元のテストヘルパーは観戦キー '7' != '8' で失敗。修正後は同じ条件で成功した。
+・取り消し検証: 比較元の SpectatorWriter を git show から読み込み、実際のファイル出力に使用すると、光源・充填表示の回帰テストが stale=true / false の不一致で失敗する。作業ツリーを書き戻す操作はしていない。
+  これは手動の再現・取り消し証拠であり、正式な mutation_check --record の完了を意味しない。
+
+既存テストとの衝突
+未変更の tests.test_spectator_melee_expected.MeleeExpectedTest.test_equipment_changes_and_refresh は、main_hand / sub_hand / body の全てで変更後の stale=true を要求する。
+単独実行で body の subtest が失敗（1件、19.770秒、終了コード1）。両手の subtest は成功。
+この body の期待値は、今回の「両手の武器だけを比較する」という仕様と両立しない。依頼文の既存テスト維持に従って、削除・skip・期待値の変更はしていない。
+全テスト成功にするには、このメソッド内の胴防具に関する期待値の修正許可が必要。
+
+指定ガード（比較元は全て 4d239862f）
+・preflight: 最初はマニフェストの再生成が必要として失敗。生成物をコミット後の再実行は PREFLIGHT OK、5 changed files、0 findings、終了コード0。
+・mutation_check --record: 起動したが、マージゲート待ちのまま終了。ソースの取り消し検証は未実行、記録なし。
+・fast_tier --shards 4: 次に起動し、同じマージゲート待ちのまま60秒で終了。テスト件数は0、成功扱いにしていない。
+・remote_slow（Linux検証環境）: 1回だけ起動。HEAD 6a30e76fd の50モジュールは完走し、14モジュール成功、36モジュール非成功。
+  比較元 4d239862f では今回の50モジュール集合に使えるキャッシュがなく、比較元の再実行が始まった。
+  全体が1050秒に達した時点で時間上限として終了したため、比較元との差分判定は未完了。SLOW OK / SLOW FAIL の最終判定や追加失敗件数は取得していない。
+  36モジュールの非成功を、今回の変更による36件の回帰と解釈してはいけない。Linux側の melee_expected モジュールも非成功だが、比較元の結果未取得のため原因の区別はしていない。
+  HEAD側の各モジュールの終了コード・時間・失敗テスト名は validation/spectate-followup-1025/remote-head-results.json に保存した。
+  自分のSSH接続と親子関係から所有を確認した、比較元検証の専用scopeだけを終了した（1 scope、停止終了コード0）。他者の検証は停止していない。
+ローカルの待機を終了したのは、依頼の45分上限内にLinux側の検証と報告を行うため。マージゲートや他者のプロセスには触れていない。
+
+作業上の確認
+テキストの作成・変更は Python で UTF-8 として実施。本レポートは UTF-8、LF、BOMなし。
+ゲーム／bot の起動・停止・制御、他者が起動したプロセスの停止、push、merge、rebase、reset --hard、stash は実行していない。
+待機終了のため停止したのは、PID・親子関係・コマンドを確認した自分の検証ランナーとその子プロセスだけ。
+既存の sol-followup.out.log / sol-followup.err.log は変更していない。
+生成マニフェストは spectator の変更でずれた参照位置を更新し、6a30e76fd にコミットした。
+本レポートと検証証拠を別コミットに含める。実装とテストの変更はない。
+プライバシーチェッカーに本レポートとコミット対象ログを明示し、検証環境の固有名が含まれないことを確認した。
+
+残作業
+既存テスト内の胴防具に関する旧期待値の修正可否を解決する。その後、マージゲート待機の制約と十分な時間を確保して、mutation_check --record、fast_tier、Linux側の比較元との差分検証を完了する必要がある。
+今回の実行だけで全ガード成功を主張することはできない。

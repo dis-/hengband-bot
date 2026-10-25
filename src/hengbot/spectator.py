@@ -225,7 +225,11 @@ class SpectatorWriter:
                         "total": sum(per_round) if per_round is not None else None,
                         "stale": sorted(
                             (item.slot, item.name) for item in snapshot.equipment
-                        ) != expected["equipment"],
+                            if item.slot in ("main_hand", "sub_hand")
+                        ) != sorted(
+                            (slot, name) for slot, name in expected["equipment"]
+                            if slot in ("main_hand", "sub_hand")
+                        ),
                         "turn": expected["turn"],
                     }
             screen = spectator_screen(screen_value)
