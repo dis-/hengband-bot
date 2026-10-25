@@ -1186,7 +1186,7 @@ class IdentificationMixin:
             position
             for position in candidates
             if not self._in_unseen_attack_area(snapshot, position)
-            and ((grid := snapshot.grid_at(position)) is None
+            and (not include_unsafe or (grid := snapshot.grid_at(position)) is None
                  or not self._floor_pile_is_junk(snapshot, grid))
         }
         return candidates
