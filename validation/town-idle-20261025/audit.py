@@ -1,6 +1,7 @@
 """Read-only rung audit; --source selects an isolated historical checkout."""
 import argparse
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 import sys
@@ -23,6 +24,7 @@ helper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helper)
 original = HengbotPolicy._town_producer_entry
 calls = {}
+definitions = {}
 
 
 def audited(policy, name, call, **kwargs):
@@ -32,6 +34,17 @@ def audited(policy, name, call, **kwargs):
                 else declaration.intended_terminal(policy, board)
                 if declaration and declaration.intended_terminal else None)
     row = {"rung": name, "terminal": repr(terminal), "verdict": "unjudged", "codes": []}
+    caller = inspect.currentframe().f_back
+    row["entry"] = f"src/hengbot/{Path(caller.f_code.co_filename).name}:{caller.f_lineno}"
+    intended = declaration.intended_terminal if declaration else None
+    if intended is not None:
+        if intended not in definitions:
+            definitions[intended] = (
+                f"src/hengbot/{Path(inspect.getsourcefile(intended)).name}:"
+                f"{inspect.getsourcelines(intended)[1]}")
+        row["terminal_definition"] = definitions[intended]
+    else:
+        row["terminal_definition"] = None
     if (board is not None and board.in_town and terminal is not None
             and terminal != getattr(tt, "NOT_APPLICABLE", None)):
         admission = tt.terminal_admission(policy, board, terminal)

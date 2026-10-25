@@ -4,6 +4,7 @@ import tests  # noqa: F401
 import unittest
 
 from tests.town_idle_capture_replay import replay_idle
+from tests.town_s2_exit_replay import replay_n1
 
 
 class TownIdleCaptureTest(unittest.TestCase):
@@ -33,3 +34,10 @@ class TownIdleCaptureTest(unittest.TestCase):
 
     def test_second_capture(self):
         self.check_capture("100744", 699921)
+
+    def test_admitted_route_keeps_its_none_continuation(self):
+        trace = replay_n1("20261018-091516")
+        expected = next(row for row in trace if row["turn"] == 1062666)
+        self.assertEqual((expected["key"], expected["reason"]), ("5", "policy:none-wait"))
+        self.assertFalse(any(row["terminal"][0] == "home-withdraw"
+                             for row in expected["admissions"]))

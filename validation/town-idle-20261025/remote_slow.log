@@ -1,0 +1,58 @@
+[slow] 121e476bc: running 47 modules, 3 at a time
+[slow] 121e476bc: done 47 modules, 33 not green
+[slow] 0f8835a74: running 47 modules, 3 at a time
+[slow] 0f8835a74: done 47 modules, 33 not green
+[slow] same as base tests.test_town_decision_speed_caches 18.3s
+[slow] same as base tests.test_latch_onset_capture 4.7s
+[slow] NEW FAILURE  tests.test_town_terminal_exit_round16 291.3s
+[slow]     test_64_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_64_capture)
+[slow]     test_66_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_66_second_capture)
+[slow]     test_66_third_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_66_third_capture)
+[slow]     test_68_first_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_68_first_capture)
+[slow]     test_68_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_68_second_capture)
+[slow] same as base tests.test_experience_potion 185.9s
+[slow] same as base tests.test_unaffordable_claim_tour_recorded 171.7s
+[slow] same as base tests.test_pure_decision_telemetry 148.7s
+[slow] same as base tests.test_declarations_r14 120.1s
+[slow] same as base tests.test_town_fact_refresh_once 7.8s
+[slow] same as base tests.test_overweight_home_unreachable_recorded 98.1s
+[slow] same as base tests.test_home_light_alternation 0.3s
+[slow] same as base tests.test_recall_stockout_set_end_recorded 89.3s
+[slow] NEW FAILURE  tests.test_town_cure_supplier_recorded 64.4s
+[slow]     test_walled_prefix_reproduces_live_except_declared_boards (tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.test_walled_prefix_reproduces_live_except_declared_boards)
+[slow] same as base tests.test_equipment_homefull_step15a 97.2s
+[slow] same as base tests.test_policy_quest 3.7s
+[slow] same as base tests.test_ownership_s2a1_closure 62.4s
+[slow] ok           tests.test_purchase_retention_root_recorded 42.1s
+[slow] ok           tests.test_anti_melee_dungeon_recorded 37.8s
+[slow] ok           tests.test_protocol3_client 44.8s
+[slow] same as base tests.test_guardian_recall_pingpong_recorded 46.0s
+[slow] same as base tests.test_store_reentry_recorded 10.1s
+[slow] same as base tests.test_supply_shortfall_owner_recorded 42.1s
+[slow] ok           tests.test_esp_threat_rest_recorded 35.6s
+[slow] same as base tests.test_town_approach_retired_recorded 207.7s
+[slow] ok           tests.test_junk_town_weight_recorded 33.1s
+[slow] ok           tests.test_overweight_homefull_step15b 28.6s
+[slow] ok           tests.test_morivant_return_walks_away_recorded 36.0s
+[slow] same as base tests.test_junk_home_sweep_recorded 22.9s
+[slow] same as base tests.test_policy_home 14.2s
+[slow] same as base tests.test_town_terminal_memo_round17 0.8s
+[slow] ok           tests.test_junk_scope_recorded 30.5s
+[slow] ok           tests.test_reverse_choke_loot_loop_recorded 29.5s
+[slow] same as base tests.test_home_withdraw_failed_stock_present_recorded 15.1s
+[slow] same as base tests.test_oneshot_inflight_recorded 20.0s
+[slow] same as base tests.test_supervisor_check 0.2s
+[slow] same as base tests.test_identify_staff_swap_churn_recorded 3.6s
+[slow] same as base tests.test_store_op_compose_root_recorded 25.9s
+[slow] ok           tests.test_ownership_s2a_classification 12.9s
+[slow] same as base tests.test_policy_supply 1.6s
+[slow] same as base tests.test_town_decision_speed2_caches 7.5s
+[slow] ok           tests.test_overflow_gear_recorded 20.6s
+[slow] ok           tests.test_town_unseen_travel_recorded 17.8s
+[slow] ok           tests.test_recall_read_cancel_pingpong_recorded 17.0s
+[slow] ok           tests.test_ownership_s3a_record 23.6s
+[slow] same as base tests.test_departure_unsatisfiable_weight_recorded 16.8s
+[slow] same as base tests.test_junk_plain_gear_recorded 14.2s
+[slow] same as base tests.test_ownership_claims 16.2s
+[slow] same as base tests.test_homefull3_recorded 19.6s
+[slow] SLOW FAIL: 6 failures not on base 0f8835a74 (47 modules, head 121e476bc)
