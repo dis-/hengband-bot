@@ -722,5 +722,7 @@
   "town_terminal.py:_compute_store_buy_material": "pure helper: terminal material/admission or refusal confirmation, forwarded through the owning producer entry",
   "policy.py:HengbotPolicy._count_oil": "pure helper: Pure helper: sums carried oil counts for LightJudgment; returns int and emits no action.",
   "policy_supply.py:LightJudgment.one_shot_quest_entry_reject_reason": "pure helper: Pure helper: returns a rejection reason or None for one-shot quest entry from the shared light judgment; emits no action and owns no independent progress.",
-  "policy_supply.py:SupplyMixin._light_judgment": "pure helper: Pure helper: constructs LightJudgment from worn/carried lights, refill and swap choices, and carried oil. Used by departure and one-shot quest entry/exit; emits no action."
+  "policy_supply.py:SupplyMixin._light_judgment": "pure helper: Pure helper: constructs LightJudgment from worn/carried lights, refill and swap choices, and carried oil. Used by departure and one-shot quest entry/exit; emits no action.",
+  "policy_identification.py:IdentificationMixin._loot_candidates": "pure helper: returns floor-item Position candidates and updates existing negative eligibility caches, extracted from _loot_step; no key, command, or independent effect credit",
+  "quest_navigator.py:QuestFloorNavigator.with_loot_memory": "pure helper: returns a Snapshot adapted from public found_items and existing terrain; preserves visibility and emits no action"
 }
