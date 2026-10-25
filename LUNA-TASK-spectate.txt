@@ -1,0 +1,68 @@
+ISSUE: #47
+PROJECT-ITEM: spectator (owner request 2026-10-25)
+Owner request (verbatim): 「配信画面について。まず、ゲームウィンドウを160x64にしてカラー表示にしたい。そして追加で情報を表示したい。
+具体的には現在の装備、持ち物、視界内のモンスター一覧、"C"画面の打撃攻撃力部分、現在の装備耐性と一時的バフデバフ一覧」
+and, on whether the game itself should be 160x64: 「どちらでも良い。bot側に都合の良いように。」 -> the game stays 213x68; the
+viewer page (not in this repo; the supervisor writes it) crops a 160x64 window. Branch spectate-v2-1025 at main 0f8835a7 (C:\hengband\bot-client\.worktrees\spectate-v2-1025).
+Scope: ONLY the spectator snapshot writer (src/hengbot/spectator.py, its call site in src/hengbot/cli.py around the
+spectator.observe(...) call) and, for colour, the one screen request it needs. Fair play and the rule in spectator.py's
+docstring stay: the snapshot holds only what the bot already received; no decision reads it; a write failure never reaches the
+bot. Nothing changes when --spectate-file is not given (the c4-a soak and the Windows live bot run without it).
+Do:
+1. Colour: the viewer already renders attrs (one hex pair per cell, as bot-screen.cpp make_line_attrs). Today every screen
+   request is attrs=False (src/hengbot/input_executor.py:1111/1191/1262/1311/1326/1552, cli.py:3086). Choose the least invasive
+   way to put attrs into the snapshot only when spectating and only when a write is due (at most once a second), e.g. one extra
+   "screen" request with attrs=True through the bot's existing control client right before the throttled write, never inside
+   the executor's input-wait / prompt logic. Measure and report the added time per decision with and without --spectate-file
+   (must be ~0 without; with it, one request per second).
+2. New snapshot fields, all built from what the bot already has (the decoded state row / snapshot; game text is EUC-JP on
+   Linux - write decoded Unicode). Keep it small (a few kB) and stable:
+     "equipment": [{"slot": "main_hand", "name": "..."}...]          (equipment rows in slot order)
+     "inventory": [{"slot": "a", "name": "...", "count": n}...]
+     "monsters":  [{"name": "...", "distance": d, "hp": [hp, max_hp] or null when unknown, "asleep": b, "stunned": b,
+                    "confused": b, "fearful": b, "friendly": b, "pet": b, "speed": s}...]  (visible_monsters, nearest first)
+     "melee":     the state's player.melee as is (main_hand_blows / to_h / to_d, sub_hand_*, mutation_blows) plus the
+                  main/sub weapon's damage dice from equipment when present: {"main_hand_dice": "2d4", ...}
+     "abilities": {"sources": {name: [sources that are true]} for player.ability_sources entries with any true source,
+                   "immunities": same shape from player.immunities, "vulnerabilities": same from player.vulnerabilities}
+     "status":    {"bar": player.status_bar (list as sent), "flags": [names of true booleans in player.status],
+                   "cut": cut_rank_name, "stun": stun_rank_name, "speed": player.speed_display}
+   A field whose source is missing in an older emitter is omitted, never invented.
+3. Tests: extend the existing spectator tests (grep tests for SpectatorWriter): fields present and decoded from a recorded
+   state row (copy one small row as a fixture; the supervisor's sample is in this task's folder only if you need it), throttle
+   unchanged, write failure still swallowed, no attrs request when not spectating, one attrs request per write when spectating.
+Token budget 150k. Report: the JSON field list with one real example (from a recorded board) and the timing numbers.
+
+Rules (mandatory):
+- NEVER stop, kill or restart a process you did not start yourself. Other implementers, a merge gate and a soak may be
+  running; that is NOT a blocker. No game/bot control, no push, no merge, no git reset --hard. Commit on this branch.
+- Existing tests (= tests at 0f8835a7) keep their assertions: do not edit, rename, weaken or make them conditional; if
+  one must change, STOP and report its name, old and new value. Classify every failing existing test as (R)
+  regression (fix src) or report it.
+- Do not copy game data files into the repository; new test inputs are tracked fixtures (`git add -f` for *.jsonl*).
+  New test modules need `import tests  # noqa: F401`. UTF-8 without BOM; escapes in source, never raw control
+  characters. At most 3 collaborators of one object patched per test function; no source-text/AST assertions. New
+  policy attributes need restored-checkpoint defaults (list them).
+- A pure refactor hunk cannot be pinned by the mutation check; do not move or extract unchanged code.
+- NEVER use git stash (the stash list is shared by every worktree; another implementer's pop takes your changes). To
+  compare before/after, use `git apply -R` of your own diff or a temporary detached worktree.
+- No new constant or threshold; no special case keyed to one store, one floor or one capture.
+- Bookkeeping to simply fix: stale manifest (C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe
+  scripts\town_work_manifest.py --write with PYTHONPATH=src, commit), scripts/town_producer_baseline.json /
+  scripts/town_work_review.json entries for new helpers (json.dumps ensure_ascii=False indent=2 + trailing newline,
+  no sorting), census counts in structural tests (report the change), STUCK_FAMILY_REASONS if a new reason is added.
+- Capture files are gzip JSONL; read them as UTF-8 (python -X utf8), not the console code page. They also hold
+  non-decision rows; filter on "decision_sequence".
+- While developing run only single test modules (PYTHONPATH="src;tests;scripts" python -m unittest <module>).
+- BEFORE you report, after the last source edit and commit, one after the other:
+    python C:\hengband-backups\guard-tools\preflight.py C:\hengband\bot-client\.worktrees\spectate-v2-1025 0f8835a7
+    python C:\hengband-backups\guard-tools\mutation_check.py C:\hengband\bot-client\.worktrees\spectate-v2-1025 0f8835a7 --tests <your new test modules> --record
+    python C:\hengband-backups\guard-tools\fast_tier.py C:\hengband\bot-client\.worktrees\spectate-v2-1025 0f8835a7 --shards 4
+  Fix every FAIL / NOT CAUGHT / fast-tier failure; at most two repair rounds, then stop and report. Paste the three
+  outputs.
+- Do NOT run scripts/test_parallel_runner.py over large module sets or the full suite; the merge gate does that.
+- Token budget 250k is a HARD limit: when you reach it, stop and report what is done. Wall time 150 minutes. Write
+  LUNA-REPORT-spectate.txt (measured diagnosis, changes, pins before/after, controls, guard outputs) and commit.
+
+- Guards at the end (owner decision 2026-10-25): preflight, mutation_check (only hunks changed since this branch's last
+  green record), fast_tier, then ONCE python C:\hengband-backups\guard-tools\remote_slow.py C:\hengband\bot-client\.worktrees\spectate-v2-1025 (paste its last lines).
