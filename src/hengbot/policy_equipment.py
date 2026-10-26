@@ -1318,7 +1318,10 @@ class EquipmentMixin:
                 preparation = replace(
                     preparation,
                     transaction=transaction,
-                    blockers=transaction.blockers,
+                    blockers=transaction.blockers + tuple(
+                        blocker for blocker in preparation.blockers
+                        if blocker == "pending-random-teleport-suppression"
+                    ),
                 )
                 self._equipment_optimization_preparation = preparation
                 self._set_equipment_transaction_session(

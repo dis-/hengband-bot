@@ -4599,7 +4599,7 @@
       "equipment-optimization"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "48e62aadb1d3003aa76db4fd742bec78c5184b7f4219c9123d3643e9b16219ae"
+    "ast_sha256": "9be0daa4abefd6e050c1f5925cd0e3f5988cfbbf9d1f0178eb29d4dec2d8154e"
   },
   "policy_equipment.py:EquipmentMixin._prepare_equipment_transaction_command": {
     "classification": "producer",

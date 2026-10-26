@@ -248,9 +248,25 @@ class CrownDeferredTest(unittest.TestCase):
             known=True, aware=True, count=1),))
         prep = self.policy._prepare_equipment_optimization(snapshot)
         self.assertIsNotNone(prep.transaction)
+        self.assertEqual(prep.blockers, ("pending-random-teleport-suppression",))
+        self.assertFalse(prep.ready)
         self.assertFalse(any(a.target_slot == "body" for a in prep.transaction.actions))
         self.assertTrue(any(a.kind == "equip" and a.target_slot == "head"
                             for a in prep.transaction.actions))
+
+    def test_cached_empty_partial_plan_keeps_identification_blocker(self):
+        from hengbot.model import InventoryItem
+        self._drive_session()
+        snapshot = parse_snapshot(self.board, self.monrace)
+        prep = self.policy._prepare_equipment_optimization(snapshot)
+        self.assertEqual(prep.transaction.actions, ())
+        snapshot = replace(snapshot, inventory=(*snapshot.inventory, InventoryItem(
+            slot="z", name="Healing potion", tval=75, sval=37,
+            known=True, aware=True, count=1)))
+        prep = self.policy._prepare_equipment_optimization(snapshot)
+        self.assertEqual(prep.transaction.actions, ())
+        self.assertEqual(prep.blockers, ("pending-random-teleport-suppression",))
+        self.assertFalse(prep.ready)
 
     def test_ready_ring_does_not_wait_for_an_independent_deferred_ring(self):
         from hengbot.equipment_optimizer import Loadout
