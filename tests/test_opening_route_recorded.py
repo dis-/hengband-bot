@@ -145,6 +145,12 @@ class OpeningRouteRecordedTest(ProductionHarness):
                 expected.append(f"{quantity}\r")
             screens.append(prompt_screen(f"Do you buy for ${row['price'] * quantity}? [Y/n]"))
             expected.append("\r")
+        if policy.last_reason == "opening-q1:equip-light":
+            screens = [prompt_screen("(Inven: a-w, ESC) どれを装備しますか?")]
+            expected = ["w", key[1]]
+        if policy.last_reason == "town:recover":
+            screens = [prompt_screen("Rest (0-9999, '*' for HP/SP, '&' as needed): ")]
+            expected = ["R", key[1:]]
         if policy.last_reason == "quest:enter":
             screens = [prompt_screen("Do you enter? [y/n]")]
             expected = [key, "y"]
@@ -311,26 +317,24 @@ class OpeningRouteRecordedTest(ProductionHarness):
         inside["turn"] += 1
         self.post(policy, accepted, key, inside)
 
-    def test_no_digger_and_other_readiness_refusals_stop_by_name(self):
+    def test_no_digger_skips_the_optional_kit_and_missing_reserve_stops(self):
+        # R2 scenario transfer: no tool stock no longer blocks the fixed route.
         for reserve_owned in (True, False):
             with self.subTest(reserve_owned=reserve_owned):
-                policy, raw, _ = self.shopping_case(gold=500 if reserve_owned else 0)
+                policy, raw, _ = self.shopping_case(gold=0)
                 raw["store"] = None
                 for st, page in list(policy._town_supplier_stock.items()):
-                    items = [it for it in page.items if not it.is_digging_tool]
-                    policy._town_supplier_stock[st] = replace(page, items=items, stock_num=len(items))
-                # DECLARED CONSTRUCTED: all reachable shelves lack a digger.
-                # Even missing reserves must not launch a futile income run.
+                    policy._town_supplier_stock[st] = replace(page, items=[], stock_num=0)
                 if reserve_owned:
-                    torch = self.data["seeds"]["general"]["snapshot"]["store"]["items"][8]
-                    raw["inventory"].append(dict(torch, slot="t", count=5))
-                key = policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
-                self.assertEqual(policy.last_reason, "quest:blocked:opening-route", key)
-                self.assertEqual(policy._opening_q1_failure, "stop:no-digger")
-                self.assertIsNone(getattr(policy, "_opening_q1_funding", None))
-                self.assertIn(policy.last_reason, __import__('hengbot.policy_constants', fromlist=['POLICY_FINAL_STOP_REASONS']).POLICY_FINAL_STOP_REASONS)
-                from hengbot.cli import _policy_final_stop_banner
-                self.assertIn("Q34", _policy_final_stop_banner(policy.last_reason))
+                    raw["inventory"].append(dict(self.data["seeds"]["general"]["snapshot"]["store"]["items"][8], slot="t", count=5))
+                key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+                self.assertIsNone(policy._opening_q1_funding)
+                if reserve_owned:
+                    self.assertEqual(policy.last_reason, "fixedquest:request:approach")
+                    self.assertTrue(key)
+                else:
+                    self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
+                    self.assertEqual(policy._opening_q1_failure, "stop:stock:quest-throwing-items")
 
     def test_reserved_potions_and_torches_cannot_be_sold_or_deposited(self):
         policy, raw, _ = self.shopping_case(hp=80)
@@ -351,52 +355,36 @@ class OpeningRouteRecordedTest(ProductionHarness):
         raw["inventory"].append(dict(self.data["seeds"]["general"]["snapshot"]["store"]["items"][8], slot="t", count=5))
         # DECLARED CONSTRUCTED: kit already acquired by this opening transaction.
         policy._opening_q1_kit_bought = True
+        # DECLARED CONSTRUCTED: one opponent exceeds this character's HP margin.
+        policy._monrace_knowledge[150] = replace(policy._monrace_knowledge[150], max_melee_damage=1000,
+            blows=(MonsterBlow("HIT", "HURT", 100, 10),))
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
         self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
         self.assertIn("three-turn-threat", policy._opening_q1_failure)
         repeated = policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
         self.assertEqual(str(repeated), "")
 
-    def test_missing_reserve_opens_only_a_bounded_income_run_and_returns(self):
+    def test_missing_reserve_stops_without_a_pre_q1_income_run(self):
+        # R2 replaces the former reserve-fundraising scenario by explicit refusal.
         policy, raw, _ = self.shopping_case(gold=0)
         raw["store"] = None
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-        self.assertIn(policy.last_reason, {"town:travel-entrance", "opening-q1:fundraising-approach"}, key)
-        self.assertEqual(policy._opening_q1_funding, 0)
-        self.assertEqual(policy._fundraising_gold_target(), 15)
-        self.assertEqual(policy._planned_mining_runs, 1)
-        self.assertEqual(policy._fundraising_mode, "scavenge")
-        policy.confirm_key_posted(key)
-        # DECLARED CONSTRUCTED: the income run's calm upstairs observation,
-        # earned gold, then its town arrival. Only transport is synthesized.
-        outside = copy.deepcopy(self.data["seeds"]["throw"]["snapshot"])
-        outside["visible_monsters"] = []
-        outside["detected_monsters"] = []
-        outside["player"]["gold"] = 600
-        outside["player"]["hp"] = outside["player"]["max_hp"]
-        policy.prime(parse_snapshot(outside, policy._monrace_knowledge))
-        knowledge = copy.deepcopy(self.data["skill"])
-        knowledge["player"]["level"] = outside["player"]["level"]
-        policy.consume_skill_knowledge(knowledge)
-        key = str(policy.choose_key(parse_snapshot(outside, policy._monrace_knowledge)))
-        self.assertTrue(policy._opening_q1_funding_left, (key, policy.last_reason))
-        raw["turn"] = outside["turn"] + 1
-        raw["player"]["gold"] = 600
-        self.prepare(policy, parse_snapshot(raw, policy._monrace_knowledge))
-        key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+        self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
+        self.assertEqual(policy._opening_q1_failure, "stop:unaffordable-quest-reserve")
         self.assertIsNone(policy._opening_q1_funding)
-        self.assertIsNone(policy._fundraising_mode)
-        self.assertIn(policy.last_reason, {"shop:travel", "shop:travel:await-entry", "shop:one-shot-buy", "shop:approach"}, key)
+        self.assertIsNone(policy._planned_mining_runs)
 
-    def test_funding_without_income_or_sellable_loot_stops(self):
+    def test_old_funding_checkpoint_cannot_restart_pre_q1_fundraising(self):
         policy, raw, _ = self.shopping_case(gold=0)
         raw["store"] = None
-        # DECLARED CONSTRUCTED: completed income transport with no proceeds.
+        # DECLARED CONSTRUCTED: an old R1 checkpoint's unfinished income latch.
         policy._opening_q1_funding = 0
         policy._opening_q1_funding_left = True
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
         self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
-        self.assertEqual(policy._opening_q1_failure, "stop:fundraising-no-income")
+        self.assertEqual(policy._opening_q1_failure, "stop:unaffordable-quest-reserve")
+        self.assertIsNone(policy._opening_q1_funding)
+        self.assertFalse(policy._opening_q1_funding_left)
 
     def test_q1_kit_is_retained_even_with_normal_fundraising_mode_cleared(self):
         policy, raw, _ = self.shopping_case()
@@ -490,28 +478,14 @@ class OpeningRouteRecordedTest(ProductionHarness):
         self.assertTrue(policy.last_reason.startswith("shop:"), (key, policy.last_reason))
         self.assertEqual(policy._shopping_approach_store_type, STORE_GENERAL)
 
-    def test_affordable_detection_cannot_cancel_the_named_reserve_income_run(self):
+    def test_affordable_detection_cannot_spend_the_quest_reserve(self):
         policy, raw, _ = self.shopping_case(gold=10)
         raw["store"] = None
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-        self.assertEqual(policy._opening_q1_funding, 10)
-        self.assertEqual(policy._fundraising_gold_target(), 15)
-        policy.confirm_key_posted(key)
-        # DECLARED CONSTRUCTED: calm 1F arrival carrying the same kit. A
-        # detection scroll costs 10, but all 10 gold belongs to Q1's reserve.
-        source = self.data["seeds"]["throw"]["snapshot"]
-        outside = copy.deepcopy(raw)
-        outside["floor"] = copy.deepcopy(source["floor"])
-        outside["grid_map"] = copy.deepcopy(source["grid_map"])
-        outside["player"]["y"] = source["player"]["y"]
-        outside["player"]["x"] = source["player"]["x"]
-        outside["visible_monsters"] = []
-        outside["detected_monsters"] = []
-        outside["turn"] += 10
-        key = str(policy.choose_key(parse_snapshot(outside, policy._monrace_knowledge)))
-        self.assertEqual(policy._fundraising_mode, "scavenge", (key, policy.last_reason))
-        self.assertFalse(policy._returning_to_town, (key, policy.last_reason))
-        self.assertTrue(policy._opening_q1_funding_left)
+        self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
+        self.assertEqual(policy._opening_q1_failure, "stop:unaffordable-quest-reserve")
+        self.assertIsNone(policy._opening_q1_funding)
+        self.assertIsNone(policy._fundraising_mode)
 
     def test_q1_torches_remain_reserved_with_ammo_and_permanent_light(self):
         policy = self.policy()

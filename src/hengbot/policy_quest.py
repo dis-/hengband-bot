@@ -4715,6 +4715,20 @@ class QuestMixin(OpeningRouteMixin):
         info = self._quest_knowledge.get(quest_id)
         return info is None or bool(info.flags & QUEST_FLAG_ONCE)
 
+    def _q1_visit_light_fuel(self, snapshot: Snapshot) -> float:
+        from hengbot.quest_navigator import DEFAULT_HOLD_BUDGET, SWEEP_BUDGET
+        profile = self.approved_quest_strategy(1)
+        info = self._quest_knowledge[1]
+        # The approved wait, one kill window per opponent, static navigation,
+        # and loot sweep. At native speed 110 one action burns one fuel unit
+        # (src/object/lite-processor.cpp:18). Slow players need proportionally more.
+        actions = (
+            int(profile.engagement_plan.get("hold_budget", DEFAULT_HOLD_BUDGET))
+            + info.threat_roster_count * FIXED_QUEST_TOUGHEST_KILL_TURNS
+            + len(info.battlefield.terrain) + SWEEP_BUDGET
+        )
+        return actions * self._speed_energy(110) / self._speed_energy(snapshot.player.speed)
+
     def _fixed_quest_ready(self, snapshot: Snapshot, quest_id: int) -> bool:
         return self._evaluate_fixed_quest_readiness(
             snapshot, quest_id, require_target_town=True
@@ -4791,7 +4805,18 @@ class QuestMixin(OpeningRouteMixin):
         # The shared judgment owns entry readiness and its rejection reason.
         if self._fixed_quest_is_once(quest_id):
             light = self._light_judgment(snapshot)
-            if not light.one_shot_quest_entry_ready:
+            q1_fuel_ready = False
+            if quest_id == 1 and profile is not None and info.battlefield is not None:
+                fuel_required = self._q1_visit_light_fuel(snapshot)
+                telemetry["quest_light"] = {
+                    "fuel": light.worn.fuel if light.worn is not None else 0,
+                    "required": fuel_required,
+                }
+                q1_fuel_ready = bool(
+                    light.worn is not None and light.worn.known
+                    and light.worn.fuel >= fuel_required
+                )
+            if not q1_fuel_ready and not light.one_shot_quest_entry_ready:
                 return reject(light.one_shot_quest_entry_reject_reason)
         if (
             profile is None

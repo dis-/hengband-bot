@@ -732,7 +732,6 @@
   "quest_navigator.py:QuestFloorNavigator.with_loot_memory": "pure helper: returns a Snapshot adapted from public found_items and existing terrain; preserves visibility and emits no action",
   "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": "pure helper: opening Q1 readiness/observed shelf projection; returns data to the registered Q34 opening owner, never emits keys.",
   "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": "delegated adapter: exclusive child of the registered _opening_q34_town_key; the parent owns admission and the selected key.",
-  "policy_opening.py:OpeningRouteMixin._opening_q1_income_key": "delegated adapter: exclusive child of the registered _opening_q34_town_key; the parent owns admission and the selected key.",
   "policy_opening.py:OpeningRouteMixin._opening_q1_stop": "delegated adapter: exclusive child of the registered _opening_q34_town_key; the parent owns admission and the selected key.",
   "policy_shop.py:ShopMixin._purchase_rungs.match": "pure helper: exact observed opening purchase eligibility and provenance; execution remains the shop owner.",
   "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": "delegated adapter: page census/navigation child of the registered _opening_q34_town_key, before shop selection."

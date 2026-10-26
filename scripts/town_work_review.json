@@ -11430,7 +11430,7 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Exclusive Q34 reward -> kit -> Q1 owner; delegates existing shopping, quest and bounded debt fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop.",
+    "evidence": "Exclusive Q34 reward -> affordable optional kit -> Q1 owner; delegates existing shopping, light equipment, town recovery/combat and quest entry. No pre-Q1 fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -11444,23 +11444,10 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Exclusive Q34 reward -> kit -> Q1 owner; delegates existing shopping, quest and bounded debt fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop.",
+    "evidence": "Exclusive Q34 reward -> affordable optional kit -> Q1 owner; delegates existing shopping, light equipment, town recovery/combat and quest entry. No pre-Q1 fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "policy_opening.py:OpeningRouteMixin._opening_q1_income_key": {
-    "classification": "producer",
-    "rows": [
-      "fundraising",
-      "store-approach",
-      "departure"
-    ],
-    "context": "Exclusive Q1 debt funding in Outpost; one gated Yeek 1F expedition.",
-    "evidence": "Delegated child of _opening_q34_town_key: existing supply checks, shopping, entrance travel and descent; named empty-key stop on an unavailable prerequisite. No unrelated town handoff.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": {
     "classification": "producer",

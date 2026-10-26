@@ -5854,16 +5854,6 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "74d741399601e7494e2aace65302cf88e2bbd7064072d2ca42f80f9e8e19a355"
   },
-  "policy_opening.py:OpeningRouteMixin._opening_q1_income_key": {
-    "classification": "producer",
-    "rows": [
-      "fundraising",
-      "store-approach",
-      "departure"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "5bc4323077ea5aa69b5ba2f6aa2f9841004b20eb96a79a7e9a4e89a68e20403f"
-  },
   "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
     "classification": "data",
     "rows": [
@@ -5903,7 +5893,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c1ebcf4d690570795e8069fbca16af90bd255765fd8944ddbe00d29dca8bfda8"
+    "ast_sha256": "eaec3d85dd430bcf2b1d3d320ec2027a2f1a755bb98fad487584dc488aee809e"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -5944,7 +5934,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "6687ff7bebdfcdc6d0fd55d0e598b240dbf20a14be118f818d2fa91fc8e12d6e"
+    "ast_sha256": "ca3067ff97e859b0b81c1e366964d08a1f36687065421222d629bccfb986540a"
   },
   "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness.reject": {
     "classification": "data",

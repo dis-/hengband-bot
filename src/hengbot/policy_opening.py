@@ -3,21 +3,18 @@
 Shelf observations and the existing quest contract are the only price/count sources.
 The route retains its kit choice across purchases and checkpoints.
 """
-from dataclasses import replace
-
 from hengbot.model import (
-    STORE_GENERAL, STORE_WEAPON, STORE_BLACK, STORE_ALCHEMIST, STORE_TEMPLE, STORE_MAGIC,
-    TVAL_FOOD, TVAL_STAFF, TVAL_WAND, StoreState,
-    SV_POTION_HEALING, SV_POTION_SPEED, TVAL_POTION, DUNGEON_YEEK_CAVE,
+    STORE_GENERAL, STORE_WEAPON, STORE_BLACK, STORE_ALCHEMIST, STORE_TEMPLE,
+    StoreState,
+    SV_POTION_HEALING, SV_POTION_SPEED, TVAL_POTION,
 )
 from hengbot.policy_types import TownNeed
 from hengbot.policy_constants import (
-    ENTER_DUNGEON_MACRO, REST_MACRO, STORE_STUCK_LIMIT,
-    FOOD_TYPE_MANA, FOOD_MIN_SVAL,
+    STORE_STUCK_LIMIT, REST_MACRO,
+    FUNDRAISING_DIGGER_BASE_PRICE, FUNDRAISING_DETECTION_BASE_PRICE,
     QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN, QUEST_STATUS_REWARDED,
     QUEST_STATUS_FINISHED,
 )
-from hengbot.policy_fundraising import FundraisingPurpose
 from hengbot.item_reservation import decision_memo
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -137,16 +134,25 @@ class OpeningRouteMixin:
         """
         requirements = self._opening_q1_requirements(snapshot)
         pages = self._opening_q1_pages(snapshot)
-        suppliers = [(STORE_GENERAL, "quest-throwing-items"),
-                     (STORE_WEAPON, "fundraising-digger"),
-                     (STORE_BLACK, "fundraising-digger"),
-                     (STORE_ALCHEMIST, "fundraising-detection")]
-        if any(target > current for _, target, current, _ in requirements[1:]):
+        suppliers = []
+        if requirements[0][1] > requirements[0][2]:
+            suppliers.append((STORE_GENERAL, "quest-throwing-items"))
+        # Optional kit surveys must never displace Q1 on an empty purse.
+        # Known offers take precedence over the existing base-price estimates.
+        if not any(target > current for _, target, current, _ in requirements):
+            for store, category, floor in (
+                (STORE_GENERAL, "fundraising-digger", FUNDRAISING_DIGGER_BASE_PRICE),
+                (STORE_WEAPON, "fundraising-digger", FUNDRAISING_DIGGER_BASE_PRICE),
+                (STORE_BLACK, "fundraising-digger", FUNDRAISING_DIGGER_BASE_PRICE),
+                (STORE_ALCHEMIST, "fundraising-detection", FUNDRAISING_DETECTION_BASE_PRICE),
+            ):
+                if (store in pages or snapshot.player.gold >= floor):
+                    suppliers.append((store, category))
+        if requirements[1][1] > requirements[1][2]:
             suppliers.append((STORE_TEMPLE, "quest-healing"))
-        funding = (getattr(self, "_opening_q1_funding", None) is not None
-                   and not getattr(self, "_opening_q1_funding_left", False))
-        if funding and self._find_edible(snapshot) is None and snapshot.player.food_type == FOOD_TYPE_MANA:
-            suppliers.append((STORE_MAGIC, "fundraising-food"))
+            suppliers.append((STORE_BLACK, "quest-healing"))
+        if requirements[2][1] > requirements[2][2]:
+            suppliers.append((STORE_BLACK, "quest-speed"))
         reachable = [(store, category) for store, category in suppliers
                      if self._town_need_supplier_reachable(snapshot, TownNeed(store, category, "normal"))]
         for store, category in reachable:
@@ -158,40 +164,6 @@ class OpeningRouteMixin:
                    if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
         owned = [item for item in (*snapshot.inventory, *snapshot.equipment)
                  if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
-        if not getattr(self, "_opening_q1_kit_bought", False) and not diggers and not owned:
-            return "stop:no-digger", None, None, 0, 0
-        if funding:
-            if self._find_edible(snapshot) is None:
-                food = [(store, item) for store, item in offers
-                        if ((item.tval in {TVAL_STAFF, TVAL_WAND} and max(item.charges, item.pval) > 0)
-                            if snapshot.player.food_type == FOOD_TYPE_MANA else
-                            item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL)]
-                food = [(store, item) for store, item in food if item.price <= snapshot.player.gold]
-                if not food:
-                    return "stop:fundraising-food-unavailable", None, None, 0, 0
-                store, item = min(food, key=lambda row: row[1].price)
-                return "fundraising-food", store, item, 1, 0
-            if not self._fundraising_light_ready(snapshot):
-                lights = [(store, item) for store, item in offers
-                          if item.is_lantern and item.fuel > 0 and item.price <= snapshot.player.gold]
-                if not lights:
-                    return "stop:fundraising-light-unavailable", None, None, 0, 0
-                store, item = min(lights, key=lambda row: row[1].price)
-                return "fundraising-light", store, item, 1, 0
-            return "fundraising", None, None, 0, 0
-        if (getattr(self, "_opening_q1_funding_left", False)
-                and snapshot.player.gold <= self._opening_q1_funding):
-            for store, category, finder in (
-                (STORE_ALCHEMIST, "low-level-sale", self._find_low_level_sale),
-                (STORE_WEAPON, "weapon-sale", self._find_weapon_sale),
-                (STORE_MAGIC, "device-sale", self._find_device_sale),
-                (STORE_GENERAL, "light-sale", self._find_light_sale),
-            ):
-                view = replace(snapshot, store=pages.get(store, StoreState(store, [])))
-                if (finder(view) is not None
-                        and self._town_need_supplier_reachable(snapshot, TownNeed(store, category, "normal"))):
-                    return category, store, None, 0, 0
-            return "stop:fundraising-no-income", None, None, 0, 0
         reserve = 0
         first = None
         for category, target, current, matches in requirements:
@@ -207,16 +179,13 @@ class OpeningRouteMixin:
             if missing:
                 return "stop:stock:" + category, None, None, 0, 0
         if reserve > snapshot.player.gold:
-            return "funds:reserve", None, None, 0, reserve - snapshot.player.gold
+            return "stop:unaffordable-quest-reserve", None, None, 0, reserve - snapshot.player.gold
         if first is not None:
             category, store, item, quantity = first
             return category, store, item, quantity, 0
         if not getattr(self, "_opening_q1_kit_bought", False):
             affordable = [(store, item) for store, item in diggers
                           if item.price <= snapshot.player.gold]
-            if not owned and not affordable:
-                debt = min(item.price for _, item in diggers) - snapshot.player.gold
-                return "funds:digger", None, None, 0, debt
             if affordable:
                 store, item = max(affordable, key=lambda row: self._digging_tool_sale_quality(row[1]))
                 if not owned or self._digging_tool_sale_quality(item) > max(
@@ -247,57 +216,6 @@ class OpeningRouteMixin:
         # An empty envelope cannot activate a building beneath the player.
         return ""
 
-    def _opening_q1_income_key(self, snapshot):
-        """One existing Yeek 1F income run, with no unrelated town owner."""
-        stage, store, ware, _, _ = self._opening_q1_plan(snapshot)
-        if stage.startswith("stop:"):
-            return self._opening_q1_stop(stage)
-        if store is not None:
-            step = self._shopping_approach_step(snapshot, store_type=store, requester="quest-request")
-            if step is None:
-                return self._opening_q1_stop("fundraising-supplier-route-unavailable:" + stage)
-            self.last_reason = "shop:approach"
-            key = self._shopping_approach_key(snapshot, step, "shop:travel")
-            return key if key is not None else self._opening_q1_stop("fundraising-purchase-unavailable:" + stage)
-        self._target_dungeon_id = DUNGEON_YEEK_CAVE
-        self._target_dungeon_reason = "opening-q1-funds"
-        self._planned_mining_runs = 1
-        self._no_safe_destination_set = False
-        self._fundraising_mode = (
-            "mine" if self._fundraising_kit_secured(snapshot) else "scavenge"
-        )
-        if not self._fundraising_food_ready(snapshot):
-            return self._opening_q1_stop("fundraising-food-unavailable")
-        if not self._fundraising_light_ready(snapshot):
-            return self._opening_q1_stop("fundraising-light-unavailable")
-        if snapshot.player.hp < snapshot.player.max_hp:
-            self.last_reason = "town:recover"
-            return REST_MACRO
-        if not self._fundraising_departure_ready(snapshot):
-            return self._opening_q1_stop("fundraising-departure-unready")
-        entrance = self._town_walk_in_entrance(snapshot)
-        if entrance is None:
-            return self._opening_q1_stop("fundraising-entrance-unavailable")
-        if self._descent_is_blocked(snapshot):
-            return self._opening_q1_stop("fundraising-descent:" + str(self._descent_refusal_reason))
-        if snapshot.player.position == entrance:
-            if not self._dungeon_entry_allowed(snapshot, via_recall=False, destination_depth=1):
-                return self._opening_q1_stop("fundraising-entry-refused")
-            if getattr(self, "_crossarea_fundraising_enforced", False):
-                self._fundraising_run_purpose = FundraisingPurpose(
-                    self._decision_sequence, self._fundraising_mode, False,
-                )
-            self.last_reason = "descend"
-            return ENTER_DUNGEON_MACRO
-        step = self._descent_step(snapshot)
-        if step is None:
-            return self._opening_q1_stop("fundraising-route-unavailable")
-        travel = self._entrance_travel_key(snapshot, self._descent_target_goal)
-        if travel is not None:
-            return travel
-        self.last_reason = "opening-q1:fundraising-approach"
-        return self._step_toward(snapshot, step)
-
     def _opening_q1_town_key(self, snapshot, hostiles):
         if not self._opening_q1_active(snapshot) or not snapshot.in_town:
             return None
@@ -318,27 +236,14 @@ class OpeningRouteMixin:
         head = self._fixed_quest_head(snapshot)
         if head is not None and head.id != 1:
             return self._opening_q1_stop("competing-quest:" + str(head.id))
-        funding = getattr(self, "_opening_q1_funding", None)
-        if funding is not None:
-            if not getattr(self, "_opening_q1_funding_left", False):
-                return self._opening_q1_income_key(snapshot)
-            if snapshot.player.gold > funding:
-                self._opening_q1_funding = None
-                self._opening_q1_funding_left = False
-                self._supply_stockout_gold_target = None
-                self._town_store_attempted.clear()
-                self._retire_town_errand_plan_for_rebuild()
+        self._opening_q1_funding = None
+        self._opening_q1_funding_left = False
+        self._supply_stockout_gold_target = None
         self._fundraising_mode = None
         self._planned_mining_runs = None
         stage, store, ware, quantity, debt = self._opening_q1_plan(snapshot)
         if stage.startswith("stop:"):
             return self._opening_q1_stop(stage)
-        if stage.startswith("funds:"):
-            self._opening_q1_funding = snapshot.player.gold
-            self._opening_q1_funding_left = False
-            self._supply_stockout_gold_target = snapshot.player.gold + debt
-            self._start_fundraising(snapshot)
-            return self._opening_q1_income_key(snapshot)
         if ware is not None and not self._store_purchase_fits_pack(snapshot, ware):
             return self._opening_q1_stop("purchase-pack-full:" + stage)
         # Count repeated visits to the same state within one economic stage.
@@ -363,6 +268,35 @@ class OpeningRouteMixin:
             key = self._shopping_approach_key(snapshot, step, "shop:travel")
             return key if key is not None else self._opening_q1_stop("supplier-operation-unavailable:" + stage)
         self._opening_q1_kit_bought = True
+        light = self._light_judgment(snapshot)
+        fuel_required = self._q1_visit_light_fuel(snapshot)
+        if (not light.one_shot_quest_entry_ready
+                and not (light.worn is not None and light.worn.known
+                         and light.worn.fuel >= fuel_required)):
+            torch_reserve = self._opening_q1_requirements(snapshot)[0][1]
+            candidates = [item for item in snapshot.inventory
+                          if item.is_light and item.known and item.fuel >= fuel_required
+                          and not item.is_cursed and not item.is_broken
+                          and (not item.is_torch
+                               or self._count_throwing_torches(snapshot) > torch_reserve)]
+            if candidates:
+                item = max(candidates, key=lambda item: item.fuel)
+                self.last_reason = "opening-q1:equip-light"
+                key = self._equipment_wield(snapshot, "light-loadout", item, "light")
+                return key if key is not None else self._opening_q1_stop("light-equip-unavailable")
+        if snapshot.player.hp < snapshot.player.max_hp:
+            if hostiles:
+                combat = self._town_kill_mob_key(snapshot)
+                if combat is not None:
+                    return combat
+                adjacent = [monster for monster in hostiles
+                            if snapshot.player.position.distance_to(monster.position) <= 1]
+                if adjacent:
+                    self.last_reason = "melee"
+                    return self._direction_key(snapshot.player.position, self._weakest(adjacent).position)
+                return self._opening_q1_stop("recovery-hostile-unreachable")
+            self.last_reason = "town:recover"
+            return REST_MACRO
         if not self._fixed_quest_ready(snapshot, 1):
             return self._opening_q1_stop("readiness:" + str(self._fixed_quest_readiness))
         key = self._fixed_quest_key(snapshot, hostiles)
