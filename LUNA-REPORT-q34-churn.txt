@@ -1,0 +1,86 @@
+Issue #47 — クエスト34の箱接近往復 修正報告
+基準: e39ad6789
+検証対象HEAD: 4b29d92089638884c35fafde2f8820d5c784539a
+
+診断
+詳細は LUNA-DIAG-q34-churn.txt。
+未完了クエストで敵が見えなくなった1観測を安全とみなし、箱処理を始めていた。
+実際の対象は予約 (10,9) ではなく上部小部屋の箱 (3,14)。
+(5,13)→(5,14) で蜂が見えると箱処理から投擲地点調査へ戻り、
+(5,14)→(5,13) で蜂が見えなくなると箱接近を再開する。
+箱は床上で、箱の隣は最終扉 (4,14)。壁や隣接マスの到達不能が原因ではない。
+回収SWEEPではなく未完了EXECUTEとの競合だった。記録のキャラはLv5。
+以前のpinはLv7・完了後の同じ録画を使い、完了前の優先順位を確認していなかった。
+
+修正
+承認済み固定クエストの公開判断では、quest status=COMPLETEDの確認後だけ箱処理を選ぶ。
+残存する箱のclaimは chest-deferred-quest-incomplete の名前で解放し、箱処理の状態を戻す。
+処理済み登録はしないため、完了後はその場で箱を開けて中身を拾う既存の処理へ戻れる。
+共用箱処理の直接呼出し契約、既存の体力・探索・解除・開錠予算は維持した。
+新しい定数・閾値・レベル条件は追加していない。既存テストの変更はない。
+生成情報は既存と同じPython 3.13で再生成した。
+
+保存観測による検証
+life-017 と life-357 の各40判断境界と最後のskill_exp観測を、小さなgzip fixtureへ抽出した。
+原本ハッシュと元行番号を保存。原本ログや検証ログはコミットしていない。
+基準コードの _decide をメモリ上で読み込んで、公開choose_keyと実際のfollow executorを通した。
+元の40境界の4マス往復を確認し、記録キー39/40件が一致した。
+位置履歴を復元していない往復解除の1キーが異なる。
+移動結果を次の観測へ反映する構成応答の40判断でも、箱接近19・投擲調査20・往復解除1で
+(5,13),(5,14),(5,15) 内を往復し、箱を開けられないことを確認した。
+
+追加した4件のpinは公開choose_keyとfollow executorを使用する。
+・記録にある4マスと交互の所有者を確認。
+・未完了なら箱接近や体力待ちで投擲調査を奪わない。
+・進行中の箱claimを名前付きで解放し、2→2で投擲地点(7,13)へ進み、
+  空のクローカー位置を確認して対象の回収状態へ進む。
+・完了後の構成応答では記録された箱(3,15)を床上に残し、探索6回・解除2回・開錠へ進む。
+
+新規pinだけを基準コードに戻した場合は1 failure・2 subtest errorsで不具合を検出。
+閉じたclaimが存在しないことによる2件のerrorで、依存ファイルの欠落ではない。
+修正後の同じ4件は成功。既存の箱処理48件も成功（合計52件、1.047秒）。
+q34-collectの既存12件も最終ソースで再確認した（下記の実行出力）。
+
+個別テスト: Codex runtime Python 3.12.14。
+生成情報と3ガード: Python 3.13.14（既存の生成情報と同じ版）。
+
+最終の個別モジュール検証出力
+................
+----------------------------------------------------------------------
+Ran 16 tests in 20.146s
+
+OK
+
+指定ガード（基準はいずれもe39ad6789）
+preflight: 終了コード0、経過109.9秒
+[preflight] PREFLIGHT OK: 7 changed files, 0 findings (q34-churn-fix-1026 vs e39ad678)
+
+mutation_check: 終了コード0、経過6.2秒
+[mutation] 1 source hunks, tests: tests.test_q34_churn_recorded
+[mutation] caught     src/hengbot/policy.py:10957 (quest = snapshot.quests.get(profile.quest_id)): test_resumed_chest_is_closed_by_name_and_throw_survey_progresses, test_unfinished_quest_does_not_start_chest_or_health_wait
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 4b29d920
+
+fast_tier: 終了コード0、経過99.5秒
+[fast] 1942 fast tests (<2.0s in e39ad6789) + 1 changed modules, 4 shards
+[fast] excluded 51 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-5wa3pgsx)
+Failures: none
+Errors: none
+Total: 1946 tests, 99.0s
+
+
+検証対象tree
+src/hengbot: 76e42681bddbd1428b85609e7049625f52579246
+tests: 56941e6ca57f0339629dd0e2ddf1d5a6df0f49b9
+報告のみの後続コミットは、このソース・テストtreeを変更しない。
+
+実ゲームでの検証範囲
+これは保存済み観測と明記した構成応答の検証である。
+新キャラクターでの実ゲーム完走や、罠・生成内容の実測を行ったという報告ではない。
+今回の指示に従いゲーム／BOTには接続・操作・停止を行わず、remote_slowも実行していない。
+Linux検証環境での新規キャラクターからの確認は、依頼文どおり監督側での後続確認となる。
+push・mainへのmerge・rebase・reset --hard・stashは実施していない。
+開始時から存在したsol-q34-churnの2ログは変更・コミット対象から除外した。
+診断と本報告はPythonのwrite_text(..., encoding="utf-8", newline="\n")で日本語を書き込んだ。
+検証ログの保存先: C:/hengband-backups/q34-churn-verification-1026/
