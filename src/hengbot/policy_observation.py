@@ -409,7 +409,16 @@ class ObservationMixin:
         # the guardian-bounce count reads this instead.
         # Release destinations retained by an older policy/checkpoint. Do this
         # before applying alternates and conquest, including when already in
-        # an excluded dungeon; the ordinary Yeek/Angband fallback stays in use.
+        # an excluded dungeon. Select a safe entered replacement before town
+        # work computes its departure needs; the ordinary fallback remains when
+        # none exists. Exclusion is not evidence of excessive dungeon depth.
+        excluded_destination = (
+            not exploration_destination_allowed(self._target_dungeon_id)
+            or (self._alternate_dungeon is not None
+                and not exploration_destination_allowed(self._alternate_dungeon))
+            or (self._conquest_committed is not None
+                and not exploration_destination_allowed(self._conquest_committed))
+        )
         if (self._alternate_dungeon is not None
                 and not exploration_destination_allowed(self._alternate_dungeon)):
             self._alternate_dungeon = None
@@ -666,6 +675,19 @@ class ObservationMixin:
                 self._fundraising_mode = None
                 self._planned_mining_runs = None
                 self._fundraising_cleared_for_conquest = conquest
+
+        if (excluded_destination and self._alternate_dungeon is None
+                and conquest is None
+                and self._fundraising_mode not in {"mine", "scavenge"}):
+            alternate = self._pick_alternate_dungeon(
+                snapshot, require_shallower=False,
+            )
+            if alternate is not None:
+                self._alternate_dungeon = alternate
+                self._alternate_dungeon_reason = "safe_fallback"
+                self._target_dungeon_id = alternate
+                self._target_dungeon_reason = "safe_fallback"
+                self._conquest_committed = None
 
         # Fresh conquest: the char just killed a dungeon's final guardian while
         # standing in it. Latch it so the loot phase grabs the drop before recalling

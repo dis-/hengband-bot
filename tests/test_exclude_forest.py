@@ -108,7 +108,7 @@ class ExcludeForestTest(ProductionHarness):
                 policy = self._policy()
                 policy._alternate_dungeon = 7
                 policy._target_dungeon_id = 7
-                board = self._board()
+                board = replace(self._board(), entered_dungeon_ids=(1, 7))
                 with patch("hengbot.dungeon_knowledge.EXCLUDED_EXPLORATION_DUNGEONS",
                            frozenset() if before else frozenset({7})):
                     key = policy.choose_key(board)
@@ -128,11 +128,27 @@ class ExcludeForestTest(ProductionHarness):
                             floor_key=(7, 24, 0) if inside else (0, 0, 0),
                             town_flag=not inside)
             key = policy.choose_key(board)
-            self.assertEqual(policy._target_dungeon_id, 2)
-            self.assertIsNone(policy._alternate_dungeon)
+            self.assertEqual(policy._target_dungeon_id, 3)
+            self.assertEqual(policy._alternate_dungeon, 3)
             # Forest's saved 24F must not leak into the Yeek recall depth.
             self.assertEqual(policy._dungeon_entry_depth(board, 2, via_recall=True), 1)
             self._post(key, policy.last_reason)
+
+    def test_saved_exclusion_uses_safe_deeper_candidate_without_progress_bound(self):
+        for retained in ("_target_dungeon_id", "_alternate_dungeon", "_conquest_committed"):
+            with self.subTest(retained=retained):
+                policy = self._policy()
+                setattr(policy, retained, FOREST)
+                # Excluding a destination says nothing about excessive depth.
+                # Orc 25F is safe here even though Forest's saved landing is 24F
+                # and the progress watermark has never been set.
+                board = replace(self._board(), recall_dungeon_id=7, recall_depth=24,
+                                dungeon_recall_depths={1: 40, 3: 25, 7: 24})
+                key = policy.choose_key(board)
+                self.assertEqual(policy._target_dungeon_id, 3)
+                self.assertEqual(policy._alternate_dungeon, 3)
+                self.assertEqual(policy._target_dungeon_reason, "safe_fallback")
+                self._post(key, policy.last_reason)
 
     def test_recall_chooser_rejects_exclusion_even_without_optional_safety_gates(self):
         policy = self._policy()

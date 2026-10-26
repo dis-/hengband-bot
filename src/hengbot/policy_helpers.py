@@ -494,6 +494,7 @@ class PolicyHelpersMixin:
         max_entry_depth: int | None = None,
         prefer_deepest: bool = False,
         allow_yeek_cave: bool = False,
+        require_shallower: bool = True,
         guardian_bounced_dungeon: int | None = None,
     ) -> int | None:
         """Choose the shallowest safe dungeon already available to Recall.
@@ -540,6 +541,7 @@ class PolicyHelpersMixin:
             if max_entry_depth is None:
                 if (
                     guardian_bounced_dungeon is None
+                    and require_shallower
                     and landing_depth >= self._last_overextended_depth
                 ):
                     continue
