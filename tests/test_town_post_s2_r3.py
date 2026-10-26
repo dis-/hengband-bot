@@ -16,7 +16,7 @@ from hengbot import town_terminal
 from tests import test_town_post_s2_r2 as recorded
 
 
-class AdmittedCompositeAndRefusalTest(recorded.ProductionHarness):
+class AdmittedCompositeAndRefusalTest(recorded.executor_harness.ProductionHarness):
     setUpClass = recorded.PostS2OwnerDecisionTest.__dict__["setUpClass"]
     attached = recorded.PostS2OwnerDecisionTest.attached
     decide = recorded.PostS2OwnerDecisionTest.decide
