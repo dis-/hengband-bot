@@ -1009,6 +1009,12 @@ class HomeMixin:
                     self._complete_claim_goal(
                         "home-full-destroy-observed", owners=("home-visit",),
                         kinds=("Observe",), sources=("effect",))
+                    if relief.get("destroy_posted"):
+                        self._offer_execution_done(
+                            producer="home-visit",
+                            work_id=f"home-full-destroy:{sale_identity}",
+                            evidence="surplus-stack-removal-observed",
+                        )
                 # Stock space is earned by the take, but the next take/deposit
                 # starts only after the sale's inventory effect is observed.
                 pack_only = relief.pop("pack_only", False)

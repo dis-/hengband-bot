@@ -2550,6 +2550,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._policy_state_version = 5
         self._execution_pending_post = None
         self._decision_goal = None
+        self._decision_observed_execution_effects = []
         self._decision_expectation = None
         self._decision_triggers = None
         self._decision_bar_skips = None
@@ -3564,8 +3565,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                               work_id: str) -> None:
         """A producer reports observed completion without emitting a key."""
         buffer = self._decision_offer_buffer()
-        buffer.no_steps.append((producer, work_id, evidence,
-                                buffer.next_sequence(), "done"))
+        receipt = (producer, work_id, evidence, buffer.next_sequence(), "done")
+        buffer.no_steps.append(receipt)
+        # Final claim declaration consumes the offer buffer. Observed effects
+        # still belong to this decision when the driver settles retired owners.
+        self.__dict__.setdefault("_decision_observed_execution_effects", []).append(receipt)
 
     def _offer_execution_awaiting(
         self, key: str | None, *, producer: str, work_id: str,

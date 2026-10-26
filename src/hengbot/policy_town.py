@@ -1229,6 +1229,17 @@ class TownMixin:
             return True
         if direction is not None and (self.last_reason or "").endswith("home:scan-step-off") and not self._equipment_catalog.home_scan_complete:
             return True
+        if (direction is not None
+                and self._valid_quest_travel_declaration(snapshot, key, reason)):
+            # The typed candidate carries this decision's quest route. A stale
+            # supplier goal cannot turn a legal quest step back toward a shop.
+            declaration = key.route_declaration
+            route = self._town_map_goal_route(snapshot, declaration.goal)
+            next_position = Position(snapshot.player.position.y + direction[0],
+                                     snapshot.player.position.x + direction[1])
+            if (route is not None and route.first_step == declaration.first_step
+                    and next_position == route.first_step):
+                return True
         goal = self._shopping_approach_goal
         slot = getattr(self, "_decision_goal", None)
         decision_reason = (
@@ -1985,6 +1996,10 @@ class TownMixin:
         return (
             snapshot.in_town
             and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            # A stockout time-pass prepares the mining kit precisely because
+            # the ordinary identify-staff supplier was exhausted already.
+            and not self._identify_staff_mining_plan
+            and self._supply_stockout_gold_target is None
             and self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
             and {
                 name
