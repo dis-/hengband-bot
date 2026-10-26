@@ -17,13 +17,14 @@ import time
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.model import Position, parse_snapshot
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen
 from tests.test_q34_collect_recorded import captured, make_policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q34-chest-prompt-20261026.json.gz"
 
 
-class Q34ChestPromptRecordedTest(ProductionHarness):
+class Q34ChestPromptRecordedTest(executor_harness.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:

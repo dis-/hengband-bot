@@ -12,7 +12,8 @@ import unittest
 
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key, SendResult
 from hengbot.input_executor import ScreenKind, classify_screen
-from tests.test_input_executor import FaithfulHookGame, ProductionHarness, command_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen
 
 
 def evidence():
@@ -98,7 +99,7 @@ class BountyHookGame(FaithfulHookGame):
             self.screen = building_screen(prompt, self.width, self.height)
 
 
-class BountyConfirmPins(ProductionHarness):
+class BountyConfirmPins(executor_harness.ProductionHarness):
     def test_recorded_before_cashout_keeps_remain_and_returns_to_same_cell(self):
         recorded = evidence()
         rows = recorded["decisions"]
