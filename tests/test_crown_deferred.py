@@ -172,11 +172,13 @@ class CrownDeferredTest(unittest.TestCase):
 
     def test_public_choose_key_withdraws_and_wears_ready_items(self):
         posted = []
+        first_snapshot = parse_snapshot(self.board, self.monrace)
+        first_key = self.policy.choose_key(first_snapshot)
         session = self.policy._equipment_transaction_session
-        self.assertIsNotNone(session)
-        for _ in range(len(session.plan.actions) * 2 + 1):
+        self.assertIsNotNone(session, (first_key, self.policy.last_reason))
+        for step in range(len(session.plan.actions) * 2 + 1):
             snapshot = parse_snapshot(self.board, self.monrace)
-            key = self.policy.choose_key(snapshot)
+            key = first_key if step == 0 else self.policy.choose_key(snapshot)
             action = session.current_action
             self.assertIsNotNone(key, self.policy.last_reason)
             if session.complete:
@@ -215,6 +217,21 @@ class CrownDeferredTest(unittest.TestCase):
         prep = self.policy._prepare_equipment_optimization(snapshot)
         self.assertFalse(prep.blockers, prep.blockers)
         self.assertTrue(any(a.kind == "equip" and a.target_slot == "body"
+                            for a in prep.transaction.actions))
+
+    def test_cached_search_replans_only_ready_slots_when_pack_count_changes(self):
+        from hengbot.model import InventoryItem
+        snapshot = parse_snapshot(self.board, self.monrace)
+        # DECLARED CONSTRUCTED: recovered idle optimizer, one extra non-gear
+        # potion in the pack. Owned equipment and its chosen set are unchanged.
+        self.policy._set_equipment_transaction_session(None)
+        snapshot = replace(snapshot, inventory=(InventoryItem(
+            slot="a", name="Healing potion", tval=75, sval=37,
+            known=True, aware=True, count=1),))
+        prep = self.policy._prepare_equipment_optimization(snapshot)
+        self.assertIsNotNone(prep.transaction)
+        self.assertFalse(any(a.target_slot == "body" for a in prep.transaction.actions))
+        self.assertTrue(any(a.kind == "equip" and a.target_slot == "head"
                             for a in prep.transaction.actions))
 
     def test_partial_target_does_not_authorize_departure(self):
