@@ -20,6 +20,15 @@ from typing import Any
 from hengbot.monrace_knowledge import _strip_jsonc
 
 
+# Owner decision 2026-10-26 (#47): Forest exploration is inefficient.
+# This governs voluntary destinations, not static facts or fixed quests.
+EXCLUDED_EXPLORATION_DUNGEONS = frozenset({7})
+
+
+def exploration_destination_allowed(dungeon_id: int) -> bool:
+    return dungeon_id not in EXCLUDED_EXPLORATION_DUNGEONS
+
+
 @dataclass(frozen=True)
 class DungeonInfo:
     id: int

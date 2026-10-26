@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from hengbot.dungeon_knowledge import exploration_destination_allowed
 import json
 
 from hengbot.claim_goal_typing import (
@@ -405,6 +407,16 @@ class ObservationMixin:
         # alternate or conquest target, so the dive judgement (which reads
         # _target_dungeon_id after that reset) sees Angband for every such dive;
         # the guardian-bounce count reads this instead.
+        # Release destinations retained by an older policy/checkpoint. Do this
+        # before applying alternates and conquest, including when already in
+        # an excluded dungeon; the ordinary Yeek/Angband fallback stays in use.
+        if (self._alternate_dungeon is not None
+                and not exploration_destination_allowed(self._alternate_dungeon)):
+            self._alternate_dungeon = None
+            self._alternate_dungeon_reason = None
+        if not exploration_destination_allowed(self._target_dungeon_id):
+            self._target_dungeon_id = DUNGEON_YEEK_CAVE
+            self._target_dungeon_reason = "initial_yeek_cave"
         pursued_target = self._target_dungeon_id
         if snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND

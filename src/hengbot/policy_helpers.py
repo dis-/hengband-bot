@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hengbot.dungeon_knowledge import exploration_destination_allowed
+
 from dataclasses import replace
 
 from hengbot.claim_goal_typing import (
@@ -513,7 +515,7 @@ class PolicyHelpersMixin:
         best: DungeonInfo | None = None
         for did in snapshot.entered_dungeon_ids:
             info = self._dungeon_knowledge.get(did)
-            if info is None or did in (
+            if info is None or not exploration_destination_allowed(did) or did in (
                 DUNGEON_ANGBAND,
                 DUNGEON_CHAMELEON_CAVE,
             ):
@@ -548,7 +550,7 @@ class PolicyHelpersMixin:
             # confusion resistance was sent to the Mountain (25F needs it), swarmed,
             # and returned with zero loot after a very short dive; steer it instead
             # to a dungeon whose landing depth its resistances actually cover
-            # (e.g. a sub-20F Forest / Orc cave with no resistance requirement).
+            # (e.g. a sub-20F Orc cave with no resistance requirement).
             if self._missing_required_abilities(snapshot, landing_depth):
                 continue
             # A recall that lands on a guardian floor the current kit cannot

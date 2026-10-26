@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
 from weakref import WeakKeyDictionary
 from hengbot.item_reservation import (
@@ -6218,6 +6220,8 @@ class TownMixin:
         departure read point, which still reads one recall.
         """
         def safe(dungeon_id: int) -> bool:
+            if not exploration_destination_allowed(dungeon_id):
+                return False
             if not safety_gate:
                 return True
             if self._recall_destination_safe(snapshot, dungeon_id):

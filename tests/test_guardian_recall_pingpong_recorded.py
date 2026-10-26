@@ -373,12 +373,12 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
         qualifies (Labyrinth 18 is a conquered forgetting maze, Yeek cave and
         Angband are never fallbacks).  The valve fired by guardian bounces may
         land deeper: the shallowest landing that is not a blocked guardian
-        floor is Forest's 24.  The live state stayed on the Orc cave.
+        floor is Mountain's 25 (Forest excluded by #47).  The live state stayed on the Orc cave.
         """
         decided, arrivals, valve_calls = self._live()
         index, _streak, _depth, _bounces, alternate, target = arrivals[2]
-        self.assertEqual([call[3] for call in valve_calls], [FOREST])
-        self.assertEqual((alternate, target), (FOREST, FOREST))
+        self.assertEqual([call[3] for call in valve_calls], [14])
+        self.assertEqual((alternate, target), (14, 14))
         self.assertEqual(self.recorded[index]["alternate_dungeon_id"], ORC_CAVE)
         # The switch itself posts nothing different inside the window: every
         # recorded decision up to 262 is still reproduced (see the fidelity
@@ -419,10 +419,10 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
         self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
         self.assertEqual(key, "5")
         self.assertEqual(policy._alternate_dungeon, ORC_CAVE)
-        # Unchanged, the same board switches to Forest instead (G1-r2).
+        # #47: the unchanged board now switches to Mountain (Forest excluded).
         policy = copy.deepcopy(base)
         policy.choose_key(self.live_base[1])
-        self.assertEqual(policy._alternate_dungeon, FOREST)
+        self.assertEqual(policy._alternate_dungeon, 14)
         self.assertEqual(policy.last_reason, self.recorded[VALVE]["reason"])
 
     # ------------------------------------------------------------ G1
@@ -442,7 +442,7 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
             expected,
         )
         # ... but the fallback at decision 8 skipped the Orc cave.
-        self.assertEqual(policy._alternate_dungeon, FOREST)
+        self.assertEqual(policy._alternate_dungeon, 14)
         self.assertEqual(board.dungeon_recall_depths[ORC_CAVE], ORC_CAVE_LANDING)
         self.assertEqual(board.dungeon_recall_depths[FOREST], FOREST_LANDING)
         self.assertTrue(
@@ -457,8 +457,8 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
             "rfc", "town:recall-to-alt-dungeon",
         ))
         self.assertEqual(policy.last_reason, "town:recall-to-alt-dungeon")
-        self.assertEqual(key, "rf" + policy._recall_selection_key(board, FOREST))
-        self.assertEqual(key, "rfe")
+        self.assertEqual(key, "rf" + policy._recall_selection_key(board, 14))
+        self.assertEqual(key, "rfg")
 
     def test_p2_buys_the_departure_recall_with_the_target(self):
         """No wall: USER DECISION 2026-09-20, target + the departure scroll."""
