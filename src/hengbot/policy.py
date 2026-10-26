@@ -2550,7 +2550,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._policy_state_version = 5
         self._execution_pending_post = None
         self._decision_goal = None
-        self._decision_observed_execution_effects = []
         self._decision_expectation = None
         self._decision_triggers = None
         self._decision_bar_skips = None
@@ -2680,6 +2679,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # producer writes it, on the board whose key uses its target; the
         # declaration at the exit reads nothing else.  Record-only.
         self._decision_goal = None
+        self._decision_observed_execution_effects = ()
         self._decision_expectation = None
         self._decision_non_discardable = None
         self._decision_displaced_producer = None
@@ -3569,7 +3569,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         buffer.no_steps.append(receipt)
         # Final claim declaration consumes the offer buffer. Observed effects
         # still belong to this decision when the driver settles retired owners.
-        self.__dict__.setdefault("_decision_observed_execution_effects", []).append(receipt)
+        self._decision_observed_execution_effects = (
+            *getattr(self, "_decision_observed_execution_effects", ()), receipt)
 
     def _offer_execution_awaiting(
         self, key: str | None, *, producer: str, work_id: str,

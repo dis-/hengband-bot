@@ -117,6 +117,11 @@ class TopStopsTownWorkTest(ProductionHarness):
         _observe_owner_retired_progress(policy, after, next_key)
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
         self.assertTrue(policy._owner_retired_progress["last_settlement"]["matched_effect_identity"])
+        # A later board carries no old completion back to the driver. The
+        # per-decision handoff must stay bounded, even across repeated polls.
+        later = replace(after, turn=after.turn + 1)
+        policy.choose_key(later)
+        self.assertEqual(policy._decision_observed_execution_effects, ())
 
     def test_stockout_preparation_routes_to_mining_kit_not_exhausted_staff(self):
         # DECLARED CONSTRUCTED: life-194's staff shortage and the same one-run
