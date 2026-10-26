@@ -775,6 +775,51 @@ class EquipmentMixin:
             evidence=f"{source}:loadout-selected",
         )
 
+    def _ready_equipment_transaction_target(
+        self, current: Loadout, target: Loadout, catalog: tuple
+    ) -> Loadout:
+        """Stage ready slots without changing the optimizer's selected loadout.
+
+        Identification and Home deferral belong to individual physical items.
+        Keep their worn replacements in place until those items are actionable;
+        coupled hand/ring moves must wait together to avoid moving one source
+        into two slots. Departure still compares against the full selected set.
+        """
+        selected_ids = target.item_ids
+        actual = {owned.id: owned for owned in catalog}
+        waiting_slots = {
+            slot for slot, selected in target.slots
+            for owned in (actual.get(selected.id, selected),)
+            if (
+                (owned.origin == "home"
+                 and self._item_signature(owned.item) in self._deferred_home_items)
+                or self._equip_blocked_by_identification(owned.item)
+                or self._needs_random_teleport_suppression(owned, selected_ids)
+            )
+            and owned.id != getattr(current.item_at(slot), "id", None)
+        }
+        for coupled in (
+            {SLOT_MAIN_HAND, SLOT_SUB_HAND},
+            {SLOT_MAIN_RING, SLOT_SUB_RING},
+        ):
+            if waiting_slots & coupled:
+                waiting_slots.update(coupled)
+        if not waiting_slots:
+            return target
+        slots = dict(target.slots)
+        for slot in waiting_slots:
+            worn = current.item_at(slot)
+            if worn is None:
+                slots.pop(slot, None)
+            else:
+                slots[slot] = worn
+        return Loadout(
+            tuple(sorted(slots.items())),
+            current.hand_mode
+            if waiting_slots & {SLOT_MAIN_HAND, SLOT_SUB_HAND}
+            else target.hand_mode,
+        )
+
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
@@ -1247,7 +1292,9 @@ class EquipmentMixin:
                 transaction = plan_equipment_transactions(
                     catalog,
                     preparation.current,
-                    preparation.result.best.loadout,
+                    self._ready_equipment_transaction_target(
+                        preparation.current, preparation.result.best.loadout, catalog
+                    ),
                     current_pack_items=len(snapshot.inventory),
                     home_scan_complete=self._equipment_catalog.home_scan_complete,
                     preserve_pack_item_ids=preserve,
@@ -1463,7 +1510,9 @@ class EquipmentMixin:
             transaction = plan_equipment_transactions(
                 catalog,
                 preparation.current,
-                loadout,
+                self._ready_equipment_transaction_target(
+                    preparation.current, loadout, catalog
+                ),
                 current_pack_items=len(snapshot.inventory),
                 home_scan_complete=self._equipment_catalog.home_scan_complete,
                 preserve_pack_item_ids=preserve,
@@ -1484,7 +1533,6 @@ class EquipmentMixin:
         ):
             preparation = replace(
                 preparation,
-                transaction=None,
                 blockers=("pending-random-teleport-suppression",),
             )
         elif any(
@@ -1559,7 +1607,11 @@ class EquipmentMixin:
         if not isinstance(transaction, EquipmentTransactionPlan) or not transaction.actions:
             return None
         plan = transaction
-        if not preparation.ready:
+        partial_identification = (
+            preparation.blockers == ("pending-random-teleport-suppression",)
+            and transaction.executable
+        )
+        if not preparation.ready and not partial_identification:
             blockers = tuple(preparation.blockers)
             if not blockers or not all(
                 blocker.startswith("pack-space-required:") for blocker in blockers
