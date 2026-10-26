@@ -186,9 +186,14 @@ class DepartureRemedyTest(unittest.TestCase):
                 self.assertEqual(policy._recall_town_departure_conjuncts(board)[leaf], False)
                 key = policy._town_special_key(board)
                 print("CLASS C SAME BOARD", leaf, repr(key), policy.last_reason)
-                self.assertEqual((key, policy.last_reason), (RESTOCK_WAIT_MACRO, "town:wait-restock:" + supplier))
+                self.assertEqual((key, policy.last_reason), ("5", "fundraise:supply-stockout-mining"))
+                self.assertEqual(policy._fundraising_mode, "prepare")
+                self.assertEqual(policy._planned_mining_runs, 1)
+                self.assertEqual(policy._fundraising_gold_target(), board.player.gold + 5000)
+                self.assertIsNone(policy._cross_town_shopping)
+                self.assertIsNone(policy._pending_recall_dungeon_id)
                 self.assertEqual(policy._town_blocked_reason, None)
-                self.assertGreater(policy._town_restock_wait_until, board.turn)
+                self.assertIsNone(policy._town_restock_wait_until)
                 self.assertEqual(policy._recall_town_departure_conjuncts(board)[leaf], False)
 
 
