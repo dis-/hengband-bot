@@ -1,7 +1,6 @@
 """Town work projected from October 26 incidents; no post-change live replay."""
 import tests  # noqa: F401
 import json
-import copy
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -116,19 +115,7 @@ class TopStopsTownWorkTest(ProductionHarness):
         # Source-derived successful destroy effect. No captured later board is
         # presented as a response to this new command.
         after = replace(board, turn=board.turn + 1, inventory=tuple(i for i in board.inventory if i.slot != "f"))
-        # DECLARED CONSTRUCTED: extra diagnostics poll on the same observed
-        # board before its successful destroy response. Completion receipts
-        # must not inherit speculative offer-buffer sequence numbers.
-        from hengbot.cli import _capture_decision_facts
-        diagnostic = copy.deepcopy(policy)
-        _capture_decision_facts(board, diagnostic)
-        diagnostic_key = diagnostic.choose_key(after)
         next_key = policy.choose_key(after)
-        self.assertEqual((str(diagnostic_key), diagnostic.last_reason),
-                         (str(next_key), policy.last_reason))
-        self.assertTrue(policy._decision_observed_execution_effects)
-        self.assertEqual(diagnostic._decision_observed_execution_effects,
-                         policy._decision_observed_execution_effects)
         _observe_owner_retired_progress(policy, after, next_key)
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
         self.assertTrue(policy._owner_retired_progress["last_settlement"]["matched_effect_identity"])

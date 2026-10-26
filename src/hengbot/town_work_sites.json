@@ -2815,7 +2815,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "58429b8c27ae0af2127b7dae55e7ebc1089b829973145b49f411ba17b0b54adb"
+    "ast_sha256": "612cfe4372bd2758f3c7e3487faee2ef630f5dc58b5803eb6f42a376aa5348d3"
   },
   "policy.py:HengbotPolicy._offer_execution_no_step": {
     "classification": "adapter",
@@ -7473,7 +7473,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e06010eaf652ec12137ea4da54a921ba7790d3ae7219615258354cdcac3e3386"
+    "ast_sha256": "2bca1a27746e4a791218c5d16c1979e97759d7696665e92b66d98d96b7290c61"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_key": {
     "classification": "producer",
@@ -7825,7 +7825,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "eeb7d9710d8cb79423a316cf04465488ef9b1e3d2af70df8d5f577dd0f64fb13"
+    "ast_sha256": "06762c17a5b5b079807194721eb1ac257038d104529d510c4195689525428340"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",
