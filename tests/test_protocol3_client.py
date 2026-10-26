@@ -28,6 +28,7 @@ import gzip
 import hashlib
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -520,14 +521,14 @@ class P2UnknownProtocolTest(unittest.TestCase):
         self.v3_row = _board(v3)
 
     def test_p2_unknown_protocol_versions_fail_loudly(self):
-        for version in (1, 4, 99, "3", None, True, 3.0):
+        for version in (1, 5, 99, "3", "4", None, True, 3.0, 4.0):
             with self.subTest(version=version):
                 row = dict(self.v3_row, protocol_version=version)
                 with self.assertRaises(ProtocolSchemaError):
                     parse_snapshot(row, self.monrace)
 
     def test_p2_cli_does_not_swallow_an_unknown_protocol_as_malformed(self):
-        row = dict(self.v3_row, protocol_version=4)
+        row = dict(self.v3_row, protocol_version=5)
         line = json.dumps(row, ensure_ascii=False)
         with self.assertRaises(ProtocolSchemaError):
             _newest_snapshot_entry([line], self.monrace)
@@ -537,6 +538,47 @@ class P2UnknownProtocolTest(unittest.TestCase):
         row = _board(v2)
         del row["protocol_version"]
         self.assertEqual(parse_snapshot(row, self.monrace).protocol_version, 2)
+
+
+class P4ItemIdsTest(unittest.TestCase):
+    """Protocol 4 (tools/bot/README.md "版4での変更") only adds keys to protocol 3.
+
+    The v4 board is the recorded protocol-3 board with protocol_version 4 and
+    the added keys (DECLARED CONSTRUCTED: ids chosen by hand, shaped as the
+    changelog specifies).  It must parse to the same snapshot as protocol 3.
+    """
+
+    def setUp(self):
+        _v2, v3, _starts, self.monrace = _Substrate.get()
+        self.v3_row = copy.deepcopy(_board(v3))
+        y, x = self.v3_row["player"]["y"], self.v3_row["player"]["x"]
+        self.v3_row["grid_map"]["found_item_names"] = [[y, x, "x", "y", "z"]]
+        self.v4_row = copy.deepcopy(self.v3_row)
+        self.v4_row["protocol_version"] = 4
+        for index, item in enumerate(self.v4_row["inventory"] + self.v4_row["equipment"]):
+            item.update(ego_id=index + 1, artifact_id=index + 2, flavor_id=index + 3)
+        self.v4_row["grid_map"]["found_item_ids"] = [
+            [y, x, {"sval": 1, "ego_id": 2}, {"flavor_id": 3}, None]
+        ]
+
+    def test_p4_board_parses_as_protocol_3(self):
+        v3 = parse_snapshot(self.v3_row, self.monrace)
+        v4 = parse_snapshot(self.v4_row, self.monrace)
+        self.assertEqual(v4.protocol_version, 4)
+        self.assertEqual(replace(v4, protocol_version=3), v3)
+
+    def test_p4_items_parse_as_protocol_3(self):
+        items = self.v4_row["inventory"]
+        self.assertEqual(
+            _parse_items(items, protocol=4),
+            _parse_items(self.v3_row["inventory"], protocol=3),
+        )
+
+    def test_p4_cli_reads_the_board(self):
+        line = json.dumps(self.v4_row, ensure_ascii=False)
+        snapshot, chosen = _newest_snapshot_entry([line], self.monrace)
+        self.assertEqual(chosen, line)
+        self.assertEqual(snapshot.protocol_version, 4)
 
 
 class P3RemovedKeyReplacementTest(unittest.TestCase):
