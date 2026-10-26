@@ -11399,40 +11399,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "policy_opening.py:OpeningRouteMixin._opening_q1_pages": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed Q1 opening route projection: observed supplier pages, readiness-derived counts and existing mining-tool quality; no independent action or progress credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "policy_opening.py:OpeningRouteMixin._opening_q1_plan": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed Q1 opening route projection: observed supplier pages, readiness-derived counts and existing mining-tool quality; no independent action or progress credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed Q1 opening route projection: observed supplier pages, readiness-derived counts and existing mining-tool quality; no independent action or progress credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "policy_shop.py:ShopMixin._digging_tool_sale_quality": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

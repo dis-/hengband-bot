@@ -1089,8 +1089,6 @@ class ShopMixin(InStoreMixin):
         executable equipment transaction owns the context it was bound to.
         This is the sole input to the town-plan projection.
         """
-        if self._opening_q1_shopping(snapshot):
-            return self._enumerate_town_needs(snapshot)
         claims = list(self._enumerate_town_needs(snapshot))
         # Withdrawal requesters must file an exact executor request before the
         # router may act.  The legacy terminal posts this same owner expectation,
@@ -1154,8 +1152,6 @@ class ShopMixin(InStoreMixin):
         return claims
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
-        if self._opening_q1_shopping(snapshot):
-            return self._opening_q1_plan(snapshot)[1]
         self._town_plan_projection_telemetry = {
             "evaluated": False,
             "plan_rebuilt": False,
@@ -3010,8 +3006,6 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, *, excluded_classes=frozenset()
     ) -> StoreItem | None:
         """Select an affordable ware that closes a departure requirement."""
-        if self._opening_q1_shopping(snapshot):
-            return self._opening_q1_purchase(snapshot)
         store = snapshot.store
         if store is None:
             return None

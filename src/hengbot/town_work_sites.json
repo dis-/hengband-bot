@@ -5864,22 +5864,6 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "5bc4323077ea5aa69b5ba2f6aa2f9841004b20eb96a79a7e9a4e89a68e20403f"
   },
-  "policy_opening.py:OpeningRouteMixin._opening_q1_pages": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "3a0e791358bd108d1867016a448c76e67ceebfca2f60fdd2a96434353e29b0ec"
-  },
-  "policy_opening.py:OpeningRouteMixin._opening_q1_plan": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "f1ac851d4aedb236a0d36493fb8d75898f2cd21c48245b839957edadcffc7858"
-  },
   "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
     "classification": "data",
     "rows": [
@@ -6262,7 +6246,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "feb77ff3cfe101b9c5aae6a2fe6a4c2680cf0728f5aaa66c3fcf41ea853ac0bc"
+    "ast_sha256": "1cdab5b9aaf6bb31ff7d06844f2a3dbb74060965bca2a549e96ec414ba3fab4a"
   },
   "policy_quest.py:QuestMixin._quest_execute_key": {
     "classification": "dungeon-only",
@@ -6584,21 +6568,13 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "8268396bc5955861e3693ce7ac9a72c539e33cff4ed51c4a12183cf527c505e4"
   },
-  "policy_shop.py:ShopMixin._digging_tool_sale_quality": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "1200c64f6bcce6c01e717c7c8a0ff7016c6492eba5d23865f2e6d9e7fcee8f07"
-  },
   "policy_shop.py:ShopMixin._enumerate_live_store_claims": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "26e5e4553669b6e2edea293acd6f93286e9a8e933b2d06715120fba11f2bb124"
+    "ast_sha256": "3945bbaeee702e944b63ab6dc5568628d39a60d32c178b2f164c1e90527e1d63"
   },
   "policy_shop.py:ShopMixin._experience_potion_quaff_key": {
     "classification": "producer",
@@ -6702,7 +6678,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "a8756c5043765ac7896a1b1a1ddd9af33c5ee8872b7205784684940c102b68e7"
+    "ast_sha256": "a2fa4ed19e320f1b3f18e467ced7298b9059213b239a9d062e06031e60e1e1d3"
   },
   "policy_shop.py:ShopMixin._matching_live_purchase_rungs": {
     "classification": "data",
@@ -6734,7 +6710,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fa31a7fe11032277f3f10029680be73776ee45ac786517ae3e7ec8f0246ce07a"
+    "ast_sha256": "c4f7b05dfe7dda707ea45210d2ed2c62046c8432380d06ecf2afdf962318f327"
   },
   "policy_shop.py:ShopMixin._offer_store_sale_leave": {
     "classification": "producer",
@@ -8529,7 +8505,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "ebf0162bfb9198ea324ceb8a448a38a8812621c7bc1d137eec5eafbc60bee4dc"
+    "ast_sha256": "ce9c35b6553e191533b6a9aa3beeb324fddc65c538e07a4872f944fb47da9c07"
   },
   "town_terminal.py:gather_quest_work": {
     "classification": "data",

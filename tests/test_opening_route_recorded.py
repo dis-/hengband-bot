@@ -22,7 +22,6 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen, store_screen
-from tests.policy_fixtures import grid, item, store_item
 
 FIXTURE = Path(__file__).with_name("fixtures") / "opening-route-20261026.json.gz"
 
@@ -230,6 +229,12 @@ class OpeningRouteRecordedTest(ProductionHarness):
             policy.observe_store_screen(True)
             key = str(policy.choose_key(board))
             self.assertEqual(key[0:2], "p" + expected, policy.last_reason)
+            # A posted opening buy must carry live eligibility/retention
+            # provenance, including the digger while ordinary mining is off.
+            selection = policy._purchase_selection_for_key(board, key)
+            self.assertIsNotNone(selection)
+            self.assertIsNotNone(selection.match)
+            self.assertEqual(selection.match.shortage, selection.quantity)
             following = self.buy_reply(raw, key)
             self.post(policy, raw, key, following)
             transactions.append((expected, raw["player"]["gold"] - following["player"]["gold"]))
@@ -393,6 +398,11 @@ class OpeningRouteRecordedTest(ProductionHarness):
         policy, raw, _ = self.shopping_case()
         source = self.data["seeds"]["oil"]["snapshot"]["inventory"]
         raw["inventory"].extend(copy.deepcopy(it) for it in source if it["tval"] == TVAL_DIGGING or (it["tval"] == TVAL_SCROLL and it["sval"] == SV_SCROLL_DETECT_TREASURE))
+        # DECLARED CONSTRUCTED: buying every affordable detection scroll may
+        # exceed the ordinary mining stock target; none is immediate surplus.
+        for it in raw["inventory"]:
+            if it["tval"] == TVAL_SCROLL and it["sval"] == SV_SCROLL_DETECT_TREASURE:
+                it["count"] = 99
         board = parse_snapshot(raw, policy._monrace_knowledge)
         policy._fundraising_mode = None
         for it in board.inventory:
@@ -460,3 +470,66 @@ class OpeningRouteRecordedTest(ProductionHarness):
         following["grid_map"]["cells"][-1]["t"] = []
         following["grid_map"]["found_items"] = []
         self.post(policy, raw, key, following)
+
+    def test_prior_home_knowledge_request_cannot_displace_the_fixed_opening(self):
+        from hengbot.home_errand import HomeErrandRequest
+        policy, raw, _ = self.shopping_case()
+        raw["store"] = None
+        # DECLARED CONSTRUCTED: an unposted ordinary departure withdrawal
+        # left by the older policy, whose catalogue still needs refreshing.
+        recall = next(it for it in raw["inventory"] if it["tval"] == TVAL_SCROLL)
+        policy._home_errand.file(HomeErrandRequest(
+            (recall["name"], recall["tval"], recall["sval"]), 1,
+            "procurement", "ordinary-departure"), knowledge_current=False)
+        key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+        self.assertTrue(policy._home_errand.needs_knowledge)
+        self.assertTrue(policy.last_reason.startswith("shop:"), (key, policy.last_reason))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_GENERAL)
+
+    def test_affordable_detection_cannot_cancel_the_named_reserve_income_run(self):
+        policy, raw, _ = self.shopping_case(gold=10)
+        raw["store"] = None
+        key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+        self.assertEqual(policy._opening_q1_funding, 10)
+        self.assertEqual(policy._fundraising_gold_target(), 15)
+        policy.confirm_key_posted(key)
+        # DECLARED CONSTRUCTED: calm 1F arrival carrying the same kit. A
+        # detection scroll costs 10, but all 10 gold belongs to Q1's reserve.
+        source = self.data["seeds"]["throw"]["snapshot"]
+        outside = copy.deepcopy(raw)
+        outside["floor"] = copy.deepcopy(source["floor"])
+        outside["grid_map"] = copy.deepcopy(source["grid_map"])
+        outside["player"]["y"] = source["player"]["y"]
+        outside["player"]["x"] = source["player"]["x"]
+        outside["visible_monsters"] = []
+        outside["detected_monsters"] = []
+        outside["turn"] += 10
+        key = str(policy.choose_key(parse_snapshot(outside, policy._monrace_knowledge)))
+        self.assertEqual(policy._fundraising_mode, "scavenge", (key, policy.last_reason))
+        self.assertFalse(policy._returning_to_town, (key, policy.last_reason))
+        self.assertTrue(policy._opening_q1_funding_left)
+
+    def test_q1_torches_remain_reserved_with_ammo_and_permanent_light(self):
+        policy = self.policy()
+        board = self.seed("throw")
+        torch = next(it for it in board.inventory if it.is_torch)
+        inventory = tuple(it for it in board.inventory if not it.is_torch) + (
+            replace(torch, count=5),
+            InventoryItem(slot="w", name="shot", count=40, tval=TVAL_SHOT, sval=0,
+                          known=True, aware=True),
+        )
+        # DECLARED CONSTRUCTED: independent ranged ammo and a fuel-less light
+        # make ordinary spare torches disposable; Q1's five remain mandatory.
+        equipment = tuple(replace(it, sval=SV_LITE_FEANOR, fuel=0) if it.is_light else it
+                          for it in board.equipment) + (
+            InventoryItem(slot="bow", name="sling", count=1, tval=TVAL_BOW, sval=2,
+                          known=True, aware=True, is_equipment=True),
+        )
+        board = replace(board, inventory=inventory, equipment=equipment)
+        self.prepare(policy, board)
+        policy.choose_key(board)
+        self.assertIsNotNone(policy._matching_ammo(board))
+        self.assertTrue(policy._owns_usable_permanent_light(board))
+        for it in board.inventory:
+            if it.is_torch:
+                self.assertEqual(policy._retention_surplus(board, it), 0)

@@ -226,12 +226,6 @@ class OpeningRouteMixin:
                 return "fundraising-detection", store, item, min(item.count, quantity), 0
         return "quest", None, None, 0, 0
 
-    def _opening_q1_needs(self, snapshot):
-        stage, store, _, _, _ = self._opening_q1_plan(snapshot)
-        if store is None:
-            return []
-        return [TownNeed(store, stage.removeprefix("observe:"), "normal")]
-
     def _opening_q1_purchase(self, snapshot):
         if snapshot.store is None:
             return None
