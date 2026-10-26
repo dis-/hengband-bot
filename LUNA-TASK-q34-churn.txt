@@ -1,0 +1,30 @@
+ISSUE: #47
+The owner asked (verbatim): 「クエスト34の箱の直しで chest:approach がくり返した原因を調べて、検証機で新しいキャラからクエスト34を通して確かめてから、もう一度入れて。」
+Branch q34-churn-fix-1026 at main e39ad6789 (worktree C:\hengband\bot-client\.worktrees\q34-churn-fix-1026). main still
+CONTAINS the quest-34 collect change (merge f71aa485c, branch q34-collect-1025: remembered fixed-quest loot + chests opened
+in place, owner decision 「その場で開けて中身を拾う」). The live viewing bots run a revert of that merge (40c5a2f8).
+
+Incident: after the change went live, every new character looped inside quest 34 and stopped on loop-detected about
+every 40 s (n1-a 342 characters 08:34-12:18, n1-b 177). Example stop: "floor=(0, 5, 34) turn=77625 confined to
+[(5, 13), (5, 14), (5, 15), (6, 15)] over 40 decisions". The recent decisions were chest:approach (dominant) and
+chest:wait-health, with quest-strategy:survey-throw-point etc. before.
+Samples (copied, no save): C:\hengband-backups\state-logs\q34-churn-1026\n1-a\life-017 (first churned character,
+08:34) and n1-a\life-357 (last), each with state.jsonl, bot-stdout.log and incident-captures\<stop>\ (the stop windows
+with bot-decisions / state rows).
+Do:
+1. LUNA-DIAG-q34-churn.txt: from the captures, why chest:approach repeats inside those four cells (file:line): what
+   chest it targets, why it never reaches/opens it (adjacent cell unreachable? the chest is in a wall/door cell? the
+   reservation (10,9) vs live chest position? chest:wait-health never satisfied in the quest? a sweep goal and the chest
+   claim alternating?). Why your round-1..3 recorded pins did not catch it (they replay one recorded run; a fresh
+   character meets quest 34 earlier, at Lv~7, before the throw-torch steps finished?).
+2. Fix it within the owner decision (chests opened in place when safe; otherwise a named close, never a loop). If the
+   decision does not cover the situation (e.g. a chest the character cannot open safely at that level), STOP with
+   options.
+3. Pins: from the churn captures through the public choose_key AND the follow executor - before: the 4-cell loop;
+   after: the chest is opened (or closed by name) and the quest continues. Keep the q34-collect recorded pins green.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control (viewing bots are live);
+no push/merge to main/rebase/reset --hard/stash; existing tests (= tests at e39ad6789) unchanged; no logs committed; no
+new constant or threshold. Guards: preflight / mutation_check --record / fast_tier with base e39ad6789 (they wait while
+a merge gate runs - let them); remote_slow not needed (the supervisor runs a fresh-character check on the
+verification machine after you). Token budget 120k HARD, wall time 120 minutes. Write LUNA-REPORT-q34-churn.txt in
+Japanese and commit.
