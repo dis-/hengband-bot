@@ -208,3 +208,32 @@ mutation_checkも約26分の待機後に開始し、15箇所を対象に、bb2e4
 追加修正後の実検査対象はf87a28720と、上記の最終ソース・テストのツリーで確認すること。
 最終確認済みなのは関連28件の通過と、追加修正後のpreflight指摘0件・終了0。
 実セーブの追試に加え、これら二つのガードの最終結果確認が残っている。
+
+第3ラウンド（Issue #47、2026-10-26）
+比較基点: f66916c86。追加テストの先行コミット: 39b888cfb。
+tests/test_broke_prevent_recorded.py に公開 choose_key 経由の有料噂話の pin を1件追加した。
+記録Aの所持品を用い、宿が隣接し、移動先を知る噂話が未完了の構成条件を明示した。
+通常の買い物を先行させないため、既存の棚確認済み状態を設定する。選択処理や送信処理はmockしない。
+他の町では520Gから2回だけ読み、帰還運賃500Gを残す。Outpostでは320Gから2回読み、
+従来のRUMOR_GOLD_RESERVEの300Gを残す。選択したキーを本番follow送信経路とOperationExecutorへ渡し、
+全キーの受付とcompletedを確認した。残金の検証は選択キーの回数×既存料金に基づく。
+実ゲームの新たな観測結果とは扱わず、明示した構成条件によるテストである。
+公開テスト単独はCodex付属Python 3.12で1件通過（12.466秒、終了0）。
+個別差戻し確認では、予備金計算だけを従来の300Gへ戻す場合と、回数計算だけを従来式へ戻す場合の
+両方で、この公開テストがAssertionErrorで失敗した（各終了1）。各確認後、元のファイルをバイト単位で復元した。
+差戻しログ: C:/hengband-backups/broke-prevent-r3/pin-revert-1.log / pin-revert-2.log。
+製品コードの挙動変更はない。基点に存在する既存テストも変更していない。
+
+ガード（基点はいずれもf66916c86）
+preflight: PREFLIGHT OK、19 changed files、0 findings、終了0。
+初回はPython 3.12/3.13間のASTハッシュ差で生成manifestに差が出て失敗した。
+Python 3.13で再生成するとコミット済み内容と一致し、生成物の差分を残さず同環境でpreflightを再実行して通過した。
+mutation_check: 起動済み、最終終了コードは未取得。通過とは扱わない。
+[mutation] waiting: the merge gate is running its full suite (gate exclude-forest-1026, since 22:26:27); owner decision 2026-10-25
+fast_tier: 未開始。先行ガードの終了後に順番に実行するドライバーを起動済み。
+ガード起動時HEAD: 39b888cfbdc99721caba34df4b95a513cfe0bd73。
+ガード結果記録: C:/hengband-backups/broke-prevent-r3/results.json。
+マージ検査中の待機は迂回しない。待機中ならドライバーはmutation --record、fast_tier --shards 4の順に続行する。
+実ゲーム・BOTの操作、既存プロセスの停止、他の既存作業ツリーの変更、push/merge/rebaseは行っていない。
+ログや外部検証スクリプトはコミット対象にしていない。
+この追記の記録時刻: 2026-10-26T22:41:55。
