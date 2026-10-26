@@ -2415,10 +2415,6 @@ class ShopMixin(InStoreMixin):
         ):
             self._shop_selector_diagnostics["pack_refusal"] = "full-pack-nonstacking"
             return None
-        if (self._outpost_return_fare(snapshot) and item is not None
-                and self._purchase_quantity(snapshot, item) <= 0):
-            self._shop_selector_diagnostics["fare_refusal"] = "outpost-return-fare"
-            return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
         curse_kind = self._required_remove_curse_kind(snapshot)

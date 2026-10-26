@@ -19,11 +19,12 @@ import hashlib
 import json
 import unittest
 from pathlib import Path
+from dataclasses import replace
 from tempfile import TemporaryDirectory
 
-from hengbot.model import parse_snapshot
+from hengbot.model import parse_snapshot, GridState, Position
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import TOWN_TELEPORT_COST, POLICY_FINAL_STOP_REASONS
+from hengbot.policy_constants import TOWN_TELEPORT_COST, POLICY_FINAL_STOP_REASONS, RUMOR_COST, RUMOR_READ_KEY, INN_BUILDING_TYPE
 from hengbot.item_reservation import store_item_key
 from hengbot.cli import _policy_final_stop_required
 from tests import test_classA_observed_input as follow_harness
@@ -192,6 +193,37 @@ class BrokePreventRecordedTest(ProductionHarness):
         board = parse_snapshot(raw,self.monrace)
         self.assertIsNotNone(store_item_key(p,board,"buy",board.store.items[0],
                                           "shop-buy",quantity=2))
+
+    def rumor(self, gold):
+        # DECLARED CONSTRUCTED paid-action control. Use A's town/pack with
+        # an adjacent building matching the rumor producer's INN predicate.
+        # This checks the producer's budget, not a recorded Morivant rumor UI.
+        raw = self.raw(2455721,gold=251,source="a")
+        raw["player"].update(gold=gold,y=10,x=10)
+        raw["progress"]["visited_town_ids"] = [0,2]
+        p = self.policy(raw)
+        board = parse_snapshot(raw,self.monrace)
+        def cell(x,building=-1):
+            return GridState(Position(10,x),True,True,False,False,False,False,False,
+                             building_type=building)
+        board = replace(board,grids={Position(10,10):cell(10),
+                                     Position(10,11):cell(11,INN_BUILDING_TYPE)})
+        p._build_grid_index(board)
+        p._town_travel_rumor_pending = 1
+        key = p._town_special_key(board)
+        return key,p.last_reason
+
+    def test_paid_rumor_requires_fare_plus_one_read(self):
+        for gold in (TOWN_TELEPORT_COST,TOWN_TELEPORT_COST+RUMOR_COST-1):
+            key,reason = self.rumor(gold)
+            self.assertEqual(reason,"town:rumor-needs-funds")
+            self.assertNotIn(RUMOR_READ_KEY,key)
+
+    def test_paid_rumor_batch_cannot_consume_return_fare(self):
+        gold = TOWN_TELEPORT_COST + 2*RUMOR_COST
+        key,reason = self.rumor(gold)
+        self.assertEqual((key,reason),("6"+RUMOR_READ_KEY*2+"\x1b","town:rumor-batch"))
+        self.assertEqual(gold-key.count(RUMOR_READ_KEY)*RUMOR_COST,TOWN_TELEPORT_COST)
 
     def test_outpost_has_no_return_fare_purchase_reserve(self):
         raw = self.raw(2933932, gold=5299, store=4)

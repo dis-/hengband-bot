@@ -8746,7 +8746,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return WAIT_KEY
         self._observe(snapshot, observation=latest_snapshot)
         if ((snapshot.in_town or snapshot.store is not None)
-                and self._effective_town_id(snapshot) != OUTPOST_TOWN_ID
+                and self._effective_town_id(snapshot) > OUTPOST_TOWN_ID
                 and (snapshot.player.gold < TOWN_TELEPORT_COST
                      or getattr(self, "_outpost_fare_recovering", False))):
             self._build_grid_index(snapshot)

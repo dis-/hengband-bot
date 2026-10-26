@@ -1826,7 +1826,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "58d52d4a197c0125730f6e29b6fabc104fa6e905593a96741463a16c66e22409"
+    "ast_sha256": "2946be945896761a2bc3adcd124995d0230ad2beb87d90f7c37c231efcaea7ea"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -6643,7 +6643,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "384c15e420a9e1bcac8939292ed19aa7eac3a4fe38dcbdfb9a318b73b5fdf613"
+    "ast_sha256": "8089e48bd4d60517d27456dc71accabb3cee5983355f4a6c2e8cec863d8330ad"
   },
   "policy_shop.py:ShopMixin._next_purchase_unreserved": {
     "classification": "data",
@@ -7450,7 +7450,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "ad5fd438e4d677ded621364ca8518a76dc6478e4ac042c01b180fa894a881dbe"
+    "ast_sha256": "50313f74e485b0c2afbf9958c6d67d668e5daea4c4d3d74c0c20fff09f45b18e"
   },
   "policy_town.py:TownMixin._read_dungeon_recall_scroll_key": {
     "classification": "producer",
@@ -7842,7 +7842,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f7f42d5fb0eadc5afe5b6f21c349eaa9f3d3c1d0d2150afc16b79ac2a3afab57"
+    "ast_sha256": "13a62168489aa02aa10e537650d60f0d5c4d6bb88419b24ee7ae9daee32521bc"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",

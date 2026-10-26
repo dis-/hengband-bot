@@ -6499,7 +6499,8 @@ class TownMixin:
                     expected_effect="departure-supplies-ready",
                 )
                 return WAIT_KEY
-            if player.gold < RUMOR_GOLD_RESERVE + RUMOR_COST:
+            rumor_reserve = max(RUMOR_GOLD_RESERVE, self._outpost_return_fare(snapshot))
+            if player.gold < rumor_reserve + RUMOR_COST:
                 self._fundraising_mode = "prepare"
                 self._town_store_attempted.clear()
                 self.last_reason = "town:rumor-needs-funds"
@@ -6542,7 +6543,7 @@ class TownMixin:
                     # Angband-unlock rumor came up (angband_recall_unlocked).
                     reads = min(
                         RUMOR_READS_PER_VISIT,
-                        max(1, (player.gold - RUMOR_GOLD_RESERVE) // RUMOR_COST),
+                        max(1, (player.gold - rumor_reserve) // RUMOR_COST),
                     )
                     self.last_reason = "town:rumor-batch"
                     key = self._step_toward(
@@ -7148,10 +7149,14 @@ class TownMixin:
         }
 
     def _outpost_return_fare(self, snapshot: Snapshot) -> int:
-        """The game's inn fare, reserved for returning from any other town."""
+        """Reserve the game's inn fare when a non-Outpost town is known.
+
+        Legacy boards without a recoverable town id keep their old budget;
+        current game boards export the town id (or known landmarks recover it).
+        """
         return (TOWN_TELEPORT_COST
                 if (snapshot.in_town or snapshot.store is not None)
-                and self._effective_town_id(snapshot) != OUTPOST_TOWN_ID else 0)
+                and self._effective_town_id(snapshot) > OUTPOST_TOWN_ID else 0)
 
     def _outpost_fare_recovery_key(self, snapshot: Snapshot) -> str | None:
         """Own a broke traveller's sale and return until Outpost arrival.

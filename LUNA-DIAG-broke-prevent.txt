@@ -27,7 +27,7 @@ BOT既存値 policy_constants.py のTOWN_TELEPORT_COST=500と一致する。
 新しい残金閾値や予備費は追加しない。
 
 買い物で329Gになれた理由
-policy_shop.py:_purchase_quantity（基点3769付近）は所持金全体から買える数量を算出していた。
+policy_shop.py:_purchase_quantity（基点3746）は所持金全体から買える数量を算出していた。
 通常店の全購入に共通する「Outpostへ帰る500G」を差し引く処理はなかった。
 _next_purchaseには採掘キット用reserve、闇市場の任意購入には補給用reserveがあるが、
 一般店での*鑑定*購入を一律500Gで止める仕組みではない。
@@ -39,8 +39,9 @@ Alchemist（店4）の*鑑定*2425Gを2枚、key pk2\r\r、5299→449G。
 bot-decisions.jsonl:7037 と7684に対応する購入決定がある。
 前者はfundraising.mode=None、後者はmine。採掘に切り替わる前に既に運賃を割っていた。
 店6/5の高額購入も可処分金を減らすが、最後の運賃割れを直接起こしたのは上の2枚購入である。
-rumorは既存RUMOR_GOLD_RESERVE、Morivant図書館は既存の帰還500G控除を持つ。
-町間移動自体はpolicy_town.py:_town_teleport_dispatch_key（基点7170付近）および
+rumorの既存RUMOR_GOLD_RESERVEは300Gなので、帰還500Gの代用にはならない。
+今回、有料rumorも既存reserveと帰還運賃の大きい方を残す。Morivant図書館は既存の帰還500G控除を持つ。
+町間移動自体はpolicy_town.py:_town_teleport_dispatch_key（基点7166）および
  town_terminal.py:gather_cross_townで、行先0なら500、他なら1000Gを要求していた。
 従って「移動に下限が一切なかった」のではなく、移動後の買い物が運賃を食べていた。
 
@@ -63,13 +64,18 @@ economy:6874,6877-6881が各500G、合計3000G。
 
 repetition／帰還先のループ
 policy_town.py:_town_blocked_key（基点6056,6077,6177付近）はrepetitionから
-出発・緊急帰還を選び、_town_cancel_unsafe_recall_key（基点5339-5415付近）は
+出発・緊急帰還を選び、_town_cancel_unsafe_recall_key（基点5347-5415）は
 pending先とactive目標が異なり安全な別行先を選べると帰還を取り消そうとする。
 Bの16:05捕捉decision-tailでは2941535/2941558にred（repetition-depart:recall）、
 2941543/2941566にre（cancel-wrong-recall-destination）。
 同じ帰還を再取消ししようとする送信はPostingContractにrecall-already-activeとして拒まれ、
 その後LOOKを含む再判断、loop-detectedとなった。所持金は329Gのまま。
-帰還を開始した出発側と、目標を判定する取消し側の不一致で、町間交通費を作る処理ではない。
+生ボード2941535は帰還前のID 2／深さ13、2941543は帰還中のID 4／深さ10を示す。
+ID 4は迷宮、ID 2はイークの洞穴。捕捉時はmineで_conquest_committed=4。
+policy_town.py:6207の_town_recall_destinationは_target_dungeon_idを参照して迷宮行きを選べる一方、
+policy.py:16614の_active_dungeon_targetはmine/scavenge中なら必ずイークの洞穴を返す。
+取消し側（policy_town.py:5355）は後者とpending先を比較するため、実際に選んだ迷宮行きを
+「wrong destination」と判断できる。出発側と取消し側の参照先の不一致であり、町間交通費を作る処理ではない。
 この変更は一般のダンジョン帰還機構を広く作り直さず、金欠の他町では売却・町間帰還を
 優先し、既に帰還中なら専用理由で停止する。交通手段として帰還の巻物を新規使用／取消ししない。
 
