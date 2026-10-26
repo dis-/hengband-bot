@@ -39,3 +39,46 @@ D????????5c266874a???????????????6fdfff936?????BOT?????????????push?merge?rebase
 
 ????
 ?????????????2??????????????????????????????6fdfff936????????????????????????????????
+
+第3ラウンド（2026-10-27、ISSUE #47）
+対象: 開始HEAD 586397b5b、修正・検証HEAD 46cd0347c。基準9955517b4。
+結論: 指定10件を再実行し、実装回帰6件を修正した。残る4件は承認済み方針と旧期待の衝突として監督者へ引き継ぐ。既存テストの変更・期待値の書き換え・失敗の除外登録は行っていない。全件成功とは報告しない。
+
+(a) 実装回帰を修正した6件
+1. tests.test_policy_town.TownAndFundraisingPolicyTest.test_incomplete_empty_home_catalog_routes_or_defers_by_visit_state
+   tests/test_policy_town.py:6423。812c2162dの_town_special_keyへの無条件の採掘準備呼出し（旧6687行）が、出発可能でも判定を再実行していた。commit=Falseの装備評価まで進み、既存の評価差し替えがTypeErrorになった。src/hengbot/policy_town.py:6696で出発失敗時だけ呼ぶ。修正後成功。
+2. tests.test_policy_town.TownAndFundraisingPolicyTest.test_stale_home_candidate_latch_does_not_block_ready_recall
+   tests/test_policy_town.py:6386。同じ812c2162dの早期呼出しが原因。Homeの古い待機状態を解除した出発可能盤面に、不要な純粋評価を持ち込んだ。上記修正で成功。
+3. tests.test_policy_town.TownRecallReturnTest.test_departure_block_telemetry_names_failed_gate_and_values
+   tests/test_policy_town.py:9359。812c2162dの_dispatch_keyからstockout_mining_intended_terminalを再呼出しする変更（旧7107行）で、確定評価後にcommit=False評価を実行し、差し替え済みconjunctsでTypeError。src/hengbot/policy_town.py:7117とsrc/hengbot/town_terminal.py:1361で、実行側は確定した失敗項目を渡し、純粋な入場判定側だけ必要時に純粋評価する。診断のlight_ready失敗を維持して成功。
+4. tests.test_idstaff_poor_depart_recorded.IdstaffPoorDepartRecordedTest.test_unrouted_remembered_page_starts_the_stockout_mining_run
+   tests/test_idstaff_poor_depart_recorded.py:117。c48033debの_fundraising_identify_staff_only_blockにある採掘計画の一律除外（旧2001行）が、仕入れを再開した後の買える鑑定杖まで通常経路から外し、同じ移動キーにtown-progress-invariant:defectを付けていた。src/hengbot/policy_town.py:2001で、未再訪のMagic／Blackの既知在庫が改善になり、採掘用品の予備金を残して買える場合は既存の鑑定仕入れ経路を使う。用品不足かつ買える杖がない第1ラウンドの盤面は採掘準備を継続。既存モジュール3件と該当する新規ピンが成功。
+5. tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_tour_first_town_visit
+   tests/test_pure_decision_telemetry.py:465。c48033debで追加しefd079814でtuple化した完了記録が、投機的なoffer bufferの連番を永続状態へ転載していた。最初の差はdecision index 1の_decision_observed_execution_effects[0][3]、診断あり4／診断なし1。src/hengbot/policy.py:3572で実測完了記録自身の順序を使い、診断参照による連番差を持ち込まない。修正後成功。
+6. tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result
+   tests/test_pure_decision_telemetry.py:490。同じ完了記録変更が原因。最初の差はindex 2637、診断あり8／診断なし1。上記修正で成功。既存の全ウィンドウ・独立状態比較を実行しており、検査対象を減らしていない。
+
+(b) 旧期待が承認済み方針と衝突する4件（既存テストは未変更）
+7. tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_no_alternate_keeps_visible_stop_and_weight_requirement
+   tests/test_classC2_departure_recorded.py:268、assert:273。5c266874aの_pick_alternate_dungeon末尾へのAngband追加（src/hengbot/policy_helpers.py:578）が原因。旧期待はguardian-bounce-no-alternate停止、現在はtown:unsafe-recall-fallbackでAngbandを選ぶ。LUNA-TASK-top-stops-r2.txt:3-10の2026-10-27決定「鉄獄に進む。必要なら噂を使って解禁する。」が旧停止を明示的に置き換える。重量・着地安全性の要件は維持し、第2ラウンドの9件がその境界を検査する。
+8. tests.test_classC_departure_remedies.DepartureRemedyTest.test_newly_installed_supply_restock_is_offered_on_the_same_board
+   tests/test_classC_departure_remedies.py:158、assert:189。812c2162dの早期採掘準備呼出し（現在src/hengbot/policy_town.py:6696）が原因。food／light／teleport／CCWの4サブケースで、旧期待のR300待機からfundraise:supply-stockout-miningへ変わる。LUNA-TASK-top-stops.txt:21-22の2026-10-05 LOCKED決定「品切れだけで出発できない時は採掘に1回出て時間を潰し（+5,000G か採掘1回分）、町で店を回り直す。3回で買えなければ見える停止」が根拠。出発自体は許可せず、用品調達の準備だけを開始する。
+9. tests.test_policy_town.TownAndFundraisingPolicyTest.test_waits_when_required_recall_is_unavailable
+   tests/test_policy_town.py:2691、assert:2705。同じ812c2162dの早期採掘準備が原因。旧期待R300に対して、実際は5で有界の採掘準備を開始する。品切れを町の待機だけで解消しようとする旧期待は上記LOCKED決定と衝突する。
+10. tests.test_policy_town.TownAndFundraisingPolicyTest.test_zero_recall_scrolls_waits_for_restock_instead_of_town_wander
+   tests/test_policy_town.py:2708、assert:2745。812c2162dの早期呼出しおよび判定共有が原因。当初のTypeErrorは(a)3と同じ修正で解消した。現在残る失敗はR300対5で、上記品切れ採掘方針との衝突だけ。帰還巻物なしで通常の深層へ出発する変更は行っていない。
+   8-10について、早期呼出しのhunkだけをメモリ内で外した比較では3テスト・全サブケースが成功した。作業ツリーのソースを変更せず、原因hunkとの関係を確認した。これらを成功扱いにせず、監督者による旧期待の扱いの判断に委ねる。
+
+検証の確定結果
+指定10件: 7件の実行243.817秒＋残り3件と新規ピン20件の実行54.152秒。指定分は6件成功・4件失敗、例外0。失敗の詳細は上記(b)のみ。全スイート成功ではない。
+第1／第2ラウンドの公開choose_key／follow executorピン19件と、第3ラウンドの記録済み到着prefixピン1件: 全20件成功。
+追加ピンtests/test_top_stops_telemetry.py:10は既存の未変更fixtureの最初の2境界を使い、診断あり／なしを独立比較する。現在の実装で成功。_offer_execution_doneだけを586397b5bの処理へメモリ内で戻すと4対1の状態差で失敗し、旧処理との差を検出することを確認した。
+preflight（9955517b4基準）: 29 changed files、指摘0、終了0。
+mutation_check --record（9955517b4基準）: 19箇所すべてにピンあり、NOT CAUGHT 0、終了0。936603321の既存成功記録を使い、今回変わった6箇所を再検証してすべて検出。46cd0347cと同一のsrc/hengbot・testsのtreeに成功記録を保存済み。
+fast_tier（9955517b4、4 shards）: 起動済みだが、別ブランチの全件検証中のためgate_lockで待機中。2026-10-27 02:30:26開始の検証を待つ。検査本体は未開始であり、成功とは扱わない。ガードの迂回は行わない。
+
+コミット
+bb9c7450e: 出発可能盤面の再評価を止め、共有判定へ失敗項目を明示し、完了記録の連番を安定化。
+c19c519dd: 採掘準備中でも用品の予備金を残して買える鑑定杖の既存経路を復元。
+46cd0347c: 実記録prefixによる短い純粋性ピンと町作業一覧を更新。
+レポートはPythonのwrite_text(encoding="utf-8")で追記。ゲーム／BOTの操作、他者のプロセス停止、push／merge／rebase／reset --hard／stashは行っていない。生ログはコミットしていない。
