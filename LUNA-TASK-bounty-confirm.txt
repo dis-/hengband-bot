@@ -1,0 +1,26 @@
+ISSUE: #47
+The owner reported (verbatim): 「n1-bがloop」. Branch bounty-confirm-1026 at main e39ad6789
+(worktree C:\hengband\bot-client\.worktrees\bounty-confirm-1026).
+Measured (n1-b life-191, live build 40c5a2f8 = main e39ad678 minus the quest-34 merge, 2026-10-26 13:3x): the last 300
+decisions were only bounty:cashout '8cy\x1b' at (26,71) and bounty:step-off '2' at (25,71), alternating, 206 cashouts.
+The game messages repeat: 「『ボーシン』の死体 {賞金首}を渡しますか？[y/n]」 then 「賞金を得られそうなものは持っていなかった。」 The
+corpse ({賞金首}, is_bounty) stays in the pack. Neither the loop detector nor the viewing guard stopped it.
+Saved: C:\hengband-backups\state-logs\n1b-bounty-loop-1026\ (last 400 decisions, last 4 MB of state rows).
+Game source: src/market/bounty.cpp:157 input_check per bounty item, :193 "nothing" when no change;
+src/core/asking-player.cpp:241 input_check_strict (msg_erase, prompt, InputContextScope CONFIRM).
+Do:
+1. LUNA-DIAG-bounty-confirm.txt: why the 'y' of the composed '8cy\x1b' does not answer the hand-over question (it is
+   consumed earlier - the building entry screen / a -more- / msg_erase -, or the key order is wrong, or the prompt
+   appears for a second item and the ESC answers it 'no', or Boshin is not a current bounty and the game always says
+   nothing...). Measure from the saved state rows (screens/messages per step) and the C++ source, file:line.
+2. Fix it so the hand-over question is answered when it is shown (through the input executor's confirm continuation
+   for the bounty office, not by type-ahead), and so a hand-over the game refuses ends in a named close instead of
+   repeating. Also: why did the loop detector not catch this two-cell alternation? If a detector gap is the cause, say
+   so in the report (do not change detectors in this task).
+3. Pins through the follow executor with recorded screens (the confirm prompt and the reply), before -> the loop,
+   after -> the corpse is handed over (or a named close). Controls: existing bounty tests unchanged.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control; no push/merge to main/
+rebase/reset --hard/stash; existing tests (= tests at e39ad6789) unchanged; no logs committed; no new constant. Guards:
+preflight / mutation_check --record / fast_tier with base e39ad6789 (they wait while a merge gate runs - let them).
+Token budget 100k HARD, wall time 120 minutes. Write LUNA-REPORT-bounty-confirm.txt in Japanese and commit. The
+supervisor checks the fix on the verification machine before it goes live.

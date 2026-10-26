@@ -1,0 +1,128 @@
+{
+  "provenance": {
+    "kind": "recorded state projection; source-derived reconstructed screens, NOT captured screens",
+    "source": "n1b-bounty-loop-state.jsonl.gz",
+    "sha256": "99f4531cfe551cbbd3badbf4b7babc8ca5abe08b343045c0a8b371fc730726cb",
+    "valid_row": 1,
+    "physical_dimensions": "constructed 198x48; saved state has no screen dimensions",
+    "source_layout": "cmd-building/cmd-building.cpp:342; market/building-service.cpp:89-144; core/asking-player.cpp:269-285",
+    "decision_sha256": "5b3e1aaaf7e7932b9bbd194aa404a5af8cf8aa0a10529471fd35c1e3980ba461"
+  },
+  "board": {
+    "turn": 586822,
+    "floor": {
+      "dungeon_id": 0,
+      "level": 0,
+      "in_town": true
+    },
+    "player": {
+      "y": 25,
+      "x": 71,
+      "gold": 19582
+    },
+    "messages": [],
+    "inventory": [
+      {
+        "ac": 0,
+        "aware": true,
+        "charges": 177,
+        "charging": false,
+        "count": 1,
+        "damage_dice": {
+          "num": 1,
+          "sides": 1
+        },
+        "fully_known": false,
+        "inscription": "賞金首",
+        "is_artifact": false,
+        "is_bounty": true,
+        "is_broken": true,
+        "is_cursed": false,
+        "is_ego": false,
+        "is_equipment": false,
+        "known": true,
+        "known_flags": [],
+        "name": "『ボーシン』の死体 {賞金首}",
+        "pval": 177,
+        "slot": "n",
+        "sval": 1,
+        "to_a": 0,
+        "to_d": 0,
+        "to_h": 0,
+        "tval": 10,
+        "weight": 40
+      }
+    ],
+    "grid_map": {
+      "runs": []
+    }
+  },
+  "prompt": "『ボーシン』の死体 {賞金首}を渡しますか？[y/n]",
+  "refusal": "賞金を得られそうなものは持っていなかった。",
+  "decisions": [
+    {
+      "decision_sequence": 12993,
+      "turn": 586811,
+      "reason": "bounty:cashout",
+      "key": "8cy\u001b",
+      "position": {
+        "y": 26,
+        "x": 71
+      },
+      "segments": 4.0,
+      "requests": [
+        "keys",
+        "screen",
+        "state",
+        "keys",
+        "screen",
+        "state",
+        "keys",
+        "screen",
+        "keys",
+        "screen",
+        "state"
+      ]
+    },
+    {
+      "decision_sequence": 12994,
+      "turn": 586822,
+      "reason": "bounty:step-off",
+      "key": "2",
+      "position": {
+        "y": 25,
+        "x": 71
+      },
+      "segments": 1.0,
+      "requests": [
+        "keys",
+        "screen",
+        "state"
+      ]
+    },
+    {
+      "decision_sequence": 12995,
+      "turn": 586828,
+      "reason": "bounty:cashout",
+      "key": "8cy\u001b",
+      "position": {
+        "y": 26,
+        "x": 71
+      },
+      "segments": 4.0,
+      "requests": [
+        "keys",
+        "screen",
+        "state",
+        "keys",
+        "screen",
+        "state",
+        "keys",
+        "screen",
+        "keys",
+        "screen",
+        "state"
+      ]
+    }
+  ]
+}
