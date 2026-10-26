@@ -1729,6 +1729,26 @@ class ShopMixin(InStoreMixin):
         unavailable = self._cross_town_unobtainable_categories(snapshot, remaining)
         return any(category not in unavailable for category, _ in remaining)
 
+    def _cross_town_quest_hold(self, snapshot: Snapshot) -> bool:
+        """A supplier circuit owns travel until fulfilled or all towns tried.
+
+        Local shopping may finish at an empty shelf. That releases the next
+        supplier leg, while fixed quests must still yield the whole trip.
+        """
+        expedition = self._cross_town_shopping
+        if expedition is None or not snapshot.in_town:
+            return False
+        if expedition.target_town_id is not None:
+            return True
+        remaining = [shortage for shortage in self._cross_town_shortages(snapshot)
+                     if shortage[0] in expedition.blocking_categories]
+        return bool(remaining) and (
+            self._cross_town_shopping_hold(snapshot)
+            or any(town not in expedition.tried_towns
+                   and town != self._effective_town_id(snapshot)
+                   for town in expedition.candidate_order)
+        )
+
     @claims(ClaimOwner.CROSS_TOWN)
     def _cross_town_shopping_key(self, snapshot: Snapshot) -> str | None:
         if (snapshot.in_town and self._defer_town_errand(
@@ -2394,6 +2414,10 @@ class ShopMixin(InStoreMixin):
             item is not None and not self._store_purchase_fits_pack(snapshot, item)
         ):
             self._shop_selector_diagnostics["pack_refusal"] = "full-pack-nonstacking"
+            return None
+        if (self._outpost_return_fare(snapshot) and item is not None
+                and self._purchase_quantity(snapshot, item) <= 0):
+            self._shop_selector_diagnostics["fare_refusal"] = "outpost-return-fare"
             return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
@@ -3838,6 +3862,11 @@ class ShopMixin(InStoreMixin):
             # one-unit check in _black_market_optional_purchase does not bound
             # a multi-unit stack.
             quantity = min(quantity, reserve_cap)
+        fare = self._outpost_return_fare(snapshot)
+        if fare and item.price > 0:
+            quantity = min(quantity, max(0, (snapshot.player.gold - fare) // item.price))
+        if fare and item.tval == TVAL_WAND and quantity < item.count:
+            return 0  # split charges have no exact exported purchase price
         return quantity
 
     def _black_market_optional_reserve_cap(

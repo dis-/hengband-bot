@@ -471,6 +471,7 @@ from hengbot.policy_constants import (
     REST_MACRO,
     SPEED_POTION_BONUS,
     TOWN_TELEPORT_COST,
+    OUTPOST_TOWN_ID,
     UNIQUE_COMBAT_MAX_ATTACKS,
     WIN_QUEST_IDS,
 )
@@ -8744,6 +8745,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (getattr(self, '_crossarea_fundraising_enforced', False) and self.last_reason in {*()}):
             return WAIT_KEY
         self._observe(snapshot, observation=latest_snapshot)
+        if ((snapshot.in_town or snapshot.store is not None)
+                and self._effective_town_id(snapshot) != OUTPOST_TOWN_ID
+                and (snapshot.player.gold < TOWN_TELEPORT_COST
+                     or getattr(self, "_outpost_fare_recovering", False))):
+            self._build_grid_index(snapshot)
+            recovery = self._outpost_fare_recovery_key(snapshot)
+            if recovery is not None:
+                return recovery
+        elif snapshot.in_town and self._effective_town_id(snapshot) == OUTPOST_TOWN_ID:
+            self._outpost_fare_recovering = False
+        if (snapshot.in_town and snapshot.store is None
+                and self._cross_town_quest_hold(snapshot)
+                and not self._cross_town_shopping_hold(snapshot)):
+            # Local suppliers are exhausted. Finish the admitted circuit's
+            # next leg before a quest/restock owner can buy another fare.
+            key = self._town_producer_entry(
+                "_cross_town_shopping_key",
+                lambda: self._cross_town_shopping_key(snapshot), family="cross-town")
+            if key is not None:
+                return key
         if not self._observe_fundraising_transport(snapshot):
             purpose_record = self._fundraising_purpose_record
             if purpose_record is not None:

@@ -1489,7 +1489,7 @@
       "survival"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ff8f3801cbd241cb46093e4f2c520220ad8dcacdaa2ed30114d8bd9b20252b60"
+    "ast_sha256": "3bb00998a5b95f32da7c2576a4d4490bf5d6f2d453ea4f2b21f445d4255e43c7"
   },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
@@ -1826,7 +1826,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3ededad5db51658b4d95e312700fe43ff14fe8188b094d217f2c2709789da2e4"
+    "ast_sha256": "58d52d4a197c0125730f6e29b6fabc104fa6e905593a96741463a16c66e22409"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -6643,7 +6643,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8089e48bd4d60517d27456dc71accabb3cee5983355f4a6c2e8cec863d8330ad"
+    "ast_sha256": "384c15e420a9e1bcac8939292ed19aa7eac3a4fe38dcbdfb9a318b73b5fdf613"
   },
   "policy_shop.py:ShopMixin._next_purchase_unreserved": {
     "classification": "data",
@@ -6693,7 +6693,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fd2415b9fa47f63e1c7cc6310b238b8c1589061074c4b5d7052c2e4c319f1ce4"
+    "ast_sha256": "2dc124a50f7396197b3993151ca557465bdabeaf5cf8f842878923bef8978eb7"
   },
   "policy_shop.py:ShopMixin._purchase_rungs": {
     "classification": "data",
@@ -7434,6 +7434,23 @@
     ],
     "delegation": "supports selected child; no independent success",
     "ast_sha256": "75be2fd94831f1d7231c18ded93e84a81832a5937161aceb378cb11ba4aa2fb1"
+  },
+  "policy_town.py:TownMixin._outpost_fare_recovery_key": {
+    "classification": "producer",
+    "rows": [
+      "shop-sell",
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "c866c8cd33566784b7a7d2e1291a50f3145cf81578ad60a5291b4b008fa1bd9b"
+  },
+  "policy_town.py:TownMixin._outpost_return_fare": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "ad5fd438e4d677ded621364ca8518a76dc6478e4ac042c01b180fa894a881dbe"
   },
   "policy_town.py:TownMixin._read_dungeon_recall_scroll_key": {
     "classification": "producer",

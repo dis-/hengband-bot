@@ -7147,6 +7147,139 @@ class TownMixin:
             "town_ledger": town_ledger,
         }
 
+    def _outpost_return_fare(self, snapshot: Snapshot) -> int:
+        """The game's inn fare, reserved for returning from any other town."""
+        return (TOWN_TELEPORT_COST
+                if (snapshot.in_town or snapshot.store is not None)
+                and self._effective_town_id(snapshot) != OUTPOST_TOWN_ID else 0)
+
+    def _outpost_fare_recovery_key(self, snapshot: Snapshot) -> str | None:
+        """Own a broke traveller's sale and return until Outpost arrival.
+
+        Reuse ordinary surplus, reservation, store admission and inscription
+        transactions. Required equipment, supplies and recall scrolls are never
+        liquidated to fund this transport.
+        """
+        if not (snapshot.in_town or snapshot.store is not None):
+            return None
+        if self._effective_town_id(snapshot) == OUTPOST_TOWN_ID:
+            self._outpost_fare_recovering = False
+            return None
+        active = getattr(self, "_outpost_fare_recovering", False)
+        if not active and snapshot.player.gold >= TOWN_TELEPORT_COST:
+            return None
+        if not active:
+            self._outpost_fare_recovering = True
+            self._town_blocked_reason = None
+            # The failed shopping/quest trip has a named exit. It must not
+            # resume in the middle of the emergency return after a sale.
+            self._cross_town_shopping = None
+            self._telmora_q2_errand = False
+            self._claim_register.release("outpost-fare-recovery")
+        if snapshot.store is None:
+            holder = self._claim_register.current
+            execution = getattr(holder, "execution", None)
+            if (holder is not None and holder.owner == ClaimOwner.SHOP_SELL
+                    and execution is not None
+                    and execution.work_id.startswith("outpost-fare:")
+                    and execution.expected_effect == "outside-store"):
+                self._complete_claim_goal("outpost-fare-store-exited",
+                                          owners=(ClaimOwner.SHOP_SELL,))
+        if snapshot.player.recalling:
+            # Never read another recall for town transport, including a
+            # cancellation that the follow posting contract would reject.
+            self.last_reason = "town:blocked:outpost-fare-recall-active"
+            return WAIT_KEY
+        if (snapshot.store is not None and self._batch_sell_pending is not None
+                and self._batch_sell_pending["phase"] == "await-sale"):
+            # Observe the sale under its ordinary owner before the return can
+            # replace it. This also closes its retained inventory claim.
+            if snapshot.player.gold <= self._batch_sell_pending["before_gold"]:
+                # No fare was earned. Reuse the existing refused-store latch
+                # instead of re-inscribing the same unsold item indefinitely.
+                self._store_sale_refused.add(snapshot.store.store_type)
+            key = self._town_producer_entry(
+                "_batch_sell_key", lambda: self._batch_sell_key(snapshot, []),
+                family="shop-sell")
+            if key is not None:
+                if key == LEAVE_STORE_KEY:
+                    self._close_store_visit("completed")
+                self._offer_execution(
+                    key, producer="shop-sell", work_id="outpost-fare:sale-observe",
+                    next_step="store.leave.send", expected_effect="outside-store",
+                )
+                return key
+        if snapshot.player.gold >= TOWN_TELEPORT_COST:
+            if snapshot.store is not None:
+                self._close_store_visit("outpost-fare-earned")
+                self.last_reason = "shop:outpost-fare-earned-leave"
+                self._offer_execution(
+                    LEAVE_STORE_KEY, producer="shop-sell", work_id="outpost-fare:leave",
+                    next_step="store.leave.send", expected_effect="outside-store",
+                )
+                return LEAVE_STORE_KEY
+            key = self._town_producer_entry(
+                "town-teleport", lambda: self._town_teleport_key(
+                    snapshot, OUTPOST_TOWN_ID, producer="cross-town",
+                    reason="town:cross-town-outpost-fare-return"), family="cross-town")
+            if key is not None:
+                return key
+            self.last_reason = "town:blocked:outpost-fare-return-route-unavailable"
+            return WAIT_KEY
+        if (snapshot.store is not None and snapshot.store.store_type != STORE_HOME
+                and snapshot.store.store_type not in self._store_sale_refused):
+            candidates = [item for item in self._current_store_sale_candidates(snapshot)
+                          if not item.is_recall_scroll
+                          and self._retention_surplus(snapshot, item) > 0]
+            if candidates or self._batch_sell_pending is not None:
+                key = self._town_producer_entry(
+                    "_batch_sell_key", lambda: self._batch_sell_key(snapshot, candidates),
+                    family="shop-sell")
+                if key is not None:
+                    if key == LEAVE_STORE_KEY:
+                        self._close_store_visit("outpost-fare-sale-ended")
+                    self._offer_execution(
+                        key, producer="shop-sell", work_id="outpost-fare:sale",
+                        next_step="shop.sale.send", expected_effect="inventory/gold-effect",
+                        continuation="shop.page.observe",
+                    )
+                    return key
+            self._store_sale_refused.add(snapshot.store.store_type)
+        if snapshot.store is not None:
+            self._close_store_visit("outpost-fare-no-sale-here")
+            self.last_reason = "shop:outpost-fare-seek-sale-leave"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="shop-sell", work_id="outpost-fare:leave",
+                next_step="store.leave.send", expected_effect="outside-store",
+            )
+            return LEAVE_STORE_KEY
+        from hengbot.model import StoreState
+        for store_type in (STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC,
+                           STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST):
+            if store_type in self._store_sale_refused:
+                continue
+            view = replace(snapshot, store=StoreState(store_type))
+            candidates = [item for item in self._current_store_sale_candidates(view)
+                          if not item.is_recall_scroll
+                          and self._retention_surplus(snapshot, item) > 0]
+            if not candidates:
+                continue
+            step = self._shopping_approach_step(
+                snapshot, store_type, requester="shop-sell")
+            if step is not None:
+                self.last_reason = "shop:outpost-fare-sale-approach"
+                return self._town_producer_entry(
+                    "_shopping_approach_key",
+                    lambda: self._shopping_approach_key(snapshot, step, self.last_reason),
+                    family="shop-sell")
+            self._store_sale_refused.add(store_type)
+        self.last_reason = "town:blocked:outpost-fare-no-sale"
+        self._offer_execution_no_step(
+            producer="town-plan", work_id="outpost-fare:recover",
+            cause="no-reachable-unneeded-sale",
+        )
+        return WAIT_KEY
+
     @claims(ClaimOwner.STORE_ROUTER)
     def _town_teleport_key(
         self, snapshot: Snapshot, destination_town_id: int, *,

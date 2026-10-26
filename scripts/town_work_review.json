@@ -11398,5 +11398,28 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._outpost_return_fare": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read-only budget: the existing game fare outside Outpost, zero in Outpost; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "policy_town.py:TownMixin._outpost_fare_recovery_key": {
+    "classification": "producer",
+    "rows": [
+      "shop-sell",
+      "cross-town"
+    ],
+    "context": "Non-Outpost town/store with insufficient return fare, or an emergency sale/return in progress.",
+    "evidence": "Delegates legal surplus sale/approach and inn return; names no-sale/route/recall stops. No purchases or recall reads.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

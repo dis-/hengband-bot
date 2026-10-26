@@ -1,6 +1,8 @@
 """Decision-local views of existing item reservations; no checkpoint state."""
 from __future__ import annotations
 
+from hengbot.model import TVAL_WAND
+
 from contextvars import ContextVar
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -490,6 +492,14 @@ def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=Non
       purchase: prompt_to_buy's ``[Y/n]`` (Return takes DEFAULT_Y); the Home
       asks nothing more.
     """
+    if kind == "buy":
+        fare = policy._outpost_return_fare(snapshot)
+        # A split wand stack rounds charges in purchase-order.cpp; its actual
+        # price may exceed the exported full-stack unit price. Without an
+        # exact price, that partial purchase cannot spend a reserved fare.
+        if (quantity <= 0 or item.price * quantity > snapshot.player.gold - fare
+                or (fare and item.tval == TVAL_WAND and quantity < item.count)):
+            return None
     confirmation = {"sell": "y", "buy": "\r", "deposit": "", "withdraw": ""}[kind]
     prefix = reserved_item_command(policy, snapshot, kind, item, owner, address=address)
     if prefix is None:
