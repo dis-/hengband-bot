@@ -15,8 +15,7 @@ e.g. at rats, one per decision) and after 13:42 never bought torches again; the 
 of oil each (wanted_purchase category oil) every few minutes. procurement_requirements kept listing
 "Quest throwing torches 0/5" together with Teleport 0/15, CCW 0/10, *Identify* 0/1. It is fundraising (mine) in the Yeek
 cave, Lv10, gold ~5200. The earlier fix 93d6fe127 (procurement for quest 1 at Lv>=10) IS in that build.
-Records (copied): C:\hengband\bot-client\state-logs
-1b-q1-torch-1026\jsonlog (bot-decisions.jsonl*, bot-economy.jsonl,
+Records (copied): C:\hengband\bot-client\state-logs\n1b-q1-torch-1026\jsonlog (bot-decisions.jsonl*, bot-economy.jsonl,
 snapshots, town-visit-purchases.json).
 
 Do:
