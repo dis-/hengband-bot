@@ -1,0 +1,42 @@
+ISSUE: #47
+The owner decided (verbatim): 「スターティングルーティーンを少し変える。Q34攻略→可能な限り採掘キットを買う→Q1攻略 ここまでを固定ルートにしよう」
+Clarification (owner answer, LOCKED): "可能な限り" = first reserve the gold for the 5 quest-1 lit torches and the minimum
+healing potions quest 1 needs, then with the remaining gold buy the best digging tool the character can afford and as
+many Treasure Detection scrolls as it can afford, then go to quest 1.
+
+Branch opening-route-1026 at q34-churn-fix-1026 5eca3f7a4 (= main e39ad6789 + the quest-34 chest fix that is being
+merged now). Worktree C:\hengbandot-client\.worktrees\opening-route-1026.
+
+Incident that triggered this (viewing bot n1-b life-192, build 40c5a2f8 = main minus the q34 collect merge):
+after quest 34 (13:39) the character never took quest 1. fixedquest_readiness quest_id 1 verdict false, failed
+["throwing_items.lit_torch"] (lit_torch measured 0, required 5) for an hour. It bought torches (15 at 13:38, 9 at
+13:41, 2 at 13:41, 8 at 13:42) but threw them at ordinary monsters during fundraising (reason ranged:throw-torch,
+e.g. at rats, one per decision) and after 13:42 never bought torches again; the general-store visits bought one flask
+of oil each (wanted_purchase category oil) every few minutes. procurement_requirements kept listing
+"Quest throwing torches 0/5" together with Teleport 0/15, CCW 0/10, *Identify* 0/1. It is fundraising (mine) in the Yeek
+cave, Lv10, gold ~5200. The earlier fix 93d6fe127 (procurement for quest 1 at Lv>=10) IS in that build.
+Records (copied): C:\hengbandot-client\state-logs
+1b-q1-torch-1026\jsonlog (bot-decisions.jsonl*, bot-economy.jsonl,
+snapshots, town-visit-purchases.json).
+
+Do:
+1. LUNA-DIAG-opening-route.txt (Japanese): from the records, with file:line - why the quest-1 torches are thrown in
+   fundraising combat (which retention/reservation is missing for throwing torches), why torches are not re-bought after
+   13:42 while readiness still fails on them, why one oil flask per visit, and how the current order after quest 34
+   is decided (what goal wins over quest 1).
+2. Build the fixed opening route: after quest 34 is claimed -> buy the mining kit as decided above -> take and clear
+   quest 1. Until quest 1 is cleared: quest-1 torches (and the reserved potions) are kept (never thrown, sold or
+   deposited) and re-bought when short; the route does not leave for unrelated goals before quest 1 except what is
+   needed to afford it (if the reserved gold is missing, raise funds and come back - name every exit, no loop). Use the
+   existing readiness / procurement / fundraising-kit code; no new magic numbers (the torch count 5 and potion minimum
+   come from the existing quest-1 readiness). If something in the decision cannot be done (e.g. no digging tool in any
+   reachable store, or quest 1 refused for a reason other than torches), STOP that case with a named reason and write
+   the options in the report.
+3. Pins through the public choose_key AND the follow executor, seeded from the copied records where possible: before =
+   torch thrown / no torch rebuy / no quest 1; after = kit bought, torches kept, quest 1 requested. Keep all quest-34
+   pins green.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control (viewing bots are live);
+no push/merge to main/rebase/reset --hard/stash; existing tests (= tests at 5eca3f7a4) unchanged; no logs committed.
+Guards: preflight / mutation_check --record / fast_tier with base 5eca3f7a4 (they wait while a merge gate runs - let
+them). The supervisor runs fresh characters on the verification machine after you. Token budget 150k HARD, wall time
+150 minutes. Write LUNA-REPORT-opening-route.txt in Japanese and commit.
