@@ -4624,7 +4624,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0d4e0f0a2db947ca7b5b9562051d939cad92097de4f62052421da89a09fb3587"
+    "ast_sha256": "3d4a37e8db54dfd4edb26ee015428493a9098cce4251d271a5d8034f0f79138f"
   },
   "policy_equipment.py:EquipmentMixin._retained_ammo_slots": {
     "classification": "data",

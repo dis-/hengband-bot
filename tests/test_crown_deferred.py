@@ -170,7 +170,7 @@ class CrownDeferredTest(unittest.TestCase):
         self.policy.reconcile_input_operation(port.last_result.operation.owner,
                                                port.last_result.operation.business_outcome)
 
-    def test_public_choose_key_withdraws_and_wears_ready_items(self):
+    def _drive_session(self):
         posted = []
         first_snapshot = parse_snapshot(self.board, self.monrace)
         first_key = self.policy.choose_key(first_snapshot)
@@ -182,6 +182,11 @@ class CrownDeferredTest(unittest.TestCase):
             action = session.current_action
             self.assertIsNotNone(key, self.policy.last_reason)
             if session.complete:
+                # Complete the observed Home exit before a later re-entry.
+                self.policy.confirm_key_posted(key)
+                self.policy.prime(replace(snapshot, store=None))
+                self.board["turn"] += 10
+                self.policy._store_visit = None
                 break
             self.assertIsNotNone(action, self.policy.last_reason)
             if self.policy.last_reason in {
@@ -205,6 +210,10 @@ class CrownDeferredTest(unittest.TestCase):
             # Same observation ingress used by the follow driver.
             self.policy.prime(parse_snapshot(self.board, self.monrace))
         self.assertTrue(session.complete, posted)
+        return posted
+
+    def test_public_choose_key_withdraws_and_wears_ready_items(self):
+        posted = self._drive_session()
         self.assertIn(("equip", "head"), [(k,s) for k,s,_ in posted])
         self.assertTrue(any(k == "withdraw" for k,_,_ in posted))
         worn = {i["slot"]: i["name"] for i in self.board["equipment"]}
@@ -213,7 +222,9 @@ class CrownDeferredTest(unittest.TestCase):
         self.assertNotEqual(worn["body"], self.plate.name)
 
     def test_fully_identified_plate_joins_the_same_selected_set(self):
-        self.board["store"]["items"][-1]["fully_known"] = True
+        self._drive_session()
+        plate = next(i for i in self.board["store"]["items"] if i["name"] == self.plate.name)
+        plate["fully_known"] = True
         self.policy._deferred_home_items.clear()
         snapshot = parse_snapshot(self.board, self.monrace)
         self.policy._set_equipment_transaction_session(None)
@@ -222,6 +233,9 @@ class CrownDeferredTest(unittest.TestCase):
         self.assertFalse(prep.blockers, prep.blockers)
         self.assertTrue(any(a.kind == "equip" and a.target_slot == "body"
                             for a in prep.transaction.actions))
+        self._drive_session()
+        self.assertEqual(next(i["name"] for i in self.board["equipment"]
+                              if i["slot"] == "body"), self.plate.name)
 
     def test_cached_search_replans_only_ready_slots_when_pack_count_changes(self):
         from hengbot.model import InventoryItem
@@ -237,6 +251,39 @@ class CrownDeferredTest(unittest.TestCase):
         self.assertFalse(any(a.target_slot == "body" for a in prep.transaction.actions))
         self.assertTrue(any(a.kind == "equip" and a.target_slot == "head"
                             for a in prep.transaction.actions))
+
+    def test_ready_ring_does_not_wait_for_an_independent_deferred_ring(self):
+        from hengbot.equipment_optimizer import Loadout
+        current = self.preparation.current
+        fire = self.preparation.result.best.loadout.item_at("main_ring")
+        # DECLARED CONSTRUCTED: a second Home ring in identification deferral.
+        # This is a projection unit, not an asserted optimizer selection.
+        waiting = replace(fire, id="home:waiting-ring", item=replace(
+            fire.item, name="Deferred ring", sval=35, fully_known=False,
+            is_ego=True, inscription=""))
+        self.policy._deferred_home_items.add(self.policy._item_signature(waiting.item))
+        target = Loadout((("main_ring", fire), ("sub_ring", waiting)), current.hand_mode)
+        projected = self.policy._ready_equipment_transaction_target(
+            current, target, (fire, waiting))
+        self.assertEqual(projected.item_at("main_ring"), fire)
+        self.assertEqual(projected.item_at("sub_ring"), current.item_at("sub_ring"))
+
+    def test_deferred_ring_keeps_a_retained_physical_source_out_of_other_slot(self):
+        from hengbot.equipment_optimizer import Loadout
+        current = self.preparation.current
+        fire = self.preparation.result.best.loadout.item_at("main_ring")
+        # DECLARED CONSTRUCTED: deferred Home ring replacing the sub ring;
+        # the chosen main ring reuses that same worn physical source.
+        waiting = replace(fire, id="home:waiting-ring", item=replace(
+            fire.item, name="Deferred ring", sval=35, fully_known=False,
+            is_ego=True, inscription=""))
+        self.policy._deferred_home_items.add(self.policy._item_signature(waiting.item))
+        target = Loadout((("main_ring", current.item_at("sub_ring")),
+                          ("sub_ring", waiting)), current.hand_mode)
+        projected = self.policy._ready_equipment_transaction_target(
+            current, target, (fire, waiting, current.item_at("sub_ring")))
+        self.assertEqual(projected.item_at("main_ring"), current.item_at("main_ring"))
+        self.assertEqual(projected.item_at("sub_ring"), current.item_at("sub_ring"))
 
     def test_partial_target_does_not_authorize_departure(self):
         snapshot = parse_snapshot(self.board, self.monrace)

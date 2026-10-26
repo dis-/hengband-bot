@@ -782,9 +782,11 @@ class EquipmentMixin:
 
         Identification and Home deferral belong to individual physical items.
         Keep their worn replacements in place until those items are actionable;
-        coupled hand/ring moves must wait together to avoid moving one source
-        into two slots. Departure still compares against the full selected set.
+        coupled hand moves and moves using a retained source wait together
+        to avoid assigning one physical item to two slots. Departure still compares against the full selected set.
         """
+        if not catalog:
+            return target
         selected_ids = target.item_ids
         actual = {owned.id: owned for owned in catalog}
         waiting_slots = {
@@ -798,12 +800,20 @@ class EquipmentMixin:
             )
             and owned.id != getattr(current.item_at(slot), "id", None)
         }
-        for coupled in (
-            {SLOT_MAIN_HAND, SLOT_SUB_HAND},
-            {SLOT_MAIN_RING, SLOT_SUB_RING},
-        ):
-            if waiting_slots & coupled:
-                waiting_slots.update(coupled)
+        while waiting_slots:
+            retained_ids = {
+                worn.id for slot in waiting_slots
+                for worn in (current.item_at(slot),) if worn is not None
+            }
+            dependent_slots = {
+                slot for slot, owned in target.slots
+                if owned.id in retained_ids
+            }
+            if waiting_slots & {SLOT_MAIN_HAND, SLOT_SUB_HAND}:
+                dependent_slots.update({SLOT_MAIN_HAND, SLOT_SUB_HAND})
+            if dependent_slots <= waiting_slots:
+                break
+            waiting_slots.update(dependent_slots)
         if not waiting_slots:
             return target
         slots = dict(target.slots)
