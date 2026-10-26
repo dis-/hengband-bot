@@ -5,7 +5,7 @@ healing potions quest 1 needs, then with the remaining gold buy the best digging
 many Treasure Detection scrolls as it can afford, then go to quest 1.
 
 Branch opening-route-1026 at q34-churn-fix-1026 5eca3f7a4 (= main e39ad6789 + the quest-34 chest fix that is being
-merged now). Worktree C:\hengbandot-client\.worktrees\opening-route-1026.
+merged now). Worktree C:\hengband\bot-client\.worktrees\opening-route-1026.
 
 Incident that triggered this (viewing bot n1-b life-192, build 40c5a2f8 = main minus the q34 collect merge):
 after quest 34 (13:39) the character never took quest 1. fixedquest_readiness quest_id 1 verdict false, failed
@@ -15,7 +15,7 @@ e.g. at rats, one per decision) and after 13:42 never bought torches again; the 
 of oil each (wanted_purchase category oil) every few minutes. procurement_requirements kept listing
 "Quest throwing torches 0/5" together with Teleport 0/15, CCW 0/10, *Identify* 0/1. It is fundraising (mine) in the Yeek
 cave, Lv10, gold ~5200. The earlier fix 93d6fe127 (procurement for quest 1 at Lv>=10) IS in that build.
-Records (copied): C:\hengbandot-client\state-logs
+Records (copied): C:\hengband\bot-client\state-logs
 1b-q1-torch-1026\jsonlog (bot-decisions.jsonl*, bot-economy.jsonl,
 snapshots, town-visit-purchases.json).
 
