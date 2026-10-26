@@ -149,3 +149,24 @@ push・merge・rebase・reset --hard・stashは行っていない。
 開始時からある4個のsolログは変更・コミット対象に含めない。
 この追記はPythonのwrite_text(..., encoding="utf-8", newline="\n")で保存した。
 検証ログ保存先: C:/hengband-backups/q34-churn-r2-verification-1026/
+
+ラウンド2 最終ガード結果
+検証対象HEAD: ae9145d8c10f8e8dceb325e55410555f4380b07c
+基準はいずれもe39ad6789。生成情報とガードはPython 3.13.14で実行。
+初回preflightは生成情報の更新だけを指摘した。更新をコミット後、以下の再実行ですべて成功。
+preflight: 終了コード0、113.84秒、13 changed files、0 findings。
+mutation_check --record --full: 終了コード0、12.15秒。
+今回のinput_executorとラウンド1のpolicyの2ソースhunkを個別に戻し、両方ともpinが検出。
+MUTATION OK: 0 of 2 hunks are not pinned by a test。
+新規5件とラウンド1の4件を使用し、HEADおよびソース・テストtree単位の成功記録を保存した。
+fast_tier: 終了コード0、経過106.71秒（テスト集計106.3秒）。
+1,942 fast tests + 2 changed modules、4 shards、合計1,951件成功。
+Failures: none、Errors: none、Crashed shards: none。
+既存の計測済み60秒超51モジュールはガードの通常設定どおり対象外。
+
+最終検証tree
+src/hengbot: d10f61560f2928c53b3aa31986f3ed847ced231a
+tests: 50e996488e7f6498040937292e79bba9600e28a6
+後続の本報告だけのコミットは、検証済みソース・テストtreeを変更しない。
+基準に存在したtests配下のファイルの変更は0件。
+新規キャラクターからの実ゲーム確認は監督側による後続確認であり、本作業では実施していない。
