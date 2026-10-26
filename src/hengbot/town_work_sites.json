@@ -5431,7 +5431,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9e3d8741e7dcdf5ad0076d2f604cb0230efc1b171d39cce9a0298c15a9e43356"
+    "ast_sha256": "697b35af3ff4f30095790f5bab0b9a85bec71fd75936874a9a72df312db979d0"
   },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
