@@ -11413,11 +11413,12 @@
   "policy_town.py:TownMixin._outpost_fare_recovery_key": {
     "classification": "producer",
     "rows": [
+      "identification",
       "shop-sell",
       "cross-town"
     ],
     "context": "Non-Outpost town/store with insufficient return fare, or an emergency sale/return in progress.",
-    "evidence": "Delegates ordinary surplus first, then an exact scoped reserved supply sale above existing return minima, ranked by releasable units, and inn return; observes actual unit proceeds to minimize quantities; names no-sale/route/recall stops. No purchases or recall reads.",
+    "evidence": "Uses carried identification before starting recovery; once active, delegates ordinary surplus first, then an exact scoped reserved supply sale above existing return minima, ranked by releasable units, and inn return; observes actual unit proceeds to minimize quantities; names no-sale/route/recall stops. No purchases or recall reads.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

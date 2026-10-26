@@ -526,7 +526,10 @@ def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=Non
     if kind == "sell":
         allowed = outpost_fare_sale_quantity(policy, snapshot, item)
         if allowed is None:
-            allowed = policy._retention_surplus(snapshot, item)
+            # Ordinary sale selection historically offers the whole pile when
+            # its surplus is nonpositive. Preserve that for unreserved items;
+            # only a scoped fare grant may release an actual reservation.
+            allowed = max(0, item.count - policy._retention_reservation(snapshot, item))
         if not 0 < quantity <= allowed:
             return None
     confirmation = {"sell": "y", "buy": "\r", "deposit": "", "withdraw": ""}[kind]

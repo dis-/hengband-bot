@@ -7157,7 +7157,8 @@ class TownMixin:
         """
         return (TOWN_TELEPORT_COST
                 if (snapshot.in_town or snapshot.store is not None)
-                and self._effective_town_id(snapshot) > OUTPOST_TOWN_ID else 0)
+                and self._effective_town_id(snapshot) > OUTPOST_TOWN_ID
+                and self._effective_town_id(snapshot) in TOWN_TELEPORT_BUILDING_TYPES else 0)
 
     def _outpost_fare_recovery_key(self, snapshot: Snapshot) -> str | None:
         """Own a broke traveller's sale and return until Outpost arrival.
@@ -7171,10 +7172,28 @@ class TownMixin:
         if self._effective_town_id(snapshot) == OUTPOST_TOWN_ID:
             self._outpost_fare_recovering = False
             return None
+        if not self._outpost_return_fare(snapshot):
+            return None
         active = getattr(self, "_outpost_fare_recovering", False)
         if not active and snapshot.player.gold >= TOWN_TELEPORT_COST:
             return None
         if not active:
+            if snapshot.store is None and not snapshot.player.recalling:
+                # Use carried identification sources before choosing what to
+                # liquidate. An available useful action is not a stuck trip.
+                key = self._town_producer_entry(
+                    "_town_equipped_identification_key",
+                    lambda: self._town_equipped_identification_key(snapshot, macro=True))
+                if key is not None:
+                    return key
+                key = self._town_item_processing_key(snapshot)
+                if key is not None:
+                    return key
+                key = self._town_producer_entry(
+                    "_town_device_processing_key",
+                    lambda: self._town_device_processing_key(snapshot))
+                if key is not None:
+                    return key
             self._outpost_fare_recovering = True
             self._outpost_fare_sale_prices = {}
             self._town_blocked_reason = None
