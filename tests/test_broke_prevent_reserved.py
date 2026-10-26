@@ -182,6 +182,13 @@ class ReservedFareTest(ProductionHarness):
                         "page_top": 0, "page_size": 52}
         self.assertEqual(self.decide(p, raw)[:2], ("{q@1\r", "shop:batch-inscribe"))
 
+    def test_no_sale_stop_banner_names_the_unfunded_outpost_fare(self):
+        # The named stop must explain itself in the CLI banner, not raise on a missing entry.
+        from hengbot.cli import _policy_final_stop_banner
+        banner = _policy_final_stop_banner("town:blocked:outpost-fare-no-sale")
+        self.assertTrue(banner.startswith("<town:blocked:outpost-fare-no-sale> "))
+        self.assertIn("Outpost return fare", banner)
+
 
 if __name__ == "__main__":
     unittest.main()
