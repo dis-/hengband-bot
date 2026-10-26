@@ -8,6 +8,11 @@ bits into the map's lighting variant.  Everything here reads the protocol-3
 replacement explicitly and raises :class:`ProtocolSchemaError` when a required
 replacement key is missing, so a removed key can never be read as a silent 0.
 
+Protocol 4 (tools/bot/README.md "版4での変更") only adds keys: items carry
+optional ``ego_id`` / ``artifact_id`` / ``flavor_id`` and ``grid_map`` gains
+``found_item_ids``.  It is parsed exactly as protocol 3; every version check
+compares ``>= PROTOCOL_SCREEN_PARITY`` so protocol 4 gets the protocol-3 reads.
+
 Rows without ``protocol_version`` predate the field (the recorded fixtures of
 older emitters) and are parsed exactly as protocol 2 always parsed them.
 """
@@ -19,7 +24,10 @@ from typing import Any, Mapping, Sequence
 
 PROTOCOL_LEGACY = 2
 PROTOCOL_SCREEN_PARITY = 3
-SUPPORTED_PROTOCOL_VERSIONS = frozenset({PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY})
+PROTOCOL_ITEM_IDS = 4
+SUPPORTED_PROTOCOL_VERSIONS = frozenset(
+    {PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY, PROTOCOL_ITEM_IDS}
+)
 
 # Snapshot types that describe the ordinary board (bot-json-output.cpp:1577
 # ``player_turn`` and :2620 ``store``).  Every other type is a menu/screen
