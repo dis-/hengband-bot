@@ -237,6 +237,13 @@ class BrokePreventRecordedTest(ProductionHarness):
         for turn, gold, source in ((2455721,251,"a"),(2942109,329,"b")):
             with self.subTest(source=source):
                 raw = self.raw(turn, gold=gold, source=source)
+                # Round 2: the original supplies now fund the fare. This
+                # no-sale control keeps only their existing return minima.
+                for item in raw["inventory"]:
+                    if (item["tval"], item["sval"]) == (70, 9):
+                        item["count"] = 4
+                    elif (item["tval"], item["sval"]) == (75, 36):
+                        item["count"] = 2
                 p = self.policy(raw)
                 p._fundraising_mode = "mine"  # captured mining set
                 key, reason, _ = self.decide(p, raw)
@@ -305,6 +312,8 @@ class BrokePreventRecordedTest(ProductionHarness):
         raw = self._with_surplus_book()
         p = self.policy(raw)
         self.decide(p,raw)
+        raw["player"].update(y=p._shopping_approach_goal.y,
+                             x=p._shopping_approach_goal.x)
         raw["store"] = {"store_type":3,"items":[],"stock_num":0,
                         "page_top":0,"page_size":52}
         self.assertEqual(self.decide(p,raw)[0],"{q@1\r")
@@ -314,11 +323,21 @@ class BrokePreventRecordedTest(ProductionHarness):
         self.assertEqual(self.decide(p,raw)[0],"\x1b")
         self.assertIn(3,p._store_sale_refused)
         raw.pop("store")
+        # Round 2 can still try reserved supplies at the Alchemist. Refusing
+        # that shop as well constructs exhaustion of both sale steps.
+        p._store_sale_refused.update((4, 5))
         for _ in range(3):
             self.assertEqual(self.decide(p,raw)[1],"town:blocked:outpost-fare-no-sale")
 
     def test_broke_store_page_leaves_without_buying_mining_kit(self):
         raw = self.raw(2940687,gold=449,store=4)
+        # Round 2 admits a reserved sale here, so use the existing minimum
+        # quantities for this leave-without-buying control.
+        for item in raw["inventory"]:
+            if (item["tval"], item["sval"]) == (70, 9):
+                item["count"] = 4
+            elif (item["tval"], item["sval"]) == (75, 36):
+                item["count"] = 2
         p = self.policy(raw)
         p._fundraising_mode = "mine"
         key, reason, _ = self.decide(p, raw)

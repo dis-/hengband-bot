@@ -89,6 +89,29 @@ class ReservationVerdict:
         return f"ownership:item-reserved:{self.sink}:{self.owner}"
 
 
+# Only the fare-recovery caller grants a quantity for this exact live stack.
+# The token ends before any other town producer can run; retention itself is
+# never lowered for deposits, destruction, or ordinary shop sales.
+_fare_sale = ContextVar("outpost_fare_sale", default=None)
+
+
+@contextmanager
+def outpost_fare_sale(policy, snapshot, item, quantity):
+    token = _fare_sale.set((policy, snapshot, item, quantity))
+    try:
+        yield
+    finally:
+        _fare_sale.reset(token)
+
+
+def outpost_fare_sale_quantity(policy, snapshot, item):
+    grant = _fare_sale.get()
+    if (grant is not None and grant[0] is policy and grant[1] is snapshot
+            and grant[2] is item):
+        return grant[3]
+    return None
+
+
 _decision = ContextVar("item_reservation_decision", default=None)
 _query = ContextVar("item_reservation_query", default=False)
 _query_memo = ContextVar("item_reservation_query_memo", default=None)
@@ -499,6 +522,12 @@ def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=Non
         # exact price, that partial purchase cannot spend a reserved fare.
         if (quantity <= 0 or item.price * quantity > snapshot.player.gold - fare
                 or (fare and item.tval == TVAL_WAND and quantity < item.count)):
+            return None
+    if kind == "sell":
+        allowed = outpost_fare_sale_quantity(policy, snapshot, item)
+        if allowed is None:
+            allowed = policy._retention_surplus(snapshot, item)
+        if not 0 < quantity <= allowed:
             return None
     confirmation = {"sell": "y", "buy": "\r", "deposit": "", "withdraw": ""}[kind]
     prefix = reserved_item_command(policy, snapshot, kind, item, owner, address=address)

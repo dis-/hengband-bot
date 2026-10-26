@@ -11417,9 +11417,20 @@
       "cross-town"
     ],
     "context": "Non-Outpost town/store with insufficient return fare, or an emergency sale/return in progress.",
-    "evidence": "Delegates legal surplus sale/approach and inn return; names no-sale/route/recall stops. No purchases or recall reads.",
+    "evidence": "Delegates ordinary surplus first, then an exact scoped reserved supply sale above existing return minima, ranked by releasable units, and inn return; observes actual unit proceeds to minimize quantities; names no-sale/route/recall stops. No purchases or recall reads.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "item_reservation.py:outpost_fare_sale_quantity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Exact live item, policy and snapshot inside the fare-recovery sale scope.",
+    "evidence": "Read-only scoped quantity grant; no retention mutation, key or independent work.",
+    "admission": "store_item_key sale quantity bound; existing item reservation and sale admission",
+    "observer": "ordinary batch sale observation",
+    "delegation": "no independent success"
   }
 }

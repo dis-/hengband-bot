@@ -1399,6 +1399,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "7c55858a5d461ef6a3a5c74f4d4007c1b3cb28718cb085ea7e7c27f45061edfe"
   },
+  "item_reservation.py:outpost_fare_sale_quantity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "264e7d81cd199dd320444898f007817f09a326fdb6e5a1204bfe596165c73333"
+  },
   "item_reservation.py:reservation_query_memo": {
     "classification": "data",
     "rows": [
@@ -1489,7 +1497,7 @@
       "survival"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3bb00998a5b95f32da7c2576a4d4490bf5d6f2d453ea4f2b21f445d4255e43c7"
+    "ast_sha256": "129ee4c178d94cdf269e39aad69c37e22a6183f053e7e380b3823e08da4baa37"
   },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
@@ -6393,7 +6401,7 @@
       "sale-address"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "babe1e3c34f7c009f1d131f225ad4f83ac7517c258f3ab382d359f47a1181a5b"
+    "ast_sha256": "9ce86b5b8b4b64e9469a9f29fd18aed2bc3392efddbe3b2d58d34af5212021de"
   },
   "policy_shop.py:ShopMixin._batch_sell_key": {
     "classification": "producer",
@@ -7442,7 +7450,7 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c866c8cd33566784b7a7d2e1291a50f3145cf81578ad60a5291b4b008fa1bd9b"
+    "ast_sha256": "82a40a032c9a1619641cfb535c756e33a48e0d15c579267104726462b57969c4"
   },
   "policy_town.py:TownMixin._outpost_return_fare": {
     "classification": "data",

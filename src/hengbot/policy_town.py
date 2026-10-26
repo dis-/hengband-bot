@@ -3,6 +3,7 @@ from functools import wraps
 from weakref import WeakKeyDictionary
 from hengbot.item_reservation import (
     claim_candidate_cache, decision_caches_enabled, decision_memo, reservation_query,
+    outpost_fare_sale,
 )
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 
@@ -7161,9 +7162,9 @@ class TownMixin:
     def _outpost_fare_recovery_key(self, snapshot: Snapshot) -> str | None:
         """Own a broke traveller's sale and return until Outpost arrival.
 
-        Reuse ordinary surplus, reservation, store admission and inscription
-        transactions. Required equipment, supplies and recall scrolls are never
-        liquidated to fund this transport.
+        Ordinary surplus goes first. Then release reserved supply units above
+        the existing return minimum, most releasable units first. An exact,
+        scoped sale grant leaves all other retention users unchanged.
         """
         if not (snapshot.in_town or snapshot.store is not None):
             return None
@@ -7175,6 +7176,7 @@ class TownMixin:
             return None
         if not active:
             self._outpost_fare_recovering = True
+            self._outpost_fare_sale_prices = {}
             self._town_blocked_reason = None
             # The failed shopping/quest trip has a named exit. It must not
             # resume in the middle of the emergency return after a sale.
@@ -7203,6 +7205,14 @@ class TownMixin:
                 # No fare was earned. Reuse the existing refused-store latch
                 # instead of re-inscribing the same unsold item indefinitely.
                 self._store_sale_refused.add(snapshot.store.store_type)
+            pending = self._batch_sell_pending
+            earned = snapshot.player.gold - pending["before_gold"]
+            entry = pending["entries"][0]
+            if earned > 0 and earned % entry["quantity"] == 0:
+                prices = getattr(self, "_outpost_fare_sale_prices", {})
+                prices[(snapshot.store.store_type, entry["signature"])] = (
+                    earned // entry["quantity"])
+                self._outpost_fare_sale_prices = prices
             key = self._town_producer_entry(
                 "_batch_sell_key", lambda: self._batch_sell_key(snapshot, []),
                 family="shop-sell")
@@ -7231,15 +7241,71 @@ class TownMixin:
                 return key
             self.last_reason = "town:blocked:outpost-fare-return-route-unavailable"
             return WAIT_KEY
-        if (snapshot.store is not None and snapshot.store.store_type != STORE_HOME
-                and snapshot.store.store_type not in self._store_sale_refused):
-            candidates = [item for item in self._current_store_sale_candidates(snapshot)
-                          if not item.is_recall_scroll
-                          and self._retention_surplus(snapshot, item) > 0]
-            if candidates or self._batch_sell_pending is not None:
-                key = self._town_producer_entry(
-                    "_batch_sell_key", lambda: self._batch_sell_key(snapshot, candidates),
-                    family="shop-sell")
+        from hengbot.model import StoreState
+        stores = (STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC,
+                  STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST)
+        options = []
+        # All reachable ordinary surplus is considered before any reservation.
+        for store_type in stores:
+            if store_type in self._store_sale_refused:
+                continue
+            view = replace(snapshot, store=StoreState(store_type))
+            for item in self._current_store_sale_candidates(view):
+                surplus = self._retention_surplus(snapshot, item)
+                if not item.is_recall_scroll and surplus > 0:
+                    if (snapshot.store is None and self._shopping_approach_step(
+                            snapshot, store_type, requester="shop-sell") is None):
+                        self._store_sale_refused.add(store_type)
+                        break
+                    options.append((store_type, item, surplus))
+        if not options:
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
+            reserved = []
+            for item in snapshot.inventory:
+                kept, _ = self._retention_reservation_detail(snapshot, item)
+                if not kept or item.is_recall_scroll or not item.known:
+                    continue
+                # Only these existing supply rules distinguish a return
+                # minimum from the larger departure/quest reservation.
+                # Other equipment, mining tools and utility reserves stay.
+                status = next((status for kind, status in ledger.items()
+                               if kind != "recall" and self._store_item_is_supply(
+                                   item, kind)), None)
+                if status is None or (status.kind == "food"
+                                      and snapshot.player.food_type == FOOD_TYPE_MANA):
+                    continue
+                available = min(item.count, status.count - status.required_return)
+                if available <= 0:
+                    continue
+                for store_type in stores:
+                    if (store_type not in self._store_sale_refused
+                            and self._store_accepts_sale(store_type, item)
+                            and self._item_signature(item) not in self._unsellable_items):
+                        reserved.append((store_type, item, available))
+            # Plentiful means units releasable above the existing return floor;
+            # pack order and normal store order provide deterministic ties.
+            options = sorted(reserved, key=lambda option: -option[2])
+        if snapshot.store is not None:
+            store_type = snapshot.store.store_type
+            pending = self._batch_sell_pending
+            choice = next((option for option in options if option[0] == store_type
+                           and (pending is None or self._sale_item_identity(option[1])
+                                == pending["entries"][0]["signature"])), None)
+            # Do not sell a less plentiful reservation just because we happen
+            # to be in that shop; leave and approach the globally chosen one.
+            if choice is not None and options[0][1] is choice[1]:
+                _, item, available = choice
+                price = getattr(self, "_outpost_fare_sale_prices", {}).get(
+                    (store_type, self._sale_item_identity(item)))
+                deficit = TOWN_TELEPORT_COST - snapshot.player.gold
+                # No sale price is exported for pack items. First sell one
+                # unit, observe its actual proceeds, then ceil the remaining
+                # fare at that observed price. Never estimate a buy/sell ratio.
+                quantity = min(available, (deficit + price - 1) // price if price else 1)
+                with outpost_fare_sale(self, snapshot, item, quantity):
+                    key = self._town_producer_entry(
+                        "_batch_sell_key", lambda: self._batch_sell_key(snapshot, [item]),
+                        family="shop-sell")
                 if key is not None:
                     if key == LEAVE_STORE_KEY:
                         self._close_store_visit("outpost-fare-sale-ended")
@@ -7249,8 +7315,6 @@ class TownMixin:
                         continuation="shop.page.observe",
                     )
                     return key
-            self._store_sale_refused.add(snapshot.store.store_type)
-        if snapshot.store is not None:
             self._close_store_visit("outpost-fare-no-sale-here")
             self.last_reason = "shop:outpost-fare-seek-sale-leave"
             self._offer_execution(
@@ -7258,17 +7322,7 @@ class TownMixin:
                 next_step="store.leave.send", expected_effect="outside-store",
             )
             return LEAVE_STORE_KEY
-        from hengbot.model import StoreState
-        for store_type in (STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC,
-                           STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST):
-            if store_type in self._store_sale_refused:
-                continue
-            view = replace(snapshot, store=StoreState(store_type))
-            candidates = [item for item in self._current_store_sale_candidates(view)
-                          if not item.is_recall_scroll
-                          and self._retention_surplus(snapshot, item) > 0]
-            if not candidates:
-                continue
+        for store_type, item, available in options:
             step = self._shopping_approach_step(
                 snapshot, store_type, requester="shop-sell")
             if step is not None:

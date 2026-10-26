@@ -708,7 +708,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
         "town:blocked:walk-in-entrance-unavailable": "the mining plan refuses recall, and this town has no entrance the walk can use",
-        "town:blocked:outpost-fare-no-sale": "no legal unneeded sale remains available to fund the Outpost return fare",
+        "town:blocked:outpost-fare-no-sale": "no legal surplus or releasable reserved sale remains available to fund the Outpost return fare",
         "town:blocked:outpost-fare-return-route-unavailable": "the recovered Outpost fare has no admitted return route",
         "town:blocked:outpost-fare-recall-active": "a recall is already active during Outpost fare recovery",
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
