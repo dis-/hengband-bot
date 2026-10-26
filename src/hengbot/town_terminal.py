@@ -79,7 +79,8 @@ def gather_quest_entry(policy: Any, board: Any, quest_id: int, *,
         return QuestEntryMaterial(quest_id, morivant_deposits=True)
     kill_ok = (policy._kill_quest_descent_allowed(board)
                if kill_descent else True)
-    if policy._opening_q34_active(board) and quest_id == 34:
+    if ((policy._opening_q34_active(board) and quest_id == 34)
+            or (policy._opening_q1_active(board) and quest_id == 1)):
         sink: list[dict] = []
         ready = policy._evaluate_fixed_quest_readiness(
             board, quest_id, require_target_town=True,

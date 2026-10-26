@@ -1,0 +1,60 @@
+ISSUE #47 固定開始ルート 実装報告
+基準: 5eca3f7a4 / 作業ブランチ opening-route-1026。
+診断の記録・ソース参照は LUNA-DIAG-opening-route.txt。すべてPythonでUTF-8保存。
+
+実装
+Q34の報酬取引完了後からQ1完了まで、既存の開始所有者にQ1の準備・購入・受注・入口を接続。
+必要本数は承認済みQUEST_1のreadinessから読み、HP/DPSのno_healing_tierも既存計算で評価する。
+新しい松明本数・回復薬本数・価格の定数は追加していない。通常の20F出発用品はQ1に要求しない。
+到達可能な雑貨屋・武器屋・ブラックマーケット・錬金術師、必要時は寺院の棚を観測する。
+まずQ1の松明・必要な回復薬と速度薬を確保し、残金で既存の採掘道具品質比較に従う最良の道具、
+次に買えるだけの財宝感知を買う。既に同等以上の使用可能な道具を所持していれば重複購入しない。
+不足・価格は観測した棚と所持品から再計算する。購入数量は既存の購入rungとexecutorへ渡す。
+通常戦闘・資金調達でQ1分の松明を使い切らない。町外でもQ1のcarry予約を維持する。
+予約薬・松明の売却/預託/破棄、および購入した採掘キットの直後の処分は既存retentionで防ぐ。
+Q1内の承認済み戦術・戦闘処理とQ34の戦術は引き続き既存の実装を使う。
+
+許される資金調達と出口
+予約分または最低限の道具を買う所持金が不足した場合だけ、その不足金額を目標として資金調達を開く。
+必要なら既存の食料/光源を最小単位で買い、既存の食料・光源・HP・入場ゲートを通したYeek 1Fへ出る。
+キット所持時はmine、未所持時は期限付きscavenge。予定は1回。通常の深い探索・別クエストには渡さない。
+帰還の出口は既存の目標金額到達、食料/光源/満杯/危険による帰還、scavenge期限、採掘の既存完了・探索予算。
+帰還後は収益があれば不足を再評価し、所持品だけの収益なら既存の安全な売却選択へ接続する。
+収益も売却候補もなければ stop:fundraising-no-income。資金を増やせない同一往復を繰り返さない。
+古い版から途中再開した通常の資金調達は既存の帰還処理で町へ戻し、固定ルートを組み直す。
+町の同一経済状態で同じ位置を繰り返す場合と、棚ページが進まない場合は既存STORE_STUCK_LIMITで打ち切る。
+
+停止理由と選択肢
+共通のCLI終了理由は quest:blocked:opening-route。キーを送らず停止し、建物上の待機による再入場も防ぐ。
+具体的な理由は checkpoint の _opening_q1_failure と公開readinessの opening_route_failure に保存する。
+- stop:no-digger: 到達可能な観測棚に使用可能な道具がない。手動取得、在庫更新後の再準備、ルート要件変更が選択肢。
+- stop:stock:quest-throwing-items / quest-healing / quest-speed: 必須在庫不足。手動補充または明示的な在庫待ち方針が必要。
+- purchase-requires-first-page:<stage>: 全ページを比較した最良品が第2ページ以降。
+  既存IST/one-shotの安全条件は第1ページに限定されるため、弱い道具へ黙って変更せず停止する。
+  端末を広げて全品を第1ページに表示するか、手動購入する。ページ安全条件の拡張は別途必要。
+- shelf-page-no-progress / no-progress: 観測・購入・移動が進まない。該当取引や入力画面を確認する。
+- fundraising-food-unavailable / fundraising-light-unavailable / fundraising-departure-unready:
+  安全に資金調達へ出られない。所持金ゼロで食料もない場合もここで止める。手動補給が選択肢。
+- fundraising-entrance-unavailable / fundraising-route-unavailable / fundraising-entry-refused / fundraising-descent:
+  既存の安全な入口へ進めない。入口事実・道順・readinessの確認が必要。
+- stop:fundraising-no-income: 稼ぎも売却可能品もない。装備/資金の手動補助または資金調達方針の見直し。
+- readiness:<詳細>: 松明以外を含む既存Q1拒否。能力・光源・HP・脅威計算などを手動で満たすか、明示的に戦術を見直す。
+  記録由来のHP219の構成は three-turn-threat で停止する。拒否条件を緩めて成功扱いにはしていない。
+- competing-quest / not-in-outpost / reward-unavailable / quest-request-unavailable /
+  supplier-route-unavailable / supplier-operation-unavailable / purchase-pack-full:
+  競合取引・所在地・報酬・入口・店舗・空き枠を確認してから再準備する。
+停止の後に自動で在庫待ちや他クエストへ切り替えない。復旧時は原因を解決して固定ルートを再評価する。
+
+検証の範囲
+コピー記録から選んだ盤面・知識・参照行をfixture化。価格・棚・HP・数量・ゲーム応答の構成部分はテスト中で明示。
+公開choose_keyとproduction follow executorで、松明購入、予約維持、最良の購入可能道具、残金での財宝感知、
+Q1受注、受注後入口確認、チェックポイント復元、資金不足/帰還、非松明readiness拒否、棚ページ制約を検証する。
+新規キャラクターの実ゲーム攻略成功を主張しない。新規キャラクターによる検証は監督側のLinux検証環境で実施予定。
+稼働中ゲーム/BOTや他者のプロセスの停止・操作、push、merge、rebase、reset --hard、stashは行っていない。
+基準時点の既存テストは変更しない。生ログや前回の実行トランスクリプトはコミット対象外。
+
+ガード結果
+実行後に追記する。preflight / mutation_check --record / fast_tier の基準はいずれも5eca3f7a4。
+使用PythonはCodex runtime 3.12.14 (WindowsAppsのstubではない)。
+3.13は空のASTフィールドを省略するため、3.12でのmanifest再生成に伴い既存サイトのASTハッシュも再計算される。
+分類変更と無関係なソース変更を表すものではない。manifestとruntime indexは同じPythonで生成・検証する。

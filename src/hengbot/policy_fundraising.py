@@ -291,6 +291,10 @@ class FundraisingMixin:
 
     def _detectionless_scavenge_allowed(self, snapshot: Snapshot) -> bool:
         """Allow scavenge for dear offers or a fully observed stock-out."""
+        if self._opening_q1_active(snapshot) and getattr(self, "_opening_q1_funding", None) is not None:
+            # Missing quest reserves own the gold; do not spend them on detection
+            # before this bounded loot-only run earns the named debt.
+            return True
         has_known_detection = self._has_known_fundraising_detection(snapshot)
         pages = dict(self._town_supplier_stock)
         if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
@@ -1158,6 +1162,12 @@ class FundraisingMixin:
     def _fundraising_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
+        if self._opening_q1_active(snapshot) and not snapshot.in_town:
+            if getattr(self, "_opening_q1_funding", None) is None:
+                # Resume an older income run by returning to the fixed route.
+                self._returning_to_town = True
+                return self._leave_fundraising_floor(snapshot)
+            self._opening_q1_funding_left = True
         if self._fundraising_mode not in {"mine", "scavenge"}:
             self._offer_execution_no_step(
                 producer="fundraising", work_id="fundraise:run",

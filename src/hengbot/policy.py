@@ -8783,6 +8783,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
+            and not self._opening_q1_active(snapshot)
             and (
                 "home-scan-incomplete" in getattr(
                     self._equipment_optimization_preparation, "blockers", ()
@@ -10483,6 +10484,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
         if (snapshot.in_town and self._home_errand.needs_knowledge
+                and not self._opening_q1_active(snapshot)
                 and self._home_atomic_deposit_pending is None
                 and self._home_atomic_withdraw_pending is None
                 and snapshot.player.hp >= snapshot.player.max_hp
@@ -10705,6 +10707,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 self._observe_restock_supplier_page(snapshot)
                 self._in_store_best_effort("_observe_shelf_evidence", snapshot)
+                if self._opening_q1_active(snapshot):
+                    opening_page = self._town_producer_entry(
+                        "_opening_q34_town_key",
+                        lambda: self._opening_q34_town_key(snapshot, []), family="quest-request")
+                    if opening_page is not None:
+                        return opening_page
                 if self._start_unobtainable_recall_stockout_mining(snapshot):
                     self.last_reason = "town:recall-stockout-mining"
                     self._offer_execution(
@@ -17774,7 +17782,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def fixed_quest_readiness_state(self) -> dict:
-        return dict(self._fixed_quest_readiness)
+        state = dict(self._fixed_quest_readiness)
+        failure = getattr(self, "_opening_q1_failure", None)
+        if failure is not None:
+            state["opening_route_failure"] = failure
+        return state
 
 
 

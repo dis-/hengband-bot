@@ -1249,6 +1249,9 @@ class SupplyMixin:
         self, snapshot: Snapshot, *, cache_fixed_quest_head: bool = True
     ) -> StrategyProfile | None:
         """Return the level-shaped torch mandate or next-quest requirements."""
+        if self._opening_q1_active(snapshot):
+            profile = self.approved_quest_strategy(1)
+            return replace(profile, required_force=self._strategy_force_for_snapshot(snapshot, profile))
         if not snapshot.in_town:
             return None
         quest = (

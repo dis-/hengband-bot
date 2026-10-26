@@ -709,6 +709,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
         "town:blocked:walk-in-entrance-unavailable": "the mining plan refuses recall, and this town has no entrance the walk can use",
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
+        "quest:blocked:opening-route": "the Q34 -> mining kit -> Q1 route cannot continue; inspect _opening_q1_failure in the policy checkpoint",
         "quest:blocked:q34-opening-door-locked": "the Q34 opening door stayed locked after the bounded lock-pick attempts",
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",

@@ -137,5 +137,6 @@
   "_town_inn_accounting": "Process-local observed INN route minima, preceding command positions and shared settlement receipt; no item identity, reservation or future item operation. Never checkpointed.",
   "_magic_staff_buy_watch": "Target charge count and generation observation for the already selected Magic Identify-staff purchase; its active reservation remains in _store_buy_inflight, no independent item operation.",
   "_magic_staff_buy_receipt": "Consumed Magic Identify-staff acquisition evidence, not a future selection or reservation; driver credits its target-scoped identity only once per visit.",
-  "_plain_gear_dps_memo": "Expected-damage memo for the plain-gear junk class; no selected operation."
+  "_plain_gear_dps_memo": "Expected-damage memo for the plain-gear junk class; no selected operation.",
+  "_opening_q1_progress": "Observed inventory/gold/stage fingerprint for a bounded no-progress watchdog; never selects or reserves an item."
 }

@@ -1089,6 +1089,8 @@ class ShopMixin(InStoreMixin):
         executable equipment transaction owns the context it was bound to.
         This is the sole input to the town-plan projection.
         """
+        if self._opening_q1_shopping(snapshot):
+            return self._enumerate_town_needs(snapshot)
         claims = list(self._enumerate_town_needs(snapshot))
         # Withdrawal requesters must file an exact executor request before the
         # router may act.  The legacy terminal posts this same owner expectation,
@@ -1152,6 +1154,8 @@ class ShopMixin(InStoreMixin):
         return claims
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
+        if self._opening_q1_shopping(snapshot):
+            return self._opening_q1_plan(snapshot)[1]
         self._town_plan_projection_telemetry = {
             "evaluated": False,
             "plan_rebuilt": False,
@@ -1877,6 +1881,11 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
         """Release a buy only for fresh absence or a statically Home-less town."""
+        if self._opening_q1_shopping(snapshot) and self._opening_q1_purchase(snapshot) == item:
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "opening-q1-current-shelf",
+            )
         if self._is_required_identify_staff_purchase(snapshot, item):
             self._home_procurement_probe = None
             self._home_procurement_fallthrough = "required-current-shelf"
@@ -2117,6 +2126,11 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
         """Evaluate Home-first purchase policy without changing policy state."""
+        if self._opening_q1_shopping(snapshot) and self._opening_q1_purchase(snapshot) == item:
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "opening-q1-current-shelf",
+            )
         if self._is_required_identify_staff_purchase(snapshot, item):
             return self._record_home_gate(
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
@@ -2328,6 +2342,9 @@ class ShopMixin(InStoreMixin):
 
     def _next_purchase(self, snapshot: Snapshot, *, commit_churn: bool = False) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
+        if self._opening_q1_shopping(snapshot):
+            item = self._opening_q1_purchase(snapshot)
+            return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
         commit_churn = commit_churn or bool(
             getattr(self, "_shop_selection_commits", False)
         )
@@ -2754,6 +2771,20 @@ class ShopMixin(InStoreMixin):
 
     def _purchase_rungs(self, context: PurchaseContext) -> tuple[PurchaseRung, ...]:
         """Return the ordered, live authority shared by buying and retention."""
+        if self._opening_q1_shopping(context.snapshot):
+            stage, store, ware, quantity, _ = self._opening_q1_plan(context.snapshot)
+            if ware is None or context.snapshot.store is None or store != context.snapshot.store.store_type:
+                return ()
+            rung_id = {"quest-throwing-items": "quest:carry", "quest-healing": "quest:healing",
+                       "quest-speed": "quest:speed", "fundraising-digger": "mining:digger",
+                       "fundraising-detection": "mining:treasure-detection",
+                       "fundraising-food": "mandatory:food", "fundraising-light": "legacy:lantern"}[stage]
+            def match(ctx, item):
+                if self._purchase_item_identity(item) != self._purchase_item_identity(ware):
+                    return None
+                return PurchaseMatch(rung_id, stage, self._purchase_item_identity(item),
+                                     shortage=quantity, rationale="opening-q1:" + stage)
+            return (PurchaseRung(rung_id, stage, match, purchase_rung_retention(rung_id)),)
         snapshot = context.snapshot
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         strategy = self._carry_procurement_strategy(snapshot)
@@ -2979,6 +3010,8 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, *, excluded_classes=frozenset()
     ) -> StoreItem | None:
         """Select an affordable ware that closes a departure requirement."""
+        if self._opening_q1_shopping(snapshot):
+            return self._opening_q1_purchase(snapshot)
         store = snapshot.store
         if store is None:
             return None
@@ -3745,6 +3778,11 @@ class ShopMixin(InStoreMixin):
 
     def _purchase_quantity(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Buy this ware's complete shortage in one transaction."""
+        if self._opening_q1_shopping(snapshot):
+            _, store, ware, quantity, _ = self._opening_q1_plan(snapshot)
+            if ware is not None and snapshot.store is not None and store == snapshot.store.store_type and ware == item:
+                return quantity
+            return 0
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         strategy = (
             self._carry_procurement_strategy(snapshot)

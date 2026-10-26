@@ -2886,6 +2886,8 @@ class TownMixin:
     @reservation_query
     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
         """Mechanically evaluate the predicates backing the town need registry."""
+        if self._opening_q1_shopping(snapshot):
+            return self._opening_q1_needs(snapshot)
         needs: list[TownNeed] = []
         fundraising_active = (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}

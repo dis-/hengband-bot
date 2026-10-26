@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.policy_opening import OpeningRouteMixin
 from hengbot.item_reservation import reserved_item_command, decision_memo
 
 from collections import Counter, deque
@@ -416,7 +417,7 @@ QUEST_LAUNCHER_AMMO_CARRIES = frozenset({
 })
 
 
-class QuestMixin:
+class QuestMixin(OpeningRouteMixin):
     def _derived_home_visit_request(
         self, snapshot: Snapshot
     ) -> PhysicalHomeVisitRequest | None:
@@ -545,6 +546,11 @@ class QuestMixin:
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
         """Give the accepted Q34 opening sole non-emergency town ownership."""
+        if snapshot.store is not None and self._opening_q1_active(snapshot):
+            return self._opening_q1_store_key(snapshot)
+        opening = self._opening_q1_town_key(snapshot, hostiles)
+        if opening is not None:
+            return opening
         if not self._opening_q34_active(snapshot):
             return None
 
@@ -1042,7 +1048,8 @@ class QuestMixin:
             and self._morivant_full_identify.temporary_deposits
         ):
             return False
-        if self._opening_q34_active(snapshot) and quest_id == 34:
+        if ((self._opening_q34_active(snapshot) and quest_id == 34)
+                or (self._opening_q1_active(snapshot) and quest_id == 1)):
             ready = self._evaluate_fixed_quest_readiness(
                 snapshot, quest_id, require_target_town=True
             )
