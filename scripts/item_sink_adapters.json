@@ -478,7 +478,9 @@
   "policy_opening.py:_opening_q1_town_key": {
     "self._fixed_quest_key(snapshot, hostiles) @ ": 1,
     "self._fixed_quest_key(snapshot, hostiles) @ If:body:self._fixed_quest_reward_pending is not None": 1,
+    "self._town_kill_mob_key(snapshot) @ If:body:store is not None": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:store is not None": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:store is not None / If:body:adjacent and self._can_fight_in_dungeon(0)": 1,
     "self._town_kill_mob_key(snapshot) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles": 1,
     "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles / If:body:adjacent": 1
   }

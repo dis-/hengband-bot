@@ -5893,7 +5893,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "eaec3d85dd430bcf2b1d3d320ec2027a2f1a755bb98fad487584dc488aee809e"
+    "ast_sha256": "80db5cddc11dd0dc6241f9e8dd387e6c9cb7d989f8a98a567be635a988ae3cc8"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -6236,7 +6236,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1cdab5b9aaf6bb31ff7d06844f2a3dbb74060965bca2a549e96ec414ba3fab4a"
+    "ast_sha256": "6defb95d510029e435334536bd25605a7fa2c148c79c9ca26f8b8c958e18de74"
   },
   "policy_quest.py:QuestMixin._quest_execute_key": {
     "classification": "dungeon-only",

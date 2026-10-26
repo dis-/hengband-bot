@@ -1048,7 +1048,8 @@ class QuestMixin(OpeningRouteMixin):
             and self._morivant_full_identify.temporary_deposits
         ):
             return False
-        if self._opening_q34_active(snapshot) and quest_id == 34:
+        if ((quest_id == 34 and self._opening_q34_active(snapshot))
+                or (quest_id == 1 and self._opening_q1_active(snapshot))):
             ready = self._evaluate_fixed_quest_readiness(
                 snapshot, quest_id, require_target_town=True
             )

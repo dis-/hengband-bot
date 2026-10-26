@@ -132,6 +132,10 @@ class OpeningRouteMixin:
         A plan is a pure projection, so the router, purchase selector and
         retention can all read it without advancing the transaction.
         """
+        # Acceptance commits the optional kit shopping. Mandatory quest
+        # reserves still get replenished if they become short before entry.
+        quest = self._known_fixed_quests(snapshot).get(1)
+        accepted = quest is not None and quest.status == QUEST_STATUS_TAKEN
         requirements = self._opening_q1_requirements(snapshot)
         pages = self._opening_q1_pages(snapshot)
         suppliers = []
@@ -139,7 +143,8 @@ class OpeningRouteMixin:
             suppliers.append((STORE_GENERAL, "quest-throwing-items"))
         # Optional kit surveys must never displace Q1 on an empty purse.
         # Known offers take precedence over the existing base-price estimates.
-        if not any(target > current for _, target, current, _ in requirements):
+        if (not accepted and not getattr(self, "_opening_q1_kit_bought", False)
+                and not any(target > current for _, target, current, _ in requirements)):
             for store, category, floor in (
                 (STORE_GENERAL, "fundraising-digger", FUNDRAISING_DIGGER_BASE_PRICE),
                 (STORE_WEAPON, "fundraising-digger", FUNDRAISING_DIGGER_BASE_PRICE),
@@ -259,6 +264,17 @@ class OpeningRouteMixin:
         visits[position] = visits.get(position, 0) + 1
         if visits[position] >= STORE_STUCK_LIMIT:
             return self._opening_q1_stop("no-progress:" + stage)
+        # Settle town combat before shopping travel can pull us away again.
+        # Otherwise the shop step and mob approach undo one another forever.
+        if store is not None:
+            combat = self._town_kill_mob_key(snapshot)
+            if combat is not None:
+                return combat
+            adjacent = [monster for monster in hostiles
+                        if snapshot.player.position.distance_to(monster.position) <= 1]
+            if adjacent and self._can_fight_in_dungeon(0):
+                self.last_reason = "melee"
+                return self._direction_key(snapshot.player.position, self._weakest(adjacent).position)
         if store is not None:
             step = self._shopping_approach_step(snapshot, store_type=store,
                                                 requester="quest-request")
@@ -297,7 +313,12 @@ class OpeningRouteMixin:
                 return self._opening_q1_stop("recovery-hostile-unreachable")
             self.last_reason = "town:recover"
             return REST_MACRO
-        if not self._fixed_quest_ready(snapshot, 1):
+        # Taken quests are checked at the entrance by the same safety gate,
+        # rather than rebuilding their combat model on every town step.
+        if (head is None or head.status != QUEST_STATUS_TAKEN) and not self._fixed_quest_ready(snapshot, 1):
             return self._opening_q1_stop("readiness:" + str(self._fixed_quest_readiness))
         key = self._fixed_quest_key(snapshot, hostiles)
-        return key if key is not None else self._opening_q1_stop("quest-request-unavailable")
+        if key is not None:
+            return key
+        operation = "quest-entry-unavailable" if head is not None and head.status == QUEST_STATUS_TAKEN else "quest-request-unavailable"
+        return self._opening_q1_stop(operation)
