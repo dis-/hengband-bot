@@ -14,12 +14,13 @@ from hengbot.equipment_optimizer import (
 from hengbot.equipment_transaction_planner import EquipmentTransactionPlan
 from hengbot.warrior_optimization import WarriorOptimizationPreparation
 from hengbot.input_executor import Operation
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-departure.json.gz"
 
 
-class TopStopsLightTest(ProductionHarness):
+class TopStopsLightTest(executor_harness.ProductionHarness):
     def scene(self):
         case = json.loads(gzip.decompress(FIXTURE.read_bytes()))[2]
         board = parse_snapshot(case["state"])

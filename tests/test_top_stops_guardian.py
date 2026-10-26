@@ -17,13 +17,14 @@ from hengbot.model import (Snapshot, Position, PLAYER_CLASS_WARRIOR, TVAL_SCROLL
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import EMPTY_DIVE_LIMIT, RUMOR_COST, RUMOR_GOLD_RESERVE, WAIT_KEY
 from policy_fixtures import player, grid, item, set_completed_equipment_optimization
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-guardian-projection.json"
 EDIT = Path("C:/hengband/lib/edit")
 
 
-class TopStopsGuardianTest(ProductionHarness):
+class TopStopsGuardianTest(executor_harness.ProductionHarness):
     def scene(self, case=None, *, unlocked=False, landing=1):
         row = (case or json.loads(FIXTURE.read_text(encoding="utf-8"))[0])["decision"]
         actor = row["player"]

@@ -9,12 +9,13 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import load_quest_knowledge
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-claim-return.json.gz"
 
 
-class TopStopsClaimReturnTest(ProductionHarness):
+class TopStopsClaimReturnTest(executor_harness.ProductionHarness):
     def test_public_claim_return_preserves_recorded_recall_depth(self):
         cases = json.loads(gzip.decompress(FIXTURE.read_bytes()))
         quests = load_quest_knowledge(Path("C:/hengband/lib/edit/quests"))
