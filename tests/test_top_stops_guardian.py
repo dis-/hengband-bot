@@ -141,6 +141,7 @@ class TopStopsGuardianTest(ProductionHarness):
         for landing in (21, 81, 100):
             with self.subTest(landing=landing):
                 policy, board = self.scene(landing=landing)
+                # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: a named terminal emits only WAIT; advance time without movement to prove the stop remains latched
                 for turn in range(3):
                     key = policy.choose_key(replace(board, turn=board.turn + turn))
                     self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
