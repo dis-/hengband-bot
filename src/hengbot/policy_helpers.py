@@ -573,7 +573,22 @@ class PolicyHelpersMixin:
                 landing_depth == best_landing_depth and info.id < best.id
             ):
                 best = info
-        return best.id if best is not None else None
+        if best is not None:
+            return best.id
+        # Owner decision 2026-10-27 (#47): when the guardian valve has
+        # exhausted the entered alternatives, open Angband via inn rumors.
+        # Keep ordinary over-extension choices unchanged, and never send a
+        # bounced Angband dive straight back to its refused landing.
+        if (
+            guardian_bounced_dungeon is not None
+            and guardian_bounced_dungeon != DUNGEON_ANGBAND
+            and self._alternate_dungeon != DUNGEON_ANGBAND
+            and DUNGEON_ANGBAND in self._dungeon_knowledge
+            and self._can_fight_in_dungeon(DUNGEON_ANGBAND)
+            and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+        ):
+            return DUNGEON_ANGBAND
+        return None
     def _can_fight_in_dungeon(self, dungeon_id: int) -> bool:
         """Whether this character can fight in ``dungeon_id`` (static data).
 

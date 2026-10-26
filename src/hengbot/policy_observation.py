@@ -622,8 +622,13 @@ class ObservationMixin:
         # A switched target overrides the ordinary selection until its lifecycle
         # ends through conquest, loadout-fallback completion, or replacement.
         if self._alternate_dungeon is not None:
-            if self._alternate_dungeon in snapshot.entered_dungeon_ids:
+            if (
+                self._alternate_dungeon in snapshot.entered_dungeon_ids
+                or self._alternate_dungeon == DUNGEON_ANGBAND
+            ):
                 self._target_dungeon_id = self._alternate_dungeon
+                if self._alternate_dungeon == DUNGEON_ANGBAND:
+                    self._rumor_unlock_pending = not snapshot.angband_recall_unlocked
                 # The alternate keeps the reason it was switched to.
                 self._target_dungeon_reason = (
                     self._alternate_dungeon_reason or "alternate_dungeon"

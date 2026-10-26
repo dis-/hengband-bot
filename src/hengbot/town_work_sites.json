@@ -7490,7 +7490,7 @@
       "plan-routing"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8f95fee32f3e0ad2d07ede30c55019cf7c5bc44e9feb635229222b28588f0aa5"
+    "ast_sha256": "e424c468e6011bb1289c6c04ea1a484ca33fcdb8ecfeeae6b1656194205da738"
   },
   "policy_town.py:TownMixin._town_cancel_unsafe_recall_key": {
     "classification": "producer",

@@ -6157,6 +6157,19 @@ class TownMixin:
                                     "guardian-bounce-no-alternate"
                                 )
                                 return self._town_blocked_key(snapshot)
+                            if self._rumor_unlock_pending:
+                                # The guardian alternate may be locked Angband.
+                                # Release forced departure so the existing inn
+                                # rumor owner can unlock it on the next board.
+                                self._town_blocked_reason = None
+                                self.last_reason = "town:unsafe-recall-fallback"
+                                self._offer_execution(
+                                    WAIT_KEY, producer="departure",
+                                    work_id="town:guardian-recall-fallback",
+                                    next_step="recall.observe-fallback",
+                                    expected_effect="safe-destination-selected",
+                                )
+                                return WAIT_KEY
                             recall_dest, recall_dungeon_id = (
                                 self._town_recall_destination(snapshot)
                             )

@@ -54,6 +54,8 @@ class TopStopsTownWorkTest(ProductionHarness):
         # 16 MiB and has no gzip header. Use measured position/level/HP/gold,
         # the game's static town topology and a supplied quiet quest kit.
         terrain = {p: grid(p.y, p.x) for p in town.walkable}
+        for store, target in town.stores.items():
+            terrain[target] = replace(terrain[target], store_number=store)
         for quest_id, positions in town.quest_buildings.items():
             if quest_id == 14:
                 for target in positions:
@@ -61,7 +63,7 @@ class TopStopsTownWorkTest(ProductionHarness):
         pack = self.supplies()
         pack[2] = replace(pack[2], count=7)  # a live competing supply route
         board = Snapshot(
-            player(pos.y, pos.x, level=actor["level"], hp=actor["hp"], max_hp=actor["max_hp"], gold=actor["gold"]),
+            player(pos.y, pos.x, level=actor["level"], hp=actor["hp"], max_hp=actor["max_hp"], gold=actor["gold"], class_id=PLAYER_CLASS_WARRIOR),
             terrain, [], turn=row["turn"], town_flag=True, town_id=0,
             width=town.width, height=town.height, inventory=pack,
             equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True),

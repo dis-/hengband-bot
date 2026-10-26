@@ -14880,6 +14880,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         self._target_dungeon_id = alternate
         self._target_dungeon_reason = self._alternate_dungeon_reason
+        if alternate == DUNGEON_ANGBAND:
+            self._rumor_unlock_pending = not snapshot.angband_recall_unlocked
         self._conquest_committed = None
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
