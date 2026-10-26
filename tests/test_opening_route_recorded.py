@@ -312,21 +312,25 @@ class OpeningRouteRecordedTest(ProductionHarness):
         self.post(policy, accepted, key, inside)
 
     def test_no_digger_and_other_readiness_refusals_stop_by_name(self):
-        policy, raw, _ = self.shopping_case()
-        raw["store"] = None
-        for st, page in list(policy._town_supplier_stock.items()):
-            items = [it for it in page.items if not it.is_digging_tool]
-            policy._town_supplier_stock[st] = replace(page, items=items, stock_num=len(items))
-        # DECLARED CONSTRUCTED: supplies already owned, no digger at any shelf.
-        torch = self.data["seeds"]["general"]["snapshot"]["store"]["items"][8]
-        torch = dict(torch, slot="t", count=5)
-        raw["inventory"].append(torch)
-        key = policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
-        self.assertEqual(policy.last_reason, "quest:blocked:opening-route", key)
-        self.assertEqual(policy._opening_q1_failure, "stop:no-digger")
-        self.assertIn(policy.last_reason, __import__('hengbot.policy_constants', fromlist=['POLICY_FINAL_STOP_REASONS']).POLICY_FINAL_STOP_REASONS)
-        from hengbot.cli import _policy_final_stop_banner
-        self.assertIn("Q34", _policy_final_stop_banner(policy.last_reason))
+        for reserve_owned in (True, False):
+            with self.subTest(reserve_owned=reserve_owned):
+                policy, raw, _ = self.shopping_case(gold=500 if reserve_owned else 0)
+                raw["store"] = None
+                for st, page in list(policy._town_supplier_stock.items()):
+                    items = [it for it in page.items if not it.is_digging_tool]
+                    policy._town_supplier_stock[st] = replace(page, items=items, stock_num=len(items))
+                # DECLARED CONSTRUCTED: all reachable shelves lack a digger.
+                # Even missing reserves must not launch a futile income run.
+                if reserve_owned:
+                    torch = self.data["seeds"]["general"]["snapshot"]["store"]["items"][8]
+                    raw["inventory"].append(dict(torch, slot="t", count=5))
+                key = policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
+                self.assertEqual(policy.last_reason, "quest:blocked:opening-route", key)
+                self.assertEqual(policy._opening_q1_failure, "stop:no-digger")
+                self.assertIsNone(getattr(policy, "_opening_q1_funding", None))
+                self.assertIn(policy.last_reason, __import__('hengbot.policy_constants', fromlist=['POLICY_FINAL_STOP_REASONS']).POLICY_FINAL_STOP_REASONS)
+                from hengbot.cli import _policy_final_stop_banner
+                self.assertIn("Q34", _policy_final_stop_banner(policy.last_reason))
 
     def test_reserved_potions_and_torches_cannot_be_sold_or_deposited(self):
         policy, raw, _ = self.shopping_case(hp=80)

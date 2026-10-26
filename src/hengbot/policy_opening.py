@@ -19,10 +19,16 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_fundraising import FundraisingPurpose
 from hengbot.item_reservation import decision_memo
+from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
 
 class OpeningRouteMixin:
     def _opening_q1_active(self, snapshot):
+        # The transaction needs protocol-3 stock/skill/light observations.
+        # Legacy checkpoints retain their existing, independent town owners.
+        if (getattr(snapshot, "protocol_version", PROTOCOL_LEGACY) < PROTOCOL_SCREEN_PARITY
+                or not getattr(snapshot, "quests", None)):
+            return False
         quests = self._known_fixed_quests(snapshot)
         q34, q1 = quests.get(34), quests.get(1)
         return bool(
@@ -148,6 +154,12 @@ class OpeningRouteMixin:
                 return "observe:" + category, store, None, 0, 0
         offers = [(store, item) for store, _ in reachable
                   for item in pages[store].items if item.count > 0]
+        diggers = [(store, item) for store, item in offers
+                   if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
+        owned = [item for item in (*snapshot.inventory, *snapshot.equipment)
+                 if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
+        if not getattr(self, "_opening_q1_kit_bought", False) and not diggers and not owned:
+            return "stop:no-digger", None, None, 0, 0
         if funding:
             if self._find_edible(snapshot) is None:
                 food = [(store, item) for store, item in offers
@@ -200,12 +212,6 @@ class OpeningRouteMixin:
             category, store, item, quantity = first
             return category, store, item, quantity, 0
         if not getattr(self, "_opening_q1_kit_bought", False):
-            diggers = [(store, item) for store, item in offers
-                       if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
-            if not diggers and not self._has_digging_tool(snapshot):
-                return "stop:no-digger", None, None, 0, 0
-            owned = [item for item in (*snapshot.inventory, *snapshot.equipment)
-                     if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
             affordable = [(store, item) for store, item in diggers
                           if item.price <= snapshot.player.gold]
             if not owned and not affordable:
