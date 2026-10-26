@@ -167,10 +167,31 @@ CLIの停止説明も、余剰と放出可能な予約品の両方を尽くし�
 preflight.py: PREFLIGHT OK、18 changed files、0 findings、終了0。
 初回の構造検査で純粋データ関数の分類未登録とmanifest更新漏れを検出し、登録・再生成して再実行した。
 fast_tier.py --shards 4は、別のマージ検査の全スイート実行が終わるのを待機中。
-タスク指示どおり待機を迂回しない。mutation_check --recordはソース差戻しとfast_tierが
-競合しないよう、その完了後に実行する。完了結果は以下へ追記する。
+タスク指示どおり待機を迂回しない。待機が続いたため、同じHEADの検証専用作業ツリーを新規に作成した。
+検証用はC:/hengband-backups/broke-prevent-r2-mutation-1026。既存の他作業ツリーは変更していない。
+HEAD 5aa3fdcd6、src/hengbotツリー87feb6fef91540002d76b5b7dbb8dc453efd0ba1、
+testsツリーeb592e03cf3a0e4a7bca7d4c26f6e67e0a0a914bが本作業ツリーと完全一致することを確認した。
+検証用でmutation_check --recordも起動し、同じマージ検査の終了待ちに入った。
+ソース差戻しは検証用だけで行うため、本作業ツリーのfast_tierと競合しない。
+対象はtests.test_broke_prevent_reservedとtests.test_cli.PolicyFinalStopBannerTest。
+完了結果は以下へ追記する。
 
 報告書はPythonでUTF-8として書き込み、読み戻しを確認した。
 PowerShellのパイプ経由で日本語が失われた初稿は、既存報告を復元しUnicodeエスケープ経由で修復した。
-実ゲーム・BOTの操作、プロセス停止、他作業ツリーの変更、push／merge／rebaseは行っていない。
+実ゲーム・BOTの操作、プロセス停止、既存の他作業ツリーの変更、push／merge／rebaseは行っていない。
 ログはコミットしていない。実セーブの追試は指示どおり後続担当者に委ねる。
+
+追加の所有権確認
+待機中の見直しで、別のHome処理が所有している予約品を候補列挙でも除外する必要を確認した。
+売却直前の既存判定だけでは同じ候補への接近を繰り返す可能性があるため、列挙時もitem_availableを通した。
+修正はf2e998728。Home-full再試行が所有するテレポートを持つ対照を公開choose_keyで確認し、
+合法的な候補がなければoutpost-fare-no-saleとなる1件が13.742秒で通過、終了0。
+新規モジュールは最終的に8件。第1ラウンドと合わせたpinsは計25件が通過した。
+共通売却キー合成の既存3件も19.695秒で通過、終了0。上記と合わせて28件を確認した。
+検証用作業ツリーへ同じ追加修正を適用したHEADはf87a28720、本作業ツリーの実装HEADはf2e998728。
+最終src/hengbotツリー245e541087c1398ea7f77dec40e0a87e792230b2、
+最終testsツリー832e58d4d0e7c03fa3eb67c3787b00dfe592a9bfは両方で一致する。
+mutation_checkの記録はこの同一ソース・テストのツリーを対象とする。
+
+追加修正f2e998728後のpreflight.pyも、18 changed files、0 findings、PREFLIGHT OK、終了0。
+実装・追加修正と日本語報告は保存済み。残る二つのガードは起動済みで、指定された待機条件を維持している。
