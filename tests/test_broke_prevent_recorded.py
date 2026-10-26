@@ -28,7 +28,8 @@ from hengbot.policy_constants import TOWN_TELEPORT_COST, POLICY_FINAL_STOP_REASO
 from hengbot.item_reservation import store_item_key
 from hengbot.cli import _policy_final_stop_required
 from tests import test_classA_observed_input as follow_harness
-from tests.test_input_executor import ProductionHarness, command_screen, store_screen, prompt_screen
+from tests import test_input_executor as executor_harness
+from tests.test_input_executor import command_screen, store_screen, prompt_screen
 from tests.test_resume_inside_store import _fit
 from hengbot.policy_types import CrossTownShoppingExpedition
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -41,7 +42,7 @@ from hengbot.quest_strategies import load_quest_strategies
 FIXTURE = Path(__file__).parent / "fixtures/broke-prevent-20261026.json.gz"
 GAME = Path("C:/hengband")
 
-class BrokePreventRecordedTest(ProductionHarness):
+class BrokePreventRecordedTest(executor_harness.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == "aa8a8f3a5ef8ba9c80e962d43ff56d60b5ccb35e1bf964d2df9b17b20b31decc"

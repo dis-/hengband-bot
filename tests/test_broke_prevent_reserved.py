@@ -12,10 +12,10 @@ from hengbot.model import parse_snapshot
 from hengbot.item_reservation import store_item_key
 from hengbot.policy_constants import TOWN_TELEPORT_COST
 from tests import test_broke_prevent_recorded as recorded
-from tests.test_input_executor import ProductionHarness
+from tests import test_input_executor as executor_harness
 
 
-class ReservedFareTest(ProductionHarness):
+class ReservedFareTest(executor_harness.ProductionHarness):
     setUpClass = classmethod(recorded.BrokePreventRecordedTest.setUpClass.__func__)
     raw = recorded.BrokePreventRecordedTest.raw
     policy = recorded.BrokePreventRecordedTest.policy
