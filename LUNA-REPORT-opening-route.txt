@@ -146,3 +146,22 @@ Codex runtime Python 3.12.14使用。追加の停止再現3件と危険単体の
 低戦力ティアの薬購入も公開choose_key＋follow executorで成功。
 Q34関連5モジュール31件成功（78.754秒）。最初の直接指定実行ではtestsのimport path不足だったため、
 PYTHONPATH=src;tests;scriptsで同じモジュールを実行し直した。テスト本体の変更はない。
+
+
+round 2最終ガード結果
+検証対象の実装HEAD: de6cae923。基準: 5eca3f7a4。
+- 公開choose_key＋follow executorを含むround 1/2の19件: 成功（71.928秒）。
+  Q34関連31件と合わせて50件成功。
+- preflight: 終了0。25 changed files、0 findings。
+  初回に見つかった削除済み関数の登録と町の敵処理のadapter宣言漏れは整理し、manifestを再生成して解消した。
+- mutation_check --record: 終了0。22差分、未検出0件。e205d6076の成功記録から未変更19差分を継承し、
+  固定開始ルート本体・訪問燃料計算・Q1専用光源条件の3差分を再反転して検出した。
+  de6cae923とソース/テストのツリーに対する記録を保存した。
+- fast_tier --shards 4: 終了1。1,963件、122.8秒。失敗1、エラー0、クラッシュ0。
+  失敗はtests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop。
+  bulk_statsの期待4に対して5であり、round 1で同一runtime・基準5eca3f7a4でも確認済みの既存失敗と一致する。
+  対応するsrc/hengbot/flight_recorder.pyとtests/test_flight_recorder.pyに基準との差分はない。
+  既存テストの変更・スキップは行っていない。60秒超の52モジュールはfast_tierの規定により対象外。
+ガード実行後の追跡ファイル差分は0。この後のコミットは最終ガード結果の追記のみであり、
+検証済みのソース・戦略・テスト・fixtureは変更しない。未追跡の前回実行ログは保存したままコミット対象外。
+ゲーム/BOT操作・プロセス停止・push・merge・rebase・reset --hard・stashは実施していない。
