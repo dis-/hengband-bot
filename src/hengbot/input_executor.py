@@ -236,8 +236,9 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     if re.search(r"(?:Quantity \(1-|いくつですか \(1-)\d+\):(?: .*)?$", row0) or \
             re.search(r"^(?:Rest|休憩) \(0-9999, .+\):(?: .*)?$", row0):
         return ScreenMatch(ScreenKind.QUANTITY, prompt0, 0, prompt_column)
-    # target/target-getter.cpp:56-61,118-120.
+    # target/target-getter.cpp:56-61,118-120,get_rep_dir (open/disarm).
     direction_prompts = ("Direction (Escape to cancel)?", "方向 (ESCで中断)?",
+        "Direction ('.' at feet, Escape to cancel)?", "方向 ('.'足元, ESCで中断)?",
         "Direction ('5' for target, '*' to re-target, Escape to cancel)?",
         "Direction ('*' to choose a target, Escape to cancel)?",
         "方向 ('5'でターゲットへ, '*'でターゲット再選択, ESCで中断)?",

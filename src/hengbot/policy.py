@@ -10957,7 +10957,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 QuestFloorNavigator(profile.quest_id, info.battlefield),
             )
             snapshot = navigator.with_loot_memory(snapshot)
-            if not physical_hostiles:
+            quest = snapshot.quests.get(profile.quest_id)
+            completed = quest is not None and quest.status == QUEST_STATUS_COMPLETED
+            if not completed and self._chest_position is not None:
+                # A quiet observation is not a cleared quest. Chest approach
+                # can reveal an enemy and yield to EXECUTE, whose survey then
+                # retreats and hides that enemy, restarting the chest approach.
+                self._release_claim_goal(
+                    "chest-deferred-quest-incomplete", owners=CLAIM_LOOT_OWNERS
+                )
+                self._chest_position = None
+                self._chest_phase_counts = {}
+                self._chest_collecting = False
+                self._chest_preopen_objects = None
+            if completed and not physical_hostiles:
                 # Fixed-quest sweep would otherwise treat a chest as generic
                 # loot and carry it out unopened. Process it on this floor so
                 # only Chest::open() contents enter the pack.
