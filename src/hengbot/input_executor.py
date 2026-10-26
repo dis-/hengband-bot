@@ -220,6 +220,26 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
             return ScreenMatch(ScreenKind.CHARACTER, lines[footer_y][cox:].strip(),
                                footer_y, cox + 2)
 
+    # unverified-live: market/building-service.cpp:89-90,109,127,141,144 and
+    # cmd-building/cmd-building.cpp:342: logical 80x24 is centered both ways.
+    if isinstance(width, int) and isinstance(height, int) and width >= 80 and height >= 24:
+        ox, oy = (width - 80) // 2, (height - 24) // 2
+        if oy + 23 < len(lines) and lines[oy + 23][ox:].startswith((
+                " ESC) Exit building", " ESC) 建物を出る")) \
+                and lines[oy + 2][ox:].strip() \
+                and any(") " in lines[y][ox:] for y in range(oy + 19, oy + 23)):
+            # The building's centered offset remains active in exchange_cash
+            # and input_check_strict (cmd-building.cpp:342-389). Its menu stays
+            # visible under both the question and msg_erase's MORE wait.
+            prompt = _text_at_cell(lines[oy], ox).rstrip()
+            found = _suffix_match(prompt, ("-more-", "-続く-"))
+            if found:
+                return ScreenMatch(ScreenKind.MORE, found[0], oy, ox + found[1])
+            found = _suffix_match(prompt, ("[Y/n]", "[y/n]", "[(O)k/(C)ancel]"))
+            if found:
+                return ScreenMatch(ScreenKind.CONFIRM, prompt, oy, ox + found[1])
+            return ScreenMatch(ScreenKind.BUILDING, "complete-building-menu", oy + 23, ox)
+
     # view/display-messages.cpp:185-207 (row zero only).
     found = _suffix_match(row0, ("-more-", "-続く-"))
     if found:
@@ -375,16 +395,6 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
                 "g) Get an item.", "d) Drop an item.", "p) 商品を買う", "s) アイテムを売る",
                 "g) アイテムを取る", "d) アイテムを置く")):
             return ScreenMatch(ScreenKind.STORE, "complete-store-menu", menu_y, offset_x)
-    # unverified-live: market/building-service.cpp:89-90,109,127,141,144 and
-    # cmd-building/cmd-building.cpp:342: logical 80x24 is centered both ways.
-    if isinstance(width, int) and isinstance(height, int) and width >= 80 and height >= 24:
-        ox, oy = (width - 80) // 2, (height - 24) // 2
-        if oy + 23 < len(lines) and lines[oy + 23][ox:].startswith((
-                " ESC) Exit building", " ESC) 建物を出る")) \
-                and lines[oy + 2][ox:].strip() \
-                and any(") " in lines[y][ox:] for y in range(oy + 19, oy + 23)):
-            return ScreenMatch(ScreenKind.BUILDING, "complete-building-menu", oy + 23, ox)
-
     # core/player-processor.cpp:302-313; window/main-window-util.h:7-8;
     # main-window-row-column.h:72-73; main-window-left-frame.cpp:168-181.
     # Map cells begin after COL_MAP=12 and depth is at (width-8,height-1).
@@ -1613,6 +1623,14 @@ class OperationExecutor:
                 item.keys for item in self.active.continuations
             )
             self.active.continuations.clear()
+        if self.active.owner == "bounty:cashout" and any(
+                isinstance(item, Mapping) and item.get("is_bounty")
+                for item in board.get("inventory", ())):
+            # A fresh command barrier still carrying wanted remains is a
+            # refused/partial exchange, never permission to step off and retry.
+            return self._terminal(
+                self.active, "bounty-handover", "bounty-handover-refused",
+                match, outcome)
         operation = self.active
         # Decision-only provenance: this board was obtained by the causal
         # screen/state barrier following this exact accepted operation.  JSONL

@@ -1078,7 +1078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f01aa584f4c2da2cf55a3ed85cdcfa103bea4288cbb32e36698b660013185014"
+    "ast_sha256": "c06a5497f35b511f47b4a224cef7e64c257f46ccac3a66ba3fa749ad27fae7fa"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
