@@ -1358,7 +1358,9 @@ def fundraising_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
     return TerminalRef("fundraising", (policy._fundraising_mode,))
 
 
-def stockout_mining_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+def stockout_mining_intended_terminal(
+    policy: Any, board: Any, *, failed: tuple[str, ...] | None = None,
+) -> TerminalRef | None:
     if (not board.in_town or board.store is not None
             or policy._fundraising_mode is not None or board.player.recalling):
         return None
@@ -1379,7 +1381,9 @@ def stockout_mining_intended_terminal(policy: Any, board: Any) -> TerminalRef | 
             or policy._home_pending_item is not None
             or policy._home_pending_batch):
         return None
-    failed = tuple(name for name in gather_recall_departure(policy, board).failed
+    if failed is None:
+        failed = gather_recall_departure(policy, board).failed
+    failed = tuple(name for name in failed
                    if name not in {"equipment_departure_ready", "home_candidate_resolved",
                                    "identification_need_clear", "departure_identification_need_clear"})
     blocked = {row["item"] for row in policy.procurement_requirements(board)

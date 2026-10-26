@@ -3569,8 +3569,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         buffer.no_steps.append(receipt)
         # Final claim declaration consumes the offer buffer. Observed effects
         # still belong to this decision when the driver settles retired owners.
-        self._decision_observed_execution_effects = (
-            *getattr(self, "_decision_observed_execution_effects", ()), receipt)
+        effects = getattr(self, "_decision_observed_execution_effects", ())
+        # Offer-buffer ordinals can include speculative telemetry work from
+        # the preceding poll. The driver needs only observed completions.
+        observed = (producer, work_id, evidence, len(effects) + 1, "done")
+        self._decision_observed_execution_effects = (*effects, observed)
 
     def _offer_execution_awaiting(
         self, key: str | None, *, producer: str, work_id: str,

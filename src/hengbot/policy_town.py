@@ -6683,7 +6683,7 @@ class TownMixin:
         # Stock turnover is needed for walk-in destinations too. The child
         # only starts procurement preparation; its own mining entry gate still
         # governs the eventual trip, independently of ordinary dive equipment.
-        if not guardian_blocked:
+        if not guardian_blocked and not departure_ok:
             stockout = self._supply_stockout_mining_key(snapshot)
             if stockout is not None:
                 return stockout
@@ -7104,7 +7104,10 @@ class TownMixin:
             return None
         from hengbot.town_terminal import stockout_mining_intended_terminal
 
-        if stockout_mining_intended_terminal(self, snapshot) is None:
+        failed = tuple(name for name, ready in
+                       self._recall_town_departure_conjuncts(snapshot).items()
+                       if not ready)
+        if stockout_mining_intended_terminal(self, snapshot, failed=failed) is None:
             return None
         # ``no-actionable-supplier`` covers both an exhausted shelf and stock
         # that the player cannot currently afford. Shelf observations are
