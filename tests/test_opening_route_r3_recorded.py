@@ -19,11 +19,12 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.warrior_optimization import load_character_calibration
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 from tests import test_opening_route_r2_recorded as round2
 
 
-class OpeningRouteR3RecordedTest(ProductionHarness):
+class OpeningRouteR3RecordedTest(executor_harness.ProductionHarness):
     shelf_screen = staticmethod(round2.OpeningRouteR2RecordedTest.shelf_screen)
     @classmethod
     def setUpClass(cls):

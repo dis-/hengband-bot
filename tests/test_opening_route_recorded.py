@@ -21,7 +21,8 @@ from hengbot.quest_knowledge import QuestInfo, QuestBattlefield
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen, store_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen, store_screen
 
 FIXTURE = Path(__file__).with_name("fixtures") / "opening-route-20261026.json.gz"
 
@@ -59,7 +60,7 @@ def make_policy(data):
     return policy
 
 
-class OpeningRouteRecordedTest(ProductionHarness):
+class OpeningRouteRecordedTest(executor_harness.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         cls.data = captured()
