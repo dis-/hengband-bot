@@ -1,0 +1,18 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-q34-churn.txt. The supervisor ran your fix (6163509fe) from a FRESH character on the verification
+machine (two seeds, same game build and template as the viewing bots). The chest-approach loop is gone, but both runs
+stopped inside quest 34 about a minute after entering, three times each, on stuck-prompt:chest:open:
+  decisions: 's' chest:search, 's' chest:search, 'D3' chest:disarm, 'D3' chest:disarm, 'o3' chest:open at (9,8)
+  screen at the stop: 「方向 ('.'足元, ESCで中断)? 」, input_context {"kind": "direction", "at_feet": true}
+  i.e. after 'o3' the game is still asking for a direction.
+Captures (copied): C:\hengband-backups\state-logs\q34-fresh-chest-prompt-1026\captures\ (each stop with
+control-at-stop.json.gz, bot-decisions, state rows). Read the game source (C:\hengband\src, the open / disarm commands
+and their direction prompts, easy_open / easy_disarm, and what a chest under or next to the player asks) to find why the
+direction is not accepted (key composition? the disarm 'D3' left a prompt or the previous key ate the '3'? the chest is
+on another cell than the bot thinks? the open command targets the floor chest with '.'?).
+Fix it so opening/disarming a quest chest answers every prompt the game shows. Pins MUST go through the follow
+executor with the recorded screens (a choose_key-only pin missed this). Keep all round-1 pins green.
+Rules as before (Python UTF-8, no process control, no push/merge/rebase/reset --hard/stash, existing tests unchanged).
+Guards: preflight / mutation_check --record / fast_tier with base e39ad6789. Token budget 80k HARD, wall time 90
+minutes. Append round 2 to the report (Japanese, Python UTF-8) and commit. The supervisor reruns the fresh-character
+check after you.
