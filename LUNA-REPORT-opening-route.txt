@@ -1,5 +1,7 @@
 ISSUE #47 固定開始ルート 実装報告
 基準: 5eca3f7a4 / 作業ブランチ opening-route-1026。
+最終実装HEAD: e205d6076。追加15件とQ34関連31件は通過。preflightとmutation_checkは成功。
+fast_tierは1,959件を実行し、基準コミットでも再現するflight recorderの既存1件だけが失敗した。
 診断の記録・ソース参照は LUNA-DIAG-opening-route.txt。すべてPythonでUTF-8保存。
 
 実装
@@ -54,7 +56,16 @@ Q1受注、受注後入口確認、チェックポイント復元、資金不足
 基準時点の既存テストは変更しない。生ログや前回の実行トランスクリプトはコミット対象外。
 
 ガード結果
-実行後に追記する。preflight / mutation_check --record / fast_tier の基準はいずれも5eca3f7a4。
+実装HEAD e205d6076、基準はいずれも5eca3f7a4。
+preflight: 終了0。21 changed files、0 findings。
+mutation_check --record: 終了0。0 of 20 hunks are not pinned。e205d6076向けの記録保存済み。
+  eb8ac5f60で20差分全件の反転検査が成功。最新HEADでは19件を継承し、更新した1件を再反転して成功した。
+fast_tier --shards 4: 終了1。1,959件、136.8秒。Failuresは下記の既存flight recorder 1件、Errorsなし、crashなし。
+  60秒超の51モジュールは標準fast_tierの対象外であり、全スイート成功を主張しない。
+追加ピン15件: 成功（mutation_checkの事前実行でも再確認）。
+Q34関連5モジュール31件: 成功、74.476秒。
+入力executorのタイムアウト検証が一度並列実行で失敗したが、単独再実行は成功（0.025秒）。
+  ソース変更なしのfast_tier再走でも通過し、上記の最終失敗一覧には含まれない。
 使用PythonはCodex runtime 3.12.14 (WindowsAppsのstubではない)。
 3.13は空のASTフィールドを省略するため、3.12でのmanifest再生成に伴い既存サイトのASTハッシュも再計算される。
 分類変更と無関係なソース変更を表すものではない。manifestとruntime indexは同じPythonで生成・検証する。
@@ -84,3 +95,5 @@ flight recorderの test_budget_stats_unprunable_bulk_only_once_during_deletion_l
 期待bulk_stats=4に対して5を返す。同一Codex runtimeで5eca3f7a4の独立チェックアウトでも同じ失敗を確認した。
 一緒に比較した既存の町補充2件は基準で通過。protocol互換性修正後の関連115件では、この1件だけが失敗した。
 この無関係な基準側の問題を隠すためのテスト変更・スキップ・期待値変更は行っていない。
+
+最終報告のコミットはこの報告書だけを変更する。ソース・テストの検証対象は上記実装HEADと同一。
