@@ -5,7 +5,7 @@ from hengbot.item_reservation import (
     claim_candidate_cache, decision_caches_enabled, decision_memo, reservation_query,
     outpost_fare_sale,
 )
-from hengbot.item_reservation import reserved_item_command, reservation_verdict
+from hengbot.item_reservation import reserved_item_command, reservation_verdict, item_available
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -7263,7 +7263,8 @@ class TownMixin:
             reserved = []
             for item in snapshot.inventory:
                 kept, _ = self._retention_reservation_detail(snapshot, item)
-                if not kept or item.is_recall_scroll or not item.known:
+                if (not kept or item.is_recall_scroll or not item.known
+                        or not item_available(self, snapshot, item, "shop-sell", "sell")):
                     continue
                 # Only these existing supply rules distinguish a return
                 # minimum from the larger departure/quest reservation.

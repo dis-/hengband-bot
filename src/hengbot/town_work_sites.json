@@ -7450,7 +7450,7 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "82a40a032c9a1619641cfb535c756e33a48e0d15c579267104726462b57969c4"
+    "ast_sha256": "f6783025d4714f2d8cebd5ecb2034adbd06891d16a34e28225a4c4b498fbb799"
   },
   "policy_town.py:TownMixin._outpost_return_fare": {
     "classification": "data",

@@ -162,6 +162,18 @@ class ReservedFareTest(ProductionHarness):
         p = self.policy(raw)
         self.assertEqual(self.decide(p, raw)[:2], ("{b@1\r", "shop:batch-inscribe"))
 
+    def test_foreign_home_retry_reservation_is_skipped(self):
+        raw = self.broke()
+        raw["inventory"][1]["count"] = 2  # cure already at its return floor
+        p = self.policy(raw)
+        board = parse_snapshot(raw, self.monrace)
+        teleport = board.inventory[3]
+        # Construct an existing Home-full retry owner for this retained stack;
+        # fare recovery must not approach a shop that cannot acquire the item.
+        p._home_full_retry_deposits = ((p._item_signature(teleport), 15, 15),)
+        self.assertEqual(self.decide(p, raw)[1], "town:blocked:outpost-fare-no-sale")
+        self.assertIsNotNone(p._home_full_retry_deposits)
+
     def test_surplus_still_precedes_reserved_supplies(self):
         raw = recorded.BrokePreventRecordedTest._with_surplus_book(self)
         p = self.policy(raw)
