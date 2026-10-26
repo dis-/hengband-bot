@@ -285,6 +285,10 @@ class TownTurnArbiter:
         # table still spend their producing family's arbitration budget.
         explicit = {
             "shop:purchase-deferred": "shop-buy",
+            "shop:outpost-fare-earned-leave": "shop-sell",
+            "shop:outpost-fare-seek-sale-leave": "shop-sell",
+            "shop:outpost-fare-sale-approach": "shop-sell",
+            "shop:outpost-fare-sale-approach:await-entry": "shop-sell",
             "town:ascend": "departure",
             "town:descend": "departure",
         }
