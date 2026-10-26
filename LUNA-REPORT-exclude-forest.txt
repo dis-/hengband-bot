@@ -1,0 +1,119 @@
+#47 森を探索先から除外する作業報告
+基準: f66916c86
+実装: 2eaa04f83（先にソース・テスト・生成 manifest をコミット）
+対象: exclude-forest-1026。別作業の worktree は変更していない。
+
+実装と行き先選択経路
+- src/hengbot/dungeon_knowledge.py:26 EXCLUDED_EXPLORATION_DUNGEONS = {7} を唯一の除外定義とし、:28 exploration_destination_allowed で参照する。ダンジョンの静的知識や帰還メニューから森を削除しない。
+- 主探索先: src/hengbot/policy.py:2098 の初期イーク洞穴、src/hengbot/policy_observation.py:407 の保存済み目的地解放、:422 のアングバンド既定先、:635 の代替先適用、:648 の攻略先選択。
+- 攻略先: src/hengbot/policy_quest.py:5518 _conquest_target。:5538 の保存済み攻略先検査と :5555 の候補走査の両方で共通判定を使い、森を新規選択・再選択しない。
+- 代替先・レベル適合先: src/hengbot/policy_helpers.py:490 _pick_alternate_dungeon、:518 の共通判定。過剰難度、深度停滞、装備適合、倒せない主からの離脱、危険な帰還先からの切替はすべてこの選択器を通る。
+- 安全な帰還先への切替: src/hengbot/policy.py:14827 _activate_safe_recall_fallback が上記選択器を使う。src/hengbot/policy_town.py:6257 _guardian_blocked_recall_switch も同じ経路。
+- 帰還先: src/hengbot/policy_town.py:6209 _town_recall_destination の safe (:6222) が任意の安全ゲート無効時にも共通除外を適用する。
+- 帰還深度: src/hengbot/policy_navigation.py:548 _dungeon_entry_depth は選択した dungeon_id の保存深度を読む。森を指している recall_depth は別ダンジョンへ流用しない。この既存処理は変更しない。
+- 帰還メニュー: src/hengbot/policy.py:18136 _recall_selection_key は entered_dungeon_ids の元の並びを使う。森の項目を削除して後続の選択文字をずらすことはしない。
+- 荒野・地上から入口へ歩く経路: src/hengbot/policy.py:16614 _active_dungeon_target、src/hengbot/policy_helpers.py:468 _is_active_dungeon_entrance、src/hengbot/policy.py:19342 _is_descent_target、src/hengbot/policy_navigation.py:1213 _descent_step、src/hengbot/policy.py:16562 _entrance_travel_key、src/hengbot/policy_town.py:8005 _town_map_descent_entrance。観測時に森の保存済み目標を解放してから、許可済みの同じ目標で入口を選ぶ。各歩行箇所に id 7 の個別検査を追加しない。
+- 大域荒野マップ: src/hengbot/policy.py:11020 から src/hengbot/policy_supply.py:1703 _wilderness_survival_key へ進み、src/hengbot/wilderness_map.py:52 next_key_to_town で街へ退避する。探索ダンジョンを選ぶ経路はない。上記入口歩行テストは地上の入口選択を対象にする。
+- 資金調達: src/hengbot/policy.py:16614 は mine / scavenge の双方を従来からイーク洞穴に固定。src/hengbot/policy_fundraising.py:1158 _fundraising_key はこの経路を使う。以前から森を選ぶ選択器は存在しないので、選択先は引き続きイーク洞穴。
+- 観戦用帰還理由: src/hengbot/spectator.py:152 spectator_recall_destination は選択済み目標・理由と _dungeon_entry_depth から名前・深度を作る。独自の目的地選択はなく、共通選択結果へ追従する。
+
+森にいる／森を帰還先として保存したキャラクター
+- 次の目的地判定で古い _alternate_dungeon と _target_dungeon_id を解放し、_conquest_committed も共通判定で解放する。通常のイーク洞穴／アングバンドまたは他の適合先を使う。
+- 森しか代替候補がないケース名: forest-only guardian fallback。倒せないオーク洞窟の主への帰還が保存され、森だけが有効な代替だった盤面。変更前は森、変更後は既存の town:blocked:guardian-bounce-no-alternate。follow の _policy_final_stop_required も True になり、再度帰還を投稿しない。同じ盤面で再判定してもこの停止を維持する。
+- 新たな停止理由や専用の探索ループは追加していない。
+
+固定クエスト
+- src/hengbot/policy_quest.py:4306 の受注済み討伐クエスト用目的地設定、固定マップの入口・攻略・報酬経路は変更していない。
+- C:/hengband/lib/edit/quests を load_quest_knowledge で調査した結果、dungeon == 7 の固定クエストはない。
+- 森を舞台として説明する固定クエストは存在する。例: #31 柳じじい、#12 自然魔術の特異点、#13 秘術の特異点。いずれも dungeon == 0 の独立した固定クエストで、探索ダンジョン id 7 とは別。これらは除外対象にしていない。
+
+追加テスト
+tests/test_exclude_forest.py の8件。構築盤面と保持済み guardian-recall-pingpong 入力を使う。
+- 主攻略先と保存済み攻略先: choose_key で変更前の森からオーク洞窟へ。
+- 深度停滞によるレベル適合切替: choose_key で森からオーク洞窟へ。そのダンジョン自身の帰還深度を確認。
+- 地上の入口歩行: choose_key で森の右側入口への「6」から、イーク洞穴の左側入口への「4」へ。
+- 現在地が森／保存済み帰還先が森: choose_key で森を再選択せず、森の24Fをイーク洞穴の帰還深度へ流用しない。
+- 帰還選択器: guardian_gate / safety_gate の全組合せで森を拒否。
+- mine / scavenge: 保存済み目標が森でも choose_key が従来のイーク洞穴を使う。
+- 記録済みの帰還・観戦表示: choose_key で森から別の帰還先へ。実際のメニューキーと選択先自身の深度・safe_fallback 理由を照合。
+- 森だけが代替候補のケース: 上述の既存停止と follow の停止判定を確認。
+変更前の対照は共通除外集合だけを空にする。choose_key や目的地選択器の答えは差し替えない。
+キーを出す追加ケースでは production OperationExecutor と既存の faithful fake game を通し、受理キーまで確認。稼働中ゲームとの接続はない。
+記録済み入力では既存テストが宣言する装備入力およびP2出発備蓄の境界をそのまま使用する。
+
+既存テストの変更一覧と理由
+基準 f66916c86 で森を選択・保持していたケースだけを変更した。共通 fixture の全体変更は避け、必要なケースだけ _castle_policy / _use_castle_destination を呼ぶ。Castle の id 12 を使う構築盤面では、以前の合成深度・主・装備条件を維持し、元の検査の意味を保つ。ゲームの Castle 定義は変更しない。
+
+tests/test_policy_observation.py / OverExtensionDungeonSwitchTest
+- test_alternate_selection_picks_deepest_dungeon_at_or_below_limit: 最も深い適合先が森だったため、合成 Castle に置換して深度上限の検査を維持。
+- test_unentered_alternate_is_not_a_walk_in_target: 未訪問の保存先として森を保持していたため、許可される合成 Castle に置換して未訪問判定を維持。
+- test_switches_after_five_looted_dives_without_new_depth: 5回停滞後の森の選択を合成 Castle に置換。
+- test_conquest_target_is_demoted_after_over_extended_dives: 森を攻略先として保持する盤面を合成 Castle に置換し、過剰難度による解放を検査。
+- test_guardian_conquest_discards_alternate_and_selects_ordinary_target: 攻略後の次の目標が森だったため合成 Castle に置換。
+- test_productive_conquest_dive_resets_streak_without_unlatching: 有益な探索後も森の攻略目標を保持する前提を合成 Castle に置換。
+
+tests/test_policy_observation.py / GuardianBounceRoundTripBoundTest
+- test_bounce_bound_holds_for_every_role_of_the_bounced_dungeon: 主から離脱する有効先が森だったため合成 Castle に置換。
+- test_latched_alternate_whose_landing_became_a_guardian_floor: 森を保持し、帰還深度が主の階になってから離脱する前提を合成 Castle に置換。
+- test_restored_checkpoint_without_the_bounce_count_still_switches: 復元後の森への切替を合成 Castle に置換。
+- test_restored_checkpoint_with_a_running_streak_is_judged_mixed_once: 復元後に混合履歴を1度判定し、その後森へ切り替える前提を合成 Castle に置換。
+- test_mixed_streak_keeps_the_shallower_landing_bound: 混合履歴後も森を保持する期待を合成 Castle に置換。
+- test_over_extension_valve_keeps_the_shallower_landing_bound: 深い候補へ移らず森を保持する期待を合成 Castle に置換。
+- test_a_stale_guardian_trigger_does_not_count_another_return: 森を有効な保存先とした帰還計数の前提を合成 Castle に置換。
+- test_a_profitable_pursued_dive_clears_the_guardian_bounces: 森を選んだ探索の利益で履歴を解放する前提を合成 Castle に置換。
+- test_guardian_valve_never_re_picks_the_bounced_dungeon: 元の行き先が森だったため合成 Castle に置換し、直前の主を再選択しない検査を維持。
+- test_town_never_recalls_onto_a_blocked_guardian_landing: 安全な帰還先として森を選ぶ各ケースを合成 Castle に置換。
+- test_repetition_block_switches_off_a_blocked_guardian_landing: repetition 経路で森を代替選択するケースを合成 Castle に置換。
+- test_picker_skips_a_landing_on_a_blocked_guardian_floor: 危険な主を飛ばして森を選ぶ期待を合成 Castle に置換。
+同クラスで森を選択・保持しない停止・復元・深度計数・Speed取り寄せ等のケースには helper を適用していない。
+
+tests/test_guardian_recall_pingpong_recorded.py / GuardianRecallPingPongRecordedTest
+- test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing: 森24Fから次の適合候補である山25Fへ期待を更新。
+- test_r3_no_qualifying_alternate_stops_the_run_visibly: 全候補拒否の停止検査は維持し、無変更盤面を使う対照だけ森から山へ更新。
+- test_g1_fallback_does_not_choose_a_blocked_guardian_landing: 森への帰還を山へ更新し、元のメニュー順による rfg を検査。
+
+tests/test_spectator_recall_destination.py
+- RecordedRecallDestinationTest.test_unsafe_recall_fallback_names_forest_and_its_landing: 森の名前・24Fという表示期待を山・25Fへ更新。メソッド名も test_unsafe_recall_fallback_names_mountain_and_its_landing に変更。
+- RecordedRecallDestinationTest.test_the_next_observation_reapplies_the_alternate: 次の観測でも森を再適用する期待を山・25Fへ更新。
+- RecordedRecallDestinationTest.test_guardian_valve_is_told_apart_from_the_safe_fallback: 選択済みの森を主の階にする前提を、現在選ばれる山49Fへ更新。Castle24Fを後続候補と明示し、guardian_valve 理由が保たれる検査を維持。
+- ObservedAlternateReasonTest.test_looted_dives_without_new_depth_switch_for_no_depth_progress: 森を選択する構築盤面だけ合成 Castle を使い、no_depth_progress 理由を維持。
+他の観戦テストの fixture は変更していない。
+
+tests/test_town_approach_retired_recorded.py / TownApproachRetiredRecordedTest
+- test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave: 森24Fへの帰還期待を山25Fへ更新。関連する replay 記録の選択文字も mountain_selection に変更。ほかの replay 入力・境界・検査は維持。
+
+tests/test_recall_read_cancel_pingpong_recorded.py / RecallReadCancelPingPongRecordedTest
+このモジュールは通常の fast_tier 選別では所要時間によって除外される。追加監査で、森への読取を強制する既存再生が帰還を選べず None を返すことを確認したため、_board / _pair の再生入力だけを置換した。森の保存深度・メニュー位置・攻略知識を合成 Castle に移し、重複する実在 Castle 項目を除く。荷物、操作完了バインド、証明、歴史記録行は保持する。既存テスト本体の期待値は変更していない。影響する森選択ケースは次の4件。
+- test_the_read_alone_changes_the_signed_pack: 森を選んで帰還を読んだ前提を許可済み Castle に移し、消費した帰還巻物だけが証明荷物を変える検査を維持。
+- test_replay_reproduces_each_recorded_read: 森の選択位置を Castle が占める構築メニューにして同じ読取キーを検査。
+- test_the_failed_leaf_on_each_cancel_board_is_the_pack_certificate: 森を選んだ帰還後の失敗要因を検査する前提を Castle に移し、荷物証明が唯一の失敗要因という検査を維持。
+- test_r1_cancel_boards_keep_the_armed_recall: 森へ帰還を予約した入力を Castle に移し、既に予約済みの帰還を取消さない検査を維持。
+test_recorded_pairs_are_a_read_then_its_unready_cancel は生の歴史記録だけを見るので、森を選んでいたという事実と元の入力をそのまま検査する。
+
+生成物
+scripts/town_work_manifest.json.gz と src/hengbot/town_work_sites.json は既存 generator で再生成。
+指定の Codex runtime は Python 3.12.14。基準の AST digest は Python 3.13.14 の形式であることを変更のない関数で照合した。このバージョン差により、変更のない関数を含む index 内892件の digest が更新される。分類・対応先を手作業で変更していない。
+
+検証結果
+実行には指定の Codex runtime Python 3.12.14 を使用。PYTHONPATH は src;tests;scripts。
+対象実装HEAD: 2eaa04f83。検証用スクリプトの基準引数はすべて f66916c86。
+
+- 初期の対象確認: ExcludeForestTest と test_policy_observation の計63件が成功（1.851秒）。この時点でソース・テストを先にコミットした。その後の記録済みケースの修正も同じ実装コミットへまとめた。
+- 帰還取消の対象モジュール: 5件成功（40.108秒）。新たに発見した森選択前提を修正後、最終 fast_tier でも全件成功。
+- preflight.py . f66916c86: 最終15ファイル、指摘0件、PREFLIGHT OK、終了コード0。既存テスト変更の通知は上述の個別理由と照合済み。
+- mutation_check.py . f66916c86 --tests tests.test_exclude_forest.ExcludeForestTest --record: ソース11差分、未検出0、MUTATION OK、終了コード0。10件は実行コードとして検出、1件はコメントのみとして TEXT ONLY。最終HEADおよび src/hengbot・tests のツリーに成功記録が存在する。
+- 追加テスト全8件を使った先行 mutation でも11差分の未検出は0だった。最終記録では各ソース差分を直接検出する公開 choose_key 等の6件へ絞って重複する記録再生を省いた。
+- fast_tier.py . f66916c86: 高速対象1,921件＋変更6モジュール、4分割。最終1,967件、586.9秒。失敗2件、エラー0、異常終了0、終了コード1。今回変更した6モジュールはすべて成功。
+
+fast_tier に残る2件の詳細（両テストおよび関連実装は変更していない）
+1. tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop
+   bulk_stats の期待4に対して実測5。現在HEADの単独実行でも再現。基準 f66916c86 の src を一時ディレクトリへ git archive で取り出した対照でも、同じ5 != 4を確認した。今回の森除外による失敗ではない。
+2. tests.test_input_executor.TcpBarrierPinTest.test_state_timeout_is_terminal_not_wait
+   並列 fast_tier では phase=state の期待に対して、要求予算が keys の段階で尽きて phase=keys となった。現在HEADの単独再実行と基準の対照では成功した。並列実行時の期限依存の不安定さとして記録し、森選択以外の既存テストを変更しないという指定に従って据え置いた。
+基準対照は上記2件を同じ指定 runtime で実行し、TCPは成功、flight recorderだけ同じ失敗（計2件、0.079秒）。別作業の worktree は使っていない。
+初回の広い一括再生には Python の異常終了（0xC0000005）があったが、最終の4分割実行では変更6モジュールを含め異常終了0だった。
+レポート完成後の preflight --no-tests も15ファイル・指摘0件で成功。git diff --check および git diff --cached --check も終了コード0。
+
+制約
+push・merge・rebase・stash・reset --hard、ゲーム／BOT操作、他人のプロセス停止は行っていない。
+ログはコミット対象に含めない。新しい Issue 等の番号は発行していない。
