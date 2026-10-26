@@ -335,3 +335,19 @@ testsツリー: 6fb1558acf36af48e26e00bc33b925548b0b5739
 最終mutationとfast tierは、次のマージ検査の全スイート実行による待機中。
 ログはC:/hengband-backups/broke-prevent-r4-mutation-final.logとbroke-prevent-r4-fast-tier-final.log。
 派生範囲の長い再生テストとガードの最終結果は、完了後に後記する。
+
+第4ラウンド・派生モジュールの完了結果
+派生範囲17モジュールと指定5モジュールの和集合20モジュールを実行した。
+重複を除いて、指定側630件＋残る派生側1086件＝計1716件。派生側は1062.173秒、エラー0。
+派生側初回は6失敗だった。うち分類の3失敗は、censusと継続理由辞書・dispatcher説明の修正後に通過。
+共有合成とtown work契約のmanifest検査の2失敗は、生成時と同じPython 3.13での再実行で通過。
+後者は1件・103.989秒・終了0。共有合成は上記の1件・70.999秒・終了0。
+最後の1失敗はtest_test_modules_do_not_bind_foreign_test_casesである。
+今回追加した2モジュールのimportはd717b9a9bで修正し、残る5ファイルが基点から未変更であることを
+全モジュールを実際にimportした診断とgit diffで確認した。既存テストの期待値は変更していない。
+最終版の全スイートが緑とは扱わず、この基点由来の構造検査失敗を残件として監督者へ伝える。
+
+指定どおりのverify_scope.py --target HEAD --derive-onlyは、初回実装HEADと10578c90eで終了0。
+最終ソース側の派生7モジュールは、先の17モジュールの範囲内であり、すべて実行済み。
+派生結果: C:/hengband-backups/broke-prevent-r4-scope-10578.json。
+この追記時点では最終mutationとfast tierは別のマージ検査の終了待ちであり、緑の結果ではない。
