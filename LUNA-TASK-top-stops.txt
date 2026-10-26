@@ -1,0 +1,39 @@
+ISSUE: #47
+The owner asked (verbatim, 2026-10-26 22:2x): 「hengband.netからの稼働データをみて、出現頻度の高い停止に対応」
+Branch top-stops-1026 at main 9955517b4. Worktree C:\hengband\bot-client\.worktrees\top-stops-1026.
+Other branches in flight (do not touch their worktrees; keep each change narrow): exclude-forest-1026 (the Forest out
+of destinations), broke-prevent-1026 (Outpost return fare), opening-route-1026 (quest 34 -> mining kit -> quest 1).
+
+Stops on the two viewing bots since 2026-10-26 12:30 (events.jsonl restart/escalate), most frequent first. Each part
+is independent: diagnose, fix, pin, and COMMIT EACH PART SEPARATELY as soon as its focused tests pass (the model has
+been hitting capacity mid-run; committed parts survive). Do the parts in this order.
+
+A. stuck-prompt:fixedquest:claim:return - 6 times, 6 different characters (n1-a 358/360/361, n1-b 191/193/194), ALWAYS
+   on Yeek cave 5F (dungeon 2, depth 5) at Lv14-17 after a fixed-quest claim. The game shows
+   「ここは最深到達階より浅い階です。この階に戻って来ますか？ [y/n]」 (input_kind confirm) and the bot does not answer.
+   Read the C++ source (C:\hengband\src, the recall activation and this prompt) and the bot's recall-depth intent
+   (what depth should the next recall go to?) and answer the prompt the way the bot's own recall-depth decision wants,
+   through the follow executor / input context. Records: state-logs\top-stops-1026\n1-b\life-19{1,3,4}\captures\*-claim-return
+   (bot-decisions, control-at-stop with the screen, state.jsonl) and incident-captures\*-stuck-prompt.
+B. town:blocked:departure-unsatisfiable - 8 times, 3 characters (n1-a 358 x3 -> escalate -> new character, n1-b 193
+   x4 -> escalate). Read departure_block.failed in each capture first and quote it. Expected: cure_critical_ready
+   (Cure Critical Wounds short, blocked_reason no-actionable-supplier = no shop has them) and/or equipment_departure_ready.
+   The owner decided earlier (2026-10-05, LOCKED): 「品切れだけで出発できない時は採掘に1回出て時間を潰し（+5,000G か採掘1回分）、
+   町で店を回り直す。3回で買えなければ見える停止」. Find why that path did not run here (regression?) and restore it.
+   If equipment_departure_ready is the cause instead, diagnose and fix that within existing rules.
+   The same thing happened on the verification machine after quest 1 (fresh character, CCW 4/10 no-actionable-supplier,
+   stuck:wander in town for 27 minutes) - include it in the diagnosis.
+   Records: state-logs\top-stops-1026\n1-a\life-358, life-359, n1-b\life-193 (incident-captures\*-departure-unsatisfiable).
+C. town:blocked:owner-retired-burst - 7 times, 5 characters; two characters were retired because of it (n1-b 194 at
+   19:47, n1-a 364 at 21:49). Records: incident-captures\*-owner-retired-burst under n1-a/life-358,360,364 and
+   n1-b/life-013,189,192,194. Find which town work keeps retiring (the burst) and fix the root.
+D. town:blocked:guardian-bounce-no-alternate - 3 in a row on the newest build (n1-a life-363 Lv11, 21:25) -> escalate.
+   Records: n1-a/life-363/incident-captures\*-guardian-bounce-no-alternate. Diagnose (Lv11 guardian bounce with no
+   alternate dungeon - which dungeon, which guardian, what the existing rule expects) and fix within the existing
+   decisions; if the decisions do not cover it, STOP this part and write options.
+For every part: LUNA-DIAG-top-stops.txt section with file:line; pins through the public choose_key AND the follow
+executor seeded from the records (before = the stop, after = the intended action); revert-proof each pin.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control; no
+push/merge/rebase/reset --hard/stash; existing tests (= tests at 9955517b4) unchanged; no logs committed; no new number.
+Guards: preflight / mutation_check --record / fast_tier with base 9955517b4 (they wait while a merge gate runs).
+Token budget 200k HARD, wall time 180 minutes. Write LUNA-REPORT-top-stops.txt in Japanese and commit.
