@@ -1370,7 +1370,18 @@ def stockout_mining_intended_terminal(policy: Any, board: Any) -> TerminalRef | 
         "cure_critical_ready": {"Cure Critical Wounds potions"},
         "remove_curse_ready": {"Remove Curse scrolls", "*Remove Curse* scrolls"},
     }
-    failed = gather_recall_departure(policy, board).failed
+    # Installing a one-run procurement plan is not ordinary dungeon entry.
+    # Optional catalogue/identification work can remain pending; physical
+    # transfers must settle before another expedition can own the board.
+    if (policy._equipment_transaction_session is not None
+            or policy._home_atomic_withdraw_pending is not None
+            or policy._home_atomic_deposit_pending is not None
+            or policy._home_pending_item is not None
+            or policy._home_pending_batch):
+        return None
+    failed = tuple(name for name in gather_recall_departure(policy, board).failed
+                   if name not in {"equipment_departure_ready", "home_candidate_resolved",
+                                   "identification_need_clear", "departure_identification_need_clear"})
     blocked = {row["item"] for row in policy.procurement_requirements(board)
                if row.get("blocked_reason") == "no-actionable-supplier"}
     if not failed or any(not (labels.get(name, set()) & blocked) for name in failed):
@@ -1989,6 +2000,10 @@ REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], str | No
     "home-atomic-withdraw": _commit_home_atomic_withdraw,
     "shop-page": _commit_shop_page,
     "store-sell": _commit_store_sale,
+    # The initiator only installs preparation. Missing mining supplies are
+    # precisely the work that preparation must make visible to its suppliers.
+    "supply-stockout-mining": lambda policy, board, terminal, admission:
+        policy._supply_stockout_mining_dispatch_key(board),
     "_fundraising_key#1": _commit_fundraising_run,
     "_fundraising_key#2": _commit_fundraising_run,
     "identify-equipped": _commit_identify_equipped,

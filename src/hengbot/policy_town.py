@@ -6651,6 +6651,13 @@ class TownMixin:
         else:
             self._departure_block = {}
         self._departure_block_sequence = self._decision_sequence
+        # Stock turnover is needed for walk-in destinations too. The child
+        # only starts procurement preparation; its own mining entry gate still
+        # governs the eventual trip, independently of ordinary dive equipment.
+        if not guardian_blocked:
+            stockout = self._supply_stockout_mining_key(snapshot)
+            if stockout is not None:
+                return stockout
         recall_only_block = (
             recall_dest is not None
             and not snapshot.player.recalling
@@ -7066,26 +7073,10 @@ class TownMixin:
         """
         if self._fundraising_mode is not None or snapshot.player.recalling:
             return None
-        labels = {
-            "recall_departure_ready": {"Word of Recall scrolls"},
-            "food_ready": {"Food rations", "Device charges for food"},
-            "light_ready": {"Flasks of oil"},
-            "teleport_ready": {"Teleport scrolls"},
-            "cure_critical_ready": {"Cure Critical Wounds potions"},
-            "remove_curse_ready": {"Remove Curse scrolls", "*Remove Curse* scrolls"},
-        }
-        failed = self._departure_block_state(snapshot)["failed"]
-        requirements = self.procurement_requirements(snapshot)
-        blocked = {row["item"] for row in requirements
-                   if row.get("blocked_reason") == "no-actionable-supplier"}
-        if not failed or any(not (labels.get(name, set()) & blocked) for name in failed):
+        from hengbot.town_terminal import stockout_mining_intended_terminal
+
+        if stockout_mining_intended_terminal(self, snapshot) is None:
             return None
-        kinds = {
-            "recall_departure_ready": "recall", "food_ready": "food",
-            "light_ready": "oil", "teleport_ready": "teleport",
-            "cure_critical_ready": "cure-critical",
-            "remove_curse_ready": self._required_remove_curse_kind(snapshot),
-        }
         # ``no-actionable-supplier`` covers both an exhausted shelf and stock
         # that the player cannot currently afford. Shelf observations are
         # historical: a previously seen ware may already have sold, and an
