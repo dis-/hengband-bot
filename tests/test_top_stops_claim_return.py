@@ -42,7 +42,7 @@ class TopStopsClaimReturnTest(ProductionHarness):
                 source = prompt_screen("Read which scroll?")
                 source["input_context"] = {"kind": "item", "prompt": "Read which scroll?"}
                 after = copy.deepcopy(raw)
-                after["player"]["timed_effects"] = {"word_recall": 15}
+                after["player"]["recalling"] = True
                 game.screens = [source, case["screen"], command_screen(raw["turn"] + 1)]
                 game.states = [copy.deepcopy(raw), copy.deepcopy(raw), after]
                 game, _client, executor = self.make(game)
@@ -57,6 +57,7 @@ class TopStopsClaimReturnTest(ProductionHarness):
                 self.assertEqual(port.last_result.outcome, "completed", port.last_result.reason)
                 self.assertEqual(game.accepted, ["r", str(key)[1], "n"])
                 self.assertEqual(game.state["progress"]["recall_depth"], board.recall_depth)
+                self.assertTrue(parse_snapshot(game.state, {}).player.recalling)
 
     def test_claim_owner_does_not_answer_unrelated_confirmation(self):
         game, _client, executor = self.make()
