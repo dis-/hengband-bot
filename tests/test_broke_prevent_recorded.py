@@ -24,7 +24,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.model import parse_snapshot, GridState, Position
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import TOWN_TELEPORT_COST, POLICY_FINAL_STOP_REASONS, RUMOR_COST, RUMOR_READ_KEY, INN_BUILDING_TYPE
+from hengbot.policy_constants import TOWN_TELEPORT_COST, POLICY_FINAL_STOP_REASONS, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, INN_BUILDING_TYPE
 from hengbot.item_reservation import store_item_key
 from hengbot.cli import _policy_final_stop_required
 from tests import test_classA_observed_input as follow_harness
@@ -224,6 +224,33 @@ class BrokePreventRecordedTest(ProductionHarness):
         key,reason = self.rumor(gold)
         self.assertEqual((key,reason),("6"+RUMOR_READ_KEY*2+"\x1b","town:rumor-batch"))
         self.assertEqual(gold-key.count(RUMOR_READ_KEY)*RUMOR_COST,TOWN_TELEPORT_COST)
+
+    def test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch(self):
+        # DECLARED CONSTRUCTED: A's pack beside an inn, with a pending travel
+        # rumor and just two reads above the reserve. At the Outpost the
+        # older, lower rumor reserve applies instead of the return fare.
+        for town, reserve in ((2, TOWN_TELEPORT_COST), (0, RUMOR_GOLD_RESERVE)):
+            with self.subTest(town=town):
+                gold = reserve + 2 * RUMOR_COST
+                raw = self.raw(2455721, gold=251, source="a")
+                raw["floor"].update(town_id=town, town_index=town + 1)
+                raw["player"].update(gold=gold, y=10, x=10)
+                raw["progress"]["visited_town_ids"] = [0, 2]
+                raw.pop("grid_map", None)
+                raw["nearby_grids"] = [
+                    {"y":10, "x":x, "known":True, "terrain":{"move":True},
+                     "building_type":building}
+                    for x, building in ((10, -1), (11, INN_BUILDING_TYPE))
+                ]
+                p = self.policy(raw)
+                p._town_travel_rumor_pending = 1
+                self.empty_suppliers(p, raw)
+                key, reason, _ = self.decide(p, raw)
+                reads = (gold - reserve) // RUMOR_COST
+                self.assertEqual((key, reason),
+                                 ("6" + RUMOR_READ_KEY * reads + "\x1b", "town:rumor-batch"))
+                self.assertEqual(gold - key.count(RUMOR_READ_KEY) * RUMOR_COST, reserve)
+                self.assertEqual(self.follow(key, reason, raw), [key])
 
     def test_outpost_has_no_return_fare_purchase_reserve(self):
         raw = self.raw(2933932, gold=5299, store=4)
