@@ -2232,6 +2232,14 @@ class HomeMixin:
                 candidate.is_food and candidate.aware and candidate.sval >= FOOD_MIN_SVAL
             )
             branch = "supply-ledger:food"
+        elif (item.is_lantern and self._planned_depth() >= 2
+              and not self._owns_usable_permanent_light(snapshot)):
+            # The ordinary departure gate still requires a lantern when an
+            # optimized ego torch is worn. Keep its one carried source rather
+            # than staging it at Home and recreating the same shortage.
+            target = int(not any(worn.is_lantern for worn in snapshot.equipment))
+            matches = lambda candidate: candidate.is_lantern
+            branch = "light:departure-lantern"
         elif item.is_torch:
             if not item.known or item.fuel <= 0:
                 return 0, None

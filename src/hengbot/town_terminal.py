@@ -1777,6 +1777,8 @@ TERMINALS: dict[str, TerminalDecl] = {
     **{name: TerminalDecl(fundraising_intended_terminal, ENFORCE) for name in (
         "_fundraising_key#1", "_fundraising_key#2")},
     "supply-stockout-mining": TerminalDecl(stockout_mining_intended_terminal, ENFORCE),
+    "supply-stockout-prepare": TerminalDecl(
+        lambda policy, board: TerminalRef(NO_REFUSAL, ("supply-stockout-prepare",)), ENFORCE),
     "_town_special_key": TerminalDecl(departure_intended_terminal, ENFORCE),
     "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, ENFORCE),
 }
@@ -2003,7 +2005,10 @@ REFUSAL_COMMITS: dict[str, Callable[[Any, Any, TerminalRef, Admission], str | No
     # The initiator only installs preparation. Missing mining supplies are
     # precisely the work that preparation must make visible to its suppliers.
     "supply-stockout-mining": lambda policy, board, terminal, admission:
-        policy._supply_stockout_mining_dispatch_key(board),
+        policy._town_producer_entry(
+            "supply-stockout-prepare",
+            lambda: policy._supply_stockout_mining_dispatch_key(board),
+            family="fundraising", board=board),
     "_fundraising_key#1": _commit_fundraising_run,
     "_fundraising_key#2": _commit_fundraising_run,
     "identify-equipped": _commit_identify_equipped,

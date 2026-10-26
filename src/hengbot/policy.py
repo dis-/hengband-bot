@@ -13328,6 +13328,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             and self._light_refill_item(snapshot) is None
         )
+        if not low_without_refill and equipped.is_torch and candidate.is_lantern:
+            preparation = self._equipment_optimization_preparation
+            best = getattr(getattr(preparation, "result", None), "best", None)
+            loadout = getattr(best, "loadout", None)
+            if getattr(preparation, "ready", False) and isinstance(loadout, Loadout):
+                selected = dict(loadout.slots).get("light")
+                if (selected is not None
+                        and equipment_identity(selected.item) == equipment_identity(equipped)):
+                    # The optimizer compared this ego torch's combat value and
+                    # light radius already. Carry the required lantern without
+                    # alternating the selected light with the legacy ranker.
+                    return None
         if not low_without_refill and self._light_rank(candidate) <= self._light_rank(equipped):
             return None
         return candidate
