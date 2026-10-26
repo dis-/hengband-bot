@@ -351,3 +351,11 @@ testsツリー: 6fb1558acf36af48e26e00bc33b925548b0b5739
 最終ソース側の派生7モジュールは、先の17モジュールの範囲内であり、すべて実行済み。
 派生結果: C:/hengband-backups/broke-prevent-r4-scope-10578.json。
 この追記時点では最終mutationとfast tierは別のマージ検査の終了待ちであり、緑の結果ではない。
+
+第4ラウンド・最終pins再確認
+import修正後の最終ツリーで、Codex付属Python 3.12.14を使い金欠防止2モジュールを再実行した。
+18件＋9件＝27件、149.171秒、失敗0・エラー0、終了0。
+公開choose_keyからfollow送信経路・OperationExecutorを通す購入運賃保護、売却、予約品放出、
+売却後のOutpost帰還、噂話、巡回抑止を含み、最終ソースと最終テストimportの組合せで通過した。
+結果: C:/hengband-backups/broke-prevent-r4-pins-final.json。
+ガード2つは引き続きマージ検査の全スイート終了待ち。待機を迂回しない。
