@@ -5919,7 +5919,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "33bbfb3467109a85e144a717e35a44ab99b3e9019da6a15aa87c0923805b97df"
+    "ast_sha256": "c1ebcf4d690570795e8069fbca16af90bd255765fd8944ddbe00d29dca8bfda8"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",

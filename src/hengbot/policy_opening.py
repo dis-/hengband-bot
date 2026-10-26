@@ -305,6 +305,12 @@ class OpeningRouteMixin:
             return self._opening_q1_stop(self._opening_q1_failure)
         if self._effective_town_id(snapshot) != 0:
             return self._opening_q1_stop("not-in-outpost")
+        # Reconstruct the same allowlisted reward latch as _fixed_quest_key
+        # after a restart, before purchasing anything for the next quest.
+        if self._fixed_quest_reward_pending is None and any(
+                (grid := snapshot.grid_at(position)) is not None and grid.object_count > 0
+                for position in self._fixed_quest_reward_positions(snapshot, 34)):
+            self._fixed_quest_reward_pending = 34
         # Finish the reward pickup transaction before spending its proceeds.
         if self._fixed_quest_reward_pending is not None:
             key = self._fixed_quest_key(snapshot, hostiles)

@@ -58,3 +58,8 @@ Q1受注、受注後入口確認、チェックポイント復元、資金不足
 使用PythonはCodex runtime 3.12.14 (WindowsAppsのstubではない)。
 3.13は空のASTフィールドを省略するため、3.12でのmanifest再生成に伴い既存サイトのASTハッシュも再計算される。
 分類変更と無関係なソース変更を表すものではない。manifestとruntime indexは同じPythonで生成・検証する。
+
+再開経路の追加確認
+Q34報酬の床上アイテムが残る再起動では、既存の許可座標から受取ラッチを復元し、買い物より先に報酬を拾う。
+公開choose_keyの fixedquest:reward-pickup とfollow executorへのg投稿を追加ピンで確認した。
+追加ピンは計12件（直前の11件に報酬再開1件を追加）。

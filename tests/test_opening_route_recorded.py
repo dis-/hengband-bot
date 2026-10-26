@@ -441,3 +441,22 @@ class OpeningRouteRecordedTest(ProductionHarness):
         self.assertEqual(oil["key"], "pf1\r\r")
         self.assertEqual(oil["purchase"]["category"], "oil")
         self.assertEqual(oil["readiness"]["strategy_force"]["failed"], ["throwing_items.lit_torch"])
+
+    def test_restarted_q34_reward_pickup_precedes_the_mining_kit(self):
+        policy, raw, _ = self.shopping_case()
+        # DECLARED CONSTRUCTED: restart on Q34's allowlisted reward tile,
+        # with its claimed reward still on the ground and no in-memory latch.
+        raw["store"] = None
+        raw["player"]["y"], raw["player"]["x"] = 36, 119
+        raw["grid_map"]["cells"].append(dict(y=36, x=119, o=1, t=[TVAL_SWORD]))
+        raw["grid_map"]["found_items"] = [[36, 119, 1, TVAL_SWORD]]
+        key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+        self.assertEqual((key, policy.last_reason), ("g", "fixedquest:reward-pickup"))
+        self.assertEqual(policy._fixed_quest_reward_pending, 34)
+        self.assertFalse(getattr(policy, "_opening_q1_kit_bought", False))
+        following = copy.deepcopy(raw)
+        following["turn"] += 1
+        following["grid_map"]["cells"][-1]["o"] = 0
+        following["grid_map"]["cells"][-1]["t"] = []
+        following["grid_map"]["found_items"] = []
+        self.post(policy, raw, key, following)
