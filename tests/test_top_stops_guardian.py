@@ -15,9 +15,9 @@ from hengbot.model import (Snapshot, Position, PLAYER_CLASS_WARRIOR, TVAL_SCROLL
     SV_POTION_CURE_CRITICAL, TVAL_FOOD, TVAL_FLASK, TVAL_SWORD, TVAL_LITE,
     SV_LITE_LANTERN, TVAL_STAFF, SV_STAFF_IDENTIFY)
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import EMPTY_DIVE_LIMIT, RUMOR_COST, RUMOR_GOLD_RESERVE
+from hengbot.policy_constants import EMPTY_DIVE_LIMIT, RUMOR_COST, RUMOR_GOLD_RESERVE, WAIT_KEY
 from policy_fixtures import player, grid, item, set_completed_equipment_optimization
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen
+from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-guardian-projection.json"
 EDIT = Path("C:/hengband/lib/edit")
@@ -141,13 +141,16 @@ class TopStopsGuardianTest(ProductionHarness):
         for landing in (21, 81, 100):
             with self.subTest(landing=landing):
                 policy, board = self.scene(landing=landing)
-                # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: a named terminal emits only WAIT; advance time without movement to prove the stop remains latched
                 for turn in range(3):
-                    key = policy.choose_key(replace(board, turn=board.turn + turn))
+                    key = policy.choose_key(board)
                     self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
                     self.assertIsNone(policy._alternate_dungeon)
                     self.assertFalse(policy._rumor_unlock_pending)
-                    self.send(board, key, policy.last_reason)
+                    self.assertEqual(str(key), WAIT_KEY)
+                    game = self.send(board, key, policy.last_reason)
+                    # Apply the WAIT effect confirmed by follow: time advances,
+                    # the position stays put, and the named stop stays latched.
+                    board = replace(board, turn=game.state["turn"])
 
     def test_public_rumor_funds_use_existing_reserve(self):
         policy, board = self.scene()
@@ -191,3 +194,15 @@ class TopStopsGuardianTest(ProductionHarness):
                 self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
                 self.assertIsNone(policy._alternate_dungeon)
                 self.send(board, key, policy.last_reason)
+
+    def test_public_forced_departure_other_alternative_keeps_its_recall(self):
+        policy, board = self.scene()
+        board = replace(board, entered_dungeon_ids=(2, 3), dungeon_recall_depths={2: 13, 3: 10})
+        policy._town_blocked_reason = "repetition"
+        # DECLARED CONSTRUCTED: an older quest rumor request is still pending;
+        # it must not make a different guardian alternate release departure.
+        policy._rumor_unlock_pending = True
+        key = policy.choose_key(board)
+        self.assertEqual(policy._target_dungeon_id, 3)
+        self.assertEqual(policy.last_reason, "town:repetition-depart:recall")
+        self.send(board, key, policy.last_reason, recall=True)

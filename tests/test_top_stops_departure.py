@@ -9,7 +9,7 @@ from pathlib import Path
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
-from hengbot.town_terminal import stockout_mining_intended_terminal
+from hengbot.town_terminal import stockout_mining_intended_terminal, rung_terminal, terminal_admission
 from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-departure.json.gz"
@@ -74,6 +74,11 @@ class TopStopsDepartureTest(ProductionHarness):
                 self.assertIn("fundraise:supply-stockout-mining", policy.last_reason)
                 self.assertEqual(policy._fundraising_mode, "prepare")
                 self.assertEqual(policy._planned_mining_runs, 1)
+                # Preparation must have a declared admissible terminal, rather
+                # than bypassing admission as an unregistered producer.
+                terminal = rung_terminal(policy, "supply-stockout-prepare", board)
+                self.assertIsNotNone(terminal)
+                self.assertTrue(terminal_admission(policy, board, terminal).admitted)
                 self.assertEqual(policy._fundraising_gold_target(), board.player.gold + 5000)
                 self.send(board, key, policy.last_reason)
                 if "life-193" in case["source"]:

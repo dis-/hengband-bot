@@ -6157,7 +6157,8 @@ class TownMixin:
                                     "guardian-bounce-no-alternate"
                                 )
                                 return self._town_blocked_key(snapshot)
-                            if self._rumor_unlock_pending:
+                            if (self._target_dungeon_id == DUNGEON_ANGBAND
+                                    and self._rumor_unlock_pending):
                                 # The guardian alternate may be locked Angband.
                                 # Release forced departure so the existing inn
                                 # rumor owner can unlock it on the next board.
