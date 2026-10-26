@@ -184,7 +184,11 @@ class CrownDeferredTest(unittest.TestCase):
             if session.complete:
                 break
             self.assertIsNotNone(action, self.policy.last_reason)
-            if key == "\x1b":
+            if self.policy.last_reason in {
+                "home:store-context-exit", "home:leave-after-one-operation",
+                "home:scan-complete-from-open-page",
+                "equipment-transaction:leave-home-for-equip",
+            }:
                 self.policy.confirm_key_posted(key)
                 self.policy.prime(replace(snapshot, store=None))
                 self.board["turn"] += 10
