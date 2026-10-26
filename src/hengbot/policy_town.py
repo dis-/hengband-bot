@@ -1998,7 +1998,17 @@ class TownMixin:
             and self._fundraising_mode in {"prepare", "mine", "scavenge"}
             # A stockout time-pass prepares the mining kit precisely because
             # the ordinary identify-staff supplier was exhausted already.
-            and not self._identify_staff_mining_plan
+            and (not self._identify_staff_mining_plan or any(
+                ware.tval == TVAL_STAFF and ware.sval == SV_STAFF_IDENTIFY
+                and self._identify_staff_acquisition_worthwhile(
+                    snapshot, max(ware.charges, ware.pval))
+                and ware.price + self._fundraising_kit_reserve(snapshot)
+                    <= snapshot.player.gold
+                for store, page in self._town_supplier_stock.items()
+                if store in {STORE_MAGIC, STORE_BLACK}
+                and store not in self._town_store_attempted
+                for ware in page.items
+            ))
             and self._supply_stockout_gold_target is None
             and self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
             and {
