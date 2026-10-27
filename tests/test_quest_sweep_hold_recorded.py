@@ -19,6 +19,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import load_quest_knowledge
+from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.quest_strategies import load_quest_strategies
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -171,6 +172,28 @@ class QuestSweepHoldRecordedTest(unittest.TestCase):
         policy = self.policy(board)
         key, reason = self.decide(policy, board)
         self.assertEqual((key, reason), ("2", "quest-strategy:placement-sweep"))
+
+    def test_exhausted_sweep_does_not_resume_exploration_into_enemy_halo(self):
+        # DECLARED CONSTRUCTED: a later survey round on the same board, with
+        # all coverage certificates and a pending ordinary exploration step.
+        # A Huorn has moved next to that committed step since it was planned.
+        board = self.board(31, 26621)
+        monster = self.board(31, 26622).visible_monsters[0]
+        board = replace(board, visible_monsters=[replace(
+            monster, position=Position(4, 17), distance=2,
+        )])
+        policy = self.policy(board)
+        navigator = QuestFloorNavigator(31, self.quests[31].battlefield)
+        policy._quest_strategy_surveyed_placements[31] = {
+            Position(y, x) for y, x in navigator.battlefield.terrain
+            if navigator._static_walkable(Position(y, x))
+        }
+        policy._quest_strategy_sweep_rounds[31] = self.profiles[31].engagement_plan[
+            "max_sweep_rounds"
+        ]
+        policy._explore_path = [Position(3, 16)]
+        self.assertEqual(self.decide(policy, board),
+                         ("5", "quest:blocked:placement-sweep-exhausted"))
 
 
 if __name__ == "__main__":

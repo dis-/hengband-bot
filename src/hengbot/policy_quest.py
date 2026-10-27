@@ -3878,6 +3878,16 @@ class QuestMixin:
                     and self._quest_cell_confirmed_empty(snapshot, position)
                 ):
                     surveyed.add(position)
+            # Stationary enemies can now remain visible during the sweep.
+            # Apply the same melee exclusion to static routes and to the
+            # ordinary exploration fallback after the survey rounds finish.
+            blocked = {
+                Position(monster.position.y + dy, monster.position.x + dx)
+                for monster in hostiles
+                if monster.race_id in never_move_races
+                for dy in (-1, 0, 1)
+                for dx in (-1, 0, 1)
+            }
             unsurveyed = sweep_targets - surveyed
             if not unsurveyed:
                 rounds = self._quest_strategy_sweep_rounds.get(profile.quest_id, 0) + 1
@@ -3887,12 +3897,12 @@ class QuestMixin:
                     # complete: the targets are mobile (e.g. Q22's orcs) and have
                     # wandered off their placements. Waiting here just deadlocks
                     # until the loop guard stops the bot, so fall back to ordinary
-                    # floor exploration to bring the strays into view. The sweep
-                    # is gated on `not hostiles`, so combat/hold resumes the
-                    # moment one is sighted; only a fully-explored floor with no
-                    # frontier left degrades to the (loop-guarded) wait.
+                    # floor exploration to bring the strays into view. Combat
+                    # and the shared hold decision still handle new threats;
+                    # an unsafe next step or an exhausted frontier produces
+                    # the existing visible blocked reason.
                     step = self._explore_step(snapshot)
-                    if step is not None:
+                    if step is not None and step not in blocked:
                         self.last_reason = "quest-strategy:placement-sweep-explore"
                         self._declare_explore_goal()
                         return self._step_toward(snapshot, step)
@@ -3901,15 +3911,6 @@ class QuestMixin:
                 surveyed.clear()
                 self.last_reason = "quest-strategy:placement-sweep-repeat"
                 return WAIT_KEY
-            # Stationary enemies can now remain visible during the sweep.
-            # Keep their melee cells out of every route, including its goal.
-            blocked = {
-                Position(monster.position.y + dy, monster.position.x + dx)
-                for monster in hostiles
-                if monster.race_id in never_move_races
-                for dy in (-1, 0, 1)
-                for dx in (-1, 0, 1)
-            }
             routes = [
                 navigator._static_path(
                     snapshot.player.position, {placement}, blocked=blocked
