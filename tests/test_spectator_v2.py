@@ -47,7 +47,14 @@ class SpectatorDetailsTest(unittest.TestCase):
             "name": "\u9996\u306a\u3057\u9b3c", "distance": 1, "hp": None,
             "asleep": False, "stunned": False, "confused": False,
             "fearful": False, "friendly": False, "pet": False,
-            "speed": self.snapshot.visible_monsters[0].speed}])
+            "speed": self.snapshot.visible_monsters[0].speed}] + [{
+            "name": monster["name"], "distance": observed.distance, "hp": None,
+            "asleep": False, "stunned": False, "confused": False,
+            "fearful": False, "friendly": False, "pet": False,
+            "speed": observed.speed, "sensed": "esp"}
+            for monster, observed in sorted(
+                zip(state["detected_monsters"], self.snapshot.detected_monsters),
+                key=lambda pair: pair[1].distance)])
         expected_melee = dict(state["player"]["melee"])
         for item in state["equipment"]:
             if item["slot"] in ("main_hand", "sub_hand"):
@@ -85,6 +92,21 @@ class SpectatorDetailsTest(unittest.TestCase):
         self.assertEqual(spectator_details({"equipment": [], "inventory": [],
                                             "visible_monsters": []}),
                          {"equipment": [], "inventory": [], "monsters": []})
+
+    def test_sensed_monsters_are_listed_once_after_sight_with_their_sense(self):
+        # DECLARED CONSTRUCTED: the emitter partitions sight from ESP/detection;
+        # an index repeated across the two lists is still listed once.
+        state = {
+            "visible_monsters": [{"index": 3, "name": "seen", "distance": 4}],
+            "detected_monsters": [
+                {"index": 3, "name": "seen", "distance": 4, "esp": True},
+                {"index": 5, "name": "esp", "distance": 2, "esp": True, "detected": True},
+                {"index": 7, "name": "detected", "distance": 9, "esp": False, "detected": True}]}
+        self.assertEqual(spectator_details(state)["monsters"], [
+            {"name": "esp", "distance": 2, "hp": None, "sensed": "esp"},
+            {"name": "seen", "distance": 4, "hp": None},
+            {"name": "detected", "distance": 9, "hp": None, "sensed": "detected"}])
+        self.assertEqual(spectator_details({"detected_monsters": []}), {"monsters": []})
 
     def test_active_sources_flags_dice_and_nearest_first_known_hp(self):
         # DECLARED CONSTRUCTED: explicit export values test the public projection.

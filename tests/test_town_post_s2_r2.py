@@ -32,7 +32,8 @@ from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.policy_constants import DIRECTION_KEYS
 from tests.test_esp_threat_rest_recorded import _policy, EDIT
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -51,7 +52,7 @@ def building():
     return screen
 
 
-class PostS2OwnerDecisionTest(ProductionHarness):
+class PostS2OwnerDecisionTest(executor_harness.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")

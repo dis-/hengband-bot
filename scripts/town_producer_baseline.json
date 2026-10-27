@@ -734,5 +734,6 @@
   "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": "delegated adapter: exclusive child of the registered _opening_q34_town_key; the parent owns admission and the selected key.",
   "policy_opening.py:OpeningRouteMixin._opening_q1_stop": "delegated adapter: exclusive child of the registered _opening_q34_town_key; the parent owns admission and the selected key.",
   "policy_shop.py:ShopMixin._purchase_rungs.match": "pure helper: exact observed opening purchase eligibility and provenance; execution remains the shop owner.",
-  "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": "delegated adapter: page census/navigation child of the registered _opening_q34_town_key, before shop selection."
+  "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": "delegated adapter: page census/navigation child of the registered _opening_q34_town_key, before shop selection.",
+  "policy_helpers.py:PolicyHelpersMixin._pick_alternate_dungeon": "pure helper: Returns a safe entered dungeon ID or None for recall planning, including a retained excluded destination; never emits a key or claims progress."
 }

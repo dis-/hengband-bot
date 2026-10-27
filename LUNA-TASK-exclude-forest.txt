@@ -1,0 +1,25 @@
+ISSUE: #47
+The owner decided (verbatim, 2026-10-26 19:3x): 「botの動きを確認した。ダンジョン『森』の探索は非効率なので今後行き先から除外する」
+The Forest is DungeonDefinitions id 7 (ja 森, en Forest, 15-32F, lib/edit/DungeonDefinitions.jsonc).
+
+Branch exclude-forest-1026 at main f66916c86. Worktree C:\hengband\bot-client\.worktrees\exclude-forest-1026.
+Two other branches are in flight (opening-route-1026, broke-prevent-1026); keep this change small and do not touch
+their worktrees.
+
+Do:
+1. Find EVERY place the bot chooses where to go (file:line in the report): the main dive target, the alternate /
+   level-fit dungeon switch (_pick_alternate_dungeon in policy_helpers.py), recall destination choice and its
+   recall-depth handling, walking to a dungeon entrance on the wilderness map, fundraising destinations, the spectator
+   recall-reason text. Exclude the Forest from all of them, in one place (one named exclusion read by all choosers -
+   not one check per call site), so no chooser can pick it.
+2. A character that is in the Forest now or whose recall destination is the Forest: on its next destination decision
+   it picks another dungeon (or the existing fallback). It must not loop when the Forest was its only candidate - name
+   the case and use the existing no-destination path. Fixed quests that happen to be inside or reachable through the
+   Forest are NOT changed by this (if one exists, say so in the report).
+3. Pins through the public choose_key (and the follow executor where a key is posted): before = Forest chosen; after =
+   another dungeon, for each chooser found in 1.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control (viewing bots are live);
+no push/merge to main/rebase/reset --hard/stash; existing tests (= tests at f66916c86) unchanged unless a test pins the
+Forest as a chosen destination (then list it in the report); no logs committed; no new number.
+Guards: preflight / mutation_check --record / fast_tier with base f66916c86 (they wait while a merge gate runs - let
+them). Token budget 80k HARD, wall time 60 minutes. Write LUNA-REPORT-exclude-forest.txt in Japanese and commit.

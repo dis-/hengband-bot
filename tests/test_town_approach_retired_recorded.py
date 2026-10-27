@@ -420,7 +420,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                         row.update(alternate=fixed._alternate_dungeon,
                                    target=fixed._target_dungeon_id,
                                    conquest=fixed._conquest_committed,
-                                   forest_selection=fixed._recall_selection_key(snapshot, FOREST))
+                                   mountain_selection=fixed._recall_selection_key(snapshot, 14))
                         cls.fixed_recall.append(row)
                 cls._decide(policy, snapshot)
                 cls.path[index] = (
@@ -692,8 +692,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         On the replayed state and the recorded board of the 06:22:31 recall
         the fixed town router refuses the landing on the blocked guardian
         floor and switches as the guardian valve does: the shallowest landing
-        that is not a blocked guardian floor, deeper allowed -- Forest (24).
-        The same board then recalls to Forest instead of the Orc cave.  The
+        that is not a blocked guardian floor, deeper allowed -- Mountain (25), with Forest excluded by #47.
+        The same board then recalls to Mountain instead of the Orc cave.  The
         replayed state is the live one but for the declared stale-gate
         window (module docstring): live dumped the character at 1963, the
         replay's town work there withdrew the combat weapon, so the pending
@@ -719,10 +719,10 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         self.assertIn(switch["key"], set("12346789"))
         self.assertEqual(
             (switch["alternate"], switch["target"], switch["conquest"]),
-            (FOREST, FOREST, None),
+            (14, 14, None),
         )
         self.assertEqual(recall["reason"], "town:recall-to-alt-dungeon")
-        self.assertEqual(recall["key"], "rh" + recall["forest_selection"])
+        self.assertEqual(recall["key"], "rh" + recall["mountain_selection"])
         self.assertNotEqual(recall["key"], self.recorded[RECALL]["key"])
 
 

@@ -121,7 +121,7 @@ class RecordedRecallDestinationTest(unittest.TestCase):
             policy._dungeon_entry_depth(board, DUNGEON_ANGBAND, via_recall=True))
         self.assertEqual(destination["reason"], "angband_recall_unlocked")
 
-    def test_unsafe_recall_fallback_names_forest_and_its_landing(self):
+    def test_unsafe_recall_fallback_names_mountain_and_its_landing(self):
         policy, board, key = self._decide_through(pingpong.FALLBACK)
         self.assertEqual(
             (key, policy.last_reason),
@@ -129,9 +129,9 @@ class RecordedRecallDestinationTest(unittest.TestCase):
         self.assertEqual(
             _destination(policy, board),
             {
-                "dungeon_id": pingpong.FOREST,
-                "dungeon_name": policy._dungeon_knowledge[pingpong.FOREST].name,
-                "depth": pingpong.FOREST_LANDING,
+                "dungeon_id": 14,
+                "dungeon_name": policy._dungeon_knowledge[14].name,
+                "depth": 25,
                 "reason": "safe_fallback",
             },
         )
@@ -142,18 +142,19 @@ class RecordedRecallDestinationTest(unittest.TestCase):
         # switched to (was alternate_dungeon from the next decision on).
         policy, board, _key = self._decide_through(pingpong.FALLBACK + 1)
         destination = _destination(policy, board)
-        self.assertEqual(destination["dungeon_id"], pingpong.FOREST)
-        self.assertEqual(destination["depth"], pingpong.FOREST_LANDING)
+        self.assertEqual(destination["dungeon_id"], 14)
+        self.assertEqual(destination["depth"], 25)
         self.assertEqual(destination["reason"], "safe_fallback")
 
     def test_guardian_valve_is_told_apart_from_the_safe_fallback(self):
         policy, _board, key = self._decide_through(pingpong.FIRST_RECALL - 1)
         policy.confirm_key_posted(key)
         board = self.source._consume(policy, pingpong.FIRST_RECALL, self.directory)
-        # NAMED CHANGE (module docstring): Forest lands on its guardian floor.
+        # #47 NAMED CHANGE: selected Mountain lands on its guardian floor;
+        # Castle lands at 24 so the guardian valve has a safe successor.
         blocked = replace(board, dungeon_recall_depths={
-            **board.dungeon_recall_depths, pingpong.FOREST: 31})
-        self.assertTrue(policy._guardian_floor_blocked(blocked, pingpong.FOREST, 31))
+            **board.dungeon_recall_depths, 14: 49, 12: 24})
+        self.assertTrue(policy._guardian_floor_blocked(blocked, 14, 49))
         with pingpong._pre_p2_departure_count():  # DECLARED WALL (P2)
             policy.choose_key(blocked)
         self.assertEqual(
@@ -206,12 +207,12 @@ class ObservedAlternateReasonTest(unittest.TestCase):
         self.assertEqual(destination["reason"], "guardian_bounce_valve")
 
     def test_looted_dives_without_new_depth_switch_for_no_depth_progress(self):
-        policy = self.source._policy()
+        policy = self.source._castle_policy()
         for _ in range(NO_DEPTH_PROGRESS_DIVE_LIMIT):
             self.source._run_dive(
                 policy, loot=4, emergencies=0, level=19, recall_depth=19)
         destination = _destination(policy, self.source._town(recall_depth=19))
-        self.assertEqual(destination["dungeon_id"], 7)
+        self.assertEqual(destination["dungeon_id"], 12)
         self.assertEqual(destination["reason"], "no_depth_progress")
 
     def test_restored_alternate_without_its_reason_shows_the_generic_reason(self):

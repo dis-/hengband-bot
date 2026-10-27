@@ -100,6 +100,7 @@ import hashlib
 import json
 import unittest
 from pathlib import Path
+from dataclasses import replace
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -197,6 +198,33 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             cls.starts.append(cls.starts[-1] + count)
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
+    @staticmethod
+    def _castle_destination(policy, board):
+        """#47 NAMED CHANGE: the replay selected Forest at recall index 18.
+
+        Keep its selector position, saved depth and dungeon knowledge on a
+        synthetic Castle. Historical rows and all Home/loot expectations stay
+        unchanged; every subsequent floor belongs to that same destination.
+        """
+        policy._dungeon_knowledge[12] = replace(
+            policy._dungeon_knowledge[7], id=12, name="Castle")
+        depths = dict(board.dungeon_recall_depths)
+        if 7 in depths:
+            depths[12] = depths.pop(7)
+        return replace(
+            board,
+            entered_dungeon_ids=tuple(
+                12 if did == 7 else did
+                for did in board.entered_dungeon_ids if did != 12),
+            conquered_dungeon_ids=tuple(
+                12 if did == 7 else did
+                for did in board.conquered_dungeon_ids if did != 12),
+            dungeon_recall_depths=depths,
+            recall_dungeon_id=12 if board.recall_dungeon_id == 7 else board.recall_dungeon_id,
+            floor_key=(12, *board.floor_key[1:]) if board.floor_key[0] == 7 else board.floor_key,
+            dungeon_name="Castle" if board.floor_key[0] == 7 else board.dungeon_name,
+        )
+
     @classmethod
     def _board_lines(cls, index):
         segment = cls.lines[cls.starts[index] : cls.starts[index + 1]]
@@ -242,7 +270,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     policy.request_game_save()
                 elif recorded_reason == "periodic:character-dump":
                     policy.request_character_dump()
-                snapshot = snapshots[-1]
+                snapshot = cls._castle_destination(policy, snapshots[-1])
                 key = _choose_before_caster_fix(policy, snapshot, index)
                 ledger = policy._town_visit_ledger
                 here = snapshot.grid_at(snapshot.player.position)
@@ -313,7 +341,8 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     policy.request_game_save()
                 elif reason == "periodic:character-dump":
                     policy.request_character_dump()
-                key = _choose_before_caster_fix(policy, snapshots[-1], index)
+                snapshot = cls._castle_destination(policy, snapshots[-1])
+                key = _choose_before_caster_fix(policy, snapshot, index)
                 decisions.append((str(key), policy.last_reason,
                                   dict(policy.decision_claim or {})))
                 policy.confirm_key_posted(key)

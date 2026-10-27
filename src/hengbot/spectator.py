@@ -92,22 +92,34 @@ def spectator_details(state: Mapping[str, object], snapshot=None) -> dict:
                 {name: row[name] for name in columns if name in row}
                 for row in state[field]
             ]
-    if "visible_monsters" in state:
+    if "visible_monsters" in state or "detected_monsters" in state:
         monsters = []
-        known = {monster.index: monster for monster in snapshot.visible_monsters} \
+        known = {monster.index: monster for monster in (
+            *snapshot.visible_monsters, *snapshot.detected_monsters)} \
             if snapshot is not None else {}
-        for row in state["visible_monsters"]:
-            monster = {name: row[name] for name in (
-                "name", "distance", "asleep", "stunned", "confused",
-                "fearful", "friendly", "pet", "speed") if name in row}
-            observed = known.get(row.get("index"))
-            if observed is not None:
-                monster["distance"] = observed.distance
-                monster["speed"] = observed.speed
-            monster["hp"] = ([row["hp"], row["max_hp"]]
-                             if row.get("hp") is not None and
-                             row.get("max_hp") is not None else None)
-            monsters.append(monster)
+        listed = set()
+        # 視界の外でもテレパシー・感知で見えているものは detected_monsters にある。
+        # ゲーム側で視界の一覧と分けてあるが、同じ index は一度だけ載せる。
+        for field in ("visible_monsters", "detected_monsters"):
+            for row in state.get(field, ()):
+                index = row.get("index")
+                if index is not None:
+                    if index in listed:
+                        continue
+                    listed.add(index)
+                monster = {name: row[name] for name in (
+                    "name", "distance", "asleep", "stunned", "confused",
+                    "fearful", "friendly", "pet", "speed") if name in row}
+                observed = known.get(index)
+                if observed is not None:
+                    monster["distance"] = observed.distance
+                    monster["speed"] = observed.speed
+                monster["hp"] = ([row["hp"], row["max_hp"]]
+                                 if row.get("hp") is not None and
+                                 row.get("max_hp") is not None else None)
+                if field == "detected_monsters":
+                    monster["sensed"] = "esp" if row.get("esp") else "detected"
+                monsters.append(monster)
         details["monsters"] = sorted(
             monsters, key=lambda row: row.get("distance", float("inf")))
     player = state.get("player", {})
