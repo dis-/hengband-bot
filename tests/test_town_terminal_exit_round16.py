@@ -12,6 +12,7 @@ import json
 import unittest
 
 from tests.town_s2_exit_replay import FIXTURES, replay_n1
+from tests.gate_sample import sample
 
 
 class TownTerminalExitWindowsTest(unittest.TestCase):
@@ -83,6 +84,22 @@ class TownTerminalExitWindowsTest(unittest.TestCase):
 
     def test_n1a_third_window(self):
         self.check_window('20261023-183436')
+
+
+def load_tests(loader, standard_tests, pattern):
+    """Select independent windows; every selected replay keeps its full prefix.
+
+    Keep the full fixture-alignment control regardless of the sampling stride.
+    The default suite retains its test identities and original execution order.
+    """
+    cases = list(loader.loadTestsFromTestCase(TownTerminalExitWindowsTest))
+    alignment = 'test_recorded_decisions_align_with_fixture_boards'
+    windows = [case for case in cases if case._testMethodName != alignment]
+    selected = set(sample(windows))
+    return unittest.TestSuite(
+        case for case in cases
+        if case._testMethodName == alignment or case in selected
+    )
 
 
 if __name__ == '__main__':

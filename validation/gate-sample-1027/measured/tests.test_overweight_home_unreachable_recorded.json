@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_overweight_home_unreachable_recorded",
+    "mode": "full",
+    "seconds": 430.389004800003,
+    "returncode": 0,
+    "log": "tests.test_overweight_home_unreachable_recorded.full.log"
+  },
+  {
+    "module": "tests.test_overweight_home_unreachable_recorded",
+    "mode": "5",
+    "seconds": 476.20708540000487,
+    "returncode": 0,
+    "log": "tests.test_overweight_home_unreachable_recorded.5.log"
+  }
+]

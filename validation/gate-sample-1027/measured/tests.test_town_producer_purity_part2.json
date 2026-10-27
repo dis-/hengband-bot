@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_town_producer_purity_part2",
+    "mode": "full",
+    "seconds": 568.1665035999613,
+    "returncode": 0,
+    "log": "tests.test_town_producer_purity_part2.full.log"
+  },
+  {
+    "module": "tests.test_town_producer_purity_part2",
+    "mode": "5",
+    "seconds": 117.26485929999035,
+    "returncode": 0,
+    "log": "tests.test_town_producer_purity_part2.5.log"
+  }
+]

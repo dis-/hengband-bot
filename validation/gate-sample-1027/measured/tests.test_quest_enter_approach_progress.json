@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_quest_enter_approach_progress",
+    "mode": "full",
+    "seconds": 513.3657828000141,
+    "returncode": 0,
+    "log": "tests.test_quest_enter_approach_progress.full.log"
+  },
+  {
+    "module": "tests.test_quest_enter_approach_progress",
+    "mode": "5",
+    "seconds": 550.4038852000376,
+    "returncode": 0,
+    "log": "tests.test_quest_enter_approach_progress.5.log"
+  }
+]

@@ -1,0 +1,14 @@
+test_both_captures_all_complete_boards_and_recorded_producers (tests.test_town_work_contract.TownWorkContractTest.test_both_captures_all_complete_boards_and_recorded_producers) ... ok
+test_driver_unknown_key_records_failure_and_preserves_submission (tests.test_town_work_contract.TownWorkContractTest.test_driver_unknown_key_records_failure_and_preserves_submission) ... ok
+test_executor_tail_and_prompt_clear_share_validator_for_tcp_and_wm (tests.test_town_work_contract.TownWorkContractTest.test_executor_tail_and_prompt_clear_share_validator_for_tcp_and_wm) ... ok
+test_manifest_has_zero_unmapped_and_unknown_additions_fail (tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail) ... ok
+test_normal_driver_cannot_forge_parent_but_override_and_prefix_inherit (tests.test_town_work_contract.TownWorkContractTest.test_normal_driver_cannot_forge_parent_but_override_and_prefix_inherit) ... ok
+test_recorded_versioned_corpus_has_zero_unmapped_receipts (tests.test_town_work_contract.TownWorkContractTest.test_recorded_versioned_corpus_has_zero_unmapped_receipts) ... ok
+test_scope_restores_profiler_on_exception_and_dungeon_is_unprofiled (tests.test_town_work_contract.TownWorkContractTest.test_scope_restores_profiler_on_exception_and_dungeon_is_unprofiled) ... ok
+test_single_validator_denies_absent_wrong_key_and_unknown_work (tests.test_town_work_contract.TownWorkContractTest.test_single_validator_denies_absent_wrong_key_and_unknown_work) ... ok
+test_unknown_returning_child_cannot_borrow_decision_wrapper (tests.test_town_work_contract.TownWorkContractTest.test_unknown_returning_child_cannot_borrow_decision_wrapper) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 244.639s
+
+OK

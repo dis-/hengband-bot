@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import platform
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,7 +42,8 @@ def dependency_files(root: Path) -> tuple[Path, ...]:
                 names = [node.module]
                 names.extend(f"{node.module}.{alias.name}" for alias in node.names)
             for name in names:
-                candidates = [root / "src" / (name.replace(".", "/") + ".py"),
+                candidates = [root / (name.replace(".", "/") + ".py"),
+                              root / "src" / (name.replace(".", "/") + ".py"),
                               root / "tests" / (name.replace(".", "/") + ".py")]
                 for candidate in candidates:
                     if candidate.is_file() and candidate.resolve() not in found:
@@ -66,6 +68,9 @@ def dependency_files(root: Path) -> tuple[Path, ...]:
 
 def input_sha256(root: Path) -> tuple[str, tuple[str, ...]]:
     digest = hashlib.sha256()
+    # A sampled PASS must never satisfy the daily full-matrix run.
+    digest.update(os.environ.get("HENGBOT_TEST_SAMPLE", "1").encode())
+    digest.update(b"\0")
     digest.update(platform.python_version().encode()); digest.update(b"\0")
     paths = dependency_files(root)
     for path in paths:

@@ -1,0 +1,14 @@
+test_departure_material_prepares_equipment_once_per_decision (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_departure_material_prepares_equipment_once_per_decision)
+Admission and the need-list reader share the real preparation. ... ok
+test_full_decision_computes_equipment_optimization_once (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_full_decision_computes_equipment_optimization_once) ... ok
+test_recorded_board_pins_claim_candidate_reuse (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_recorded_board_pins_claim_candidate_reuse) ... ok
+test_recorded_board_pins_fixed_quest_computation_counts (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_recorded_board_pins_fixed_quest_computation_counts) ... ok
+test_recorded_board_pins_retention_computation_counts (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_recorded_board_pins_retention_computation_counts) ... ok
+test_recorded_boards_keep_key_and_reason_with_caches_enabled (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_recorded_boards_keep_key_and_reason_with_caches_enabled) ... ok
+test_town_fact_refresh_reuses_store_position_index (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_town_fact_refresh_reuses_store_position_index) ... ok
+test_unchanged_map_reuses_fixed_quest_offers (tests.test_town_decision_speed_caches.TownDecisionSpeedCacheTest.test_unchanged_map_reuses_fixed_quest_offers) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 1416.814s
+
+OK

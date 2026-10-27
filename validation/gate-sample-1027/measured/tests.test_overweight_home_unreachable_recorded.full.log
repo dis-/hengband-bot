@@ -1,0 +1,14 @@
+test_a_genuinely_failing_approach_still_reaches_the_terminal (tests.test_overweight_home_unreachable_recorded.HomeSuccessResetsTheVisitBoundTest.test_a_genuinely_failing_approach_still_reaches_the_terminal) ... ok
+test_an_observed_effect_releases_the_block_its_passes_installed (tests.test_overweight_home_unreachable_recorded.HomeSuccessResetsTheVisitBoundTest.test_an_observed_effect_releases_the_block_its_passes_installed) ... ok
+test_approach_failures_before_an_observed_effect_are_released (tests.test_overweight_home_unreachable_recorded.HomeSuccessResetsTheVisitBoundTest.test_approach_failures_before_an_observed_effect_are_released) ... ok
+test_passes_without_an_observed_effect_still_exhaust_the_bound (tests.test_overweight_home_unreachable_recorded.HomeSuccessResetsTheVisitBoundTest.test_passes_without_an_observed_effect_still_exhaust_the_bound) ... ok
+test_successful_home_operations_leave_the_bound_to_a_later_need (tests.test_overweight_home_unreachable_recorded.HomeSuccessResetsTheVisitBoundTest.test_successful_home_operations_leave_the_bound_to_a_later_need) ... ok
+test_production_loot_route_changes_at_the_recorded_boundary (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary) ... ok
+test_recorded_home_passes_outlived_observed_home_effects (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_recorded_home_passes_outlived_observed_home_effects) ... ok
+test_replay_reproduces_every_recorded_decision_before_the_strip (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_strip) ... ok
+test_s2b2_the_bar_table_records_the_hunts_it_would_bar (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_s2b2_the_bar_table_records_the_hunts_it_would_bar) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 427.176s
+
+OK

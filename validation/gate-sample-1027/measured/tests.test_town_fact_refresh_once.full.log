@@ -1,0 +1,7 @@
+test_recorded_boards_decide_as_per_snapshot_refresh (tests.test_town_fact_refresh_once.TownFactRefreshOncePerDecisionTest.test_recorded_boards_decide_as_per_snapshot_refresh) ... ok
+test_recorded_boards_refresh_town_facts_once_per_decision (tests.test_town_fact_refresh_once.TownFactRefreshOncePerDecisionTest.test_recorded_boards_refresh_town_facts_once_per_decision) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 912.914s
+
+OK
