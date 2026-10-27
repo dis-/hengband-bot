@@ -545,7 +545,7 @@ index 84では基準のdp+ESC／home:weight-overload-depositに対し、
 待機状態の既存WeightOverloadTownTestのhome-unreachable停止も維持する。
 新規対照: test_historical_passes_without_a_block_observe_home_before_surplus。
 記録231603の荷物・過去の未達回数を保ち、停止記録と容量観測を取り除き、
-古い重量再生と同じ進行中Home訪問をfileで与える構成対照である。
+古い重量再生で確認した「訪問が活動中」という前提をSCAN要求のfileで与える構成対照である。
 公開choose_keyと本番follow実行器を通し、Home観測より先に余剰処分を始めないことを確認する。
 共有ハーネスはモジュール別名で利用し、キーの+=構築は追加していない。
 新規対照の独立差し戻し: 正常0、選択器の今回の変更だけを戻すと1、復元後0、検証器0。
@@ -604,3 +604,15 @@ overweight-98-r3-main-cli.log / overweight-98-r3-main-fakery.log
 overweight-98-r3-flight-base.log / overweight-98-r3-flight-final.log / overweight-98-r3-flight-baseline.json
 
 保存方法: この第3ラウンド追記はPythonのPath.write_text(encoding="utf-8")で作成した。
+
+
+追加検証の回収（第3ラウンド）
+先にmain参照で起動した追加のmutation_check --recordも停止せず最後まで完了した。
+重量対照8件、WeightOverloadTownTestの15件、TownWeightDepartureRecordedTestの4件、
+合計27件を各差し戻しで実行し、r1/r2の既存記録再生も含めて確認した。
+全6ハンクのうち動作変更5箇所をすべて検出、説明文1箇所、未検出0件、終了コード0。
+追加ログ: C:/hengband-backups/overweight-98-r3-mutation.log。
+固定基準の成功記録もoverweight-98-r3-final-mutation-record.txtへ保存している。
+起動したガードはすべて終了し、検証の待機・実行を途中停止していない。
+この追加回収後もソース／テストの内容は45f118ae9と同一である。
+この追記もPythonのPath.write_text(encoding="utf-8")で保存した。
