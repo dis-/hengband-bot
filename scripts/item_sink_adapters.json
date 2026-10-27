@@ -329,11 +329,11 @@
   },
   "policy_quest.py:_quest_execute_key": {
     "self._direction_key(final_approach, final_door) @ If:body:final_target_phase / If:body:target_position is not None / If:body:final_door_value is not None and final_approach_value is not None / If:body:not final_door_open / If:body:snapshot.player.position == final_approach": 1,
-    "self._direction_key(snapshot.player.position, blocker.position) @ If:body:hold is not None and snapshot.player.position != hold / If:body:step is not None / If:body:blocker is not None / If:body:torch is not None": 1,
+    "self._direction_key(snapshot.player.position, blocker.position) @ If:body:not may_leave_hold and hold is not None and (snapshot.player.position != hold) / If:body:step is not None / If:body:blocker is not None / If:body:torch is not None": 1,
     "self._direction_key(snapshot.player.position, ranked[0].position) @ If:body:engage_adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._direction_key(snapshot.player.position, target.position) @ If:body:combat_hostiles / If:body:profile.quest_id != 34 and torch is not None and targets / If:body:target is not None": 1,
     "self._direction_key(snapshot.player.position, target_monster.position) @ If:body:combat_hostiles / If:body:planned_throw is not None / If:body:torch is not None": 1,
-    "self._explore_step(snapshot) @ If:body:profile.engagement_plan.get('placement_sweep') and battlefield is not None and (not hostiles) and initial_hold_complete and (profile.quest_id != 34 or self._quest_final_target_position(profile, never_move_races) in self._quest_strategy_surveyed_placements.get(34, set())) / If:body:not unsurveyed / If:body:rounds >= int(profile.engagement_plan.get('max_sweep_rounds', 3))": 1,
+    "self._explore_step(snapshot) @ If:body:may_leave_hold and battlefield is not None and (not mobile_visible) and (profile.quest_id != 34 or self._quest_final_target_position(profile, never_move_races) in self._quest_strategy_surveyed_placements.get(34, set())) / If:body:not unsurveyed / If:body:rounds >= int(profile.engagement_plan.get('max_sweep_rounds', 3))": 1,
     "self._fixed_quest_exit_key(snapshot, snapshot.floor_key[2]) @ If:body:bool(abort.get('allowed', False)) and snapshot.player.hp_ratio <= float(abort.get('hp_ratio', 0)) / If:body:snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST": 1,
     "self._q2_encounter_key(snapshot, profile, hostiles, adjacent) @ If:body:profile.quest_id == 2": 1,
     "self._q2_ranged_core_key(snapshot, profile, combat_hostiles) @ If:body:profile.required_force.get('launcher') and combat_hostiles": 1,

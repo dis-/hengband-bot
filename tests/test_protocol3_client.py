@@ -574,6 +574,31 @@ class P4ItemIdsTest(unittest.TestCase):
             _parse_items(self.v3_row["inventory"], protocol=3),
         )
 
+    def test_p4_hallucinated_pets_and_look_are_consumed(self):
+        """While hallucinating, knowledge.pets rows are ``{index, hallucinated}``
+        (hengband#6009) and look items / carried_items are empty (hengband#6006).
+        DECLARED CONSTRUCTED: the response envelopes reuse the recorded board."""
+        pets = dict(self.v4_row, type="knowledge", knowledge={
+            "category": "pets", "menu_key": "j",
+            "pets": [{"index": 5, "hallucinated": True}],
+        })
+        y, x = self.v4_row["player"]["y"], self.v4_row["player"]["x"]
+        look = dict(self.v4_row, type="look", look={
+            "grids": [{"y": y, "x": x, "items": [], "carried_items": []}],
+        })
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = _policy(directory, self.monrace)
+            lines = [json.dumps(row, ensure_ascii=False) + "\n"
+                     for row in (pets, self.v4_row)]
+            _decoded, snapshots = _consume_response_sequence(
+                lines, policy, lambda _key: True, self.monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            self.assertEqual(snapshots[-1].protocol_version, 4)
+            policy.consume_look(look)
+            self.assertEqual(policy._look_floor_items, {snapshots[-1].player.position: ()})
+
     def test_p4_cli_reads_the_board(self):
         line = json.dumps(self.v4_row, ensure_ascii=False)
         snapshot, chosen = _newest_snapshot_entry([line], self.monrace)

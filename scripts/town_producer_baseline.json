@@ -735,5 +735,9 @@
   "policy_opening.py:OpeningRouteMixin._opening_q1_stop": "delegated adapter: exclusive child of the registered _opening_q34_town_key; the parent owns admission and the selected key.",
   "policy_shop.py:ShopMixin._purchase_rungs.match": "pure helper: exact observed opening purchase eligibility and provenance; execution remains the shop owner.",
   "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": "delegated adapter: page census/navigation child of the registered _opening_q34_town_key, before shop selection.",
-  "policy_helpers.py:PolicyHelpersMixin._pick_alternate_dungeon": "pure helper: Returns a safe entered dungeon ID or None for recall planning, including a retained excluded destination; never emits a key or claims progress."
+  "policy_helpers.py:PolicyHelpersMixin._pick_alternate_dungeon": "pure helper: Returns a safe entered dungeon ID or None for recall planning, including a retained excluded destination; never emits a key or claims progress.",
+  "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": "pure helper: returns an execution-only Loadout projection, no command or independent completion",
+  "policy_town.py:TownMixin._outpost_return_fare": "pure helper: existing game fare to reserve outside Outpost; no key or independent work.",
+  "policy_town.py:TownMixin._outpost_fare_recovery_key": "delegated adapter: emergency surplus sale/approach and inn return use existing gated owners; named terminal stops grant no work success.",
+  "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention."
 }

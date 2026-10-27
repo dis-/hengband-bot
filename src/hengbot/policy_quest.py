@@ -1656,6 +1656,43 @@ class QuestMixin(OpeningRouteMixin):
             or snapshot.player.position.distance_to(monster.position) <= 1
         ]
 
+    def _quest_strategy_may_leave_hold(
+        self,
+        snapshot: Snapshot,
+        profile: StrategyProfile,
+        hostiles: list[MonsterState],
+        *,
+        initial_hold_complete: bool,
+    ) -> bool:
+        """Share the sweep/retake decision, including newly revealed enemies.
+
+        A distant stationary enemy cannot be drawn to the hold, and
+        a fleeing melee enemy must be followed before the post-wave light
+        point is reached. Neither observation should reverse a sweep step.
+        Active mobile or ranged threats still require the reviewed hold.
+        """
+        never_move_races = self._quest_never_move_races(profile)
+        return bool(
+            profile.engagement_plan.get("placement_sweep")
+            and initial_hold_complete
+            and all(
+                (
+                    monster.fearful
+                    or (
+                        monster.race_id in never_move_races
+                        and snapshot.player.position.distance_to(monster.position) > 1
+                    )
+                )
+                and monster.max_ranged_damage <= 0
+                and not monster.can_summon
+                and not monster.can_multiply
+                for monster in hostiles
+            )
+            and self.threat_prediction(snapshot, hostiles, turns=3)[
+                "operational_total"
+            ] == 0
+        )
+
     def _quest_final_target_position(
         self, profile: StrategyProfile, never_move_races: set[int]
     ) -> Position | None:
@@ -3629,12 +3666,17 @@ class QuestMixin(OpeningRouteMixin):
                         reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, target.position))
                     )
 
+        may_leave_hold = self._quest_strategy_may_leave_hold(
+            snapshot, profile, hostiles,
+            initial_hold_complete=initial_hold_complete,
+        )
+
         # Once the opening hold/light phase is complete, the placement sweep
         # owns movement.  A mobile enemy can flicker into view at the edge of
         # that route without a usable firing line; retreating all the way to the
         # original hold then makes the enemy disappear and creates a two-cell
         # sweep/retake cycle.  Close on that one observed mobile target locally.
-        if post_wave_phase_started:
+        if post_wave_phase_started or may_leave_hold:
             mobile_targets = [
                 monster for monster in combat_hostiles
                 if monster.race_id not in never_move_races
@@ -3801,10 +3843,9 @@ class QuestMixin(OpeningRouteMixin):
                     return phase_action
 
         if (
-            profile.engagement_plan.get("placement_sweep")
+            may_leave_hold
             and battlefield is not None
-            and not hostiles
-            and initial_hold_complete
+            and not mobile_visible
             and (
                 profile.quest_id != 34
                 or self._quest_final_target_position(
@@ -3844,6 +3885,16 @@ class QuestMixin(OpeningRouteMixin):
                     and self._quest_cell_confirmed_empty(snapshot, position)
                 ):
                     surveyed.add(position)
+            # Stationary enemies can now remain visible during the sweep.
+            # Apply the same melee exclusion to static routes and to the
+            # ordinary exploration fallback after the survey rounds finish.
+            blocked = {
+                Position(monster.position.y + dy, monster.position.x + dx)
+                for monster in hostiles
+                if monster.race_id in never_move_races
+                for dy in (-1, 0, 1)
+                for dx in (-1, 0, 1)
+            }
             unsurveyed = sweep_targets - surveyed
             if not unsurveyed:
                 rounds = self._quest_strategy_sweep_rounds.get(profile.quest_id, 0) + 1
@@ -3853,12 +3904,12 @@ class QuestMixin(OpeningRouteMixin):
                     # complete: the targets are mobile (e.g. Q22's orcs) and have
                     # wandered off their placements. Waiting here just deadlocks
                     # until the loop guard stops the bot, so fall back to ordinary
-                    # floor exploration to bring the strays into view. The sweep
-                    # is gated on `not hostiles`, so combat/hold resumes the
-                    # moment one is sighted; only a fully-explored floor with no
-                    # frontier left degrades to the (loop-guarded) wait.
+                    # floor exploration to bring the strays into view. Combat
+                    # and the shared hold decision still handle new threats;
+                    # an unsafe next step or an exhausted frontier produces
+                    # the existing visible blocked reason.
                     step = self._explore_step(snapshot)
-                    if step is not None:
+                    if step is not None and step not in blocked:
                         self.last_reason = "quest-strategy:placement-sweep-explore"
                         self._declare_explore_goal()
                         return self._step_toward(snapshot, step)
@@ -3868,7 +3919,9 @@ class QuestMixin(OpeningRouteMixin):
                 self.last_reason = "quest-strategy:placement-sweep-repeat"
                 return WAIT_KEY
             routes = [
-                navigator._static_path(snapshot.player.position, {placement})
+                navigator._static_path(
+                    snapshot.player.position, {placement}, blocked=blocked
+                )
                 for placement in unsurveyed
             ]
             routes = [route for route in routes if len(route) > 1]
@@ -4006,7 +4059,7 @@ class QuestMixin(OpeningRouteMixin):
             self.last_reason = "quest-strategy:recover-torch"
             return self._step_toward(snapshot, pickup_step)
 
-        if hold is not None and snapshot.player.position != hold:
+        if not may_leave_hold and hold is not None and snapshot.player.position != hold:
             step = self._quest_strategy_route_step(snapshot, profile, hold)
             if step is not None:
                 blocker = next((

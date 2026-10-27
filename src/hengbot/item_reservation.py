@@ -1,6 +1,8 @@
 """Decision-local views of existing item reservations; no checkpoint state."""
 from __future__ import annotations
 
+from hengbot.model import TVAL_WAND
+
 from contextvars import ContextVar
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -85,6 +87,29 @@ class ReservationVerdict:
     @property
     def reason(self):
         return f"ownership:item-reserved:{self.sink}:{self.owner}"
+
+
+# Only the fare-recovery caller grants a quantity for this exact live stack.
+# The token ends before any other town producer can run; retention itself is
+# never lowered for deposits, destruction, or ordinary shop sales.
+_fare_sale = ContextVar("outpost_fare_sale", default=None)
+
+
+@contextmanager
+def outpost_fare_sale(policy, snapshot, item, quantity):
+    token = _fare_sale.set((policy, snapshot, item, quantity))
+    try:
+        yield
+    finally:
+        _fare_sale.reset(token)
+
+
+def outpost_fare_sale_quantity(policy, snapshot, item):
+    grant = _fare_sale.get()
+    if (grant is not None and grant[0] is policy and grant[1] is snapshot
+            and grant[2] is item):
+        return grant[3]
+    return None
 
 
 _decision = ContextVar("item_reservation_decision", default=None)
@@ -490,6 +515,23 @@ def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=Non
       purchase: prompt_to_buy's ``[Y/n]`` (Return takes DEFAULT_Y); the Home
       asks nothing more.
     """
+    if kind == "buy":
+        fare = policy._outpost_return_fare(snapshot)
+        # A split wand stack rounds charges in purchase-order.cpp; its actual
+        # price may exceed the exported full-stack unit price. Without an
+        # exact price, that partial purchase cannot spend a reserved fare.
+        if (quantity <= 0 or item.price * quantity > snapshot.player.gold - fare
+                or (fare and item.tval == TVAL_WAND and quantity < item.count)):
+            return None
+    if kind == "sell":
+        allowed = outpost_fare_sale_quantity(policy, snapshot, item)
+        if allowed is None:
+            # Ordinary sale selection historically offers the whole pile when
+            # its surplus is nonpositive. Preserve that for unreserved items;
+            # only a scoped fare grant may release an actual reservation.
+            allowed = max(0, item.count - policy._retention_reservation(snapshot, item))
+        if not 0 < quantity <= allowed:
+            return None
     confirmation = {"sell": "y", "buy": "\r", "deposit": "", "withdraw": ""}[kind]
     prefix = reserved_item_command(policy, snapshot, kind, item, owner, address=address)
     if prefix is None:

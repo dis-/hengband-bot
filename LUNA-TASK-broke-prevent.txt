@@ -1,0 +1,46 @@
+ISSUE: #47
+The owner decided (verbatim, 2026-10-26 08:4x): 「売れるものを売って運賃を作るで良いが、そもそも辺境以外で金欠になるのを阻止することの方が優先度が高い」
+Meaning (recorded decision): FIRST priority - while the character is in a town other than the Outpost (辺境の地), or before
+it travels to one, it never spends below the fare needed to get back to the Outpost by town-to-town travel (keep the
+return fare when shopping/paying there; if it cannot keep the fare, it does not go to the other town). SECOND - if it
+is broke there anyway, sell items it does not need to make the fare and travel back to the Outpost (recall scrolls stay
+unused for this, the 2026-09-24 decision is unchanged). If nothing can be sold, stop with a named reason.
+If the design needs a NEW number (other than the fare the game charges), STOP and write the options in the report; the
+supervisor asks the owner.
+
+Branch broke-prevent-1026 at main f66916c86. Worktree C:\hengband\bot-client\.worktrees\broke-prevent-1026.
+Another implementer is working in parallel on branch opening-route-1026 (the opening route quest 34 -> mining kit ->
+quest 1, files policy_combat/fundraising/home/quest/shop). Keep your change narrow to avoid conflicts; do not touch that
+worktree.
+
+Incidents:
+A. c4-a (Lv31, 2026-10-26 ~08:3x): in Morivant during a fundraising mining set, gold 251, no walk-in entrance, could
+   not pay the fare back, stopped town:blocked:walk-in-entrance-unavailable x3. Records:
+   C:\hengband-backups\state-logs\c4a-morivant-broke-1026
+B. viewing bot n1-b life-192 (Lv19-22, build d030861c, 2026-10-26 15:40-16:06): gold 13302 at 15:45 -> 329 at 16:05.
+   Spent at stores 4/6/5 (e.g. 4814 at store 6 key 'pn\r', 1532, 1203, 886 x2, 904, 950) and 3000 on town travel
+   (fixedquest:q2-travel 500 x4, town:cross-town-shopping:travel-0/-2 500 x2, alternating 3ma/3mb/3mc/1mb within a
+   minute). Then town:repetition-depart / town:blocked:repetition loops, town:cancel-wrong-recall-destination,
+   posting-contract:recall-already-active, loop-detected x2, and town:blocked:walk-in-entrance-unavailable at 16:06
+   (gold 329). Records (copied): C:\hengband\bot-client\state-logs\n1b-life192-broke-1026 (incident-captures\ for
+   15:45 / 16:05 / 16:06 with decision-tail + policy-state + snapshots, jsonlog\bot-economy.jsonl, town-visit-purchases,
+   the last two bot-decisions files).
+
+Do:
+1. LUNA-DIAG-broke-prevent.txt (Japanese), with file:line: which town each character was in; why the purchases/travels
+   in B were allowed down to 329 (what gold floor, if any, applies to shopping and to town travel outside the Outpost);
+   why Q2 travel and cross-town shopping alternated (each 500 fare); what the repetition / recall-destination loop
+   was; how A and B relate.
+2. Fix within the decision: (1) keep the Outpost return fare out of spending when away from the Outpost and before
+   leaving for another town; stop the q2-travel / cross-town-shopping fare ping-pong (one owner of the trip, named
+   exits, no loop); (2) if broke away from the Outpost: sell unneeded items to make the fare, travel back; else a
+   named stop. Use the game's real fare (read the C++ source C:\hengband\src for the town-travel cost) and the existing
+   sell / junk paths; no new magic numbers.
+3. Pins through the public choose_key AND the follow executor, seeded from the copied records: before = spend below the
+   fare / fare ping-pong / stuck broke; after = the fare is kept, one trip, broke -> sell -> travel back. Keep existing
+   town pins green.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control (viewing bots are live);
+no push/merge to main/rebase/reset --hard/stash; existing tests (= tests at f66916c86) unchanged; no logs committed.
+Guards: preflight / mutation_check --record / fast_tier with base f66916c86 (they wait while a merge gate runs - let
+them). The supervisor checks the fix on the verification machine after you (c4-a's and life-192's saves). Token budget
+150k HARD, wall time 150 minutes. Write LUNA-REPORT-broke-prevent.txt in Japanese and commit.

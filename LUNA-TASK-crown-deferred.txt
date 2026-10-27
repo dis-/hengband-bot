@@ -1,0 +1,27 @@
+ISSUE: #47
+One topic: an optimized set is never equipped because one of its items is deferred.
+The owner reported (verbatim, 2026-10-27 02:3x): 「頭枠の装備をしていないのに力の鉄冠 [0,+7] (+1) {+腕器耐r盲;麻(腕器耐, .}を自宅に置きっぱなし。装備最適化の不具合の可能性」
+Viewing bot n1-a life-367 (Lv27, build 9955517b): the head slot is empty; the Home holds 力の鉄冠 (fully known).
+loadout-report.jsonl 02:30 chose band 30 and its top candidates ALL wear the crown on head, plus 火炎の指輪 [+10] and
+オログのフル・プレート・メイル (-2,+6) [25,+17] (+2) from the Home. equipment_optimization at that time:
+deferred_home_item_signatures [["オログのフル・プレート・メイル ...", 37, 15]], incomplete_items 1 (that plate,
+fully_known false), result_source "calibration-required-return". So the crown (and ring) apparently wait behind the
+deferred plate and never get withdrawn/worn.
+Records (copied): C:\hengband\bot-client\state-logs\n1a-crown-home-1027 (dump-0217.txt = the character dump with the Home
+list; jsonlog\bot-decisions.jsonl{,.1}, loadout-report.jsonl, confirmed-loadout.json, character-calibration.json).
+Branch crown-deferred-1027 at main 524054b47. Worktree C:\hengband\bot-client\.worktrees\crown-deferred-1027.
+Do:
+1. LUNA-DIAG-crown-deferred.txt (Japanese, file:line): confirm from the records why the crown is not equipped (the
+   deferred item blocking the whole transaction, or something else), and since when.
+2. Fix within the existing optimizer and transaction rules: items of the chosen set that are ready (known, reachable,
+   not deferred) are equipped even when another item of the set waits for identification; the deferred item joins
+   later when it becomes known. No new number. If the existing design deliberately keeps sets atomic for a safety
+   reason (e.g. resist coverage only holds with the whole set), STOP and write the options.
+3. Pins (public choose_key + follow executor) from these records: before = no withdraw/wear of the crown while the
+   plate is deferred; after = the crown (and other ready items) are withdrawn and worn.
+Rules: Python UTF-8 for text files; never stop processes you did not start; no game/bot control; no
+push/merge/rebase/reset --hard/stash; existing tests (= tests at 524054b47) unchanged; no logs committed. COMMIT EARLY
+(source + pins as soon as the focused tests pass). Besides fast_tier, run the slow modules that verify_scope.py derives
+for your change (scripts\verify_scope.py --target HEAD --derive-only) - fast_tier alone has missed gate failures twice.
+Guards: preflight / mutation_check --record / fast_tier with base 524054b47. Token budget 100k HARD, wall time 90
+minutes. Write LUNA-REPORT-crown-deferred.txt in Japanese and commit.

@@ -1,0 +1,15 @@
+ISSUE: #47
+ROUND 3 of LUNA-TASK-broke-prevent.txt - one missing pin, no behaviour change.
+The supervisor checked round 2 (46257e93b): on the verification machine the retired n1-b life-192 save (Telmora, 329
+gold) sold 6 Teleport scrolls and 2 Cure Critical Wounds potions one at a time, reached 501 gold, travelled to the
+Outpost and resumed fundraising - the fix works. But the guard
+`mutation_check.py . f66916c86 --record` reports MUTATION FAIL: 1 of 15 hunks are not pinned by a test:
+  GREEN EARLIER src/hengbot/policy_town.py (rumor_reserve = max(RUMOR_GOLD_RESERVE, self._outpost_return_fare(snapshot)) ...
+  GREEN EARLIER src/hengbot/policy_town.py (max(1, (player.gold - rumor_reserve) // RUMOR_COST),)
+i.e. the paid-rumor fare reserve has no test that fails when it is reverted.
+Do: add a pin through the public choose_key (and the follow executor for the posted rumor key) where a character away
+from the Outpost with gold just above the fare would, without the reserve, pay for rumors below the fare; with the
+reserve it keeps the fare (and at the Outpost the old RUMOR_GOLD_RESERVE still applies). Revert-proof it. Rerun
+mutation_check --record until green, and fast_tier with base f66916c86.
+Rules as before (no source behaviour change unless the pin shows a real bug - then report it). Token budget 50k HARD,
+wall time 45 minutes. COMMIT EARLY (the pin first, then the report line). Append round 3 to LUNA-REPORT-broke-prevent.txt.

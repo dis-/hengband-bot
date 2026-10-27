@@ -1399,6 +1399,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "7c55858a5d461ef6a3a5c74f4d4007c1b3cb28718cb085ea7e7c27f45061edfe"
   },
+  "item_reservation.py:outpost_fare_sale_quantity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "264e7d81cd199dd320444898f007817f09a326fdb6e5a1204bfe596165c73333"
+  },
   "item_reservation.py:reservation_query_memo": {
     "classification": "data",
     "rows": [
@@ -1489,7 +1497,7 @@
       "survival"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ff8f3801cbd241cb46093e4f2c520220ad8dcacdaa2ed30114d8bd9b20252b60"
+    "ast_sha256": "c3ad0fbd28c58403f42b5722297d121be712b311020c4270b64f2a31e2284b4d"
   },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
@@ -1826,7 +1834,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "64ae9c30bfe7afcacd9d9c31138e741b535002334835ef0a38fc3ea874cfba31"
+    "ast_sha256": "c097536f1e837301299eba0aa58bc0f45c674e04b9fb4d633033fdd2a588ffe5"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -4599,7 +4607,7 @@
       "equipment-optimization"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e6a392b7f24f82e4a4d6f8cf7fdadb58d8c013a149987dbf8aedd6668001ef10"
+    "ast_sha256": "1e14f41521ac959a62f9cebd97b409c706d864a25066b66d0c952b2bcf99f7c3"
   },
   "policy_equipment.py:EquipmentMixin._prepare_equipment_transaction_command": {
     "classification": "producer",
@@ -4617,6 +4625,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "f2c4b5e82a1fd1b83f65e40bd307707021ba37f51f2ce94a0eeb548c4a159358"
+  },
+  "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "fc6bbc489ea098d9ef7f7aea4e3c1642d2895b1e098cc2c2f8c6229b1e65b785"
   },
   "policy_equipment.py:EquipmentMixin._retained_ammo_slots": {
     "classification": "data",
@@ -6252,7 +6268,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c02d2f0022a7c4ce9fadb4cf06f67872f22c3e28bdd1a32b864eae392963dba7"
+    "ast_sha256": "48d06faf38b598c0bdd2d1aaf77c627d75945056318e29e781148b89cf749aeb"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -6442,7 +6458,7 @@
       "sale-address"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "babe1e3c34f7c009f1d131f225ad4f83ac7517c258f3ab382d359f47a1181a5b"
+    "ast_sha256": "9ce86b5b8b4b64e9469a9f29fd18aed2bc3392efddbe3b2d58d34af5212021de"
   },
   "policy_shop.py:ShopMixin._batch_sell_key": {
     "classification": "producer",
@@ -6742,7 +6758,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0132db52d29d9a1d550395d418be9e9e36e1d14ac9572f820f1cc456a83bb470"
+    "ast_sha256": "2e5b5a1e3015b593017e1a41429e588ae9adb9a5f93d3accc1fa6c3a5b83e1fa"
   },
   "policy_shop.py:ShopMixin._purchase_rungs": {
     "classification": "data",
@@ -7492,6 +7508,24 @@
     "delegation": "supports selected child; no independent success",
     "ast_sha256": "75be2fd94831f1d7231c18ded93e84a81832a5937161aceb378cb11ba4aa2fb1"
   },
+  "policy_town.py:TownMixin._outpost_fare_recovery_key": {
+    "classification": "producer",
+    "rows": [
+      "identification",
+      "shop-sell",
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "246d69d24b531799a3af55752fc9bc0f60aefa8d2bedc0f054b3b70e1c72a5f8"
+  },
+  "policy_town.py:TownMixin._outpost_return_fare": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "9d5506aeeb0035b9d611c89b2837c15f6264f4c07c8a3ed8c9775d6d1b63e2f4"
+  },
   "policy_town.py:TownMixin._read_dungeon_recall_scroll_key": {
     "classification": "producer",
     "rows": [
@@ -7882,7 +7916,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ed4c9244d9752e34c71a033ae65f7873aac7b05159b086b7211b84cadfb390a5"
+    "ast_sha256": "54ea5d3da68426f38e0f48fb4efa52d4ffffe37e39556c328e3e71cd94cfb6aa"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",
@@ -8327,7 +8361,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f33338ed4dd83abb4823dcbeee57f3d32fd360d73d3366475b10a2b6776418b9"
+    "ast_sha256": "01667e8c9f5135c16b6c0c3ad9e9321c5ebf22053cb211d495d47b60cee1228e"
   },
   "town_arbiter.py:TownTurnArbiter.ownership_family": {
     "classification": "data",
