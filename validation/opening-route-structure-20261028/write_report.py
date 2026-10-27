@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent
@@ -19,11 +20,20 @@ def log_tail(name, count=8):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
     derived_path = OUT / "derived-results.json"
     derived = json.loads(derived_path.read_text(encoding="utf-8")) if derived_path.exists() else {"modules": {}}
+    summary_path = OUT / "derived-summary.json"
+    if summary_path.exists():
+        derived = json.loads(summary_path.read_text(encoding="utf-8"))
     modules = derived["modules"]
     counts = Counter(item["status"] for item in modules.values())
-    failures = {name: item for name, item in modules.items() if item["status"] not in {"ran", "failed_known"}}
+    completed = sum(item["status"] in {"ran", "failed", "failed_known"} for item in modules.values())
+    failures = {name: item for name, item in modules.items() if item["status"] in {"failed", "error", "runner_error"}}
+    baseline_path = OUT / "baseline-results.json"
+    baselines = json.loads(baseline_path.read_text(encoding="utf-8")) if baseline_path.exists() else {}
+    retry_path = OUT / "current-cli-retry.json"
+    cli_retry = json.loads(retry_path.read_text(encoding="utf-8")) if retry_path.exists() else {}
     text = f"""
 
 2026-10-28 追加ラウンド: opening-route-structure / ISSUE #47
@@ -61,9 +71,15 @@ mutation_check --record --full の状態:
 既存22差分を含め main 基準で再検証するため、前ラウンドの選択テストに指定4構造テストを追加して実行した。別の detached 作業ツリーを使用し、実行中の派生検証が読む本作業ツリーへ mutation の巻き戻しを混在させない。待機中の場合は MUTATION OK や record 作成を主張しない。
 
 派生検証: guard-tools/affected_tests.py が導出した82モジュールを対象に実行。
-現時点で完了 {len(modules)}/82、状態別集計 {dict(counts)}。
+現時点で完了 {completed}/82、状態別集計 {dict(counts)}。
 失敗・エラー: {json.dumps(failures, ensure_ascii=False)}
 verify_scope の既存 DecisionTimingTest 除外はそのまま適用した。導出と実行は別に記録し、scope.json の導出成功だけでテスト成功を主張しない。起動時に判明した runner の import path 不足は修正して全対象を再実行し、初回結果は derived-import-path-initial.json に区別して保存した。
+派生検証の日本語ログに CP932 が混在し集計処理の UTF-8 読み込みが失敗したため、derived-summary.json では unittest の完了表示から件数と成否を回収した。これはプロセス終了コードの実測とは区別する。以後の runner は子プロセスの PYTHONIOENCODING=utf-8 を明示する。
+派生検証で観測した stockout と CLI 非同期テストの単独基準比較（基準HEADと実測終了コード）:
+{json.dumps(baselines, ensure_ascii=False)}
+現在の実装での CLI 単独再確認:
+{json.dumps(cli_retry, ensure_ascii=False)}
+stockout の同一失敗が main と着手前コミットでも出ること、CLI の同じケースの単独実行が両基準と現在の実装で成功することをログで確認した。該当テストの期待値や実装対象外の挙動は変更しない。
 
 マージゲート待機は指定どおり停止しない。未完了の guard を成功扱いしない。
 報告時の本作業ツリー src/・tests/ の未コミット差分:
@@ -71,6 +87,11 @@ verify_scope の既存 DecisionTimingTest 除外はそのまま適用した。�
 検証ログとコマンド・対象HEAD・base・終了コード・時間は validation/opening-route-structure-20261028/ に保存する。
 この追記は Python の UTF-8 で書き込み、過去ラウンドのバイト列は変更していない。
 """
+    if "--update" in sys.argv:
+        text = ("\n\nopening-route-structure 検証状況の追記: "
+                + datetime.now().astimezone().isoformat(timespec="seconds")
+                + "\n報告時 HEAD: " + git("rev-parse", "HEAD") + "\n\n"
+                + text[text.index("検証は指定"):])
     with (ROOT / "LUNA-REPORT-opening-route.txt").open("a", encoding="utf-8", newline="\n") as stream:
         stream.write(text)
     print("日本語レポートを UTF-8 で追記しました。")

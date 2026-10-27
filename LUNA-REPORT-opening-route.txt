@@ -397,3 +397,50 @@ verify_scope の既存 DecisionTimingTest 除外はそのまま適用した。�
 なし
 検証ログとコマンド・対象HEAD・base・終了コード・時間は validation/opening-route-structure-20261028/ に保存する。
 この追記は Python の UTF-8 で書き込み、過去ラウンドのバイト列は変更していない。
+
+
+opening-route-structure 検証状況の追記: 2026-10-28T07:15:34+09:00
+報告時 HEAD: 5b95896719cd46620f19ec1077b0897a1836af1c
+
+検証は指定のシステム Python 3.13、PYTHONPATH=src;tests;scripts を使用した。
+指定3モジュールの初回全体実行: 126件、348.617秒、終了コード0。ownership_s2a1_closure、town_arbiter、quest_door_confirm_recorded がすべて成功。
+現在の実装での指定4テストの再確認:
+....
+----------------------------------------------------------------------
+Ran 4 tests in 23.579s
+
+OK
+
+preflight 最新結果（初回の登録不足は補完済み。進行中なら完了判定は未取得）:
+[preflight] PREFLIGHT OK: 59 changed files, 0 findings (opening-route-1026 vs 78deea2a)
+
+fast tier 初回結果（最終 producer inventory 登録前の実行。最終版再実行とは区別する）:
+[fast] 1644 fast tests (<2.0s in 78deea2ac) + 4 changed modules, 4 shards
+[fast] excluded 49 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-xdzu_swq)
+Failures: none
+Errors: none
+Total: 1671 tests, 157.0s
+fast tier 最終版の状態:
+[fast] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+
+mutation_check --record --full の状態:
+[mutation] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+既存22差分を含め main 基準で再検証するため、前ラウンドの選択テストに指定4構造テストを追加して実行した。別の detached 作業ツリーを使用し、実行中の派生検証が読む本作業ツリーへ mutation の巻き戻しを混在させない。待機中の場合は MUTATION OK や record 作成を主張しない。
+
+派生検証: guard-tools/affected_tests.py が導出した82モジュールを対象に実行。
+現時点で完了 43/82、状態別集計 {'ran': 42, 'incomplete': 4, 'failed': 1, 'not_started': 35}。
+失敗・エラー: {"tests.test_keep_running_a0": {"status": "failed", "log_encoding": "utf-8", "failing_headers": ["FAIL: test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False)"], "stderr_path": "derived-logs\\tests.test_keep_running_a0.stderr.log", "tests": 17, "seconds": 18.898, "summary": "FAILED (failures=1)"}}
+verify_scope の既存 DecisionTimingTest 除外はそのまま適用した。導出と実行は別に記録し、scope.json の導出成功だけでテスト成功を主張しない。起動時に判明した runner の import path 不足は修正して全対象を再実行し、初回結果は derived-import-path-initial.json に区別して保存した。
+派生検証の日本語ログに CP932 が混在し集計処理の UTF-8 読み込みが失敗したため、derived-summary.json では unittest の完了表示から件数と成否を回収した。これはプロセス終了コードの実測とは区別する。以後の runner は子プロセスの PYTHONIOENCODING=utf-8 を明示する。
+派生検証で観測した stockout と CLI 非同期テストの単独基準比較（基準HEADと実測終了コード）:
+{"main-stockout": {"head": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9", "exit_code": 1, "test": "tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop", "seconds": 9.221}, "main-cli-follow": {"head": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9", "exit_code": 0, "test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot", "seconds": 5.435}, "incoming-stockout": {"head": "22b2b2806384a70f3d0ce20eae05da5e4201a888", "exit_code": 1, "test": "tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop", "seconds": 8.246}, "incoming-cli-follow": {"head": "22b2b2806384a70f3d0ce20eae05da5e4201a888", "exit_code": 0, "test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot", "seconds": 4.801}}
+現在の実装での CLI 単独再確認:
+{"test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot", "exit_code": 0, "head": "5b95896719cd46620f19ec1077b0897a1836af1c", "seconds": 5.532}
+stockout の同一失敗が main と着手前コミットでも出ること、CLI の同じケースの単独実行が両基準と現在の実装で成功することをログで確認した。該当テストの期待値や実装対象外の挙動は変更しない。
+
+マージゲート待機は指定どおり停止しない。未完了の guard を成功扱いしない。
+報告時の本作業ツリー src/・tests/ の未コミット差分:
+なし
+検証ログとコマンド・対象HEAD・base・終了コード・時間は validation/opening-route-structure-20261028/ に保存する。
+この追記は Python の UTF-8 で書き込み、過去ラウンドのバイト列は変更していない。

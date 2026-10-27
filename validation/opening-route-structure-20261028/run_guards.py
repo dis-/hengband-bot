@@ -61,6 +61,7 @@ if __name__ == "__main__":
     elif mode == "fast":
         run("fast", [GUARDS / "fast_tier.py", ROOT, BASE, "--shards", "4"])
     elif mode == "derived":
+        os.environ["PYTHONIOENCODING"] = "utf-8"
         sys.path.insert(0, str(ROOT / "scripts"))
         import verify_scope as scope_harness
         affected = subprocess.check_output([sys.executable, str(GUARDS / "affected_tests.py"),
@@ -83,7 +84,10 @@ if __name__ == "__main__":
             futures = {pool.submit(module_run, module): module for module in modules}
             for future in as_completed(futures):
                 module = futures[future]
-                results[module] = future.result()
+                try:
+                    results[module] = future.result()
+                except Exception as error:
+                    results[module] = {"status": "runner_error", "error": repr(error)}
                 (OUT / "derived-results.json").write_text(json.dumps(
                     {"base": BASE, "head": HEAD, "modules": results,
                      "excluded_tests": scope_harness.EXCLUDED_TESTS},
