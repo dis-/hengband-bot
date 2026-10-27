@@ -26,6 +26,7 @@ from hengbot.cli import (
     _send_decision_key_with_prompt_chain,
 )
 from hengbot.model import parse_snapshot
+from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.protocol import snapshot_protocol_version
@@ -186,11 +187,13 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
     def test_historical_passes_without_a_block_observe_home_before_surplus(self):
         policy, snapshot = self.replay(1)
         # CONSTRUCTED: keep the recorded failed-pass history, but remove
-        # the applicable block and capacity observation. Passes can outlive
-        # equipment work's larger bound; route admission needs its own block.
+        # the applicable block and capacity observation. As in the older
+        # departure replay, a filed physical visit still owns its budget.
         policy._town_visit_ledger.blocked_stores.clear()
         policy._town_blocked_reason = None
         policy._home_capacity_observation = None
+        policy._home_visit.file(HomeVisitRequest(
+            kind=HomeVisitKind.SCAN, requester="home-scan"))
         relief = policy._weight_relief_selection(snapshot)
         self.assertEqual((relief.route, relief.home_room), ("home-relief", False))
         categories = {need.category for need in policy._town_need_candidates(snapshot)}

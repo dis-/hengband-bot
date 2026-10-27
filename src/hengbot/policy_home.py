@@ -2781,10 +2781,10 @@ class HomeMixin:
         if not plan:
             return WeightRelief(weight, limit, excess, deposits, (), False,
                                 "unplanned", ())
-        # Match admission of a weight-overload need by the town router.
-        # Historical passes alone do not retire that need: a pass block
-        # carries the bound under which it was installed. The broader pass
-        # check used to stop liveness re-arms is not route admission.
+        # An already active physical Home visit keeps its installed budget.
+        # Historical passes under equipment work's larger bound must not
+        # retire it when the current work limit shrinks. An idle visit still
+        # obeys the ordinary pass bound, even after a need re-arms its block.
         ledger = self._town_visit_ledger
         home_visit = self._home_visit
         home = (
@@ -2794,6 +2794,8 @@ class HomeMixin:
             and ledger.approach_fails[STORE_HOME] < self._town_store_visit_limit(STORE_HOME)
             and (home_visit is None
                  or home_visit.attempts_used < home_visit.attempt_limit)
+            and (ledger.unsatisfied_passes[STORE_HOME] < self._town_store_visit_limit(STORE_HOME)
+                 or (home_visit is not None and home_visit.active))
         )
         # A free Home slot is an observation (page or capacity fact), never
         # the absence of a "full" fact.
