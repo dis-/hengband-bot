@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_latch_onset_capture",
+    "mode": "full",
+    "seconds": 1353.6909970000852,
+    "returncode": 0,
+    "log": "tests.test_latch_onset_capture.full.log"
+  },
+  {
+    "module": "tests.test_latch_onset_capture",
+    "mode": "5",
+    "seconds": 1223.7491555999732,
+    "returncode": 0,
+    "log": "tests.test_latch_onset_capture.5.log"
+  }
+]

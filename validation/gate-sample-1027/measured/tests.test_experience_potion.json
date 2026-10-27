@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_experience_potion",
+    "mode": "full",
+    "seconds": 886.3525567000033,
+    "returncode": 0,
+    "log": "tests.test_experience_potion.full.log"
+  },
+  {
+    "module": "tests.test_experience_potion",
+    "mode": "5",
+    "seconds": 737.5785342999734,
+    "returncode": 0,
+    "log": "tests.test_experience_potion.5.log"
+  }
+]

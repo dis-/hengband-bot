@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_declarations_r14",
+    "mode": "full",
+    "seconds": 577.095341200009,
+    "returncode": 0,
+    "log": "tests.test_declarations_r14.full.log"
+  },
+  {
+    "module": "tests.test_declarations_r14",
+    "mode": "5",
+    "seconds": 550.2202928999905,
+    "returncode": 0,
+    "log": "tests.test_declarations_r14.5.log"
+  }
+]

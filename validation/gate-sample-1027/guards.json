@@ -1,0 +1,49 @@
+{
+  "base": "28f3e33f2",
+  "preflight_final": {
+    "python": "3.13.14",
+    "returncode": 0,
+    "findings": 0,
+    "log": "preflight-final.log"
+  },
+  "fast_tier_final": {
+    "python": "3.13.14",
+    "sample": "5",
+    "returncode": 0,
+    "tests": 1933,
+    "seconds": 632.9,
+    "failures": [],
+    "errors": [],
+    "log": "fast_tier-final.log"
+  },
+  "fast_tier_py312": {
+    "python": "3.12.14",
+    "sample": "5",
+    "returncode": 1,
+    "tests": 1933,
+    "seconds": 705.3,
+    "failures": [
+      "tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail"
+    ],
+    "errors": [],
+    "log": "fast_tier.log"
+  },
+  "parallel_runner_selftest": {
+    "python": "3.12.14",
+    "tests": 7,
+    "result": "OK",
+    "log": "parallel-runner-selftest.log",
+    "returncode": 0,
+    "seconds": 3.48698309995234
+  },
+  "tested_head": "2c6b1905f2f6b8dee8a4b726c12f09472dc1d15e",
+  "later_code_change": "e12994134: scripts/measure_gate_sample.py import path only; tests/ and src/ unchanged",
+  "final_static_preflight": {
+    "head": "e12994134647d86f2fce0e4f28960381370daa56",
+    "returncode": 0,
+    "options": [
+      "--no-tests"
+    ],
+    "log": "preflight-artifacts.log"
+  }
+}

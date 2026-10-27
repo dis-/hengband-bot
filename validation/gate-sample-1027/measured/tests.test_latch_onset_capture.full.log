@@ -1,0 +1,12 @@
+test_enabled_capture_is_decision_pure_for_150_paired_decisions (tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_enabled_capture_is_decision_pure_for_150_paired_decisions) ... ok
+test_non_none_transition_and_steady_state_do_not_fire (tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_non_none_transition_and_steady_state_do_not_fire) ... ok
+test_none_to_value_captures_bounded_replayable_four_decision_window (tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_none_to_value_captures_bounded_replayable_four_decision_window) ... ok
+test_restore_seeds_marked_memory_for_checkpoint_before_axis_split (tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_restore_seeds_marked_memory_for_checkpoint_before_axis_split) ... ok
+test_slim_checkpoint_replays_old_calibration_decision (tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_slim_checkpoint_replays_old_calibration_decision) ... ok
+test_slim_checkpoint_replays_old_home_deferral_producer_decision (tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_slim_checkpoint_replays_old_home_deferral_producer_decision) ... ok
+test_writer_crossing_threshold_rotates_and_keeps_writing (tests.test_latch_onset_capture.LatchOnsetCaptureTest.test_writer_crossing_threshold_rotates_and_keeps_writing) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 1349.476s
+
+OK

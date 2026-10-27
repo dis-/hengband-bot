@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_unaffordable_claim_tour_recorded",
+    "mode": "full",
+    "seconds": 675.5611128999153,
+    "returncode": 0,
+    "log": "tests.test_unaffordable_claim_tour_recorded.full.log"
+  },
+  {
+    "module": "tests.test_unaffordable_claim_tour_recorded",
+    "mode": "5",
+    "seconds": 717.7301102000056,
+    "returncode": 0,
+    "log": "tests.test_unaffordable_claim_tour_recorded.5.log"
+  }
+]

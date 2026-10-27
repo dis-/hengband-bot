@@ -1,0 +1,20 @@
+[
+  {
+    "path": "tests/test_town_terminal_exit_round16.py",
+    "assertions_before": 10,
+    "assertions_after": 10,
+    "unchanged": true
+  },
+  {
+    "path": "tests/test_town_work_contract.py",
+    "assertions_before": 36,
+    "assertions_after": 36,
+    "unchanged": true
+  },
+  {
+    "path": "tests/town_producer_purity_matrix.py",
+    "assertions_before": 14,
+    "assertions_after": 14,
+    "unchanged": true
+  }
+]

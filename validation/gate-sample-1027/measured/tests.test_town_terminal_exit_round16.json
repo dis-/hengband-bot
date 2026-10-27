@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_town_terminal_exit_round16",
+    "mode": "full",
+    "seconds": 996.6712472999934,
+    "returncode": 0,
+    "log": "tests.test_town_terminal_exit_round16.full.log"
+  },
+  {
+    "module": "tests.test_town_terminal_exit_round16",
+    "mode": "5",
+    "seconds": 367.66574329999276,
+    "returncode": 0,
+    "log": "tests.test_town_terminal_exit_round16.5.log"
+  }
+]
