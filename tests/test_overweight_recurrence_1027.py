@@ -149,6 +149,23 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         self.assertEqual((relief.route, relief.home_room), ("deposit", True))
         self.assertTrue(relief.deposits)
 
+    def test_reachable_home_with_unknown_capacity_observes_before_surplus(self):
+        policy, snapshot = self.replay(1)
+        # CONSTRUCTED: same pack before the Home bound, with no capacity
+        # observation. Missing knowledge must not stand for a full Home.
+        policy._town_visit_ledger.unsatisfied_passes[7] = 0
+        policy._town_visit_ledger.blocked_stores.clear()
+        policy._town_blocked_reason = None
+        policy._home_capacity_observation = None
+        relief = policy._weight_relief_selection(snapshot)
+        self.assertEqual((relief.route, relief.home_room), ("home-relief", False))
+        categories = {need.category for need in policy._town_need_candidates(snapshot)}
+        self.assertIn("weight-overload", categories)
+        self.assertNotIn("overweight-surplus", categories)
+        key = policy.choose_key(snapshot)
+        self.assertIsNone(policy._overweight_surplus_disposal)
+        self.post(policy, snapshot, key)
+
     def test_posted_disposal_keeps_its_existing_effect_wait_bound(self):
         policy, snapshot = self.replay(1)
         # CONSTRUCTED: all buyers refused the empty staff, its destruction

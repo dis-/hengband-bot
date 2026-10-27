@@ -2776,13 +2776,19 @@ class HomeMixin:
         if (store is not None and store.store_type == STORE_HOME
                 and isinstance(store.stock_num, int)
                 and isinstance(store.capacity, int) and store.capacity > 0):
+            home_capacity_known = True
             home_room = home and store.stock_num < store.capacity
         else:
-            home_room = bool(home and fact and fact[1] > 0 and fact[0] < fact[1]
-                             and fact[2] == self._effective_town_id(snapshot))
+            home_capacity_known = bool(fact and fact[1] > 0
+                                       and fact[2] == self._effective_town_id(snapshot))
+            home_room = bool(home and home_capacity_known and fact[0] < fact[1])
         surplus = tuple(self._overweight_surplus_candidates(snapshot))
         if deposits and home_room:
             route = "deposit"
+        elif deposits and home and not home_capacity_known:
+            # Unknown capacity is not a full Home. Observe the available
+            # route before retiring its deposits into carried disposal.
+            route = "home-relief"
         elif sum(item.weight * count for _, _, item, count, _ in surplus) >= excess:
             route = "sell-or-destroy"
         elif deposits or surplus:
