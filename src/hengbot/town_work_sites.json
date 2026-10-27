@@ -1399,6 +1399,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "7c55858a5d461ef6a3a5c74f4d4007c1b3cb28718cb085ea7e7c27f45061edfe"
   },
+  "item_reservation.py:outpost_fare_sale_quantity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "264e7d81cd199dd320444898f007817f09a326fdb6e5a1204bfe596165c73333"
+  },
   "item_reservation.py:reservation_query_memo": {
     "classification": "data",
     "rows": [
@@ -1489,7 +1497,7 @@
       "survival"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ff8f3801cbd241cb46093e4f2c520220ad8dcacdaa2ed30114d8bd9b20252b60"
+    "ast_sha256": "c3ad0fbd28c58403f42b5722297d121be712b311020c4270b64f2a31e2284b4d"
   },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
@@ -1826,7 +1834,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3ededad5db51658b4d95e312700fe43ff14fe8188b094d217f2c2709789da2e4"
+    "ast_sha256": "2946be945896761a2bc3adcd124995d0230ad2beb87d90f7c37c231efcaea7ea"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -6409,7 +6417,7 @@
       "sale-address"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "babe1e3c34f7c009f1d131f225ad4f83ac7517c258f3ab382d359f47a1181a5b"
+    "ast_sha256": "9ce86b5b8b4b64e9469a9f29fd18aed2bc3392efddbe3b2d58d34af5212021de"
   },
   "policy_shop.py:ShopMixin._batch_sell_key": {
     "classification": "producer",
@@ -6709,7 +6717,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fd2415b9fa47f63e1c7cc6310b238b8c1589061074c4b5d7052c2e4c319f1ce4"
+    "ast_sha256": "2dc124a50f7396197b3993151ca557465bdabeaf5cf8f842878923bef8978eb7"
   },
   "policy_shop.py:ShopMixin._purchase_rungs": {
     "classification": "data",
@@ -7451,6 +7459,24 @@
     "delegation": "supports selected child; no independent success",
     "ast_sha256": "75be2fd94831f1d7231c18ded93e84a81832a5937161aceb378cb11ba4aa2fb1"
   },
+  "policy_town.py:TownMixin._outpost_fare_recovery_key": {
+    "classification": "producer",
+    "rows": [
+      "identification",
+      "shop-sell",
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "246d69d24b531799a3af55752fc9bc0f60aefa8d2bedc0f054b3b70e1c72a5f8"
+  },
+  "policy_town.py:TownMixin._outpost_return_fare": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success",
+    "ast_sha256": "9d5506aeeb0035b9d611c89b2837c15f6264f4c07c8a3ed8c9775d6d1b63e2f4"
+  },
   "policy_town.py:TownMixin._read_dungeon_recall_scroll_key": {
     "classification": "producer",
     "rows": [
@@ -7841,7 +7867,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ed4c9244d9752e34c71a033ae65f7873aac7b05159b086b7211b84cadfb390a5"
+    "ast_sha256": "54ea5d3da68426f38e0f48fb4efa52d4ffffe37e39556c328e3e71cd94cfb6aa"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",
@@ -8286,7 +8312,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f33338ed4dd83abb4823dcbeee57f3d32fd360d73d3366475b10a2b6776418b9"
+    "ast_sha256": "01667e8c9f5135c16b6c0c3ad9e9321c5ebf22053cb211d495d47b60cee1228e"
   },
   "town_arbiter.py:TownTurnArbiter.ownership_family": {
     "classification": "data",
