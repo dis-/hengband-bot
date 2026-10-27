@@ -4869,6 +4869,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "d7bef89d2cc7866bbf104e04da94d61320ed57cc25e5106278ef1f4adfdbc350"
   },
+  "policy_helpers.py:PolicyHelpersMixin._pick_alternate_dungeon": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "8d50ea4e6f8d76a475370ff8728d6b5a428b6c9b97fb54242ee101709209a2c3"
+  },
   "policy_helpers.py:PolicyHelpersMixin._profile_resistance_name": {
     "classification": "data",
     "rows": [
@@ -7760,7 +7768,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e242a82fea7d7b3f830086d009eb9f9f9cca424c98ee453c7ba29e4fa15ee510"
+    "ast_sha256": "285a07e860230ac3a70c9eeb6feca595e53b186213bd7a4cffe672b119467900"
   },
   "policy_town.py:TownMixin._town_remove_curse_key": {
     "classification": "producer",
