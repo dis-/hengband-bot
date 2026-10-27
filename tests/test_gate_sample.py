@@ -1,5 +1,7 @@
 """Controls for sampled merge checks and the daily full-module inventory."""
 
+import tests  # noqa: F401 -- isolate live runtime files for bare module runs
+
 import ast
 import os
 from pathlib import Path
