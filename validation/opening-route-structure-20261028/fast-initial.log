@@ -1,0 +1,6 @@
+[fast] 1644 fast tests (<2.0s in 78deea2ac) + 4 changed modules, 4 shards
+[fast] excluded 49 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-xdzu_swq)
+Failures: none
+Errors: none
+Total: 1671 tests, 157.0s

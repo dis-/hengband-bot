@@ -1,0 +1,18 @@
+{
+  "base": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+  "head": "3e10df08cd4ffcb18eb8888a7aba010212949ce2",
+  "results": {
+    "fast": {
+      "exit_code": 0,
+      "seconds": 157.585,
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "C:\\hengband-backups\\guard-tools\\fast_tier.py",
+        "C:\\hengband\\bot-client\\.worktrees\\opening-route-1026",
+        "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+        "--shards",
+        "4"
+      ]
+    }
+  }
+}
