@@ -26,6 +26,7 @@ from hengbot.cli import (
 )
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.protocol import snapshot_protocol_version
 from test_esp_threat_rest_recorded import EDIT, _policy
 import tests.test_input_executor as executor_harness
@@ -146,6 +147,22 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         relief = policy._weight_relief_selection(snapshot)
         self.assertEqual((relief.route, relief.home_room), ("deposit", True))
         self.assertTrue(relief.deposits)
+
+    def test_posted_disposal_keeps_its_existing_effect_wait_bound(self):
+        policy, snapshot = self.replay(1)
+        # CONSTRUCTED: all buyers refused the empty staff, its destruction
+        # was posted, and the unchanged board exhausted the existing wait.
+        policy._town_blocked_reason = None
+        staff = next(item for item in snapshot.inventory if item.slot == "l")
+        pending = dict(identity=policy._sale_item_identity(staff), before_count=staff.count,
+                       posted=True, mode="destroy", waits=STORE_STUCK_LIMIT - 1)
+        policy._overweight_surplus_disposal = {
+            "town": policy._effective_town_id(snapshot), "pending": pending}
+        key = policy.choose_key(snapshot)
+        self.assertEqual(policy.last_reason, "town:blocked:overweight-home-full-no-legal-relief")
+        self.assertIs(policy._overweight_surplus_disposal["pending"], pending)
+        self.assertEqual(pending["waits"], STORE_STUCK_LIMIT)
+        self.post(policy, snapshot, key)
 
 
 if __name__ == "__main__":
