@@ -291,10 +291,6 @@ class FundraisingMixin:
 
     def _detectionless_scavenge_allowed(self, snapshot: Snapshot) -> bool:
         """Allow scavenge for dear offers or a fully observed stock-out."""
-        if self._opening_q1_active(snapshot) and getattr(self, "_opening_q1_funding", None) is not None:
-            # Missing quest reserves own the gold; do not spend them on detection
-            # before this bounded loot-only run earns the named debt.
-            return True
         has_known_detection = self._has_known_fundraising_detection(snapshot)
         pages = dict(self._town_supplier_stock)
         if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
