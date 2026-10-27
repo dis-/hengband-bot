@@ -1,0 +1,18 @@
+{
+  "tests.test_absorbing_states": {
+    "returncode": 0,
+    "seconds": 187.25
+  },
+  "tests.test_cli": {
+    "returncode": 0,
+    "seconds": 16.66
+  },
+  "tests.test_policy": {
+    "returncode": 0,
+    "seconds": 6.94
+  },
+  "tests.test_quest_sweep_hold_recorded": {
+    "returncode": 0,
+    "seconds": 10.77
+  }
+}

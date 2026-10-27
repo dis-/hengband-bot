@@ -1,0 +1,221 @@
+test_captured_departure_failure_retires_and_issues_recall (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_departure_failure_retires_and_issues_recall) ... ERROR
+test_captured_fully_deferred_class_retries_once_per_town_stay (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_fully_deferred_class_retries_once_per_town_stay) ... ERROR
+test_captured_progressing_home_work_keeps_failure_gate (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_progressing_home_work_keeps_failure_gate) ... ERROR
+test_captured_progressing_home_work_never_becomes_blocked (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_progressing_home_work_never_becomes_blocked) ... ERROR
+test_catalogue_is_cheap_and_grows_by_data (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_catalogue_is_cheap_and_grows_by_data) ... ok
+test_coordinate_drift_and_closed_patrol_are_not_progress (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_coordinate_drift_and_closed_patrol_are_not_progress) ... ERROR
+test_driven_errand_has_one_owner_across_store_transfer (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_driven_errand_has_one_owner_across_store_transfer) ... ok
+test_failed_repeat_posts_do_not_score_as_progress (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_failed_repeat_posts_do_not_score_as_progress) ... ERROR
+test_final_recovery_rest_label_is_fail_closed (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_final_recovery_rest_label_is_fail_closed) ... ERROR
+test_final_twitch_fails_independently_of_adjacent_bound (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_final_twitch_fails_independently_of_adjacent_bound) ... ok
+test_frozen_owned_home_approach_reaches_existing_ceiling_publicly (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_frozen_owned_home_approach_reaches_existing_ceiling_publicly)
+A frozen owned approach reaches the authorized calibration ceiling. ... ok
+test_home_suppression_cycle_releases_by_atomic_withdrawal (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_home_suppression_cycle_releases_by_atomic_withdrawal) ... ok
+test_indefinite_recovery_rest_is_a_real_unmodelled_release (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_indefinite_recovery_rest_is_a_real_unmodelled_release) ... ERROR
+test_named_infinite_wait_is_not_a_drive_ending_terminal (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_named_infinite_wait_is_not_a_drive_ending_terminal) ... ok
+test_ordinary_freeze_is_not_labelled_unmodelled (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_ordinary_freeze_is_not_labelled_unmodelled) ... ok
+test_progress_limb_distinguishes_progress_from_freeze (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_progress_limb_distinguishes_progress_from_freeze) ... ok
+test_public_choose_key_refuses_all_four_live_store_cycles (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_public_choose_key_refuses_all_four_live_store_cycles) ... ok
+test_refused_home_suppression_take_defers_once_and_does_not_rearm (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_refused_home_suppression_take_defers_once_and_does_not_rearm) ... ok
+test_turn_physics_uses_emitted_game_turns (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_turn_physics_uses_emitted_game_turns) ... ERROR
+test_unmodelled_release_is_not_an_absorbing_state (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_unmodelled_release_is_not_an_absorbing_state) ... ok
+test_seed_verdicts_depend_on_visible_bot_terminals (tests.test_absorbing_states.SeededAbsorbingStateTest.test_seed_verdicts_depend_on_visible_bot_terminals) ... ERROR
+test_six_seeded_states_reach_progress_or_visible_terminal (tests.test_absorbing_states.SeededAbsorbingStateTest.test_six_seeded_states_reach_progress_or_visible_terminal) ... ERROR
+
+======================================================================
+ERROR: test_captured_departure_failure_retires_and_issues_recall (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_departure_failure_retires_and_issues_recall)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 171, in test_captured_departure_failure_retires_and_issues_recall
+    policy, world = state.build()
+                    ^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_captured_fully_deferred_class_retries_once_per_town_stay (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_fully_deferred_class_retries_once_per_town_stay)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 323, in test_captured_fully_deferred_class_retries_once_per_town_stay
+    policy, world = state.build()
+                    ^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/recorded_junk_scope.py", line 117, in wrapped
+    return replay(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 180, in _captured_home_deferral_retry
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_captured_progressing_home_work_keeps_failure_gate (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_progressing_home_work_keeps_failure_gate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 199, in test_captured_progressing_home_work_keeps_failure_gate
+    policy = cat.restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_captured_progressing_home_work_never_becomes_blocked (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_captured_progressing_home_work_never_becomes_blocked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 235, in test_captured_progressing_home_work_never_becomes_blocked
+    policy = cat.restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_coordinate_drift_and_closed_patrol_are_not_progress (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_coordinate_drift_and_closed_patrol_are_not_progress)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 521, in test_coordinate_drift_and_closed_patrol_are_not_progress
+    _, template = SEEDED_STATES[0].build()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_failed_repeat_posts_do_not_score_as_progress (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_failed_repeat_posts_do_not_score_as_progress)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 597, in test_failed_repeat_posts_do_not_score_as_progress
+    _, template = SEEDED_STATES[0].build()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_final_recovery_rest_label_is_fail_closed (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_final_recovery_rest_label_is_fail_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 587, in test_final_recovery_rest_label_is_fail_closed
+    _, template = SEEDED_STATES[0].build()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_indefinite_recovery_rest_is_a_real_unmodelled_release (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_indefinite_recovery_rest_is_a_real_unmodelled_release)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 572, in test_indefinite_recovery_rest_is_a_real_unmodelled_release
+    _, template = SEEDED_STATES[0].build()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_turn_physics_uses_emitted_game_turns (tests.test_absorbing_states.AbsorbingStateHarnessTest.test_turn_physics_uses_emitted_game_turns)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 609, in test_turn_physics_uses_emitted_game_turns
+    _, template = SEEDED_STATES[0].build()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_seed_verdicts_depend_on_visible_bot_terminals (tests.test_absorbing_states.SeededAbsorbingStateTest.test_seed_verdicts_depend_on_visible_bot_terminals)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 633, in test_seed_verdicts_depend_on_visible_bot_terminals
+    results = [drive(state) for state in SEEDED_STATES]
+               ^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_harness.py", line 70, in drive
+    policy, world = state.build()
+                    ^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+======================================================================
+ERROR: test_six_seeded_states_reach_progress_or_visible_terminal (tests.test_absorbing_states.SeededAbsorbingStateTest.test_six_seeded_states_reach_progress_or_visible_terminal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 625, in test_six_seeded_states_reach_progress_or_visible_terminal
+    results = [drive(_with_takeoff_physics(state)) for state in SEEDED_STATES]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_harness.py", line 70, in drive
+    policy, world = state.build()
+                    ^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/test_absorbing_states.py", line 98, in build
+    policy, world = state.build()
+                    ^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/absorbing_state_catalog.py", line 553, in _captured_departure_unsatisfiable
+    policy = restore_recorded_checkpoint(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/tests/extraction_calibration.py", line 43, in restore_recorded_checkpoint
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[Linux検証環境]/.runtime312/python/lib/python3.12/pathlib.py", line 1434, in __new__
+    raise NotImplementedError(
+NotImplementedError: cannot instantiate 'WindowsPath' on your system
+
+----------------------------------------------------------------------
+Ran 22 tests in 4.496s
+
+FAILED (errors=11)
