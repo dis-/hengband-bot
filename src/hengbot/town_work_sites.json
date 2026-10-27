@@ -7498,7 +7498,7 @@
       "plan-routing"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6a4256b9c14ab0dd99e428fa69f7e8483ca5d129808babae577f3592b8993165"
+    "ast_sha256": "646e45481ad046ede7c2ae1c5575d6e53f16eeebadc7880f666b36a2b022ae7d"
   },
   "policy_town.py:TownMixin._town_cancel_unsafe_recall_key": {
     "classification": "producer",
