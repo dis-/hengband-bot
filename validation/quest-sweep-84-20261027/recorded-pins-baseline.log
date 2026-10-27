@@ -1,0 +1,71 @@
+test_q31_recorded_sweep_does_not_reverse_for_distant_huorn (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q31_recorded_sweep_does_not_reverse_for_distant_huorn) ...
+  test_q31_recorded_sweep_does_not_reverse_for_distant_huorn (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q31_recorded_sweep_does_not_reverse_for_distant_huorn) (sequence=26622) ... FAIL
+  test_q31_recorded_sweep_does_not_reverse_for_distant_huorn (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q31_recorded_sweep_does_not_reverse_for_distant_huorn) (sequence=26624) ... FAIL
+test_q22_recorded_fleeing_orc_is_followed_before_light_point (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q22_recorded_fleeing_orc_is_followed_before_light_point) ...
+  test_q22_recorded_fleeing_orc_is_followed_before_light_point (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q22_recorded_fleeing_orc_is_followed_before_light_point) (sequence=15413) ... FAIL
+  test_q22_recorded_fleeing_orc_is_followed_before_light_point (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q22_recorded_fleeing_orc_is_followed_before_light_point) (sequence=15415) ... FAIL
+
+======================================================================
+FAIL: test_q31_recorded_sweep_does_not_reverse_for_distant_huorn (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q31_recorded_sweep_does_not_reverse_for_distant_huorn) (sequence=26622)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-sweep-84-1027\tests\test_quest_sweep_hold_recorded.py", line 87, in test_q31_recorded_sweep_does_not_reverse_for_distant_huorn
+    self.assertEqual((key, reason),
+AssertionError: Tuples differ: ('4', 'quest-strategy:retake-hold') != ('8', 'quest-strategy:placement-sweep')
+
+First differing element 0:
+'4'
+'8'
+
+- ('4', 'quest-strategy:retake-hold')
++ ('8', 'quest-strategy:placement-sweep')
+
+======================================================================
+FAIL: test_q31_recorded_sweep_does_not_reverse_for_distant_huorn (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q31_recorded_sweep_does_not_reverse_for_distant_huorn) (sequence=26624)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-sweep-84-1027\tests\test_quest_sweep_hold_recorded.py", line 87, in test_q31_recorded_sweep_does_not_reverse_for_distant_huorn
+    self.assertEqual((key, reason),
+AssertionError: Tuples differ: ('4', 'quest-strategy:retake-hold') != ('8', 'quest-strategy:placement-sweep')
+
+First differing element 0:
+'4'
+'8'
+
+- ('4', 'quest-strategy:retake-hold')
++ ('8', 'quest-strategy:placement-sweep')
+
+======================================================================
+FAIL: test_q22_recorded_fleeing_orc_is_followed_before_light_point (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q22_recorded_fleeing_orc_is_followed_before_light_point) (sequence=15413)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-sweep-84-1027\tests\test_quest_sweep_hold_recorded.py", line 96, in test_q22_recorded_fleeing_orc_is_followed_before_light_point
+    self.assertEqual(self.decide(policy, board),
+AssertionError: Tuples differ: ('6', 'quest-strategy:retake-hold') != ('4', 'quest-strategy:sweep-engage-mobile')
+
+First differing element 0:
+'6'
+'4'
+
+- ('6', 'quest-strategy:retake-hold')
++ ('4', 'quest-strategy:sweep-engage-mobile')
+
+======================================================================
+FAIL: test_q22_recorded_fleeing_orc_is_followed_before_light_point (tests.test_quest_sweep_hold_recorded.QuestSweepHoldRecordedTest.test_q22_recorded_fleeing_orc_is_followed_before_light_point) (sequence=15415)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\quest-sweep-84-1027\tests\test_quest_sweep_hold_recorded.py", line 96, in test_q22_recorded_fleeing_orc_is_followed_before_light_point
+    self.assertEqual(self.decide(policy, board),
+AssertionError: Tuples differ: ('6', 'quest-strategy:retake-hold') != ('4', 'quest-strategy:sweep-engage-mobile')
+
+First differing element 0:
+'6'
+'4'
+
+- ('6', 'quest-strategy:retake-hold')
++ ('4', 'quest-strategy:sweep-engage-mobile')
+
+----------------------------------------------------------------------
+Ran 2 tests in 4.901s
+
+FAILED (failures=4)

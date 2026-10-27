@@ -1,0 +1,26 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-broke-prevent.txt. The supervisor ran your 77423fe78 on the verification machine from the
+retired n1-b life-192 save (Telmora, gold 329, Lv22). It stopped within 15 s, repeatedly, on
+town:blocked:outpost-fare-no-sale (turn did not advance): every pack item is a retention reservation
+(speed x2 carry-strategy, Cure Critical x10 supply-ledger:cure, heal x3, Teleport x15 carry-strategy:teleport,
+Recall x5 supply-ledger:recall, Treasure Detection x9 mining:detection, Stone to Mud wand ...), so nothing counts as
+sellable.
+The owner decided (AskUserQuestion answer, 2026-10-26 19:1x, LOCKED): 「取り置き品を少し売る」 - when broke away from the
+Outpost and nothing unreserved can be sold, sell a FEW reserved items, starting from the most plentiful reservations
+(e.g. Teleport scrolls), only until the fare is covered, then travel back to the Outpost; the normal Outpost
+restocking refills them. A named stop only when even that cannot make the fare.
+Do:
+1. Implement that as the second step of the fare recovery (after unreserved surplus): choose reserved stacks by the
+   existing reservation data (most plentiful first - define "plentiful" from the existing counts/targets, no new
+   number), sell the minimum quantity that covers the fare at the observed sale price, keep at least what the existing
+   rules call the minimum where one exists, then travel. Retention must allow exactly this sale (no other path may sell
+   reserved items).
+2. Pins (public choose_key + follow executor) seeded from this stop: before = outpost-fare-no-sale; after = a small
+   reserved sale, fare >= 500, town travel to the Outpost. Keep round-1 pins green.
+Records: on nth-vps ~/hengbot-verify/broke-192/home/hengbot-soak/n1-b/life-192 (incident-captures
+20261026-190632/190650-town-blocked-outpost-fare-no-sale, jsonlog). The original copy of the same save state is
+C:\hengband\bot-client\state-logs\n1b-life192-broke-1026.
+Rules as before (Python UTF-8, no process control, no game/bot control, no push/merge/rebase/reset --hard/stash,
+existing tests (= tests at f66916c86) unchanged, no logs committed, no new magic numbers). Guards: preflight /
+mutation_check --record / fast_tier with base f66916c86. Token budget 100k HARD, wall time 90 minutes. Append round 2
+to LUNA-REPORT-broke-prevent.txt (Japanese) and commit. The supervisor reruns the save on the verification machine.

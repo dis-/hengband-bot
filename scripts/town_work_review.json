@@ -11430,5 +11430,51 @@
     "rows": [
       "data/no-independent-credit"
     ]
+  },
+  "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure execution-target projection. Retains worn replacements for deferred selected items; returns Loadout data, no game command or completion credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._outpost_return_fare": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "evidence": "Read-only budget: the existing game fare outside Outpost, zero in Outpost; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success"
+  },
+  "policy_town.py:TownMixin._outpost_fare_recovery_key": {
+    "classification": "producer",
+    "rows": [
+      "identification",
+      "shop-sell",
+      "cross-town"
+    ],
+    "context": "Non-Outpost town/store with insufficient return fare, or an emergency sale/return in progress.",
+    "evidence": "Uses carried identification before starting recovery; once active, delegates ordinary surplus first, then an exact scoped reserved supply sale above existing return minima, ranked by releasable units, and inn return; observes actual unit proceeds to minimize quantities; names no-sale/route/recall stops. No purchases or recall reads.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "item_reservation.py:outpost_fare_sale_quantity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Exact live item, policy and snapshot inside the fare-recovery sale scope.",
+    "evidence": "Read-only scoped quantity grant; no retention mutation, key or independent work.",
+    "admission": "store_item_key sale quantity bound; existing item reservation and sale admission",
+    "observer": "ordinary batch sale observation",
+    "delegation": "no independent success"
   }
 }

@@ -48,6 +48,7 @@ policy_town.py:_town_entrance_step_off_key  # departure leg wrapped by a detecto
 policy_home.py:_atomic_home_withdraw_dispatch_key  # admitted atomic Home withdraw body serves home-visit and equipment-txn callers
 policy_home.py:_atomic_home_deposit_dispatch_key  # admitted atomic Home deposit body serves home-visit and equipment-txn callers
 policy.py:_town_idle_key  # extracted ladder fallback: idle wait and detector stuck:wander, admitted before dispatch
+policy_town.py:_outpost_fare_recovery_key  # fare-recovery dispatcher: carried identification, shop-sell liquidation, cross-town return and town-plan terminal stops share the recovery state
 policy_town.py:_town_teleport_dispatch_key  # admitted travel serves explicit store-router, cross-town and quest-request producers
 policy_home.py:_probe_unobserved_home_withdrawal  # home-visit probe that reports through a town-plan block
 policy_home.py:_home_quest_launcher_key  # home-scan lookup feeding a home-visit withdrawal

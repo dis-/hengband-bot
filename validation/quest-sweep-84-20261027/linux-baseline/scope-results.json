@@ -1,0 +1,65 @@
+{
+  "head": "4db110bd5beb2544c87f6c26b84d390b7216d661",
+  "base": "4db110bd5",
+  "derived": {
+    "lints": [
+      "scripts/sale_key_lint.py",
+      "scripts/test_fakery_lint.py"
+    ],
+    "modules": [
+      "tests.test_absorbing_states",
+      "tests.test_cli",
+      "tests.test_policy",
+      "tests.test_policy_quest",
+      "tests.test_policy_structure"
+    ],
+    "paths": [
+      "LUNA-REPORT-quest-sweep-84.txt",
+      "scripts/town_work_manifest.json.gz",
+      "src/hengbot/policy_quest.py",
+      "src/hengbot/town_work_sites.json",
+      "tests/fixtures/quest-sweep-hold-20261027.json.gz",
+      "tests/test_quest_sweep_hold_recorded.py"
+    ],
+    "symbols": {
+      "src/hengbot/policy_quest.py": [
+        "QuestMixin"
+      ]
+    }
+  },
+  "excluded": [
+    "tests.test_cli.DecisionTimingTest"
+  ],
+  "modules": {
+    "tests.test_policy_quest": {
+      "returncode": 1,
+      "seconds": 4.28,
+      "tests": 334,
+      "skipped": 45
+    },
+    "tests.test_policy_structure": {
+      "returncode": 0,
+      "seconds": 2.27,
+      "tests": 7,
+      "skipped": 1
+    },
+    "tests.test_absorbing_states": {
+      "returncode": 1,
+      "seconds": 4.89,
+      "tests": 22,
+      "skipped": 0
+    },
+    "tests.test_cli": {
+      "returncode": 0,
+      "seconds": 6.29,
+      "tests": 229,
+      "skipped": 1
+    },
+    "tests.test_policy": {
+      "returncode": 1,
+      "seconds": 0.97,
+      "tests": 57,
+      "skipped": 0
+    }
+  }
+}

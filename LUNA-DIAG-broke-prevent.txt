@@ -1,0 +1,97 @@
+Issue #47 金欠防止の診断（2026-10-26、基点 f66916c86）
+
+確認範囲
+コピー済みの記録だけを読み、ゲーム・BOTの操作やプロセス停止はしていない。
+以下の実装参照は基点 f66916c86 の行番号（修正後の行移動に注意）。
+
+A: Morivant（town_id=2）
+state-logs/c4a-morivant-broke-1026/captures/20261026-083838-town-blocked-walk-in-entrance-unavailable/
+state.jsonl.gz:1,12 は町ID 2、251G。bot-decisions.jsonl.gz:84,93,101,110 は
+mine、planned_runs=1、kit_secured=true、town:blocked:walk-in-entrance-unavailable。
+同じ行のtown_teleport_refusalは current=2、destination=0、gold=251、required_gold=500。
+この捕捉区間だけから251Gまで減った個々の支出を特定することはできない。
+
+B: 最後はTelmora（town_id=1）
+n1b-life192-broke-1026 の16:06捕捉 policy-state.json の
+modes_and_latches._observed_town_id=1。抽出した2933932、2940687、2942109の
+生ボードもfloor.town_id=1、dungeon_name=テルモラ。15:45の停止はOutpost（ID 0）で、
+その後Telmora、Outpost、Morivant、Angwilを往復し、Telmoraに戻っている。
+
+運賃の根拠
+C:/hengband/src/cmd-building/cmd-building.cpp:90 は施設の会員／非会員料金を選択し、
+97 で所持金を確認する。275-280 のBACT_TELE_TOWNはtele_town成功時だけbuilding_costを引く。
+src/spell-kind/spells-world.cpp:272以降が訪問済みの町を選ぶ処理。
+lib/edit/towns/01_Outpost_Full.jsonc:2288,2294、02_Telmora.jsonc:1391,1397、
+03_Morivant.jsonc:1113,1119の移動アクション42はどちらの料金も500G。
+BOT既存値 policy_constants.py のTOWN_TELEPORT_COST=500と一致する。
+新しい残金閾値や予備費は追加しない。
+
+買い物で329Gになれた理由
+policy_shop.py:_purchase_quantity（基点3746）は所持金全体から買える数量を算出していた。
+通常店の全購入に共通する「Outpostへ帰る500G」を差し引く処理はなかった。
+_next_purchaseには採掘キット用reserve、闇市場の任意購入には補給用reserveがあるが、
+一般店での*鑑定*購入を一律500Gで止める仕組みではない。
+item_reservation.py:store_item_key（基点477付近）は数量・確認を合成し、帰還運賃を検査しなかった。
+
+決定的な支出はjsonlog/bot-economy.jsonl:6925（turn 2933932）。
+Alchemist（店4）の*鑑定*2425Gを2枚、key pk2\r\r、5299→449G。
+次の6926（turn 2940687）は財宝感知24Gを5枚、key pr5\r\r、449→329G。
+bot-decisions.jsonl:7037 と7684に対応する購入決定がある。
+前者はfundraising.mode=None、後者はmine。採掘に切り替わる前に既に運賃を割っていた。
+店6/5の高額購入も可処分金を減らすが、最後の運賃割れを直接起こしたのは上の2枚購入である。
+rumorの既存RUMOR_GOLD_RESERVEは300Gなので、帰還500Gの代用にはならない。
+今回、有料rumorも既存reserveと帰還運賃の大きい方を残す。Morivant図書館は既存の帰還500G控除を持つ。
+町間移動自体はpolicy_town.py:_town_teleport_dispatch_key（基点7166）および
+ town_terminal.py:gather_cross_townで、行先0なら500、他なら1000Gを要求していた。
+従って「移動に下限が一切なかった」のではなく、移動後の買い物が運賃を食べていた。
+
+Q2と買い出しが交互に走った理由
+policy_quest.py:4187-4192はtakenのQ2の町Telmoraへ移動し、
+policy_shop.py:1689-1730は買い出し先到着でtargetを解放して、その町の不足と棚を再評価する。
+_cross_town_shopping_holdは現在地の棚で不足を解決できないとfalseになる。
+town_terminal.py:119のQuestWorkMaterialもこの「地元の買い物待ち」を使っていたため、
+仕入れ先巡回全体がまだ残っていてもQ2が割り込めた。
+その結果、Outpostへ戻った直後やMorivant/Angwilに着いた直後に、
+Q2のTelmora行き500Gを再度払い、次の仕入れ先へ出てまたQ2に戻された。
+
+bot-decisions.jsonl:3506,3511付近および抽出decision列:
+2894772 3ma 買い出し→Outpost、2895339 3mb Q2→Telmora、
+2895380 3mc 買い出し→Morivant、2895403 1mb Q2→Telmora、
+2895429 3md 買い出し→Angwil、2895451 1mb Q2→Telmora。
+economy:6874,6877-6881が各500G、合計3000G。
+なお、これより早いQ2行き2864479（economy:6816）も500Gであり、
+15:45以降全体で数えると町間移動は7回3500Gとなる。上の連続した6回と区別する。
+
+repetition／帰還先のループ
+policy_town.py:_town_blocked_key（基点6056,6077,6177付近）はrepetitionから
+出発・緊急帰還を選び、_town_cancel_unsafe_recall_key（基点5347-5415）は
+pending先とactive目標が異なり安全な別行先を選べると帰還を取り消そうとする。
+Bの16:05捕捉decision-tailでは2941535/2941558にred（repetition-depart:recall）、
+2941543/2941566にre（cancel-wrong-recall-destination）。
+同じ帰還を再取消ししようとする送信はPostingContractにrecall-already-activeとして拒まれ、
+その後LOOKを含む再判断、loop-detectedとなった。所持金は329Gのまま。
+生ボード2941535は帰還前のID 2／深さ13、2941543は帰還中のID 4／深さ10を示す。
+ID 4は迷宮、ID 2はイークの洞穴。捕捉時はmineで_conquest_committed=4。
+policy_town.py:6207の_town_recall_destinationは_target_dungeon_idを参照して迷宮行きを選べる一方、
+policy.py:16614の_active_dungeon_targetはmine/scavenge中なら必ずイークの洞穴を返す。
+取消し側（policy_town.py:5355）は後者とpending先を比較するため、実際に選んだ迷宮行きを
+「wrong destination」と判断できる。出発側と取消し側の参照先の不一致であり、町間交通費を作る処理ではない。
+この変更は一般のダンジョン帰還機構を広く作り直さず、金欠の他町では売却・町間帰還を
+優先し、既に帰還中なら専用理由で停止する。交通手段として帰還の巻物を新規使用／取消ししない。
+
+AとBの共通点
+policy_town.py:1907-1934のwalk-in帰還は、他町に歩いて入れる坑道入口がなくても
+Outpostまで500Gで戻ろうとする。Aの251GもBの329Gもこの運賃を払えず、
+mineは巻物を節約する規則でRecallを拒むためwalk-in-entrance-unavailableになった。
+AはMorivant、BはTelmoraであり、同じ町の事件ではない。
+売却専用の復旧より先に、外町で運賃を残す共通ガードを入れる必要がある。
+
+pinsの証拠限界
+Aは捕捉state全12行、Bは保存されていた対象turnの生ボードを抽出した。
+Bの保存済みgzipはローテーションファイル末尾が2891138、その後のcurrentコピーは
+2919750以降しか復元できないため、2894772-2895451の生ボードには欠落がある。
+6回の移動はdecision/economyで確定するが、連続生ボード再生をしたとは報告しない。
+町移動pinsは保存ボードから同じQ2状態、実測運賃・座標を使った構成対照。
+安定したTeleport不足と空棚の観測を与え、経路・選択関数をmockせずpublic choose_keyを通す。
+二枚*鑑定*需要、不要魔法書、売却後にちょうど500Gとなる状態も明示した構成対照である。
+実セーブによる最終確認は指示どおり後続の担当者が行う。

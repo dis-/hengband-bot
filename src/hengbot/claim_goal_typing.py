@@ -222,6 +222,10 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     ),
     *_rows(
         "shop-sell",
+        ("shop:outpost-fare-earned-leave", T, EFFECT),
+        ("shop:outpost-fare-seek-sale-leave", T, EFFECT),
+        ("shop:outpost-fare-sale-approach", R, ENTRANCE),
+        ("shop:outpost-fare-sale-approach:await-entry", O, STORE_ENTRY),
         ("shop:sale", T, EFFECT),
         ("shop:sell-", T, EFFECT),
         ("shop:batch-sale", T, EFFECT),

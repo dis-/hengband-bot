@@ -1,5 +1,7 @@
 from __future__ import annotations
-from hengbot.item_reservation import item_available, reserved_item_command, store_item_key
+from hengbot.item_reservation import (
+    item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
+)
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -1728,6 +1730,26 @@ class ShopMixin(InStoreMixin):
         ]
         unavailable = self._cross_town_unobtainable_categories(snapshot, remaining)
         return any(category not in unavailable for category, _ in remaining)
+
+    def _cross_town_quest_hold(self, snapshot: Snapshot) -> bool:
+        """A supplier circuit owns travel until fulfilled or all towns tried.
+
+        Local shopping may finish at an empty shelf. That releases the next
+        supplier leg, while fixed quests must still yield the whole trip.
+        """
+        expedition = self._cross_town_shopping
+        if expedition is None or not snapshot.in_town:
+            return False
+        if expedition.target_town_id is not None:
+            return True
+        remaining = [shortage for shortage in self._cross_town_shortages(snapshot)
+                     if shortage[0] in expedition.blocking_categories]
+        return bool(remaining) and (
+            self._cross_town_shopping_hold(snapshot)
+            or any(town not in expedition.tried_towns
+                   and town != self._effective_town_id(snapshot)
+                   for town in expedition.candidate_order)
+        )
 
     @claims(ClaimOwner.CROSS_TOWN)
     def _cross_town_shopping_key(self, snapshot: Snapshot) -> str | None:
@@ -3838,6 +3860,11 @@ class ShopMixin(InStoreMixin):
             # one-unit check in _black_market_optional_purchase does not bound
             # a multi-unit stack.
             quantity = min(quantity, reserve_cap)
+        fare = self._outpost_return_fare(snapshot)
+        if fare and item.price > 0:
+            quantity = min(quantity, max(0, (snapshot.player.gold - fare) // item.price))
+        if fare and item.tval == TVAL_WAND and quantity < item.count:
+            return 0  # split charges have no exact exported purchase price
         return quantity
 
     def _black_market_optional_reserve_cap(
@@ -4380,6 +4407,9 @@ class ShopMixin(InStoreMixin):
             return None
         surplus = self._retention_surplus(snapshot, item)
         quantity = item.count if surplus <= 0 else min(item.count, surplus)
+        fare_quantity = outpost_fare_sale_quantity(self, snapshot, item)
+        if fare_quantity is not None:
+            quantity = fare_quantity
         # The store always asks for the offered-price confirmation.  A stack
         # first asks for a quantity; a singleton does not. input_quantity's
         # default "1" is in askfor overwrite mode: the first digit replaces it,
