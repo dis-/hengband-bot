@@ -194,9 +194,9 @@ ID 12（記録された帰還深度22F）を選び、実際には帰還の巻物
   帰還先の種類とIDをその候補から返す。観測前の照会では保存状態を書き換えない。
   候補がなければ既存の行き先なしを返し、架空の出発消費は予約しない。
 - src/hengbot/policy_supply.py:367-390（変更なし）: 上記の帰還先照会を利用する既存の出発消費加算。
-- tests/test_exclude_forest.py:25,35,197: ProductionHarnessを直接importせず
+- tests/test_exclude_forest.py:25,35,199: ProductionHarnessを直接importせず
   executor_harnessというモジュール別名経由に変更。両方のテストクラスとcommand_screenを修正。
-- tests/test_exclude_forest.py:153,171: 保存先が森でも安全な代替先があれば帰還消費1枚を確保し、
+- tests/test_exclude_forest.py:153,173: 保存先が森でも安全な代替先があれば帰還消費1枚を確保し、
   公開choose_keyと実行器へ進むこと、候補なしでは消費を加算しないことを固定。
 - scripts/town_producer_baseline.json / town_work_review.json と生成済みの
   town_work_manifest.json.gz / src/hengbot/town_work_sites.json:
@@ -263,3 +263,15 @@ P0再生についても同じ出発消費の欠落が原因で、同一の実装
   成功した14モジュールの合計は1373件（7件スキップを含む）。
   専用モジュール10件と構造検査7件は別途実行済み。
   現在のソース・テストのツリーにもmutation成功記録があることを再確認した。
+
+第3ラウンドの最終結果
+- fast_tier.py . f66916c86 --shards 4:
+  マージ検証終了を約29分待機して開始。高速対象1906件＋変更7モジュール。
+  合計1969件、563.1秒、失敗1件、エラー0件、異常終了0件、終了コード1。
+  唯一の失敗は tests.test_policy_structure.PolicyStructureTest.
+  test_test_modules_do_not_bind_foreign_test_cases。
+  上述の既存5違反による別処理対象であり、今回の森テストは含まれない。
+  森除外の変更による新たな失敗はない。指定された全ガードの実行と全導出モジュールの確認を完了。
+- preflight成功、mutation成功と成功記録、最終コードでの専用・記録済み再生46件成功を確認済み。
+- ソース・テストの最終変更は02b0e84a2。以降はレポートのみ更新した。
+- ログはコミットしていない。ゲームや既存プロセスの操作は行っていない。
