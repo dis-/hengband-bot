@@ -1,0 +1,1 @@
+B: life-359 14:06:08、life-193 17:48:34／16:13:03。meta.turnに一致する最終盤面、そこまでの公開knowledge、停止判断の必要項目の射影。全ログとcheckpointは含めない。life-358のsnapshotは16MiBに切られgzipヘッダがない。テストの補完条件はコードに明記。

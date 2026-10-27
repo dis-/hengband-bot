@@ -1,0 +1,20 @@
+ISSUE: #47
+ROUND 4 of LUNA-TASK-top-stops.txt - one topic: the 4 old tests you classified as superseded in round 3.
+The supervisor reviewed your round-3 classification (b) and APPROVES changing exactly these 4 existing tests to the
+decided behaviour (this overrides "existing tests unchanged" for these 4 only):
+ 7. tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_no_alternate_keeps_visible_stop_and_weight_requirement
+    - superseded by the owner decision 2026-10-27 「鉄獄に進む。必要なら噂を使って解禁する。」: expect the Angband
+      alternate (and the rumor step when locked) instead of guardian-bounce-no-alternate; keep its weight requirement
+      and landing-safety assertions.
+ 8. tests.test_classC_departure_remedies.DepartureRemedyTest.test_newly_installed_supply_restock_is_offered_on_the_same_board
+ 9. tests.test_policy_town.TownAndFundraisingPolicyTest.test_waits_when_required_recall_is_unavailable
+10. tests.test_policy_town.TownAndFundraisingPolicyTest.test_zero_recall_scrolls_waits_for_restock_instead_of_town_wander
+    - superseded by the owner decisions 2026-09-13 「帰還の巻物が品切れなら採掘して待つ。他の街までいかない。」 and
+      2026-10-05 「品切れだけで出発できない時は採掘に1回出て時間を潰し（+5,000G か採掘1回分）、町で店を回り直す。3回で買えなければ見える
+      停止」: expect the bounded stockout mining preparation instead of the R300 town wait; keep every other
+      assertion (no deep departure without recall, no cross-town trip for recall, the restock offer on the same board
+      when the shop has stock again).
+Rename a test only if its name now states the opposite (e.g. "waits ..."), and say so in the report. Change nothing
+else. Then run these 4 + the 6 fixed in round 3 + your round 1-3 pins, mutation_check --record and fast_tier with base
+9955517b4 (if the gate lock blocks fast_tier, wait for it - do not stop it). COMMIT EARLY. Token budget 50k HARD, wall
+time 60 minutes. Append round 4 to the report.

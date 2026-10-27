@@ -2679,6 +2679,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # producer writes it, on the board whose key uses its target; the
         # declaration at the exit reads nothing else.  Record-only.
         self._decision_goal = None
+        self._decision_observed_execution_effects = ()
         self._decision_expectation = None
         self._decision_non_discardable = None
         self._decision_displaced_producer = None
@@ -3564,8 +3565,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                               work_id: str) -> None:
         """A producer reports observed completion without emitting a key."""
         buffer = self._decision_offer_buffer()
-        buffer.no_steps.append((producer, work_id, evidence,
-                                buffer.next_sequence(), "done"))
+        receipt = (producer, work_id, evidence, buffer.next_sequence(), "done")
+        buffer.no_steps.append(receipt)
+        # Final claim declaration consumes the offer buffer. Observed effects
+        # still belong to this decision when the driver settles retired owners.
+        effects = getattr(self, "_decision_observed_execution_effects", ())
+        # Offer-buffer ordinals can include speculative telemetry work from
+        # the preceding poll. The driver needs only observed completions.
+        observed = (producer, work_id, evidence, len(effects) + 1, "done")
+        self._decision_observed_execution_effects = (*effects, observed)
 
     def _offer_execution_awaiting(
         self, key: str | None, *, producer: str, work_id: str,
@@ -13323,6 +13331,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             and self._light_refill_item(snapshot) is None
         )
+        if not low_without_refill and equipped.is_torch and candidate.is_lantern:
+            preparation = self._equipment_optimization_preparation
+            best = getattr(getattr(preparation, "result", None), "best", None)
+            loadout = getattr(best, "loadout", None)
+            if getattr(preparation, "ready", False) and isinstance(loadout, Loadout):
+                selected = dict(loadout.slots).get("light")
+                if (selected is not None
+                        and equipment_identity(selected.item) == equipment_identity(equipped)):
+                    # The optimizer compared this ego torch's combat value and
+                    # light radius already. Carry the required lantern without
+                    # alternating the selected light with the legacy ranker.
+                    return None
         if not low_without_refill and self._light_rank(candidate) <= self._light_rank(equipped):
             return None
         return candidate
@@ -14863,6 +14883,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         self._target_dungeon_id = alternate
         self._target_dungeon_reason = self._alternate_dungeon_reason
+        if alternate == DUNGEON_ANGBAND:
+            self._rumor_unlock_pending = not snapshot.angband_recall_unlocked
         self._conquest_committed = None
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None

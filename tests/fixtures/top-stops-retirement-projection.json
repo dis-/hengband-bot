@@ -1,0 +1,1198 @@
+[
+  {
+    "source": "n1-a/life-358/incident-captures/20261026-135046-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 28082,
+        "turn": 1066783,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 45,
+          "x": 123
+        },
+        "player": {
+          "level": 26,
+          "hp": 516,
+          "max_hp": 516,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 16363,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "equipment-txn",
+          "producer_owner": "equipment-txn",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "equipment-txn"
+          ],
+          "decision_attribution": "equipment-txn"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 28070,
+        "reason": "shop:approach",
+        "arbiter": {
+          "owner": "equipment-txn",
+          "producer_owner": "store-router",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "store-router"
+          ],
+          "decision_attribution": "equipment-txn"
+        }
+      },
+      {
+        "decision_sequence": 28076,
+        "reason": "shop:approach",
+        "arbiter": {
+          "owner": "equipment-txn",
+          "producer_owner": "store-router",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "store-router"
+          ],
+          "decision_attribution": "equipment-txn"
+        }
+      },
+      {
+        "decision_sequence": 28082,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "equipment-txn",
+          "producer_owner": "equipment-txn",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "equipment-txn"
+          ],
+          "decision_attribution": "equipment-txn"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-a/life-360/incident-captures/20261026-174221-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 37936,
+        "turn": 1422851,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 45,
+          "x": 123
+        },
+        "player": {
+          "level": 27,
+          "hp": 474,
+          "max_hp": 474,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 17022,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "store-router",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "store-router"
+          ],
+          "decision_attribution": "town-errand"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 37924,
+        "reason": "shop:travel:await-entry",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "store-router",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "store-router"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 37930,
+        "reason": "home:request-knowledge-scan",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "home-scan",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "home-scan"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 37936,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "store-router",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "store-router"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-a/life-364/incident-captures/20261026-213528-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 2069,
+        "turn": 154003,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 32,
+          "x": 69
+        },
+        "player": {
+          "level": 7,
+          "hp": 177,
+          "max_hp": 177,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 2148,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "town-plan",
+          "producer_owner": "town-plan",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "town-plan"
+          ],
+          "decision_attribution": "town-plan"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 2063,
+        "reason": "town:blocked:repetition",
+        "arbiter": {
+          "owner": "town-plan",
+          "producer_owner": "town-plan",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "town-plan"
+          ],
+          "decision_attribution": "town-plan"
+        }
+      },
+      {
+        "decision_sequence": 2066,
+        "reason": "town:blocked:repetition",
+        "arbiter": {
+          "owner": "town-plan",
+          "producer_owner": "town-plan",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "town-plan"
+          ],
+          "decision_attribution": "town-plan"
+        }
+      },
+      {
+        "decision_sequence": 2069,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "town-plan",
+          "producer_owner": "town-plan",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "town-plan"
+          ],
+          "decision_attribution": "town-plan"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-a/life-364/incident-captures/20261026-214708-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 5294,
+        "turn": 261889,
+        "reason": "town-progress-invariant:defect:fixedquest:claim:approach=>fixedquest:claim:approach",
+        "key": "2",
+        "position": {
+          "y": 36,
+          "x": 91
+        },
+        "player": {
+          "level": 13,
+          "hp": 264,
+          "max_hp": 264,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 7017,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "detectors"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 5269,
+        "reason": "fixedquest:claim:approach",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "quest-request",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 5294,
+        "reason": "town-progress-invariant:defect:fixedquest:claim:approach=>fixedquest:claim:approach",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "detectors"
+        }
+      },
+      {
+        "decision_sequence": 5312,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "detectors"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-013/incident-captures/20261026-102213-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 45834,
+        "turn": 1698451,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 26,
+          "x": 71
+        },
+        "player": {
+          "level": 31,
+          "hp": 770,
+          "max_hp": 770,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 11413,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "town-errand"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 45828,
+        "reason": "bounty:cashout",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "quest-request",
+          "tenure": 21,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 45831,
+        "reason": "bounty:step-off",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 45834,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-013/incident-captures/20261026-102229-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 12,
+        "turn": 1698538,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 26,
+          "x": 71
+        },
+        "player": {
+          "level": 31,
+          "hp": 770,
+          "max_hp": 770,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 11413,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 6,
+        "reason": "bounty:cashout",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      },
+      {
+        "decision_sequence": 9,
+        "reason": "bounty:step-off",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      },
+      {
+        "decision_sequence": 12,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-013/incident-captures/20261026-102242-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 12,
+        "turn": 1698622,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 26,
+          "x": 71
+        },
+        "player": {
+          "level": 31,
+          "hp": 770,
+          "max_hp": 770,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 11413,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 6,
+        "reason": "bounty:cashout",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      },
+      {
+        "decision_sequence": 9,
+        "reason": "bounty:step-off",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      },
+      {
+        "decision_sequence": 12,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 3,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-189/incident-captures/20261026-121842-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 49,
+        "turn": 75428,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 32,
+          "x": 119
+        },
+        "player": {
+          "level": 1,
+          "hp": 85,
+          "max_hp": 85,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 0,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "town-errand"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 29,
+        "reason": "breakout",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 39,
+        "reason": "breakout",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 49,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-189/incident-captures/20261026-121855-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 33,
+        "turn": 75709,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 32,
+          "x": 118
+        },
+        "player": {
+          "level": 1,
+          "hp": 85,
+          "max_hp": 85,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 0,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 15,
+        "reason": "town:wait-restock:general",
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        }
+      },
+      {
+        "decision_sequence": 24,
+        "reason": "town:wait-restock:general",
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        }
+      },
+      {
+        "decision_sequence": 33,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-189/incident-captures/20261026-121907-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 33,
+        "turn": 75987,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 32,
+          "x": 120
+        },
+        "player": {
+          "level": 1,
+          "hp": 85,
+          "max_hp": 85,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 0,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 15,
+        "reason": "town:wait-restock:general",
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        }
+      },
+      {
+        "decision_sequence": 24,
+        "reason": "town:wait-restock:general",
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        }
+      },
+      {
+        "decision_sequence": 33,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "shop-buy",
+          "tenure": 9,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "shop-buy"
+          ],
+          "decision_attribution": "shop-buy"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-192/incident-captures/20261026-133851-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 33,
+        "turn": 75271,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 36,
+          "x": 118
+        },
+        "player": {
+          "level": 1,
+          "hp": 85,
+          "max_hp": 85,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 55,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 5,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 24,
+        "reason": "opening-q34:wait",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 7,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      },
+      {
+        "decision_sequence": 28,
+        "reason": "opening-q34:wait",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 4,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      },
+      {
+        "decision_sequence": 33,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "quest-request",
+          "producer_owner": "quest-request",
+          "tenure": 5,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "quest-request"
+          ],
+          "decision_attribution": "quest-request"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-194/incident-captures/20261026-194251-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 27197,
+        "turn": 1086029,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 45,
+          "x": 123
+        },
+        "player": {
+          "level": 25,
+          "hp": 615,
+          "max_hp": 615,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 1216,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "fundraising",
+          "producer_owner": "fundraising",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "fundraising"
+          ],
+          "decision_attribution": "fundraising"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 27175,
+        "reason": "shop:approach",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "store-router",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "store-router"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 27193,
+        "reason": "home:route-claim-unfulfilled",
+        "arbiter": {
+          "owner": "shop-buy",
+          "producer_owner": "home-visit",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "home-visit"
+          ],
+          "decision_attribution": "shop-buy"
+        }
+      },
+      {
+        "decision_sequence": 27197,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "fundraising",
+          "producer_owner": "fundraising",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "fundraising"
+          ],
+          "decision_attribution": "fundraising"
+        }
+      }
+    ]
+  },
+  {
+    "source": "n1-b/life-194/incident-captures/20261026-194633-town-blocked-owner-retired-burst",
+    "decisions": [
+      {
+        "decision_sequence": 652,
+        "turn": 1113865,
+        "reason": "town:blocked:owner-retired-burst",
+        "key": "5",
+        "position": {
+          "y": 37,
+          "x": 91
+        },
+        "player": {
+          "level": 25,
+          "hp": 615,
+          "max_hp": 615,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 1189,
+          "food_state": "normal",
+          "status": []
+        },
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "town-errand"
+        },
+        "store_type": null
+      }
+    ],
+    "retirements": [
+      {
+        "decision_sequence": 645,
+        "reason": "home:scan-complete-from-open-page",
+        "arbiter": {
+          "owner": "equipment-txn",
+          "producer_owner": "home-scan",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "home-scan"
+          ],
+          "decision_attribution": "equipment-txn"
+        }
+      },
+      {
+        "decision_sequence": 648,
+        "reason": "town-progress-invariant:boxed-breakout-travel",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      },
+      {
+        "decision_sequence": 652,
+        "reason": "town:blocked:owner-retired-burst",
+        "arbiter": {
+          "owner": "town-errand",
+          "producer_owner": "detectors",
+          "tenure": 1,
+          "progress": false,
+          "budget_remaining_estimate": 0,
+          "would_retire": true,
+          "retired": true,
+          "retirement_set": [
+            "detectors"
+          ],
+          "decision_attribution": "town-errand"
+        }
+      }
+    ]
+  }
+]

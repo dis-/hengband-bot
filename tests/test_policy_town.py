@@ -2688,7 +2688,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
 
         self.assertFalse(HengbotPolicy()._next_depth_supply_shortage(snap))
 
-    def test_waits_when_required_recall_is_unavailable(self):
+    def test_prepares_one_mining_run_when_required_recall_is_unavailable(self):
         snap = Snapshot(
             player(10, 10, gold=8000, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -2702,10 +2702,19 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy.prime(snap)
         policy._town_store_attempted.update({STORE_TEMPLE: 0, STORE_ALCHEMIST: 0})
 
-        self.assertEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
-        self.assertIn(STORE_TEMPLE, policy._town_store_attempted)
+        self.assertEqual(policy.choose_key(snap), "5")
+        self.assertEqual(policy.last_reason, "fundraise:supply-stockout-mining")
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._planned_mining_runs, 1)
+        self.assertEqual(policy._fundraising_gold_target(), snap.player.gold + 5000)
+        self.assertFalse(policy._recall_departure_ready(snap))
+        self.assertIsNone(policy._pending_recall_dungeon_id)
+        self.assertIsNone(policy._cross_town_shopping)
+        # Re-arm both local suppliers for the next visit after the mining run.
+        self.assertNotIn(STORE_TEMPLE, policy._town_store_attempted)
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
-    def test_zero_recall_scrolls_waits_for_restock_instead_of_town_wander(self):
+    def test_zero_recall_scrolls_prepares_one_mining_run_in_current_town(self):
         snap = Snapshot(
             player(
                 10,
@@ -2742,8 +2751,15 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._find_home_deposit = lambda _snapshot: None
 
         self.assertFalse(policy._recall_departure_ready(snap))
-        self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
-        self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
+        self.assertEqual(policy._town_special_key(snap), "5")
+        self.assertEqual(policy.last_reason, "fundraise:supply-stockout-mining")
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._planned_mining_runs, 1)
+        self.assertEqual(policy._fundraising_gold_target(), snap.player.gold + 5000)
+        self.assertFalse(policy._recall_departure_ready(snap))
+        self.assertIsNone(policy._pending_recall_dungeon_id)
+        self.assertIsNone(policy._cross_town_shopping)
+        self.assertEqual(policy._target_dungeon_id, 14)
 
     def test_released_store_terminal_requires_all_suppliers_unroutable(self):
         snap = Snapshot(

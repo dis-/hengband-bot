@@ -1,0 +1,212 @@
+[
+  {
+    "source": "n1-a/life-363/incident-captures/20261026-212547-town-blocked-guardian-bounce-no-alternate",
+    "sha256": "5bf8b8885b1408e1026125e8c77e3facb7bf83044208557ef386635800f283e0",
+    "decision": {
+      "turn": 236772,
+      "reason": "town:blocked:guardian-bounce-no-alternate",
+      "key": "1",
+      "player": {
+        "level": 11,
+        "hp": 232,
+        "max_hp": 232,
+        "mp": 0,
+        "max_mp": 0,
+        "gold": 9270,
+        "food_state": "normal",
+        "status": []
+      },
+      "position": {
+        "y": 31,
+        "x": 77
+      },
+      "over_extension": {
+        "target_dungeon_id": 2,
+        "target_dungeon": "Yeek cave",
+        "over_extended_dive_streak": 2,
+        "alternate_dungeon_id": null,
+        "alternate_dungeon": null,
+        "last_overextended_depth": 0,
+        "dive_loot": 0,
+        "dive_emergencies": 0,
+        "last_return_trigger": "guardian-kit-insufficient"
+      },
+      "depth_safety": {
+        "depth": 1,
+        "required": [],
+        "missing": [],
+        "has": [
+          "resist_cold",
+          "resist_fear",
+          "resist_neth",
+          "resist_pois",
+          "see_invisible"
+        ]
+      },
+      "departure_block": {
+        "failed": [
+          "recall_landing_not_guardian_blocked"
+        ],
+        "values": {
+          "recall_departure_ready": true,
+          "remove_curse_ready": true,
+          "food_ready": true,
+          "light_ready": true,
+          "quest_carry_ready": true,
+          "teleport_ready": true,
+          "cure_critical_ready": true,
+          "identify_staff_ready": true,
+          "teleport_items_safe": true,
+          "free_pack_slots_ready": true,
+          "inventory_weight_ready": true,
+          "hp_full": true,
+          "mp_full": true,
+          "temporary_status_clear": true,
+          "organization_complete": true,
+          "equipment_departure_ready": true,
+          "home_candidate_resolved": true,
+          "home_catalog_ready": true,
+          "home_pending_item_clear": true,
+          "home_pending_batch_clear": true,
+          "home_batch_review_clear": true,
+          "home_atomic_withdraw_clear": true,
+          "digger_withdrawal_resolved": true,
+          "identification_need_clear": true,
+          "combat_weapon_ready": true,
+          "departure_home_pending_item_clear": true,
+          "departure_home_pending_batch_clear": true,
+          "departure_home_batch_review_clear": true,
+          "departure_home_atomic_withdraw_clear": true,
+          "departure_identification_need_clear": true,
+          "recall_landing_not_guardian_blocked": false
+        },
+        "gate": "town_departure_ready",
+        "ready": false,
+        "diagnostics": {
+          "free_pack_slots": 15,
+          "minimum_free_pack_slots": 5
+        },
+        "town_claims": [],
+        "town_ledger": {
+          "store_visits": {
+            "4": 1,
+            "7": 2,
+            "5": 1,
+            "6": 1,
+            "3": 1
+          },
+          "need_attempts": {
+            "identification-source": 1,
+            "recall": 1,
+            "quest-throwing-items": 2,
+            "equipment-work": 2,
+            "organization-sale": 1,
+            "device-sale": 1,
+            "quest-speed": 1,
+            "quest-healing": 2,
+            "black-market": 1
+          },
+          "approach_fails": {},
+          "unsatisfied_passes": {
+            "7": 0
+          },
+          "blocked_stores": [],
+          "passes_since_progress": 2,
+          "drift_warnings": []
+        }
+      }
+    }
+  },
+  {
+    "source": "n1-a/life-363/incident-captures/20261026-212600-town-blocked-guardian-bounce-no-alternate",
+    "sha256": "f071bcbda1f51af211882f1da3d1c6335cdfd0b751b05c28a2b0eeb59bde85db",
+    "decision": {
+      "turn": 237867,
+      "reason": "town:blocked:guardian-bounce-no-alternate",
+      "key": "1",
+      "player": {
+        "level": 11,
+        "hp": 232,
+        "max_hp": 232,
+        "mp": 0,
+        "max_mp": 0,
+        "gold": 9270,
+        "food_state": "normal",
+        "status": []
+      },
+      "position": {
+        "y": 31,
+        "x": 77
+      },
+      "over_extension": {
+        "target_dungeon_id": 2,
+        "target_dungeon": "Yeek cave",
+        "over_extended_dive_streak": 0,
+        "alternate_dungeon_id": null,
+        "alternate_dungeon": null,
+        "last_overextended_depth": 0,
+        "dive_loot": 0,
+        "dive_emergencies": 0,
+        "last_return_trigger": null
+      },
+      "depth_safety": {
+        "depth": 1,
+        "required": [],
+        "missing": [],
+        "has": [
+          "resist_cold",
+          "resist_fear",
+          "resist_neth",
+          "resist_pois",
+          "see_invisible"
+        ]
+      }
+    }
+  },
+  {
+    "source": "n1-a/life-363/incident-captures/20261026-212611-town-blocked-guardian-bounce-no-alternate",
+    "sha256": "ad2e3d872ca8939aa0d740fccb2ef4bc0dd78b3338d9ee26619512a84a95809b",
+    "decision": {
+      "turn": 239010,
+      "reason": "town:blocked:guardian-bounce-no-alternate",
+      "key": "1",
+      "player": {
+        "level": 11,
+        "hp": 232,
+        "max_hp": 232,
+        "mp": 0,
+        "max_mp": 0,
+        "gold": 9270,
+        "food_state": "normal",
+        "status": []
+      },
+      "position": {
+        "y": 31,
+        "x": 77
+      },
+      "over_extension": {
+        "target_dungeon_id": 2,
+        "target_dungeon": "Yeek cave",
+        "over_extended_dive_streak": 0,
+        "alternate_dungeon_id": null,
+        "alternate_dungeon": null,
+        "last_overextended_depth": 0,
+        "dive_loot": 0,
+        "dive_emergencies": 0,
+        "last_return_trigger": null
+      },
+      "depth_safety": {
+        "depth": 1,
+        "required": [],
+        "missing": [],
+        "has": [
+          "resist_cold",
+          "resist_fear",
+          "resist_neth",
+          "resist_pois",
+          "see_invisible"
+        ]
+      }
+    }
+  }
+]

@@ -1062,7 +1062,8 @@ class OperationExecutor:
                          "breeder-item-damage:recall",
                          "livelock:recall-escape", "combat:disengage-recall",
                          "emergency:recall",
-                         "emergency:recall-quest-fail"} and feature.startswith(
+                         "emergency:recall-quest-fail",
+                         "fixedquest:claim:return"} and feature.startswith(
             RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
         )
 
