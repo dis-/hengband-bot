@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_pure_decision_telemetry",
+    "mode": "full",
+    "seconds": 531.7477241000161,
+    "returncode": 0,
+    "log": "tests.test_pure_decision_telemetry.full.log"
+  },
+  {
+    "module": "tests.test_pure_decision_telemetry",
+    "mode": "5",
+    "seconds": 607.9368442000123,
+    "returncode": 0,
+    "log": "tests.test_pure_decision_telemetry.5.log"
+  }
+]

@@ -1,0 +1,6 @@
+[fast] 1906 fast tests (<2.0s in 28f3e33f2) + 9 changed modules, 4 shards
+[fast] excluded 57 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-u_kzpzzw)
+Failures: ['tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail']
+Errors: none
+Total: 1933 tests, 705.3s

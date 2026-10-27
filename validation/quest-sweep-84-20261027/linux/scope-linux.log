@@ -1,0 +1,6 @@
+tests.test_policy_structure {'returncode': 0, 'seconds': 2.22, 'tests': 7, 'skipped': 1}
+tests.test_policy {'returncode': 1, 'seconds': 0.92, 'tests': 57, 'skipped': 0}
+tests.test_policy_quest {'returncode': 1, 'seconds': 4.34, 'tests': 334, 'skipped': 45}
+tests.test_absorbing_states {'returncode': 1, 'seconds': 4.83, 'tests': 22, 'skipped': 0}
+tests.test_quest_sweep_hold_recorded {'returncode': 0, 'seconds': 2.72, 'tests': 11, 'skipped': 0}
+tests.test_cli {'returncode': 0, 'seconds': 6.09, 'tests': 229, 'skipped': 1}

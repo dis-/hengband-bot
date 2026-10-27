@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_gate_sample",
+    "mode": "full",
+    "seconds": 9.083309100009501,
+    "returncode": 0,
+    "log": "tests.test_gate_sample.full.log"
+  },
+  {
+    "module": "tests.test_gate_sample",
+    "mode": "5",
+    "seconds": 9.160409800009802,
+    "returncode": 0,
+    "log": "tests.test_gate_sample.5.log"
+  }
+]

@@ -1,0 +1,129 @@
+Issue #47 作業報告（関連 #84 / #62）
+基準: 4db110bd5。最終ソース: f798c36bef84a42eef72ed7b843aa2b86c0e4281。
+対象: 固定クエストの placement-sweep と retake-hold の1マス往復。
+
+実測（座標は y,x、記録ビルド9955517b）
+Q31: decision 26621–26624。位置 (3,15) からの探索目標は (3,16)。
+目標は terrain_id=96 の木、in_view=False、allows_los=False。
+隣接していても保持側の盤面からは空と確認できない。
+到着した (3,16) では (4,27) のフオルン（race 329、NEVER_MOVE）が見える。
+距離11、3ターン運用被害予測0。探索条件 not hostiles が不成立になり、
+入口 (18,1) へ戻る retake-hold が西移動を返していた。
+初期待機・照明後でも、この固定敵は既存の機動敵追跡の対象外だった。
+
+Q22: decision 15412–15416。保持点 (9,58) から探索目標 (9,55) へ向かう。
+目標距離3、光源半径2、in_view=False のため保持点からは未確認。
+1歩先の (9,57) では (13,46) の逃走中の丘オーク（race 149）が見える。
+距離11、3ターン運用被害予測0。敵再視認で探索が無効になる一方、
+post-wave照明地点（保持点から2マス）へまだ届いていないため、既存の
+post-wave専用追跡は発火せず、保持点へ東移動していた。
+途中のシャーマンへの射撃（15411）は変更後も同じキーを返す。
+
+補助のQ34記録も確認した。20261027-062946の末尾は (3,14) で目標 (1,12)、
+20261026-133907の末尾は (5,9) で目標 (1,9)、ともに o8 の反復で可視敵0。
+前者には開幕ドア処理との交代もあるが、今回の「敵再視認で保持点へ復帰」とは
+別のドア経路問題だった。この変更でQ34のドア反復まで解決したとは扱わない。
+
+実装
+_quest_strategy_may_leave_hold に、保持点から探索へ移れる条件を集約した。
+承認済みの配置探索を持ち、初期待機が完了し、見えている敵が逃走中か遠方の
+移動しない敵で、直接の遠距離被害・召喚・増殖がなく、既存の3ターン運用被害予測が
+0の場合に限り許可する。placement-sweep と retake-hold は同じ判定とその否定を使う。
+逃走中の機動敵は、照明地点への到達前でも既存の追跡経路へ渡す。
+初期待機未完了・通常の機動敵・射撃可能な敵には従来の迎撃・保持処理を継続する。
+
+固定敵が見えている探索では、敵の位置と隣接8マスを経路から除外した。
+探索巡回が尽きて通常探索へ切り替わる際も、次の1歩に同じ除外を適用する。
+以前計画した通常探索の1歩が、移動済みフオルンの隣接マスになった場合も前進しない。
+これは既存の quest:blocked:placement-sweep-exhausted 理由で停止する。
+
+新しいガード定数、クエストID専用の例外、承認済み戦略データの変更はない。
+既存の「空と確認できたか」の共通述語は緩めていない。
+既存テストの期待値は変更していない。共有executor harnessは使用していない。
+キー文字列を += で組み立てていない。
+
+記録ピン
+tests/test_quest_sweep_hold_recorded.py: 11テスト。
+Q31の4盤面とQ22の6盤面を改変せず parse_snapshot → 公開choose_key に渡す。
+Q31は (3,15) から東、到着後の (3,16) では現在地を確認済みとして北へ継続する。
+Q22は保持点から西へ探索し、逃走オークを視認した盤面でも西へ追跡する。
+初期待機未完了、通常の敵、射撃、探索無効、固定敵の隣接回避、地図メタデータ欠落、
+巡回終了後に残った通常探索経路についても対照を追加した。
+
+キャプチャは長いセッションの末尾である。完了済みの初期待機・照明・固定配置の
+処理状態と無関係な技能一覧応答は DECLARED CONSTRUCTED として明記した。
+Q31の確認済み253セルは、同じ記録の先行する敵が見えない探索盤面から共通述語で算出。
+Q22の先行確認セルは0。元の座標・視界・敵・装備・所持品は改変していない。
+固定配置の処理済み状態は、移動済みフオルンの撃破証明には使用していない。
+fixtureには元ファイルのSHA-256を含む。extract_fixture.py --checkで再抽出結果が一致した。
+
+巻戻し検証
+基準4db110bd5のpolicy_quest.pyを一時ソースコピーへ戻すと、Q31の26622 / 26624と
+Q22の15413 / 15415がすべて失敗（2テスト、4失敗）。recorded-pins-baseline.logに保存。
+最終の mutation_check --record --full は7ハンクすべてを検出し、未検出0。
+通常探索の隣接回避ハンクも新しい対照テストが検出した。
+成功記録は最終ソースHEADとsrc/hengbot・testsのツリーIDで保存した。
+検証環境がLinuxであることも保存記録に明記している。
+
+検証方法と制約
+Windows側はCodex runtime Python 3.12.14を使用。最終ソースでpreflightは終了コード0、指摘0。
+初回の監査台帳エラーは、既存の呼び出し条件式2箇所を実装に合わせて修正した。
+town_work_manifest.json.gz / town_work_sites.jsonは同じruntimeで再生成した。
+PythonのAST表現の差により、既存893箇所の生成ハッシュも更新されている。
+通常探索の追加修正前のWindows fast_tierは1850件、失敗・エラー・クラッシュ0だった。
+
+最終の追加修正後は共有マージ検証が開始され、重いローカル検査を待たせる既存ルールで
+Windowsのmutation検査が待機した。待機を打ち切り、同じgitオブジェクトと基準を持つ
+隔離コピーをLinux検証環境へ作り、製品・テストソースを書き換えずに検証した。
+Python 3.12.16、numpy 2.3.5を隔離導入し、Windows形式の参照先は互換シンボリックリンクで
+提供した。ガードスクリプト自体は変更していない。初回のPython 3.14による広い高速検査は
+環境を揃えるため中断し、最終結果には使用していない。
+
+LinuxではWindowsPathを含む既存checkpointと、共通の定義ファイル探索に環境依存エラーがある。
+最終fast_tierは終了コード1であり、全成功とは扱わない。同一環境・同一タイミング一覧の
+基準4db110bd5でも失敗10件・エラー80件で、最終HEADと同じ。新規の失敗・エラーは0。
+列挙された6モジュールも全て実行した。既存の失敗ヘッダは計21件で基準と一致し、追加0。
+共通モジュールの実行件数・skip件数も基準と一致し、高速検査の件数差は新規11件だけだった。
+新規回帰モジュールはWindows・Linuxの双方で11件成功。詳細はlinux-comparison.jsonを参照。
+Windowsの最終HEAD全体のfast_tier完走は未確認であり、Linux結果で代替した限界を明記する。
+
+verify_scope組み込みの -c / bare module 起動ではimportエラーが発生したため、同じ
+列挙モジュールをファイル形式のrunnerで実行した。既存のDecisionTimingTest除外だけを維持。
+初回のquest/structure実行ではscriptsをPYTHONPATHに含めなかったためimportが1件失敗した。
+その再実行は追加修正前の結果になるため中断し、最終HEADを上記Linux環境で検証した。
+sale_key_lintは指摘0。test_fakery_lint単独は既存の未宣言13指摘で終了コード1。
+tests/test_test_fakery_lint.pyが定める既存13件と一致し、新規テストへの指摘は0。
+許容件数・検出ロジックを変更して通していない。
+
+コミット
+4d42ddeed: 記録盤面と初回診断を早期コミット。
+a721b9294: 共通判断、回帰テスト、確認履歴、生成台帳。
+618101cec: 既存の呼び出し監査台帳の条件式2箇所。
+f798c36be: 通常探索への切替時にも固定敵の隣接除外を適用し、11番目のテストを追加。
+日本語レポートはwrite_report.pyからPython Path.write_text(encoding='utf-8')で書き出した。
+push、実機ボットの起動・再開、承認済み戦略データの変更は行っていない。
+
+最終の実行結果
+[preflight] PREFLIGHT OK: 7 changed files, 0 findings (quest-sweep-84-1027 vs 4db110bd)
+
+Linux検証環境のmutation検査:
+[mutation] 7 source hunks, tests: tests.test_quest_sweep_hold_recorded
+[mutation] MUTATION OK: 0 of 7 hunks are not pinned by a test
+[mutation] recorded for f798c36b
+
+Linux検証環境のfast_tier（失敗は本文の基準比較で分類）:
+[fast] 1835 fast tests (<2.0s in .validation-timings) + 1 changed modules, 4 shards
+[fast] excluded 65 modules measured over 60s (cache C:/hengband-backups/fast-tier-module-seconds.json)
+Crashed shards: none (logs /tmp/fast-tier-nljrogcz)
+Total: 1793 tests, 36.4s
+
+--target HEAD --base 4db110bd5 --derive-only が列挙した全モジュール:
+tests.test_policy_quest: 334件、skip 45件、終了コード 1、4.34秒
+tests.test_policy_structure: 7件、skip 1件、終了コード 0、2.22秒
+tests.test_absorbing_states: 22件、skip 0件、終了コード 1、4.83秒
+tests.test_cli: 229件、skip 1件、終了コード 0、6.09秒
+tests.test_policy: 57件、skip 0件、終了コード 1、0.92秒
+tests.test_quest_sweep_hold_recorded: 11件、skip 0件、終了コード 0、2.72秒
+
+基準との比較: fast_tier・上記全モジュールとも追加失敗0（compare_linux.py、終了コード0）。
+再現用スクリプトと匿名化したログは validation/quest-sweep-84-20261027/ に保存。

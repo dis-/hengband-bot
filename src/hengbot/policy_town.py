@@ -1231,6 +1231,17 @@ class TownMixin:
             return True
         if direction is not None and (self.last_reason or "").endswith("home:scan-step-off") and not self._equipment_catalog.home_scan_complete:
             return True
+        if (direction is not None
+                and self._valid_quest_travel_declaration(snapshot, key, reason)):
+            # The typed candidate carries this decision's quest route. A stale
+            # supplier goal cannot turn a legal quest step back toward a shop.
+            declaration = key.route_declaration
+            route = self._town_map_goal_route(snapshot, declaration.goal)
+            next_position = Position(snapshot.player.position.y + direction[0],
+                                     snapshot.player.position.x + direction[1])
+            if (route is not None and route.first_step == declaration.first_step
+                    and next_position == route.first_step):
+                return True
         goal = self._shopping_approach_goal
         slot = getattr(self, "_decision_goal", None)
         decision_reason = (
@@ -1987,6 +1998,20 @@ class TownMixin:
         return (
             snapshot.in_town
             and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            # A stockout time-pass prepares the mining kit precisely because
+            # the ordinary identify-staff supplier was exhausted already.
+            and (not self._identify_staff_mining_plan or any(
+                ware.tval == TVAL_STAFF and ware.sval == SV_STAFF_IDENTIFY
+                and self._identify_staff_acquisition_worthwhile(
+                    snapshot, max(ware.charges, ware.pval))
+                and ware.price + self._fundraising_kit_reserve(snapshot)
+                    <= snapshot.player.gold
+                for store, page in self._town_supplier_stock.items()
+                if store in {STORE_MAGIC, STORE_BLACK}
+                and store not in self._town_store_attempted
+                for ware in page.items
+            ))
+            and self._supply_stockout_gold_target is None
             and self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
             and {
                 name
@@ -6155,6 +6180,20 @@ class TownMixin:
                                     "guardian-bounce-no-alternate"
                                 )
                                 return self._town_blocked_key(snapshot)
+                            if (self._target_dungeon_id == DUNGEON_ANGBAND
+                                    and self._rumor_unlock_pending):
+                                # The guardian alternate may be locked Angband.
+                                # Release forced departure so the existing inn
+                                # rumor owner can unlock it on the next board.
+                                self._town_blocked_reason = None
+                                self.last_reason = "town:unsafe-recall-fallback"
+                                self._offer_execution(
+                                    WAIT_KEY, producer="departure",
+                                    work_id="town:guardian-recall-fallback",
+                                    next_step="recall.observe-fallback",
+                                    expected_effect="safe-destination-selected",
+                                )
+                                return WAIT_KEY
                             recall_dest, recall_dungeon_id = (
                                 self._town_recall_destination(snapshot)
                             )
@@ -6680,6 +6719,13 @@ class TownMixin:
         else:
             self._departure_block = {}
         self._departure_block_sequence = self._decision_sequence
+        # Stock turnover is needed for walk-in destinations too. The child
+        # only starts procurement preparation; its own mining entry gate still
+        # governs the eventual trip, independently of ordinary dive equipment.
+        if not guardian_blocked and not departure_ok:
+            stockout = self._supply_stockout_mining_key(snapshot)
+            if stockout is not None:
+                return stockout
         recall_only_block = (
             recall_dest is not None
             and not snapshot.player.recalling
@@ -7095,26 +7141,13 @@ class TownMixin:
         """
         if self._fundraising_mode is not None or snapshot.player.recalling:
             return None
-        labels = {
-            "recall_departure_ready": {"Word of Recall scrolls"},
-            "food_ready": {"Food rations", "Device charges for food"},
-            "light_ready": {"Flasks of oil"},
-            "teleport_ready": {"Teleport scrolls"},
-            "cure_critical_ready": {"Cure Critical Wounds potions"},
-            "remove_curse_ready": {"Remove Curse scrolls", "*Remove Curse* scrolls"},
-        }
-        failed = self._departure_block_state(snapshot)["failed"]
-        requirements = self.procurement_requirements(snapshot)
-        blocked = {row["item"] for row in requirements
-                   if row.get("blocked_reason") == "no-actionable-supplier"}
-        if not failed or any(not (labels.get(name, set()) & blocked) for name in failed):
+        from hengbot.town_terminal import stockout_mining_intended_terminal
+
+        failed = tuple(name for name, ready in
+                       self._recall_town_departure_conjuncts(snapshot).items()
+                       if not ready)
+        if stockout_mining_intended_terminal(self, snapshot, failed=failed) is None:
             return None
-        kinds = {
-            "recall_departure_ready": "recall", "food_ready": "food",
-            "light_ready": "oil", "teleport_ready": "teleport",
-            "cure_critical_ready": "cure-critical",
-            "remove_curse_ready": self._required_remove_curse_kind(snapshot),
-        }
         # ``no-actionable-supplier`` covers both an exhausted shelf and stock
         # that the player cannot currently afford. Shelf observations are
         # historical: a previously seen ware may already have sold, and an

@@ -2586,7 +2586,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "7ba5ed05fef9477970d375726bb872b13b97edf13cb554a9a341eb562f275bdb"
+    "ast_sha256": "db2fad7796188e9dc877c6caf04ec88bcbd383d55d02458955c66395d758dad7"
   },
   "policy.py:HengbotPolicy._line_of_sight_over_known_grids": {
     "classification": "data",
@@ -2815,7 +2815,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5f430958e26b88740a061ebfc8f1276fd6c77268bfb3123e00f54bf350ff9342"
+    "ast_sha256": "612cfe4372bd2758f3c7e3487faee2ef630f5dc58b5803eb6f42a376aa5348d3"
   },
   "policy.py:HengbotPolicy._offer_execution_no_step": {
     "classification": "adapter",
@@ -3893,7 +3893,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "85434d5f2dad72207d9a1bf6659e9c60366032926237154569faa819178782b8"
+    "ast_sha256": "b2cfbf0cff2f8b4512286e1a266cdad72bb2048a75a3c986eca00ace113cbed4"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4875,7 +4875,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8d50ea4e6f8d76a475370ff8728d6b5a428b6c9b97fb54242ee101709209a2c3"
+    "ast_sha256": "098205c3fd2e7deb08068d8fe8c4183f69b49a24a35f83534aa3ad05b7557795"
   },
   "policy_helpers.py:PolicyHelpersMixin._profile_resistance_name": {
     "classification": "data",
@@ -5174,7 +5174,7 @@
       "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8d66280b9e6767b602e46e7a038c0bdd232f957e067d5c00db912f1d10fc604f"
+    "ast_sha256": "48400bbe41065b04bce6d06df737997fc483c6b347bcba70fcb780081520236d"
   },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
@@ -5348,7 +5348,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5848d283c0e3891bbb86d5e9722a2dd8f94ac30c654aea062bf251195132e04e"
+    "ast_sha256": "0891aa8b01eda3fe6e2a330b0d60ad366964f64ea9fca9072cb46e8b4a64a5dc"
   },
   "policy_home.py:HomeMixin._retention_reservation_detail": {
     "classification": "data",
@@ -6211,7 +6211,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "65bae97df738a3d64d2b4c6d1b1532de8c6c2886277520c7a3d9af6fd7e8ba63"
+    "ast_sha256": "f50039b633ec7bbc005abe95a5e8f2c5554627ba29ced2b6965d994156af3456"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -7481,7 +7481,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3d522a71619bcf56117702276eea8093f5d1af154e3bbca1ad700d581dfb6a9b"
+    "ast_sha256": "2bca1a27746e4a791218c5d16c1979e97759d7696665e92b66d98d96b7290c61"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_key": {
     "classification": "producer",
@@ -7498,7 +7498,7 @@
       "plan-routing"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ec348ec812399c831f13a4047a326d7f7f88b6d4751f5073d6d7e27ae0b8dba0"
+    "ast_sha256": "3c0b5423045fd0526d84cbbcb504e4e953763380c74978ee991292c0521d0965"
   },
   "policy_town.py:TownMixin._town_cancel_unsafe_recall_key": {
     "classification": "producer",
@@ -7833,7 +7833,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e54633c72d7e92544565943e10d2e9ba4674101a80cc7be1820cfd707fc1b534"
+    "ast_sha256": "06762c17a5b5b079807194721eb1ac257038d104529d510c4195689525428340"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",

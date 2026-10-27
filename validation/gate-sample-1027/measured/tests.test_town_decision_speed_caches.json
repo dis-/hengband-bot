@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_town_decision_speed_caches",
+    "mode": "full",
+    "seconds": 1587.563262999989,
+    "returncode": 0,
+    "log": "tests.test_town_decision_speed_caches.full.log"
+  },
+  {
+    "module": "tests.test_town_decision_speed_caches",
+    "mode": "5",
+    "seconds": 1418.918942600023,
+    "returncode": 0,
+    "log": "tests.test_town_decision_speed_caches.5.log"
+  }
+]

@@ -1,0 +1,6 @@
+test_purity_partitions_cover_every_cell_once (tests.test_town_producer_purity.TownProducerPurityGateTest.test_purity_partitions_cover_every_cell_once) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 105.000s
+
+OK

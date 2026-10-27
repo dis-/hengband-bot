@@ -1,0 +1,58 @@
+{
+  "base": "4db110bd5",
+  "modules": {
+    "tests.test_policy_quest": {
+      "head_failure_headers": 9,
+      "base_failure_headers": 9,
+      "added": {},
+      "same_test_and_skip_counts": true
+    },
+    "tests.test_policy_structure": {
+      "head_failure_headers": 0,
+      "base_failure_headers": 0,
+      "added": {},
+      "same_test_and_skip_counts": true
+    },
+    "tests.test_absorbing_states": {
+      "head_failure_headers": 11,
+      "base_failure_headers": 11,
+      "added": {},
+      "same_test_and_skip_counts": true
+    },
+    "tests.test_cli": {
+      "head_failure_headers": 0,
+      "base_failure_headers": 0,
+      "added": {},
+      "same_test_and_skip_counts": true
+    },
+    "tests.test_policy": {
+      "head_failure_headers": 1,
+      "base_failure_headers": 1,
+      "added": {},
+      "same_test_and_skip_counts": true
+    },
+    "tests.test_quest_sweep_hold_recorded": {
+      "own_new_module": true,
+      "added": {}
+    }
+  },
+  "head": "f798c36bef84a42eef72ed7b843aa2b86c0e4281",
+  "fast_tier": {
+    "Failures": {
+      "head": 10,
+      "base": 10,
+      "added": {}
+    },
+    "Errors": {
+      "head": 80,
+      "base": 80,
+      "added": {}
+    }
+  },
+  "fast_test_count": {
+    "head": 1793,
+    "base": 1782,
+    "new_module_tests": 11,
+    "same_collection_plus_new_module": true
+  }
+}

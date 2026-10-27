@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_town_work_contract",
+    "mode": "full",
+    "seconds": 871.743277200032,
+    "returncode": 0,
+    "log": "tests.test_town_work_contract.full.log"
+  },
+  {
+    "module": "tests.test_town_work_contract",
+    "mode": "5",
+    "seconds": 247.19927630003076,
+    "returncode": 0,
+    "log": "tests.test_town_work_contract.5.log"
+  }
+]

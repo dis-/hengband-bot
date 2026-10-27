@@ -1,0 +1,19 @@
+test_63_first_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_63_first_capture) ... ok
+test_63_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_63_second_capture) ... ok
+test_64_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_64_capture) ... ok
+test_66_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_66_second_capture) ... ok
+test_66_third_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_66_third_capture) ... ok
+test_68_first_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_68_first_capture) ... ok
+test_68_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_68_second_capture) ... ok
+test_76_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_76_capture) ... ok
+test_94_first_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_94_first_capture) ... ok
+test_94_second_capture (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_94_second_capture) ... ok
+test_n1a_first_window (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_n1a_first_window) ... ok
+test_n1a_second_window (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_n1a_second_window) ... ok
+test_n1a_third_window (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_n1a_third_window) ... ok
+test_recorded_decisions_align_with_fixture_boards (tests.test_town_terminal_exit_round16.TownTerminalExitWindowsTest.test_recorded_decisions_align_with_fixture_boards) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 993.286s
+
+OK

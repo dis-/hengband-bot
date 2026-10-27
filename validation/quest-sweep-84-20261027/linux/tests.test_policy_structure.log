@@ -1,0 +1,12 @@
+test_collision_guard_catches_descriptor_shadowing_through_full_mro (tests.test_policy_structure.PolicyStructureTest.test_collision_guard_catches_descriptor_shadowing_through_full_mro) ... ok
+test_duplicate_collection_guard_imports_one_module_object_per_stem (tests.test_policy_structure.PolicyStructureTest.test_duplicate_collection_guard_imports_one_module_object_per_stem) ... ok
+test_equip_swap_checkpoint_round_trip_is_byte_stable (tests.test_policy_structure.PolicyStructureTest.test_equip_swap_checkpoint_round_trip_is_byte_stable) ... skipped 'MonraceDefinitions.jsonc is unavailable in the detached verification checkout'
+test_old_policy_module_pickle_resolves_lifted_home_gate (tests.test_policy_structure.PolicyStructureTest.test_old_policy_module_pickle_resolves_lifted_home_gate) ... ok
+test_policy_composes_all_fourteen_split_mixins (tests.test_policy_structure.PolicyStructureTest.test_policy_composes_all_fourteen_split_mixins) ... ok
+test_policy_mixins_have_no_method_name_collisions (tests.test_policy_structure.PolicyStructureTest.test_policy_mixins_have_no_method_name_collisions) ... ok
+test_test_modules_do_not_bind_foreign_test_cases (tests.test_policy_structure.PolicyStructureTest.test_test_modules_do_not_bind_foreign_test_cases) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 1.174s
+
+OK (skipped=1)

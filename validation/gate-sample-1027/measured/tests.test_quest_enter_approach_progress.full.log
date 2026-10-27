@@ -1,0 +1,10 @@
+test_derived_route_failures_retire_retain_restore_and_change_status (tests.test_quest_enter_approach_progress.QuestEnterApproachProgressPins.test_derived_route_failures_retire_retain_restore_and_change_status) ... ok
+test_final_identity_staleness_and_arbiter_preview_are_read_only (tests.test_quest_enter_approach_progress.QuestEnterApproachProgressPins.test_final_identity_staleness_and_arbiter_preview_are_read_only) ... ok
+test_positive_ordered_replay_reaches_entrance_and_enters (tests.test_quest_enter_approach_progress.QuestEnterApproachProgressPins.test_positive_ordered_replay_reaches_entrance_and_enters) ... ok
+test_prepare_return_failure_does_not_mask_active_entry_walk (tests.test_quest_enter_approach_progress.QuestEnterApproachProgressPins.test_prepare_return_failure_does_not_mask_active_entry_walk) ... ok
+test_taken_q22_cross_town_uses_stage1_clearance_values (tests.test_quest_enter_approach_progress.QuestEnterApproachProgressPins.test_taken_q22_cross_town_uses_stage1_clearance_values) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 511.192s
+
+OK

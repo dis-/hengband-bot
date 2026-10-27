@@ -1,0 +1,22 @@
+test_x7_protocol2_boards_carrying_the_potion_never_quaff_it (tests.test_experience_potion.ExperiencePotionProtocol2Test.test_x7_protocol2_boards_carrying_the_potion_never_quaff_it)
+X7's carried-potion protection after the R4 replay boundary. ... ok
+test_x7_protocol2_lifetime_decisions_are_unchanged (tests.test_experience_potion.ExperiencePotionProtocol2Test.test_x7_protocol2_lifetime_decisions_are_unchanged)
+X7: a recorded protocol-2 lifetime carrying the Experience potion. ... ok
+test_t1_drained_in_town_routes_to_the_unobserved_temple (tests.test_experience_potion.ExperiencePotionRecordedTest.test_t1_drained_in_town_routes_to_the_unobserved_temple) ... ok
+test_t2_temple_observed_without_restore_departure_proceeds (tests.test_experience_potion.ExperiencePotionRecordedTest.test_t2_temple_observed_without_restore_departure_proceeds) ... ok
+test_t3_temple_observed_with_restore_buys_it (tests.test_experience_potion.ExperiencePotionRecordedTest.test_t3_temple_observed_with_restore_buys_it) ... ok
+test_t4_not_drained_no_temple_trip (tests.test_experience_potion.ExperiencePotionRecordedTest.test_t4_not_drained_no_temple_trip) ... ok
+test_x1_carried_undrained_potion_is_drunk_at_the_first_safe_board (tests.test_experience_potion.ExperiencePotionRecordedTest.test_x1_carried_undrained_potion_is_drunk_at_the_first_safe_board) ... ok
+test_x2_restore_life_levels_is_drunk_before_the_experience_potion (tests.test_experience_potion.ExperiencePotionRecordedTest.test_x2_restore_life_levels_is_drunk_before_the_experience_potion) ... ok
+test_x3_drained_without_restore_buys_it_then_drinks_both (tests.test_experience_potion.ExperiencePotionRecordedTest.test_x3_drained_without_restore_buys_it_then_drinks_both) ... ok
+test_x4_drained_without_supplier_the_potion_is_kept (tests.test_experience_potion.ExperiencePotionRecordedTest.test_x4_drained_without_supplier_the_potion_is_kept) ... ok
+test_x5_potion_at_home_is_withdrawn_then_drunk (tests.test_experience_potion.ExperiencePotionRecordedTest.test_x5_potion_at_home_is_withdrawn_then_drunk) ... ok
+test_x5_route_from_the_recorded_board_claims_the_home_withdrawal (tests.test_experience_potion.ExperiencePotionRecordedTest.test_x5_route_from_the_recorded_board_claims_the_home_withdrawal) ... ok
+test_x6_disposal_and_deposit_selectors_never_pick_the_potion (tests.test_experience_potion.ExperiencePotionRecordedTest.test_x6_disposal_and_deposit_selectors_never_pick_the_potion) ... ok
+test_restored_checkpoint_reads_the_new_paths (tests.test_experience_potion.ExperiencePotionRestoredCheckpointTest.test_restored_checkpoint_reads_the_new_paths)
+restore_checkpoint rebuilds __dict__ without __init__. ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 732.045s
+
+OK

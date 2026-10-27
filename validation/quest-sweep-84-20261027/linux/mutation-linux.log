@@ -1,0 +1,10 @@
+[mutation] 7 source hunks, tests: tests.test_quest_sweep_hold_recorded
+[mutation] caught     src/hengbot/policy_quest.py:1649 (def _quest_strategy_may_leave_hold(): test_exhausted_sweep_does_not_resume_exploration_into_enemy_halo, test_incomplete_opening_hold_still_retakes_position, test_missing_battlefield_does_not_reverse
+[mutation] caught     src/hengbot/policy_quest.py:3659 (may_leave_hold = self._quest_strategy_may_leave_hold(): test_exhausted_sweep_does_not_resume_exploration_into_enemy_halo, test_incomplete_opening_hold_still_retakes_position, test_missing_battlefield_does_not_reverse
+[mutation] caught     src/hengbot/policy_quest.py:3836 (may_leave_hold): test_exhausted_sweep_does_not_resume_exploration_into_enemy_halo, test_q31_recorded_sweep_does_not_reverse_for_distant_huorn, test_sweep_route_avoids_a_visible_
+[mutation] caught     src/hengbot/policy_quest.py:3878 (# Stationary enemies can now remain visible during the sweep.): test_exhausted_sweep_does_not_resume_exploration_into_enemy_halo, test_q22_recorded_empty_hold_can_start_sweep, test_q31_recorded_sweep_does_not_reverse_for_dis
+[mutation] caught     src/hengbot/policy_quest.py:3897 (# floor exploration to bring the strays into view. Combat): test_exhausted_sweep_does_not_resume_exploration_into_enemy_halo
+[mutation] caught     src/hengbot/policy_quest.py:3912 (navigator._static_path(): test_sweep_route_avoids_a_visible_stationary_enemy_halo
+[mutation] caught     src/hengbot/policy_quest.py:4052 (if not may_leave_hold and hold is not None and snapshot.player.positio): test_missing_battlefield_does_not_reverse_an_allowed_sweep
+[mutation] MUTATION OK: 0 of 7 hunks are not pinned by a test
+[mutation] recorded for f798c36b
