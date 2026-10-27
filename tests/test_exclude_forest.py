@@ -22,7 +22,7 @@ from hengbot.model import (
 from hengbot.policy import HengbotPolicy, NO_DEPTH_PROGRESS_DIVE_LIMIT
 from hengbot.spectator import spectator_recall_destination
 from policy_fixtures import player, grid, item
-from tests.test_input_executor import ProductionHarness, command_screen
+import tests.test_input_executor as executor_harness
 from tests import test_guardian_recall_pingpong_recorded as recorded
 
 FOREST = 7
@@ -32,7 +32,7 @@ ABILITIES = frozenset({
 })
 
 
-class ExcludeForestTest(ProductionHarness):
+class ExcludeForestTest(executor_harness.ProductionHarness):
     def _policy(self):
         return HengbotPolicy(dungeon_knowledge={
             1: DungeonInfo(1, "Angband", 1, 127, 30),
@@ -63,7 +63,7 @@ class ExcludeForestTest(ProductionHarness):
         game, _client, executor = self.make()
         self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
                          "ready")
-        game.screens = [command_screen(3)]
+        game.screens = [executor_harness.command_screen(3)]
         result = executor.submit(Operation(47, reason, key, executor.ready_board),
                                  deadline=9999999999)
         self.assertEqual(result.outcome, "completed")
@@ -175,7 +175,7 @@ class ExcludeForestTest(ProductionHarness):
             self._post(key, policy.last_reason)
 
 
-class RecordedForestRecallTest(ProductionHarness):
+class RecordedForestRecallTest(executor_harness.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         recorded.GuardianRecallPingPongRecordedTest.setUpClass()
