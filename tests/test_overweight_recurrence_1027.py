@@ -183,6 +183,23 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         self.assertEqual(pending["waits"], STORE_STUCK_LIMIT)
         self.post(policy, snapshot, key)
 
+    def test_historical_passes_without_a_block_observe_home_before_surplus(self):
+        policy, snapshot = self.replay(1)
+        # CONSTRUCTED: keep the recorded failed-pass history, but remove
+        # the applicable block and capacity observation. Passes can outlive
+        # equipment work's larger bound; route admission needs its own block.
+        policy._town_visit_ledger.blocked_stores.clear()
+        policy._town_blocked_reason = None
+        policy._home_capacity_observation = None
+        relief = policy._weight_relief_selection(snapshot)
+        self.assertEqual((relief.route, relief.home_room), ("home-relief", False))
+        categories = {need.category for need in policy._town_need_candidates(snapshot)}
+        self.assertIn("weight-overload", categories)
+        self.assertNotIn("overweight-surplus", categories)
+        key = policy.choose_key(snapshot)
+        self.assertIsNone(policy._overweight_surplus_disposal)
+        self.post(policy, snapshot, key)
+
     def test_observed_home_page_does_not_reopen_an_exhausted_route(self):
         policy, snapshot = self.replay(1)
         # CONSTRUCTED: show the last recorded Home page on the stop's pack.
