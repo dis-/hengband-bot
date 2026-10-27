@@ -36,8 +36,8 @@ class WeightRelief(NamedTuple):
 
     Junk goes first through the town junk step (#95).  Then the carried
     retention surplus: a Home deposit while the Home has a free slot, else a
-    sale, else a destruction (owner 2026-10-10).  When neither covers the
-    excess, only retained weight remains and the route names it.
+    sale, else a destruction (owner 2026-10-10). Exhaust legal surplus before
+    naming the remaining retained weight, even if one step cannot clear it.
     """
     weight: int
     limit: int | None
@@ -172,9 +172,8 @@ class HomeMixin:
                 or snapshot.player.food_state not in {"normal", "full", "gorged"}
                 or self._physical_hostiles(snapshot)):
             return None
-        capacity = self._home_capacity_observation
-        if (capacity and capacity[1] > 0 and capacity[0] < capacity[1]
-                and capacity[2] == self._effective_town_id(snapshot)
+        relief = self._weight_relief_selection(snapshot)
+        if (relief.route == "deposit"
                 and not state.get("pending", {}).get("posted")
                 and self._find_home_deposit(snapshot) is not None):
             self._overweight_surplus_disposal = None
@@ -185,10 +184,8 @@ class HomeMixin:
         if state["town"] != self._effective_town_id(snapshot):
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
-        candidates = list(self._weight_relief_selection(snapshot).surplus)
-        limit = self._inventory_weight_limit(snapshot)
-        if (sum(i.weight*n for _, _, i, n, _ in candidates)
-                < self._inventory_weight(snapshot)-limit):
+        candidates = list(relief.surplus)
+        if not candidates:
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
         pending = state.get("pending")
@@ -2768,7 +2765,8 @@ class HomeMixin:
         if not plan:
             return WeightRelief(weight, limit, excess, deposits, (), False,
                                 "unplanned", ())
-        home = self._home_available(snapshot)
+        home = (self._home_available(snapshot)
+                and not self._overweight_home_bound_exhausted())
         # A free Home slot is an observation (page or capacity fact), never
         # the absence of a "full" fact.
         store = snapshot.store
@@ -2776,14 +2774,14 @@ class HomeMixin:
         if (store is not None and store.store_type == STORE_HOME
                 and isinstance(store.stock_num, int)
                 and isinstance(store.capacity, int) and store.capacity > 0):
-            home_room = store.stock_num < store.capacity
+            home_room = home and store.stock_num < store.capacity
         else:
             home_room = bool(home and fact and fact[1] > 0 and fact[0] < fact[1]
                              and fact[2] == self._effective_town_id(snapshot))
         surplus = tuple(self._overweight_surplus_candidates(snapshot))
         if deposits and home_room:
             route = "deposit"
-        elif sum(item.weight * count for _, _, item, count, _ in surplus) >= excess:
+        elif surplus:
             route = "sell-or-destroy"
         elif deposits and home:
             route = "home-relief"
