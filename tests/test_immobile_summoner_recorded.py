@@ -76,6 +76,11 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         game.screen = executor_pins.command_screen(board.turn)
         game.screens = [executor_pins.command_screen(after["turn"])]
         game.states = [after]
+        if str(key).startswith("r"):
+            # DECLARED CONSTRUCTED: reading first exposes the game's item
+            # source prompt; the reserved selector is sent only after it.
+            game.screens.insert(0, executor_pins.prompt_screen("どの巻物を読みますか? "))
+            game.states.insert(0, copy.deepcopy(raw))
         _game, _client, executor = self.make(game)
         self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
         port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
@@ -180,15 +185,13 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
             self.assertNotEqual(policy.decision_claim["rung"], "fallback:unregistered")
             self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
             self.assertEqual(policy.decision_claim["owner"], "combat")
-            if x == 10:
-                # DECLARED CONSTRUCTED: adapt the response substrate to this
-                # quest's coordinates/floor; the follow movement is one step.
-                raw = copy.deepcopy(record["board"])
-                raw["player"]["position"] = {"y": 10, "x": 10}
-                raw["floor"].update(dungeon_id=3, level=23, quest_id=41)
-                self._post(policy, board, key, raw)
-            else:
-                policy.confirm_key_posted(key)
+            # DECLARED CONSTRUCTED: adapt the response substrate to this
+            # quest's coordinates/floor; every posted movement is one step.
+            raw = copy.deepcopy(record["board"])
+            raw["turn"] = board.turn
+            raw["player"]["position"] = {"y": 10, "x": x}
+            raw["floor"].update(dungeon_id=3, level=23, quest_id=41)
+            self._post(policy, board, key, raw)
         board = replace(board, player=replace(board.player, position=Position(10, 14)),
                         visible_monsters=[replace(board.visible_monsters[0], distance=1)],
                         turn=board.turn + 10)
@@ -219,9 +222,12 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
     def test_constructed_recall_and_countdown(self):
         board = self._corridor(inventory=[fixtures.item("r", 70, 11)])
         policy = self._policy(board)
-        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
-                         ("rr", "summoner:recall"))
-        policy.confirm_key_posted("rr")
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("rr", "summoner:recall"))
+        raw = copy.deepcopy(self.records[0]["board"])
+        raw["turn"] = board.turn
+        raw["player"]["position"] = {"y": 10, "x": 10}
+        self._post(policy, board, key, raw)
         board = replace(board, player=replace(board.player, recalling=True), turn=10010)
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("5", "summoner:wait-recall"))
