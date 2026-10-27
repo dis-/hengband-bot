@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def measure(module, output):
     rows = []
     for mode in ("full", "5"):
-        env = dict(os.environ, PYTHONPATH=os.pathsep.join((str(ROOT / "src"), str(ROOT / "tests"))),
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(ROOT / part) for part in ("src", "tests", "scripts")),
                    PYTHONIOENCODING="utf-8")
         env.pop("HENGBOT_TEST_SAMPLE", None)
         if mode != "full":
