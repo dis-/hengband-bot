@@ -21,7 +21,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.quest_knowledge import QuestBattlefield, QuestInfo
 from hengbot.quest_strategies import load_quest_strategies
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen
+import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q34-collect-20261025.json.gz"
 
@@ -59,7 +60,7 @@ def observe_until(policy, rows, boundary):
             policy._observe(policy._with_grid_memory(parse_snapshot(raw, policy._monrace_knowledge)))
 
 
-class Q34CollectRecordedTest(ProductionHarness):
+class Q34CollectRecordedTest(executor_harness.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         cls.data = captured()

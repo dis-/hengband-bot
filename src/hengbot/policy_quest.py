@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 
 from collections import Counter, deque
@@ -5533,7 +5535,8 @@ class QuestMixin:
         if committed is not None:
             info = self._dungeon_knowledge.get(committed)
             if (
-                committed == DUNGEON_CHAMELEON_CAVE
+                not exploration_destination_allowed(committed)
+                or committed == DUNGEON_CHAMELEON_CAVE
                 or committed in conquered
                 or info is None
                 or committed not in snapshot.entered_dungeon_ids
@@ -5549,6 +5552,7 @@ class QuestMixin:
             info = self._dungeon_knowledge.get(did)
             if (
                 info is None
+                or not exploration_destination_allowed(did)
                 or did == DUNGEON_CHAMELEON_CAVE
                 or did in conquered
                 or (did == DUNGEON_YEEK_CAVE and info.guardian_id <= 0)

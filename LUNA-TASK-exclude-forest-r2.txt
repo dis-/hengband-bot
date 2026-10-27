@@ -1,0 +1,21 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-exclude-forest.txt (one topic: the Forest exclusion only).
+The merge gate (main 9955517b4 + exclude-forest-1026 c51227e7f, gate tree 875cd1394) stopped: full suite not green.
+Real failures (failed again when rerun alone):
+  tests.test_declarations_r14.DeclarationR14Test.test_overweight_home_tail_keeps_its_operation_at_3715
+  tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary
+  tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_replay_reproduces_every_recorded_decision_be... (see the gate log)
+  tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_exhausted_home_bound_ends_in_the_named_overweight_stop
+  tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_unposted_home_deposit_routes_home_again
+Example: test_unposted_home_deposit_routes_home_again expects ('ESC`n(.', 'shop:travel') and now gets
+('5', 'town:unsafe-recall-fallback'). These recorded characters had the Forest as their recall destination, so the
+exclusion now leaves them without a safe recall and they fall back. Full list: C:\hengband\bot-client\jsonlog\gate-exclude-forest-1026.log
+(Failures line) and C:\hengband-backups\suite-logs\gate-exclude-forest-1026-suite.log.
+These modules are slow and outside fast_tier, which is why round 1 did not see them - run them yourself.
+Do: decide per test whether (a) the bot is now wrong (a character whose recall target was the Forest must pick another
+dungeon through the existing chooser, not fall into unsafe-recall-fallback, when another one is available) -> fix the
+source; or (b) the recorded expectation only held because the Forest was chosen and the new behaviour is the intended
+one -> change only that test's fixture the same way as round 1 (Castle substitute, expected values unchanged where
+possible), and list it with the reason. Prefer (a) when a different dungeon is available on the recorded board.
+Rules as round 1. COMMIT EARLY. Guards: preflight / mutation_check --record / fast_tier with base f66916c86, plus the
+five modules above explicitly. Token budget 80k HARD, wall time 60 minutes. Append round 2 to the report.

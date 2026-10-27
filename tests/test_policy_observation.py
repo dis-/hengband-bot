@@ -102,6 +102,17 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         set_completed_equipment_optimization(policy)
         return policy
 
+    def _castle_policy(self):
+        # #47: only the tests that selected Forest use this replacement
+        # constructed world. Keep their synthetic depths/guardian unchanged,
+        # and preserve the original fixtures for all other existing tests.
+        self.ALL_ENTERED = tuple(12 if did == 7 else did for did in self.ALL_ENTERED)
+        self.ALL_CONQUERED = tuple(12 if did == 7 else did for did in self.ALL_CONQUERED)
+        policy = self._policy()
+        policy._dungeon_knowledge[12] = replace(
+            policy._dungeon_knowledge.pop(7), id=12, name="Castle")
+        return policy
+
     # All conquerable-within-limit dungeons marked conquered, so the conquest-target
     # override stays out of the way and these tests isolate the over-extension switch.
     ALL_CONQUERED = (3, 4, 7, 14)
@@ -240,7 +251,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._pick_alternate_dungeon(snap), 3)
 
     def test_alternate_selection_picks_deepest_dungeon_at_or_below_limit(self):
-        pol = self._policy()
+        pol = self._castle_policy()
         snap = self._town(
             abilities=frozenset({"free_action", "resist_fire", "resist_conf"})
         )
@@ -249,7 +260,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
             pol._pick_alternate_dungeon(
                 snap, max_entry_depth=20, prefer_deepest=True
             ),
-            7,
+            12,
         )
 
     def test_owned_loadout_depth_is_not_inferred_from_recall_destinations(self):
@@ -394,8 +405,8 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._target_dungeon_id, 3)
 
     def test_unentered_alternate_is_not_a_walk_in_target(self):
-        pol = self._policy()
-        pol._alternate_dungeon = 7
+        pol = self._castle_policy()
+        pol._alternate_dungeon = 12
         pol._target_dungeon_id = DUNGEON_ANGBAND
         snap = self._town(
             entered=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
@@ -404,7 +415,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
 
         pol._observe(snap)
 
-        self.assertEqual(pol._alternate_dungeon, 7)
+        self.assertEqual(pol._alternate_dungeon, 12)
         self.assertEqual(pol._target_dungeon_id, DUNGEON_ANGBAND)
 
     def test_a_productive_dive_resets_the_streak(self):
@@ -417,7 +428,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertIsNone(pol._alternate_dungeon)  # streak restarted, no switch yet
 
     def test_switches_after_five_looted_dives_without_new_depth(self):
-        pol = self._policy()
+        pol = self._castle_policy()
         for _ in range(NO_DEPTH_PROGRESS_DIVE_LIMIT):
             self._run_dive(
                 pol,
@@ -427,8 +438,8 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
                 recall_depth=19,
             )
 
-        self.assertEqual(pol._alternate_dungeon, 7)
-        self.assertEqual(pol._target_dungeon_id, 7)
+        self.assertEqual(pol._alternate_dungeon, 12)
+        self.assertEqual(pol._target_dungeon_id, 12)
         self.assertEqual(pol._no_depth_progress_dives, 0)
 
     def test_new_recall_depth_resets_no_depth_progress_streak(self):
@@ -449,15 +460,15 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertIsNone(pol._alternate_dungeon)
 
     def test_conquest_target_is_demoted_after_over_extended_dives(self):
-        pol = self._policy()
-        pol._target_dungeon_id = 7
-        pol._conquest_committed = 7
+        pol = self._castle_policy()
+        pol._target_dungeon_id = 12
+        pol._conquest_committed = 12
         abilities = self.MOUNTAIN_SAFE | {"resist_chaos"}
         conquered = (3, 4, 14)
 
         for _ in range(EMPTY_DIVE_LIMIT):
             self._run_dive(
-                pol, dungeon_id=7, level=32, recall_depth=32,
+                pol, dungeon_id=12, level=32, recall_depth=32,
                 abilities=abilities, conquered=conquered,
                 angband_unlocked=False, **self.OVEREXTENDED,
             )
@@ -467,7 +478,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertIsNone(pol._conquest_committed)
 
     def test_guardian_conquest_discards_alternate_and_selects_ordinary_target(self):
-        pol = self._policy()
+        pol = self._castle_policy()
         pol._alternate_dungeon = 14
         pol._last_overextended_depth = 26
         pol._target_dungeon_id = 14
@@ -484,24 +495,24 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
 
         self.assertIsNone(pol._alternate_dungeon)
         self.assertEqual(pol._last_overextended_depth, 0)
-        self.assertEqual(pol._conquest_committed, 7)
-        self.assertEqual(pol._target_dungeon_id, 7)
+        self.assertEqual(pol._conquest_committed, 12)
+        self.assertEqual(pol._target_dungeon_id, 12)
 
     def test_productive_conquest_dive_resets_streak_without_unlatching(self):
-        pol = self._policy()
-        pol._target_dungeon_id = 7
-        pol._conquest_committed = 7
+        pol = self._castle_policy()
+        pol._target_dungeon_id = 12
+        pol._conquest_committed = 12
         pol._target_empty_dives = EMPTY_DIVE_LIMIT - 1
         abilities = self.MOUNTAIN_SAFE | {"resist_chaos"}
 
         self._run_dive(
-            pol, dungeon_id=7, level=32, recall_depth=32,
+            pol, dungeon_id=12, level=32, recall_depth=32,
             loot=OVEREXTEND_LOOT_MAX + 1, abilities=abilities,
             conquered=(3, 4, 14), angband_unlocked=False,
         )
 
         self.assertEqual(pol._target_empty_dives, 0)
-        self.assertEqual(pol._conquest_committed, 7)
+        self.assertEqual(pol._conquest_committed, 12)
         self.assertIsNone(pol._alternate_dungeon)
 
     def test_four_pickups_still_count_as_over_extended(self):
@@ -754,6 +765,16 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
     # A drive ceiling well past the valve's own bound; reaching it is the failure.
     ROUND_TRIP_CEILING = 4 * EMPTY_DIVE_LIMIT + 1
 
+    def _use_castle_destination(self):
+        # #47: opt in only in cases that selected or retained Forest.
+        # Keep the constructed landing depths and guardian, using Castle's
+        # allowed id; unrelated cases retain their original fixtures.
+        self.FOREST = 12
+        self.ENTERED = tuple(12 if did == 7 else did for did in self.ENTERED)
+        for name in ("SHALLOWER", "DEEPER_ONLY", "ALL_BLOCKED"):
+            setattr(self, name, {12 if did == 7 else did: depth
+                                 for did, depth in getattr(self, name).items()})
+
     def _policy(self, landings):
         # No monrace knowledge: every guardian below is unbeatable for the kit.
         decoy_max = landings[self.DECOY]
@@ -769,7 +790,8 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                 self.DECOY, "Decoy", 10, decoy_max, 5, guardian_id=900
             ),
             self.FOREST: DungeonInfo(
-                self.FOREST, "Forest", 15, 32, 5, guardian_id=481
+                self.FOREST, "Castle" if self.FOREST == 12 else "Forest",
+                15, 32, 5, guardian_id=481
             ),
             self.MOUNTAIN: DungeonInfo(
                 self.MOUNTAIN, "Mountain", 25, 50, 20, guardian_id=468
@@ -858,6 +880,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         )
 
     def test_bounce_bound_holds_for_every_role_of_the_bounced_dungeon(self):
+        self._use_castle_destination()
         worlds = {
             # (landings, the productive dungeon the valve must reach)
             "shallower": (self.SHALLOWER, self.FOREST),
@@ -939,6 +962,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         self.assertEqual(restored._town_blocked_reason, self.TERMINAL)
 
     def test_latched_alternate_whose_landing_became_a_guardian_floor(self):
+        self._use_castle_destination()
         # Forest was a productive alternate; its saved recall depth has since
         # reached 31, its guardian's floor (max depth 32), and that guardian is
         # beyond the kit.  The bounces of the latched alternate are counted
@@ -959,6 +983,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                 )
 
     def test_restored_checkpoint_without_the_bounce_count_still_switches(self):
+        self._use_castle_destination()
         # A checkpoint pickled before _guardian_bounce_dives existed, taken
         # with no streak running: its bounces are counted from zero.
         policy = self._policy(self.DEEPER_ONLY)
@@ -971,6 +996,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         self._assert_bounded(trips, bounced_on=self.ORC_CAVE, productive=self.FOREST)
 
     def test_restored_checkpoint_with_a_running_streak_is_judged_mixed_once(self):
+        self._use_castle_destination()
         # A checkpoint pickled mid-streak (two counted dives, no guardian
         # share recorded) cannot prove those dives were guardian bounces.  Its
         # streak is judged as ordinary over-extension once -- shallower bound,
@@ -1003,6 +1029,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         )
 
     def test_mixed_streak_keeps_the_shallower_landing_bound(self):
+        self._use_castle_destination()
         # One over-extended Forest dive (two emergency escapes at landing 26),
         # then Forest's landing reaches 31, its blocked guardian floor, and two
         # bounces complete the streak.  The streak is not all guardian
@@ -1039,6 +1066,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         )
 
     def test_over_extension_valve_keeps_the_shallower_landing_bound(self):
+        self._use_castle_destination()
         # Three over-extended Forest dives (two emergency escapes each, no
         # guardian involved).  Only shallower landings qualify, and in this
         # world both (Orc cave 23, decoy 24) are blocked guardian floors, so
@@ -1065,6 +1093,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         )
 
     def test_a_stale_guardian_trigger_does_not_count_another_return(self):
+        self._use_castle_destination()
         # The previous return was a guardian bounce, so _last_return_trigger
         # still reads guardian-kit-insufficient.  This Forest dive (landing 26,
         # no guardian near) returns through a path that never writes the
@@ -1098,6 +1127,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                 )
 
     def test_a_profitable_pursued_dive_clears_the_guardian_bounces(self):
+        self._use_castle_destination()
         # Two guardian bounces are on the streak; then a dive of the same
         # pursued alternate with Angband's recall unlocked hauls more than
         # OVEREXTEND_LOOT_MAX items.  Like the loot reset of the judged
@@ -1119,6 +1149,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         )
 
     def test_guardian_valve_never_re_picks_the_bounced_dungeon(self):
+        self._use_castle_destination()
         # The conquest target is not the alternate, so only the explicit
         # exclusion keeps it out: if its guardian verdict flips on the
         # arrival board (a consumable now makes the fight project as
@@ -1225,6 +1256,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         allowed) and recalls there; with no such landing it ends the run
         visibly (「見える形で停止する」, town:blocked:guardian-bounce-no-alternate).
         """
+        self._use_castle_destination()
         worlds = {
             "shallower": (self.SHALLOWER, self.FOREST),
             "deeper-only": (self.DEEPER_ONLY, self.FOREST),
@@ -1293,6 +1325,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         now switches like the ordinary read point and recalls to the
         productive landing, or stops visibly when nothing qualifies.
         """
+        self._use_castle_destination()
         worlds = {
             "deeper-only": (self.DEEPER_ONLY, self.FOREST),
             "all-blocked": (self.ALL_BLOCKED, None),
@@ -1512,6 +1545,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                     )
 
     def test_picker_skips_a_landing_on_a_blocked_guardian_floor(self):
+        self._use_castle_destination()
         policy = self._policy(self.SHALLOWER)
         policy._last_overextended_depth = 23
         board = self._board(

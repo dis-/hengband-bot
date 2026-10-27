@@ -220,12 +220,13 @@ class IdentificationMixin:
                                 # The chooser rebuilds after each pick. Leave
                                 # chests in place and cancel the remaining pick.
                                 skipped = 0
-                                selections = ""
+                                picks = []
                                 for tval in here.object_tvals:
                                     if tval == TVAL_CHEST:
                                         skipped += 1
                                     else:
-                                        selections += chr(ord("a") + skipped)
+                                        picks.append(chr(ord("a") + skipped))
+                                selections = "".join(picks)
                                 if selections:
                                     self.last_reason = "chest:collect-contents"
                                     return PICKUP_KEY + selections + "\x1b"
