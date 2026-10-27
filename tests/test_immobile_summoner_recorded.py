@@ -22,7 +22,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from hengbot.cli import (
-    PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
+    PostingContract, STATIONARY_REASONS, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
 )
 from hengbot.model import Position, QuestState, Snapshot, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -225,6 +225,7 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         board = replace(board, player=replace(board.player, recalling=True), turn=10010)
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("5", "summoner:wait-recall"))
+        self.assertIn(policy.last_reason, STATIONARY_REASONS)
 
     def test_constructed_quest_uses_existing_ranged_logic(self):
         _record, recorded = self._recorded(0)
