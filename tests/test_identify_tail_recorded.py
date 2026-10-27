@@ -57,11 +57,15 @@ class IdentifyTailRecordedPin(harness.ProductionHarness):
         cls.monrace = load_monrace_knowledge(Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc"))
 
     def drive(self, label="151412", *, target=None, japanese=True,
-              owner=None, unchanged_history=False, repeat_delta=False):
+              owner=None, unchanged_history=False, repeat_delta=False,
+              older_repeat=False):
         data = load(label)
         before, after = data["before"], copy.deepcopy(data["after"])
         # Derived inner prompt state, carrying the recorded prior failure count.
         source = copy.deepcopy(before)
+        if older_repeat:
+            source["messages"] = ["杖をうまく使えなかった。 <x9>",
+                                  "An older event.", *source["messages"]]
         final_history = data["after_history"]
         after["messages"] = final_history
         final_screen = copy.deepcopy(data["screen"])
@@ -143,6 +147,12 @@ class IdentifyTailRecordedPin(harness.ProductionHarness):
         game, result, _, _ = self.drive(repeat_delta=True)
         self.assertEqual(game.accepted, ["u", "g"])
         self.assertEqual(result.outcome, "completed", result.reason)
+
+    def test_older_larger_repeat_is_not_a_new_failure(self):
+        game, result, sent, _ = self.drive(unchanged_history=True, older_repeat=True)
+        self.assertEqual(game.accepted, ["u", "g"])
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertFalse(sent)
 
     def test_dungeon_and_pressure_rebind_visible_target_for_both_languages(self):
         for owner in ("identify:dungeon-equipment", "identify:pack-pressure"):

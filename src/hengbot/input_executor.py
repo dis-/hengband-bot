@@ -712,8 +712,9 @@ def _expected_prompt_absence_is_complete(
         row0.startswith(ending)
         or any(repeat_count(message, ending) for message in board.get("messages", ()))
         or (before_history and repeat_count(before_history[-1], ending)
-            and any(repeat_count(message, ending) > repeat_count(before_history[-1], ending)
-                    for message in after_history))
+            and next((count for message in reversed(after_history)
+                      if (count := repeat_count(message, ending))), 0)
+            > repeat_count(before_history[-1], ending))
         for ending in endings
     ):
         operation.business_outcome = "refused:source-command"
