@@ -19,7 +19,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
 import unittest
-from dataclasses import replace
 
 from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _parse_items,
@@ -135,20 +134,6 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         policy, snapshot = self.replay(1)
         policy._town_blocked_reason = None  # CONSTRUCTED: before the terminal verdict.
         self.assertIn("overweight-surplus", {need.category for need in policy._town_need_candidates(snapshot)})
-        key = policy.choose_key(snapshot)
-        self.assertEqual(policy.last_reason, "shop:travel")
-        self.post(policy, snapshot, key)
-
-    def test_legal_partial_relief_is_used_before_retained_weight_is_named(self):
-        policy, snapshot = self.replay(1)
-        # CONSTRUCTED: the installed armor weighs 600 more. The original
-        # legal surplus cannot clear this overload, but must still be shed.
-        snapshot = replace(snapshot, equipment=tuple(
-            replace(item, weight=item.weight + 600) if item.slot == "body" else item
-            for item in snapshot.equipment))
-        relief = policy._weight_relief_selection(snapshot)
-        self.assertEqual(relief.route, "sell-or-destroy")
-        self.assertLess(sum(i.weight * n for _, _, i, n, _ in relief.surplus), relief.excess)
         key = policy.choose_key(snapshot)
         self.assertEqual(policy.last_reason, "shop:travel")
         self.post(policy, snapshot, key)

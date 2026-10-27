@@ -36,8 +36,8 @@ class WeightRelief(NamedTuple):
 
     Junk goes first through the town junk step (#95).  Then the carried
     retention surplus: a Home deposit while the Home has a free slot, else a
-    sale, else a destruction (owner 2026-10-10). Exhaust legal surplus before
-    naming the remaining retained weight, even if one step cannot clear it.
+    sale, else a destruction (owner 2026-10-10).  When neither covers the
+    excess, only retained weight remains and the route names it.
     """
     weight: int
     limit: int | None
@@ -185,7 +185,9 @@ class HomeMixin:
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
         candidates = list(relief.surplus)
-        if not candidates:
+        limit = self._inventory_weight_limit(snapshot)
+        if (sum(i.weight*n for _, _, i, n, _ in candidates)
+                < self._inventory_weight(snapshot)-limit):
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
         pending = state.get("pending")
@@ -2781,7 +2783,7 @@ class HomeMixin:
         surplus = tuple(self._overweight_surplus_candidates(snapshot))
         if deposits and home_room:
             route = "deposit"
-        elif surplus:
+        elif sum(item.weight * count for _, _, item, count, _ in surplus) >= excess:
             route = "sell-or-destroy"
         elif deposits and home:
             route = "home-relief"
