@@ -1,0 +1,244 @@
+{
+  "tests.test_curse_priority_recorded": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 7.047,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_curse_priority_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_cli": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 16.797,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_cli.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_headless_character_dump": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 2.532,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_headless_character_dump.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_home_knowledge_scan": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 1,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 6.609,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_home_knowledge_scan.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_equipment_in_home_stage1": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 39.438,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_equipment_in_home_stage1.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_identify_device_fail_20261017": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 2.296,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_identify_device_fail_20261017.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_exclude_forest": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 75.266,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_exclude_forest.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_identify_wake_interrupt_20261017": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 2.234,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_identify_wake_interrupt_20261017.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_input_context": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 5.782,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_input_context.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_home_light_alternation_cli": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 66.266,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_home_light_alternation_cli.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_input_context_structure": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 3.234,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_input_context_structure.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_identify_tail_recorded": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 52.391,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_identify_tail_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_input_executor": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 5.906,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_input_executor.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_pickup_pile_prompt_recorded": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 4.031,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_pickup_pile_prompt_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_policy": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 6.984,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_policy.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_resume_inside_store": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 3.0,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_resume_inside_store.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_live15_identify_source": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 52.094,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_live15_identify_source.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_absorbing_states": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 232.954,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_absorbing_states.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_policy_structure": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 143.172,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_policy_structure.stderr.log",
+    "known_failures": []
+  },
+  "scripts/sale_key_lint.py": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 2.0,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/scripts_sale_key_lint.py.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_travel_interrupted_store_await": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 22.171,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_travel_interrupted_store_await.stderr.log",
+    "known_failures": []
+  },
+  "scripts/test_fakery_lint.py": {
+    "status": "failed",
+    "failed": 13,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 19.25,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/scripts_test_fakery_lint.py.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_store_reentry_recorded": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 159.563,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_store_reentry_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_town_work_contract": {
+    "status": "failed",
+    "failed": 1,
+    "skipped": 0,
+    "failing_test_ids": [
+      "test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail"
+    ],
+    "errors": [],
+    "duration": 573.344,
+    "stderr_path": "validation/identify-tail-1027/module-logs-complete/tests.test_town_work_contract.stderr.log",
+    "known_failures": []
+  }
+}

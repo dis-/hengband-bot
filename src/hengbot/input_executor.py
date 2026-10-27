@@ -620,6 +620,10 @@ _TIMEWALK_MESSAGES = {
     "止まった時の中ではうまく働かないようだ。", "It shows no reaction.",
 }  # action-limited.cpp:110; reached by all four execution paths.
 
+CARRIED_IDENTIFY_OWNERS = frozenset({
+    "identify:normal", "identify:dungeon-equipment", "identify:pack-pressure",
+})
+
 # store/purchase-order.cpp:204-260.  Each message returns directly to the store
 # command loop and therefore positively terminates an owned purchase prompt.
 _PURCHASE_REFUSAL_MESSAGES = {
@@ -683,13 +687,35 @@ def _operation_messages(screen: Mapping[str, object], board: Mapping[str, object
 
 
 def _expected_prompt_absence_is_complete(
-        operation: Operation, screen: Mapping[str, object], board: Mapping[str, object]) -> bool:
+        operation: Operation, screen: Mapping[str, object], board: Mapping[str, object],
+        before_state: Mapping[str, object] | None = None,
+        after_state: Mapping[str, object] | None = None) -> bool:
     """Classify only source-proven terminal outcomes for an unused tail."""
     command = operation.accepted_segments[0][:1] if operation.accepted_segments else operation.keys[:1]
     if command not in _ABSENT_PROMPT_MESSAGES:
         return False
     endings = _ABSENT_PROMPT_MESSAGES.get(command, set()) | _TIMEWALK_MESSAGES
-    if any(message in endings for message in _operation_messages(screen, board)):
+    # display-messages.cpp joins messages on row zero and renders history
+    # repetitions as " <xN>". JSONL can omit a repeated message altogether:
+    # message_sequence() counts distinct entries, not repeat_count increments.
+    # Only the source chooser's TCP history can prove that latter transition;
+    # an unchanged historical failure must never settle a new operation.
+    def repeat_count(message: object, ending: str) -> int:
+        match = re.fullmatch(re.escape(ending) + r"(?: <x([2-9]|[1-9][0-9]{1,3})>)?", str(message))
+        return int(match[1] or 1) if match else 0
+
+    messages = _operation_messages(screen, board)
+    before_history = (before_state or {}).get("messages", ())
+    after_history = (after_state or {}).get("messages", ())
+    if any(
+        any(message.startswith(ending) for message in messages)
+        or (before_history and repeat_count(before_history[-1], ending)
+            and next((count for message in reversed(after_history)
+                      if (count := repeat_count(message, ending))), 0)
+            > repeat_count(before_history[-1], ending))
+        for ending in endings
+    ):
+        operation.business_outcome = "refused:source-command"
         return True
 
     # Passive item sensing calls disturb() before printing its feeling
@@ -1375,7 +1401,7 @@ class OperationExecutor:
             equipped_identify = self.active.owner in {
                 "identify:full-equipped", "identify:normal-equipped",
             }
-            normal_carried = self.active.owner == "identify:normal"
+            normal_carried = self.active.owner in CARRIED_IDENTIFY_OWNERS
             if self.active.owner in {
                     "identify:full", "identify:full-equipped", "identify:normal",
                     "identify:normal-equipped", "identify:device", "loot:identify-floor-item",
@@ -1617,7 +1643,7 @@ class OperationExecutor:
         if self.active.continuations:
             self.input_context_shadow.residual(self.active.owner, screen_value)
             if not _expected_prompt_absence_is_complete(
-                    self.active, screen_value, board):
+                    self.active, screen_value, board, self._bound_state_value, state):
                 return self._terminal(
                     self.active, "continuation", "expected prompt absent",
                     match, outcome)

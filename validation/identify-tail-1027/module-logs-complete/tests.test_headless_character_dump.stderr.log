@@ -1,0 +1,8 @@
+test_captured_sheet_waits_for_posted_dump_keys_then_closes (test_headless_character_dump.HeadlessCharacterDumpContinuationTest.test_captured_sheet_waits_for_posted_dump_keys_then_closes) ... ok
+test_character_sheet_without_dump_owner_remains_stuck (test_headless_character_dump.HeadlessCharacterDumpContinuationTest.test_character_sheet_without_dump_owner_remains_stuck) ... ok
+test_large_terminal_dump_has_no_stale_sheet_wait (test_headless_character_dump.HeadlessCharacterDumpContinuationTest.test_large_terminal_dump_has_no_stale_sheet_wait) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 2.030s
+
+OK

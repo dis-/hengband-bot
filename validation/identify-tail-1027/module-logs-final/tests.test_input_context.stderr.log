@@ -1,0 +1,20 @@
+test_input_context (unittest.loader._FailedTest.test_input_context) ... ERROR
+
+======================================================================
+ERROR: test_input_context (unittest.loader._FailedTest.test_input_context)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_input_context
+Traceback (most recent call last):
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\loader.py", line 137, in loadTestsFromName
+    module = __import__(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_input_context.py", line 10, in <module>
+    import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+    ^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'tests'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

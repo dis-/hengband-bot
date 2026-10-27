@@ -1,0 +1,33 @@
+{
+  "head": "d38138ec4083ff577319d4ddde37a26bb56b2792",
+  "base": "726627a6b",
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "stages": {
+    "preflight": {
+      "exit": 0,
+      "seconds": 140.36,
+      "python": "3.13",
+      "log": "preflight.log"
+    },
+    "derive": {
+      "exit": 0,
+      "seconds": 43.38
+    },
+    "fast-tier": {
+      "exit": 0,
+      "seconds": 180.55,
+      "python": "3.13",
+      "shards": 2,
+      "log": "fast-tier.log"
+    },
+    "preflight-regenerated": {
+      "exit": 1,
+      "seconds": 122.66
+    },
+    "fast-tier-codex-312": {
+      "exit": 1,
+      "seconds": 107.62
+    }
+  },
+  "manifest_head": "f3ac056a75ab0a02d29ec6ea6d48ed5857cb0f08"
+}

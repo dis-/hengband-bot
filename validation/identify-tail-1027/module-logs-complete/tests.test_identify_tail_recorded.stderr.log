@@ -1,0 +1,18 @@
+test_dungeon_and_pressure_rebind_visible_target_for_both_languages (test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) ... <stuck-prompt> owner=identify:dungeon-equipment phase=screen transport=accepted request_id=9 ctx=unavailable ctx_prompt="" reason=read-only request failed
+<stuck-prompt> owner=identify:dungeon-equipment phase=screen transport=accepted request_id=9 ctx=unavailable ctx_prompt="" reason=read-only request failed
+<stuck-prompt> owner=identify:pack-pressure phase=screen transport=accepted request_id=9 ctx=unavailable ctx_prompt="" reason=read-only request failed
+<stuck-prompt> owner=identify:pack-pressure phase=screen transport=accepted request_id=9 ctx=unavailable ctx_prompt="" reason=read-only request failed
+ok
+test_older_larger_repeat_is_not_a_new_failure (test_identify_tail_recorded.IdentifyTailRecordedPin.test_older_larger_repeat_is_not_a_new_failure) ... <stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=6 ctx=absent ctx_prompt="" reason=expected prompt absent
+ok
+test_recorded_capture_hashes_and_posted_prefixes (test_identify_tail_recorded.IdentifyTailRecordedPin.test_recorded_capture_hashes_and_posted_prefixes) ... ok
+test_recorded_concatenated_failure_completes_with_named_refusal (test_identify_tail_recorded.IdentifyTailRecordedPin.test_recorded_concatenated_failure_completes_with_named_refusal) ... ok
+test_recorded_repeated_failure_outside_delta_completes (test_identify_tail_recorded.IdentifyTailRecordedPin.test_recorded_repeated_failure_outside_delta_completes) ... ok
+test_repetition_suffix_in_fresh_delta_is_recognized (test_identify_tail_recorded.IdentifyTailRecordedPin.test_repetition_suffix_in_fresh_delta_is_recognized) ... ok
+test_unchanged_old_failure_does_not_complete (test_identify_tail_recorded.IdentifyTailRecordedPin.test_unchanged_old_failure_does_not_complete) ... <stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=6 ctx=absent ctx_prompt="" reason=expected prompt absent
+ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 50.005s
+
+OK

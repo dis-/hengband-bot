@@ -1,0 +1,9 @@
+test_captured_disturbance_completes_operation_and_drops_target_tail (test_identify_device_fail_20261017.IdentifyDeviceFailPins.test_captured_disturbance_completes_operation_and_drops_target_tail) ... ok
+test_exact_device_failure_still_completes_without_target_key (test_identify_device_fail_20261017.IdentifyDeviceFailPins.test_exact_device_failure_still_completes_without_target_key) ... ok
+test_policy_can_retry_unknown_sensed_target_with_existing_bound (test_identify_device_fail_20261017.IdentifyDeviceFailPins.test_policy_can_retry_unknown_sensed_target_with_existing_bound) ... ok
+test_unrelated_absent_target_still_stops_visibly (test_identify_device_fail_20261017.IdentifyDeviceFailPins.test_unrelated_absent_target_still_stops_visibly) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.037s
+
+OK
