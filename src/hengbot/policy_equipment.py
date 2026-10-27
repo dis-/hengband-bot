@@ -1544,8 +1544,18 @@ class EquipmentMixin:
             and self._needs_random_teleport_suppression(item, selected_ids)
             for item in catalog
         ):
+            # An actionable inscription is the next step of the selected
+            # loadout itself. Do not start a Home session for a projection
+            # that still retains the old hand configuration (live27). Only
+            # an unavailable suppression, such as a deferred Home item, may
+            # release the independent ready slots while identification waits.
             preparation = replace(
                 preparation,
+                transaction=(
+                    None
+                    if self._random_teleport_suppression_actionable(snapshot, preparation)
+                    else preparation.transaction
+                ),
                 blockers=("pending-random-teleport-suppression",),
             )
         elif any(
