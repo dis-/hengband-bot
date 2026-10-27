@@ -374,3 +374,133 @@ tests.test_policy_home は171件、失敗1件、skip4件。tests.test_item_reser
 新規6件は差し戻し検証の事前実行で通過している。5箇所すべての差し戻しを検出し、mutation記録を残した。
 preflightは8変更ファイル・指摘0件で通過。fast tierは本体未実行。導出スコープ全体を通過したとは主張しない。
 再開時は上記の分類を共通選択器で修正し、既存期待値を維持したまま当該テスト・新規6件・全スコープ・差し戻し・fast tierを再検証する必要がある。
+
+
+第2ラウンド（2026-10-27）
+対象は指定されたLUNA-TASK-overweight-98-r2.txtの重量停止問題。
+ソース／テスト検証対象HEAD: c9101e751c60206a1597840d75d15d15acb77f87
+基準: 4db110bd5beb2544c87f6c26b84d390b7216d661
+
+原因と修正
+Home経路が尽きたことと、保持品しか残らないことを前回の選択器が混同していた。
+_weight_relief_selectionの「Home経路は利用可能か」という既存判定を維持し、
+預入候補または余剰候補が残る場合はretained-onlyへ分類しないよう修正した。
+超過を解消できる余剰があれば従来どおりsell-or-destroyを優先する。
+それでは解消できずHome経路も尽きている場合はhome-unreachableとし、
+_town_blocked_keyが既存のoverweight-home-unreachable停止を維持できるようにした。
+Homeに余地が観測され利用可能な場合のdeposit優先は維持した。
+WeightReliefの説明も候補の有無という実際の分類条件に訂正した。
+新しい上限定数は追加していない。重量制限・出発条件・保持理由は変更していない。
+既存テストの期待値は一切変更していない。
+既存の失敗テストと前回の6件をそのまま使用し、容量不明の対照を1件追加した。
+生成manifestを更新し、実装を68a8a1dffへ早期コミットした。
+
+導出スコープで見つかった追加の退行
+tests.test_policy_townの既存重量再生2件が68a8a1dffで失敗した。
+基準4db110bd5の別作業ツリーで同じTownWeightDepartureRecordedTestを実行すると、
+4件すべてが372.282秒で通過したため、ブランチの退行として追跡した。
+その過程で、選択器がHomeの容量がまだ不明な状態を満杯と同じに扱い、預入候補があるのに
+余剰売却を先に開始できる別の問題を修正した。Home経路が利用可能で容量だけが不明な場合は
+home-reliefを返し、先にHomeを観測する。満杯と確認された場合や経路が尽きた場合の
+合法な余剰処分は維持する。この追加修正をc9101e751にコミットし、最終スコープを再実行した。
+ただし既存重量再生2件はc9101e751でも失敗しており、この退行の解消は未完了。
+新規対照: test_reachable_home_with_unknown_capacity_observes_before_surplus。
+記録の231603盤面から経路上限と容量観測だけを取り除いた構成対照で、公開choose_keyと
+本番follow実行器も通す。共有ハーネスは既存のモジュール別名経由で利用する。
+別作業ツリーで追加条件だけを68a8a1dff相当へ戻すとこの対照は失敗し、復元すると通過。
+revert-proofの終了コード: 正常0、差し戻し1、検証器0。
+証拠: C:/hengband-backups/overweight-98-r2-new-pin-revert.json。
+
+記録された2盤面の判断
+011308: 重量1656、上限1650、超過6。預入・処分候補なし。
+  overweight-retained-onlyと数値・保持理由の記録を維持。公開choose_keyとfollow実行器のpinが通過。
+231603: 重量1899、上限1750、超過149。Home経路は使い切っている。
+  a/f/lの余剰重量は合計206でありsell-or-destroyを維持。
+  公開choose_keyのshop:travelとfollow実行器のpinが通過。
+対照の既存テスト: 預入候補が残る一方、経路を使い切った盤面。
+  test_retired_weight_claim_hands_off_without_an_ownerless_passは、期待値を変えずに通過。
+  保持品だけという誤った停止へ書き換えず、overweight-home-unreachableとWAIT_KEYを維持。
+これは記録の境界再生であり、実ゲームで処分が完了したとは主張しない。
+
+完了済みの初期検証
+Codex付属Python 3.12の実体を使用（WindowsAppsスタブ不使用）。
+既存の失敗1件＋新規6件: 7件、69.712秒、OK、終了コード0。
+tests.test_policy_home全体: 171件、125.923秒、OK、skip 4件、終了コード0。
+最終修正後の新規7件＋tests.test_policy_home全体: 178件、272.513秒、OK、skip 4件、終了コード0。
+preflight（基準4db110bd5）: 8 changed files、0 findings、終了コード0。
+git diff --check 4db110bd5 HEAD: 終了コード0。
+導出スコープ --target HEAD --base 4db110bd5 --derive-only: 終了コード0。
+導出9モジュール: tests.test_absorbing_states / tests.test_cli / tests.test_item_reservation /
+  tests.test_overweight_recurrence_1027 / tests.test_policy / tests.test_policy_home /
+  tests.test_policy_structure / tests.test_policy_town / tests.test_town_work_contract。
+導出lint: scripts/sale_key_lint.py / scripts/test_fakery_lint.py。
+導出スコープは前回のpython -c起動時のimportエラーを避け、同じverify_scope._test_codeと
+run_itemをファイル起動で実行する。DecisionTimingTestの既存除外規則は維持する。
+対象コミットは一時作業ツリーで固定する。
+
+最終時点の結果と未完了事項
+第2ラウンドも全検証成功・マージ可能とは扱わない。残る退行がある。
+最終ソース／テストHEAD: c9101e751c60206a1597840d75d15d15acb77f87
+指定された90分の作業上限に従い、未解決部分を明記する。
+
+最終preflight: 8 changed files、0 findings、終了コード0。
+旧HEAD 68a8a1dffのmutation_check --record --full: 終了コード0。
+  7ハンクのうち動作変更6箇所をすべて検出、説明文1箇所はTEXT ONLY。未検出0件。
+  今回の最初の分類修正を戻すと、指定された既存テストが再び失敗した。
+最終HEADの追加対照は独立差し戻し済み（正常0、差し戻し1、検証器0）。
+最終HEADのmutation_check --recordは別の全体検証のロック待ち。未完了。
+旧HEAD 68a8a1dffのfast_tier: 1900件、230.9秒、失敗・エラー・クラッシュなし、終了コード0。
+最終HEADのfast_tierは別の全体検証のロック待ち。未完了。
+待機中のガードは停止していない。後続の結果は下記ログで確認する必要がある。
+
+最終HEADの導出スコープの回収済み結果:
+  scripts/sale_key_lint.py: ran、件数該当なし、失敗識別子0件、skip 0件、4.937秒。
+  scripts/test_fakery_lint.py: failed、件数該当なし、失敗識別子13件、skip 0件、55.25秒。
+  tests.test_absorbing_states: ran、件数22、失敗識別子0件、skip 0件、562.516秒。
+  tests.test_cli: failed、件数229、失敗識別子1件、skip 0件、65.047秒。
+  tests.test_item_reservation: ran、件数17、失敗識別子0件、skip 0件、91.203秒。
+  tests.test_overweight_recurrence_1027: ran、件数7、失敗識別子0件、skip 0件、155.859秒。
+  tests.test_policy: ran、件数57、失敗識別子0件、skip 0件、19.532秒。
+  tests.test_policy_home: ran、件数171、失敗識別子0件、skip 4件、204.078秒。
+  tests.test_policy_structure: ran、件数7、失敗識別子0件、skip 0件、289.656秒。
+  tests.test_policy_town: failed、件数593、失敗識別子2件、skip 2件、986.328秒。
+  tests.test_town_work_contract: 実行中。最終HEADの完了結果未取得。
+  初回の同モジュールは1800秒でタイムアウトし、最終HEADでは3600秒に延ばして再実行した。
+  最終スコープは同じverify_scope._test_codeとrun_item・除外規則を使うファイル起動。
+  対象コミットを一時作業ツリーへ固定し、ゲーム定義をHENGBAND_MONRACE_DEFINITIONSで指定。
+  初回にあったMonraceDefinitions.jsonc未検出のエラーは、最終スコープのPolicy/Homeでは解消。
+
+残る退行: tests.test_policy_town.TownWeightDepartureRecordedTestのr1/r2。
+  最終HEADの同クラス単独でも4件中2件失敗（346.268秒）。基準では4件すべて通過。
+  r1: home:weight-overload-depositが判断列に現れない。
+  r2: decisions[84]が期待値dp+ESC/home:weight-overload-depositに対し、
+      ESC/home:scan-incomplete-open-pageとなる。既存期待値は変更していない。
+  85盤面までの診断再生では、turn 4102557の超過は7、預入候補はp,r,q,m,n,o,d,e,l,k。
+  町のHome台帳はunsatisfied_passes=5、blocked=True、記録された上限3。
+  Home訪問実行器はAPPROACHING、SCAN要求と預入要求のキューを保持し、
+  attempt_limit=300、attempts_used=3、visit_id=3。Home画面はstock_num=111、capacityなし。
+  Home知識はcurrent=False、invalidated=False。StoreVisitは別店舗のLEAVINGのまま。
+  この経路・所有状態の不一致を、共通選択器の経路枯渇判定と照合する作業が残る。
+  上記は診断境界の事実であり、修正済みの主張ではない。
+
+基準にも再現した問題:
+  tests.test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder。
+  子プロセスの5秒タイムアウト。基準4db110bd5でも同じ1件を実行し、5.656秒で同じエラー。
+  scripts/test_fakery_lint.pyの未宣言13件は既存テストの固定値13と一致。
+  verify_scope側の既知失敗数9は更新されていない。今回、その許容値や期待値を変更していない。
+  最終スコープの全成功とは扱わない。
+
+証拠（すべてC:/hengband-backups配下）:
+  overweight-98-r2-home-pins-updated.log / overweight-98-r2-preflight-updated.log
+  overweight-98-r2-base-town.log / overweight-98-r2-base-cli.log
+  overweight-98-r2-new-pin-revert.json / overweight-98-r2-new-pin-green.log / overweight-98-r2-new-pin-reverted.log
+  overweight-98-r2-mutation.log / overweight-98-r2-mutation-final.log
+  overweight-98-r2-fast.log / overweight-98-r2-fast-final.log
+  overweight-98-r2-final-scope-progress.json / overweight-98-r2-final-scope.log
+  overweight-98-r2-final-scope-stderr/ / overweight-98-r2-town-trace.jsonl
+
+報告後も実行中の検証の結果はまだ取り込んでいない。完了・成功とみなさず回収が必要。
+実行中に本レポートだけを更新したため、verify_scopeの終了時指紋は文書差分を検出する可能性がある。
+テスト対象の一時作業ツリーはc9101e751に固定しており、報告作業ではソース／テストを変更していない。
+
+保存方法: この追記はPythonのPath.write_text(encoding="utf-8")で作成した。
