@@ -173,3 +173,39 @@ fixture??????: 9b3330d91?
 - mutation_check.py . f66916c86 --tests tests.test_exclude_forest.ExcludeForestTest --record
   ??????????????????????????????????????????????????
 - fast_tier.py . f66916c86 --shards 4 ? mutation ??????????????
+
+
+【第3ラウンド：#47 出発予備費とテスト収集の修正】
+対象の開始HEAD: e34eda571。基準: f66916c86。
+
+判定は指示の(a)、実装の不具合である。既存の tests/test_store_reentry_recorded.py は一切変更しない。
+163Gは森に固有の探索費ではなく、出発時に読む帰還の巻物1枚（観測価格163G）の費用だった。
+記録入力42/834/844はいずれも保存先が森(ID 7)、通常の帰還在庫目標10枚。
+除外後、観測前の _town_recall_destination が行き先なしを返し、_supply_ledger の
+出発消費1枚の加算が落ちていた。一方、公開 choose_key は既存の _pick_alternate_dungeon により
+ID 12（記録された帰還深度22F）を選び、実際には帰還の巻物を読む出発になる。
+したがって出発在庫は10+1=11枚、帰還分の予備費は11×163=1793Gである。
+誤った10×163=1630Gとの差が163G。全体では42番: 5005+163=5168G、
+834/844番: 4420+163=4583Gとなる。古い期待値を保持するのが正しい。
+
+修正箇所:
+- src/hengbot/policy_town.py:6235: 保存先が共通の探索除外規則で拒否された場合、
+  既存の _pick_alternate_dungeon(snapshot, require_shallower=False) で安全な入場済み候補を参照する。
+  帰還先の種類とIDをその候補から返す。観測前の照会では保存状態を書き換えない。
+  候補がなければ既存の行き先なしを返し、架空の出発消費は予約しない。
+- src/hengbot/policy_supply.py:367-390（変更なし）: 上記の帰還先照会を利用する既存の出発消費加算。
+- tests/test_exclude_forest.py:25,35,197: ProductionHarnessを直接importせず
+  executor_harnessというモジュール別名経由に変更。両方のテストクラスとcommand_screenを修正。
+- tests/test_exclude_forest.py:153,171: 保存先が森でも安全な代替先があれば帰還消費1枚を確保し、
+  公開choose_keyと実行器へ進むこと、候補なしでは消費を加算しないことを固定。
+- scripts/town_producer_baseline.json / town_work_review.json と生成済みの
+  town_work_manifest.json.gz / src/hengbot/town_work_sites.json:
+  新たに町の照会から到達する代替先選択を、キー発行も独立した進捗認定も行わない
+  データ選択ヘルパーとして分類。安全性の検査や既存の禁止規則を緩めていない。
+
+P0再生についても同じ出発消費の欠落が原因で、同一の実装修正により既存期待値で通過した。
+既存の履歴入力、買い物の期待値、P0の期待値を修正していない。
+第3ラウンドではゲーム操作、他のプロセスの停止、push、merge、rebaseを行っていない。
+ログはコミット対象から除外する。本文はPythonでUTF-8として追記した。
+
+検証結果は実行完了後に以下へ追記する。
