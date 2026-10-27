@@ -320,6 +320,7 @@
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": "town producer to migrate: The income return producer names its chosen escape step.",
   "policy_fundraising.py:FundraisingMixin._fundraising_wieldable_light": "pure helper: Return a carried light that can satisfy expedition readiness.",
   "policy_fundraising.py:FundraisingMixin._leave_fundraising_floor": "town producer to migrate: _leave_fundraising_floor emits legacy action keys; requires explicit ownership migration",
+  "policy_fundraising.py:FundraisingMixin._start_fundraising_return": "delegated adapter: records an ordinary return and delegates its command to _leave_fundraising_floor; shared by opening Q1 resumption and detectionless scavenging exit, with no independent work or success credit",
   "policy_fundraising.py:FundraisingMixin._mining_closure_key": "town producer to migrate: Collect or permanently drop every detected target on this floor.",
   "policy_fundraising.py:FundraisingMixin._mining_detection_scroll_target": "pure helper: _mining_detection_scroll_target returns int used as input/observation, not an independently selected game action",
   "policy_fundraising.py:FundraisingMixin._mining_detection_stock_target": "pure helper: Scroll count shared by town purchasing and pack retention.",
