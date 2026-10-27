@@ -8,7 +8,7 @@ import os
 
 
 SAMPLE_ENV = "HENGBOT_TEST_SAMPLE"
-SAMPLED_MODULES = tuple(
+SAMPLED_MODULES = ("tests.test_town_terminal_exit_round16",) + tuple(
     f"tests.test_town_producer_purity_part{part}" for part in range(1, 7)
 )
 
