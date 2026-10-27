@@ -263,6 +263,7 @@ round 3 ???????
 
 2026-10-27 追加ラウンド: opening-route-pins / ISSUE #47
 
+更新日時: 2026-10-27T22:29:01+09:00
 作業指示: LUNA-TASK-opening-route-pins.txt（本文には #110 の記載あり）。
 目的は Q34 → 残金で採掘キット購入 → Q1 の既存分岐の検出漏れ解消。
 既存テストの期待値は変更していない。共有ハーネスはモジュール別名で参照した。
@@ -306,22 +307,38 @@ tests.test_cli 単独: 240件、21.356秒、終了コード0。
 - mutation: 実行中またはマージゲート待機中。完了判定は未取得。
 - fast-tier: 実行中またはマージゲート待機中。完了判定は未取得。
 - scope-derive: 実行中またはマージゲート待機中。完了判定は未取得。
+全差分 mutation の完了判定は未取得。現時点の caught は8差分、NOT CAUGHT は0差分。
 mutation は統合時点の main を基準に --record --full --timeout 2400 を指定。
-対象は opening_route_recorded / r2_recorded / r3_recorded / pins と tests.test_cli。
+全モジュール実行は長時間継続したため、停止せず、独立チェックアウトでも実行。
+独立実行は上記4モジュールの検出用テストと既存CLI停止説明クラスを指定した。
+正確な選択テスト一覧・HEAD・base は mutation-selected-command.json に保存。
 到達不能な特例除去後の追加ソース差分は22個。
 scope の --target HEAD は実装コミットの親との差分から6モジュールを導出した。
 最初の探索で得た302モジュールは main 統合コミット対象であり、この値で完了を主張しない。
 独立チェックアウトでの初回 scope は -c 実行とゲーム定義探索の問題を確認。
-runner を python -m unittest にし、定義参照先を与えて再実行する。
-- tests.test_opening_route_pins: ran、5.913秒、失敗集計0、skip 0。
-- tests.test_policy: failed、6.002秒、失敗集計1、skip 0。
-- tests.test_policy_fundraising: ran、2.604秒、失敗集計0、skip 0。
-- scripts/sale_key_lint.py: ran、2.684秒、失敗集計0、skip 0。
-- tests.test_policy_structure: ran、10.669秒、失敗集計0、skip 1。
-- tests.test_cli: ran、25.333秒、失敗集計0、skip 0。
-- scripts/test_fakery_lint.py: failed、22.915秒、失敗集計13、skip 0。
-- tests.test_absorbing_states: ran、216.119秒、失敗集計0、skip 0。
+定義参照先を与えて再実行し、既知の DecisionTimingTest の失敗も確認した。
+最終実行は標準 verify_scope のコードを実ファイルに保存して実行する。
+これにより __file__ を提供し、標準の DecisionTimingTest 除外もそのまま適用した。
+- tests.test_opening_route_pins: ran、6.572秒、失敗集計0、skip 0。
+- tests.test_policy: ran、7.975秒、失敗集計0、skip 0。
+- tests.test_policy_fundraising: ran、3.152秒、失敗集計0、skip 0。
+- scripts/sale_key_lint.py: ran、2.908秒、失敗集計0、skip 0。
+- tests.test_cli: ran、20.043秒、失敗集計0、skip 0。
+- scripts/test_fakery_lint.py: failed、25.964秒、失敗集計0、skip 0。
+- tests.test_policy_structure: ran、176.797秒、失敗集計0、skip 0。
+- tests.test_absorbing_states: ran、294.25秒、失敗集計0、skip 0。
+scope最終: 6モジュール370テスト、失敗0・skip 0。CLIの11件は標準除外に従う。
+指定の verify_scope.py --target HEAD --derive-only: 終了コード0。
+lintの基準比較: main 13件・本ブランチ13件、追加0件・削除0件。
+verify_scopeの旧allowance 9件とは一致しないが、13件の内容は全て基準と同一。
+独立 fast_tier: 終了コード1、157.47秒、HEAD 3b5f43f3ab136c1bb36c7496bd2b167b4585cb6a。
+fast_tier初回: 1,620件、失敗0・エラー9。独立チェックアウトの町定義不足が原因。
+lib/editを補った再実行は fast-tier-final.log に保存。新たなマージゲートの待機に入った。
 
 別セッションのマージゲート待機は指示どおり停止しない。
 未完了の検証を成功扱いしない。ログと集計は同じ validation ディレクトリへ保存する。
 ゲーム/BOTの起動停止、push、PR投稿は実施していない。
+指定の作業時間上限内で、この時点の結果を保存して今回の対話での作業を終了する。
+MUTATION OK と fast_tier 成功を含む全完了条件はまだ満たしていない。
+実行中および待機中の guard は停止していない。
+mutation が単独差分を戻している間の src/ の変更は、その guard が復元を管理する。

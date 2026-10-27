@@ -1,0 +1,112 @@
+{
+  "head": "eb3ce7da643629a1a65553aa3bc523fbda049ed8",
+  "base": "0cf1fbf3301e518433a3330c7bb30e3e3b1623e9",
+  "python": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
+  "derived": {
+    "paths": [
+      "scripts/town_work_manifest.json.gz",
+      "src/hengbot/policy_fundraising.py",
+      "tests/test_opening_route_pins.py",
+      "validation/opening-route-pins-20261027/revert_pins.py"
+    ],
+    "symbols": {
+      "src/hengbot/policy_fundraising.py": [
+        "FundraisingMixin"
+      ]
+    },
+    "modules": [
+      "tests.test_absorbing_states",
+      "tests.test_cli",
+      "tests.test_opening_route_pins",
+      "tests.test_policy",
+      "tests.test_policy_fundraising",
+      "tests.test_policy_structure"
+    ],
+    "lints": [
+      "scripts/sale_key_lint.py",
+      "scripts/test_fakery_lint.py"
+    ]
+  },
+  "modules": {
+    "tests.test_opening_route_pins": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 6.572,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/tests.test_opening_route_pins.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 7.975,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/tests.test_policy.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_fundraising": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 3.152,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/tests.test_policy_fundraising.stderr.log",
+      "known_failures": []
+    },
+    "scripts/sale_key_lint.py": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 2.908,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/scripts_sale_key_lint.py.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_cli": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 20.043,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/tests.test_cli.stderr.log",
+      "known_failures": []
+    },
+    "scripts/test_fakery_lint.py": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 25.964,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/scripts_test_fakery_lint.py.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_structure": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 176.797,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/tests.test_policy_structure.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_absorbing_states": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 294.25,
+      "stderr_path": "validation/opening-route-pins-20261027/scope-logs/tests.test_absorbing_states.stderr.log",
+      "known_failures": []
+    }
+  }
+}

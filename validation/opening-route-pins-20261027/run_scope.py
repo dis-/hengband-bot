@@ -36,8 +36,13 @@ def main():
     try:
         scope_tool.git(ROOT, "worktree", "add", "--detach", str(checkout), head)
         scope_tool.copy_runtime_artifacts(ROOT, checkout)
-        work = [(m, [sys.executable, "-m", "unittest", "-v", m])
-                for m in scope["modules"]]
+        work = []
+        for module in scope["modules"]:
+            # The official runner excludes DecisionTimingTest. Give its exact
+            # code a real __file__, needed by the existing CLI test harness.
+            runner = checkout / (".scope-" + module + ".py")
+            runner.write_text(scope_tool._test_code(module), encoding="utf8")
+            work.append((module, [sys.executable, str(runner)]))
         work.extend((m, [sys.executable, m]) for m in scope["lints"])
         def run(module, command):
             if module.startswith("scripts/"):

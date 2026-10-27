@@ -1,0 +1,51 @@
+{
+  "head": "2399220372a2d2a514652c2e980f86b203b35921",
+  "base": "c07307c4709383f8489e02f566913cea65c605df",
+  "python": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
+  "derived": {
+    "paths": [
+      "validation/opening-route-pins-20261027/cli-baseline.log",
+      "validation/opening-route-pins-20261027/revert-pins.log"
+    ],
+    "symbols": {},
+    "modules": [
+      "tests.test_policy"
+    ],
+    "lints": [
+      "scripts/sale_key_lint.py",
+      "scripts/test_fakery_lint.py"
+    ]
+  },
+  "modules": {
+    "scripts/sale_key_lint.py": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 2.459,
+      "stderr_path": "validation/opening-route-pins-20261027/main-baseline-logs/scripts_sale_key_lint.py.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 14.715,
+      "stderr_path": "validation/opening-route-pins-20261027/main-baseline-logs/tests.test_policy.stderr.log",
+      "known_failures": []
+    },
+    "scripts/test_fakery_lint.py": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 35.083,
+      "stderr_path": "validation/opening-route-pins-20261027/main-baseline-logs/scripts_test_fakery_lint.py.stderr.log",
+      "known_failures": []
+    }
+  }
+}
