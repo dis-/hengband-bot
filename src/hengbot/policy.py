@@ -10886,6 +10886,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             immobile_summoner = self._town_producer_entry(
                 "_immobile_summoner_key",
                 lambda: self._immobile_summoner_key(snapshot, physical_hostiles),
+                board=snapshot,
             )
             if immobile_summoner is not None:
                 return immobile_summoner
