@@ -1,0 +1,125 @@
+test_recorded_concatenated_failure_completes_with_named_refusal (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_recorded_concatenated_failure_completes_with_named_refusal) ... <stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned item-source: (持ち物:a-z, ESC) どの杖を使いますか?
+FAIL
+test_recorded_repeated_failure_outside_delta_completes (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_recorded_repeated_failure_outside_delta_completes) ... <stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned item-source: (持ち物:a-z, ESC) どの杖を使いますか?
+FAIL
+test_repetition_suffix_in_fresh_delta_is_recognized (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_repetition_suffix_in_fresh_delta_is_recognized) ... <stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned item-source: (持ち物:a-z, ESC) どの杖を使いますか?
+FAIL
+test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) ... <stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned item-source: (Inven:a-z, ESC) Use which staff?
+
+  test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:dungeon-equipment', japanese=False) ... FAIL
+<stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned item-source: (持ち物:a-z, ESC) どの杖を使いますか?
+  test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:dungeon-equipment', japanese=True) ... FAIL
+<stuck-prompt> owner=identify:pack-pressure phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned item-source: (Inven:a-z, ESC) Use which staff?
+  test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:pack-pressure', japanese=False) ... FAIL
+<stuck-prompt> owner=identify:pack-pressure phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned item-source: (持ち物:a-z, ESC) どの杖を使いますか?
+  test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:pack-pressure', japanese=True) ... FAIL
+
+======================================================================
+FAIL: test_recorded_concatenated_failure_completes_with_named_refusal (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_recorded_concatenated_failure_completes_with_named_refusal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_identify_tail_recorded.py", line 124, in test_recorded_concatenated_failure_completes_with_named_refusal
+    self.assertEqual(game.accepted, ["u", "g"])
+AssertionError: Lists differ: ['u'] != ['u', 'g']
+
+Second list contains 1 additional elements.
+First extra element 1:
+'g'
+
+- ['u']
++ ['u', 'g']
+
+======================================================================
+FAIL: test_recorded_repeated_failure_outside_delta_completes (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_recorded_repeated_failure_outside_delta_completes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_identify_tail_recorded.py", line 133, in test_recorded_repeated_failure_outside_delta_completes
+    self.assertEqual(game.accepted, ["u", "g"])
+AssertionError: Lists differ: ['u'] != ['u', 'g']
+
+Second list contains 1 additional elements.
+First extra element 1:
+'g'
+
+- ['u']
++ ['u', 'g']
+
+======================================================================
+FAIL: test_repetition_suffix_in_fresh_delta_is_recognized (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_repetition_suffix_in_fresh_delta_is_recognized)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_identify_tail_recorded.py", line 148, in test_repetition_suffix_in_fresh_delta_is_recognized
+    self.assertEqual(game.accepted, ["u", "g"])
+AssertionError: Lists differ: ['u'] != ['u', 'g']
+
+Second list contains 1 additional elements.
+First extra element 1:
+'g'
+
+- ['u']
++ ['u', 'g']
+
+======================================================================
+FAIL: test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:dungeon-equipment', japanese=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_identify_tail_recorded.py", line 164, in test_dungeon_and_pressure_rebind_visible_target_for_both_languages
+    self.assertEqual(game.accepted, ["u", "g", "k"])
+AssertionError: Lists differ: ['u'] != ['u', 'g', 'k']
+
+Second list contains 2 additional elements.
+First extra element 1:
+'g'
+
+- ['u']
++ ['u', 'g', 'k']
+
+======================================================================
+FAIL: test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:dungeon-equipment', japanese=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_identify_tail_recorded.py", line 164, in test_dungeon_and_pressure_rebind_visible_target_for_both_languages
+    self.assertEqual(game.accepted, ["u", "g", "k"])
+AssertionError: Lists differ: ['u'] != ['u', 'g', 'k']
+
+Second list contains 2 additional elements.
+First extra element 1:
+'g'
+
+- ['u']
++ ['u', 'g', 'k']
+
+======================================================================
+FAIL: test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:pack-pressure', japanese=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_identify_tail_recorded.py", line 164, in test_dungeon_and_pressure_rebind_visible_target_for_both_languages
+    self.assertEqual(game.accepted, ["u", "g", "k"])
+AssertionError: Lists differ: ['u'] != ['u', 'g', 'k']
+
+Second list contains 2 additional elements.
+First extra element 1:
+'g'
+
+- ['u']
++ ['u', 'g', 'k']
+
+======================================================================
+FAIL: test_dungeon_and_pressure_rebind_visible_target_for_both_languages (tests.test_identify_tail_recorded.IdentifyTailRecordedPin.test_dungeon_and_pressure_rebind_visible_target_for_both_languages) (owner='identify:pack-pressure', japanese=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_identify_tail_recorded.py", line 164, in test_dungeon_and_pressure_rebind_visible_target_for_both_languages
+    self.assertEqual(game.accepted, ["u", "g", "k"])
+AssertionError: Lists differ: ['u'] != ['u', 'g', 'k']
+
+Second list contains 2 additional elements.
+First extra element 1:
+'g'
+
+- ['u']
++ ['u', 'g', 'k']
+
+----------------------------------------------------------------------
+Ran 4 tests in 3.071s
+
+FAILED (failures=7)

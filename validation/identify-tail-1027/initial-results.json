@@ -1,0 +1,19 @@
+{
+  "head": "413e1e2b73287aa1203e463a5f6bbc84de9c2f9b",
+  "base": "726627a6b",
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "stages": {
+    "preflight": {
+      "exit": 0,
+      "seconds": 321.41
+    },
+    "derive": {
+      "exit": 0,
+      "seconds": 58.88
+    },
+    "fast-tier": {
+      "exit": 1,
+      "seconds": 180.88
+    }
+  }
+}

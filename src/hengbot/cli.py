@@ -93,6 +93,7 @@ from hengbot.ownership_metrics import (
 from hengbot.save_archive import LIVE_SAVE_PATH, SaveArchiveCoordinator
 from hengbot.spectator import SPECTATE_BACKLOG_POLL_SECONDS, SpectatorWriter
 from hengbot.input_executor import (
+    CARRIED_IDENTIFY_OWNERS,
     FLOOR_PICKUP_PROMPT_PATTERN,
     Continuation,
     Operation,
@@ -3176,8 +3177,8 @@ def _send_prompt_gated_decision_key(
                 # never bundle the historical blind ESC dismissal tail with
                 # the target selection.
                 segment = segment[:1]
-            if decision is not None and decision.get("reason") in {
-                    "identify:full-equipped", "identify:normal"}:
+            if decision is not None and decision.get("reason") in (
+                    CARRIED_IDENTIFY_OWNERS | {"identify:full-equipped"}):
                 # The current screen is authoritative, including its language.
                 # A resumed process may have a different prompt_japanese setting.
                 prompt = prompts

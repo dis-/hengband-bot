@@ -1,0 +1,8 @@
+test_captured_wake_interruption_completes_and_drops_target_tail (test_identify_wake_interrupt_20261017.IdentifyWakeInterruptPins.test_captured_wake_interruption_completes_and_drops_target_tail) ... ok
+test_unrelated_absent_prompt_still_stops_visibly (test_identify_wake_interrupt_20261017.IdentifyWakeInterruptPins.test_unrelated_absent_prompt_still_stops_visibly) ... ok
+test_wake_message_with_consumed_staff_charge_is_not_completion_evidence (test_identify_wake_interrupt_20261017.IdentifyWakeInterruptPins.test_wake_message_with_consumed_staff_charge_is_not_completion_evidence) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.042s
+
+OK

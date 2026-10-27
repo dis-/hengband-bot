@@ -1,0 +1,20 @@
+test_home_knowledge_scan (unittest.loader._FailedTest.test_home_knowledge_scan) ... ERROR
+
+======================================================================
+ERROR: test_home_knowledge_scan (unittest.loader._FailedTest.test_home_knowledge_scan)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_home_knowledge_scan
+Traceback (most recent call last):
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\loader.py", line 137, in loadTestsFromName
+    module = __import__(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_home_knowledge_scan.py", line 1, in <module>
+    import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+    ^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'tests'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (errors=1)

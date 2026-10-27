@@ -1,0 +1,14 @@
+test_budget_stats_unprunable_bulk_only_once_during_deletion_loop (tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop) ... FAIL
+
+======================================================================
+FAIL: test_budget_stats_unprunable_bulk_only_once_during_deletion_loop (tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_flight_recorder.py", line 425, in test_budget_stats_unprunable_bulk_only_once_during_deletion_loop
+    self.assertEqual(bulk_stats, 4)
+AssertionError: 5 != 4
+
+----------------------------------------------------------------------
+Ran 1 test in 0.041s
+
+FAILED (failures=1)
