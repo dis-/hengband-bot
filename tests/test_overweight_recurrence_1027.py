@@ -141,10 +141,10 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
 
     def test_legal_partial_relief_is_used_before_retained_weight_is_named(self):
         policy, snapshot = self.replay(1)
-        # CONSTRUCTED: the installed armor weighs 300 more. The original
+        # CONSTRUCTED: the installed armor weighs 600 more. The original
         # legal surplus cannot clear this overload, but must still be shed.
         snapshot = replace(snapshot, equipment=tuple(
-            replace(item, weight=item.weight + 300) if item.slot == "body" else item
+            replace(item, weight=item.weight + 600) if item.slot == "body" else item
             for item in snapshot.equipment))
         relief = policy._weight_relief_selection(snapshot)
         self.assertEqual(relief.route, "sell-or-destroy")
