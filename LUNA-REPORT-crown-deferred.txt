@@ -38,3 +38,30 @@ ISSUE #47 冠・保留装備の修正報告
 
 操作範囲
 ゲーム・BOTの操作、他者のプロセス停止、push、merge、rebase、reset --hard、stashは実施していない。ローカル検証のガードが別の全体検証を検知したため待機した。自分で起動した待機中のfast-tierだけを一度停止して後で再実行し、ソースを一時反転するmutation検証と同時実行にならないよう順序を調整した。
+
+
+第2ラウンド（2026-10-27、ISSUE #47）
+基準: 4db110bd5。検証対象ソースHEAD: cff5a2e43。
+
+判断と修正
+選択肢(a)として修正した。live27の選択セットはWar Hammerを主手にして副手を空けるが、実物のWar Hammerには抑制銘がまだない。第1ラウンドの投影は両手を現在の構成へ戻しながら、弓だけのHome交換を計画していた。この盤面の次の仕事は手持ちWar Hammerへの抑制銘であり、その前提が残ったまま部分セットのHomeセッションを開始すべきではない。
+既存の _random_teleport_suppression_actionable を使い、抑制を現在実行できる間は transaction=None を維持する。抑制を今は実行できない鑑定保留品については、第1ラウンドの物理スロット依存を調べる投影で、独立した準備済み装備を先行させる。実行可能な抑制銘を先に済ませれば、実物の銘の変化で最適化入力が更新され、通常の取引計画へ進める。
+修正箇所: src/hengbot/policy_equipment.py:1547。既存の判定定義: src/hengbot/policy.py:16955。既存live27ピン: tests/test_xbow_pref_recorded_divergence.py:202。
+既存テストの期待値は変更していない。新規ピンは追加せず、問題を検出していた既存の記録ピンをそのまま回帰検証に用いた。共有ハーネスの追加参照、キーの += 組立、新しい数値基準はない。
+
+取り込みとコミット
+第2ラウンドで明示された指示に従って4db110bd5を取り込んだ。登録JSONは双方の追加キーを保持し、生成マニフェストと実行時索引は生成器で再生成した。
+・c97070387: 基準の取り込み。
+・cff5a2e43: 実装と生成物を先行コミット。
+
+確定した検証結果
+・Windowsの実体Python 3.13.14、PYTHONPATH=src;tests。WindowsAppsのスタブは使っていない。
+・tests.test_crown_deferred（8件）と tests.test_xbow_pref_recorded_divergence（3件）: 計11件、374.994秒、unittest結果OK。PowerShellの標準エラーリダイレクトはNativeCommandErrorとして外側を終了コード1と報告したため、シェル全体の終了コード0とは記載しない。
+・冠・指輪の取り出しと装備、鎧の鑑定後の追加装備、キャッシュ再計画・空計画のblocker保持・指輪の独立性を維持した。
+・live27は最初の分岐index=11、key={g.\r、reason=equipment:suppress-random-teleport、actions=Noneで既存ピンを通過。tpstockoutとclassC2の通常交換もWindowsでは成功した。
+・Linux検証環境で上記ソースHEADと基準4db110bd5の既存6モジュールを比較。比較検証の終了コード0、新規失敗0件。test_cli、test_policy_structure、test_policy_equipmentは両側で終了コード0。test_absorbing_statesは11件、test_policyは1件、test_xbow_pref_recorded_divergenceは2件の同じ失敗が両側にあり、各モジュール終了コード1。クロスボウのLinux失敗はclassC2とtpstockoutで、live27の失敗ではない。全6モジュールが無条件に成功したとは扱わない。
+・git diff --check 4db110bd5 HEAD: 成功。
+
+検査の進行状況（最終追記で確定）
+preflight、verify_scopeの導出、およびmutation_check --recordとfast_tierを基準4db110bd5で起動した。mutationとfast-tierは共有の全体検証を検出し、ガードの指示で待機中。ガードを迂回していない。他者のプロセスやゲーム・BOTは操作していない。
+検証ログはC:/hengband-backups/crown-r2-*.logおよび同名JSONへ保存し、コミット対象から外した。
