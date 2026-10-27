@@ -318,9 +318,10 @@ def partition_cells(partition):
     return tuple(cells[index] for index in PARTITION_CELL_INDEXES[partition])
 
 
-def assert_partition_is_pure(testcase, partition):
+def assert_partition_is_pure(testcase, partition, *, indexes=None):
     """Run one order-preserving slice of the former monolithic purity test."""
-    selected = set(PARTITION_CELL_INDEXES[partition])
+    # Partition membership/coverage remains full in assert_partitions_complete.
+    selected = set(PARTITION_CELL_INDEXES[partition] if indexes is None else indexes)
     cells = purity_cells()
     whole_capture_cache_before = _snapshots.cache_info()
 

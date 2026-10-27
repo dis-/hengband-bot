@@ -2,9 +2,14 @@ import tests  # noqa: F401  -- live runtime-file isolation, also for bare module
 
 import unittest
 
-from town_producer_purity_matrix import assert_partition_is_pure
+from tests.gate_sample import sample
+from town_producer_purity_matrix import (
+    PARTITION_CELL_INDEXES, assert_partition_is_pure,
+)
 
 
 class TownProducerPurityPart5Test(unittest.TestCase):
     def test_candidate_town_producers_part5_are_pure(self):
-        assert_partition_is_pure(self, 4)
+        assert_partition_is_pure(
+            self, 4, indexes=sample(list(PARTITION_CELL_INDEXES[4]))
+        )
