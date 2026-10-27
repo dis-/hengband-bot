@@ -4820,7 +4820,7 @@
       "store-exit"
     ],
     "delegation": "_leave_fundraising_floor; no independent progress",
-    "ast_sha256": "5de84facedc4a68f9a4736982d35c64ece39cff7d4628eb3582130795ed37031"
+    "ast_sha256": "8cb1058f4e8dd4b7b6b8f76f2ad9a83e57475f71e274cc82e72825e9551f122c"
   },
   "policy_fundraising.py:FundraisingMixin._tunnel_step_toward": {
     "classification": "adapter",
