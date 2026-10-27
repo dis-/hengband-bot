@@ -704,13 +704,11 @@ def _expected_prompt_absence_is_complete(
         match = re.fullmatch(re.escape(ending) + r"(?: <x([2-9]|[1-9][0-9]{1,3})>)?", str(message))
         return int(match[1] or 1) if match else 0
 
-    rows = screen.get("lines", ())
-    row0 = str(rows[0]).rstrip() if rows else ""
+    messages = _operation_messages(screen, board)
     before_history = (before_state or {}).get("messages", ())
     after_history = (after_state or {}).get("messages", ())
     if any(
-        row0.startswith(ending)
-        or any(repeat_count(message, ending) for message in board.get("messages", ()))
+        any(message.startswith(ending) for message in messages)
         or (before_history and repeat_count(before_history[-1], ending)
             and next((count for message in reversed(after_history)
                       if (count := repeat_count(message, ending))), 0)
