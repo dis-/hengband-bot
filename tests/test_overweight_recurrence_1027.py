@@ -153,6 +153,7 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         # CONSTRUCTED: all buyers refused the empty staff, its destruction
         # was posted, and the unchanged board exhausted the existing wait.
         policy._town_blocked_reason = None
+        policy._store_sale_refused.update((0, 1, 2, 3, 4, 5, 6, 8))
         staff = next(item for item in snapshot.inventory if item.slot == "l")
         pending = dict(identity=policy._sale_item_identity(staff), before_count=staff.count,
                        posted=True, mode="destroy", waits=STORE_STUCK_LIMIT - 1)
