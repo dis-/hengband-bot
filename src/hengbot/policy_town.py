@@ -5909,13 +5909,15 @@ class TownMixin:
                 and self._inventory_overweight(snapshot)):
             relief = self._weight_relief_selection(snapshot)
             if (relief.route == "sell-or-destroy"
-                    and self._overweight_surplus_disposal is None):
+                    and (self._overweight_surplus_disposal is None
+                         or self._town_blocked_reason != "overweight-home-full-no-legal-relief")):
                 # Home's exhausted route does not exhaust legal carried
                 # surplus. Hand it to the same producer the need router uses.
                 self._town_blocked_reason = None
-                self._overweight_surplus_disposal = {
-                    "town": self._effective_town_id(snapshot),
-                }
+                if self._overweight_surplus_disposal is None:
+                    self._overweight_surplus_disposal = {
+                        "town": self._effective_town_id(snapshot),
+                    }
                 return self._town_producer_entry(
                     "_overweight_surplus_sale_key",
                     lambda: self._overweight_surplus_sale_key(snapshot),
