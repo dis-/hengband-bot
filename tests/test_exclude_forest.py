@@ -150,14 +150,33 @@ class ExcludeForestTest(executor_harness.ProductionHarness):
                 self.assertEqual(policy._target_dungeon_reason, "safe_fallback")
                 self._post(key, policy.last_reason)
 
-    def test_recall_chooser_rejects_exclusion_even_without_optional_safety_gates(self):
+    def test_retained_exclusion_reserves_the_alternate_departure_scroll(self):
         policy = self._policy()
         board = self._board()
-        policy._target_dungeon_id = 7
+        policy._target_dungeon_id = FOREST
+        policy._deepest_level = 24
         for safety in (False, True):
             for guardian in (False, True):
-                self.assertIsNone(policy._town_recall_destination(
-                    board, safety_gate=safety, guardian_gate=guardian)[0])
+                self.assertEqual(policy._town_recall_destination(
+                    board, safety_gate=safety, guardian_gate=guardian),
+                    ("alt-dungeon", 3))
+        # Departure planning is read-only until the next public decision.
+        self.assertEqual(policy._target_dungeon_id, FOREST)
+        status = policy._supply_ledger(board, policy._planned_depth())["recall"]
+        self.assertEqual(status.required_departure, status.required_return + 1)
+        key = policy.choose_key(board)
+        self.assertEqual(policy._target_dungeon_id, 3)
+        self._post(key, policy.last_reason)
+
+    def test_retained_exclusion_without_alternate_does_not_reserve_a_read(self):
+        policy = self._policy()
+        policy._target_dungeon_id = FOREST
+        policy._deepest_level = 24
+        board = replace(self._board(), entered_dungeon_ids=(FOREST,))
+        self.assertIsNone(policy._town_recall_destination(
+            board, safety_gate=False, guardian_gate=False)[0])
+        status = policy._supply_ledger(board, policy._planned_depth())["recall"]
+        self.assertEqual(status.required_departure, status.required_return)
 
     def test_fundraising_modes_keep_the_existing_yeek_destination(self):
         # Mining/scavenging already select only Yeek Cave. They never selected

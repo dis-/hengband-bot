@@ -6232,20 +6232,30 @@ class TownMixin:
 
         recall_dest = None
         recall_dungeon_id = self._target_dungeon_id
+        if not exploration_destination_allowed(recall_dungeon_id):
+            # A retained destination can be queried for departure supplies
+            # before observe replaces it. Budget the scroll read for the same
+            # safe alternate; exclusion does not turn that trip into a walk.
+            alternate = self._pick_alternate_dungeon(
+                snapshot, require_shallower=False,
+            )
+            if alternate is None:
+                return None, recall_dungeon_id
+            recall_dungeon_id = alternate
         if (
-            self._target_dungeon_id == DUNGEON_ANGBAND
+            recall_dungeon_id == DUNGEON_ANGBAND
             and snapshot.angband_recall_unlocked
             and safe(DUNGEON_ANGBAND)
         ):
             recall_dest = "angband"
         elif (
-            self._target_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
-            and self._target_dungeon_id in snapshot.entered_dungeon_ids
-            and safe(self._target_dungeon_id)
+            recall_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
+            and recall_dungeon_id in snapshot.entered_dungeon_ids
+            and safe(recall_dungeon_id)
         ):
             recall_dest = "alt-dungeon"
         elif (
-            self._target_dungeon_id == DUNGEON_YEEK_CAVE
+            recall_dungeon_id == DUNGEON_YEEK_CAVE
             and self._fundraising_mode not in {"mine", "scavenge"}
             and not self._taken_kill_quest_requires_walk_in(snapshot)
             and self._deepest_level >= RECALL_MIN_DEPTH
