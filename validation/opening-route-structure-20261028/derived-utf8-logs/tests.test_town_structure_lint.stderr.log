@@ -1,0 +1,24 @@
+test_alias_callback_and_opaque_return_paths_are_default_deny (test_town_structure_lint.TownStructureLintTest.test_alias_callback_and_opaque_return_paths_are_default_deny) ... ok
+test_ancestor_with_non_mixin_name_is_scanned (test_town_structure_lint.TownStructureLintTest.test_ancestor_with_non_mixin_name_is_scanned) ... ok
+test_empty_or_unreviewed_baseline_reasons_fail (test_town_structure_lint.TownStructureLintTest.test_empty_or_unreviewed_baseline_reasons_fail) ... ok
+test_explicit_non_item_intent_reason_and_staleness (test_town_structure_lint.TownStructureLintTest.test_explicit_non_item_intent_reason_and_staleness) ... ok
+test_method_alias_of_new_producer_is_default_deny (test_town_structure_lint.TownStructureLintTest.test_method_alias_of_new_producer_is_default_deny) ... ok
+test_module_alias_of_new_producer_is_default_deny (test_town_structure_lint.TownStructureLintTest.test_module_alias_of_new_producer_is_default_deny) ... ok
+test_mutations_in_actual_repository_town_paths (test_town_structure_lint.TownStructureLintTest.test_mutations_in_actual_repository_town_paths) ... ok
+test_new_pending_signature_attribute_mutation (test_town_structure_lint.TownStructureLintTest.test_new_pending_signature_attribute_mutation) ... ok
+test_registered_source_requires_composed_component (test_town_structure_lint.TownStructureLintTest.test_registered_source_requires_composed_component) ... ok
+test_registration_requires_both_marker_and_ladder (test_town_structure_lint.TownStructureLintTest.test_registration_requires_both_marker_and_ladder) ... ok
+test_relative_import_mixin_is_included (test_town_structure_lint.TownStructureLintTest.test_relative_import_mixin_is_included) ... ok
+test_relative_package_import_and_callback_alias_are_resolved (test_town_structure_lint.TownStructureLintTest.test_relative_package_import_and_callback_alias_are_resolved) ... ok
+test_repository_exact_reviewed_baselines (test_town_structure_lint.TownStructureLintTest.test_repository_exact_reviewed_baselines) ... ok
+test_reverse_import_driver_is_not_a_policy_descendant (test_town_structure_lint.TownStructureLintTest.test_reverse_import_driver_is_not_a_policy_descendant) ... ok
+test_signature_identity_and_typed_item_without_pending_name (test_town_structure_lint.TownStructureLintTest.test_signature_identity_and_typed_item_without_pending_name) ... ok
+test_signature_parameter_slot_and_dictionary_key_intents (test_town_structure_lint.TownStructureLintTest.test_signature_parameter_slot_and_dictionary_key_intents) ... ok
+test_stale_producer_baseline_entry_fails (test_town_structure_lint.TownStructureLintTest.test_stale_producer_baseline_entry_fails) ... ok
+test_subpackage_and_import_alias_producer_is_included (test_town_structure_lint.TownStructureLintTest.test_subpackage_and_import_alias_producer_is_included) ... ok
+test_undecorated_town_wait_producer_mutation (test_town_structure_lint.TownStructureLintTest.test_undecorated_town_wait_producer_mutation) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 179.956s
+
+OK

@@ -1,0 +1,18 @@
+test_p1a_incident_shaped_constructed_item_has_live_provenance (test_destroy_procurement_guard.DestroyProcurementGuardTest.test_p1a_incident_shaped_constructed_item_has_live_provenance)
+PUBLIC-shape differential: HEAD destroys; patch/relevant revert refuse/restore HEAD. ... ok
+test_p1b_verified_gate_refuses_active_consumable (test_destroy_procurement_guard.DestroyProcurementGuardTest.test_p1b_verified_gate_refuses_active_consumable)
+SEAM: supplies finder and surplus=True; public prefilter masks this gate. ... ok
+test_p1c_overflow_selection_excludes_active_consumable (test_destroy_procurement_guard.DestroyProcurementGuardTest.test_p1c_overflow_selection_excludes_active_consumable)
+SEAM: calls selection directly because the verified gate masks selection errors. ... ok
+test_p3a_town_producer_refuses_procurement_protected_nominee (test_destroy_procurement_guard.DestroyProcurementGuardTest.test_p3a_town_producer_refuses_procurement_protected_nominee)
+SEAM: public dominated selection excludes protected nominees before this producer. ... ok
+test_p3b_home_producer_refuses_procurement_protected_nominee (test_destroy_procurement_guard.DestroyProcurementGuardTest.test_p3b_home_producer_refuses_procurement_protected_nominee)
+SEAM: public Home approval cannot nominate an identification-protected item. ... ok
+test_p3c_overflow_terminal_is_registered_with_exact_banner (test_destroy_procurement_guard.DestroyProcurementGuardTest.test_p3c_overflow_terminal_is_registered_with_exact_banner) ... ok
+test_p3c_public_choose_key_protected_overflow_and_controls (test_destroy_procurement_guard.DestroyProcurementGuardTest.test_p3c_public_choose_key_protected_overflow_and_controls)
+PUBLIC constructed response-free producer: free=3 stops; free=4 certifies; legal item destroys. ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.912s
+
+OK

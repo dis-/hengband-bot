@@ -1,0 +1,9 @@
+test_both_captured_boards_post_verified_ordinary_buy_then_blocker (test_shop_uncomposable_recorded.ShopUncomposableRecordedTest.test_both_captured_boards_post_verified_ordinary_buy_then_blocker) ... ok
+test_emitted_key_must_be_rebuilt_exactly_from_the_visible_row (test_shop_uncomposable_recorded.ShopUncomposableRecordedTest.test_emitted_key_must_be_rebuilt_exactly_from_the_visible_row) ... ok
+test_emitted_row_must_be_the_pure_ordinary_selection (test_shop_uncomposable_recorded.ShopUncomposableRecordedTest.test_emitted_row_must_be_the_pure_ordinary_selection) ... ok
+test_unverifiable_emitted_row_keeps_visible_uncomposable_stop (test_shop_uncomposable_recorded.ShopUncomposableRecordedTest.test_unverifiable_emitted_row_keeps_visible_uncomposable_stop) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.240s
+
+OK

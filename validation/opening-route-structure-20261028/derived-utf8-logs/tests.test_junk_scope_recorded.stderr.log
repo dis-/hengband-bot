@@ -1,0 +1,22 @@
+test_control_books_stay_for_a_class_that_reads_them (test_junk_scope_recorded.JunkScopeRecordedTest.test_control_books_stay_for_a_class_that_reads_them) ... ok
+test_control_full_home_never_discards_a_third_book (test_junk_scope_recorded.JunkScopeRecordedTest.test_control_full_home_never_discards_a_third_book) ... ok
+test_control_quest_reserved_bolts_stay_with_a_sling (test_junk_scope_recorded.JunkScopeRecordedTest.test_control_quest_reserved_bolts_stay_with_a_sling) ... ok
+test_control_return_start_keeps_non_junk (test_junk_scope_recorded.JunkScopeRecordedTest.test_control_return_start_keeps_non_junk) ... ok
+test_exchange_never_offers_a_third_book (test_junk_scope_recorded.JunkScopeRecordedTest.test_exchange_never_offers_a_third_book) ... ok
+test_floor_bolt_pile_is_not_loot_with_a_sling_worn (test_junk_scope_recorded.JunkScopeRecordedTest.test_floor_bolt_pile_is_not_loot_with_a_sling_worn) ... ok
+test_full_home_destroys_a_cursed_armour_before_any_sale (test_junk_scope_recorded.JunkScopeRecordedTest.test_full_home_destroys_a_cursed_armour_before_any_sale) ... ok
+test_full_home_destroys_an_unusable_book_before_any_sale (test_junk_scope_recorded.JunkScopeRecordedTest.test_full_home_destroys_an_unusable_book_before_any_sale) ... ok
+test_full_home_ranks_every_junk_class_as_auto_destroy (test_junk_scope_recorded.JunkScopeRecordedTest.test_full_home_ranks_every_junk_class_as_auto_destroy) ... ok
+test_invariant_supplies_worn_and_reserved_items_are_never_junk (test_junk_scope_recorded.JunkScopeRecordedTest.test_invariant_supplies_worn_and_reserved_items_are_never_junk) ... ok
+test_junk_class_names_each_class_on_the_recorded_board (test_junk_scope_recorded.JunkScopeRecordedTest.test_junk_class_names_each_class_on_the_recorded_board) ... ok
+test_overflow_cursed_first_skips_a_cursed_artifact (test_junk_scope_recorded.JunkScopeRecordedTest.test_overflow_cursed_first_skips_a_cursed_artifact) ... ok
+test_pre_junk_scope_wall_restores_the_recorded_overflow_choice (test_junk_scope_recorded.JunkScopeRecordedTest.test_pre_junk_scope_wall_restores_the_recorded_overflow_choice) ... ok
+test_return_start_destroys_bolts_for_an_unworn_launcher (test_junk_scope_recorded.JunkScopeRecordedTest.test_return_start_destroys_bolts_for_an_unworn_launcher) ... ok
+test_return_start_destroys_each_carried_junk_class (test_junk_scope_recorded.JunkScopeRecordedTest.test_return_start_destroys_each_carried_junk_class) ... ok
+test_unused_ammo_follows_the_worn_launcher_only (test_junk_scope_recorded.JunkScopeRecordedTest.test_unused_ammo_follows_the_worn_launcher_only) ... ok
+test_zero_base_kinds_match_the_game_definitions (test_junk_scope_recorded.JunkScopeRecordedTest.test_zero_base_kinds_match_the_game_definitions) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 195.594s
+
+OK

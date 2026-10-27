@@ -1,0 +1,23 @@
+test_admitted_route_new_minimum_resets_but_bounce_and_new_target_do_not (test_owner_retirement_slice1.BurstTest.test_admitted_route_new_minimum_resets_but_bounce_and_new_target_do_not) ... ok
+test_bookkeeping_retirements_never_count_toward_the_burst (test_owner_retirement_slice1.BurstTest.test_bookkeeping_retirements_never_count_toward_the_burst)
+Live 2026-10-09 01:01-01:02 (owner-retired-log-only.jsonl, capture ... ok
+test_hidden_retirement_does_not_swallow_a_typed_contract_stop (test_owner_retirement_slice1.BurstTest.test_hidden_retirement_does_not_swallow_a_typed_contract_stop) ... ok
+test_labelled_and_empty_hidden_retirements_share_the_same_counter (test_owner_retirement_slice1.BurstTest.test_labelled_and_empty_hidden_retirements_share_the_same_counter) ... ok
+test_log_only_does_not_forgive_an_independent_final_failure (test_owner_retirement_slice1.BurstTest.test_log_only_does_not_forgive_an_independent_final_failure) ... ok
+test_observed_store_effect_resets_but_admission_and_ui_changes_do_not (test_owner_retirement_slice1.BurstTest.test_observed_store_effect_resets_but_admission_and_ui_changes_do_not) ... ok
+test_off_hidden_retirement_has_a_visible_stop (test_owner_retirement_slice1.BurstTest.test_off_hidden_retirement_has_a_visible_stop) ... ok
+test_two_continue_third_stops_even_with_reason_rewrites_and_forgiveness (test_owner_retirement_slice1.BurstTest.test_two_continue_third_stops_even_with_reason_rewrites_and_forgiveness) ... ok
+test_visit_exit_and_town_change_reset_but_store_entry_does_not (test_owner_retirement_slice1.BurstTest.test_visit_exit_and_town_change_reset_but_store_entry_does_not) ... ok
+test_c_survival_route_interrupts_the_disclosed_home_relocation_hold (test_owner_retirement_slice1.RecordedRetirementTest.test_c_survival_route_interrupts_the_disclosed_home_relocation_hold) ... ok
+test_d0_replays_all_sixteen_retirement_proposals_without_changing_driver_results (test_owner_retirement_slice1.RecordedRetirementTest.test_d0_replays_all_sixteen_retirement_proposals_without_changing_driver_results)
+Replay recorded proposal rows; D0-only counters below are DECLARED CONSTRUCTED. ... ok
+test_driver_entrance_precedes_empty_result_branch (test_owner_retirement_slice1.RecordedRetirementTest.test_driver_entrance_precedes_empty_result_branch) ... ok
+test_hidden_c_and_a_are_logged_and_forgiven_with_original_reason (test_owner_retirement_slice1.RecordedRetirementTest.test_hidden_c_and_a_are_logged_and_forgiven_with_original_reason) ... ok
+test_mutating_selection_refusal_publishes_a_receipt (test_owner_retirement_slice1.SurvivalTest.test_mutating_selection_refusal_publishes_a_receipt) ... ok
+test_safety_cannot_be_retired_by_budget_recurrence_or_transfer (test_owner_retirement_slice1.SurvivalTest.test_safety_cannot_be_retired_by_budget_recurrence_or_transfer) ... ok
+test_survival_interrupt_freezes_errand_budget_and_returns (test_owner_retirement_slice1.SurvivalTest.test_survival_interrupt_freezes_errand_budget_and_returns) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 1.051s
+
+OK

@@ -33,6 +33,11 @@ for module in modules:
     if summary:
         results[module].update(tests=int(summary.group(1)), seconds=float(summary.group(2)),
                                summary=summary.group(3))
+        export = OUT / "derived-utf8-logs" / path.name
+        export.parent.mkdir(exist_ok=True)
+        export.write_text("\n".join(line.rstrip(" \t") for line in text.splitlines()) + "\n",
+                          encoding="utf-8", newline="\n")
+        results[module]["utf8_log"] = str(export.relative_to(OUT))
 counts = Counter(row["status"] for row in results.values())
 data = {"provenance": "unittest stderr summaries; process exit codes are not inferred",
         "counts": dict(counts), "modules": results}

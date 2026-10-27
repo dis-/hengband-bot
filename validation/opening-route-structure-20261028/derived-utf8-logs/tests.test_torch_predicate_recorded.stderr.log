@@ -1,0 +1,8 @@
+test_recorded_reverse_deposits_share_one_carry_requirement (test_torch_predicate_recorded.TorchPredicateRecordedTest.test_recorded_reverse_deposits_share_one_carry_requirement) ... ok
+test_recorded_step_off_completes_home_visit_declaration (test_torch_predicate_recorded.TorchPredicateRecordedTest.test_recorded_step_off_completes_home_visit_declaration) ... ok
+test_recorded_ten_torch_board_cancels_stale_home_take (test_torch_predicate_recorded.TorchPredicateRecordedTest.test_recorded_ten_torch_board_cancels_stale_home_take) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.639s
+
+OK

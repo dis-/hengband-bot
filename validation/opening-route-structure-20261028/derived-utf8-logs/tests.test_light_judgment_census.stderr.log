@@ -1,0 +1,8 @@
+test_enumerated_sites_ask_the_light_judgment (test_light_judgment_census.LightJudgmentCensusTest.test_enumerated_sites_ask_the_light_judgment) ... ok
+test_faint_value_is_named_only_by_the_judgment (test_light_judgment_census.LightJudgmentCensusTest.test_faint_value_is_named_only_by_the_judgment) ... ok
+test_quest_exit_sites_ask_the_light_release (test_light_judgment_census.LightJudgmentCensusTest.test_quest_exit_sites_ask_the_light_release) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 14.757s
+
+OK

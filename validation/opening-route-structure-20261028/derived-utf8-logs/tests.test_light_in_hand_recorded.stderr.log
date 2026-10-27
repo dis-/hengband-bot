@@ -1,0 +1,10 @@
+test_control_carried_home_lamp_waives_oil_and_torches (test_light_in_hand_recorded.LightInHandRecordedTest.test_control_carried_home_lamp_waives_oil_and_torches) ... ok
+test_control_worn_home_lamp_waives_oil_and_torches (test_light_in_hand_recorded.LightInHandRecordedTest.test_control_worn_home_lamp_waives_oil_and_torches) ... ok
+test_recorded_carried_oil_stays_with_the_lamp_in_home (test_light_in_hand_recorded.LightInHandRecordedTest.test_recorded_carried_oil_stays_with_the_lamp_in_home) ... ok
+test_recorded_departure_board_requires_oil_for_the_lantern (test_light_in_hand_recorded.LightInHandRecordedTest.test_recorded_departure_board_requires_oil_for_the_lantern) ... ok
+test_recorded_spare_torches_back_the_lantern (test_light_in_hand_recorded.LightInHandRecordedTest.test_recorded_spare_torches_back_the_lantern) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 49.240s
+
+OK

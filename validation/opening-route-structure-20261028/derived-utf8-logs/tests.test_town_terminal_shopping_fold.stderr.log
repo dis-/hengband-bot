@@ -1,0 +1,11 @@
+test_control_without_a_trip_the_descent_runs (test_town_terminal_shopping_fold.KillQuestDescentTest.test_control_without_a_trip_the_descent_runs) ... ok
+test_taken_kill_quest_descent_is_held_by_the_trip (test_town_terminal_shopping_fold.KillQuestDescentTest.test_taken_kill_quest_descent_is_held_by_the_trip) ... ok
+test_control_without_a_trip_the_quest_body_runs (test_town_terminal_shopping_fold.OpeningQ34AsksTheVerdictTest.test_control_without_a_trip_the_quest_body_runs) ... ok
+test_trip_holds_the_quest_body (test_town_terminal_shopping_fold.OpeningQ34AsksTheVerdictTest.test_trip_holds_the_quest_body) ... ok
+test_control_unapproved_head_has_no_terminal (test_town_terminal_shopping_fold.TravelWithoutTargetTest.test_control_unapproved_head_has_no_terminal) ... ok
+test_travel_quest_in_another_town_is_held_by_the_trip (test_town_terminal_shopping_fold.TravelWithoutTargetTest.test_travel_quest_in_another_town_is_held_by_the_trip) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.091s
+
+OK

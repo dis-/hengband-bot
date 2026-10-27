@@ -1,0 +1,8 @@
+test_captured_consecutive_boards_do_not_swap_back (test_light_pingpong_recorded.LightPingpongRecordedTest.test_captured_consecutive_boards_do_not_swap_back) ... ok
+test_carried_oil_refills_low_fuel_equipped_lantern (test_light_pingpong_recorded.LightPingpongRecordedTest.test_carried_oil_refills_low_fuel_equipped_lantern) ... ok
+test_low_fuel_lantern_yields_to_torch_without_oil (test_light_pingpong_recorded.LightPingpongRecordedTest.test_low_fuel_lantern_yields_to_torch_without_oil) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.387s
+
+OK

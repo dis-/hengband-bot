@@ -1,0 +1,11 @@
+test_already_carried_torches_still_request_quest_without_purchase (test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_already_carried_torches_still_request_quest_without_purchase) ... ok
+test_level_boundary_uses_the_same_existing_procurement_route (test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_level_boundary_uses_the_same_existing_procurement_route) ... ok
+test_lit_count_requires_positive_fuel_in_inventory (test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_lit_count_requires_positive_fuel_in_inventory) ... ok
+test_non_town_and_taken_heads_do_not_start_carry_procurement (test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_non_town_and_taken_heads_do_not_start_carry_procurement) ... ok
+test_public_route_buys_torches_through_executor_then_requests_quest (test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_public_route_buys_torches_through_executor_then_requests_quest) ... ok
+test_saved_decisions_show_the_same_missing_carry_and_no_procurement (test_quest_torch_stall_recorded.QuestTorchStallRecordedTest.test_saved_decisions_show_the_same_missing_carry_and_no_procurement) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 11.576s
+
+OK

@@ -444,3 +444,26 @@ stockout の同一失敗が main と着手前コミットでも出ること、CL
 なし
 検証ログとコマンド・対象HEAD・base・終了コード・時間は validation/opening-route-structure-20261028/ に保存する。
 この追記は Python の UTF-8 で書き込み、過去ラウンドのバイト列は変更していない。
+
+
+opening-route-structure 今回の最終記録: 2026-10-28T07:46:09+09:00
+報告対象 HEAD: 98f7fab5ff6e5b15110e4746d8c9a451ea13cc61、基準 main: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+実装・登録・manifest の修正はコミット済み。既存テストの期待値と例外リストは変更していない。
+指定3モジュール初回: 126件成功。最終ソースでも ownership 全80件と quest-door-confirm 全16件が成功した。
+指定4構造テスト再確認: 終了コード0。preflight: 終了コード0、0 findings。
+fast tier 初回: 1,671件、失敗・エラーなし。最終版の状態:
+[fast] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+mutation_check --record --full の状態:
+[mutation] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+main 基準のソース差分は26 hunk。既存22差分を含む全差分の検証を選択テストと4構造テストで起動している。待機中の場合、mutation 完了や record 作成済みとは扱わない。
+派生82モジュールの unittest 完了表示の集計: {'ran': 78, 'incomplete': 2, 'failed': 2}、完了 80/82。
+完了したテスト件数: 3156。詳細は derived-summary.json と derived-utf8-logs/ に保存した。これは集計 runner の実測終了コードとは区別する。
+派生 runner の終了記録: {"exit_code": 1, "reason": "UnicodeDecodeError while decoding a completed CP932 unittest log as UTF-8", "configured_module_timeout_seconds": 1200, "incomplete_modules": ["tests.test_cli", "tests.test_town_decision_speed_caches"], "summary_provenance": "unittest stderr summaries; process exit codes are not inferred"}。CP932 の日本語 docstring を集計時に UTF-8 として読めなかったもので、テストの FAIL と区別する。未完了モジュールについては完了表示を取得できていない。
+観測された失敗: {"tests.test_keep_running_a0": {"status": "failed", "log_encoding": "utf-8", "failing_headers": ["FAIL: test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False)"], "stderr_path": "derived-logs\\tests.test_keep_running_a0.stderr.log", "tests": 17, "seconds": 18.898, "summary": "FAILED (failures=1)", "utf8_log": "derived-utf8-logs\\tests.test_keep_running_a0.stderr.log"}, "tests.test_town_plan_exhausted_wander": {"status": "failed", "log_encoding": "utf-8", "failing_headers": ["FAIL: test_p5_unaffordable_return_still_names_the_missing_entrance (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance)"], "stderr_path": "derived-logs\\tests.test_town_plan_exhausted_wander.stderr.log", "tests": 12, "seconds": 383.622, "summary": "FAILED (failures=1)", "utf8_log": "derived-utf8-logs\\tests.test_town_plan_exhausted_wander.stderr.log"}}
+stockout・wander の2失敗は main と着手前22b2b2806でも同じ内容で再現し、baseline-results.json に実測終了コードと対象HEADを保存した。
+CLI の該当ケース単独実行は main・着手前・現在の実装のすべてで成功。CLI モジュール全体の再実行結果: {"module": "tests.test_cli", "exit_code": null, "timeout": 300, "head": "98f7fab5ff6e5b15110e4746d8c9a451ea13cc61", "seconds": 301.607}。
+全体実行を完走できない場合は、単独実行の成功をモジュール全体の成功とは扱わない。
+未完了の guard は指定どおり停止せず残す。src/・tests/ の未コミット差分: なし。
+指示の作業上限60分以内で今回の作業を終了する。マージゲート待機中の最終 fast tier・mutation を成功とは扱わず、再開時には稼働中の同じ guard のログを先に確認する。終了時点の写しは fast-at-report.log と mutation-at-report.log に保存した。
+報告用コミットによる src/hengbot・tests の変更はなく、mutation 対象と同一ツリーであることを tree-evidence.json に記録した。
+レポートは Python の UTF-8 追記で保存し、過去ラウンドのバイト列は維持した。

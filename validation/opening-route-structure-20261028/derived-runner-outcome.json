@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "reason": "UnicodeDecodeError while decoding a completed CP932 unittest log as UTF-8",
+  "configured_module_timeout_seconds": 1200,
+  "incomplete_modules": [
+    "tests.test_cli",
+    "tests.test_town_decision_speed_caches"
+  ],
+  "summary_provenance": "unittest stderr summaries; process exit codes are not inferred"
+}

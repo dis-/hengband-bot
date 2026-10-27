@@ -1,0 +1,8 @@
+test_pin_n_real_q22_producer_retires_and_recovers (test_quest_travel_progress.QuestTravelProgressPins.test_pin_n_real_q22_producer_retires_and_recovers) ... ok
+test_pin_p_public_replay_uses_selected_bfs_route (test_quest_travel_progress.QuestTravelProgressPins.test_pin_p_public_replay_uses_selected_bfs_route) ... ok
+test_pin_w_equal_key_distinct_candidate_has_no_authority (test_quest_travel_progress.QuestTravelProgressPins.test_pin_w_equal_key_distinct_candidate_has_no_authority) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 50.336s
+
+OK

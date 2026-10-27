@@ -1,0 +1,8 @@
+test_commands_and_physical_items_are_pinned (test_newchar_light_churn_recorded.NewCharacterLightChurnRecordedTest.test_commands_and_physical_items_are_pinned) ... ok
+test_restored_checkpoint_retires_torch_debt_after_confirmed_lantern (test_newchar_light_churn_recorded.NewCharacterLightChurnRecordedTest.test_restored_checkpoint_retires_torch_debt_after_confirmed_lantern) ... ok
+test_revert_proof_recreates_live_restore_command (test_newchar_light_churn_recorded.NewCharacterLightChurnRecordedTest.test_revert_proof_recreates_live_restore_command) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 12.074s
+
+OK
