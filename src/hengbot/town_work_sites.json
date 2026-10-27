@@ -5305,7 +5305,7 @@
       "overweight-surplus"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8c88132f602ff5706cc4ced3e8bd6cdd959d258bc199971b09b6e0435b99ac9d"
+    "ast_sha256": "cce1e7a962a873305c02ef5ff3b6d3a7836cf64212109c99ec77c7237088bf62"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
     "classification": "data",
@@ -5421,7 +5421,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5520a8de8b58af34b9c196b301131b8137bb9a7c8c95bcb30081d947cc62cb29"
+    "ast_sha256": "eb8bca8793849daf27cbc4ba3bcd653e01bd4fd8db84da71fde5dfc9507002f9"
   },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {
     "classification": "producer",
@@ -7498,7 +7498,7 @@
       "plan-routing"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "57ef8ab8b4aea893f90a8ff90e6d5645183f0abed11491cbfdf98ae04a27ca89"
+    "ast_sha256": "897508eafec2acf1858d69a96edf5dce174bb62d3d0c9960e5ccd15099b8c873"
   },
   "policy_town.py:TownMixin._town_cancel_unsafe_recall_key": {
     "classification": "producer",
