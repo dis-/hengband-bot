@@ -1,0 +1,116 @@
+{
+  "head": "618101cecc180eb64ef1977f1552b407c4dc93b4",
+  "base": "4db110bd5",
+  "derived": {
+    "lints": [
+      "scripts/sale_key_lint.py",
+      "scripts/test_fakery_lint.py"
+    ],
+    "modules": [
+      "tests.test_absorbing_states",
+      "tests.test_cli",
+      "tests.test_policy",
+      "tests.test_policy_quest",
+      "tests.test_policy_structure",
+      "tests.test_quest_sweep_hold_recorded"
+    ],
+    "paths": [
+      "LUNA-REPORT-quest-sweep-84.txt",
+      "scripts/town_work_manifest.json.gz",
+      "src/hengbot/policy_quest.py",
+      "src/hengbot/town_work_sites.json",
+      "tests/fixtures/quest-sweep-hold-20261027.json.gz",
+      "tests/test_quest_sweep_hold_recorded.py"
+    ],
+    "symbols": {
+      "src/hengbot/policy_quest.py": [
+        "QuestMixin"
+      ]
+    }
+  },
+  "modules": {
+    "tests.test_policy": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 0.36,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/tests.test_policy.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_absorbing_states": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 0.391,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/tests.test_absorbing_states.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_quest": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 0.485,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/tests.test_policy_quest.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_structure": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 0.312,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/tests.test_policy_structure.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_sweep_hold_recorded": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 0.312,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/tests.test_quest_sweep_hold_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_cli": {
+      "status": "failed",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 2.438,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/tests.test_cli.stderr.log",
+      "known_failures": []
+    },
+    "scripts/sale_key_lint.py": {
+      "status": "ran",
+      "failed": 0,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 2.015,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/scripts_sale_key_lint.py.stderr.log",
+      "known_failures": []
+    },
+    "scripts/test_fakery_lint.py": {
+      "status": "failed",
+      "failed": 13,
+      "skipped": 0,
+      "failing_test_ids": [],
+      "errors": [],
+      "duration": 18.188,
+      "stderr_path": "validation/quest-sweep-84-20261027/modules/scripts_test_fakery_lint.py.stderr.log",
+      "known_failures": []
+    }
+  },
+  "excluded": {
+    "test_cli.DecisionTimingTest": "known hang; exclusion required by SOL-TASK-verification-gates.md"
+  }
+}

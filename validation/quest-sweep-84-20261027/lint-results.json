@@ -1,0 +1,16 @@
+{
+  "scripts/sale_key_lint.py": {
+    "returncode": 0,
+    "tail": [
+      "sale-key-lint: 0 violation(s)"
+    ]
+  },
+  "scripts/test_fakery_lint.py": {
+    "returncode": 1,
+    "tail": [
+      "test-fakery-lint limitation: collaborator-wall does not classify 159 private-attribute assignments from other call factories whose names do not identify them as callable fakes; no live wall uses that spelling, while public-path-replaced covers path members regardless of assigned value.",
+      "test-fakery-lint limitation: Known structural evasions remain: extracted or **kwargs best/loadout fabrication, no-op replace keywords or named range bounds in frozen drives, and renamed optimizer-completion helpers. These are one-edit, plausible next spellings; their existing live-rule populations are 31, 14, and 3 respectively.",
+      "test-fakery-lint: 13 violation(s), 126 declared finding(s) in 104 test(s)"
+    ]
+  }
+}
