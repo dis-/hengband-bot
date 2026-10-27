@@ -151,22 +151,24 @@ class ExcludeForestTest(executor_harness.ProductionHarness):
                 self._post(key, policy.last_reason)
 
     def test_retained_exclusion_reserves_the_alternate_departure_scroll(self):
-        policy = self._policy()
-        board = self._board()
-        policy._target_dungeon_id = FOREST
-        policy._deepest_level = 24
-        for safety in (False, True):
-            for guardian in (False, True):
-                self.assertEqual(policy._town_recall_destination(
-                    board, safety_gate=safety, guardian_gate=guardian),
-                    ("alt-dungeon", 3))
-        # Departure planning is read-only until the next public decision.
-        self.assertEqual(policy._target_dungeon_id, FOREST)
-        status = policy._supply_ledger(board, policy._planned_depth())["recall"]
-        self.assertEqual(status.required_departure, status.required_return + 1)
-        key = policy.choose_key(board)
-        self.assertEqual(policy._target_dungeon_id, 3)
-        self._post(key, policy.last_reason)
+        for retained_alternate in (None, 3, FOREST):
+            policy = self._policy()
+            board = replace(self._board(), entered_dungeon_ids=(3, FOREST))
+            policy._alternate_dungeon = retained_alternate
+            policy._target_dungeon_id = FOREST
+            policy._deepest_level = 24
+            for safety in (False, True):
+                for guardian in (False, True):
+                    self.assertEqual(policy._town_recall_destination(
+                        board, safety_gate=safety, guardian_gate=guardian),
+                        ("alt-dungeon", 3))
+            # Departure planning is read-only until the next public decision.
+            self.assertEqual(policy._target_dungeon_id, FOREST)
+            status = policy._supply_ledger(board, policy._planned_depth())["recall"]
+            self.assertEqual(status.required_departure, status.required_return + 1)
+            key = policy.choose_key(board)
+            self.assertEqual(policy._target_dungeon_id, 3)
+            self._post(key, policy.last_reason)
 
     def test_retained_exclusion_without_alternate_does_not_reserve_a_read(self):
         policy = self._policy()

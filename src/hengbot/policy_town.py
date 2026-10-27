@@ -6236,9 +6236,13 @@ class TownMixin:
             # A retained destination can be queried for departure supplies
             # before observe replaces it. Budget the scroll read for the same
             # safe alternate; exclusion does not turn that trip into a walk.
-            alternate = self._pick_alternate_dungeon(
-                snapshot, require_shallower=False,
-            )
+            alternate = self._alternate_dungeon
+            if (alternate is None
+                    or not exploration_destination_allowed(alternate)
+                    or alternate not in snapshot.entered_dungeon_ids):
+                alternate = self._pick_alternate_dungeon(
+                    snapshot, require_shallower=False,
+                )
             if alternate is None:
                 return None, recall_dungeon_id
             recall_dungeon_id = alternate
