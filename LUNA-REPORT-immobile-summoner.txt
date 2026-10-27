@@ -73,3 +73,111 @@ validation/immobile-summoner-1027/scope-broad-file-results.json / scope-data-rer
 ガード用の継続処理: C:/hengband-backups/run-immobile-guards-final.py
 広域検証の継続処理: C:/hengband-backups/run-immobile-broad-final.py
 検証ログと継続用スクリプトはローカルに保持しており、コミットには含めていない。
+
+
+ラウンド2（2026-10-27、ISSUE #47）
+
+対象と取り込み
+依頼ファイルの参照Issueは #117、今回の作業識別子はユーザー指定の #47。
+前回報告にある15:01停止の階層表記を訂正する。Angbandではなく、オークの洞窟
+（dungeon 3）の23階。前回の方針決定は変更していない。
+最初に main 2399220372a2d2a514652c2e980f86b203b35921
+（指定の069d2e7ce以降）をマージした。競合は圧縮マニフェストだけで、
+Python 3.13で再生成して解消した。マージコミットは de365d410。
+ラウンド2で新たな製品コード変更はない。共通述語 _summoner_never_approaches を維持し、
+未保護だった検知敵フィルタを公開 choose_key の新規テストで保護した。
+追加述語、新しい数値ガード、既存テストの期待値変更、キーの += 連結はない。
+
+単独差し戻し検証
+新規テスト:
+tests.test_immobile_summoner_recorded.ImmobileSummonerRecordedTest.
+test_constructed_detected_melee_only_summoner_does_not_complete_pack
+これは明示的な構成盤面である。離脱不能クエストの壁の向こうに、距離3の
+不動召喚者と、距離3の移動可能な検知敵を置く。召喚者の最大遠隔ダメージは0。
+壁のため直接接近できず、移動する検知敵は1体だけなので待機集団は成立しない。
+公開 choose_key が西への探索「4」を選び、本番follow executorへの送信も完了する。
+共有ハーネスはモジュール別名 executor_pins 経由で使用する。
+送信後のcommand画面・一歩移動の応答は構成データで、実機追加観測ではない。
+_detected_threat_preparation_key の
+and not self._summoner_never_approaches(monster)
+だけを取り除くと、不動召喚者を2体目の近接集団として数えてしまい、
+「5 / summoner:hold-choke」に変わって新規テストが失敗した（終了コード1）。
+同じ一行を復元すると成功した（終了コード0）。差し戻し時も元のバイト列を
+finallyで復元した。証跡は r2/single-hunk-revert.log と single-hunk-restored.log。
+今回のソース・テスト対象コミットは c3c92764f（新規テスト追加）。
+
+20:25〜20:27の新しい停止の調査
+20261027-202502 / 202605 / 202707 の各圧縮stateと決定記録を読み取った。
+各stateは115件。末尾stateのturnは2552919 / 2557825 / 2562830。
+決定記録は171 / 206 / 206件で、全件が「5 / summoner:hold-choke」。
+プレイヤーは全キャプチャで (y=29,x=50)、HP 673/673。
+依頼文はMountain（dungeon 14）30階とするが、保存されたfloorは3件とも
+(dungeon_id=12, level=30, quest_id=0)である。原本のdungeon_nameは文字化けして
+いるため、ここでは同定を広げず、保存されたIDを報告する。
+待ち対象は race 915、index 43、位置(y=26,x=49)、距離3、asleep=false、
+can_summon=true、max_ranged_damage=0、speed=115、最大HP350。
+観測のnever_moves=falseで、モンスター定義にもNEVER_MOVEがない。
+能力はS_SPIDERとHEAL。既存の共通述語はfalseとなり、不動召喚者ではない。
+残りの可視敵は race 60（距離2）、411（距離2）、421（距離3）、176（距離2）。
+近接距離1の敵はいない。3件とも保存期間中のrace 915の位置は変わらないが、
+これは種族の不動属性を意味しない。予測内のpath_distanceは全敵nullである。
+間の (y=28,x=49〜52) はterrain_id=218、enterable=false、allows_los=true。
+ローカル TerrainDefinitions.jsonc:4628 の定義で218はGLASS_WALL（ガラスの壁）。
+race 915にPASS_WALL/KILL_WALLはない。つまり「見えているが通常歩行では
+直接接近できない」壁越しの敵を待つ盤面である。待機条件はこの地形の分離を
+確認せず距離だけを見るため、可視状態が維持されて待機が終わらない。
+
+待機継続の直接の条件は、通常戦闘処理の
+summoners and all(monster.distance > 2 for monster in summoners)
+である。召喚者は距離3なので成立し、近接敵もいない。可視敵が存在するため、
+unseen_detected and at_choke and not snapshot.visible_monsters の時間制限分岐は
+動かない。_detected_threat_preparation_keyの検知集団待機とは別の経路である。
+ここには可視召喚者が接近しない場合の期限がなく、敵の位置が変わらない限り
+無期限に待てる。open_neighbors=3で、検知待機用の狭い通路条件（2以下）も不成立。
+停止時の射撃内部キャッシュは原本にないため、その値そのものは断定しない。
+新規policyをprimeした再起動再生では最初にranged:fire-targetを選ぶ。
+直接方向射撃の対象はなく、召喚者の概算必要射数は12（即殺の3射条件を超える）。
+弾数・敵HP・位置が進展しない後続観測を構成すると、カーソル射撃を3回試み、
+macro_failures=3で射撃抑止となった後、4回目以降は同じ待機へ移行した。
+この構成再生は待機経路を説明するが、過去の射撃失敗そのものの実機証拠とは
+区別する。ゲーム側が接近しなかった原因の完全な再現も主張しない。
+本件は「移動可能な召喚者が距離3、他の敵が距離2〜3に留まる」別件であり、
+今回の指示に従って動作変更や不動述語の拡張はしていない。
+上位担当者が、可視の移動可能召喚者に対する待機解除方針をユーザーへ確認する
+ための判断材料とする。
+原本SHA256・全判断フィールド・構成再生は r2/capture-audit.json に保存した。
+
+検証（全ガード・テスト実行は指定のシステムPython 3.13）
+公開choose_keyと本番follow executorを使う追加分を含め、新規モジュールの17テストは
+最終状態で全件成功（2.689秒、終了コード0）。
+新規ピンの最終地形調整後も単独差し戻し・復元を確認。
+証跡: r2/recorded-module-final.log。
+scripts/verify_scope.py --target HEAD --derive-only が列挙した必須モジュールは
+tests.test_absorbing_states / tests.test_cli / tests.test_immobile_summoner_recorded /
+tests.test_policy / tests.test_policy_structure の5個。
+main基準の広い導出範囲も別途取得して検証する。除外は検証スクリプト既定の
+test_cli.DecisionTimingTestだけで、今回追加の除外や期待値緩和はない。
+Python: 3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]
+検証基準HEAD: 2399220372a2d2a514652c2e980f86b203b35921
+製品・テスト最終コミット: c3c92764f
+preflight: {'exit': 0, 'seconds': 237.5}
+mutation_check: マージゲート終了待機中（検証本体は未実行）
+fast_tier: mutation_check終了待ち（未実行）
+scope: fast_tier終了待ち（未実行）
+
+preflight 結果抜粋:
+[preflight] PREFLIGHT OK: 13 changed files, 0 findings (immobile-summoner-1027 vs main)
+
+mutation_check 結果抜粋:
+[mutation] waiting: the merge gate is running its full suite (gate identify-tail-1027, since 22:22:13); owner decision 2026-10-25
+
+証跡の保存先: validation/immobile-summoner-1027/r2/（ローカル保持）。
+継続用スクリプト: 同ディレクトリのrun_guards.py / run_required_scope.py。
+結果の再反映: システムPython 3.13で同ディレクトリのwrite_report.pyを実行。
+これらのログ・継続用スクリプトはコミットには含めていない。
+
+必須5モジュールのスクリプトファイル経由実行結果は、まだ揃っていない。
+
+最終更新: 2026-10-27T23:51:46+09:00
+指定ガードと必須モジュールの検証は未完了。完了扱いにはしない。
+ガードは依頼どおりマージゲートを待機させ、こちらから停止していない。
