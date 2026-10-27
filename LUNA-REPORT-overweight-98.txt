@@ -504,3 +504,103 @@ run_itemをファイル起動で実行する。DecisionTimingTestの既存除外
 テスト対象の一時作業ツリーはc9101e751に固定しており、報告作業ではソース／テストを変更していない。
 
 保存方法: この追記はPythonのPath.write_text(encoding="utf-8")で作成した。
+
+
+第3ラウンド（2026-10-27）
+管理番号 #47 の依頼に従い、指定タスクファイルの重量停止 #98 を修正した。
+ソース／テスト検証対象HEAD: 45f118ae91615fb76e6a0e00f2dfd57a61d27857
+取り込んだmainと検証の基準: 726627a6b7e612d62efe1a2d7a507b69cec5b480
+指定された76f484a64以降のmainを先にマージし、競合したマニフェストと実行時索引を再生成した。
+マージコミット: c836437f9。実装・対照テストは早期コミット済み。
+
+最初の分岐と原因
+TownWeightDepartureRecordedTestのr1/r2は、同じ177盤面の公開choose_key再生を共有する。
+基準4db110bd5では4件すべて成功、修正前のマージHEADでは指定のr1/r2だけが失敗した。
+両者の最初の判断差分は0始まりindex 82、turn 4102322。
+  基準: key=9、reason=shop:approach。
+  修正前: key=5、reason=shop:travel:await-entry。
+index 81では両者の返すキー・理由は同じだが、ブランチでは余剰処分状態を作り始めていた。
+index 83では基準がhome:weight-overload-deposit、ブランチが別店舗へのshop:travelとなる。
+index 84では基準のdp+ESC／home:weight-overload-depositに対し、
+ブランチはESC／home:scan-incomplete-open-pageだった。
+この時の重量超過は7、預入候補はp,r,q,m,n,o,d,e,l,k。
+過去の未達回数4に対し現在の一般上限は3だが、実際のHome訪問はAPPROACHINGで継続中。
+実行器にはSCANと預入要求があり、設置済み予算300に対して使用済み3。
+選択器が過去の回数だけを見て経路枯渇としたため、進行中のHome訪問を余剰処分が横取りした。
+
+最終修正
+判定は一つの_weight_relief_selectionに置いた。再生番号・turn・品名による特例はない。
+適用可能なHome停止記録、接近失敗上限、訪問実行器の残予算を確認する。
+活動中の物理訪問には設置済み予算を適用し、過去の未達回数だけで途中終了させない。
+待機状態の実行器には従来の未達回数上限を適用する。
+共通ヘルパー全体から回数判定を除く案では231603の処分が止まることを検出したため、
+その変更は撤回した。_overweight_home_bound_exhaustedと既存の再試行停止条件は変更していない。
+新しい上限定数、重量上限の緩和、出発条件の緩和、保持理由の変更はない。
+既存テストの期待値は一切変更していない。
+
+維持した盤面と新規対照
+011308: 重量1656、上限1650、超過6。retained-onlyの名前と数値を記録する。
+231603: 重量1899、上限1750、超過149。余剰a/f/lの合計206をsell-or-destroyへ渡す。
+容量不明だが利用可能なHomeは先に観測する。使い切った経路はHome画面だけでは再開しない。
+待機状態の既存WeightOverloadTownTestのhome-unreachable停止も維持する。
+新規対照: test_historical_passes_without_a_block_observe_home_before_surplus。
+記録231603の荷物・過去の未達回数を保ち、停止記録と容量観測を取り除き、
+古い重量再生と同じ進行中Home訪問をfileで与える構成対照である。
+公開choose_keyと本番follow実行器を通し、Home観測より先に余剰処分を始めないことを確認する。
+共有ハーネスはモジュール別名で利用し、キーの+=構築は追加していない。
+新規対照の独立差し戻し: 正常0、選択器の今回の変更だけを戻すと1、復元後0、検証器0。
+証拠: overweight-98-r3-revert.json と同名のgreen/reverted/restoredログ。
+
+検証
+Codex付属Python 3.12の実体を使用し、WindowsAppsスタブは使用していない。
+最終修正の前回7件＋新規1件＋WeightOverloadTownTestの15件: 23件、83.315秒、成功、終了コード0。
+導出スコープはverify_scopeの同じ_test_code/run_itemをファイル起動で使用する。
+対象HEADを別作業ツリーに固定し、既存のDecisionTimingTest除外は維持する。
+ゲーム定義はHENGBAND_MONRACE_DEFINITIONSで指定した。
+  scripts/sale_key_lint.py: 状態=ran、件数=該当なし、失敗識別子=0、skip=0、時間=3.921秒。
+  scripts/test_fakery_lint.py: 状態=failed、件数=該当なし、失敗識別子=13、skip=0、時間=40.235秒。
+  tests.test_absorbing_states: 状態=ran、件数=22、失敗識別子=0、skip=0、時間=414.797秒。
+  tests.test_cli: 状態=failed、件数=229、失敗識別子=1、skip=0、時間=36.016秒。
+    test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder
+  tests.test_item_reservation: 状態=ran、件数=17、失敗識別子=0、skip=0、時間=67.656秒。
+  tests.test_overweight_recurrence_1027: 状態=ran、件数=8、失敗識別子=0、skip=0、時間=96.156秒。
+  tests.test_policy: 状態=ran、件数=57、失敗識別子=0、skip=0、時間=12.735秒。
+  tests.test_policy_home: 状態=ran、件数=171、失敗識別子=0、skip=4、時間=92.859秒。
+  tests.test_policy_structure: 状態=ran、件数=7、失敗識別子=0、skip=0、時間=226.156秒。
+  tests.test_policy_town: 状態=ran、件数=593、失敗識別子=0、skip=2、時間=732.797秒。
+  tests.test_town_work_contract: 状態=ran、件数=9、失敗識別子=0、skip=0、時間=1013.578秒。
+
+最終preflight（取り込んだmain基準）: 8変更ファイル、指摘0件、終了コード0。
+mutation_check --record（同じmainの固定HEAD基準）:
+  マージゲートの全体検証が終わるまで待機し、ガードは停止していない。
+  全6ハンク。動作変更5箇所をすべて検出、説明文1箇所、未検出0件、終了コード0。
+  重量対照8件とWeightOverloadTownTestの15件を使用した。
+  45f118ae9および同じソース／テストのツリーへ成功記録を保存済み。
+fast_tier（同じmainの固定HEAD基準）:
+  全体検証の完了を待って開始。1689件と変更モジュール1件を4分割で実行した。
+  1697件、180.1秒、失敗1件、エラー0件、クラッシュ0件、終了コード1。
+  失敗は下記の基準mainでも再現するflight recorderの1件。
+導出スコープの終了コードは1（下記のCLIとlint）。終了時の指紋不一致は発生していない。
+
+基準にもある失敗と限界
+tests.test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder:
+5秒の子プロセス起動タイムアウト。基準mainの単独実行でも同じエラー、1件、5.264秒、終了コード1。
+scripts/test_fakery_lint.py: 基準mainでも13件。verify_scopeの既知件数9と一致しない。
+既存テストの固定値13と一致することも確認した。今回、許容値は変更していない。
+tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop:
+stat呼び出し回数は実値5・期待値4。基準mainの単独実行でも同じ失敗（1件、0.118秒）。
+最終HEADの単独実行でも同じ失敗であり、両者の終了コードは1。
+したがって導出スコープ／fast tier全体が無条件で成功したとは扱わない。
+記録の再生と入力境界の検証であり、実ゲームで処分が完了したとの主張ではない。
+
+証拠（C:/hengband-backups配下）
+overweight-98-r3-base-trace.jsonl / overweight-98-r3-current-trace.jsonl
+overweight-98-r3-base-trace.log / overweight-98-r3-current-trace.log
+overweight-98-r3-pins-updated.log / overweight-98-r3-revert.json
+overweight-98-r3-final-derived.json / overweight-98-r3-final-derived.log
+overweight-98-r3-final-preflight.log / overweight-98-r3-final-mutation.log / overweight-98-r3-final-fast.log
+overweight-98-r3-final-scope.json / overweight-98-r3-final-scope-progress.json / overweight-98-r3-final-scope-stderr/
+overweight-98-r3-main-cli.log / overweight-98-r3-main-fakery.log
+overweight-98-r3-flight-base.log / overweight-98-r3-flight-final.log / overweight-98-r3-flight-baseline.json
+
+保存方法: この第3ラウンド追記はPythonのPath.write_text(encoding="utf-8")で作成した。
