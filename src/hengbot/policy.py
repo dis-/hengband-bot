@@ -10882,12 +10882,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if paralyzer_prevention is not None:
             return paralyzer_prevention
 
-        immobile_summoner = self._town_producer_entry(
-            "_immobile_summoner_key",
-            lambda: self._immobile_summoner_key(snapshot, physical_hostiles),
-        )
-        if immobile_summoner is not None:
-            return immobile_summoner
+        if not snapshot.in_town:
+            immobile_summoner = self._town_producer_entry(
+                "_immobile_summoner_key",
+                lambda: self._immobile_summoner_key(snapshot, physical_hostiles),
+            )
+            if immobile_summoner is not None:
+                return immobile_summoner
 
         unseen_intercept = self._town_producer_entry("_unseen_retreat_intercept_key", lambda: self._unseen_retreat_intercept_key(
             snapshot, physical_hostiles, physical_adjacent
