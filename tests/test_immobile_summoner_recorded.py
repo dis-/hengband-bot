@@ -1,0 +1,213 @@
+"""Recorded stop boards from both 2026-10-27 immobile-summoner captures.
+
+Restart replay: public choose_key on each unmodified final state. Only the
+skill-exp observation cache is seeded (not a decision producer). Follow posts
+use the production executor with DECLARED CONSTRUCTED command boundaries and
+one-step movement effects, not a claim of a new live game recording.
+DECLARED CONSTRUCTED: quest/no-exit corridors, usable exit scrolls, an aligned
+bow, a low-HP Healing potion, and movable-race controls below.
+"""
+
+from __future__ import annotations
+
+import tests  # noqa: F401
+import copy
+import gzip
+import hashlib
+import io
+import json
+import time
+import unittest
+from dataclasses import replace
+from pathlib import Path
+
+from hengbot.cli import (
+    PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
+)
+from hengbot.model import Position, QuestState, Snapshot, parse_snapshot
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import QUEST_STATUS_TAKEN
+from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
+from tests import policy_fixtures as fixtures
+from tests import test_input_executor as executor_pins
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "immobile-summoner-20261027.json.gz"
+EDIT = Path("C:/hengband/lib/edit")
+OFFSETS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+           "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+
+
+class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
+    @classmethod
+    def setUpClass(cls):
+        data = FIXTURE.read_bytes()
+        cls.records = json.loads(gzip.decompress(data))
+        cls.knowledge = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def _policy(self, board, *, mobile=False):
+        knowledge = dict(self.knowledge)
+        if mobile:
+            # DECLARED CONSTRUCTED control: same race without NEVER_MOVE.
+            knowledge[397] = replace(knowledge[397], flags=knowledge[397].flags - {"NEVER_MOVE"})
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        policy.prime(board)
+        policy._skill_exp_cache = (
+            board.player.race_id, board.player.class_id, board.player.level,
+            policy._town_visit_epoch,
+        )
+        return policy
+
+    def _post(self, policy, board, key, raw):
+        # DECLARED CONSTRUCTED: execute the posted command, then report a fresh
+        # command boundary. Walking effects come only from the numeric direction.
+        after = copy.deepcopy(raw)
+        if str(key) in OFFSETS:
+            dy, dx = OFFSETS[str(key)]
+            after["player"]["position"] = {
+                "y": board.player.position.y + dy, "x": board.player.position.x + dx,
+            }
+        after["turn"] = board.turn + 10
+        game = executor_pins.FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = executor_pins.command_screen(board.turn)
+        game.screens = [executor_pins.command_screen(after["turn"])]
+        game.states = [after]
+        _game, _client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        sent, _line, chain, _result = _send_decision_key_with_prompt_chain(
+            port, "recorded-board", key, None, set(), policy=policy,
+            shadow_client=None, file=io.StringIO(), deadline=time.monotonic() + 30,
+            poll_interval=0.0, prompt_japanese=True,
+            decision={"sequence": 1, "reason": policy.last_reason}, snapshot=board,
+            posting_contract=PostingContract(), in_store=False,
+        )
+        self.assertTrue(sent)
+        self.assertIsNone(chain)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual("".join(game.accepted), str(key))
+        policy.confirm_key_posted(key)
+        return after
+
+    def _recorded(self, index):
+        record = self.records[index]
+        board = parse_snapshot(record["board"], self.knowledge)
+        self.assertEqual(board.player.position, Position(24, 66))
+        self.assertEqual([(m.race_id, m.position) for m in board.visible_monsters],
+                         [(397, Position(23, 71))])
+        self.assertEqual(record["decision"]["reason"], "summoner:hold-choke")
+        self.assertEqual(record["decision"]["key"], "5")
+        return record, board
+
+    def _assert_recorded(self, index):
+        record, board = self._recorded(index)
+        policy = self._policy(board)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason),
+                         ("4", "explore:avoid-immobile-summoner"))
+        self.assertNotIn(Position(24, 65), policy._engagement_avoid_cells)
+        self.assertIn(Position(24, 70), policy._engagement_avoid_cells)
+        after = self._post(policy, board, key, record["board"])
+        self.assertEqual(after["player"]["position"], {"y": 24, "x": 65})
+
+    def test_first_capture_avoids_and_posts(self):
+        self._assert_recorded(0)
+
+    def test_second_capture_avoids_and_posts(self):
+        self._assert_recorded(1)
+
+    def test_mobile_control_keeps_recorded_choke_wait(self):
+        for index in (0, 1):
+            _record, board = self._recorded(index)
+            # DECLARED CONSTRUCTED: no projectiles, so the mobile control
+            # reaches the existing generic choke wait rather than ranged fire.
+            board = replace(board, inventory=[i for i in board.inventory if i.tval != 18])
+            policy = self._policy(board, mobile=True)
+            self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                             ("5", "summoner:hold-choke"))
+
+    def _corridor(self, *, quest=False, stairs=False, inventory=(), hp=949,
+                  monster_x=15, detected=False, wall=False):
+        # DECLARED CONSTRUCTED: a sealed one-cell corridor, no frontiers/loot.
+        grids = {
+            Position(y, x): fixtures.grid(y, x, passable=y == 10 and 7 <= x <= 16,
+                                         in_view=True, lit=True)
+            for y in range(9, 12) for x in range(6, 18)
+        }
+        grids[Position(10, monster_x)] = fixtures.grid(10, monster_x, monster=True,
+                                                      in_view=True, lit=True)
+        if stairs:
+            grids[Position(10, 7)] = fixtures.grid(10, 7, upstairs=True, in_view=True, lit=True)
+        if wall:
+            grids[Position(10, 12)] = fixtures.grid(10, 12, passable=False, in_view=True)
+        monster = fixtures.hostile(19, 10, monster_x, race_id=397, hp=1600, max_hp=1600,
+                                   distance=monster_x - 10, can_summon=True)
+        board = Snapshot(
+            replace(fixtures.player(10, 10, hp=hp, max_hp=949, level=40,
+                                    abilities=frozenset({"free_action", "resist_conf", "resist_fire"})),
+                    ability_sources={"free_action": frozenset({"intrinsic"})}),
+            grids, [] if detected else [monster], floor_key=(3, 23, 41 if quest else 0),
+            inventory=list(inventory), width=24, height=22, turn=10000,
+            detected_monsters=[replace(monster, perception="detected")] if detected else [],
+        )
+        if quest:
+            board = replace(board, quests={41: QuestState(
+                id=41, name="constructed kill quest", status=QUEST_STATUS_TAKEN,
+                type=QUEST_TYPE_RANDOM, cur_num=0, max_num=1, level=23,
+                r_idx=397, dungeon_id=3,
+            )})
+        return board
+
+    def test_constructed_quest_approaches_then_melees(self):
+        board = self._corridor(quest=True)
+        policy = self._policy(board)
+        self.assertTrue(policy._floor_navigation_exit_locked(board))
+        for x in range(10, 14):
+            board = replace(board, player=replace(board.player, position=Position(10, x)),
+                            visible_monsters=[replace(board.visible_monsters[0], distance=15-x)],
+                            turn=board.turn + 10)
+            key = policy.choose_key(board)
+            self.assertEqual((str(key), policy.last_reason), ("6", "summoner:cornered-approach"))
+            policy.confirm_key_posted(key)
+        board = replace(board, player=replace(board.player, position=Position(10, 14)),
+                        visible_monsters=[replace(board.visible_monsters[0], distance=1)],
+                        turn=board.turn + 10)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason), ("6", "melee"))
+
+    def test_constructed_no_exit_also_attacks(self):
+        board = self._corridor()
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("6", "summoner:cornered-approach"))
+
+    def test_constructed_exhausted_safe_region_seeks_stairs_before_scrolls(self):
+        board = self._corridor(stairs=True, wall=True, inventory=[
+            fixtures.item("t", 70, 10), fixtures.item("r", 70, 11),
+        ])
+        policy = self._policy(board)
+        # West of the summoner's view: existing routing must prefer these stairs.
+        policy._visit_counts.update({position: 1 for position in board.grids})
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("4", "summoner:seek-upstairs"))
+
+    def test_constructed_teleport_level_precedes_recall(self):
+        board = self._corridor(inventory=[fixtures.item("t", 70, 10), fixtures.item("r", 70, 11)])
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("rt", "summoner:teleport-level"))
+
+    def test_constructed_recall_and_countdown(self):
+        board = self._corridor(inventory=[fixtures.item("r", 70, 11)])
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("rr", "summoner:recall"))
+        policy.confirm_key_posted("rr")
+        board = replace(board, player=replace(board.player, recalling=True), turn=10010)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("5", "summoner:wait-recall"))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -10882,6 +10882,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if paralyzer_prevention is not None:
             return paralyzer_prevention
 
+        immobile_summoner = self._town_producer_entry(
+            "_immobile_summoner_key",
+            lambda: self._immobile_summoner_key(snapshot, physical_hostiles),
+        )
+        if immobile_summoner is not None:
+            return immobile_summoner
+
         unseen_intercept = self._town_producer_entry("_unseen_retreat_intercept_key", lambda: self._unseen_retreat_intercept_key(
             snapshot, physical_hostiles, physical_adjacent
         ))
@@ -11310,6 +11317,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         summoners = [
             monster for monster in strategic_hostiles
             if monster.can_summon and not monster.asleep
+            and not self._summoner_never_approaches(monster)
         ]
         # A KILL_NUMBER pack gets the same reviewed choke-point movement as a
         # summoner fight.  The normal ranged phase below then softens pursuers.
@@ -12758,6 +12766,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         summoners = [
             monster for monster in hostiles
             if monster.can_summon and not monster.asleep
+            and not self._summoner_never_approaches(monster)
         ]
         candidates = [
             (shots, monster)
@@ -19099,6 +19108,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
     ) -> str | None:
         """Anticipate detected threats without treating them as attack targets."""
+        perceived = self._perceived_hostiles(snapshot)
+        if perceived and all(self._summoner_never_approaches(m) for m in perceived):
+            self._detected_threat_hold = None
+            self._detected_threat_hold_position = None
+            self._detected_threat_route = None
+            return None
         hold = getattr(self, "_detected_threat_hold", None)
         if hold is not None and hold[0] != snapshot.floor_key:
             self._detected_threat_hold = None
@@ -19140,6 +19155,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             monster
             for monster in self._perceived_hostiles(snapshot)
             if monster.perception == "detected"
+            and not self._summoner_never_approaches(monster)
         ]
         if not detected:
             if hold is None:

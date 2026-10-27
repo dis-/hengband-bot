@@ -253,6 +253,160 @@ from hengbot.policy_constants import (
 
 
 class CombatMixin:
+    def _summoner_never_approaches(self, monster: MonsterState) -> bool:
+        """NEVER_MOVE is race knowledge, not a wait-and-see movement timeout."""
+        knowledge = self._monrace_knowledge.get(monster.race_id)
+        return bool(
+            monster.can_summon
+            and knowledge is not None
+            and "NEVER_MOVE" in knowledge.flags
+        )
+
+    @claims(ClaimOwner.COMBAT)
+    def _immobile_summoner_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Avoid stationary summoners; fight only when this floor has no exit.
+
+        This runs after emergency HP handling and before all choke waits.
+        Remember the threat after breaking sight so exploration cannot walk
+        straight back into it. Confirmed empty cells and floor changes retire it.
+        """
+        remembered_floor, remembered = getattr(
+            self, "_immobile_summoner_memory", (None, {})
+        )
+        if remembered_floor != snapshot.floor_key:
+            remembered = {}
+        perceived = self._perceived_hostiles(snapshot)
+        for monster in perceived:
+            if self._summoner_never_approaches(monster):
+                remembered[monster.position] = monster.race_id
+        perceived_positions = {monster.position for monster in perceived}
+        for position, race_id in list(remembered.items()):
+            grid = snapshot.grid_at(position)
+            if (
+                position not in perceived_positions
+                and grid is not None
+                and not grid.has_monster
+                and self._player_can_see_empty_cell(snapshot, position, race_id=race_id)
+            ):
+                del remembered[position]
+        self._immobile_summoner_memory = (snapshot.floor_key, remembered)
+
+        # Withdraw only this owner's veto, just as paralyzer avoidance does.
+        previous = getattr(self, "_immobile_summoner_avoid_cells", set())
+        self._engagement_avoid_cells -= (
+            previous - self._engagement_owned_avoid_cells
+            - self._warning_refused_cells
+            - getattr(self, "_paralyzer_avoid_cells", set())
+        )
+        cells = {
+            position
+            for position, grid in snapshot.grids.items()
+            if grid.enterable and any(
+                self._monster_cast_distance(source, position) <= MONSTER_SPELL_MAX_RANGE
+                and self._has_line_of_fire(snapshot, source, position)
+                for source in remembered
+            )
+        }
+        self._immobile_summoner_avoid_cells = cells
+        if not remembered:
+            return None
+        self._engagement_avoid_cells |= cells
+        if any(step in cells for step in self._explore_path):
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+
+        # Use the existing stair routing and scroll order. An inaccessible stair
+        # behind the summoner is not an available retreat through safe terrain.
+        locked = self._floor_navigation_exit_locked(snapshot)
+        here = snapshot.grid_at(snapshot.player.position)
+        on_stairs = not locked and here is not None and self._is_upstairs_target(here)
+        route = (
+            self._nearest_goal_route(snapshot, self._is_upstairs_target)
+            if not locked else None
+        )
+        can_read = (
+            not locked and not snapshot.player.blind
+            and not snapshot.player.confused and self._can_read_scrolls(snapshot)
+        )
+        teleport_level = self._first_item(
+            snapshot, lambda item: item.is_scroll and item.aware
+            and item.sval == SV_SCROLL_TELEPORT_LEVEL,
+        ) if can_read else None
+        recall = self._find_recall_scroll(snapshot) if can_read else None
+        retreat_possible = bool(
+            on_stairs or route is not None or teleport_level is not None
+            or recall is not None or snapshot.player.recalling
+        )
+        if not retreat_possible:
+            self._engagement_avoid_cells -= (
+                cells - self._engagement_owned_avoid_cells
+                - self._warning_refused_cells
+                - getattr(self, "_paralyzer_avoid_cells", set())
+            )
+            self._immobile_summoner_avoid_cells = set()
+            targets = [m for m in perceived if self._summoner_never_approaches(m)]
+            if not targets:
+                return None
+            adjacent = [m for m in hostiles if m.distance <= 1]
+            visible_targets = [m for m in hostiles if self._summoner_never_approaches(m)]
+            ranged = self._ranged_attack_key(snapshot, visible_targets, adjacent)
+            if ranged is not None:
+                return ranged
+            if not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
+                if adjacent:
+                    self.last_reason = "melee"
+                    return self._direction_key(
+                        snapshot.player.position, self._weakest(adjacent).position
+                    )
+                target = min(targets, key=lambda monster: monster.distance)
+                step = self._nearest_goal_step(
+                    snapshot, lambda grid: grid.position.distance_to(target.position) <= 1
+                )
+                if step is not None:
+                    self.last_reason = "summoner:cornered-approach"
+                    self._declare_monster((target.index, target.race_id))
+                    return self._step_toward(snapshot, step)
+            return None
+
+        # This owner must never wait for an immobile trigger to walk to a choke.
+        self._detected_threat_hold = None
+        self._detected_threat_hold_position = None
+        if self._choke_plan_active(snapshot):
+            self._release_choke_plan("immobile-summoner")
+        other_hostiles = [m for m in hostiles if not self._summoner_never_approaches(m)]
+        adjacent = [m for m in other_hostiles if m.distance <= 1]
+        if adjacent and not snapshot.player.afraid:
+            self.last_reason = "melee"
+            return self._direction_key(
+                snapshot.player.position, self._weakest(adjacent).position
+            )
+        step = self._loot_step(snapshot)
+        if step is not None:
+            self.last_reason = "seek-loot"
+            return self._step_toward(snapshot, step)
+        step = self._explore_step(snapshot)
+        if step is not None:
+            self.last_reason = "explore:avoid-immobile-summoner"
+            self._declare_explore_goal()
+            return self._step_toward(snapshot, step)
+        if on_stairs:
+            self._defer_descent(snapshot)
+            self.last_reason = "summoner:stairs"
+            return UP_STAIRS_KEY
+        if route is not None:
+            self.last_reason = "summoner:seek-upstairs"
+            self._declare_reach(route.target, family="escape")
+            return self._step_toward(snapshot, route.first_step)
+        if teleport_level is not None and not snapshot.player.recalling:
+            self.last_reason = "summoner:teleport-level"
+            return reserved_item_command(self, snapshot, "read", teleport_level)
+        if recall is not None and not snapshot.player.recalling:
+            self.last_reason = "summoner:recall"
+            return self._read_dungeon_recall_scroll_key(snapshot, recall)
+        self.last_reason = "summoner:wait-recall"
+        return WAIT_KEY
+
     @claims(ClaimOwner.ESCAPE)
     def _item_destroying_breeder_leave_key(
         self, snapshot: Snapshot
