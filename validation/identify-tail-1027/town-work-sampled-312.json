@@ -1,0 +1,20 @@
+{
+  "exit": 1,
+  "seconds": 121.39,
+  "HENGBOT_TEST_SAMPLE": 5,
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "board_controls": {
+    "complete": [
+      1452,
+      203
+    ],
+    "sampled": [
+      292,
+      42
+    ]
+  },
+  "recorded_producer_populations": [
+    629,
+    656
+  ]
+}

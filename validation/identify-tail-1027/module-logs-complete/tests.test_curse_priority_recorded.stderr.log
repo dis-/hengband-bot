@@ -1,0 +1,15 @@
+test_black_market_reserve_includes_required_curse_cost (test_curse_priority_recorded.CursePriorityRecordedTest.test_black_market_reserve_includes_required_curse_cost) ... ok
+test_heavy_and_permanent_controls_choose_usable_kind (test_curse_priority_recorded.CursePriorityRecordedTest.test_heavy_and_permanent_controls_choose_usable_kind) ... ok
+test_home_star_reserve_control_satisfies_normal_curse (test_curse_priority_recorded.CursePriorityRecordedTest.test_home_star_reserve_control_satisfies_normal_curse) ... ok
+test_home_withdrawn_scroll_is_read_and_observed_cure_releases_need (test_curse_priority_recorded.CursePriorityRecordedTest.test_home_withdrawn_scroll_is_read_and_observed_cure_releases_need) ... ok
+test_legacy_checkpoint_without_permanent_curse_field_still_reads (test_curse_priority_recorded.CursePriorityRecordedTest.test_legacy_checkpoint_without_permanent_curse_field_still_reads) ... ok
+test_recorded_curse_onset_and_departure_block_are_equipped (test_curse_priority_recorded.CursePriorityRecordedTest.test_recorded_curse_onset_and_departure_block_are_equipped) ... ok
+test_recorded_home_has_normal_scroll_and_owns_cure_before_shopping (test_curse_priority_recorded.CursePriorityRecordedTest.test_recorded_home_has_normal_scroll_and_owns_cure_before_shopping) ... ok
+test_recorded_mining_cursed_weapon_returns_and_keeps_ownership (test_curse_priority_recorded.CursePriorityRecordedTest.test_recorded_mining_cursed_weapon_returns_and_keeps_ownership) ... ok
+test_shop_control_buys_required_cure_and_keeps_visible_unaffordable_need (test_curse_priority_recorded.CursePriorityRecordedTest.test_shop_control_buys_required_cure_and_keeps_visible_unaffordable_need) ... ok
+test_recorded_stuck_recall_owner_answers_depth_prompt_n (test_curse_priority_recorded.CurseRecallExecutorRecordedTest.test_recorded_stuck_recall_owner_answers_depth_prompt_n) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 4.918s
+
+OK

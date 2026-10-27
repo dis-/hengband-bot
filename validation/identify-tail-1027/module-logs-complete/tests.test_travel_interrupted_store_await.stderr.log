@@ -1,0 +1,13 @@
+test_fixture_freezes_incident_state_facts (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_fixture_freezes_incident_state_facts) ... ok
+test_genuine_entry_waits_once_without_duplicate_post (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_genuine_entry_waits_once_without_duplicate_post) ... ok
+test_recorded_abandoned_travel_releases_empty_key_barrier (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_recorded_abandoned_travel_releases_empty_key_barrier) ... ok
+test_recorded_command_barrier_replans_interrupted_home_travel (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_recorded_command_barrier_replans_interrupted_home_travel) ... ok
+test_recorded_equipment_home_travel_owner_replans_interruption (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_recorded_equipment_home_travel_owner_replans_interruption) ... ok
+test_recorded_later_turn_board_without_executor_binding_keeps_waiting (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_recorded_later_turn_board_without_executor_binding_keeps_waiting) ... ok
+test_recorded_later_turn_short_travel_replans_without_prior_interrupt (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_recorded_later_turn_short_travel_replans_without_prior_interrupt) ... ok
+test_second_recorded_travel_prompt_reissues_non_empty_macro (test_travel_interrupted_store_await.TravelInterruptedStoreAwaitTest.test_second_recorded_travel_prompt_reissues_non_empty_macro) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 19.772s
+
+OK

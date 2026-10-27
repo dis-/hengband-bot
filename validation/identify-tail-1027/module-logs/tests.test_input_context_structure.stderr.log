@@ -1,0 +1,19 @@
+test_a_new_reader_in_another_function_is_found (test_input_context_structure.InputInferenceSitesAreFrozen.test_a_new_reader_in_another_function_is_found) ... ok
+test_classify_screen_is_called_only_by_the_reader (test_input_context_structure.InputInferenceSitesAreFrozen.test_classify_screen_is_called_only_by_the_reader) ... ok
+test_input_context_is_read_only_by_the_reader (test_input_context_structure.InputInferenceSitesAreFrozen.test_input_context_is_read_only_by_the_reader) ... ok
+test_prompt_text_is_referenced_only_where_it_is_today (test_input_context_structure.InputInferenceSitesAreFrozen.test_prompt_text_is_referenced_only_where_it_is_today) ... ok
+test_screen_lines_are_read_only_where_they_are_today (test_input_context_structure.InputInferenceSitesAreFrozen.test_screen_lines_are_read_only_where_they_are_today) ... FAIL
+
+======================================================================
+FAIL: test_screen_lines_are_read_only_where_they_are_today (test_input_context_structure.InputInferenceSitesAreFrozen.test_screen_lines_are_read_only_where_they_are_today)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_input_context_structure.py", line 134, in test_screen_lines_are_read_only_where_they_are_today
+    self.assertEqual(self.outside_reader(self.sites["lines"]), LINES_READERS)
+AssertionError: Items in the first set but not the second:
+('input_executor.py', '_expected_prompt_absence_is_complete')
+
+----------------------------------------------------------------------
+Ran 5 tests in 5.071s
+
+FAILED (failures=1)

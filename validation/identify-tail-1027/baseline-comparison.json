@@ -1,0 +1,37 @@
+{
+  "lint_current": [
+    "tests/test_control_client.py:540: collaborator-wall: _run_once_with_routes replaces 5 collaborators of one object: _bot_play_macros_ready, _capture_decision_facts, _configure_policy_output_paths, _record_tcp_shadow, _write_decision",
+    "tests/test_control_client.py:608: collaborator-wall: test_control_port_without_tcp_shadow_sends_without_recording_shadow replaces 5 collaborators of one object: _bot_play_macros_ready, _capture_decision_facts, _configure_policy_output_paths, _record_tcp_shadow, _write_decision",
+    "tests/test_control_client.py:657: collaborator-wall: test_tcp_shadow_opt_in_records_after_successful_send replaces 5 collaborators of one object: _bot_play_macros_ready, _capture_decision_facts, _configure_policy_output_paths, _record_tcp_shadow, _write_decision",
+    "tests/test_policy_equipment.py:2392: pipeline-result-injected: test_unactionable_suppression_keeps_confirmed_loadout constructs a stand-in best/loadout pipeline result",
+    "tests/test_policy_quest.py:3987: collaborator-wall: test_q34_restock_wait_publishes_supplier_reason replaces 4 collaborators of one object: _fixed_quest_key, _town_claims_active, _town_restore_weapon_key, _town_terminal_transitions",
+    "tests/test_policy_town.py:3873: invariant-input-overwritten: test_incomplete_optimizer_blocks_normal_direct_entrance clears the active mode before checking its entry invariant",
+    "tests/test_policy_town.py:14495: frozen-drive-state: test_live_home_door_block_replay_never_posts_stay_publicly repeatedly drives choose_key without applying returned movement",
+    "tests/test_warrior_optimization.py:1053: pipeline-result-injected: test_departure_is_immediate_for_already_optimal_loadout constructs a stand-in best/loadout pipeline result",
+    "tests/test_warrior_optimization.py:1084: private-state-injected: test_failed_uncomposable_transaction_opens_equipment_departure_conjunct assigns derived state _equipment_optimizer_input_key before its effect is asserted",
+    "tests/test_warrior_optimization.py:1128: private-state-injected: test_retired_failure_freezes_worn_target_across_optimizer_rebuild assigns derived state _equipment_optimizer_input_key before its effect is asserted",
+    "tests/test_warrior_optimization.py:1162: pipeline-result-injected: test_timeout_keeps_confirmed_loadout_but_requires_its_premise constructs a stand-in best/loadout pipeline result",
+    "tests/test_warrior_optimization.py:1166: pipeline-result-injected: test_timeout_keeps_confirmed_loadout_but_requires_its_premise constructs a stand-in best/loadout pipeline result",
+    "tests/test_warrior_optimization.py:1205: pipeline-result-injected: test_confirmed_loadout_survives_restart_and_is_input_key_bound constructs a stand-in best/loadout pipeline result"
+  ],
+  "lint_baseline": [
+    "tests/test_control_client.py:540: collaborator-wall: _run_once_with_routes replaces 5 collaborators of one object: _bot_play_macros_ready, _capture_decision_facts, _configure_policy_output_paths, _record_tcp_shadow, _write_decision",
+    "tests/test_control_client.py:608: collaborator-wall: test_control_port_without_tcp_shadow_sends_without_recording_shadow replaces 5 collaborators of one object: _bot_play_macros_ready, _capture_decision_facts, _configure_policy_output_paths, _record_tcp_shadow, _write_decision",
+    "tests/test_control_client.py:657: collaborator-wall: test_tcp_shadow_opt_in_records_after_successful_send replaces 5 collaborators of one object: _bot_play_macros_ready, _capture_decision_facts, _configure_policy_output_paths, _record_tcp_shadow, _write_decision",
+    "tests/test_policy_equipment.py:2392: pipeline-result-injected: test_unactionable_suppression_keeps_confirmed_loadout constructs a stand-in best/loadout pipeline result",
+    "tests/test_policy_quest.py:3987: collaborator-wall: test_q34_restock_wait_publishes_supplier_reason replaces 4 collaborators of one object: _fixed_quest_key, _town_claims_active, _town_restore_weapon_key, _town_terminal_transitions",
+    "tests/test_policy_town.py:3873: invariant-input-overwritten: test_incomplete_optimizer_blocks_normal_direct_entrance clears the active mode before checking its entry invariant",
+    "tests/test_policy_town.py:14495: frozen-drive-state: test_live_home_door_block_replay_never_posts_stay_publicly repeatedly drives choose_key without applying returned movement",
+    "tests/test_warrior_optimization.py:1053: pipeline-result-injected: test_departure_is_immediate_for_already_optimal_loadout constructs a stand-in best/loadout pipeline result",
+    "tests/test_warrior_optimization.py:1084: private-state-injected: test_failed_uncomposable_transaction_opens_equipment_departure_conjunct assigns derived state _equipment_optimizer_input_key before its effect is asserted",
+    "tests/test_warrior_optimization.py:1128: private-state-injected: test_retired_failure_freezes_worn_target_across_optimizer_rebuild assigns derived state _equipment_optimizer_input_key before its effect is asserted",
+    "tests/test_warrior_optimization.py:1162: pipeline-result-injected: test_timeout_keeps_confirmed_loadout_but_requires_its_premise constructs a stand-in best/loadout pipeline result",
+    "tests/test_warrior_optimization.py:1166: pipeline-result-injected: test_timeout_keeps_confirmed_loadout_but_requires_its_premise constructs a stand-in best/loadout pipeline result",
+    "tests/test_warrior_optimization.py:1205: pipeline-result-injected: test_confirmed_loadout_survives_restart_and_is_input_key_bound constructs a stand-in best/loadout pipeline result"
+  ],
+  "lint_added": [],
+  "flight_base_exit": 1,
+  "flight_same_failure": true,
+  "manifest_base_exit": 1,
+  "manifest_same_failure": true
+}

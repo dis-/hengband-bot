@@ -1,0 +1,244 @@
+{
+  "tests.test_absorbing_states": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 1.218,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_absorbing_states.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_curse_priority_recorded": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 4.25,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_curse_priority_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_exclude_forest": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 3.188,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_exclude_forest.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_cli": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 4.437,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_cli.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_equipment_in_home_stage1": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 4.454,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_equipment_in_home_stage1.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_headless_character_dump": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.782,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_headless_character_dump.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_home_knowledge_scan": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.906,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_home_knowledge_scan.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_identify_device_fail_20261017": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 1.0,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_identify_device_fail_20261017.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_identify_wake_interrupt_20261017": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.875,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_identify_wake_interrupt_20261017.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_input_context": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.953,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_input_context.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_identify_tail_recorded": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 1.39,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_identify_tail_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_live15_identify_source": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 1.063,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_live15_identify_source.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_input_executor": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 1.078,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_input_executor.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_pickup_pile_prompt_recorded": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.89,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_pickup_pile_prompt_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_policy": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.906,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_policy.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_resume_inside_store": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.766,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_resume_inside_store.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_policy_structure": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.813,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_policy_structure.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_town_work_contract": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.875,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_town_work_contract.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_store_reentry_recorded": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 0.937,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_store_reentry_recorded.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_home_light_alternation_cli": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 6.11,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_home_light_alternation_cli.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_input_context_structure": {
+    "status": "failed",
+    "failed": 1,
+    "skipped": 0,
+    "failing_test_ids": [
+      "test_input_context_structure.InputInferenceSitesAreFrozen.test_screen_lines_are_read_only_where_they_are_today"
+    ],
+    "errors": [],
+    "duration": 5.828,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_input_context_structure.stderr.log",
+    "known_failures": []
+  },
+  "scripts/sale_key_lint.py": {
+    "status": "ran",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 4.781,
+    "stderr_path": "validation/identify-tail-1027/module-logs/scripts_sale_key_lint.py.stderr.log",
+    "known_failures": []
+  },
+  "tests.test_travel_interrupted_store_await": {
+    "status": "failed",
+    "failed": 0,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 5.422,
+    "stderr_path": "validation/identify-tail-1027/module-logs/tests.test_travel_interrupted_store_await.stderr.log",
+    "known_failures": []
+  },
+  "scripts/test_fakery_lint.py": {
+    "status": "failed",
+    "failed": 13,
+    "skipped": 0,
+    "failing_test_ids": [],
+    "errors": [],
+    "duration": 36.5,
+    "stderr_path": "validation/identify-tail-1027/module-logs/scripts_test_fakery_lint.py.stderr.log",
+    "known_failures": []
+  }
+}

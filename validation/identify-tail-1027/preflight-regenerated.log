@@ -1,0 +1,2 @@
+[preflight] FAIL manifest: the town work manifest was stale; it has been regenerated - commit it (regenerate after the LAST source edit)
+[preflight] PREFLIGHT FAIL: 11 changed files, 1 findings (identify-tail-1027 vs 726627a6)
