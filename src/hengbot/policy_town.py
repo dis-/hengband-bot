@@ -4623,7 +4623,9 @@ class TownMixin:
         return bool(
             self._town_store_blocked_under_applicable_bound(STORE_HOME, need="weight-overload")
             or ledger.approach_fails[STORE_HOME] >= limit
-            or ledger.unsatisfied_passes[STORE_HOME] >= limit
+            # Pass exhaustion is installed as a block with its applicable
+            # bound. Historical passes under equipment work's larger bound
+            # do not exhaust a later weight route by themselves.
             or (home_visit is not None
                 and home_visit.attempts_used >= home_visit.attempt_limit)
         )
