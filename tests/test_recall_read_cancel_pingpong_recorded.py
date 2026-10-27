@@ -68,6 +68,7 @@ import gzip
 import hashlib
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -149,7 +150,24 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
             cls._segment(index), policy, lambda _key: True, cls.monrace,
             knowledge_ledger_path=directory / "knowledge.jsonl",
         )
-        return snapshots[-1]
+        board = snapshots[-1]
+        # #47 NAMED CHANGE: these read/cancel pairs selected Forest. Keep
+        # their pack/certificate inputs and selector position, projecting
+        # that destination onto allowed Castle with Forest's synthetic depth.
+        # Historical recorded rows below remain untouched.
+        depths = dict(board.dungeon_recall_depths)
+        depths[12] = depths.pop(FOREST)
+        return replace(
+            board,
+            entered_dungeon_ids=tuple(
+                12 if did == FOREST else did
+                for did in board.entered_dungeon_ids if did != 12
+            ),
+            dungeon_recall_depths=depths,
+            recall_dungeon_id=(
+                12 if board.recall_dungeon_id == FOREST else board.recall_dungeon_id
+            ),
+        )
 
     @classmethod
     def _pair(cls, pair):
@@ -158,6 +176,8 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             policy = _policy(directory, cls.monrace)
+            policy._dungeon_knowledge[12] = replace(
+                policy._dungeon_knowledge[FOREST], id=12, name="Castle")
             policy._character_calibration_path.write_bytes(
                 CALIBRATION.read_bytes()
             )
@@ -166,8 +186,14 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
             policy.prime(read_board)
             policy.consume_skill_knowledge(cls.skill)
             # Wall (visit facts): from the read decision's own record.
-            policy._target_dungeon_id = record["target_dungeon_id"]
-            policy._alternate_dungeon = record["alternate_dungeon_id"]
+            policy._target_dungeon_id = (
+                12 if record["target_dungeon_id"] == FOREST
+                else record["target_dungeon_id"]
+            )
+            policy._alternate_dungeon = (
+                12 if record["alternate_dungeon_id"] == FOREST
+                else record["alternate_dungeon_id"]
+            )
             policy._equipment_catalog.home_scan_complete = record[
                 "home_scan_complete"
             ]

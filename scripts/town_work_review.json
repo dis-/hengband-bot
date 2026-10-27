@@ -11398,5 +11398,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_helpers.py:PolicyHelpersMixin._pick_alternate_dungeon": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Read-only selection of an entered, allowed alternate using landing resistance and guardian gates; returns a dungeon ID or None. Called by departure recall planning for a retained excluded target; issues no command and grants no independent progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
   }
 }
