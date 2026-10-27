@@ -36,8 +36,8 @@ class WeightRelief(NamedTuple):
 
     Junk goes first through the town junk step (#95).  Then the carried
     retention surplus: a Home deposit while the Home has a free slot, else a
-    sale, else a destruction (owner 2026-10-10).  When neither covers the
-    excess, only retained weight remains and the route names it.
+    sale, else a destruction (owner 2026-10-10). Only the absence of both
+    deposit and surplus candidates means that retained weight alone remains.
     """
     weight: int
     limit: int | None
@@ -2785,8 +2785,11 @@ class HomeMixin:
             route = "deposit"
         elif sum(item.weight * count for _, _, item, count, _ in surplus) >= excess:
             route = "sell-or-destroy"
-        elif deposits and home:
-            route = "home-relief"
+        elif deposits or surplus:
+            # Exhausting Home's route does not turn its remaining deposit
+            # candidates into retained items. Keep the unreachable terminal
+            # when legal shedding cannot clear the excess on this board.
+            route = "home-relief" if home else "home-unreachable"
         else:
             route = "retained-only"
         shed = {item.slot for item in deposits} | {entry[2].slot for entry in surplus}
