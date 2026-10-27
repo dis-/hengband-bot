@@ -1,0 +1,15 @@
+2026-10-27 不動召喚者停止盤面（原本から末尾stateを無加工抽出）
+fixture SHA256: e194616e534ec361456a89435d015168ae33c0e8e320b09ea58f4c410cf7e742
+基準ビルド: 76f484a64
+方針状態のチェックポイントは含まれないため、新規policyをprimeする再起動再生。
+decisionは停止直前の末尾決定。stateは停止後の観測なのでturnは数tick後。
+20261027-150150-stall-summoner-hold-choke
+state turn: 4243815 / decision turn: 4243808
+state.jsonl.gz SHA256: 6f380f86b7c74407bcc88a52a7ccc1e8e431d6df5e05aadbc96f94a409c2cf78
+bot-decisions.jsonl.gz SHA256: eeb2fdcbeae029ed1d44c1583da0ad5e93c53261c9485f2062c1dc928b27ede4
+control-at-stop.json.gz SHA256: d927c1cf97f1fbb3035d0a015a5f2f7b4c0458bdd921ddbd8cc7e4036a83c1fe
+20261027-150252-stall-summoner-hold-choke
+state turn: 4247218 / decision turn: 4247213
+state.jsonl.gz SHA256: 9e556fe85a72ec5db8301d3b7f5b9929dc653a9f305d9fe9f480c6a077fc2f1a
+bot-decisions.jsonl.gz SHA256: 3fb5b27a17b9c524ff5b00a93a1ff6c937bf8f125d3ca30177ffe72ee427f430
+control-at-stop.json.gz SHA256: db3d241ddb4faa7198b158266d0f6cca60580c835437b698ae9c6e372b5a6936

@@ -4664,6 +4664,27 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy_combat.py:CombatMixin._summoner_never_approaches": {
+    "classification": "data",
+    "rows": ["data/no-independent-credit"],
+    "context": "Race knowledge used by stationary summoner avoidance and choke eligibility.",
+    "evidence": "Returns only bool from can_summon and the known NEVER_MOVE flag; never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._immobile_summoner_key": {
+    "classification": "producer",
+    "rows": [
+      "survival",
+      "loot-exploration"
+    ],
+    "context": "Dungeon-only immobile summoner handling; possible town context retained conservatively.",
+    "evidence": "Reviewed returns: existing safe loot/exploration routing with remembered LOS veto, stairs then teleport-level/recall, or ranged/approach/melee when retreat is impossible. Runs after emergency HP rules and before choke holds.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
     "rows": [

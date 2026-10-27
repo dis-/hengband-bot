@@ -248,6 +248,10 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_paralyzer_prevention_key", "positioning",
             "threat:paralyzer-avoid", "paralyzer-guard:",
             marked=False),                                             # 6015
+    _decide("_immobile_summoner_key", "combat",
+            "summoner:cornered-approach", "summoner:seek-upstairs",
+            "summoner:teleport-level", "summoner:recall", "summoner:wait-recall",
+            "explore:avoid-immobile-summoner"),
     _decide("_unseen_retreat_intercept_key", "positioning"),           # 6021
     _decide("_unseen_retreat_key", "escape", "unseen:"),               # 6026
     _decide("_detected_threat_preparation_key", "positioning",

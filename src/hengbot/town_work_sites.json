@@ -2086,7 +2086,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e113112b928cf8522dff2c332441cf0939549528fbff610a7200a9f0ceed194e"
+    "ast_sha256": "863c7083a22efc32d6a2cd468a3c36db545b52bc21b2268d39435b05ac143a95"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -2143,7 +2143,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c27ae1ace7a23c7946de0df1052f1c7352f9ade8f6de4fdbff0416086ef447d0"
+    "ast_sha256": "087531ef05989d9475d1241f9cab7a6bcd1255b31be3361b7cd66adef5c17a3c"
   },
   "policy.py:HengbotPolicy._device_food_reserve_slot": {
     "classification": "data",
@@ -3185,7 +3185,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "40042d4587e278337c16bfce76b214183a376704bf371223e26a278ec9268a71"
+    "ast_sha256": "8569864af050476576c31206d867512234880d9d835ffb0e5224747d4e6a29b4"
   },
   "policy.py:HengbotPolicy._summoner_retreat_route": {
     "classification": "data",
@@ -4201,6 +4201,15 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "b9a0eebe176322f4528bfcefb279b7297448afe344dccafa56edb5ad39e89767"
   },
+  "policy_combat.py:CombatMixin._immobile_summoner_key": {
+    "classification": "producer",
+    "rows": [
+      "survival",
+      "loot-exploration"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5b06cc5e801f658ef3b0d5cdba798e6bc7cd8b7607c820ca23dc63f7d1633f55"
+  },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
     "rows": [
@@ -4336,6 +4345,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "2443f16ce24fb0e9ae29e28d6fb97ef8b7a241a0900962575702a881768f6b32"
+  },
+  "policy_combat.py:CombatMixin._summoner_never_approaches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "316cb8cd67755eeac8a21ebcdf5c349b7d5f9f7a6908b54a24acdbec5a5285bb"
   },
   "policy_combat.py:CombatMixin._update_combat_outcome": {
     "classification": "producer",

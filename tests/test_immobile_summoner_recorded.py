@@ -34,6 +34,7 @@ from tests import test_input_executor as executor_pins
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "immobile-summoner-20261027.json.gz"
+SHA256 = "e194616e534ec361456a89435d015168ae33c0e8e320b09ea58f4c410cf7e742"
 EDIT = Path("C:/hengband/lib/edit")
 OFFSETS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
@@ -43,6 +44,7 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         data = FIXTURE.read_bytes()
+        assert hashlib.sha256(data).hexdigest() == SHA256
         cls.records = json.loads(gzip.decompress(data))
         cls.knowledge = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
@@ -170,6 +172,9 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
                             turn=board.turn + 10)
             key = policy.choose_key(board)
             self.assertEqual((str(key), policy.last_reason), ("6", "summoner:cornered-approach"))
+            self.assertEqual(policy.decision_claim["rung"], "_immobile_summoner_key")
+            self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
+            self.assertEqual(policy.decision_claim["owner"], "combat")
             policy.confirm_key_posted(key)
         board = replace(board, player=replace(board.player, position=Position(10, 14)),
                         visible_monsters=[replace(board.visible_monsters[0], distance=1)],
@@ -207,6 +212,79 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         board = replace(board, player=replace(board.player, recalling=True), turn=10010)
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("5", "summoner:wait-recall"))
+
+    def test_constructed_quest_uses_existing_ranged_logic(self):
+        _record, recorded = self._recorded(0)
+        ammo = next(i for i in recorded.inventory if i.tval == 18)
+        board = replace(self._corridor(quest=True, inventory=[ammo]),
+                        equipment=recorded.equipment)
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("f" + ammo.slot + "6", "ranged:fire"))
+
+    def test_constructed_avoid_even_a_three_shot_finish(self):
+        _record, recorded = self._recorded(0)
+        ammo = next(i for i in recorded.inventory if i.tval == 18)
+        board = replace(self._corridor(inventory=[ammo, fixtures.item("r", 70, 11)]),
+                        equipment=recorded.equipment)
+        board = replace(board, visible_monsters=[replace(board.visible_monsters[0], hp=1)])
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("rr", "summoner:recall"))
+
+    def test_constructed_quest_keeps_emergency_healing(self):
+        board = self._corridor(quest=True, hp=200, inventory=[fixtures.item("h", 75, 37)])
+        policy = self._policy(board)
+        key = policy.choose_key(board)
+        self.assertEqual(str(key), "qh")
+        self.assertEqual(policy.last_reason, "item:heal")
+
+    def test_constructed_unreachable_visible_summoner_does_not_hold_choke(self):
+        board = self._corridor(quest=True, wall=True)
+        policy = self._policy(board)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
+
+    def test_constructed_unreachable_detected_summoner_releases_cached_hold(self):
+        board = self._corridor(quest=True, wall=True, detected=True)
+        policy = self._policy(board)
+        policy._detected_threat_hold = (board.floor_key, board.turn)
+        policy._detected_threat_hold_position = board.player.position
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
+        self.assertIsNone(policy._detected_threat_hold)
+
+    def test_constructed_immobile_does_not_count_as_converging_melee_pack(self):
+        board = self._corridor(quest=True, wall=True, detected=True)
+        other = replace(fixtures.hostile(20, 10, 16, distance=4), perception="detected")
+        board = replace(board, detected_monsters=[*board.detected_monsters, other])
+        policy = self._policy(board)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
+
+    def test_recorded_threat_memory_survives_sight_loss_and_retires_on_empty_cell(self):
+        record, board = self._recorded(0)
+        policy = self._policy(board)
+        key = policy.choose_key(board)
+        self.assertEqual(str(key), "4")
+        after = self._post(policy, board, key, record["board"])
+        source = board.visible_monsters[0].position
+        # DECLARED CONSTRUCTED: after walking west the source leaves observation.
+        grids = dict(board.grids)
+        grids[source] = replace(grids[source], in_view=False, currently_observed=False)
+        hidden = replace(board, player=replace(board.player, position=Position(24, 65)),
+                         grids=grids, visible_monsters=[], turn=after["turn"])
+        key = policy.choose_key(hidden)
+        self.assertEqual(policy.last_reason, "explore:avoid-immobile-summoner")
+        self.assertIn(Position(24, 70), policy._engagement_avoid_cells)
+        self.assertIn(source, policy._immobile_summoner_memory[1])
+        # DECLARED CONSTRUCTED: a later lit observation certifies the death.
+        grids[source] = replace(grids[source], has_monster=False, in_view=True,
+                                currently_observed=True)
+        empty = replace(hidden, grids=grids, turn=hidden.turn + 10)
+        policy.choose_key(empty)
+        self.assertEqual(policy._immobile_summoner_memory[1], {})
+        self.assertNotIn(Position(24, 70), policy._engagement_avoid_cells)
 
 
 if __name__ == "__main__":

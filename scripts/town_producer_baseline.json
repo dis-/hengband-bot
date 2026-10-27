@@ -1,4 +1,5 @@
 {
+  "policy_combat.py:CombatMixin._summoner_never_approaches": "pure helper: boolean NEVER_MOVE summoner race predicate; no command or independent progress.",
   "ammo_carry.py:AmmoCarryPlan.kept_slots": "pure helper: kept_slots returns frozenset[str] used as input/observation, not an independently selected game action",
   "ammo_carry.py:AmmoCarryPlan.reservation": "pure helper: reservation returns int used as input/observation, not an independently selected game action",
   "ammo_carry.py:ammo_carry_plan": "pure helper: ammo_carry_plan returns AmmoCarryPlan used as input/observation, not an independently selected game action",

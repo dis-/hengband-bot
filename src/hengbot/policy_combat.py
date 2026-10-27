@@ -278,6 +278,12 @@ class CombatMixin:
         if remembered_floor != snapshot.floor_key:
             remembered = {}
         perceived = self._perceived_hostiles(snapshot)
+        if (
+            not remembered
+            and not any(self._summoner_never_approaches(m) for m in perceived)
+            and not getattr(self, "_immobile_summoner_avoid_cells", set())
+        ):
+            return None
         for monster in perceived:
             if self._summoner_never_approaches(monster):
                 remembered[monster.position] = monster.race_id
@@ -300,6 +306,9 @@ class CombatMixin:
             - self._warning_refused_cells
             - getattr(self, "_paralyzer_avoid_cells", set())
         )
+        if not remembered:
+            self._immobile_summoner_avoid_cells = set()
+            return None
         cells = {
             position
             for position, grid in snapshot.grids.items()
@@ -310,8 +319,6 @@ class CombatMixin:
             )
         }
         self._immobile_summoner_avoid_cells = cells
-        if not remembered:
-            return None
         self._engagement_avoid_cells |= cells
         if any(step in cells for step in self._explore_path):
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
@@ -350,14 +357,20 @@ class CombatMixin:
                 return None
             adjacent = [m for m in hostiles if m.distance <= 1]
             visible_targets = [m for m in hostiles if self._summoner_never_approaches(m)]
-            ranged = self._ranged_attack_key(snapshot, visible_targets, adjacent)
+            ranged = self._town_producer_entry(
+                "_ranged_attack_key",
+                lambda: self._ranged_attack_key(snapshot, visible_targets, adjacent),
+            )
             if ranged is not None:
                 return ranged
             if not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 if adjacent:
                     self.last_reason = "melee"
-                    return self._direction_key(
-                        snapshot.player.position, self._weakest(adjacent).position
+                    return self._town_producer_entry(
+                        "_direction_key",
+                        lambda: self._direction_key(
+                            snapshot.player.position, self._weakest(adjacent).position
+                        ), family="combat",
                     )
                 target = min(targets, key=lambda monster: monster.distance)
                 step = self._nearest_goal_step(
@@ -378,8 +391,11 @@ class CombatMixin:
         adjacent = [m for m in other_hostiles if m.distance <= 1]
         if adjacent and not snapshot.player.afraid:
             self.last_reason = "melee"
-            return self._direction_key(
-                snapshot.player.position, self._weakest(adjacent).position
+            return self._town_producer_entry(
+                "_direction_key",
+                lambda: self._direction_key(
+                    snapshot.player.position, self._weakest(adjacent).position
+                ), family="combat",
             )
         step = self._loot_step(snapshot)
         if step is not None:
@@ -396,7 +412,7 @@ class CombatMixin:
             return UP_STAIRS_KEY
         if route is not None:
             self.last_reason = "summoner:seek-upstairs"
-            self._declare_reach(route.target, family="escape")
+            self._declare_reach(route.target)
             return self._step_toward(snapshot, route.first_step)
         if teleport_level is not None and not snapshot.player.recalling:
             self.last_reason = "summoner:teleport-level"

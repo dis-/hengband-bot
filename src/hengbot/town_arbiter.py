@@ -163,7 +163,10 @@ class TownTurnArbiter:
             classification("positioning", ("detected:", "melee:choke", "summoner:hold-choke", "threat:reposition", "threat:avoid-engagement", "threat:paralyzer-avoid", "paralyzer-guard:"), "distance to the chosen stand-off cell"),
             classification("esp-threat", ("esp-threat:hunt-", "melee:esp-threat-hunt"), "telepathic contact resolved"),
             classification("escape", ("emergency:", "flee", "combat:disengage", "combat:fruitless", "unseen:", "unseen-recall:", "breeder-breakthrough:", "breeder-item-damage:", "guardian:teleport-to-cover", "summoner:retreat", "summoner:stairs", "threat:scroll", "threat:wait"), "EscapeState rung released"),
-            classification("combat", ("melee", "ranged:", "summoner:ranged-kill", "unique:quaff-"), "hostile hit points or count delta"),
+            classification("combat", ("melee", "ranged:", "summoner:ranged-kill",
+                           "summoner:cornered-approach", "summoner:seek-upstairs",
+                           "summoner:teleport-level", "summoner:recall", "summoner:wait-recall",
+                           "unique:quaff-"), "hostile hit points or count delta"),
             classification("hunt", ("hunt",), "distance to the chosen hostile"),
             classification("explore", ("explore", "search", "seek-secret-wall", "probe"), "newly seen floor cells"),
             # S2b.1 round 2 (F5): ``_normal_loot_key``'s own pickup and
