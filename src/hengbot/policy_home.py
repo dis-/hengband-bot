@@ -2781,8 +2781,20 @@ class HomeMixin:
         if not plan:
             return WeightRelief(weight, limit, excess, deposits, (), False,
                                 "unplanned", ())
-        home = (self._home_available(snapshot)
-                and not self._overweight_home_bound_exhausted())
+        # Match admission of a weight-overload need by the town router.
+        # Historical passes alone do not retire that need: a pass block
+        # carries the bound under which it was installed. The broader pass
+        # check used to stop liveness re-arms is not route admission.
+        ledger = self._town_visit_ledger
+        home_visit = self._home_visit
+        home = (
+            self._home_available(snapshot)
+            and not self._town_store_blocked_under_applicable_bound(
+                STORE_HOME, need="weight-overload")
+            and ledger.approach_fails[STORE_HOME] < self._town_store_visit_limit(STORE_HOME)
+            and (home_visit is None
+                 or home_visit.attempts_used < home_visit.attempt_limit)
+        )
         # A free Home slot is an observation (page or capacity fact), never
         # the absence of a "full" fact.
         store = snapshot.store
