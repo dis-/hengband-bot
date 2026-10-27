@@ -406,7 +406,9 @@ class CombatMixin:
             )
             if loot is not None:
                 return loot
-        step = self._explore_step(snapshot)
+        step = self._town_producer_entry(
+            "_explore_step", lambda: self._explore_step(snapshot)
+        )
         if step is not None:
             self.last_reason = "explore:avoid-immobile-summoner"
             self._declare_explore_goal()
