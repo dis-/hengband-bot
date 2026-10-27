@@ -19,6 +19,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
 import unittest
+from dataclasses import replace
 
 from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _parse_items,
@@ -164,6 +165,15 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         self.assertIs(policy._overweight_surplus_disposal["pending"], pending)
         self.assertEqual(pending["waits"], STORE_STUCK_LIMIT)
         self.post(policy, snapshot, key)
+
+    def test_observed_home_page_does_not_reopen_an_exhausted_route(self):
+        policy, snapshot = self.replay(1)
+        # CONSTRUCTED: show the last recorded Home page on the stop's pack.
+        # The physical free slots cannot reset the already exhausted passes.
+        page = parse_snapshot(self.captures[1]["home"], self.monrace).store
+        snapshot = replace(snapshot, store=page)
+        relief = policy._weight_relief_selection(snapshot)
+        self.assertEqual((relief.route, relief.home_room), ("sell-or-destroy", False))
 
 
 if __name__ == "__main__":
