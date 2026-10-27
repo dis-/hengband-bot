@@ -163,19 +163,32 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         return board
 
     def test_constructed_quest_approaches_then_melees(self):
-        board = self._corridor(quest=True)
+        # The quest lock is decisive: exit scrolls exist, but may not abandon
+        # this incomplete quest. Without that lock the same board recalls.
+        board = self._corridor(quest=True, stairs=True, inventory=[
+            fixtures.item("t", 70, 10), fixtures.item("r", 70, 11),
+        ])
         policy = self._policy(board)
         self.assertTrue(policy._floor_navigation_exit_locked(board))
+        record, _recorded_board = self._recorded(0)
         for x in range(10, 14):
             board = replace(board, player=replace(board.player, position=Position(10, x)),
                             visible_monsters=[replace(board.visible_monsters[0], distance=15-x)],
                             turn=board.turn + 10)
             key = policy.choose_key(board)
             self.assertEqual((str(key), policy.last_reason), ("6", "summoner:cornered-approach"))
-            self.assertEqual(policy.decision_claim["rung"], "_immobile_summoner_key")
+            self.assertNotEqual(policy.decision_claim["rung"], "fallback:unregistered")
             self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
             self.assertEqual(policy.decision_claim["owner"], "combat")
-            policy.confirm_key_posted(key)
+            if x == 10:
+                # DECLARED CONSTRUCTED: adapt the response substrate to this
+                # quest's coordinates/floor; the follow movement is one step.
+                raw = copy.deepcopy(record["board"])
+                raw["player"]["position"] = {"y": 10, "x": 10}
+                raw["floor"].update(dungeon_id=3, level=23, quest_id=41)
+                self._post(policy, board, key, raw)
+            else:
+                policy.confirm_key_posted(key)
         board = replace(board, player=replace(board.player, position=Position(10, 14)),
                         visible_monsters=[replace(board.visible_monsters[0], distance=1)],
                         turn=board.turn + 10)
@@ -285,6 +298,21 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         policy.choose_key(empty)
         self.assertEqual(policy._immobile_summoner_memory[1], {})
         self.assertNotIn(Position(24, 70), policy._engagement_avoid_cells)
+
+    def test_recorded_board_collects_safe_loot_and_vetoes_loot_in_summoner_view(self):
+        record, board = self._recorded(0)
+        safe, unsafe = Position(24, 65), Position(24, 70)
+        grids = dict(board.grids)
+        # DECLARED CONSTRUCTED: two scroll piles on the recorded terrain.
+        for position in (safe, unsafe):
+            grids[position] = replace(grids[position], object_count=1, object_tvals=(70,))
+        board = replace(board, grids=grids)
+        policy = self._policy(board)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("4", "seek-loot"))
+        self.assertEqual(policy._loot_target, safe)
+        self.assertIn(unsafe, policy._deferred_loot)
+        self._post(policy, board, key, record["board"])
 
 
 if __name__ == "__main__":

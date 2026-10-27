@@ -262,7 +262,6 @@ class CombatMixin:
             and "NEVER_MOVE" in knowledge.flags
         )
 
-    @claims(ClaimOwner.COMBAT)
     def _immobile_summoner_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -389,7 +388,10 @@ class CombatMixin:
             self._release_choke_plan("immobile-summoner")
         other_hostiles = [m for m in hostiles if not self._summoner_never_approaches(m)]
         adjacent = [m for m in other_hostiles if m.distance <= 1]
-        if adjacent and not snapshot.player.afraid:
+        if (
+            adjacent and not snapshot.player.afraid
+            and self._can_fight_in_dungeon(snapshot.floor_key[0])
+        ):
             self.last_reason = "melee"
             return self._town_producer_entry(
                 "_direction_key",
@@ -397,10 +399,13 @@ class CombatMixin:
                     snapshot.player.position, self._weakest(adjacent).position
                 ), family="combat",
             )
-        step = self._loot_step(snapshot)
-        if step is not None:
-            self.last_reason = "seek-loot"
-            return self._step_toward(snapshot, step)
+        if snapshot.player.position not in cells:
+            loot = self._town_producer_entry(
+                "_normal_loot_key",
+                lambda: self._normal_loot_key(snapshot, other_hostiles),
+            )
+            if loot is not None:
+                return loot
         step = self._explore_step(snapshot)
         if step is not None:
             self.last_reason = "explore:avoid-immobile-summoner"

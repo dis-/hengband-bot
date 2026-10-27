@@ -1,4 +1,5 @@
 {
+  "policy_combat.py:CombatMixin._immobile_summoner_key": "dungeon-only: immobile summoner tactical adapter; delegates existing combat/loot producers and navigation/exit serializers, with no town work or independent item intent.",
   "policy_combat.py:CombatMixin._summoner_never_approaches": "pure helper: boolean NEVER_MOVE summoner race predicate; no command or independent progress.",
   "ammo_carry.py:AmmoCarryPlan.kept_slots": "pure helper: kept_slots returns frozenset[str] used as input/observation, not an independently selected game action",
   "ammo_carry.py:AmmoCarryPlan.reservation": "pure helper: reservation returns int used as input/observation, not an independently selected game action",
