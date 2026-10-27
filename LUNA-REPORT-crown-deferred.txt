@@ -62,6 +62,11 @@ ISSUE #47 冠・保留装備の修正報告
 ・Linux検証環境で上記ソースHEADと基準4db110bd5の既存6モジュールを比較。比較検証の終了コード0、新規失敗0件。test_cli、test_policy_structure、test_policy_equipmentは両側で終了コード0。test_absorbing_statesは11件、test_policyは1件、test_xbow_pref_recorded_divergenceは2件の同じ失敗が両側にあり、各モジュール終了コード1。クロスボウのLinux失敗はclassC2とtpstockoutで、live27の失敗ではない。全6モジュールが無条件に成功したとは扱わない。
 ・git diff --check 4db110bd5 HEAD: 成功。
 
-検査の進行状況（最終追記で確定）
-preflight、verify_scopeの導出、およびmutation_check --recordとfast_tierを基準4db110bd5で起動した。mutationとfast-tierは共有の全体検証を検出し、ガードの指示で待機中。ガードを迂回していない。他者のプロセスやゲーム・BOTは操作していない。
+最終検査結果と未完了項目
+・preflight . 4db110bd5: 10変更ファイル、指摘0、終了コード0。
+・verify_scope.py --base 4db110bd5 --target HEAD --derive-only: 報告を固定したHEAD c4284b89eで終了コード0。ソースはcff5a2e43と同一。導出されたのは tests.test_absorbing_states、tests.test_cli、tests.test_crown_deferred、tests.test_policy、tests.test_policy_equipment、tests.test_policy_structure の6モジュール。冠はWindows、残る5モジュールはLinux検証環境で実行し、前述の基準比較を行った。追加でクロスボウの記録テストも両環境で実行した。
+・先行した導出はレポート更新と重なり、作業ツリー指紋の変更で終了コード1になった。上記の固定状態での再実行により解消した。
+・mutation_check . 4db110bd5 --record --tests tests.test_crown_deferred tests.test_xbow_pref_recorded_divergence、および fast_tier . 4db110bd5 は起動したが、共有の全体検証を検出し、ガードの指示で待機した。確認時点で共有側は32バッチ中6バッチが完了した状態だった。45分制約内に両検査まで終えられる見通しが立たず、自分が起動した待機プロセスだけを停止した（外側終了コード1）。両検査の本体は未実施で、第2ラウンドのmutation成功記録もない。この2つの必須検査は未完了であり、取り込み可能との判定はしていない。共有検証終了後に再実行が必要。
+・レポートのUTF-8読取、REPORT_PRIVACY_PASS、git diff --checkを確認した。
+ガードを迂回していない。他者のプロセスやゲーム・BOTは操作していない。push、rebase、reset --hard、stashは行っていない。第2ラウンドで明示された基準の取り込みだけを実施した。
 検証ログはC:/hengband-backups/crown-r2-*.logおよび同名JSONへ保存し、コミット対象から外した。
