@@ -1,0 +1,376 @@
+ISSUE #47 / 指示ファイルの対象: dis-/hengband-bot #98
+町での重量超過停止の再発調査・修正報告（2026-10-27）
+
+依頼文は ISSUE #47、LUNA-TASK-overweight-98.txt の本文は #98 を指定している。本文で指定された2記録だけを対象にした。
+基準コミット: 4db110bd5beb2544c87f6c26b84d390b7216d661。
+
+結論
+1. 20261027-011308 は (b)。重量1656、上限1650、超過6。Homeは28/240で満杯ではない。購入履歴と予定深度20を復元すると預入・売却/破壊候補は空になる。保持規則を維持し、overweight-retained-only として数値を記録する。
+2. 20261026-231603 は (a)。重量1899、上限1750、超過149。Homeは109/240だが未達成パス3回で今回の経路が閉じている。空の鑑定の杖4本（重量200）などが合法な余剰。Homeに空きがあっても経路が尽きていれば売却/破壊へ進む。
+
+変更
+- 共通選択器 _weight_relief_selection が既存の _overweight_home_bound_exhausted を読む。空きと利用可能性の両方を満たす場合に預入を選ぶ。
+- _town_need_candidates は共通選択器の sell-or-destroy を余剰処分の開始条件とする。「Homeが存在し預入候補がない場合だけ」という旧条件を除いた。
+- _overweight_surplus_sale_key はHomeに空きがあるという理由だけで処分を解除せず、共通選択器が deposit を返すときに解除する。
+- _town_blocked_key は旧2停止名と departure-unsatisfiable を共通選択器で確認する。合法な経路があれば既存の余剰処分へ渡す。必要作業の計画器がすでに開いた処分も引き継ぐ。retained-only なら既存の数値記録と正式な停止名を使う。
+- 処分送信後の効果待ちと既存の STORE_STUCK_LIMIT は維持する。処分失敗の停止から同じ処分を再初期化しない。
+- 新しいガード定数、重量上限や出発要件の緩和、装備比較の変更はない。既存テストの期待値は変更していない。
+
+重量はゲーム出力の内部単位。装備重量も総重量に含める。
+明示予約は最終decisionの retention_reservations。予約0でも充填維持や未*鑑定*装備の保護等で処分できない品がある。
+Home一覧は最終の全件knowledge。109件の記録は52件だけの店画面から推測していない。
+共通選択器の既存 retained 記録は明示予約理由のない品の理由をnullにする場合がある。その実際の除外理由も下記に補記した。
+
+20261027-011308-town-blocked-overweight-home-full-no-legal-relief
+ターン556321。荷物989+装備667=1656。Home 28/240。
+容量観測ターン556295、全件knowledgeターン556248。
+所持品（単位重量×個数、明示予約数／理由）:
+  a: 油つぼ | 10×5=50 | 5 / supply-ledger:oil
+  b: スピードの薬 | 4×9=36 | 9 / carry-strategy:speed-potions
+  c: 致命傷の治癒の薬 | 4×10=40 | 10 / supply-ledger:cure
+  d: 体力回復の薬 | 4×2=8 | 2 / carry-strategy:heal-potions
+  e: テレポートの巻物 | 5×15=75 | 15 / carry-strategy:teleport
+  f: 帰還の詔の巻物 | 5×9=45 | 9 / supply-ledger:recall
+  g: *鑑定*の巻物 | 5×3=15 | 3 / visit-purchase
+  h: 光の巻物 | 5×6=30 | 6 / carry-strategy:light
+  i: 岩石溶解の魔法棒 (7回分) | 10×1=10 | 1 / utility:stone-to-mud
+  j: スリープ・モンスターの魔法棒 (21回分) | 10×2=20 | 2 / mana-device
+  k: 鑑定の杖 (2x 6回分) | 50×2=100 | 0 / 明示予約なし。鑑定の杖4本で計22回分を保持。スタック除去は出発の20回分保護を下回る。
+  l: 鑑定の杖 (2x 5回分) | 50×2=100 | 0 / 明示予約なし。鑑定の充填維持。1本だけ除いても22回から5回減り20回未満になる。
+  m: 松明(2500ターンの寿命) {明} | 30×5=150 | 5 / torch-carry
+  n: (トランプ)グレイブ (2d6) (+5,+7) (+1探索) {.} | 190×1=190 | 0 / 明示予約なし。known=True、fully_known=Falseのトランプ武器。未*鑑定*装備の保護。
+  o: シャベル (1d2) (+0,+0) (+1) {+掘} | 60×2=120 | 2 / mining:digging-tool
+装備（装備中として保持）:
+  main_hand: (防衛者)大鎌 (5d3) (+7,+12) [+1] (+2隠密) {.} | 250×1=250
+  bow: ライト・クロスボウ (x3) (0.90turn) (+2,+6) | 110×1=110
+  main_ring: 恐れ知らずの指輪 | 2×1=2
+  light: 長持ちの真鍮のランタン(1974ターンの寿命) {明} | 50×1=50
+  body: 皮石よろい (-1) [15,+8] | 200×1=200
+  outer: ★クローク『コランノン』 [1,+15] (+5隠密) {.} | 10×1=10
+  arms: 魔力支配の革グローブ [1,+2] (+3) {+道, .} | 5×1=5
+  feet: 硬革ブーツ [3,+4] | 40×1=40
+Home全件（当時のknowledge、単位重量×個数）:
+  1: 赤外線視力の薬 | 4×1=4
+  2: 透明物体感知の薬 | 4×1=4
+  3: ヒーローの薬 | 4×1=4
+  4: 重傷の治癒の薬 | 4×2=8
+  5: 帰還の詔の巻物 | 5×1=5
+  6: *解呪*の巻物 | 5×1=5
+  7: 魔法の地図の巻物 | 5×1=5
+  8: 財宝感知の巻物 | 5×15=75
+  9: トラップ感知のロッド | 15×1=15
+  10: 鑑定の杖 (0回分) | 50×1=50
+  11: 光の杖 (10回分) | 50×1=50
+  12: アイテム感知の杖 (8回分) | 50×1=50
+  13: 警告の指輪 | 2×1=2
+  14: 松明(2500ターンの寿命) {明} | 30×5=150
+  15: 真鍮のランタン(6838ターンの寿命) | 50×1=50
+  16: 鎖かたびら (-2) [14,+0] | 220×1=220
+  17: 鋲付軟革よろい [5,+6] | 90×1=90
+  18: クローク [1,+1] | 10×1=10
+  19: クローク [1] {並} | 10×1=10
+  20: 革グローブ [1,+0] | 5×1=5
+  21: マン・ゴーシュ (1d5) {並} | 30×1=30
+  22: レイピア (1d6) {並} | 40×1=40
+  23: 人喰いのスモール・ソード (1d6) (+2,+3) (+3隠密) {+器隠r恐/X人~人} | 75×1=75
+  24: ブロード・ソード (2d5) (+0,+0) | 150×1=150
+  25: 電撃のメイス (2d4) (+2,+7) {r電|電} | 120×1=120
+  26: 錫杖 (1d7) (+1,+4) | 70×1=70
+  27: シャベル (1d2) (+0,+0) (+1) {+掘} | 60×1=60
+  28: 鉄弾 (1d3) (+0,+0) (14/shot 23/turn) | 5×37=185
+最後の20判断:
+  decision 3024, turn 556214: equipment-transaction:atomic-deposit / key='5'
+  decision 3025, turn 556214: home:weight-overload-deposit / key='dn\x1b'
+  decision 3026, turn 556226: periodic:character-dump / key='Cf\ry\x1b\x1b'
+  decision 3027, turn 556226: home:request-knowledge-scan / key='~9\x1b'
+  decision 3028, turn 556226: home:atomic-withdraw / key='5pA1\r\x1b'
+  decision 3029, turn 556234: town:entrance-step-off:home:atomic-withdraw-complete / key='9'
+  decision 3030, turn 556243: shop:approach / key='1'
+  decision 3031, turn 556243: home:queue-digging-tool-withdraw / key='\x1b'
+  decision 3032, turn 556248: home:request-knowledge-scan / key='~9\x1b'
+  decision 3033, turn 556248: shop:travel:await-entry / key='5'
+  decision 3034, turn 556248: policy:none-store-exit / key='\x1b'
+  decision 3035, turn 556256: equipment-transaction:takeoff / key='tc'
+  decision 3036, turn 556261: equipment-transaction:equip / key='wq'
+  decision 3037, turn 556271: home:atomic-withdraw / key='5pA\x1b'
+  decision 3038, turn 556283: town:entrance-step-off:home:atomic-withdraw-complete / key='6'
+  decision 3039, turn 556295: equipment-transaction:approach-home / key='4'
+  decision 3040, turn 556295: equipment-transaction:deposit / key='dp'
+  decision 3041, turn 556295: home:leave-after-one-operation / key='\x1b'
+  decision 3042, turn 556308: inventory:destroy-worthless-junk / key='062kp'
+  decision 3043, turn 556321: town:blocked:overweight-home-full-no-legal-relief / key='9'
+各救済段階の回答:
+  不用品: decision3042で破壊済み。最終盤面にそのスタックはない。
+  預入: 候補なし。購入した*鑑定*3枚、予定深度20で予約する帰還9枚、鑑定の充填、未*鑑定*装備等の保持を維持する。
+  Homeの空き確保: 実際には28/240で空きがあり、この停止を「満杯」と呼ぶのは誤り。
+  売却/破壊: 候補なし。記録の停止は _overweight_surplus_sale_key の総救済重量チェックから発生した。
+  修正後: 公開choose_keyは key=9 / town:blocked:overweight-retained-only。記録に weight=1656, limit=1650, excess=6 を出す。
+証拠ファイルのSHA-256:
+  snapshots\snapshots-current.jsonl.gz: 26c914c8b8aa79e8ff061a6497daa80dd673e8ab949c64a4452c1a7bb2b25907
+  decision-tail.jsonl: efd41dc8075afd561ea4cedc23c347a52808fd77ff7c2e86b22f0a5b3fbdc0ea
+  policy-state.json: 8ab67968d0c6a246274878ba0d6dfdee4e52f48744b18d07b83804c5d602b62b
+
+20261026-231603-town-blocked-overweight-home-unreachable
+ターン1576347。荷物812+装備1087=1899。Home 109/240。
+容量観測ターン1576335、全件knowledgeターン1576347。
+所持品（単位重量×個数、明示予約数／理由）:
+  a: 重傷の治癒のキノコ | 2×1=2 | 0 / 明示予約なし
+  b: しわしわのキノコ | 1×1=1 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  c: スピードの薬 {25%引き} | 4×5=20 | 5 / emergency-potion:speed
+  d: 致命傷の治癒の薬 | 4×10=40 | 10 / supply-ledger:cure
+  e: 体力回復の薬 | 4×3=12 | 3 / emergency-potion:heal
+  f: 賢さ復活の薬 | 4×1=4 | 0 / 明示予約なし
+  g: テレポートの巻物 | 5×15=75 | 15 / supply-ledger:teleport
+  h: 帰還の詔の巻物 | 5×9=45 | 9 / supply-ledger:recall
+  i: スズメッキのロッド | 15×1=15 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  j: 岩石溶解の魔法棒 (2回分) | 10×1=10 | 1 / mana-device
+  k: アイス・ボルトの魔法棒 | 10×1=10 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  l: 鑑定の杖 (4x 0回分) {@0} | 50×4=200 | 0 / 明示予約なし
+  m: 守りの指輪 {未鑑定} | 2×1=2 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  n: 耐混乱の指輪 {未鑑定} | 2×1=2 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  o: 玻璃瓶 {未鑑定, !!} | 10×1=10 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  p: 赤外線視力の鉄ヘルメット [5,+7] (+4) | 75×1=75 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  q: 硬革ブーツ [3] {上質} | 40×1=40 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  r: クロスボウの矢 (1d5) (+0,+0) (46/shot 98/turn) | 3×83=249 | 83 / ammo:carry-plan
+装備（装備中として保持）:
+  main_hand: (防衛者)ヘヴィ・フレイル (3d6) (+5,+8) [+4] (+4隠密) {+隠r酸電火冷沌;麻視活浮(魅, .} | 280×1=280
+  bow: ☆ライト・クロスボウ『氷の支配者』 (x3) (0.46turn) (+18,+10) (+3) {+腕*冷r毒轟沌;射, .} | 110×1=110
+  main_ring: スピードの指輪 (+7) | 2×1=2
+  sub_ring: 電撃の指輪 [+14] | 2×1=2
+  neck: 賢者のアミュレット {未鑑定} | 3×1=3
+  light: ★知識の石 {明} | 15×1=15
+  body: ☆フル・プレート・メイル『闇の護り手』 (-3) [25,+11] (+3) {+腕器r盲劣, .} | 380×1=380
+  outer: 守りの毛皮のクローク [3,+25] {.} | 30×1=30
+  head: 守りの鉄ヘルメット [5,+15] {r呪, .} | 75×1=75
+  arms: 俊敏のセスタス [5,+4] (+2) {+器, .} | 40×1=40
+  feet: ★鉄鋲底の靴『炎の鉄ゲタ』 (-5,+10) [6,+20] (-1加速) {.} | 150×1=150
+Home全件（当時のknowledge、単位重量×個数）:
+  1: 恐怖除去のキノコ | 1×1=1
+  2: 油つぼ | 10×6=60
+  3: 透明物体感知の薬 | 4×1=4
+  4: スピードの薬 {25%引き} | 4×4=16
+  5: 耐火の薬 | 4×5=20
+  6: ヒーローの薬 | 4×3=12
+  7: 重傷の治癒の薬 | 4×1=4
+  8: 致命傷の治癒の薬 | 4×2=8
+  9: 魅力復活の薬 | 4×1=4
+  10: 自己分析の薬 | 4×1=4
+  11: 癒しの薬 | 4×1=4
+  12: ショート・テレポートの巻物 | 5×2=10
+  13: 鑑定の巻物 | 5×1=5
+  14: 防具強化の巻物 | 5×1=5
+  15: 光の巻物 | 5×1=5
+  16: 財宝感知の巻物 | 5×6=30
+  17: 聖唱歌の巻物 | 5×1=5
+  18: 聖祈言の巻物 | 5×1=5
+  19: パニック・モンスターの巻物 | 5×5=25
+  20: トラップ感知のロッド | 15×3=45
+  21: ドア/階段感知のロッド | 15×6=90
+  22: 帰還のロッド | 15×1=15
+  23: イルミネーションのロッド | 15×3=45
+  24: アシッド・ボルトのロッド | 15×1=15
+  25: サンダー・ボルトのロッド | 15×2=30
+  26: ファイア・ボルトのロッド | 15×1=15
+  27: アシッド・ボールのロッド | 15×1=15
+  28: トラップ/ドア破壊の魔法棒 (10回分) | 10×1=10
+  29: スロウ・モンスターの魔法棒 (9回分) | 10×1=10
+  30: パニック・モンスターの魔法棒 (13回分) | 10×1=10
+  31: 謎の魔法棒 (24回分) | 10×1=10
+  32: 暗闇の杖 | 50×1=50
+  33: テレポートの杖 (6回分) | 50×1=50
+  34: 鑑定の杖 (14x 0回分) {@0} | 50×14=700
+  35: スターライトの杖 (11回分) | 50×1=50
+  36: 周辺感知の杖 (10回分) | 50×1=50
+  37: 周辺感知の杖 (9回分) | 50×1=50
+  38: アイテム感知の杖 (11回分) | 50×1=50
+  39: 透明物体感知の杖 (12回分) | 50×1=50
+  40: 軽傷の治癒の杖 (10回分) | 50×1=50
+  41: 軽傷の治癒の杖 | 50×1=50
+  42: スロウ・モンスターの杖 (12回分) | 50×1=50
+  43: 浮遊の指輪 {浮} | 2×1=2
+  44: 耐火の指輪 | 2×1=2
+  45: 耐冷の指輪 | 2×1=2
+  46: 賢さ維持の指輪 | 2×1=2
+  47: 氷の指輪 [+13] | 2×1=2
+  48: 氷の指輪 [+12] | 2×1=2
+  49: 恐れ知らずの指輪 | 2×1=2
+  50: 耐光耐暗の指輪 | 2×1=2
+  51: 警告の指輪 | 2×1=2
+  52: 耐酸のアミュレット | 3×1=3
+  53: 知能のアミュレット (+2) | 3×1=3
+  54: 耐電のアミュレット | 2×2=4
+  55: 松明(2500ターンの寿命) {明} | 30×5=150
+  56: 真鍮のランタン(491ターンの寿命) | 50×1=50
+  57: フェアノールのランプ | 60×3=180
+  58: 光明のフェアノールのランプ {明} | 60×1=60
+  59: 鎖かたびら (-2) [14,+0] | 220×1=220
+  60: 二重リングメイル (-2) [15,+6] | 230×1=230
+  61: 重鎖かたびら (-2) [16,+2] | 270×1=270
+  62: 全耐性の二重鎖かたびら (-2) [16,+8] {r酸電火冷因} | 250×1=250
+  63: 強化鎖かたびら (-2) [18,+5] | 280×1=280
+  64: ドワーフのスプリント・メイル (-2) [24,+14] (+2) {+耐r電} | 166×1=166
+  65: ドワーフの金属製ラメラー・アーマー (-3) [28,+16] (+2) {+耐r火} | 226×1=226
+  66: フル・プレート・メイル (-3) [25,+6] | 380×1=380
+  67: 汚れたボロ服 [1] {並} | 20×1=20
+  68: ローブ [2,+3] | 20×1=20
+  69: ★軟革よろい『ヒスロミア』 [4,+20] (+4隠密) {+隠r酸電火冷毒暗} | 80×1=80
+  70: 鋲付硬革よろい (-1) [7,+5] | 110×1=110
+  71: ★ダサイ皮よろい (-1) [8,+64] (-10) {+魅;怒(魅} | 110×1=110
+  72: 革製スケイル・メイル (-1) [11,+2] | 140×1=140
+  73: クローク [1] {並} | 10×1=10
+  74: エルフのクローク [4,+6] (+3隠密) | 5×1=5
+  75: エルフのクローク [4,+4] (+3隠密) | 5×1=5
+  76: 忍びの毛皮のクローク [3,+5] (+1隠密) {+隠} | 30×1=30
+  77: 革製スモール・シールド [3,+3] | 50×1=50
+  78: 全耐性の金属製ラージ・シールド [8,+8] {r酸電火冷閃} | 120×1=120
+  79: 知性の鉄ヘルメット [5,+9] (+1) {+知賢魅(知賢魅} | 75×1=75
+  80: ☆星兜『ガーディアン』 [7,+11] (+4赤外線視力) {+赤r劣時呪} | 80×1=80
+  81: 麻痺知らずの革グローブ [1,+3] {麻} | 5×1=5
+  82: ダガー (1d4) {並} | 12×1=12
+  83: 切れ味の短刀 (1d5) (+11,+7) (+1) {+掘|切} | 20×1=20
+  84: バゼラード (1d8) (+7,+2) | 80×1=80
+  85: 凍結のサーベル (1d7) (+10,+5) {r冷|凍} | 50×1=50
+  86: サーベル (1d7) {並} | 50×1=50
+  87: 虹色のブロード・ソード (2d5) (+6,+2) {明|電焼凍} | 150×1=150
+  88: アンデッドスレイヤーのロング・ソード (2d5) (+1,+5) (+1) {+賢r獄;視祝/X死~死} | 130×1=130
+  89: ★ロング・ソード『デーモンベーン』 (2d5) (+5,+0) {/デ} | 130×1=130
+  90: パイク (2d5) (+4,+5) | 160×1=160
+  91: 溶解のビークド・アックス (2d6) (+5,+8) {r酸|酸} | 120×1=120
+  92: (混沌)グレイブ (2d6) (+4,+4) {r電沌|沌} | 190×1=190
+  93: 殺戮のグレイブ (4d6) (+8,+5) | 190×1=190
+  94: ☆グレイブ『ク=モン』 (2d6) (+6,+10) (+3) {+知掘|焼魔} | 190×1=190
+  95: 凍結のギザルム (2d5) (+3,+4) {r冷|凍} | 165×1=165
+  96: デーモンスレイヤーのロッホアーバー・アックス (3d8) (+2,+3) (+3) {+知r火/Xデ~デ} | 250×1=250
+  97: 焼棄のロッホアーバー・アックス (3d8) (+4,+1) {r火;明|焼, .} | 250×1=250
+  98: ★ウォー・ハンマー『トロルズベーン』 (4d3) (+0,+10) (+1) {+腕r火恐|焼/ト} | 240×1=240
+  99: 三節棍 (3d3) (+5,+4) | 120×1=120
+  100: (吸血)鉛詰めメイス (3d4) (+11,+8) {経|吸} | 180×1=180
+  101: 虹色の鉛詰めメイス (3d4) (+4,+5) {明|電焼凍} | 180×1=180
+  102: シャベル (1d2) (+0,+0) (+1) {+掘} | 60×2=120
+  103: スリング (x2) {並} | 5×1=5
+  104: ショート・ボウ (x2) (0.63turn) (+5,+7) | 30×1=30
+  105: 高速度のショート・ボウ (x2) (0.63turn) (+6,+15) | 30×1=30
+  106: ライト・クロスボウ (x3) (0.75turn) (+9,+8) | 110×1=110
+  107: クロスボウの矢 (1d5) (+0,+0) (46/shot 98/turn) | 3×68=204
+  108: 矢 (1d4) (+0,+0) | 2×67=134
+  109: モンスター・ボール (空) | 120×1=120
+最後の20判断:
+  decision 2144, turn 1575899: equipment-transaction:takeoff / key='td'
+  decision 2145, turn 1575899: equipment-transaction:equip / key='wn('
+  decision 2146, turn 1575899: equipment-transaction:defer-identification / key='\x1b'
+  decision 2147, turn 1575906: equipment:suppress-random-teleport / key='{q.\r'
+  decision 2148, turn 1575906: equipment-transaction:takeoff / key='tl'
+  decision 2149, turn 1575909: equipment-transaction:equip / key='wr'
+  decision 2150, turn 1575913: equipment-transaction:travel-home:await-entry / key='5'
+  decision 2151, turn 1575913: equipment-transaction:defer-identification / key='\x1b'
+  decision 2152, turn 1575919: town-progress-invariant:defect:home:await-fresh-knowledge=>town-progress-invariant:approach / key='\x1b`n%.'
+  decision 2153, turn 1576120: shop:observe-and-leave / key='\x1b'
+  decision 2154, turn 1576126: equipment-transaction:travel-home / key='\x1b`n(.'
+  decision 2155, turn 1576330: equipment-transaction:withdraw / key='pW'
+  decision 2156, turn 1576330: home:store-context-exit / key='\x1b'
+  decision 2157, turn 1576335: equipment-transaction:travel-home:await-entry / key='5'
+  decision 2158, turn 1576335: equipment-transaction:takeoff / key='te'
+  decision 2159, turn 1576335: equipment-transaction:equip / key='wn)'
+  decision 2160, turn 1576335: equipment-transaction:defer-identification / key='\x1b'
+  decision 2161, turn 1576343: town-progress-invariant:defect:town:blocked:overweight-home-unreachable=>town:entrance-step-off:home:scan-step-off / key='9'
+  decision 2162, turn 1576347: home:request-knowledge-scan / key='~9\x1b\x1b'
+  decision 2163, turn 1576347: town:blocked:overweight-home-unreachable / key='5'
+各救済段階の回答:
+  不用品: この最終盤面ではworthless-junk段階に先行破壊候補なし。
+  預入の品候補: p,q,i,k,o,a,m,n,b。ただしunsatisfied_passes=3、home_visit_limit=3、home_blocked=Trueで今回の経路は尽きている。
+  売却/破壊: a 重傷治癒キノコ1個（重量2、General/Black）、f 賢さ復活薬1本（重量4、Alchemist/Magic/Temple/Black）、l 空の鑑定の杖4本（重量200、Magic/Black）。計206で超過149を解消できる。
+  保留: スピード5、致命傷治癒10、体力回復3、テレポート15、帰還9、岩石溶解1、矢83の記録上の保持理由を維持する。
+  修正後: 公開choose_keyはGeneral Storeへのshop:travelを返す。論理キーESC `n!.はfollow実行器で登録済みCtrl-Kへ変換され、1回だけ送信される。
+  候補を順に処分した場合の重量計算は1899→1897→1893→1693。これは予測であり、実ゲームで売却を完了したとは主張しない。
+証拠ファイルのSHA-256:
+  state.jsonl.gz: 8ea522574a95a6e656b9c274f03637760dbafe4aa1603ec1e7dd9b43d8feb95e
+  bot-decisions.jsonl.gz: 65873af351d36e10fc9d0b209b5de81a67a20d99d1c4dea6882229ffba683640
+
+再生・検証の範囲
+抽出器: tests/extract_overweight_recurrence_1027.py。完全なgzip memberからJSONを読む。入力盤面は改変せず固定した。
+fixture: tests/fixtures/overweight-recurrence-1027.json.gz。
+SHA-256: c2ad676e1c7357ba6cab572965130ca704b5d3171ffdc827dd19bea6da8a74c0。
+新規テスト: tests.test_overweight_recurrence_1027。公開choose_keyと本番follow実行器を使う。共有ハーネスは import tests.test_input_executor as executor_harness で参照する。キーを += で組み立てていない。
+全生涯の復元ではなく境界再生。新規policyへ、記録にあるHome一覧・容量・予定深度・購入予約・fundraising mode・Homeパス情報と停止時の所有状態を復元する。既知だったskill listの再要求だけを抑制し、選択器と実行器は置き換えていない。
+followの応答画面は構成したcommand境界。公開choose_keyの返したキーを本番送信経路へ渡し、FIFOの完了と重複送信なしを検証する。実ゲーム再稼働・売却完了の検証ではない。
+対照は、Homeの経路上限を取り除いた状態、送信済み処分が効果待ち上限を使い切った状態、停止の荷物へ最後のHome画面を組み合わせた状態。変えた事実はテスト中に明記した。
+
+自動導出スコープ
+scripts/verify_scope.py --target HEAD --base 4db110bd5 --derive-only: 終了コード0。
+対象HEAD: 68482246fffef7ff817fcdcb7f12e53df23ec7e5
+導出モジュール（全件）:
+  tests.test_absorbing_states
+  tests.test_cli
+  tests.test_item_reservation
+  tests.test_overweight_recurrence_1027
+  tests.test_policy
+  tests.test_policy_home
+  tests.test_policy_structure
+  tests.test_policy_town
+  tests.test_town_work_contract
+導出lint: scripts/sale_key_lint.py, scripts/test_fakery_lint.py
+最終の検証結果は末尾の追記を参照。
+
+最終検証結果
+検証対象のソース／テストHEAD: cd0fa08de0ae56bbee0c0c8bfb7b58ac105cf880
+実装は早期コミット9137b9e7bから段階的にコミットした。以下の結果はその後の修正を含む。
+Python実体を用いて実行した。WindowsAppsのスタブは使っていない。
+preflight:
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (overweight-98-1027 vs 4db110bd)
+  終了コード0。
+  ログ: C:/hengband-backups/overweight-98-preflight-final.log
+mutation_check --record:
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+  [mutation] recorded for cd0fa08d
+  5箇所すべてを個別に差し戻すとテストが失敗した。未検出0件、終了コード0。
+  ログ: C:/hengband-backups/overweight-98-mutation-final.log
+fast_tier:
+  [fast] waiting: the merge gate is running its full suite (gate home-loop-63-1027, since 14:50:24); owner decision 2026-10-25
+  未完了。全体検証のロック待ちのため本体は実行されていない。成功扱いにしていない。
+  ログ: C:/hengband-backups/overweight-98-fast-final.log
+導出スコープの全モジュール検証:
+  scripts/verify_scope.py --target HEAD --base 4db110bd5 --timeout 600
+  対象HEAD: cd0fa08de0ae56bbee0c0c8bfb7b58ac105cf880
+  既存ツールの除外規則: {'test_cli.DecisionTimingTest': 'known hang; exclusion required by SOL-TASK-verification-gates.md'}
+  scripts/sale_key_lint.py: ran, 失敗0件, skip 0件, 13.288秒
+  scripts/test_fakery_lint.py: failed, 失敗13件, skip 0件, 136.82秒
+  tests.test_absorbing_states: failed, 失敗0件, skip 0件, 1.982秒
+  tests.test_cli: failed, 失敗0件, skip 0件, 16.231秒
+  tests.test_item_reservation: failed, 失敗0件, skip 0件, 2.452秒
+  tests.test_overweight_recurrence_1027: failed, 失敗0件, skip 0件, 1.791秒
+  tests.test_policy: failed, 失敗0件, skip 0件, 1.731秒
+  tests.test_policy_home: failed, 失敗0件, skip 0件, 2.222秒
+  tests.test_policy_structure: failed, 失敗0件, skip 0件, 1.896秒
+  tests.test_policy_town: failed, 失敗0件, skip 0件, 3.982秒
+  tests.test_town_work_contract: failed, 失敗0件, skip 0件, 4.766秒
+  JSON結果: C:/hengband-backups/overweight-98-scope-full.json
+  元の -c 起動はテスト本体の前にimportエラーとなった。AttributeError: bytes object has no attribute co_filename。期待値の失敗として扱っていない。
+  ファイル起動での再実行（同じverify_scope._test_code・run_item・除外規則、検索パスに作業ツリーを設定）:
+    tests.test_absorbing_states: 完了結果未取得
+    tests.test_cli: 完了結果未取得
+    tests.test_item_reservation: ran, 失敗0件, skip 0件, 95.273秒
+    tests.test_overweight_recurrence_1027: 完了結果未取得
+    tests.test_policy: 完了結果未取得
+    tests.test_policy_home: failed, 失敗1件, skip 4件, 158.154秒
+    tests.test_policy_structure: 完了結果未取得
+    tests.test_policy_town: 完了結果未取得
+    tests.test_town_work_contract: failed, 失敗0件, skip 0件, 333.354秒
+    scripts/sale_key_lint.py: 完了結果未取得
+    scripts/test_fakery_lint.py: 完了結果未取得
+  再実行JSON: C:/hengband-backups/overweight-98-scope-file-runner.json
+
+補足と制約
+初回の追加検討では「超過を解消できない部分的な余剰も処分する」という範囲拡張により既存テストが失敗した。範囲拡張を撤回して既存契約を維持し、今回の2盤面の修正に絞った。期待値を書き換えて通過させていない。
+停止からの引き継ぎと、送信済み処分の既存上限を両立する経路は、新規テストと差し戻し検証で確認した。
+fast tierの待機は、検証ツールの既存規則によるもの。指示の60分上限を越えて実行を継続する扱いにはしない。
+本レポートはPythonのPath.write_text(encoding="utf-8")で保存し、日本語の読み戻しを確認した。
+
+時間上限時点の未完了事項
+60分上限に従い、待機中のfast tierと実行中のファイル起動検証を停止した。最終状態を検証完了・マージ可能とは扱わない。
+既存の失敗: test_policy_home.WeightOverloadTownTest.test_retired_weight_claim_hands_off_without_an_ownerless_pass。
+期待値: overweight-home-unreachable。実値: overweight-retained-only。既存期待値は変更していない。
+この対照はHome経路の失敗後にも預入候補が残る盤面であり、「経路が尽きた」と「保持品だけが残る」の分類をさらに区別する必要がある。今回の2実記録の改善とは別に、この分類修正は未完了である。
+tests.test_policy_home は171件、失敗1件、skip4件。tests.test_item_reservation は通過。ほかのファイル起動モジュールは完了結果を回収できていない。
+新規6件は差し戻し検証の事前実行で通過している。5箇所すべての差し戻しを検出し、mutation記録を残した。
+preflightは8変更ファイル・指摘0件で通過。fast tierは本体未実行。導出スコープ全体を通過したとは主張しない。
+再開時は上記の分類を共通選択器で修正し、既存期待値を維持したまま当該テスト・新規6件・全スコープ・差し戻し・fast tierを再検証する必要がある。
