@@ -111,7 +111,7 @@ class IdentifyTailRecordedPin(harness.ProductionHarness):
     def test_recorded_capture_hashes_and_posted_prefixes(self):
         for label, info in load("provenance").items():
             with self.subTest(label=label):
-                self.assertEqual(hashlib.sha256((FIXTURES / (label + ".json")).read_bytes()).hexdigest(),
+                self.assertEqual(hashlib.sha256((FIXTURES / (label + ".json")).read_bytes().replace(b"\r\n", b"\n")).hexdigest(),
                                  info["sha256"])
                 self.assertEqual([row["character"] for row in load(label)["posted"]], ["u", "g"])
 
