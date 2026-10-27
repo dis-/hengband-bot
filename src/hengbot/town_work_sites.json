@@ -4599,7 +4599,7 @@
       "equipment-optimization"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e6a392b7f24f82e4a4d6f8cf7fdadb58d8c013a149987dbf8aedd6668001ef10"
+    "ast_sha256": "1e14f41521ac959a62f9cebd97b409c706d864a25066b66d0c952b2bcf99f7c3"
   },
   "policy_equipment.py:EquipmentMixin._prepare_equipment_transaction_command": {
     "classification": "producer",
@@ -4617,6 +4617,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "f2c4b5e82a1fd1b83f65e40bd307707021ba37f51f2ce94a0eeb548c4a159358"
+  },
+  "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "fc6bbc489ea098d9ef7f7aea4e3c1642d2895b1e098cc2c2f8c6229b1e65b785"
   },
   "policy_equipment.py:EquipmentMixin._retained_ammo_slots": {
     "classification": "data",

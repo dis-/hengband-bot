@@ -11409,5 +11409,16 @@
     "rows": [
       "data/no-independent-credit"
     ]
+  },
+  "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure execution-target projection. Retains worn replacements for deferred selected items; returns Loadout data, no game command or completion credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
