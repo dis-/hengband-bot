@@ -1,0 +1,13 @@
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 2.819s
+
+OK
+worker-1: 0 tests, 0.000s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-bin_g2xz\worker-1\home-history
+worker-2: 0 tests, 0.000s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-bin_g2xz\worker-2\home-history
+worker-3: 0 tests, 0.000s, exit 0; home history: C:\Users\user\AppData\Local\Temp\hengbot-parallel-bin_g2xz\worker-3\home-history
+Failures: none
+Errors: none
+purity: ran (inputs sha256=bfcba22c32e1a2eee91828c6701713cd4c3fae67cafe5f6673192ffec7867514)
+weights: unavailable; fallback=2/2; stale=yes
+Total: 0 tests, 0.003s; output: C:\Users\user\AppData\Local\Temp\tmp2zsz93gj\out.json

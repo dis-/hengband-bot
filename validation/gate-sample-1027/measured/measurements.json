@@ -1,0 +1,314 @@
+{
+  "head": "7fe76c9464347ea302915a5adf3d2bb52225b824",
+  "workers": 6,
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "results": [
+    {
+      "module": "tests.test_declarations_r14",
+      "mode": "5",
+      "seconds": 550.2202928999905,
+      "returncode": 0,
+      "log": "tests.test_declarations_r14.5.log"
+    },
+    {
+      "module": "tests.test_declarations_r14",
+      "mode": "full",
+      "seconds": 577.095341200009,
+      "returncode": 0,
+      "log": "tests.test_declarations_r14.full.log"
+    },
+    {
+      "module": "tests.test_equipment_homefull_step15a",
+      "mode": "5",
+      "seconds": 499.2067064999137,
+      "returncode": 0,
+      "log": "tests.test_equipment_homefull_step15a.5.log"
+    },
+    {
+      "module": "tests.test_equipment_homefull_step15a",
+      "mode": "full",
+      "seconds": 457.56101139995735,
+      "returncode": 0,
+      "log": "tests.test_equipment_homefull_step15a.full.log"
+    },
+    {
+      "module": "tests.test_experience_potion",
+      "mode": "5",
+      "seconds": 737.5785342999734,
+      "returncode": 0,
+      "log": "tests.test_experience_potion.5.log"
+    },
+    {
+      "module": "tests.test_experience_potion",
+      "mode": "full",
+      "seconds": 886.3525567000033,
+      "returncode": 0,
+      "log": "tests.test_experience_potion.full.log"
+    },
+    {
+      "module": "tests.test_gate_sample",
+      "mode": "5",
+      "seconds": 9.160409800009802,
+      "returncode": 0,
+      "log": "tests.test_gate_sample.5.log"
+    },
+    {
+      "module": "tests.test_gate_sample",
+      "mode": "full",
+      "seconds": 9.083309100009501,
+      "returncode": 0,
+      "log": "tests.test_gate_sample.full.log"
+    },
+    {
+      "module": "tests.test_latch_onset_capture",
+      "mode": "5",
+      "seconds": 1223.7491555999732,
+      "returncode": 0,
+      "log": "tests.test_latch_onset_capture.5.log"
+    },
+    {
+      "module": "tests.test_latch_onset_capture",
+      "mode": "full",
+      "seconds": 1353.6909970000852,
+      "returncode": 0,
+      "log": "tests.test_latch_onset_capture.full.log"
+    },
+    {
+      "module": "tests.test_overweight_home_unreachable_recorded",
+      "mode": "5",
+      "seconds": 476.20708540000487,
+      "returncode": 0,
+      "log": "tests.test_overweight_home_unreachable_recorded.5.log"
+    },
+    {
+      "module": "tests.test_overweight_home_unreachable_recorded",
+      "mode": "full",
+      "seconds": 430.389004800003,
+      "returncode": 0,
+      "log": "tests.test_overweight_home_unreachable_recorded.full.log"
+    },
+    {
+      "module": "tests.test_pure_decision_telemetry",
+      "mode": "5",
+      "seconds": 607.9368442000123,
+      "returncode": 0,
+      "log": "tests.test_pure_decision_telemetry.5.log"
+    },
+    {
+      "module": "tests.test_pure_decision_telemetry",
+      "mode": "full",
+      "seconds": 531.7477241000161,
+      "returncode": 0,
+      "log": "tests.test_pure_decision_telemetry.full.log"
+    },
+    {
+      "module": "tests.test_quest_enter_approach_progress",
+      "mode": "5",
+      "seconds": 550.4038852000376,
+      "returncode": 0,
+      "log": "tests.test_quest_enter_approach_progress.5.log"
+    },
+    {
+      "module": "tests.test_quest_enter_approach_progress",
+      "mode": "full",
+      "seconds": 513.3657828000141,
+      "returncode": 0,
+      "log": "tests.test_quest_enter_approach_progress.full.log"
+    },
+    {
+      "module": "tests.test_town_decision_speed_caches",
+      "mode": "5",
+      "seconds": 1418.918942600023,
+      "returncode": 0,
+      "log": "tests.test_town_decision_speed_caches.5.log"
+    },
+    {
+      "module": "tests.test_town_decision_speed_caches",
+      "mode": "full",
+      "seconds": 1587.563262999989,
+      "returncode": 0,
+      "log": "tests.test_town_decision_speed_caches.full.log"
+    },
+    {
+      "module": "tests.test_town_fact_refresh_once",
+      "mode": "5",
+      "seconds": 765.4315681000007,
+      "returncode": 0,
+      "log": "tests.test_town_fact_refresh_once.5.log"
+    },
+    {
+      "module": "tests.test_town_fact_refresh_once",
+      "mode": "full",
+      "seconds": 916.1973069000524,
+      "returncode": 0,
+      "log": "tests.test_town_fact_refresh_once.full.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity",
+      "mode": "5",
+      "seconds": 107.07463759998791,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity.5.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity",
+      "mode": "full",
+      "seconds": 131.51058860006742,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity.full.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part1",
+      "mode": "5",
+      "seconds": 122.6517876998987,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part1.5.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part1",
+      "mode": "full",
+      "seconds": 579.0051235000137,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part1.full.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part2",
+      "mode": "5",
+      "seconds": 117.26485929999035,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part2.5.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part2",
+      "mode": "full",
+      "seconds": 568.1665035999613,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part2.full.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part3",
+      "mode": "5",
+      "seconds": 121.33934690000024,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part3.5.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part3",
+      "mode": "full",
+      "seconds": 581.8276535000186,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part3.full.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part4",
+      "mode": "5",
+      "seconds": 116.11884020001162,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part4.5.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part4",
+      "mode": "full",
+      "seconds": 572.6991498999996,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part4.full.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part5",
+      "mode": "5",
+      "seconds": 121.56251029996201,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part5.5.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part5",
+      "mode": "full",
+      "seconds": 584.4082354999846,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part5.full.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part6",
+      "mode": "5",
+      "seconds": 116.7011366999941,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part6.5.log"
+    },
+    {
+      "module": "tests.test_town_producer_purity_part6",
+      "mode": "full",
+      "seconds": 567.1188586000353,
+      "returncode": 0,
+      "log": "tests.test_town_producer_purity_part6.full.log"
+    },
+    {
+      "module": "tests.test_town_terminal_exit_round16",
+      "mode": "5",
+      "seconds": 367.66574329999276,
+      "returncode": 0,
+      "log": "tests.test_town_terminal_exit_round16.5.log"
+    },
+    {
+      "module": "tests.test_town_terminal_exit_round16",
+      "mode": "full",
+      "seconds": 996.6712472999934,
+      "returncode": 0,
+      "log": "tests.test_town_terminal_exit_round16.full.log"
+    },
+    {
+      "module": "tests.test_town_work_contract",
+      "mode": "5",
+      "seconds": 169.8178801999893,
+      "returncode": 1,
+      "log": "tests.test_town_work_contract.5.log"
+    },
+    {
+      "module": "tests.test_town_work_contract",
+      "mode": "full",
+      "seconds": 876.4023092999123,
+      "returncode": 1,
+      "log": "tests.test_town_work_contract.full.log"
+    },
+    {
+      "module": "tests.test_unaffordable_claim_tour_recorded",
+      "mode": "5",
+      "seconds": 717.7301102000056,
+      "returncode": 0,
+      "log": "tests.test_unaffordable_claim_tour_recorded.5.log"
+    },
+    {
+      "module": "tests.test_unaffordable_claim_tour_recorded",
+      "mode": "full",
+      "seconds": 675.5611128999153,
+      "returncode": 0,
+      "log": "tests.test_unaffordable_claim_tour_recorded.full.log"
+    }
+  ],
+  "rerun": {
+    "module": "tests.test_declarations_r14",
+    "reason": "initial measurement omitted scripts from PYTHONPATH; import failed before executing tests",
+    "initial_error_log": "initial-declarations-import.log",
+    "replacement_run": {
+      "head": "2c6b1905f2f6b8dee8a4b726c12f09472dc1d15e",
+      "workers": 1,
+      "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+      "results": [
+        {
+          "module": "tests.test_declarations_r14",
+          "mode": "5",
+          "seconds": 550.2202928999905,
+          "returncode": 0,
+          "log": "tests.test_declarations_r14.5.log"
+        },
+        {
+          "module": "tests.test_declarations_r14",
+          "mode": "full",
+          "seconds": 577.095341200009,
+          "returncode": 0,
+          "log": "tests.test_declarations_r14.full.log"
+        }
+      ]
+    }
+  },
+  "note": "Declaration import failures replaced by passing rerun; original main driver exited 1. Town-work manifest checks fail under Python 3.12; both modes pass under Python 3.13."
+}

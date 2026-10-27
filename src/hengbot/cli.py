@@ -487,7 +487,9 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
             tokens.add(("store-effect", candidate.store_type, candidate.posted_sequence))
     buffer_method = getattr(policy, "_decision_offer_buffer", None)
     if buffer_method is not None:
-        for producer, work_id, evidence, _, status in buffer_method().no_steps:
+        completed = (*buffer_method().no_steps,
+                     *getattr(policy, "_decision_observed_execution_effects", ()))
+        for producer, work_id, evidence, _, status in completed:
             if status == "done" and evidence and work_id in state["admitted"]:
                 tokens.add(("execution-effect", producer, work_id, evidence))
     productive = bool(tokens - state["effects"]) and not baseline

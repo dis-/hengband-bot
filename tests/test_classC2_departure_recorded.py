@@ -265,15 +265,46 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
             self.assertEqual(policy._pending_recall_dungeon_id, 3)
             # Stop at this changed decision: no future live effect is claimed.
 
-    def test_no_alternate_keeps_visible_stop_and_weight_requirement(self):
-        # Named counterfactual: only Angband and the refused Yeek cave entered.
-        # The four-shot weight remedy has completed on this counterboard.
-        board = replace(self._after_shots(), entered_dungeon_ids=(1, 2))
-        key = self.policy._town_special_key(board)
-        self.assertEqual((str(key), self.policy.last_reason),
+    def test_angband_alternate_keeps_weight_and_landing_safety_requirements(self):
+        # Named counterfactual: no entered alternative to the refused Yeek
+        # cave except Angband. The four-shot weight remedy has completed.
+        saved = checkpoint(self.policy)
+        for unlocked in (False, True):
+            with self.subTest(unlocked=unlocked):
+                policy = restore_checkpoint(HengbotPolicy, saved)
+                board = replace(self._after_shots(),
+                    entered_dungeon_ids=(1, 2) if unlocked else (2,),
+                    angband_recall_unlocked=unlocked,
+                    dungeon_recall_depths={1: 1, 2: 12})
+                self.assertFalse(policy._inventory_overweight(board))
+                self.assertTrue(policy._guardian_floor_blocked(board, 2, 12))
+                key = policy._town_special_key(board)
+                self.assertEqual((str(key), policy.last_reason),
+                                 ("5", "town:unsafe-recall-fallback"))
+                self.assertEqual((policy._alternate_dungeon, policy._target_dungeon_id), (1, 1))
+                self.assertIsNone(policy._town_blocked_reason)
+                self.assertEqual(policy._rumor_unlock_pending, not unlocked)
+                self.assertIsNone(policy._pending_recall_dungeon_id)
+                self.assertFalse(policy._guardian_floor_blocked(board, 1, 1))
+                self.assertTrue(policy._town_departure_ready(board))
+                key = policy._town_special_key(board)
+                if unlocked:
+                    self.assertTrue(str(key).startswith("r"))
+                    self.assertEqual(policy.last_reason, "town:recall-to-angband")
+                    self.assertEqual(policy._pending_recall_dungeon_id, 1)
+                else:
+                    self.assertIn(policy.last_reason, ("town:rumor", "town:rumor-batch"))
+                    self.assertIsNone(policy._pending_recall_dungeon_id)
+
+        # A deep unsafe Angband landing still cannot replace the guardian stop.
+        policy = restore_checkpoint(HengbotPolicy, saved)
+        unsafe = replace(board, dungeon_recall_depths={1: 81, 2: 12})
+        key = policy._town_special_key(unsafe)
+        self.assertEqual((str(key), policy.last_reason),
                          ("1", "town:blocked:guardian-bounce-no-alternate"))
-        self.assertEqual(self.policy._target_dungeon_id, 2)
-        self.assertEqual(self.policy._inventory_overweight(board), False)
+        self.assertEqual(policy._target_dungeon_id, 2)
+        self.assertFalse(policy._inventory_overweight(unsafe))
+        self.assertIsNone(policy._pending_recall_dungeon_id)
 
     def test_any_remaining_safe_surplus_goes_home_before_guardian_switch(self):
         # Named counterfactual: retain one of the phase-door scrolls that the

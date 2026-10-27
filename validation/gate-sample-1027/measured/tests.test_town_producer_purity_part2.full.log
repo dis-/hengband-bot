@@ -1,0 +1,6 @@
+test_candidate_town_producers_part2_are_pure (tests.test_town_producer_purity_part2.TownProducerPurityPart2Test.test_candidate_town_producers_part2_are_pure) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 565.994s
+
+OK

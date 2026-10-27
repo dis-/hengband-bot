@@ -1,0 +1,26 @@
+{
+  "module": "tests.test_declarations_r14",
+  "reason": "initial measurement omitted scripts from PYTHONPATH; import failed before executing tests",
+  "initial_error_log": "initial-declarations-import.log",
+  "replacement_run": {
+    "head": "2c6b1905f2f6b8dee8a4b726c12f09472dc1d15e",
+    "workers": 1,
+    "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+    "results": [
+      {
+        "module": "tests.test_declarations_r14",
+        "mode": "5",
+        "seconds": 550.2202928999905,
+        "returncode": 0,
+        "log": "tests.test_declarations_r14.5.log"
+      },
+      {
+        "module": "tests.test_declarations_r14",
+        "mode": "full",
+        "seconds": 577.095341200009,
+        "returncode": 0,
+        "log": "tests.test_declarations_r14.full.log"
+      }
+    ]
+  }
+}

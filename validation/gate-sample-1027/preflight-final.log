@@ -1,0 +1,9 @@
+[preflight] NOTE existing-test MODIFIED: tests/test_town_producer_purity_part1.py::TownProducerPurityPart1Test.test_candidate_town_producers_part1_are_pure
+[preflight] NOTE existing-test MODIFIED: tests/test_town_producer_purity_part2.py::TownProducerPurityPart2Test.test_candidate_town_producers_part2_are_pure
+[preflight] NOTE existing-test MODIFIED: tests/test_town_producer_purity_part3.py::TownProducerPurityPart3Test.test_candidate_town_producers_part3_are_pure
+[preflight] NOTE existing-test MODIFIED: tests/test_town_producer_purity_part4.py::TownProducerPurityPart4Test.test_candidate_town_producers_part4_are_pure
+[preflight] NOTE existing-test MODIFIED: tests/test_town_producer_purity_part5.py::TownProducerPurityPart5Test.test_candidate_town_producers_part5_are_pure
+[preflight] NOTE existing-test MODIFIED: tests/test_town_producer_purity_part6.py::TownProducerPurityPart6Test.test_candidate_town_producers_part6_are_pure
+[preflight] NOTE existing-test MODIFIED: tests/test_town_work_contract.py::TownWorkContractTest.test_both_captures_all_complete_boards_and_recorded_producers
+[preflight] NOTE existing-test MODIFIED: tests/test_town_work_contract.py::TownWorkContractTest.test_recorded_versioned_corpus_has_zero_unmapped_receipts
+[preflight] PREFLIGHT OK: 13 changed files, 0 findings ( vs 28f3e33f)

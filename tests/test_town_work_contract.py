@@ -24,6 +24,7 @@ from hengbot.model import Position
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import town_work_manifest as generator
 from ownership_on_corpus import MANIFEST, read_json, run_window
+from tests.gate_sample import sample
 
 
 def board():
@@ -173,7 +174,8 @@ class TownWorkContractTest(unittest.TestCase):
         corpus = read_json(MANIFEST)
         windows = []
         with patch.object(HengbotPolicy, 'choose_key', choose):
-            for window in corpus['windows']:
+            # Windows are independent; run_window keeps every decision in each.
+            for window in sample(corpus['windows']):
                 with self.subTest(window=window['name']), TemporaryDirectory(prefix='slice0-corpus-') as raw:
                     result = run_window(window, Path(raw))
                     windows.append(dict(name=result.window, rows=result.rows_replayed,
@@ -226,7 +228,10 @@ class TownWorkContractTest(unittest.TestCase):
             unmapped = []
             first = None
             reasons = {}
-            for captured in capture['boards']:
+            # Producer mapping/counts above use the complete population. Only
+            # these fresh-policy board controls are independent sampling units.
+            boards = sample(capture['boards'])
+            for captured in boards:
                 # Independent reconstructed baseline; never credit an earlier
                 # control or treat this board as its historical response.
                 with TemporaryDirectory(prefix='slice0-capture-') as raw:
@@ -251,7 +256,7 @@ class TownWorkContractTest(unittest.TestCase):
                         first = dict(physical_row=captured['physical_row'], key=key, reason=policy.last_reason)
             self.assertFalse(unmapped, json.dumps(unmapped[:8], ensure_ascii=False))
             results.append(dict(name=capture['name'], sources=capture['sources'],
-                                recorded_decisions=len(mapped), board_controls=len(capture['boards']),
+                                recorded_decisions=len(mapped), board_controls=len(boards),
                                 receipts=count, required=required, unmapped=unmapped,
                                 reconstructed_recorded_receipts=len(recorded_receipts),
                                 reconstructed_recorded_unmapped=sum(bool(r['reason']) for r in recorded_receipts),

@@ -1,0 +1,12 @@
+test_t1_t2_protocol2_golden_opening_trajectory (tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol2_golden_opening_trajectory) ... ok
+test_t1_t2_protocol2_morivant_lifetime_prefix (tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol2_morivant_lifetime_prefix) ... ok
+test_t1_t2_protocol3_entrance_travel_boards (tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_entrance_travel_boards) ... ok
+test_t1_t2_protocol3_tour_first_town_visit (tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_tour_first_town_visit) ... ok
+test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result (tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result)
+T1 revert-proof: the second town arrival of the tour lifetime. ... ok
+test_t3_capture_fields_equal_the_unscoped_evaluation (tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t3_capture_fields_equal_the_unscoped_evaluation) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 528.127s
+
+OK

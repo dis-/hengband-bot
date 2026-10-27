@@ -1,0 +1,16 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-top-stops.txt - part D only (A, B, C are done in your round 1).
+You stopped D with options (55da4969f). The owner decided (verbatim, 2026-10-27 00:0x, LOCKED):
+「鉄獄に進む。必要なら噂を使って解禁する。」
+So: when a guardian bounce leaves no alternate dungeon (town:blocked:guardian-bounce-no-alternate; n1-a life-363 Lv11,
+Yeek cave 12F, guardian race 237 イークの大王『ボルドール』 on 13F), the alternate is Angband (dungeon 1). If Angband
+recall is not unlocked yet (angband_recall_unlocked false), unlock it first with the existing rumor path (town:rumor at
+the inn, its RUMOR_COST / reserve rules and the new Outpost-fare reserve in broke-prevent-1026 if it lands first), then
+recall/travel there. Use the existing depth gates (divable depth, required resists, guardian checks) for the Angband
+landing; if Angband's landing also fails those gates, end with a named stop (no loop).
+Do: implement inside the existing alternate-dungeon choice (policy_helpers.py _pick_alternate_dungeon and its callers
+policy_town.py / policy.py / policy_observation.py) rather than a new path; pins through the public choose_key and the
+follow executor seeded from n1-a/life-363 incident captures (before = guardian-bounce-no-alternate; after = Angband
+chosen, and the rumor step when locked). Keep round-1 pins green. Commit early; append D to the diagnosis and report.
+Rules as round 1. Guards: preflight / mutation_check --record / fast_tier with base 9955517b4. Token budget 100k HARD,
+wall time 90 minutes.

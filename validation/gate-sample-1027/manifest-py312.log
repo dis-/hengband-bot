@@ -1,0 +1,21 @@
+test_manifest_has_zero_unmapped_and_unknown_additions_fail (tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail) ... FAIL
+
+======================================================================
+FAIL: test_manifest_has_zero_unmapped_and_unknown_additions_fail (tests.test_town_work_contract.TownWorkContractTest.test_manifest_has_zero_unmapped_and_unknown_additions_fail)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\gate-sample-1027\tests\test_town_work_contract.py", line 147, in test_manifest_has_zero_unmapped_and_unknown_additions_fail
+    self.assertEqual(generator.check_repository(), [])
+AssertionError: Lists differ: ['generated town work manifest is stale; review then regenerate'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'generated town work manifest is stale; review then regenerate'
+
+- ['generated town work manifest is stale; review then regenerate']
++ []
+
+----------------------------------------------------------------------
+Ran 1 test in 39.196s
+
+FAILED (failures=1)

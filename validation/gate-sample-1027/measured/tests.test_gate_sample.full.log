@@ -1,0 +1,12 @@
+test_bad_values_fail_even_for_empty_input (tests.test_gate_sample.GateSampleTest.test_bad_values_fail_even_for_empty_input) ... ok
+test_daily_inventory_matches_sampling_test_modules (tests.test_gate_sample.GateSampleTest.test_daily_inventory_matches_sampling_test_modules) ... ok
+test_default_and_one_return_original_list (tests.test_gate_sample.GateSampleTest.test_default_and_one_return_original_list) ... ok
+test_equal_values_keep_positional_endpoints (tests.test_gate_sample.GateSampleTest.test_equal_values_keep_positional_endpoints) ... ok
+test_purity_cache_tracks_sampler_implementation (tests.test_gate_sample.GateSampleTest.test_purity_cache_tracks_sampler_implementation) ... ok
+test_sampled_pass_cannot_satisfy_full_purity_cache (tests.test_gate_sample.GateSampleTest.test_sampled_pass_cannot_satisfy_full_purity_cache) ... ok
+test_stride_keeps_endpoints_order_and_does_not_mutate (tests.test_gate_sample.GateSampleTest.test_stride_keeps_endpoints_order_and_does_not_mutate) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 8.486s
+
+OK

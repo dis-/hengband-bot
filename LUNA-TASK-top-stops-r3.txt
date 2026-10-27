@@ -1,0 +1,16 @@
+ISSUE: #47
+ROUND 3 of LUNA-TASK-top-stops.txt - one topic: regressions your rounds 1-2 caused in slow tests.
+The merge gate (main 524054b47 + top-stops-1026 936603321, tree eefaee0ad) stopped: full suite not green. These 10
+tests failed again when rerun alone; the supervisor checked that three of them PASS on main 524054b47 and FAIL on
+top-stops-1026 alone, so the branch causes them (they are slow and outside fast_tier, which is why you did not see them):
+  list: C:\hengband\bot-client\jsonlog\gate-top-stops-1026-failures.txt
+  (test_policy_town x5, test_pure_decision_telemetry x2, test_classC2_departure_recorded, test_classC_departure_remedies,
+   test_idstaff_poor_depart_recorded)
+They are about town departure, recall waiting, stockout mining and departure telemetry - most likely part B (restored
+stockout mining preparation, 812c2162d) and/or part C (town work receipts / quest routes, c48033deb, efd079814).
+Do: run the 10 tests on your branch, find which commit/hunk changes each, and decide per test: (a) your change broke an
+approved behaviour -> fix the source so both your new pins and the old test pass; (b) the old test encoded the stop you
+were asked to remove -> explain why with file:line and the owner decision that supersedes it; do NOT edit the test,
+list it in the report for the supervisor (existing tests stay unchanged).
+Rules as round 1. COMMIT EARLY. Run the 10 tests plus your round-1/2 pins and fast_tier with base 9955517b4. Token
+budget 80k HARD, wall time 60 minutes. Append round 3 to the report.

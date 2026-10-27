@@ -1009,6 +1009,12 @@ class HomeMixin:
                     self._complete_claim_goal(
                         "home-full-destroy-observed", owners=("home-visit",),
                         kinds=("Observe",), sources=("effect",))
+                    if relief.get("destroy_posted"):
+                        self._offer_execution_done(
+                            producer="home-visit",
+                            work_id=f"home-full-destroy:{sale_identity}",
+                            evidence="surplus-stack-removal-observed",
+                        )
                 # Stock space is earned by the take, but the next take/deposit
                 # starts only after the sale's inventory effect is observed.
                 pack_only = relief.pop("pack_only", False)
@@ -2228,6 +2234,14 @@ class HomeMixin:
                 candidate.is_food and candidate.aware and candidate.sval >= FOOD_MIN_SVAL
             )
             branch = "supply-ledger:food"
+        elif (item.is_lantern and self._planned_depth() >= 2
+              and not self._owns_usable_permanent_light(snapshot)):
+            # The ordinary departure gate still requires a lantern when an
+            # optimized ego torch is worn. Keep its one carried source rather
+            # than staging it at Home and recreating the same shortage.
+            target = int(not any(worn.is_lantern for worn in snapshot.equipment))
+            matches = lambda candidate: candidate.is_lantern
+            branch = "light:departure-lantern"
         elif item.is_torch:
             if not item.known or item.fuel <= 0:
                 return 0, None

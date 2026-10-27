@@ -1,0 +1,16 @@
+[
+  {
+    "module": "tests.test_equipment_homefull_step15a",
+    "mode": "full",
+    "seconds": 457.56101139995735,
+    "returncode": 0,
+    "log": "tests.test_equipment_homefull_step15a.full.log"
+  },
+  {
+    "module": "tests.test_equipment_homefull_step15a",
+    "mode": "5",
+    "seconds": 499.2067064999137,
+    "returncode": 0,
+    "log": "tests.test_equipment_homefull_step15a.5.log"
+  }
+]

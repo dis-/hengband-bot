@@ -156,6 +156,11 @@ class DepartureRemedyTest(unittest.TestCase):
         self.assertEqual(self.policy._planned_mining_runs, None)
 
     def test_newly_installed_supply_restock_is_offered_on_the_same_board(self):
+        from hengbot.model import (
+            StoreItem, StoreState, TVAL_FOOD, TVAL_FLASK, TVAL_SCROLL,
+            SV_SCROLL_TELEPORT,
+        )
+
         base = self._mapless_refused_staff_routes()
         base = replace(base, inventory=tuple(
             replace(item, charges=20, pval=20) if item.tval == TVAL_STAFF else item
@@ -186,10 +191,31 @@ class DepartureRemedyTest(unittest.TestCase):
                 self.assertEqual(policy._recall_town_departure_conjuncts(board)[leaf], False)
                 key = policy._town_special_key(board)
                 print("CLASS C SAME BOARD", leaf, repr(key), policy.last_reason)
-                self.assertEqual((key, policy.last_reason), (RESTOCK_WAIT_MACRO, "town:wait-restock:" + supplier))
+                self.assertEqual((key, policy.last_reason), ("5", "fundraise:supply-stockout-mining"))
+                self.assertEqual(policy._fundraising_mode, "prepare")
+                self.assertEqual(policy._planned_mining_runs, 1)
+                self.assertEqual(policy._fundraising_gold_target(), board.player.gold + 5000)
+                self.assertIsNone(policy._cross_town_shopping)
+                self.assertIsNone(policy._pending_recall_dungeon_id)
                 self.assertEqual(policy._town_blocked_reason, None)
-                self.assertGreater(policy._town_restock_wait_until, board.turn)
+                self.assertIsNone(policy._town_restock_wait_until)
                 self.assertEqual(policy._recall_town_departure_conjuncts(board)[leaf], False)
+
+                # Independent stocked counterfactual at the same turn, not an
+                # invented effect of the preparation key or a completed run.
+                # The normal supply owner must offer the local ware again.
+                stocked_policy = restore_checkpoint(HengbotPolicy, saved)
+                store, tval, sval = {
+                    "food_ready": (0, TVAL_FOOD, 35),
+                    "light_ready": (0, TVAL_FLASK, 0),
+                    "teleport_ready": (4, TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                    "cure_critical_ready": (3, TVAL_POTION, SV_POTION_CURE_CRITICAL),
+                }[leaf]
+                ware = StoreItem("a", supplier + " restocked supply", 99, tval, sval, 1)
+                stocked = replace(board, store=StoreState(store, items=[ware]))
+                self.assertEqual(stocked.turn, board.turn)
+                self.assertEqual(stocked_policy._next_purchase(stocked), ware)
+                self.assertIsNone(stocked_policy._cross_town_shopping)
 
 
 if __name__ == "__main__":
