@@ -44,8 +44,12 @@ class IdentifyWakeInterruptPins(unittest.TestCase):
             source["charges"] = source_charges
         game = harness.FaithfulHookGame()
         game.state = copy.deepcopy(before)
+        # Source-derived chooser: the production selector validates visible rows.
+        source_screen = harness.prompt_screen("(???:a-z, ESC) " + SOURCE_PROMPT["u"][0].rstrip())
+        for row, item in enumerate(before["inventory"], 1):
+            source_screen["lines"][row] = item["slot"] + ") " + item["name"]
         game.screens = [
-            harness.prompt_screen(SOURCE_PROMPT["u"][0].rstrip()),
+            source_screen,
             harness.command_screen(after["turn"]),
         ]
         game.states = [copy.deepcopy(before), copy.deepcopy(after)]
