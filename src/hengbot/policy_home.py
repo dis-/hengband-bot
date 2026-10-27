@@ -184,7 +184,7 @@ class HomeMixin:
         if state["town"] != self._effective_town_id(snapshot):
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
-        candidates = list(relief.surplus)
+        candidates = list(self._weight_relief_selection(snapshot).surplus)
         limit = self._inventory_weight_limit(snapshot)
         if (sum(i.weight*n for _, _, i, n, _ in candidates)
                 < self._inventory_weight(snapshot)-limit):
