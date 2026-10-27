@@ -282,6 +282,25 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         key = policy.choose_key(board)
         self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
 
+    def test_constructed_detected_melee_only_summoner_does_not_complete_pack(self):
+        # DECLARED CONSTRUCTED: a summoner with no damaging ranged attacks
+        # meets the melee-pack filter unless the shared immobility predicate
+        # excludes it. One mobile detected monster alone cannot own a hold.
+        board = self._corridor(quest=True, wall=True, detected=True, monster_x=13)
+        immobile = replace(board.detected_monsters[0], max_ranged_damage=0)
+        mobile = replace(fixtures.hostile(20, 11, 13, distance=3), perception="detected")
+        grids = dict(board.grids)
+        grids[mobile.position] = fixtures.grid(11, 13, monster=True, in_view=True, lit=True)
+        board = replace(board, grids=grids, detected_monsters=[immobile, mobile])
+        policy = self._policy(board)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
+        raw = copy.deepcopy(self.records[0]["board"])
+        raw["turn"] = board.turn
+        raw["player"]["position"] = {"y": 10, "x": 10}
+        raw["floor"].update(dungeon_id=3, level=23, quest_id=41)
+        self._post(policy, board, key, raw)
+
     def test_recorded_threat_memory_survives_sight_loss_and_retires_on_empty_cell(self):
         record, board = self._recorded(0)
         policy = self._policy(board)
