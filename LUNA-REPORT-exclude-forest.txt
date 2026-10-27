@@ -213,3 +213,39 @@ P0再生についても同じ出発消費の欠落が原因で、同一の実装
 補足: 保存された森の目標と有効な代替先が同時に残る場合も、既存の代替先を優先して
 出発消費を計算する。代替先選択は現在の代替先を再選択しないため、常に選び直すと
 唯一の有効な代替先を見失う。専用テストは代替先が未保存・有効候補・森の3状態を確認する。
+
+第3ラウンドの検証（コード確定HEAD: 02b0e84a2）
+- 最終補正後の tests.test_exclude_forest と tests.test_store_reentry_recorded:
+  合計46件、294.763秒、全件成功、実行プロセス終了コード0。
+  P0の全操作再生とブラックマーケットの予備費検査を含む。既存テストは未変更。
+- 最終補正後の preflight.py . f66916c86:
+  19変更ファイル、指摘0件、PREFLIGHT OK、終了コード0。
+- 初回の tests.test_store_reentry_recorded と tests.test_policy_structure:
+  43件、361.932秒、失敗1件。記録済み再生は全件成功。
+  失敗は構造検査の既存5モジュールの直接importのみで、今回の森テストは違反から消えた。
+  対象は bounty_confirm_1026 / q34_chest_prompt_recorded / q34_churn_recorded /
+  q34_collect_recorded / town_post_s2_r2。指示で39c2b4b4dの別修正対象と指定されたため変更しない。
+- verify_scope.py --target HEAD --derive-only は終了コード0で完了。
+  さらに基準f66916c86から導出した16モジュールの全対象を実行した。
+  CLIの既知の DecisionTimingTest 除外は検証スクリプトの指定どおり。
+  導出対象の実行中に保存済み代替先の補正を加えたため、影響する専用・記録済み再生は
+  上記の46件を最終コードで改めて確認した。
+  以下は完了した13モジュール、計1364件（クエストの7件スキップを含む）、すべて終了コード0。
+  test_absorbing_states: 22件 / 264.423秒 / 成功
+  test_cli: 229件 / 16.120秒 / 成功
+  test_dungeon_knowledge: 1件 / 0.007秒 / 成功
+  test_guardian_recall_pingpong_recorded: 8件 / 209.357秒 / 成功
+  test_overweight_home_unreachable_recorded: 9件 / 445.121秒 / 成功
+  test_policy: 57件 / 4.337秒 / 成功
+  test_policy_helpers: 23件 / 0.213秒 / 成功
+  test_policy_observation: 57件 / 2.208秒 / 成功
+  test_policy_quest: 334件 / 224.195秒 / 成功
+  test_policy_town: 593件 / 522.694秒 / 成功
+  test_recall_read_cancel_pingpong_recorded: 5件 / 52.714秒 / 成功
+  test_spectator_recall_destination: 15件 / 78.085秒 / 成功
+  test_town_approach_retired_recorded: 11件 / 212.924秒 / 成功
+- 追加の sale_key_lint.py: 指摘0件、終了コード0。
+- 追加の test_fakery_lint.py: 既存の未宣言13件により終了コード1。
+  今回の変更テスト test_exclude_forest.py は開始HEAD e34eda571、最終コードの両方で指摘0件。
+  ほかのテストファイルは第3ラウンドで変更しておらず、この13件は今回の変更による増加ではない。
+- town_work_contract と待機中の2ガードの確定結果は以下へ追記する。
