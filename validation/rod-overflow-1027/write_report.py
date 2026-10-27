@@ -13,12 +13,16 @@ details = [json.loads(path.read_text(encoding='utf-8'))
            for path in sorted((OUT / 'modules').glob('*.json'))]
 
 def guard(name):
+    if name == 'fast_tier' and (OUT / 'fast_tier_final.log').exists():
+        name = 'fast_tier_final'
     path = OUT / (name + '.log')
     content = path.read_text(encoding='utf-8') if path.exists() else ''
     markers = ('PREFLIGHT ', 'MUTATION ', 'recorded for', 'Total:', 'Failures:',
                'Errors:', 'Crashed shards:', 'waiting:')
+    terminal = any(word in content for word in ('PREFLIGHT OK', 'MUTATION OK', 'MUTATION FAIL', 'Total:'))
     return '\n'.join(line for line in content.splitlines()
-                     if any(marker in line for marker in markers)) or '未完了'
+                     if any(marker in line for marker in markers)
+                     and not (terminal and 'waiting:' in line)) or '未完了'
 
 report = f'''ISSUE: #47（依頼ファイルの事象番号は dis-/hengband-bot #119）
 基準: 069d2e7ce
