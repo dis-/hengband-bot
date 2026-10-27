@@ -149,6 +149,13 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
         policy._store_sale_refused.update(range(8))
         self.assertIsNone(policy._town_organization_sale_store(board, amulet))
 
+    def test_constructed_roomy_pack_keeps_completed_visit_closed(self):
+        policy, board, _ = self.attached()
+        amulet = next(item for item in board.inventory if item.slot == "l")
+        roomy = replace(board, inventory=[amulet])
+        self.assertFalse(policy._town_pack_space_shortage(roomy))
+        self.assertIsNone(policy._town_organization_sale_store(roomy, amulet))
+
     def test_constructed_worthless_bottle_remains_a_last_resort(self):
         policy, board, _ = self.attached(refused=True)
         # Constructed negative control: a broken bottle has zero sale value.
