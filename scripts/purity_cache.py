@@ -42,7 +42,8 @@ def dependency_files(root: Path) -> tuple[Path, ...]:
                 names = [node.module]
                 names.extend(f"{node.module}.{alias.name}" for alias in node.names)
             for name in names:
-                candidates = [root / "src" / (name.replace(".", "/") + ".py"),
+                candidates = [root / (name.replace(".", "/") + ".py"),
+                              root / "src" / (name.replace(".", "/") + ".py"),
                               root / "tests" / (name.replace(".", "/") + ".py")]
                 for candidate in candidates:
                     if candidate.is_file() and candidate.resolve() not in found:

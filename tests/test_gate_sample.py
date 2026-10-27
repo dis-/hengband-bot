@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from tests import gate_sample
+from scripts import purity_cache
 
 
 class GateSampleTest(unittest.TestCase):
@@ -44,6 +45,23 @@ class GateSampleTest(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(ValueError, gate_sample.SAMPLE_ENV):
                     gate_sample.sample([])
+
+    def test_sampled_pass_cannot_satisfy_full_purity_cache(self):
+        root = Path(__file__).resolve().parents[1]
+        with patch.object(purity_cache, "dependency_files", return_value=()):
+            with patch.dict(os.environ):
+                os.environ.pop(gate_sample.SAMPLE_ENV, None)
+                full, _ = purity_cache.input_sha256(root)
+                os.environ[gate_sample.SAMPLE_ENV] = "1"
+                explicit_full, _ = purity_cache.input_sha256(root)
+                os.environ[gate_sample.SAMPLE_ENV] = "5"
+                sampled, _ = purity_cache.input_sha256(root)
+        self.assertEqual(full, explicit_full)
+        self.assertNotEqual(full, sampled)
+
+    def test_purity_cache_tracks_sampler_implementation(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertIn(root / "tests" / "gate_sample.py", purity_cache.dependency_files(root))
 
     def test_daily_inventory_matches_sampling_test_modules(self):
         root = Path(__file__).parent
