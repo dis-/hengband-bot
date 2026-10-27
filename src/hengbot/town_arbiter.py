@@ -129,11 +129,11 @@ class TownTurnArbiter:
             registration("home-visit", ("home:", "home-visit:", "home-disposal:"), "addressed Home state delta"),
             registration("shop-sell", ("town:overweight-surplus-", "shop:sale", "shop:sell-", "shop:batch-sale", "shop:batch-sell", "shop:batch-inscribe", "shop:one-shot-sale", "shop:one-shot-sell", "shop:in-store-sell", "shop:in-store-inscribe", "shop:unsellable-", "shop:defective-target-leave", "shop:leave", "shop:stuck-leave", "shop:invalid", "shop:retain-standing-digging-tool", "town:destroy-overflow", "equipment:sale"), "gold up and inventory delta",
                 census=("shop:outpost-fare-earned-leave", "shop:outpost-fare-seek-sale-leave", "shop:outpost-fare-sale-approach",)),
-            registration("shop-buy", ("shop:one-shot-buy", "shop:in-store-buy", "shop:in-store-done", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta",
+            registration("shop-buy", ("shop:one-shot-buy", "shop:in-store-buy", "shop:in-store-done", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:opening-route-page", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta",
                 ("shop:purchase-deferred",)),
             registration("store-router", ("shop:approach", "shop:travel", "store:", "town:travel", "town-travel:", "town:teleport", "wilderness:enter-town", "wilderness:global-travel", "wilderness:enter-global"), "distance to store goal"),
             registration("equipment-opt", ("equipment-optimization:", "equipment:opt", "optimizer:"), "optimization signature delta"),
-            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light"), "equipment session or slot delta",
+            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light", "opening-q1:equip-light"), "equipment session or slot delta",
                 # S2a census: the replacement half of the same producer
                 # (policy_equipment.py ``_town_restore_weapon_key``) was never
                 # registered, so it alone fell through to ``unregistered``.

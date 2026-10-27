@@ -4729,7 +4729,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b9223a728abf2b38422f6c9dceb01f841cb11518dab7c840427258007e571120"
+    "ast_sha256": "f2710a44860e3838068a2cd2979feaff94b71aaf61d01516e862e92cdb2d436b"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": {
     "classification": "producer",
@@ -4812,6 +4812,15 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "97c5d05c532b34ceb7cfa9d8ea598f7f609684446acbf59e11d3db2e09e5e331"
+  },
+  "policy_fundraising.py:FundraisingMixin._start_fundraising_return": {
+    "classification": "producer",
+    "rows": [
+      "fundraising",
+      "store-exit"
+    ],
+    "delegation": "_leave_fundraising_floor; no independent progress",
+    "ast_sha256": "5de84facedc4a68f9a4736982d35c64ece39cff7d4628eb3582130795ed37031"
   },
   "policy_fundraising.py:FundraisingMixin._tunnel_step_toward": {
     "classification": "adapter",
@@ -5917,7 +5926,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "06074c8e561c63734c9b683711cad78cbea84c3e8f688ce3fce1b4a0767840fc"
+    "ast_sha256": "fbe6a2a306193c8a340e13b3f4de13eceb5cc743fb7bf1fb225422ca32bd3753"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",

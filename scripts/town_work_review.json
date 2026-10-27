@@ -5425,6 +5425,18 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy_fundraising.py:FundraisingMixin._start_fundraising_return": {
+    "classification": "producer",
+    "rows": [
+      "fundraising",
+      "store-exit"
+    ],
+    "context": "Income-floor return shared by opening Q1 resumption and detectionless scavenging exit.",
+    "evidence": "Records the ordinary return and latches it before delegating the command to _leave_fundraising_floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "_leave_fundraising_floor; no independent progress"
+  },
   "policy_fundraising.py:FundraisingMixin._fundraising_key": {
     "classification": "producer",
     "rows": [

@@ -271,7 +271,8 @@ class OpeningRouteMixin:
             if combat is not None:
                 return combat
             adjacent = [monster for monster in hostiles
-                        if snapshot.player.position.distance_to(monster.position) <= 1]
+                        if snapshot.player.position.distance_to(monster.position) <= 1
+                        and not self._step_raises_unintended_confirm(snapshot, monster.position)]
             if adjacent and self._can_fight_in_dungeon(0):
                 self.last_reason = "melee"
                 return self._direction_key(snapshot.player.position, self._weakest(adjacent).position)
@@ -306,7 +307,8 @@ class OpeningRouteMixin:
                 if combat is not None:
                     return combat
                 adjacent = [monster for monster in hostiles
-                            if snapshot.player.position.distance_to(monster.position) <= 1]
+                            if snapshot.player.position.distance_to(monster.position) <= 1
+                            and not self._step_raises_unintended_confirm(snapshot, monster.position)]
                 if adjacent:
                     self.last_reason = "melee"
                     return self._direction_key(snapshot.player.position, self._weakest(adjacent).position)
