@@ -359,3 +359,33 @@ import修正後の最終ツリーで、Codex付属Python 3.12.14を使い金欠�
 売却後のOutpost帰還、噂話、巡回抑止を含み、最終ソースと最終テストimportの組合せで通過した。
 結果: C:/hengband-backups/broke-prevent-r4-pins-final.json。
 ガード2つは引き続きマージ検査の全スイート終了待ち。待機を迂回しない。
+
+第4ラウンド・最終記録
+タスクの60分上限を守るため、確認できた結果と残件をこの時点で確定する。
+最終テストimport修正後のツリーでもpreflightを再実行し、
+22 changed files、0 findings、PREFLIGHT OK、終了0を回収した。
+ログ: C:/hengband-backups/broke-prevent-r4-preflight-final-tree.log。
+指定6件、指定側の全630件、最終公開pins 27件の成功は前記どおり。
+派生側で残る構造検査1件は、基点から未変更の別テスト5ファイルによるものである。
+
+未完了の必須ガードはmutation_check --recordとfast_tier --shards 4。
+どちらも基点f66916c86で起動済みだが、直近確認では別のマージ検査の全スイート終了待ち。
+終了コードを得られていないため、成功・全ガード緑・マージ可能とは報告しない。
+最終ガード2つは停止せず、指定の待機条件のまま継続させる。
+検証用作業ツリーのsrc/hengbot・testsツリーは、本作業ツリーの最終版と一致している。
+
+終了コードの自動収集先:
+C:/hengband-backups/broke-prevent-r4-guard-results.json
+最終ガードのPythonプロセスにWindowsのプロセスハンドルを保持し、終了後に実際の終了コードを
+自動記録する監視を起動済み。これはリポジトリを書き換えず、結果JSONだけを更新する。
+現時点のexit_codeは両方ともnullであり、成功値の代用ではない。
+監督者はこのJSONと各final.log、およびmutation-recordsの対象ツリー記録で完了を確認できる。
+最終mutationログ: C:/hengband-backups/broke-prevent-r4-mutation-final.log。
+最終fast tierログ: C:/hengband-backups/broke-prevent-r4-fast-tier-final.log。
+
+実装・テストimport修正・日本語報告をコミットした。
+この最終追記もPythonでUTF-8として書き込み、読み戻しを確認した。
+既存テストの期待値変更なし、基点にあるtestsファイルの変更なし、git diff --checkは終了0。
+未追跡の提供タスクと既存ログは残し、ログをコミットしていない。
+
+Final record time: 2026-10-27T09:18:26.432061+09:00
