@@ -15000,14 +15000,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or item.is_digging_tool
         )
 
-    @staticmethod
-    def _has_town_economic_path(item: InventoryItem) -> bool:
-        # Items another town action can shed for value, so the overflow drop
-        # leaves them alone: equipment goes to the Home, and unidentified
-        # potions/scrolls sell to the Alchemist.
-        return item.is_equipment or HengbotPolicy._is_high_value_book(item) or (
+    def _has_town_economic_path(self, item: InventoryItem) -> bool:
+        # Keep Home equipment and saleable items out of last-resort destruction.
+        # Visiting a store (or exhausting this visit's route) cannot turn an
+        # item with positive sale value into something that nobody buys.
+        return item.is_equipment or self._is_high_value_book(item) or (
             not item.aware and (item.is_potion or item.is_scroll)
-        )
+        ) or any(self._store_accepts_sale(store_type, item) for store_type in (
+            STORE_GENERAL, STORE_WEAPON, STORE_ARMOURY, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK,
+        ))
 
     @staticmethod
     def _is_high_value_book(item: InventoryItem) -> bool:
