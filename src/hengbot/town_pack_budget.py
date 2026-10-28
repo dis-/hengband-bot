@@ -5,7 +5,7 @@ zero-cost operation may repair an already over-budget pack.
 """
 
 from hengbot.policy_constants import MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY
-from hengbot.model import TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
+from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
 
 
 def permits(snapshot, slots: int) -> bool:

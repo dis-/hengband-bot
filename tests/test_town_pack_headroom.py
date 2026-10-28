@@ -146,6 +146,15 @@ class TownPackHeadroomTest(harness.ProductionHarness):
         self.assertEqual(policy._town_space_deposit_key(view), "qb")
         self.assertEqual(policy.last_reason, "stat-gain:quaff")
 
+    def test_terminal_relief_shares_the_early_owners_beneficial_use_priority(self):
+        policy, board, _ = self.attached()
+        gain = replace(board.inventory[1], slot="t", name="Strength", count=1,
+                       tval=TVAL_POTION, sval=SV_POTION_INC_STR)
+        view = replace(board, inventory=[*board.inventory, gain])
+        self.assertEqual(len(view.inventory), 20)
+        self.assertEqual(policy._town_overflow_destroy_key(view, try_relief=True), "qt")
+        self.assertEqual(policy.last_reason, "stat-gain:quaff")
+
     def test_four_free_slots_with_full_home_routes_sale_before_shopping(self):
         policy, board, record = self.attached()
         policy._home_capacity_observation = (240, 240, policy._effective_town_id(board))
