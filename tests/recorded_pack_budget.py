@@ -24,3 +24,17 @@ def pre_pack_budget_replay(function):
         with pre_pack_budget_rule():
             return function(*args, **kwargs)
     return replay
+
+
+def pre_pack_budget_class(cls):
+    """Keep setup's shared recorded trajectory and its continuations together."""
+    original = cls.__dict__['setUpClass'].__func__
+
+    def set_up_class(klass):
+        wall = pre_pack_budget_rule()
+        wall.__enter__()
+        klass.addClassCleanup(wall.__exit__, None, None, None)
+        original(klass)
+
+    cls.setUpClass = classmethod(set_up_class)
+    return cls

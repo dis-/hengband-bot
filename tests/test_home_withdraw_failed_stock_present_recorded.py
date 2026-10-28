@@ -78,6 +78,7 @@ from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence, _parse_items
 from hengbot.equipment_optimizer import Loadout, current_loadout
+from recorded_pack_budget import pre_pack_budget_rule
 from recorded_loadout import (
     pre_light_radius_replay, pre_ratio_optimizer_replay, recorded_loadout_replay,
 )
@@ -271,9 +272,12 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
             )
             policy.consume_home_knowledge(tuple(catalogue))
             next_board = replace(board, turn=board.turn + 1)
-            continuation_key = policy._atomic_home_withdraw_key(
-                next_board, next_board.player.position
-            )
+            # W: after decision 33, 19 used; two shovels need one new slot.
+            # Only this constructed address/rescan continuation predates the reserve.
+            with pre_pack_budget_rule():
+                continuation_key = policy._atomic_home_withdraw_key(
+                    next_board, next_board.player.position
+                )
             continuation = {
                 "key": continuation_key,
                 "reason": policy.last_reason,

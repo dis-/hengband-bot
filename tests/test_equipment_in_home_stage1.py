@@ -1,3 +1,4 @@
+from recorded_pack_budget import pre_pack_budget_replay
 import json
 import unittest
 import copy
@@ -234,6 +235,7 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         self.assertEqual(accepted.count("\x1b"), 1, accepted)
         self.assertEqual(accepted[-1], "\x1b", "the only Home exit must be final")
 
+    @pre_pack_budget_replay  # W: 19 used; takeoff needs a slot before the later deposit; Home exit subject.
     def test_h1_incident_finishes_with_one_exit_and_zero_reentries(self):
         # Public counterfactual starts outside at the recorded town-0 position.
         # The missing STORE stock is source-derived by the fake; optimization
@@ -317,6 +319,7 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         accepted = self._accepted(game)
         self.assertTrue(accepted and accepted[0].startswith("d"), (accepted, reasons))
 
+    @pre_pack_budget_replay  # W: 19 used; takeoff needs a slot before the later deposit; Home exit subject.
     def test_h10_completed_operations_continue_visit_without_attempt_reset(self):
         game = self._recorded_game(inside=False)
         before = copy.deepcopy(game)

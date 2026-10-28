@@ -16,6 +16,7 @@ from dataclasses import replace
 from pathlib import Path
 import unittest
 
+from recorded_pack_budget import pre_pack_budget_replay
 import tests  # noqa: F401
 from hengbot.model import parse_snapshot, _parse_items, StoreItem
 from hengbot.policy import HengbotPolicy
@@ -90,6 +91,7 @@ class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
                 # recorded ESC/router/detector boards against the changed key.
 
     @_RECORDED_HOME_JUNK_AS_STOCK
+    @pre_pack_budget_replay  # W: 20 used; new rod stack before later relief sale; scan continuation subject.
     def test_recorded_sale_delta_scans_then_selects_next_withdrawal(self):
         sale_board = parse_snapshot(self.rows[70])
         sold_board = parse_snapshot(self.rows[72])
