@@ -135,7 +135,7 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
         operation.business_outcome = "failed:magic-eater"
         step = replace(step, stage="done")
         operation.continuations[0] = step
-    if match.kind is ScreenKind.MORE:
+    if match.kind in {ScreenKind.MORE, ScreenKind.LEVEL_UP_STAT}:
         return None
     if match.kind is ScreenKind.COMMAND:
         if step.stage == "done":

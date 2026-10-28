@@ -3,6 +3,7 @@
 import tests  # noqa: F401 -- isolate live runtime files
 from dataclasses import asdict, replace
 from pathlib import Path
+import json
 import unittest
 
 from policy_fixtures import grid, hostile, item, player
@@ -208,6 +209,15 @@ class MagicEaterO3Test(unittest.TestCase):
                    "direction", can_choose_target=True)])
         self.assertEqual(status, SendResult.SENT, result.reason)
         self.assertEqual(game.accepted, ["m", "B", "2", "\r", "6"])
+
+    def test_follow_missile_kill_keeps_existing_level_up_owner(self):
+        stat = json.loads((Path(__file__).parent / "fixtures" /
+                           "screen-20260920-levelup-stat-prompt.json").read_text(encoding="utf-8"))
+        game, result, status = self.run_follow("mBp6", MISSILE_REASON, [
+            prompt("[A] staff, [B] wand, [C] rod:"), powers(),
+            prompt("Direction?", "direction", can_choose_target=True), stat])
+        self.assertEqual(status, SendResult.SENT, result.reason)
+        self.assertEqual(game.accepted, ["m", "B", "p", "6", "ay"])
 
     def test_follow_zero_cancels_without_aim_and_public_falls_back(self):
         game, result, status = self.run_follow("mBp6", MISSILE_REASON, [
