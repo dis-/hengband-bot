@@ -2114,6 +2114,8 @@ class HomeMixin:
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
         """Return the existing reservation together with its observed branch."""
+        if self._opening_q1_active(snapshot) and (item.is_digging_tool or item.is_treasure_detection_scroll):
+            return item.count, "opening-q1:kit"
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (

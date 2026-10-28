@@ -1,0 +1,37 @@
+test_both_stops_are_the_same_shape_in_different_procurement_states (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_both_stops_are_the_same_shape_in_different_procurement_states) ... ok
+test_fixture_freezes_the_retired_return_walk (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_fixture_freezes_the_retired_return_walk) ... ok
+test_fixture_freezes_the_two_recorded_stops (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_fixture_freezes_the_two_recorded_stops) ... ok
+test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use)
+Root cause, and the refutation of the earlier round's diagnosis. ... ok
+test_p1_empty_procurement_stop_returns_to_the_outpost (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p1_empty_procurement_stop_returns_to_the_outpost) ... ok
+test_p2_destruction_procurement_stop_returns_to_the_outpost (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p2_destruction_procurement_stop_returns_to_the_outpost) ... ok
+test_p3_a_live_shop_errand_still_buys_from_the_same_page (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p3_a_live_shop_errand_still_buys_from_the_same_page)
+The same recorded Alchemist page, with its errand still live. ... ok
+test_p5_unaffordable_return_still_names_the_missing_entrance (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance)
+The fallback: the return is refused, so the stop names the cause. ... FAIL
+test_p6_a_town_zero_mining_wander_is_left_alone (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p6_a_town_zero_mining_wander_is_left_alone)
+A mine plan in the Outpost still has a walk-in goal. ... ok
+test_p7_each_closing_step_of_the_return_is_progress (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p7_each_closing_step_of_the_return_is_progress)
+The recorded walk now registers its distance to the Inn. ... ok
+test_p8_a_return_that_stops_closing_is_still_retired (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p8_a_return_that_stops_closing_is_still_retired)
+The existing bound is untouched: a walk that never advances retires. ... ok
+test_the_new_stop_reason_is_registered_everywhere_it_is_read (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_the_new_stop_reason_is_registered_everywhere_it_is_read)
+Reason census: owner family, final-stop set and operator banner. ... ok
+
+======================================================================
+FAIL: test_p5_unaffordable_return_still_names_the_missing_entrance (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance)
+The fallback: the return is refused, so the stop names the cause.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\opening-route-1026\tests\test_town_plan_exhausted_wander.py", line 438, in test_p5_unaffordable_return_still_names_the_missing_entrance
+    self.assertEqual(reasons[1], BLOCKED_REASON)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'shop:outpost-fare-sale-approach' != 'town:blocked:walk-in-entrance-unavailable'
+- shop:outpost-fare-sale-approach
++ town:blocked:walk-in-entrance-unavailable
+
+
+----------------------------------------------------------------------
+Ran 12 tests in 383.622s
+
+FAILED (failures=1)

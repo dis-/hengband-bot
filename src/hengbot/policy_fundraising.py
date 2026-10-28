@@ -1155,9 +1155,21 @@ class FundraisingMixin:
         return self._finish_mining_floor(snapshot)
 
     @claims(ClaimOwner.FUNDRAISING)
+    def _start_fundraising_return(self, snapshot: Snapshot) -> str:
+        """Record an ordinary return before leaving the income floor."""
+        self._note_return_start(None)
+        self._returning_to_town = True
+        return self._leave_fundraising_floor(snapshot)
+
+    @claims(ClaimOwner.FUNDRAISING)
     def _fundraising_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
+        if self._opening_q1_active(snapshot) and not snapshot.in_town:
+            if getattr(self, "_opening_q1_funding", None) is None:
+                # Resume an older income run by returning to the fixed route.
+                return self._start_fundraising_return(snapshot)
+            self._opening_q1_funding_left = True
         if self._fundraising_mode not in {"mine", "scavenge"}:
             self._offer_execution_no_step(
                 producer="fundraising", work_id="fundraise:run",
@@ -1170,9 +1182,7 @@ class FundraisingMixin:
                 and not self._detectionless_scavenge_allowed(snapshot)):
             self._settle_fundraising_detection(snapshot)
             if not snapshot.in_town:
-                self._note_return_start(None)
-                self._returning_to_town = True
-                return self._leave_fundraising_floor(snapshot)
+                return self._start_fundraising_return(snapshot)
             return None
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE

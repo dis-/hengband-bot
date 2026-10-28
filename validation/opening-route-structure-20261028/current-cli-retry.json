@@ -1,0 +1,6 @@
+{
+  "test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot",
+  "exit_code": 0,
+  "head": "5b95896719cd46620f19ec1077b0897a1836af1c",
+  "seconds": 5.532
+}

@@ -1,0 +1,6 @@
+[fast] 1627 fast tests (<2.0s in 239922037) + 4 changed modules, 4 shards
+[fast] excluded 49 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-j2brz86_)
+Failures: none
+Errors: ['setUpClass (tests.test_town_terminal_plan_round7.PlanAdmissionTest)', 'setUpClass (tests.test_quest_door_confirm_recorded.QuestDoorConfirmRecordedTest)', 'setUpClass (tests.test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest)', 'tests.test_equipment_transaction_newchar_route_recorded.EquipmentTransactionNewCharacterRouteTest.test_captured_reserved_deposit_is_closed_before_route_retry', 'tests.test_equipment_transaction_newchar_route_recorded.EquipmentTransactionNewCharacterRouteTest.test_genuinely_unreachable_home_still_reaches_visible_terminal', 'tests.test_equipment_transaction_newchar_route_recorded.EquipmentTransactionNewCharacterRouteTest.test_reachable_home_withdrawal_keeps_its_route', 'setUpClass (tests.test_town_terminal_supplier.DepartureSupplierTest)', 'setUpClass (tests.test_town_terminal_supplier.StoreBuyVerdictTest)', 'tests.test_town_post_s2_visit_controls.BorrowedVisitMaterialTest.test_available_filed_withdrawal_admits_before_approach_context_changes']
+Total: 1620 tests, 153.3s

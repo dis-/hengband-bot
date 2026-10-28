@@ -1,0 +1,6 @@
+setUpClass (test_town_stall.TownStallIncidentTest) ... skipped 'Hengband edit data unavailable: C:\\hengband\\bot-client\\.worktrees\\bot-json-output\\lib\\edit'
+
+----------------------------------------------------------------------
+Ran 0 tests in 2.829s
+
+OK (skipped=1)

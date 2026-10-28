@@ -258,6 +258,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("shop:in-store-done", T, EFFECT),
         ("shop:one-shot-in-flight", O, STORE_OPERATION),
         ("shop:one-shot-page-not-zero", T, EFFECT),
+        ("shop:opening-route-page", T, EFFECT),
         ("shop:buy", O, STORE_OPERATION),
         ("shop:purchase-deferred", T, EFFECT),
         ("shop:await-", O, STORE_OPERATION),
@@ -324,6 +325,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("town:restore-combat-weapon", O, TRANSACTION),
         ("town:remove-no-teleport-weapon", O, TRANSACTION),
         ("wield-light", T, EFFECT),
+        ("opening-q1:equip-light", O, TRANSACTION),
         ("town:replace-no-teleport-weapon", O, TRANSACTION),
     ),
     *_rows(

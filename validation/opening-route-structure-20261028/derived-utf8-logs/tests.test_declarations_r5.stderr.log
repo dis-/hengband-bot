@@ -1,0 +1,14 @@
+test_equipment_wait_step_off_rebinds_final_equipment_key (test_declarations_r5.DeclarationReturnTest.test_equipment_wait_step_off_rebinds_final_equipment_key) ... ok
+test_home_shortage_leave_has_home_offer (test_declarations_r5.DeclarationReturnTest.test_home_shortage_leave_has_home_offer) ... ok
+test_home_step_off_offer_uses_final_home_owner (test_declarations_r5.DeclarationReturnTest.test_home_step_off_offer_uses_final_home_owner) ... ok
+test_mana_food_absorb_declares_survival (test_declarations_r5.DeclarationReturnTest.test_mana_food_absorb_declares_survival) ... ok
+test_one_operation_home_leave_has_home_offer (test_declarations_r5.DeclarationReturnTest.test_one_operation_home_leave_has_home_offer) ... ok
+test_recall_stockout_handoff_declares_leave (test_declarations_r5.DeclarationReturnTest.test_recall_stockout_handoff_declares_leave) ... ok
+test_shop_observation_leave_has_shop_buy_offer (test_declarations_r5.DeclarationReturnTest.test_shop_observation_leave_has_shop_buy_offer) ... ok
+test_skill_request_offer_binds_on_first_decision (test_declarations_r5.DeclarationReturnTest.test_skill_request_offer_binds_on_first_decision) ... ok
+test_stat_restore_quaff_declares_survival (test_declarations_r5.DeclarationReturnTest.test_stat_restore_quaff_declares_survival) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.046s
+
+OK

@@ -1,0 +1,13 @@
+test_blocked_recall_context_restores_after_read_error_and_defaults_on_restore (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_blocked_recall_context_restores_after_read_error_and_defaults_on_restore) ... ok
+test_blocked_recall_is_admitted_before_sanction_and_read (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_blocked_recall_is_admitted_before_sanction_and_read) ... ok
+test_blocked_recall_material_follows_its_own_branch_not_optional_supplies (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_blocked_recall_material_follows_its_own_branch_not_optional_supplies) ... ok
+test_every_heavy_curse_inscription_branch_uses_the_selected_item_verdict (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_every_heavy_curse_inscription_branch_uses_the_selected_item_verdict) ... ok
+test_gear_reservation_refusal_keeps_the_original_no_mutation_result (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_gear_reservation_refusal_keeps_the_original_no_mutation_result) ... ok
+test_guardian_fallback_keeps_the_strict_gate_at_the_actual_read (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_guardian_fallback_keeps_the_strict_gate_at_the_actual_read) ... ok
+test_named_closes_and_dispatchers_remain_available (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_named_closes_and_dispatchers_remain_available) ... ok
+test_unreserved_wield_keeps_the_real_mutation_key (test_town_terminal_rest_round14.RemainingTownAdmissionTest.test_unreserved_wield_keeps_the_real_mutation_key) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.148s
+
+OK

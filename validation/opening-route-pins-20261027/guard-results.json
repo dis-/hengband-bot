@@ -1,0 +1,11 @@
+{
+  "base": "2399220372a2d2a514652c2e980f86b203b35921",
+  "head": "eb3ce7da643629a1a65553aa3bc523fbda049ed8",
+  "python": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
+  "results": {
+    "preflight": {
+      "exit": 0,
+      "seconds": 125.86
+    }
+  }
+}

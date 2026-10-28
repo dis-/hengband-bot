@@ -1,0 +1,38 @@
+{
+  "main-stockout": {
+    "head": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+    "exit_code": 1,
+    "test": "tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop",
+    "seconds": 9.221
+  },
+  "main-cli-follow": {
+    "head": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+    "exit_code": 0,
+    "test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot",
+    "seconds": 5.435
+  },
+  "incoming-stockout": {
+    "head": "22b2b2806384a70f3d0ce20eae05da5e4201a888",
+    "exit_code": 1,
+    "test": "tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop",
+    "seconds": 8.246
+  },
+  "incoming-cli-follow": {
+    "head": "22b2b2806384a70f3d0ce20eae05da5e4201a888",
+    "exit_code": 0,
+    "test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot",
+    "seconds": 4.801
+  },
+  "main-wander": {
+    "head": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+    "exit_code": 1,
+    "test": "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance",
+    "seconds": 24.399
+  },
+  "incoming-wander": {
+    "head": "22b2b2806384a70f3d0ce20eae05da5e4201a888",
+    "exit_code": 1,
+    "test": "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance",
+    "seconds": 25.306
+  }
+}

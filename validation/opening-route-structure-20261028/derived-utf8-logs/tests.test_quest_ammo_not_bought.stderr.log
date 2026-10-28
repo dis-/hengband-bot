@@ -1,0 +1,13 @@
+test_counterboard_two_stack_total_99_does_not_buy (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_counterboard_two_stack_total_99_does_not_buy) ... ok
+test_fixture_is_byte_faithful_recorded_window (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_fixture_is_byte_faithful_recorded_window) ... ok
+test_full_emitter_ammo_uses_structured_merge_fields (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_full_emitter_ammo_uses_structured_merge_fields) ... ok
+test_full_home_consumable_stack_does_not_require_ammo_name_text (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_full_home_consumable_stack_does_not_require_ammo_name_text) ... ok
+test_q31_remains_blocked_by_free_action_after_ammo_is_satisfied (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_q31_remains_blocked_by_free_action_after_ammo_is_satisfied) ... ok
+test_recorded_public_replay_diverges_to_composed_ten_bolt_buy (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_recorded_public_replay_diverges_to_composed_ten_bolt_buy) ... ok
+test_recorded_selector_values_close_the_ten_bolt_shortfall (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_recorded_selector_values_close_the_ten_bolt_shortfall) ... ok
+test_store_parser_preserves_old_row_omissions (test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_store_parser_preserves_old_row_omissions) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 57.963s
+
+OK

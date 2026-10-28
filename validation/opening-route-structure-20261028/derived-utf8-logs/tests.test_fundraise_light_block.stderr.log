@@ -1,0 +1,11 @@
+test_blocked_home_with_real_oil_remains_home_first (test_fundraise_light_block.FundraiseLightBlockAcceptanceTest.test_blocked_home_with_real_oil_remains_home_first) ... ok
+test_captured_window_composes_a_general_purchase_within_eight_decisions (test_fundraise_light_block.FundraiseLightBlockAcceptanceTest.test_captured_window_composes_a_general_purchase_within_eight_decisions) ... ok
+test_cycle_break_releases_the_latched_general_shortage_supplier (test_fundraise_light_block.FundraiseLightBlockAcceptanceTest.test_cycle_break_releases_the_latched_general_shortage_supplier) ... ok
+test_home_first_yield_does_not_retire_the_general_store_supplier (test_fundraise_light_block.FundraiseLightBlockAcceptanceTest.test_home_first_yield_does_not_retire_the_general_store_supplier) ... ok
+test_live_fundraising_candidates_compose_the_captured_general_page (test_fundraise_light_block.FundraiseLightBlockAcceptanceTest.test_live_fundraising_candidates_compose_the_captured_general_page) ... ok
+test_shared_boundary_home_first_yield_does_not_latch_the_supplier (test_fundraise_light_block.FundraiseLightBlockAcceptanceTest.test_shared_boundary_home_first_yield_does_not_latch_the_supplier) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 16.908s
+
+OK

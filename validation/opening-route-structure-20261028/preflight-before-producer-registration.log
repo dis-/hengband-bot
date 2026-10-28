@@ -1,0 +1,5 @@
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy_fundraising.py:FundraisingMixin._[110 chars]ion'] != []
+[preflight] FAIL fakery/sink: + []
+[preflight] FAIL fakery/sink: - ['policy_fundraising.py:FundraisingMixin._start_fundraising_return: new '
+[preflight] PREFLIGHT FAIL: 59 changed files, 4 findings (opening-route-1026 vs 78deea2a)

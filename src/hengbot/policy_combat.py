@@ -1254,6 +1254,10 @@ class CombatMixin:
         torch = self._first_item(
             snapshot, lambda it: it.is_torch and it.fuel > 0
         )
+        if self._opening_q1_active(snapshot):
+            required = self._opening_q1_requirements(snapshot)[0][1]
+            if self._count_throwing_torches(snapshot) <= required:
+                torch = None
         if ammo is not None:
             kind, projectile, reason = "fire", ammo, "ranged:fire"
         elif (

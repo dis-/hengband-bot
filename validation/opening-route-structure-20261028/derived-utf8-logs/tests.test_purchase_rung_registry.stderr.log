@@ -1,0 +1,12 @@
+test_inactive_item_has_no_procurement_protection (test_purchase_rung_registry.PurchaseRungRegistryTest.test_inactive_item_has_no_procurement_protection) ... ok
+test_p2_ast_negative_raw_selector_proves_failure (test_purchase_rung_registry.PurchaseRungRegistryTest.test_p2_ast_negative_raw_selector_proves_failure) ... ok
+test_p2_authority_ids_are_unique_and_matches_are_typed (test_purchase_rung_registry.PurchaseRungRegistryTest.test_p2_authority_ids_are_unique_and_matches_are_typed)
+SEAM: enumerates authority; public selection exposes only its winner. ... ok
+test_p2_missing_example_negative_proves_failure (test_purchase_rung_registry.PurchaseRungRegistryTest.test_p2_missing_example_negative_proves_failure) ... ok
+test_p2_previously_omitted_rungs_use_shared_matcher (test_purchase_rung_registry.PurchaseRungRegistryTest.test_p2_previously_omitted_rungs_use_shared_matcher)
+SEAM examples cover throwing torches, both Identify tiers, restore, and Remove Curse. ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 1.641s
+
+OK

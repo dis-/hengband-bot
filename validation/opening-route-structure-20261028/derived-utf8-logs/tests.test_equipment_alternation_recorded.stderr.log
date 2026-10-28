@@ -1,0 +1,10 @@
+test_capture_first_divergence_is_restore_after_success_not_optimizer_flip (test_equipment_alternation_recorded.EquipmentAlternationRecordedTest.test_capture_first_divergence_is_restore_after_success_not_optimizer_flip) ... ok
+test_completion_retires_only_this_plans_confirmed_takeoffs (test_equipment_alternation_recorded.EquipmentAlternationRecordedTest.test_completion_retires_only_this_plans_confirmed_takeoffs) ... ok
+test_confirmed_two_handed_swap_stays_stable_across_observations (test_equipment_alternation_recorded.EquipmentAlternationRecordedTest.test_confirmed_two_handed_swap_stays_stable_across_observations) ... ok
+test_incomplete_or_restoration_session_preserves_recovery_debt (test_equipment_alternation_recorded.EquipmentAlternationRecordedTest.test_incomplete_or_restoration_session_preserves_recovery_debt) ... ok
+test_revert_proof_light_only_retirement_recreates_recorded_restore (test_equipment_alternation_recorded.EquipmentAlternationRecordedTest.test_revert_proof_light_only_retirement_recreates_recorded_restore) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 17.925s
+
+OK

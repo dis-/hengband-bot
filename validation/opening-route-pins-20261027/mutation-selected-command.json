@@ -1,0 +1,37 @@
+{
+  "head": "3b5f43f3ab136c1bb36c7496bd2b167b4585cb6a",
+  "base": "2399220372a2d2a514652c2e980f86b203b35921",
+  "tests": [
+    "tests.test_opening_route_pins",
+    "tests.test_cli.PolicyFinalStopBannerTest",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_fixed_route_buys_affordable_best_kit_and_posts_q1_request",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_all_shelf_pages_are_observed_before_best_tool_is_chosen",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_prior_home_knowledge_request_cannot_displace_the_fixed_opening",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_income_combat_keeps_the_last_q1_torches",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_q1_kit_is_retained_even_with_normal_fundraising_mode_cleared",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_q1_torches_remain_reserved_with_ammo_and_permanent_light",
+    "tests.test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_actual_calibrated_stops_enter_by_step_and_use_approved_floor_strategy",
+    "tests.test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_required_potions_still_use_the_existing_black_market_supplier"
+  ],
+  "command": [
+    "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+    "C:\\hengband-backups\\guard-tools\\mutation_check.py",
+    "C:\\Users\\user\\AppData\\Local\\Temp\\hengbot-verify-wvcmpf_j",
+    "2399220372a2d2a514652c2e980f86b203b35921",
+    "--record",
+    "--full",
+    "--tests",
+    "tests.test_opening_route_pins",
+    "tests.test_cli.PolicyFinalStopBannerTest",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_fixed_route_buys_affordable_best_kit_and_posts_q1_request",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_all_shelf_pages_are_observed_before_best_tool_is_chosen",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_prior_home_knowledge_request_cannot_displace_the_fixed_opening",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_income_combat_keeps_the_last_q1_torches",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_q1_kit_is_retained_even_with_normal_fundraising_mode_cleared",
+    "tests.test_opening_route_recorded.OpeningRouteRecordedTest.test_q1_torches_remain_reserved_with_ammo_and_permanent_light",
+    "tests.test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_actual_calibrated_stops_enter_by_step_and_use_approved_floor_strategy",
+    "tests.test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_required_potions_still_use_the_existing_black_market_supplier",
+    "--timeout",
+    "2400"
+  ]
+}

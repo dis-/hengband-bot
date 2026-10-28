@@ -1,0 +1,42 @@
+{
+  "base": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+  "head": "02d5b9a63f4e713e65d6ab680a80b80ad8dab4f3",
+  "results": {
+    "preflight": {
+      "exit_code": 0,
+      "seconds": 279.603,
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "C:\\hengband-backups\\guard-tools\\preflight.py",
+        "C:\\hengband\\bot-client\\.worktrees\\opening-route-1026",
+        "78deea2accc3ce2aaa0780ed15f73aa13e2328c9"
+      ]
+    },
+    "affected": {
+      "exit_code": 0,
+      "seconds": 16.512,
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "C:\\hengband-backups\\guard-tools\\affected_tests.py",
+        "C:\\hengband\\bot-client\\.worktrees\\opening-route-1026",
+        "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+        "02d5b9a63f4e713e65d6ab680a80b80ad8dab4f3"
+      ]
+    },
+    "scope-derive": {
+      "exit_code": 0,
+      "seconds": 47.608,
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "scripts/verify_scope.py",
+        "--base",
+        "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+        "--target",
+        "WORKTREE",
+        "--derive-only",
+        "--output",
+        "C:\\hengband\\bot-client\\.worktrees\\opening-route-1026\\validation\\opening-route-structure-20261028\\scope.json"
+      ]
+    }
+  }
+}

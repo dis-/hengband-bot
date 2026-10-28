@@ -1,0 +1,18 @@
+test_bare_run_without_overrides_gets_temporary_ones (test_runtime_file_isolation.BareModuleRunTest.test_bare_run_without_overrides_gets_temporary_ones) ... ok
+test_every_test_module_imports_the_session_package (test_runtime_file_isolation.BareModuleRunTest.test_every_test_module_imports_the_session_package) ... ok
+test_cli_output_paths_still_follow_the_decision_log (test_runtime_file_isolation.ProductionDefaultTest.test_cli_output_paths_still_follow_the_decision_log) ... ok
+test_defaults_without_overrides_are_jsonlog (test_runtime_file_isolation.ProductionDefaultTest.test_defaults_without_overrides_are_jsonlog) ... ok
+test_restore_without_overrides_keeps_captured_paths (test_runtime_file_isolation.ProductionDefaultTest.test_restore_without_overrides_keeps_captured_paths) ... ok
+test_constructed_policy_pointing_at_live_files_is_redirected (test_runtime_file_isolation.RestoredCheckpointIsolationTest.test_constructed_policy_pointing_at_live_files_is_redirected) ... ok
+test_isolation_is_a_no_op_for_unset_paths (test_runtime_file_isolation.RestoredCheckpointIsolationTest.test_isolation_is_a_no_op_for_unset_paths) ... ok
+test_live_captured_checkpoint_is_redirected_on_restore (test_runtime_file_isolation.RestoredCheckpointIsolationTest.test_live_captured_checkpoint_is_redirected_on_restore) ... ok
+test_reads_are_allowed (test_runtime_file_isolation.RuntimeWriteGuardTest.test_reads_are_allowed) ... ok
+test_self_test_run_does_not_absorb_earlier_session_violations (test_runtime_file_isolation.RuntimeWriteGuardTest.test_self_test_run_does_not_absorb_earlier_session_violations) ... ok
+test_write_is_blocked_and_recorded (test_runtime_file_isolation.RuntimeWriteGuardTest.test_write_is_blocked_and_recorded) ... ok
+test_writing_test_fails_the_outermost_run (test_runtime_file_isolation.RuntimeWriteGuardTest.test_writing_test_fails_the_outermost_run) ... ok
+test_session_overrides_never_name_the_repository (test_runtime_file_isolation.SessionOverrideTest.test_session_overrides_never_name_the_repository) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 19.170s
+
+OK

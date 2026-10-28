@@ -1,0 +1,109 @@
+src/hengbot/cli.py @@ -714,6 +714,7 @@ def _policy_final_stop_banner(reason: str) -> str: reverted exit 1
+E
+======================================================================
+ERROR: test_every_final_reason_has_its_own_truthful_banner (tests.test_cli.PolicyFinalStopBannerTest.test_every_final_reason_has_its_own_truthful_banner) (reason='quest:blocked:opening-route')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\opening-route-1026\tests\test_cli.py", line 612, in test_every_final_reason_has_its_own_truthful_banner
+    banner = _policy_final_stop_banner(reason)
+  File "C:\hengband\bot-client\.worktrees\opening-route-1026\src\hengbot\cli.py", line 723, in _policy_final_stop_banner
+    return f"<{reason}> {messages[reason]}; stopping the bot for investigation"
+                         ~~~~~~~~^^^^^^^^
+KeyError: 'quest:blocked:opening-route'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.008s
+
+FAILED (errors=1)
+
+python.exe : .
+発生場所 行:2 文字:244
++ ... decisions'; & 'C:/Users/user/AppData/Local/Programs/Python/Python313/ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+----------------------------------------------------------------------
+Ran 1 test in 0.003s
+
+OK
+restored: PASS src/hengbot/cli.py
+src/hengbot/policy_constants.py @@ -313,6 +313,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset reverted exit 1
+F
+======================================================================
+FAIL: test_unaffordable_route_is_an_operator_visible_final_stop (tests.test_opening_route_pins.OpeningRoutePinsTest.test_unaffordable_route_is_an_operator_visible_final_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\opening-route-1026\tests\test_opening_route_pins.py", line 32, in test_unaffordable_route_is_an_operator_visible_final_stop
+    self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'quest:blocked:opening-route' not found in frozenset({'quest:blocked:q34-opening-door-locked', 'town:blocked:overflow-no-legal-disposal', 'town:blocked:overweight-retained-only', 'town:blocked:overweight-home-unreachable', 'town:blocked:procurement-home-unavailable', 'town:blocked:procurement-home-unroutable', 'dark:locomotion-exhausted', 'town:blocked:walk-in-entrance-unavailable', 'town:blocked:survival-mana-no-charges', 'town:blocked:overweight-surplus-rebuy-loop', 'town:blocked:outpost-fare-recall-active', 'quest:blocked:q34-throw-point-unreachable', 'town:blocked:outpost-fare-return-route-unavailable', 'town:blocked:departure-unsatisfiable', 'town:blocked:recall-readiness-contradiction', 'town:blocked:overweight-home-full-no-legal-relief', 'town:blocked:shop-required-operation-uncomposable', 'town:blocked:guardian-bounce-no-alternate', 'town:blocked:home-known-empty-withdrawal', 'quest:blocked:fixed-target-not-visible', 'equipment-transaction:restore-blocked-terminal', 'town:blocked:owner-retired', 'town:blocked:owner-retired-burst', 'town:blocked:home-withdraw-failed-stock-present', 'equipment-transaction:home-route-repeat-terminal', 'wilderness:no-safe-route', 'quest:blocked:q34-recovery-no-progress', 'town:blocked:outpost-fare-no-sale'})
+
+----------------------------------------------------------------------
+Ran 1 test in 2.063s
+
+FAILED (failures=1)
+
+.
+----------------------------------------------------------------------
+Ran 1 test in 2.275s
+
+OK
+restored: PASS src/hengbot/policy_constants.py
+src/hengbot/policy_fundraising.py @@ -1158,6 +1158,12 @@ class FundraisingMixin: reverted exit 1
+FF
+======================================================================
+FAIL: test_restarted_income_run_returns_to_the_fixed_route (tests.test_opening_route_pins.OpeningRoutePinsTest.test_restarted_income_run_returns_to_the_fixed_route) (mode='mine')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\opening-route-1026\tests\test_opening_route_pins.py", line 59, in test_restarted_income_run_returns_to_the_fixed_route
+    self.assertEqual((str(key), policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     ("<", "fundraise:ascend"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('3', 'fundraise:seek-loot') != ('<', 'fundraise:ascend')
+
+First differing element 0:
+'3'
+'<'
+
+- ('3', 'fundraise:seek-loot')
+?   ^                ^^^^^^^
+
++ ('<', 'fundraise:ascend')
+?   ^              + + ^^
+
+
+======================================================================
+FAIL: test_restarted_income_run_returns_to_the_fixed_route (tests.test_opening_route_pins.OpeningRoutePinsTest.test_restarted_income_run_returns_to_the_fixed_route) (mode=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\opening-route-1026\tests\test_opening_route_pins.py", line 59, in test_restarted_income_run_returns_to_the_fixed_route
+    self.assertEqual((str(key), policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     ("<", "fundraise:ascend"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('<', 'return:ascend') != ('<', 'fundraise:ascend')
+
+First differing element 1:
+'return:ascend'
+'fundraise:ascend'
+
+- ('<', 'return:ascend')
+?          ----
+
++ ('<', 'fundraise:ascend')
+?        ++++ +++
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.137s
+
+FAILED (failures=2)
+
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.135s
+
+OK
+restored: PASS src/hengbot/policy_fundraising.py

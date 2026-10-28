@@ -1,0 +1,15 @@
+test_angband_alternate_keeps_weight_and_landing_safety_requirements (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_angband_alternate_keeps_weight_and_landing_safety_requirements) ... ok
+test_any_remaining_safe_surplus_goes_home_before_guardian_switch (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_any_remaining_safe_surplus_goes_home_before_guardian_switch) ... ok
+test_fixed_quest_force_still_requires_99_after_normal_weight_deposit (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_fixed_quest_force_still_requires_99_after_normal_weight_deposit) ... ok
+test_next_visit_buys_only_fitting_count_and_leaves_deposit_home (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_next_visit_buys_only_fitting_count_and_leaves_deposit_home) ... ok
+test_overweight_matching_ammo_for_each_launcher_deposits_minimum (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_overweight_matching_ammo_for_each_launcher_deposits_minimum) ... ok
+test_public_stop_board_offers_deeper_guardian_remedy_after_restore (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_public_stop_board_offers_deeper_guardian_remedy_after_restore) ... ok
+test_recorded_deposit_and_residual_supply_quantities (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_deposit_and_residual_supply_quantities) ... ok
+test_recorded_public_board_routes_ammo_home_before_departure (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_public_board_routes_ammo_home_before_departure) ... ok
+test_recorded_residual_weight_deposits_exactly_four_shots_after_restore (test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_residual_weight_deposits_exactly_four_shots_after_restore) ... ok
+test_fifth_staff_is_the_weight_deposit (test_classC2_departure_recorded.IdentifyStaffCapDivergenceTest.test_fifth_staff_is_the_weight_deposit) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 233.659s
+
+OK

@@ -1,0 +1,19 @@
+test_actual_issuer_and_destination_override_other_held_trips (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_actual_issuer_and_destination_override_other_held_trips) ... ok
+test_default_mode_refuses_the_actual_trip_before_dispatch (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_default_mode_refuses_the_actual_trip_before_dispatch) ... ok
+test_dungeon_return_read_passes_without_town_departure_gates (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_dungeon_return_read_passes_without_town_departure_gates) ... ok
+test_expedition_fare_and_route_are_separate_refusals (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_expedition_fare_and_route_are_separate_refusals) ... ok
+test_fundraising_material_names_each_missing_supply (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_fundraising_material_names_each_missing_supply) ... ok
+test_no_expedition_has_no_travel_terminal (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_no_expedition_has_no_travel_terminal) ... ok
+test_prepare_refuses_without_digger_but_scavenge_uses_held_detection (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_prepare_refuses_without_digger_but_scavenge_uses_held_detection) ... ok
+test_read_refusal_does_not_arm_a_watch_or_read (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_read_refusal_does_not_arm_a_watch_or_read) ... ok
+test_recall_leaves_and_noncommitting_read (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_recall_leaves_and_noncommitting_read) ... ok
+test_restored_checkpoint_defaults_the_temporary_travel_context (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_restored_checkpoint_defaults_the_temporary_travel_context) ... ok
+test_special_departure_declares_only_the_selected_read (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_special_departure_declares_only_the_selected_read) ... ok
+test_special_dispatcher_normal_decision_uses_its_entry (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_special_dispatcher_normal_decision_uses_its_entry) ... ok
+test_stockout_declares_the_run_only_for_exhausted_supply_leaves (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_stockout_declares_the_run_only_for_exhausted_supply_leaves) ... ok
+test_stockout_one_run_accepts_one_detection_scroll (test_town_terminal_routes_round6.Round6RouteTerminalTest.test_stockout_one_run_accepts_one_detection_scroll) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.122s
+
+OK

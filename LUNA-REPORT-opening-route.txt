@@ -1,0 +1,469 @@
+ISSUE #47 固定開始ルート 実装報告
+基準: 5eca3f7a4 / 作業ブランチ opening-route-1026。
+最終実装HEAD: e205d6076。追加15件とQ34関連31件は通過。preflightとmutation_checkは成功。
+fast_tierは1,959件を実行し、基準コミットでも再現するflight recorderの既存1件だけが失敗した。
+診断の記録・ソース参照は LUNA-DIAG-opening-route.txt。すべてPythonでUTF-8保存。
+
+実装
+Q34の報酬取引完了後からQ1完了まで、既存の開始所有者にQ1の準備・購入・受注・入口を接続。
+必要本数は承認済みQUEST_1のreadinessから読み、HP/DPSのno_healing_tierも既存計算で評価する。
+新しい松明本数・回復薬本数・価格の定数は追加していない。通常の20F出発用品はQ1に要求しない。
+到達可能な雑貨屋・武器屋・ブラックマーケット・錬金術師、必要時は寺院の棚を観測する。
+まずQ1の松明・必要な回復薬と速度薬を確保し、残金で既存の採掘道具品質比較に従う最良の道具、
+次に買えるだけの財宝感知を買う。既に同等以上の使用可能な道具を所持していれば重複購入しない。
+不足・価格は観測した棚と所持品から再計算する。購入数量は既存の購入rungとexecutorへ渡す。
+通常戦闘・資金調達でQ1分の松明を使い切らない。町外でもQ1のcarry予約を維持する。
+予約薬・松明の売却/預託/破棄、および購入した採掘キットの直後の処分は既存retentionで防ぐ。
+Q1内の承認済み戦術・戦闘処理とQ34の戦術は引き続き既存の実装を使う。
+
+許される資金調達と出口
+予約分または最低限の道具を買う所持金が不足した場合だけ、その不足金額を目標として資金調達を開く。
+必要なら既存の食料/光源を最小単位で買い、既存の食料・光源・HP・入場ゲートを通したYeek 1Fへ出る。
+キット所持時はmine、未所持時は期限付きscavenge。予定は1回。通常の深い探索・別クエストには渡さない。
+帰還の出口は既存の目標金額到達、食料/光源/満杯/危険による帰還、scavenge期限、採掘の既存完了・探索予算。
+帰還後は収益があれば不足を再評価し、所持品だけの収益なら既存の安全な売却選択へ接続する。
+収益も売却候補もなければ stop:fundraising-no-income。資金を増やせない同一往復を繰り返さない。
+古い版から途中再開した通常の資金調達は既存の帰還処理で町へ戻し、固定ルートを組み直す。
+町の同一経済状態で同じ位置を繰り返す場合と、棚ページが進まない場合は既存STORE_STUCK_LIMITで打ち切る。
+
+停止理由と選択肢
+共通のCLI終了理由は quest:blocked:opening-route。キーを送らず停止し、建物上の待機による再入場も防ぐ。
+具体的な理由は checkpoint の _opening_q1_failure と公開readinessの opening_route_failure に保存する。
+- stop:no-digger: 到達可能な観測棚に使用可能な道具がない。手動取得、在庫更新後の再準備、ルート要件変更が選択肢。
+- stop:stock:quest-throwing-items / quest-healing / quest-speed: 必須在庫不足。手動補充または明示的な在庫待ち方針が必要。
+- purchase-requires-first-page:<stage>: 全ページを比較した最良品が第2ページ以降。
+  既存IST/one-shotの安全条件は第1ページに限定されるため、弱い道具へ黙って変更せず停止する。
+  端末を広げて全品を第1ページに表示するか、手動購入する。ページ安全条件の拡張は別途必要。
+- shelf-page-no-progress / no-progress: 観測・購入・移動が進まない。該当取引や入力画面を確認する。
+- fundraising-food-unavailable / fundraising-light-unavailable / fundraising-departure-unready:
+  安全に資金調達へ出られない。所持金ゼロで食料もない場合もここで止める。手動補給が選択肢。
+- fundraising-entrance-unavailable / fundraising-route-unavailable / fundraising-entry-refused / fundraising-descent:
+  既存の安全な入口へ進めない。入口事実・道順・readinessの確認が必要。
+- stop:fundraising-no-income: 稼ぎも売却可能品もない。装備/資金の手動補助または資金調達方針の見直し。
+- readiness:<詳細>: 松明以外を含む既存Q1拒否。能力・光源・HP・脅威計算などを手動で満たすか、明示的に戦術を見直す。
+  記録由来のHP219の構成は three-turn-threat で停止する。拒否条件を緩めて成功扱いにはしていない。
+- competing-quest / not-in-outpost / reward-unavailable / quest-request-unavailable /
+  supplier-route-unavailable / supplier-operation-unavailable / purchase-pack-full:
+  競合取引・所在地・報酬・入口・店舗・空き枠を確認してから再準備する。
+停止の後に自動で在庫待ちや他クエストへ切り替えない。復旧時は原因を解決して固定ルートを再評価する。
+
+検証の範囲
+コピー記録から選んだ盤面・知識・参照行をfixture化。価格・棚・HP・数量・ゲーム応答の構成部分はテスト中で明示。
+公開choose_keyとproduction follow executorで、松明購入、予約維持、最良の購入可能道具、残金での財宝感知、
+Q1受注、受注後入口確認、チェックポイント復元、資金不足/帰還、非松明readiness拒否、棚ページ制約を検証する。
+新規キャラクターの実ゲーム攻略成功を主張しない。新規キャラクターによる検証は監督側のLinux検証環境で実施予定。
+稼働中ゲーム/BOTや他者のプロセスの停止・操作、push、merge、rebase、reset --hard、stashは行っていない。
+基準時点の既存テストは変更しない。生ログや前回の実行トランスクリプトはコミット対象外。
+
+ガード結果
+実装HEAD e205d6076、基準はいずれも5eca3f7a4。
+preflight: 終了0。21 changed files、0 findings。
+mutation_check --record: 終了0。0 of 20 hunks are not pinned。e205d6076向けの記録保存済み。
+  eb8ac5f60で20差分全件の反転検査が成功。最新HEADでは19件を継承し、更新した1件を再反転して成功した。
+fast_tier --shards 4: 終了1。1,959件、136.8秒。Failuresは下記の既存flight recorder 1件、Errorsなし、crashなし。
+  60秒超の51モジュールは標準fast_tierの対象外であり、全スイート成功を主張しない。
+追加ピン15件: 成功（mutation_checkの事前実行でも再確認）。
+Q34関連5モジュール31件: 成功、74.476秒。
+入力executorのタイムアウト検証が一度並列実行で失敗したが、単独再実行は成功（0.025秒）。
+  ソース変更なしのfast_tier再走でも通過し、上記の最終失敗一覧には含まれない。
+使用PythonはCodex runtime 3.12.14 (WindowsAppsのstubではない)。
+3.13は空のASTフィールドを省略するため、3.12でのmanifest再生成に伴い既存サイトのASTハッシュも再計算される。
+分類変更と無関係なソース変更を表すものではない。manifestとruntime indexは同じPythonで生成・検証する。
+
+再開経路の追加確認
+Q34報酬の床上アイテムが残る再起動では、既存の許可座標から受取ラッチを復元し、買い物より先に報酬を拾う。
+公開choose_keyの fixedquest:reward-pickup とfollow executorへのg投稿を追加ピンで確認した。
+追加ピンは計15件。古いHome要求、予約金と検知巻物、恒久光源＋弾薬、財宝感知99枚の保持も確認する。
+
+ガードによる整理
+初回mutation_checkは26差分中11差分が未検出だった。重複する店舗・入口の経路制御6差分を削除し、
+残る5差分には、古いHome要求より固定ルートが優先すること、予約金で検知巻物を買わず稼ぎを継続すること、
+通常在庫目標を超えて買った99枚の保持、実際の購入に対応する調達契約、恒久光源＋弾薬がある場合の松明保持をピン留めした。
+整理後の追加15件とQ34関連26件、計41件が通過（64.256秒）。既存のQ1装備入口判定は維持する。
+停止理由のラッチはチェックポイントに残る。原因解消後は停止ラッチを持たないpolicyで再評価する。
+
+既存経路との互換性と停止の早期化
+固定ルートは、必要な棚・技能・光源情報を備えるprotocol 3の観測で開始する。旧形式チェックポイントや
+不完全な投影盤面は従来の所有者を使い、Q34完了を観測できないデータから新しい取引を推定しない。
+これにより、以前の町の補充・購入・松明調達・資金調達再開の既存ピンを変更せず維持した。
+到達可能な棚に使用可能な道具がない場合は、予約分をまだ持たず所持金ゼロでも、稼ぎに出る前にstop:no-diggerで停止する。
+資金調達へ出る分岐はfunds:reserve（必須携行品）とfunds:digger（道具代不足）だけ。
+fundraising-supplier-route-unavailable / fundraising-purchase-unavailable も、補給取引が実行できない名前付き停止である。
+
+基準側でも失敗するテストの切り分け
+flight recorderの test_budget_stats_unprunable_bulk_only_once_during_deletion_loop は、
+期待bulk_stats=4に対して5を返す。同一Codex runtimeで5eca3f7a4の独立チェックアウトでも同じ失敗を確認した。
+一緒に比較した既存の町補充2件は基準で通過。protocol互換性修正後の関連115件では、この1件だけが失敗した。
+この無関係な基準側の問題を隠すためのテスト変更・スキップ・期待値変更は行っていない。
+
+最終報告のコミットはこの報告書だけを変更する。ソース・テストの検証対象は上記実装HEADと同一。
+
+
+round 2（2026-10-26、ISSUE #47）
+今回の指示はround 1の資金調達要件を上書きする。Q34報酬受取後に所持金が足りなければ採掘キットを省略し、
+Q1へ直行する。Q1前にキット・薬・油のための資金調達を開始しない。
+
+Q1の受諾条件の変更と根拠
+- C:/hengband/lib/edit/quests/001_ThievesHideout.jsonc の実配置は r_idx 150が2体、44が2体。
+  [8,1]から[8,3]に進む承認済み戦術の迎撃地点は幅1の通路である。QUEST_1.jsoncの
+  engagement_planにmax_simultaneous_melee=1を明示し、既存の3ターン脅威計算で複数の同時隣接を仮定しない。
+  HP/DPS・最大単体撃破ターン数・全快・状態異常・装備・空き枠の安全条件は維持する。
+  通常の盗賊には合格するが、単体でも危険な攻撃力に構成した盤面はthree-turn-threatで拒否する。
+- Q1に限り、装備した既知の光源に1回の訪問用の燃料があれば、ランタン必須・予備油必須を適用しない。
+  必要燃料は既存navigatorのhold_budget（既定2000）＋実敵数×既存の撃破ターン上限＋実マップのセル数＋
+  既存SWEEP_BUDGETから算出する。このQ1定義では通常速度110で2390。速度による消費差も既存energy表で換算する。
+  C:/hengband/src/object/lite-processor.cpp:18-38では10ゲームターンごとに燃料1を消費する。
+  記録の手持ち松明には2500の燃料があり、Q1用投擲5本を残したまま1本を装備できる。
+  未鑑定・燃料不明の装備ランタンを十分と推定せず、既存equipment executorで既知の松明へ持ち替える。
+  必要燃料の直下は拒否する。Q34を含む他のONCEクエストの予備油条件は変更していない。
+- 回復薬・速度薬の数値条件は変更しない。既存no_healing_tier（最大HP88以上、実測DPS28以上）をそのまま使う。
+  今回の停止2件は最大HP179/174、実測DPS33.15/32.76で合格し、薬なしで受諾できる。
+  投擲用の点火済み松明5本は引き続き確保する。低戦力のティアでは従来どおり回復薬2・速度薬1を要求し、
+  寺院・ブラックマーケットの既存販売店から購入する。十分な金がなければstop:unaffordable-quest-reserveで停止し、
+  在庫不足はstop:stock:<category>で停止する。資金調達で迂回しない。
+- 2件目の実記録はHP104/174だったため、町の敵を既存の町戦闘で処理し、既存REST_MACROで全快してから進む。
+
+可能な範囲の採掘キット
+必須携行品を先に確保し、残金で既存品質比較による最良の購入可能な採掘道具、続いて購入可能な財宝感知を選ぶ。
+既知の棚の実価格を優先する。棚が未観測で既存の基準価格にも満たない場合は任意のキット調査を開始しない。
+今回の所持金5/11では道具も感知も要求せずQ1へ進む。在庫なし・道具代不足によるstop:no-diggerとfunds:diggerを廃止した。
+古いチェックポイントの資金調達ラッチは町で解除する。round 1で追加した資金調達専用関数とその登録を削除した。
+予約・売却/預託/投擲防止、最良の購入可能道具・残金での感知購入、Q34報酬優先は維持する。
+
+回帰ピンと限界
+tests/fixtures/opening-route-r2-stops.json.gzに停止2件の同turn最終player_turn、技能、停止時decisionを収録した。
+出典はLinux検証環境のopening-fresh-1 bot-decisions.jsonl:741とopening-fresh-2:630。
+通常CLIと同じ固定町地図の事前知識もlib/edit/towns/01_Outpost_Full.jsoncから抽出してfixtureに収録した。
+公開choose_keyとproduction follow executorで、実所持金5/11・Lv7・油0・薬0のまま、
+光源持替え、町の敵処理と必要時の回復、Q1受諾要求と入場キーの投稿を確認する。
+ゲーム応答（装備・戦闘・回復・受諾）、途中の町移動完了と受諾後の入口表示は明示した構成データである。
+実ゲームの生存・攻略成功を主張しない。新規キャラクターからの実攻略は監督側のLinux検証環境で再検証予定。
+round 1の15件は新指示に反する資金調達・道具必須シナリオを新しい停止/省略シナリオに置換し、その他の予約・購入を維持。
+基準5eca3f7a4に存在したテストは変更していない。生ログ・実行トランスクリプトはコミットしない。
+
+round 2検証結果（以下に最終ガード結果を追記）
+Codex runtime Python 3.12.14使用。追加の停止再現3件と危険単体の拒否1件は成功。
+低戦力ティアの薬購入も公開choose_key＋follow executorで成功。
+Q34関連5モジュール31件成功（78.754秒）。最初の直接指定実行ではtestsのimport path不足だったため、
+PYTHONPATH=src;tests;scriptsで同じモジュールを実行し直した。テスト本体の変更はない。
+
+
+round 2最終ガード結果
+検証対象の実装HEAD: de6cae923。基準: 5eca3f7a4。
+- 公開choose_key＋follow executorを含むround 1/2の19件: 成功（71.928秒）。
+  Q34関連31件と合わせて50件成功。
+- preflight: 終了0。25 changed files、0 findings。
+  初回に見つかった削除済み関数の登録と町の敵処理のadapter宣言漏れは整理し、manifestを再生成して解消した。
+- mutation_check --record: 終了0。22差分、未検出0件。e205d6076の成功記録から未変更19差分を継承し、
+  固定開始ルート本体・訪問燃料計算・Q1専用光源条件の3差分を再反転して検出した。
+  de6cae923とソース/テストのツリーに対する記録を保存した。
+- fast_tier --shards 4: 終了1。1,963件、122.8秒。失敗1、エラー0、クラッシュ0。
+  失敗はtests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop。
+  bulk_statsの期待4に対して5であり、round 1で同一runtime・基準5eca3f7a4でも確認済みの既存失敗と一致する。
+  対応するsrc/hengbot/flight_recorder.pyとtests/test_flight_recorder.pyに基準との差分はない。
+  既存テストの変更・スキップは行っていない。60秒超の52モジュールはfast_tierの規定により対象外。
+ガード実行後の追跡ファイル差分は0。この後のコミットは最終ガード結果の追記のみであり、
+検証済みのソース・戦略・テスト・fixtureは変更しない。未追跡の前回実行ログは保存したままコミット対象外。
+ゲーム/BOT操作・プロセス停止・push・merge・rebase・reset --hard・stashは実施していない。
+
+
+round 3?Issue #47?2026-10-26?
+
+??: 49e50cd01????????????????????Q1?????
+??????: 237adca0c?????????????5eca3f7a4?
+
+?????
+1. Q1????????????????????progress.quests[1].status?TAKEN????
+   _fixed_quest_key?QuestFloorNavigator.enter_from_town???????
+   ??????????_quest_equipment_entry_allowed????????????
+   _equipment_departure_ready?????????????????????????????????
+   ???_opening_q1_town_key???None???quest-request-unavailable??????????
+   ??????????????????????????????calibration-required?
+   ?????????????????????????????????
+   src/hengbot/policy_quest.py:1051???????????Q1?????Q34???
+   ????????readiness??????????????HP/DPS??????????????
+   ????????????????????????????Q1????????????????
+   ??????????quest-entry-unavailable?????????????
+2. ???????(34,176)????grid_map????(35,177)????????
+   ????????????????3?????????????????y????
+   ????????????????>????y?????????????????
+   ???????????????????????????????????
+3. src/hengbot/policy_opening.py:138?????????????????????????
+   ???????????????????????????????
+   ??????????????????????????????????????????????
+4. ??????????????????????opening-r2-1?bot-decisions.jsonl:618?
+   turn81336?????218?HP175/179???(40,96)????shop:approach?8?
+   town:kill-mob-approach?2???????????????(41,97)??????????
+   ???????????????????????None???????????????
+   ???????????????????????????????????????????????
+   src/hengbot/policy_opening.py:267????????????????????
+   ???????????????????????????????
+   ???no-progress????????????????????????????
+
+????????
+????_opening_q1_town_key?????_fixed_quest_ready???????????
+???????????????????????????????????????
+????????????????????????????????????????
+?????????????????????HP??????????????
+???????????????parse_snapshot??????????choose_key?4???:
+??????422.05ms????402.49ms?readiness?????1???0??????
+?????Windows?????????????Linux?????1.0?1.8????????????????
+?????????????_grid_index??2??????????????????????????
+????????????????????????????????????????????
+
+??????????
+fixture: tests/fixtures/opening-route-r3-stops.json.gz?
+??: Linux?????opening-r2-1 bot-decisions.jsonl:834?turn84408??
+opening-r2-2 bot-decisions.jsonl:610?turn82620??????incident capture??turn?
+player_turn??????character-calibration.json???????????618??
+?????2??????MonraceDefinitions.jsonc???????
+????????????????????????fixture??????????????????????
+
+tests/test_opening_route_r3_recorded.py?6?:
+- ??????????2??????choose_key?????3????production follow executor?
+  ??y??????Q1???????????quest-strategy????
+- ???????????>???y??????
+- ??????????????????
+- ????????????????????????????
+- ???????????????????????????????????readiness????????
+- ?????????????????follow executor???????????????????
+?????Q1?????????????????????????????????????
+????????????Q1????????????????????????????????
+??????????????????????????????????????????
+
+round 3?????????????????
+Codex runtime Python 3.12.14?PYTHONPATH=src;tests;scripts?
+?????round 1/2/3?Q34??5???????56????170.200???
+no-progress?????????????????round 3?6?????????18.001???
+???preflight??????????????adapter????????????
+scripts/item_sink_adapters.json????????????????????manifest???????
+??????????????????????????
+
+
+round 3 ???????
+???????HEAD: 237adca0c???: 5eca3f7a4?
+- preflight: ??0?28 changed files?0 findings?adapter?????????????
+- mutation_check --record: ??0?23??????0??
+  de6cae923??????????21???????????????Q1?????2?????????
+  ????????test_actual_calibrated_stops_enter_by_step_and_use_approved_floor_strategy?
+  test_restart_on_entrance_posts_downstairs_and_confirmation??????
+  ?????round 1/2/3?25????????????HEAD????/??????????????????
+- fast_tier --shards 4: ??1?1,937??143.8????1?????0??????0?
+  ???tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop?
+  bulk_stats???4??????5?round 1/2??????????????
+  src/hengbot/flight_recorder.py?tests/test_flight_recorder.py????????????
+  ????????????????????60???52??????fast tier????????
+  ?????????????Q1??????????
+- ???????tests/???????????0????fixture?????????
+- ?????src/?tests/?scripts/?????????0?
+???????????????????????????????????
+???/BOT???????????push?merge?rebase?reset --hard?stash?????????
+????????????????????
+
+
+2026-10-27 追加ラウンド: opening-route-pins / ISSUE #47
+
+更新日時: 2026-10-27T22:29:01+09:00
+作業指示: LUNA-TASK-opening-route-pins.txt（本文には #110 の記載あり）。
+目的は Q34 → 残金で採掘キット購入 → Q1 の既存分岐の検出漏れ解消。
+既存テストの期待値は変更していない。共有ハーネスはモジュール別名で参照した。
+実装・テストコミット: eb3ce7da643629a1a65553aa3bc523fbda049ed8。
+main 統合コミット: 0cf1fbf3301e518433a3330c7bb30e3e3b1623e9。
+統合した main: 2399220372a2d2a514652c2e980f86b203b35921。
+競合は producer baseline の双方の登録を保持し、manifest と実行時索引を再生成して解消。
+
+未検出だった4差分の扱い:
+1. cli.py の opening-route 停止説明は、既存の
+   tests.test_cli.PolicyFinalStopBannerTest.test_every_final_reason_has_its_own_truthful_banner
+   だけで単独差分の復元を検出した（KeyError、終了コード1）。復帰後は成功。
+2. policy_constants.py の最終停止理由登録は、新設した
+   tests.test_opening_route_pins.OpeningRoutePinsTest.
+   test_unaffordable_route_is_an_operator_visible_final_stop で固定。
+   shopping_case(gold=0) の構成済み町盤面を choose_key に渡し、空キー・
+   停止理由・最終停止理由集合への登録・利用者向け説明を検証した。
+   登録差分だけを戻すと assertIn が失敗（終了コード1）、復帰後は成功。
+3. policy_fundraising.py の _detectionless_scavenge_allowed 冒頭4行を除去。
+   現在の実装では _opening_q1_funding を None 以外に設定する開始処理がない。
+   通常盤面から到達しない旧債務ラン用の特例であり、実行中の固定ルートを変えない。
+   旧状態を人工的に与える既存の町テスト・その期待値は保持した。
+4. _fundraising_key のダンジョンから固定ルートへ戻る差分は、新設した
+   test_restarted_income_run_returns_to_the_fixed_route で固定。
+   記録 fixture opening-route-20261026.json.gz の throw（Yeek Cave 1F）を使用。
+   構成した変更は敵を除去、現在位置を上り階段に変更、HP を250/250に変更。
+   Q34報酬済み・Q1有効のクエスト、protocol 3、所持品は記録から継承する。
+   mine / scavenge / 無モードの各状態を choose_key に渡し、
+   '<' / fundraise:ascend と帰還状態を検証した。差分単独復元では
+   scavenge が '3' / fundraise:seek-loot、無モードが return:ascend となり、
+   2サブケースが失敗（終了コード1）。復帰後は全サブケース成功。
+
+単独復元の再現: validation/opening-route-pins-20261027/revert_pins.py。
+結果: revert-pins.log、スクリプト終了コード0。対象3ファイルは元のバイト列へ復元。
+全 guard / テストは指定のシステム Python 3.13.14 で実行した。
+tests.test_cli 単独: 240件、21.356秒、終了コード0。
+新設2テストと既存停止説明1テスト: 3件、終了コード0。
+
+検証状況:
+- preflight: 終了コード0、125.86秒。
+- mutation: 実行中またはマージゲート待機中。完了判定は未取得。
+- fast-tier: 実行中またはマージゲート待機中。完了判定は未取得。
+- scope-derive: 実行中またはマージゲート待機中。完了判定は未取得。
+全差分 mutation の完了判定は未取得。現時点の caught は8差分、NOT CAUGHT は0差分。
+mutation は統合時点の main を基準に --record --full --timeout 2400 を指定。
+全モジュール実行は長時間継続したため、停止せず、独立チェックアウトでも実行。
+独立実行は上記4モジュールの検出用テストと既存CLI停止説明クラスを指定した。
+正確な選択テスト一覧・HEAD・base は mutation-selected-command.json に保存。
+到達不能な特例除去後の追加ソース差分は22個。
+scope の --target HEAD は実装コミットの親との差分から6モジュールを導出した。
+最初の探索で得た302モジュールは main 統合コミット対象であり、この値で完了を主張しない。
+独立チェックアウトでの初回 scope は -c 実行とゲーム定義探索の問題を確認。
+定義参照先を与えて再実行し、既知の DecisionTimingTest の失敗も確認した。
+最終実行は標準 verify_scope のコードを実ファイルに保存して実行する。
+これにより __file__ を提供し、標準の DecisionTimingTest 除外もそのまま適用した。
+- tests.test_opening_route_pins: ran、6.572秒、失敗集計0、skip 0。
+- tests.test_policy: ran、7.975秒、失敗集計0、skip 0。
+- tests.test_policy_fundraising: ran、3.152秒、失敗集計0、skip 0。
+- scripts/sale_key_lint.py: ran、2.908秒、失敗集計0、skip 0。
+- tests.test_cli: ran、20.043秒、失敗集計0、skip 0。
+- scripts/test_fakery_lint.py: failed、25.964秒、失敗集計0、skip 0。
+- tests.test_policy_structure: ran、176.797秒、失敗集計0、skip 0。
+- tests.test_absorbing_states: ran、294.25秒、失敗集計0、skip 0。
+scope最終: 6モジュール370テスト、失敗0・skip 0。CLIの11件は標準除外に従う。
+指定の verify_scope.py --target HEAD --derive-only: 終了コード0。
+lintの基準比較: main 13件・本ブランチ13件、追加0件・削除0件。
+verify_scopeの旧allowance 9件とは一致しないが、13件の内容は全て基準と同一。
+独立 fast_tier: 終了コード1、157.47秒、HEAD 3b5f43f3ab136c1bb36c7496bd2b167b4585cb6a。
+fast_tier初回: 1,620件、失敗0・エラー9。独立チェックアウトの町定義不足が原因。
+lib/editを補った再実行は fast-tier-final.log に保存。新たなマージゲートの待機に入った。
+
+別セッションのマージゲート待機は指示どおり停止しない。
+未完了の検証を成功扱いしない。ログと集計は同じ validation ディレクトリへ保存する。
+ゲーム/BOTの起動停止、push、PR投稿は実施していない。
+指定の作業時間上限内で、この時点の結果を保存して今回の対話での作業を終了する。
+MUTATION OK と fast_tier 成功を含む全完了条件はまだ満たしていない。
+実行中および待機中の guard は停止していない。
+mutation が単独差分を戻している間の src/ の変更は、その guard が復元を管理する。
+
+
+2026-10-28 追加ラウンド: opening-route-structure / ISSUE #47
+
+更新日時: 2026-10-28T07:07:11+09:00
+指示ファイル: LUNA-TASK-opening-route-structure.txt。本文の #110 表記とは区別し、ユーザー指定の ISSUE #47 として記録する。
+基準 main: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+報告時 HEAD: 02d5b9a63f4e713e65d6ab680a80b80ad8dab4f3
+main 統合: ed3256118。競合した scripts/town_work_manifest.json.gz は、統合後の実ソースから再生成した。
+実装修正: 3e10df08c、producer/adapter 登録補完: bf5d5739f と 02d5b9a63。
+
+修正内容:
+- opening-q1:equip-light を equipment-txn の Observe/TRANSACTION、shop:opening-route-page を shop-buy の Transition/EFFECT として型付けした。
+- town arbiter の実際の所有者の reason_prefixes に両理由を登録した。census だけの登録ではなく、実行時の owner_for_reason も同じ所有者を返す。
+- 通常帰還を開始する _start_fundraising_return を共通化し、Q1 の古い資金稼ぎ再開と既存の検知不能 scavenge 終了から利用する。_note_return_start(None) と帰還ラッチの順序を揃え、既存の37開始箇所という構造契約も維持した。帰還終了処理は既存の記録経路を使う。
+- 共通処理は @claims、producer inventory、adapter 呼び出し一覧、town work review に実際の委譲先とともに登録した。manifest と実行時索引も再生成した。
+- _opening_q1_town_key の2か所の近接移動候補で _step_raises_unintended_confirm を確認する。
+既存テストの期待値・例外リストは変更していない。共有ハーネスへの参照は既存のモジュール別名を維持し、キーの += 合成は追加していない。
+
+検証は指定のシステム Python 3.13、PYTHONPATH=src;tests;scripts を使用した。
+指定3モジュールの初回全体実行: 126件、348.617秒、終了コード0。ownership_s2a1_closure、town_arbiter、quest_door_confirm_recorded がすべて成功。
+現在の実装での指定4テストの再確認:
+....
+----------------------------------------------------------------------
+Ran 4 tests in 23.579s
+
+OK
+
+preflight 最新結果（初回の登録不足は補完済み。進行中なら完了判定は未取得）:
+[preflight] PREFLIGHT OK: 59 changed files, 0 findings (opening-route-1026 vs 78deea2a)
+
+fast tier 初回結果（最終 producer inventory 登録前の実行。最終版再実行とは区別する）:
+[fast] 1644 fast tests (<2.0s in 78deea2ac) + 4 changed modules, 4 shards
+[fast] excluded 49 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-xdzu_swq)
+Failures: none
+Errors: none
+Total: 1671 tests, 157.0s
+fast tier 最終版の状態:
+[fast] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+
+mutation_check --record --full の状態:
+[mutation] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+既存22差分を含め main 基準で再検証するため、前ラウンドの選択テストに指定4構造テストを追加して実行した。別の detached 作業ツリーを使用し、実行中の派生検証が読む本作業ツリーへ mutation の巻き戻しを混在させない。待機中の場合は MUTATION OK や record 作成を主張しない。
+
+派生検証: guard-tools/affected_tests.py が導出した82モジュールを対象に実行。
+現時点で完了 21/82、状態別集計 {'ran': 21}。
+失敗・エラー: {}
+verify_scope の既存 DecisionTimingTest 除外はそのまま適用した。導出と実行は別に記録し、scope.json の導出成功だけでテスト成功を主張しない。起動時に判明した runner の import path 不足は修正して全対象を再実行し、初回結果は derived-import-path-initial.json に区別して保存した。
+
+マージゲート待機は指定どおり停止しない。未完了の guard を成功扱いしない。
+報告時の本作業ツリー src/・tests/ の未コミット差分:
+なし
+検証ログとコマンド・対象HEAD・base・終了コード・時間は validation/opening-route-structure-20261028/ に保存する。
+この追記は Python の UTF-8 で書き込み、過去ラウンドのバイト列は変更していない。
+
+
+opening-route-structure 検証状況の追記: 2026-10-28T07:15:34+09:00
+報告時 HEAD: 5b95896719cd46620f19ec1077b0897a1836af1c
+
+検証は指定のシステム Python 3.13、PYTHONPATH=src;tests;scripts を使用した。
+指定3モジュールの初回全体実行: 126件、348.617秒、終了コード0。ownership_s2a1_closure、town_arbiter、quest_door_confirm_recorded がすべて成功。
+現在の実装での指定4テストの再確認:
+....
+----------------------------------------------------------------------
+Ran 4 tests in 23.579s
+
+OK
+
+preflight 最新結果（初回の登録不足は補完済み。進行中なら完了判定は未取得）:
+[preflight] PREFLIGHT OK: 59 changed files, 0 findings (opening-route-1026 vs 78deea2a)
+
+fast tier 初回結果（最終 producer inventory 登録前の実行。最終版再実行とは区別する）:
+[fast] 1644 fast tests (<2.0s in 78deea2ac) + 4 changed modules, 4 shards
+[fast] excluded 49 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-xdzu_swq)
+Failures: none
+Errors: none
+Total: 1671 tests, 157.0s
+fast tier 最終版の状態:
+[fast] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+
+mutation_check --record --full の状態:
+[mutation] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+既存22差分を含め main 基準で再検証するため、前ラウンドの選択テストに指定4構造テストを追加して実行した。別の detached 作業ツリーを使用し、実行中の派生検証が読む本作業ツリーへ mutation の巻き戻しを混在させない。待機中の場合は MUTATION OK や record 作成を主張しない。
+
+派生検証: guard-tools/affected_tests.py が導出した82モジュールを対象に実行。
+現時点で完了 43/82、状態別集計 {'ran': 42, 'incomplete': 4, 'failed': 1, 'not_started': 35}。
+失敗・エラー: {"tests.test_keep_running_a0": {"status": "failed", "log_encoding": "utf-8", "failing_headers": ["FAIL: test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False)"], "stderr_path": "derived-logs\\tests.test_keep_running_a0.stderr.log", "tests": 17, "seconds": 18.898, "summary": "FAILED (failures=1)"}}
+verify_scope の既存 DecisionTimingTest 除外はそのまま適用した。導出と実行は別に記録し、scope.json の導出成功だけでテスト成功を主張しない。起動時に判明した runner の import path 不足は修正して全対象を再実行し、初回結果は derived-import-path-initial.json に区別して保存した。
+派生検証の日本語ログに CP932 が混在し集計処理の UTF-8 読み込みが失敗したため、derived-summary.json では unittest の完了表示から件数と成否を回収した。これはプロセス終了コードの実測とは区別する。以後の runner は子プロセスの PYTHONIOENCODING=utf-8 を明示する。
+派生検証で観測した stockout と CLI 非同期テストの単独基準比較（基準HEADと実測終了コード）:
+{"main-stockout": {"head": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9", "exit_code": 1, "test": "tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop", "seconds": 9.221}, "main-cli-follow": {"head": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9", "exit_code": 0, "test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot", "seconds": 5.435}, "incoming-stockout": {"head": "22b2b2806384a70f3d0ce20eae05da5e4201a888", "exit_code": 1, "test": "tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop", "seconds": 8.246}, "incoming-cli-follow": {"head": "22b2b2806384a70f3d0ce20eae05da5e4201a888", "exit_code": 0, "test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot", "seconds": 4.801}}
+現在の実装での CLI 単独再確認:
+{"test": "tests.test_cli.CliTest.test_run_follow_records_none_key_and_waits_for_next_snapshot", "exit_code": 0, "head": "5b95896719cd46620f19ec1077b0897a1836af1c", "seconds": 5.532}
+stockout の同一失敗が main と着手前コミットでも出ること、CLI の同じケースの単独実行が両基準と現在の実装で成功することをログで確認した。該当テストの期待値や実装対象外の挙動は変更しない。
+
+マージゲート待機は指定どおり停止しない。未完了の guard を成功扱いしない。
+報告時の本作業ツリー src/・tests/ の未コミット差分:
+なし
+検証ログとコマンド・対象HEAD・base・終了コード・時間は validation/opening-route-structure-20261028/ に保存する。
+この追記は Python の UTF-8 で書き込み、過去ラウンドのバイト列は変更していない。
+
+
+opening-route-structure 今回の最終記録: 2026-10-28T07:46:09+09:00
+報告対象 HEAD: 98f7fab5ff6e5b15110e4746d8c9a451ea13cc61、基準 main: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+実装・登録・manifest の修正はコミット済み。既存テストの期待値と例外リストは変更していない。
+指定3モジュール初回: 126件成功。最終ソースでも ownership 全80件と quest-door-confirm 全16件が成功した。
+指定4構造テスト再確認: 終了コード0。preflight: 終了コード0、0 findings。
+fast tier 初回: 1,671件、失敗・エラーなし。最終版の状態:
+[fast] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+mutation_check --record --full の状態:
+[mutation] waiting: the merge gate is running its full suite (gate rod-overflow-1027, since 06:59:05); owner decision 2026-10-25
+main 基準のソース差分は26 hunk。既存22差分を含む全差分の検証を選択テストと4構造テストで起動している。待機中の場合、mutation 完了や record 作成済みとは扱わない。
+派生82モジュールの unittest 完了表示の集計: {'ran': 78, 'incomplete': 2, 'failed': 2}、完了 80/82。
+完了したテスト件数: 3156。詳細は derived-summary.json と derived-utf8-logs/ に保存した。これは集計 runner の実測終了コードとは区別する。
+派生 runner の終了記録: {"exit_code": 1, "reason": "UnicodeDecodeError while decoding a completed CP932 unittest log as UTF-8", "configured_module_timeout_seconds": 1200, "incomplete_modules": ["tests.test_cli", "tests.test_town_decision_speed_caches"], "summary_provenance": "unittest stderr summaries; process exit codes are not inferred"}。CP932 の日本語 docstring を集計時に UTF-8 として読めなかったもので、テストの FAIL と区別する。未完了モジュールについては完了表示を取得できていない。
+観測された失敗: {"tests.test_keep_running_a0": {"status": "failed", "log_encoding": "utf-8", "failing_headers": ["FAIL: test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False)"], "stderr_path": "derived-logs\\tests.test_keep_running_a0.stderr.log", "tests": 17, "seconds": 18.898, "summary": "FAILED (failures=1)", "utf8_log": "derived-utf8-logs\\tests.test_keep_running_a0.stderr.log"}, "tests.test_town_plan_exhausted_wander": {"status": "failed", "log_encoding": "utf-8", "failing_headers": ["FAIL: test_p5_unaffordable_return_still_names_the_missing_entrance (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance)"], "stderr_path": "derived-logs\\tests.test_town_plan_exhausted_wander.stderr.log", "tests": 12, "seconds": 383.622, "summary": "FAILED (failures=1)", "utf8_log": "derived-utf8-logs\\tests.test_town_plan_exhausted_wander.stderr.log"}}
+stockout・wander の2失敗は main と着手前22b2b2806でも同じ内容で再現し、baseline-results.json に実測終了コードと対象HEADを保存した。
+CLI の該当ケース単独実行は main・着手前・現在の実装のすべてで成功。CLI モジュール全体の再実行結果: {"module": "tests.test_cli", "exit_code": null, "timeout": 300, "head": "98f7fab5ff6e5b15110e4746d8c9a451ea13cc61", "seconds": 301.607}。
+全体実行を完走できない場合は、単独実行の成功をモジュール全体の成功とは扱わない。
+未完了の guard は指定どおり停止せず残す。src/・tests/ の未コミット差分: なし。
+指示の作業上限60分以内で今回の作業を終了する。マージゲート待機中の最終 fast tier・mutation を成功とは扱わず、再開時には稼働中の同じ guard のログを先に確認する。終了時点の写しは fast-at-report.log と mutation-at-report.log に保存した。
+報告用コミットによる src/hengbot・tests の変更はなく、mutation 対象と同一ツリーであることを tree-evidence.json に記録した。
+レポートは Python の UTF-8 追記で保存し、過去ラウンドのバイト列は維持した。
