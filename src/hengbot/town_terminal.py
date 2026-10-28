@@ -1364,6 +1364,17 @@ def stockout_mining_intended_terminal(
     if (not board.in_town or board.store is not None
             or policy._fundraising_mode is not None or board.player.recalling):
         return None
+    return stockout_mining_supply_terminal(policy, board, failed=failed)
+
+
+def stockout_mining_supply_terminal(
+    policy: Any, board: Any, *, failed: tuple[str, ...] | None = None,
+) -> TerminalRef | None:
+    """Share supply eligibility with preparation, including on an open page.
+
+    The dispatcher consumes the departure's failed leaves; terminal admission
+    separately checks the physical surface before starting a mining run.
+    """
     labels = {
         "recall_departure_ready": {"Word of Recall scrolls"},
         "food_ready": {"Food rations", "Device charges for food"},
@@ -1662,6 +1673,8 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
+    "_cross_town_shopping_key": "Select or settle the shopping expedition; the teleport body admits its route and fare before travel.",
+    "_batch_sell_key": "Confirm the posted batch or compose its inscription-bound sale after checking item availability, retention and store acceptance.",
     '_chest_processing_key#1': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
     '_chest_processing_key#2': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
     '_normal_loot_key#1': 'not a town errand: defend, pick up or walk to visible floor loot; src/hengbot/policy_identification.py:1322',

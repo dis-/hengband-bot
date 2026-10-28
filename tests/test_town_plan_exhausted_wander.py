@@ -137,6 +137,7 @@ RETURN_WINDOW = tuple(range(59, 70))
 MORIVANT_TOWN_ID = 2
 ALCHEMIST = 4
 BLOCKED_REASON = "town:blocked:walk-in-entrance-unavailable"
+FARE_NO_SALE_REASON = "town:blocked:outpost-fare-no-sale"
 RETURN_REASON = "town:cross-town-walk-in-return"
 
 
@@ -270,6 +271,7 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
 
     def _drive(
         self, capture, *, planned_mining_runs=True, gold=None, window=WINDOW,
+        inventory=None,
     ):
         """Decide the recorded boards of the window, as the driver would.
 
@@ -278,6 +280,8 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
         stops there too.
         """
         boards = [self._board(capture, sequence) for sequence in window]
+        if inventory is not None:
+            boards = [replace(board, inventory=inventory) for board in boards]
         if gold is not None:
             boards = [
                 replace(board, player=replace(board.player, gold=gold))
@@ -426,19 +430,33 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
     def test_p5_unaffordable_return_still_names_the_missing_entrance(self):
         """The fallback: the return is refused, so the stop names the cause.
 
-        The same recorded boards with the Inn fare (TOWN_TELEPORT_COST) out of
-        reach.  Nothing else on the page changes: the mining kit is complete
-        either way, so the Alchemist still wants nothing.
+        The Inn fare is out of reach, and only Recall, treasure detection and
+        one digging tool remain in the pack. The mining kit is still complete,
+        but there is no surplus or releasable supply to sell for the fare.
+        Since the 2026-10-26 fare recovery (owner decision 2026-10-28) that
+        named stop is town:blocked:outpost-fare-no-sale.
         """
-        emitted = self._drive(EMPTY_STOP, gold=TOWN_TELEPORT_COST - 1)
+        inventory = tuple(
+            replace(item, count=1) if item.is_digging_tool else item
+            for item in self._board(EMPTY_STOP, WINDOW[0]).inventory
+            if item.is_recall_scroll or item.is_treasure_detection_scroll
+            or item.is_digging_tool
+        )
+        emitted = self._drive(
+            EMPTY_STOP, gold=TOWN_TELEPORT_COST - 1, inventory=inventory,
+        )
         reasons = [reason for _key, reason in emitted]
         self.assertNotIn("stuck:wander", reasons)
         self.assertNotIn("town:blocked:owner-retired", reasons)
         self.assertNotIn(RETURN_REASON, reasons)
-        self.assertEqual(reasons[1], BLOCKED_REASON)
-        self.assertIn(BLOCKED_REASON, POLICY_FINAL_STOP_REASONS)
+        self.assertEqual(reasons[1], FARE_NO_SALE_REASON)
+        self.assertIn(FARE_NO_SALE_REASON, POLICY_FINAL_STOP_REASONS)
         # The driver stops there instead of deciding again.
         self.assertEqual(len(emitted), 2)
+
+    def test_unaffordable_return_sells_from_the_original_p5_board(self):
+        emitted = self._drive(EMPTY_STOP, gold=TOWN_TELEPORT_COST - 1)
+        self.assertEqual(emitted[1][1], "shop:outpost-fare-sale-approach")
 
     # -- P7 / P8 (2026-09-24 02:27) --------------------------------------
     def test_fixture_freezes_the_retired_return_walk(self):

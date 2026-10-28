@@ -1631,7 +1631,8 @@ class EquipmentMixin:
             return None
         plan = transaction
         partial_identification = (
-            preparation.blockers == ("pending-random-teleport-suppression",)
+            not preparation.ready
+            and preparation.blockers == ("pending-random-teleport-suppression",)
             and transaction.executable
         )
         if not preparation.ready and not partial_identification:

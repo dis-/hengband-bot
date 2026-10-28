@@ -4923,7 +4923,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fd553ef7fe6eb9b92501a646e51143e3fde01dc60031dd36d6c3bd516213037f"
+    "ast_sha256": "edb661d0f6dbb60e7329bc6775f9556b44cce9e24a58d4a108b24fc24f3bf7f7"
   },
   "policy_helpers.py:PolicyHelpersMixin._weakest": {
     "classification": "data",
@@ -7515,7 +7515,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f35d5bacd6a4888126196de7bd0e5d06cf8762d1e68c77434755edd307181c96"
+    "ast_sha256": "22cd6d99f9f85ae1bb360bce50b4479461b1c0375d4efe88dc41d64710d34cdf"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_key": {
     "classification": "producer",
