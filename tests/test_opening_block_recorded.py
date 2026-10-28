@@ -132,3 +132,14 @@ class OpeningBlockRecordedTest(executor_harness.ProductionHarness):
         quests = dict(board.quests)
         quests[1] = replace(policy._known_fixed_quests(board)[1], status=QUEST_STATUS_COMPLETED)
         self.assertFalse(allows_overweight_travel(policy, replace(board, quests=quests)))
+
+    def test_other_quests_keep_weight_even_with_q1_contract_copied(self):
+        policy, raw = self.case("a382")
+        # DECLARED CONSTRUCTED: identical safe roster/force under Q2's ID.
+        # This exposes the weight gate without hiding it behind missing force.
+        policy._quest_knowledge[2] = replace(policy._quest_knowledge[1], id=2)
+        policy._quest_strategies[2] = replace(policy.approved_quest_strategy(1), quest_id=2)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertTrue(policy._inventory_overweight(board))
+        self.assertFalse(policy._fixed_quest_ready_for_travel(board, 2))
+        self.assertEqual(policy.fixed_quest_readiness_state()["reason"], "overweight")
