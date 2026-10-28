@@ -505,7 +505,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
-from hengbot.quest_strategies import StrategyProfile
+from hengbot.quest_strategies import StrategyProfile, acceptance_dps_floor
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -17533,7 +17533,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
         details = {
             "reference_ac": reference_ac,
-            "dps": {"measured": dps, "required": float(force.get("min_expected_dps", 0) or 0)},
+            "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id)},
             "hp": {"measured": snapshot.player.max_hp, "required": int(force.get("min_hp", 0))},
             "carries": carry_status,
             "speed_potions": {"measured": speed_count, "required": int(force.get("speed_potions", 0))},
@@ -17558,21 +17558,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         no_heal = force.get("no_healing_tier")
         if isinstance(no_heal, dict) and (
             snapshot.player.max_hp >= int(no_heal.get("min_hp", 0))
-            and dps >= float(no_heal.get("min_expected_dps", 0) or 0)
+            and dps >= acceptance_dps_floor(no_heal, snapshot.player.class_id)
         ):
             details["failed"] = []
             return True
         details["failed"] = [
             name for name, ready in (
                 ("hp", snapshot.player.max_hp >= int(force.get("min_hp", 0))),
-                ("dps", dps >= float(force.get("min_expected_dps", 0) or 0)),
+                ("dps", dps >= acceptance_dps_floor(force, snapshot.player.class_id)),
                 ("speed_potions", speed_count >= int(force.get("speed_potions", 0))),
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),
             ) if not ready
         ]
         return (
             snapshot.player.max_hp >= int(force.get("min_hp", 0))
-            and dps >= float(force.get("min_expected_dps", 0) or 0)
+            and dps >= acceptance_dps_floor(force, snapshot.player.class_id)
             and speed_count >= int(force.get("speed_potions", 0))
             and healing >= int(force.get("heal_potions", 0))
         )
