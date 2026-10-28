@@ -1,0 +1,89 @@
+ISSUE #47 — step gate census 作業報告
+日付: 2026-10-28
+
+結論
+_step_toward の警告拒否条件を既存の _warning_step_refused 呼び出しへ統一した。
+動作は変更していない。ASTによる構造テストを追加し、既存の迂回箇所を関数名と件数で固定した。
+指定チェックはすべて終了した。新規テスト、navigation、preflight、mutation_check --record、
+fast_tier は成功した。既存の melee lint のみ main と同じ理由で失敗した。
+
+基準 main: 4a75410a832ac29361f422be72a1e05cf450a4a0
+実装コミット: 54258c24b
+マニフェスト再生成コミット／検証対象HEAD: 92b966885
+
+変更と保守性
+・policy_navigation.py: 拒否条件の複製を削除し、共通述語へ集約した。2行減少。
+  残る警告集合参照は、拒否されなかった場合の強行歩行に y を付けるための選択である。
+  罠・扉・掘削等の前処理、理由、保留記録、後続キーは維持した。
+・scripts/step_gate_lint.py: AST走査、許可表、件数照合を小さな専用モジュールへ集約した。
+  src/hengbot 配下を再帰走査し、方向キーの関数内代入・別名を return／_offer_execution まで追跡。
+  同じ関数で別の _step_toward を呼ぶだけでは直接キーを免除しない。
+  既存 melee lint の分類を再利用し、近接攻撃と suffix= の照準を除外する。
+  明示的な操作プレフィックスと方向比較も移動から除外する。
+  _warning_refused_cells の Load を数え、初期化の Store は除外する。
+・tests/test_step_gate_lint.py: 8テスト。全体集計、新規迂回、同じ許可関数内の追加、
+  許可箇所の消失、除外分類、新規直接参照、述語呼び出しと動作等価性を検証する。
+  shared harness はモジュール別名で参照した。
+・town_work_manifest.json.gz と town_work_sites.json は preflight の要求により再生成してコミット。
+上限対象ファイルは増やしていない。既存テストの期待値、既存迂回の動作、作業ツリー外のコードは変更していない。
+
+移動キー生成の固定集計: 7箇所（ゲート1、既存迂回6）
+・policy_navigation.py:_step_toward — 唯一の移動ゲート、1箇所。
+・policy.py:_town_holder_declared_key — 宣言済み町ルート再開。確認画面のみ検査して裸のキーを提示、1箇所。
+・policy.py:_town_holder_wait_key — 入口ルートの再開フォールバック。確認画面のみ検査、1箇所。
+・policy.py:_town_holder_wait_key — 店ルートの再開フォールバック。確認画面のみ検査、1箇所。
+・policy.py:_break_livelock — breakout の候補選択と確認画面検査後に裸の代替キーを生成、1箇所。
+・policy_town.py:_boxed_town_breakout_key — 実行確定前の町の脱出プローブが店への裸のキーを返す、1箇所。【指定リスト外】
+・policy_fundraising.py:_mining_tunnel_key — 未記録かつ進入不能な壁への印付け用 bump に裸のキーを提示、1箇所。【指定リスト外】
+
+警告集合の直接参照の固定集計: 11箇所
+所有者4箇所:
+・policy_navigation.py:_warning_step_refused — 共通拒否述語、1箇所。
+・policy_helpers.py:_latch_warning_refusal — 拒否セルの記録、1箇所。
+・policy_observation.py:_observe — 観測時のリセット、1箇所。
+・policy_observation.py:_refresh_warning_avoidance — 観測に基づく回避集合更新、1箇所。
+現行動作を維持する例外7箇所:
+・policy_navigation.py:_step_toward — 拒否判定後の強行歩行の選択、1箇所。【指定リスト外】
+・policy_navigation.py:_explore_step — 集合への取り込みと探索回避集合の合成。物資枯渇時も一律回避、2箇所。【指定リスト外】
+・policy_combat.py:_refresh_paralyzer_avoidance — 麻痺回避リングの撤去時に警告拒否セルを残す、1箇所。【指定リスト外】
+・policy_supply.py:_unseen_reverse_choke_step — 初手候補とBFS展開の双方で拒否セルを一律除外、2箇所。
+・policy_town.py:_town_entrance_step_off_key — 入口から離れる候補から拒否セルを一律除外、1箇所。
+各許可はファイル・関数名・件数・差異説明で固定した。同じ許可関数内での増加も失敗する。
+いずれの例外も今回ゲート経由へ変更していない。外部 preflight の登録表も編集していない。
+
+動作等価性の証明
+A = 対象セルが警告拒否集合にある、E = 移動用物資が枯渇、O = engagement 所有者も回避を要求。
+旧実装の「if A: if not E or O: WAIT」は、共通述語 A and (not E or O) と等価。
+短絡評価の順序と物資判定の呼び出し回数も同じである。
+実際の _step_toward と旧条件を固定した版を、A/E/O の全8通りと
+tail の4種類（空、y、n、ESC+>）の計32ケースで比較した。
+返却文字列のUTF-8バイト列、last_reason、_warning_step_pending、物資判定の呼び出し回数はすべて一致した。
+
+検証（指定の Python 3.13、PYTHONPATH=src;tests;scripts）
+・python -m unittest tests.test_step_gate_lint:
+  8件成功、3.649秒。モジュール全体が数秒で終了する。
+・python -m unittest tests.test_step_gate_lint tests.test_policy_navigation tests.test_melee_site_lint:
+  145件、16.509秒、失敗1件、終了コード1。
+  新規8件、navigation 129件は成功。melee lint は7件成功、既存の1件が失敗。
+・preflight.py . main:
+  初回はマニフェスト再生成要求の1件で終了コード1。
+  再生成結果をコミットして再実行し、PREFLIGHT OK、指摘0件、終了コード0。
+  構造テストと行数上限のチェックを含む。
+・mutation_check.py . main --record:
+  対象ソース1ハンクの巻き戻しを新規テストが検出。MUTATION OK、未検出0/1、終了コード0。
+  92b966885 の記録を保存した。レポートのみの後続コミットでもsrc/testsツリーの記録は有効。
+・fast_tier.py . main:
+  1,725件、92.4秒、Failuresなし、Errorsなし、クラッシュなし、終了コード0。
+  ツール規定により測定時間60秒超の50モジュールは対象外。
+・git diff --check: 成功。
+指定チェックの未実施はない。派生scope／派生moduleと全スイートは指示に従い実行していない。
+開始したチェックはすべて終了し、待機スクリプトやバックグラウンド処理は残していない。
+
+既存失敗の切り分け
+tests.test_melee_site_lint は policy_opening.py:314 の保護されていない近接攻撃を検出した。
+実際の集計も22箇所に対して既存の期待値は20である。
+基準 main のソースを git archive からメモリ上へ読み込み、同じlintで直接走査し、
+同じ未保護箇所と22箇所を確認した。該当ソース・既存lint・期待値はいずれも main と差分なし。
+動作中立・既存期待値を変更しない指示に従い、この既存問題は修正していない。
+
+この報告は Python の Path.write_text(..., encoding="utf-8") でBOMなしUTF-8として作成した。
