@@ -1,0 +1,203 @@
+ISSUE #47 / 関連インシデント #119：overflow root ROUND 2
+
+対象指示：LUNA-TASK-overflow-root-r2.txt。round 1 の範囲を広げていない。
+main b29da8463adefa88c462ba8282d3f3ef6230a104 を最初にマージした。
+マージコミット：21f2a6af1。生成マニフェストの競合は現ソースから再生成して解消。
+最終のソース・テスト対象 HEAD：64d703bb72cf6ca3b4647695f2d8facee38ae257。
+このレポートは Python の Path.write_text(..., encoding="utf-8") で作成した。
+
+結果
+
+指定25件はすべて通過。本番回帰 R が6件、予算導入前の別主題の記録 W が19件。
+W のうちシャベル継続は、先行する R を直した後に残る本当の枠不足だけを壁にした。
+既存の期待値は変更していない。変更した既存7テストファイルについて、main との
+assert 呼び出しの AST 一致を確認した。長い再生2件にも新しい壁を追加していない。
+未解消の指定失敗、未実施の必須チェック、実行中の検査は残っていない。
+
+1. 本番側で直した原因
+
+R-A：空き4枠を「既に overflow」と誤判定していた。
+pressure_deposit と relief_key が not permits(snapshot, 1) を救済の開始条件に
+使っていた。この式は「さらに1枠を消費できない」であり、空き4枠でも真になる。
+救済開始は空き4未満だけに変更した。取得時の4枠確保は従来どおり厳格に維持。
+測定例：overweight の index 3713 / 記録 sequence 3712 / turn 5433778、所持19枠。
+期待 de1\r\x1b に対し、修正前は余分な b の預け入れを連結した de1\rdb\x1b。
+修正後は期待どおり。この差が declarations の OFF ハッシュも壊していた。
+
+R-B：合流可能な薬を、プロトコルの表現差だけで新規1枠と数えていた。
+Home の timeout=0 と所持品の timeout=None が一致しないため、同じ既知の薬
+（tval=75, sval=29、所持9個、Home43個、取得1個）を拒否していた。
+再充填状態を持たない食料・薬・巻物では timeout を合流条件から除外した。
+銘、既知状態、修正値、種別、99個上限等の比較は残した。装置等には適用しない。
+ローカルの C++ ItemEntity::is_similar_part の FOOD/POTION/SCROLL 分岐も照合した。
+
+2. 各テストの最初の差、原因、分類、修正
+
+index は原則として fixture の0始まり。記録行、API呼び出し順、構築済み継続の
+カウンタを使う場合はその旨を併記する。後段だけの assertion 失敗を最初の差とは
+扱わない。壁あり・なしの追跡が同じキー列を返す場合も、その事実を記した。
+
+【tests.test_declarations_r14.DeclarationR14Test】
+01 test_overweight_home_tail_keeps_its_operation_at_3715
+  最初の差：OFF 再生 index 3713、sequence 3712。上記 de1\rdb\x1b。
+  原因：R-A。分類 R。救済の境界を修正。OFF ハッシュの期待値は未変更。
+  修正後は設計どおり ON/OFF 最初の差が index 3715 / historical sequence 3714。
+
+【tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest】
+02 test_replay_reproduces_every_recorded_decision_before_the_strip
+  最初の差：index 3713、sequence 3712、turn 5433778、空き4。
+  原因：R-A による余計な b の預け入れ。分類 R。同じ境界修正で解消。
+  修正前の予算モジュールだけを別プロセスのメモリへ読み込んでも失敗を再現し、
+  修正後との町の決定列を比較した。稼働ソースの書換えはしていない。
+
+【tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest】
+03 test_blocked_stop_the_plan_moved_past_stays_closed
+  最初の差：キーの差は pin までの41決定に存在しない。記録 row 139 / policy
+  sequence 39 / turn 1080416 の必要商品の受入判定が最初の状態差。
+  所持19枠。13回の鑑定杖は、所持の5回・4回の杖とは合流しない。
+  そのため supplier の残り plan がなくなり、後段で plan.stops が読めなくなる。
+  分類 W。主題は cursor を過ぎた blocked stop の扱い。対象メソッドに旧予算の壁。
+04 test_blocked_stop_without_a_required_offer_stays_closed
+  最初の差・原因：03と同じ row 139 の候補受入。plan 自体が None になる。
+  分類 W。主題は棚から必要商品を除いた対照。対象メソッドに同じ壁。
+05 test_identify_staff_swap_returns_to_the_blocked_magic_shop
+  最初の差・原因：03と同じ。期待キーの破壊操作まで一致するが plan がない。
+  分類 W。杖の交換後に blocked stop を再開する台帳の主題に限って同じ壁。
+  3件とも実際に1枠必要。合流する Teleport 巻物の満杯対照2件には壁を付けていない。
+
+【tests.test_broke_prevent_recorded.BrokePreventRecordedTest】
+06 test_common_purchase_composer_refuses_stale_overbudget_quantity
+  最初の差：composer の3回目（0始まりindex 2）、quantity=1 が None。
+  turn 2933932、所持19枠、棚 k の tval=70/sval=13 は所持に同種なし。
+  原因：新規1枠で空き4→3。分類 W。運賃／購入数量の主題に旧予算の壁。
+07 test_outpost_has_no_return_fare_purchase_reserve
+  最初の差：composer index 0、quantity=2 が None。同じ19枠・未所持の巻物。
+  分類 W。Outpost の帰路運賃不要という主題に同じ壁。
+08 test_partial_wand_price_uncertainty_cannot_use_reserved_fare
+  最初の差：composer 2回目（index 1）、全2本を買える金額にした対照も None。
+  所持19枠、構築済み tval=65/sval=15 の新規スタック。1枠を本当に消費する。
+  分類 W。分割価格と帰路運賃の主題に同じ壁。分割価格拒否の期待値は維持。
+09 test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one
+  最初の差：公開判断 index 0、期待 pk1\r\r / shop:in-store-buy に対して ESC /
+  town-progress-invariant:continue-observed-shop。構築済み追加標的込みで所持20枠。
+  分類 W。同じ未所持巻物。運賃を残す数量と follow の主題に同じ壁。
+
+【tests.test_home_withdraw_failed_stock_present_recorded.HomeWithdrawFailedStockPresentRecordedTest】
+10 test_replay_reproduces_the_process_before_equipment_choice
+  最初の差：fixture index 5 / turn 5550765。期待 5pb1\r\x1b /
+  home:atomic-withdraw に対して 9 / shop:approach。
+  原因：R-A と R-B。所持19枠でも既存の薬へ合流する取得は0枠。
+  分類 R。上記の本番修正で通過。期待値もこのテストの壁も変えていない。
+11 test_shield_and_weapon_survival_terms_on_first_changed_board
+  最初の差：独立 attach の index 5、10と同じキー差・原因。
+  分類 R。本番修正。従来の装備評価用の壁は維持、新しい壁は追加していない。
+12 test_the_take_shortened_the_prefix_past_the_shovel
+  最初の差：再生 prefix の index 5、10と同じ。
+  後段 index 33 で確認対象 signature がなくなるのは、その先行差の結果。
+  分類 R。本番修正で確認と prefix 短縮の期待が復元。
+13 test_w1_confirming_board_rescans_instead_of_deferring
+  最初の差：同じ index 5。index 33 の scan→別ルートは二次的な差。
+  分類 R。本番修正で ~9\x1b / home:request-knowledge-scan に復元。
+14 test_w1_after_the_rescan_the_shovels_are_taken
+  修正前の最初の差は同じ index 5。本番修正後、index 33 に続く構築済み
+  rescan 継続だけが残る。所持19枠、tval=20/sval=1 のシャベル2本、同種所持なし。
+  選択 signature は正しいが、期待 5  pk2\r\x1b に対して composer は None。
+  分類 W（先行 R も修正済み）。この継続の _atomic_home_withdraw_key 呼出しだけを
+  pre_pack_budget_rule で囲む。prefix や確認盤面の予算は外していない。
+
+【tests.test_equipment_in_home_stage1.EquipmentInHomeBehaviorPins】
+15 test_h10_completed_operations_continue_visit_without_attempt_reset
+  最初の差：drive index 1（setup の観測込みindex 2、policy sequence 3）。
+  期待 ti / equipment-transaction:takeoff に対し ESC / policy:none-store-exit。
+  所持19枠で、外した外套は新規1枠。預け入れはその後であり先取りできない。
+  分類 W。Home の完了観測・退出回数の主題にメソッド単位の旧予算の壁。
+16 test_h1_incident_finishes_with_one_exit_and_zero_reentries
+  最初の差・原因：15と同じ drive index 1。分類 W。同じ壁で保存・退出の期待を維持。
+
+【tests.test_home_leave_suppressed_recorded.HomeLeaveSuppressedRecordedTest】
+17 test_outside_board_releases_the_posted_home_exit
+  最初の差：再生 index 7 / 記録 row 3673 / turn 765336。同じ ESC だが
+  期待 home:leave-for-pending-withdraw に対して home:route-claim-unfulfilled。
+  その前の棚受入から、所持22枠・未所持の Light 巻物6個（tval=70/sval=24）を
+  新規1枠として拒否している。row 3674 の取得と後段の scan owner が変わる。
+  分類 W。主題は「投稿済み退出を外側盤面で解除する」こと。対象メソッドだけ壁。
+  開いた Home ページからの退出対照には新しい壁を付けていない。
+
+【tests.test_oneshot_inflight_recorded.OneShotInFlightRecordedTest】
+  18〜24の共通原因：クラス setup の fixture state line 4 / policy sequence 4 /
+  turn 2626271 が最初の差。期待 5    pA\x1b /
+  home-errand:atomic-withdraw:full-home-discard に対し 5 / shop:travel:await-entry。
+  所持22枠、tval=10/sval=1 の同種所持はなく、Home の整理用に本当に1枠必要。
+  後の処分・売却予定を先行する空きとは数えない。主題は取得品の選定ではなく、
+  one-shot 売却の staged/posted/observed の区別。共有 setup と継続を同じ壁で囲む。
+18 test_control_an_operation_posted_on_the_page_still_ends_the_entry
+  最初の差：共通 line 4。分類 W。クラス単位の旧予算の壁で投稿済み操作の対照を維持。
+19 test_control_posted_sale_watch_still_waits
+  最初の差：共通 line 4。分類 W。同じ壁で待機 watch の対照を維持。
+20 test_entry_page_releases_the_staged_sale
+  最初の差：共通 line 4。分類 W。同じ壁で d0y\x1b の期待を維持。
+21 test_replay_composes_the_recorded_one_shot_sale
+  最初の差：共通 line 4。分類 W。同じ壁で entry key 5 の期待を維持。
+22 test_unposted_sale_watch_on_a_store_page_is_settled
+  最初の差：共通 line 4。分類 W。同じ壁で未投稿 watch の精算を検証。
+23 test_unposted_sale_watch_outside_is_settled
+  最初の差：共通 line 4。分類 W。同じ壁で外側盤面の精算を検証。
+24 test_control_observed_sale_completes_and_town_work_continues
+  最初の差：共通 line 4。分類 W。同じ壁で売却効果の観測後の継続を検証。
+
+【tests.test_home_full_await_knowledge_recorded.HomeFullAwaitKnowledgeRecordedTest】
+25 test_recorded_sale_delta_scans_then_selects_next_withdrawal
+  最初の差：売却 prefix と scan は一致。構築済み scan 後の policy sequence 8 /
+  turn 8051502、最後の引き出し。期待 5p... に対し ESC`n%. の approach。
+  所持20枠、tval=66/sval=29 のロッド1本、同種所持なし。新規1枠が必要。
+  分類 W。主題は売却差分→scan→次の住所の継続。対象メソッドに旧予算の壁。
+
+3. 壁の範囲と保守性
+
+tests/recorded_pack_budget.py に壁を一元化した。テスト中だけ
+town_pack_budget.MIN_TERMINAL_FREE_PACK_SLOTS を0にし、終了・例外時に復元する。
+物理23枠の制限、購入予算、予約、店舗の台帳、Home の確認器、follow executor を
+差し替えない。本番の環境変数や逃げ道は追加していない。W の実測で新規枠が
+必要と判明した主題以外には使わないことも同モジュールに明記した。
+R の4件は従来の予算のまま通し、シャベル継続の壁も composer 一回に限定した。
+本番の修正は小さい town_pack_budget.py に集約し、巨大ファイルは増やしていない。
+合流見積もりは購入選択と実際の Home/store キー生成で既存どおり共有する。
+追加した2ピンは修正前コードで各々失敗し、修正後は通過する。
+
+4. 検証
+
+Python：C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe
+PYTHONPATH=src;tests;scripts。base main（b29da8463）。派生 scope / modules と
+全スイートは実行していない。明示された対象モジュール単位で実行した。
+
+・新旧予算ピン：tests.test_town_pack_budget 19件、終了0。
+・運賃モジュール：18件、終了0。
+・Home引き出し／装備／Home満杯の3モジュール：25件、終了0、従来の expected failure 8。
+・one-shot：8件、終了0。
+・supplier／Home退出：8件、終了0。
+・overweight：9件、終了0（新しい壁なし）。
+・declarations r14：2件、終了0（新しい壁なし）。
+  上記の最終 focused 検証は計89件。追加の差分計測2件も終了0。
+・新規2ピンを修正前の予算コードで反転確認：2件とも期待どおり失敗、終了1。
+・preflight：構造検査・行数上限込み、26変更ファイル、0指摘、終了0。
+・fast_tier main：1,892件、302.0秒、失敗・エラー・crash なし、終了0。
+  60秒超と測定済みの52モジュールは標準ルールで除外。
+・mutation_check main --record --tests tests.test_town_pack_budget -f：終了0。
+  26ブロック、未検出0。既存成功記録 bbc44e2a6 に基づく増分検査で、
+  今回変更した town_pack_budget ブロックは再反転して検出した。
+  成功記録は対象 HEAD 64d703bb7 とソース／テスト tree の双方へ保存された。
+  本体と同じ HEAD の一時 worktree で実行し、完了後に除去した。
+
+検証ログと診断用スクリプト：
+C:/hengband-backups/overflow-root-r2-20261029-validation
+今回起動した検査と計測はすべて終了。一時 worktree は除去済み。
+src/ と tests/ に未コミット変更なし。開始時から存在したタスク・実行ログは維持。
+
+5. 段階コミット
+
+21f2a6af1 mainを先に統合。
+3e3cc4438 運賃記録の実測済み壁、18件通過後にコミット。
+38b1070b1 本番の合流見積もり・救済境界と再発防止ピン。
+71ed0e7c0 Home関連とone-shotの実測済み壁。
+64d703bb7 supplierとHome退出の実測済み壁。
+この後に本レポートのみをコミットする。
