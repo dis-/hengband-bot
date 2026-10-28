@@ -11598,5 +11598,96 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait or avoidance owner."
+  },
+  "magic_eater.py:absorb_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "O3: safe class-16 birth wand absorption delegated by the existing opening quest owner.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "magic_eater.py:planned_throw_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by active quest floor predicate; see evidence.",
+    "evidence": "Extracted approved throwing stand, movement and kill evidence; adds the class-16 Q34 missile child.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "magic_eater.py:q34_missile_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by active quest floor predicate; see evidence.",
+    "evidence": "Q34 class-16 missile producer restricted to the approved fixed-target stand.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "magic_eater_input.py:advance_magic_eater": {
+    "classification": "driver",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Executor-owned context-bound absorption and wand-use continuations; no independent policy decision.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "magic_eater_devices.py:is_absorption_device": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Shared O5 device predicate consumed by O3 absorption selection.",
+    "evidence": "Pure class, identification and item-kind eligibility; actual G emission belongs to the registered absorb_key producer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selector input; no independent command or success"
   }
 }

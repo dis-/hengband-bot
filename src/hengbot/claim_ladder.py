@@ -210,6 +210,7 @@ def _fallback(producer, family, *reasons):
 # The line numbers in the comments are ``policy.py`` at 43802ae4; the test
 # compares the order with the source itself, never with these numbers.
 _RUNGS: tuple[Rung, ...] = (
+    _town("absorb_key", "quest-request", "magic-eater:absorb", ordinary=False),
     # -- rewrite: after the ladder has spoken (design 3.3.1) ------------------
     _rewrite("_refuse_no_progress_cycle", "detectors", ordinary=True),
     _rewrite("_forbid_wait_while_damaged", "detectors", "no-wait:"),

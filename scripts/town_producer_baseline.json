@@ -746,5 +746,8 @@
   "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention.",
   "summoner_wait.py:hold_key": "dungeon-only: shared adapter for existing summoner choke wait; records only its awaited monsters and returns the existing wait key.",
   "summoner_wait.py:wait_expired": "pure helper: boolean from a summoner wait clock, preserves its avoidance verdict; no command or independent progress.",
-  "policy_combat.py:CombatMixin._perceived_hostiles": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress."
+  "policy_combat.py:CombatMixin._perceived_hostiles": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress.",
+  "magic_eater.py:planned_throw_key": "delegated adapter: extracted from QuestMixin._quest_execute_key; shares its approved stand, movement and reserved throw child, never independent town work.",
+  "magic_eater.py:q34_missile_key": "dungeon-only: called only by planned_throw_key on an approved quest floor; explicitly requires profile.quest_id == 34 and class 16.",
+  "magic_eater_devices.py:is_absorption_device": "pure helper: shared O5 class/identification/device predicate; returns eligibility, never an input command."
 }

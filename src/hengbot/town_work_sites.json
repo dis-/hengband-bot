@@ -1078,7 +1078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "77820cd263b59ead0ab15b06cab2a2919b78b74fcd2069751c216f61f0f8ec8e"
+    "ast_sha256": "cd55d15caf42de0a961a7317259648a650b0c533b7b8901337be83fddb85e966"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
@@ -1571,6 +1571,41 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "6ca8f4392a5413e4a6caad905163913c2e354c5231a359df2a14fb728f3865e9"
   },
+  "magic_eater.py:absorb_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "e548210a95018ca5e305ed13bc245a7fd32105b6ee06607fe1308d28076db64e"
+  },
+  "magic_eater.py:planned_throw_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "f36b2b1e33465aafce7c7858b9fec51d4eee78d5caa738b046c441ecb370c941"
+  },
+  "magic_eater.py:q34_missile_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "6b24302f3981096254897709cc9f830f9cdbf95193987e7db9532c5b820c38e3"
+  },
+  "magic_eater_devices.py:is_absorption_device": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selector input; no independent command or success",
+    "ast_sha256": "daf24040cb8711f47ad01c0b2c93aa277ab179876f27b7c3110182f8b2c1043f"
+  },
   "magic_eater_devices.py:mana_food_devices": {
     "classification": "data",
     "rows": [
@@ -1578,6 +1613,47 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "398d4ffbe391de14ac3f4c272a936fab6bc1a9ccfe30fb00aa52e6994e30f76a"
+  },
+  "magic_eater_input.py:advance_magic_eater": {
+    "classification": "driver",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "1ba1c02eabc00654f2551bb8c04bb6de29d2640ba566baf730ff1b64d4e9a4b9"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -6171,7 +6247,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "accb5c3a9fc4aa634846e64af36a902ba8a237f2a56201772fd5e84d9071eac9"
+    "ast_sha256": "3139bbd35d922174fc285fe9b8646b915ae9c99e89c931858729a7561c7fe2b7"
   },
   "policy_quest.py:QuestMixin._prepare_return_1_candidate": {
     "classification": "adapter",
@@ -6310,7 +6386,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "48d06faf38b598c0bdd2d1aaf77c627d75945056318e29e781148b89cf749aeb"
+    "ast_sha256": "e695fe30ab3fd033a8dfbdc05e642ab9d100d60d6f3394a0f2d6637ed39d840b"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",

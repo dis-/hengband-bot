@@ -1,0 +1,75 @@
+Magic-Eater O3 実装報告
+依頼番号: #47。タスク本文の背景参照: #116。
+対象: LUNA-TASK-magic-eater-o3.txt の O3 のみ。
+検証基準 main: 809dbbdb797c44407026d3902c38c9a51522879f
+検証対象 HEAD: f310866dba49b6d4c68c2bdbada7526c09fa6650
+作業開始時に main を取り込み、検証中に更新された main（O1/O4/O5/O6）も統合した。
+レポート追加コミットでは src/ と tests/ の tree を変更しない。
+
+実装
+class 16（ゾンビの魔道具術師）が、初期マジック・ミサイルの魔法棒を安全時に G で取り込む。
+O5 の is_absorption_device を再利用し、鑑定済み・残量あり・充填中でないことを確認する。
+満 HP、敵なし、空腹・盲目・混乱・毒・出血・朦朧・麻痺・幻覚がない場合に実行し、道具として必要な他の種類は取り込まない。
+食料候補・充填数・食料用魔道具数は main の O5 共通実装をそのまま使用した。
+統合前に用意した O3 側の食料用述語と重複テストは削除した。policy_supply.py は最終 main と同一。
+
+Q34 の既存の射撃位置・標的順序を共有し、クローカーとデスソードへの投擲より取り込んだ魔力を優先する。
+魔力が 0 回なら一覧を ESC で閉じ、従来の松明投擲へ戻る。
+同じ盤面では投擲し、ゲーム内時間が進んだ後は一覧を再読して自然回復を確認する。
+使用回数は画面の現在値を読み、詠唱失敗を理由に推定で減らさない。
+一般のダンジョン戦術は追加していない。class 0 の動作と既存テストの期待値を維持した。
+
+入力の実行
+m に続く種類選択、一覧表示、魔力選択、方向指定は OperationExecutor が個別に観測して回答する。
+全プロンプトのテストで、class_id=16・race_id=25・food_type=4 の盤面から公開 choose_key を通した。
+生成された命令を実際の follow 入力ポートへ渡し、日英の input_context と画面を照合した。
+use_menu の種類選択はゲーム本体が raw inkey() を使い context=null を返すため、null と完全なメニュー・カーソルを合わせて確認する。
+取り込み時は持ち物／床の切り替え、メニューの対象名、選択ラベル、現在のアイテムの同一性も確認する。
+詠唱失敗、種類未習得、MORE の後には余った方向キーを送らない。
+撃破後の能力値選択は既存のレベルアップ処理へ引き継ぐ。
+攻撃理由は既存の quest-strategy:ranged-fire 分類を使い、同じ射撃位置での詠唱を位置ループと誤判定しない。
+未知の文脈や対象の変化には後続キーを送らず停止する。
+
+ゲーム本体で確認した根拠
+src/io/input-key-processor.cpp: G の取り込み、m の魔力使用。
+src/mind/mind-magic-eater.cpp: 質問、鑑定・充填の制限、アイテム消費と 1 行動。
+src/cmd-item/cmd-magiceat.cpp: 種類選択、一覧、使用回数、失敗、回数切れ、方向入力。
+src/target/target-getter.cpp と src/io/input-context.h: 狙いの入力文脈。
+src/view/display-inventory.cpp と src/bot/bot-json-output.cpp: カーソル、表示名、接頭辞省略。
+src/sv-definition/sv-wand-types.h と lib/edit/BaseitemDefinitions.jsonc: Magic Missile の sval=15 と表示名。
+
+保守性
+方針を magic_eater.py、入力手順を magic_eater_input.py に分離した。
+既存の射撃位置への移動・投擲・撃破経験値記録を共通化し、魔法と投擲で重複させなかった。
+画面行と入力文脈の取得は既存の input_context.py に集約した。
+クエスト所有権・目標型付け・入力実行器の登録とマニフェストを更新した。
+JSON の既存の並び順を維持し、無関係な並べ替えを差分から除いた。
+policy.py は最終 main と同一。policy_quest.py は 6047 行から 6030 行へ削減した。
+
+検証結果
+指定 Python 3.13、PYTHONPATH=src;tests;scripts を使用した。
+・追加 24 テスト: 成功。追加テストのスキップなし。
+・関連モジュール全体: 765 テスト成功、既存 7 件スキップ、終了コード 0。
+  test_magic_eater_o3 / test_policy_quest / test_policy_supply / test_input_executor /
+  test_classA_observed_input / test_input_context / test_ownership_s2b1_ladder / test_town_arbiter。
+・プロトコル・所有権・既存 Magic-Eater モジュール全体: 148 テスト成功、終了コード 0。
+  test_protocol3_client / test_protocol3_display_align / test_ownership_s2a1_closure /
+  test_magic_eater_food / test_magic_eater_acceptance / test_magic_eater_calibration / test_magic_eater_prekit。
+・統合直後の Magic-Eater 関連 46 テストも成功。
+・preflight.py . main: 構造検査・行数上限を含め指摘 0 件、終了コード 0。
+・fast_tier.py . main: 1766 テスト、失敗・エラー・クラッシュなし、162.8 秒、終了コード 0。
+・個別 pin の本番 hunk 反転: 21 ケースで該当テストの assertion 失敗を個別確認し、復元した。
+・mutation_check.py . main --record: 16 hunk すべて caught、未検出 0、記録済み、終了コード 0。
+・git diff --check と src/tests の復元・クリーン状態を確認した。
+既存テストの期待値は変更していない。既存 7 件のスキップは追加テストとは別である。
+
+実施していない検証
+指示に従い derived scope / derived modules / 全スイートは実行していない。
+実ゲームの自動運転と Linux 検証環境での追加実行は行っていない。
+開始した検証はすべて終了し、待機プロセスや検査用のバックグラウンド処理を残していない。
+
+証跡
+検証ログと個別反転スクリプト: C:/hengband-backups/magic-eater-o3-1028-validation/20261028-210742
+主なログ: o3-core-merged.log / o3-protocol-goals-merged.log / o3-preflight-head.log /
+o3-fast-head.log / o3-pin-reverts.log / o3-mutation.log。
+レポートは Python の write_text(encoding='utf-8', newline='') で保存した。

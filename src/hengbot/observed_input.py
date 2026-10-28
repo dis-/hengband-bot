@@ -80,6 +80,11 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             for line in (screen or {}).get("lines", ())):
         return key, continuations
     continuations = _split_page_switches(continuations)
+    from hengbot.magic_eater_input import compile_magic_eater
+    magic_plan = compile_magic_eater(key, owner)
+    if magic_plan is not None:
+        prefix, steps = magic_plan
+        return prefix, [*steps, *continuations]
     if owner == "shop:one-shot-buy":
         continuations = [
             replace(step, feature=_QUANTITY if ScreenKind.QUANTITY in step.kinds else _PRICE,
