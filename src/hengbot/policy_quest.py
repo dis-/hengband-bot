@@ -3,6 +3,7 @@ from hengbot.policy_opening import OpeningRouteMixin
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
+from hengbot.magic_eater import absorb_key, planned_throw_key
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -555,6 +556,10 @@ class QuestMixin(OpeningRouteMixin):
             return opening
         if not self._opening_q34_active(snapshot):
             return None
+
+        absorb = absorb_key(self, snapshot, hostiles)
+        if absorb is not None:
+            return absorb
 
         if (self._town_blocked_reason or "").startswith(
             "equipment-transaction:withdraw-item-unobserved:"
@@ -2802,6 +2807,10 @@ class QuestMixin(OpeningRouteMixin):
         if profile is None:
             return None
 
+        absorb = absorb_key(self, snapshot, hostiles)
+        if absorb is not None:
+            return absorb
+
         reposition = profile.engagement_plan.get("opening_reposition")
         if isinstance(reposition, dict):
             phase = self._quest_strategy_opening_phase.get(profile.quest_id, 0)
@@ -3620,35 +3629,9 @@ class QuestMixin(OpeningRouteMixin):
                 None,
             )
             if planned_throw is not None:
-                plan, target_monster = planned_throw
-                stand = Position(*plan["stand"])
-                if snapshot.player.position != stand:
-                    step = self._quest_strategy_route_step(
-                        snapshot, profile, stand
-                    )
-                    if step is None:
-                        self.last_reason = (
-                            "quest:blocked:q34-throw-point-unreachable"
-                            if profile.quest_id == 34
-                            else "quest-strategy:throw-point-unreachable"
-                        )
-                        return WAIT_KEY
-                    self.last_reason = "quest-strategy:approach-throw-point"
-                    self._declare_reach(stand)
-                    return self._step_toward(snapshot, step)
-                if torch is not None:
-                    self.last_reason = "quest-strategy:throw-torch"
-                    # Remember the target and the experience shown before this
-                    # throw: a gain on the next board while the target vanishes
-                    # is player-visible proof of the kill.
-                    self._quest_strategy_throw_exp[profile.quest_id] = (
-                        (target_monster.race_id, target_monster.position.y,
-                         target_monster.position.x),
-                        snapshot.player.exp,
-                    )
-                    return (
-                        reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, target_monster.position))
-                    )
+                planned = planned_throw_key(self, snapshot, profile, planned_throw, torch)
+                if planned is not None:
+                    return planned
             if (
                 profile.quest_id == 34
                 and planned_throw is None

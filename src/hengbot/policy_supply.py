@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
+from hengbot.magic_eater import reserved_for_absorption
 
 from collections import deque
 from contextlib import contextmanager
@@ -426,6 +427,7 @@ class SupplyMixin:
             self._stack_charges(it)
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
+            and not reserved_for_absorption(snapshot.player, it)
         )
         # Home stock is a supplier, never food carried into the dungeon.
         known_charges = carried_charges
@@ -446,6 +448,7 @@ class SupplyMixin:
             it.count
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
+            and not reserved_for_absorption(snapshot.player, it)
         )
         return carried
 
@@ -1355,6 +1358,7 @@ class SupplyMixin:
                 it
                 for it in snapshot.inventory
                 if it.is_wand_staff and it.known and it.charges > 0
+                and not reserved_for_absorption(snapshot.player, it)
             ]
             non_utility = [it for it in charged if not self._is_useful_device(it)]
             if non_utility:
@@ -1387,6 +1391,7 @@ class SupplyMixin:
                 )
             return self._first_item(
                 snapshot, lambda it: it.is_wand_staff and not it.known
+                and not reserved_for_absorption(snapshot.player, it)
             )
         return self._first_item(
             snapshot, lambda it: it.is_food and it.aware and it.sval >= FOOD_MIN_SVAL

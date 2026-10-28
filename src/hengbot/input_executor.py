@@ -443,6 +443,7 @@ class Operation:
     dropped_continuations: list[str] = field(default_factory=list)
     timing: dict[str, object] = field(default_factory=dict)
     work_record: dict | None = None
+    magic_eater_wand_charges: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1382,6 +1383,10 @@ class OperationExecutor:
                 return self._post_and_barrier(" ", deadline, role="auxiliary-request")
             if match.kind is ScreenKind.IDENTIFY_VIEWER_FINAL:
                 return self._post_and_barrier("\x1b", deadline, role="exit")
+        from hengbot.magic_eater_input import advance_magic_eater
+        magic_result = advance_magic_eater(self, screen_value, match, deadline, outcome)
+        if magic_result is not None:
+            return magic_result
         while self.active.continuations:
             continuation = self.active.continuations[0]
             expected_features = (
@@ -1664,6 +1669,8 @@ class OperationExecutor:
         # screen/state barrier following this exact accepted operation.  JSONL
         # observations and bootstrap boards deliberately never carry it.
         board["_completed_operation_sequence"] = operation.sequence
+        if operation.magic_eater_wand_charges is not None:
+            board["_magic_eater_wand_charges"] = operation.magic_eater_wand_charges
         board["_completed_operation_owner"] = operation.owner
         assert operation.operation_reference is not None
         receipt = OperationReceipt(
