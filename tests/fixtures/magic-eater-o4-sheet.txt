@@ -1,0 +1,17 @@
+Constructed from Hengband display code; not a live capture.
+Race: Zombie
+Class: Magic-Eater
+Personality: Mighty
+Level: 27 HP: 200/200 AC: [2,+13]
+Base Race Class Pers Mod Actual Current abcdefghijkl@
+STR: 18/52  2 -1  2  0  18/82       
+INT:    12 -6  2 -2  0      6       
+WIS:    17 -6  1 -1  0     11       
+DEX:    18  1  2  0  0  18/30       
+CON:    17  4 -2  1  0  18/20       
+CHR:    15 -3  1  0  0     13       
+[Character Equipment]
+a) Long Sword (2d5) (+0,+0)
+g) Feanorian Lamp
+h) Robe [2,+0]
+[Character Inventory]
