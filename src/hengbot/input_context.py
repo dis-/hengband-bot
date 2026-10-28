@@ -88,6 +88,18 @@ def read_input_context(reply: object) -> InputContextReading:
     return InputContextReading("server", kind, prompt, details)
 
 
+def read_input_view(reply: Mapping[str, object]) -> tuple[InputContextReading, tuple[str, ...]]:
+    """Pair context and rendered rows from one reply, without a second read.
+
+    Magic-Eater's raw inkey type menu publishes null; its cursor and charges
+    therefore need the rows accompanying that same context observation.
+    Keep access to both observations in the established input reader.
+    """
+    raw = reply.get("lines", ())
+    rows = tuple(str(line).rstrip() for line in raw) if isinstance(raw, (list, tuple)) else ()
+    return read_input_context(reply), rows
+
+
 # Design section 6.1 table: the screen kinds a published context admits.  The
 # open kinds (command_char, string, any_key, point) also admit UNKNOWN, which
 # is what the design maps their unlisted prompts to.
