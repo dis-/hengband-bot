@@ -5,14 +5,19 @@ These predicates affect readiness only; in-quest light and retreat stay shared.
 """
 
 
+def _entry_requirements(profile) -> dict:
+    # A profile without quest_id/required_force (a stand-in approved strategy) has no contract.
+    if getattr(profile, "quest_id", None) != 1:
+        return {}
+    return getattr(profile, "required_force", {}).get("entry_requirements", {})
+
+
 def allows_overweight(profile) -> bool:
-    requirements = profile.required_force.get("entry_requirements", {}) if profile and profile.quest_id == 1 else {}
-    return requirements.get("allow_overweight", False) is True
+    return _entry_requirements(profile).get("allow_overweight", False) is True
 
 
 def carried_torch_entry_ready(snapshot, profile) -> bool:
-    requirements = profile.required_force.get("entry_requirements", {}) if profile and profile.quest_id == 1 else {}
-    minimum = requirements.get("carried_torch_min_fuel")
+    minimum = _entry_requirements(profile).get("carried_torch_min_fuel")
     return bool(minimum is not None and any(
         item.is_torch and item.known and item.count > 0 and item.fuel >= minimum
         and not item.is_cursed and not item.is_broken
