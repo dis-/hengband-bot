@@ -255,6 +255,7 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         policy._position_changed = True
         self.assertIsNone(policy._current_floor_item_key(
             five, pickup_reason="pickup", trigger_reason="pickup"))
+        self.assertIsNone(policy._pending_loot_pickup)
 
     def test_open_chest_collection_yields_to_pack_relief_in_town(self):
         policy, board, _ = self.attached(0)

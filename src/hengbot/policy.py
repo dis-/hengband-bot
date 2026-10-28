@@ -17351,6 +17351,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:
             return None
+        if not permits(snapshot, here.object_count):
+            return None
         if self._floor_pile_is_junk(snapshot, here):
             return None
         if here.position in self._deferred_loot:
@@ -17380,8 +17382,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             here.position,
             here.object_count,
         )
-        if not permits(snapshot, here.object_count):
-            return None
         if here.object_count > 1:
             return PICKUP_KEY + ("a" * here.object_count)
         return PICKUP_KEY
