@@ -1571,6 +1571,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "6ca8f4392a5413e4a6caad905163913c2e354c5231a359df2a14fb728f3865e9"
   },
+  "magic_eater_devices.py:mana_food_devices": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "398d4ffbe391de14ac3f4c272a936fab6bc1a9ccfe30fb00aa52e6994e30f76a"
+  },
   "model.py:Position.distance_to": {
     "classification": "data",
     "rows": [
@@ -7097,7 +7105,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "4c9fc3e9a03c1eb09a8e126f25ce43f4690b878c917da81f21b5495194efe346"
+    "ast_sha256": "9d457dfb45c7af3f75d49f678cdc68dadd037af4e70641274d92015f427fadd7"
   },
   "policy_supply.py:SupplyMixin._expedition_light_ready": {
     "classification": "data",
@@ -7121,7 +7129,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "da33a555562701df05b6cd0b50f85203f73d58313e99a255b798cfe4eaea4f1d"
+    "ast_sha256": "17315451e947093c9b2a43860b33f32fb32a9d41494ff1b537cfca639e90fa66"
   },
   "policy_supply.py:SupplyMixin._find_surplus_identify_staff": {
     "classification": "data",

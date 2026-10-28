@@ -16,7 +16,8 @@ from policy_fixtures import grid, item, player
 class MagicEaterFoodTest(unittest.TestCase):
     def board(self, *devices, class_id=16, food=1500):
         return Snapshot(
-            player(10, 10, food=food, food_type=4, class_id=class_id),
+            replace(player(10, 10, food=food, food_type=4, class_id=class_id),
+                    race_id=25),  # Zombie
             {Position(10, 10): grid(10, 10)}, [],
             inventory=list(devices), town_flag=True, town_id=999,
         )
