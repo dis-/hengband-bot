@@ -31,21 +31,30 @@ class 0 は目録要求、class 16 は shop:approach となり、同じ新規テ
 preflight . main: 初回はマニフェストの再生成だけを指摘（終了コード1）。
 生成物をコミット後に全検査を再実行し、4変更ファイル、指摘0、PREFLIGHT OK（終了コード0）。
 構造検査および行数上限も成功。既存テストの本文・期待値の変更なし。
-関連6モジュール全体: 693件、1725.962秒、全件成功（終了コード0）。
+関連6モジュール全体（前回実行済み）: 693件、1725.962秒、全件成功（終了コード0）。
+今回、実装・テストの差分が前回の検証時から変わっていないことを確認し、この結果を継続採用した。
 対象: tests.test_magic_eater_prekit / tests.test_policy_town / tests.test_policy_fundraising /
 tests.test_home_light_alternation / tests.test_equipment_home_full_incident_recorded /
 tests.test_oneshot_inflight_recorded。
 既存テストの実行中に一時ディレクトリの ResourceWarning が出たが、失敗・エラーは0。
-未完了・未実行の指定検査
-- fast_tier . main: 起動したが、進行中の共有マージゲートの終了待機が続き、テスト本体は未実行。
-- mutation_check . main --record: fast_tier 完了後の順次実行として待機したが、検査本体は未実行。記録も未作成。
-ソース復元と並行テストが干渉しないよう、この順序にした。
-マージゲート待機が作業の大半を占め、残り時間では両検査を完了できないため、
-タスクの45分上限および NO BACKGROUND LEFTOVERS 規則に従い、18:21 にこの作業の待機だけを停止した。
-先に mutation_check の起動待機を停止し、その後 fast_tier の待機を停止した。
-終了状態は順次実行待機が -1、fast_tier が1（いずれも明示停止によるもの。検査失敗ではない）。
-共有マージゲートおよび他作業のプロセスは停止していない。
-この2検査が未完了であるため、指定検査をすべて完了したとは扱わない。
+追加検証（2026-10-28、前回の未完了検査を完了）
+検証対象HEAD: 8f3527746fe0f944f1e84cc3db20ef51716526f1。
+git fetch origin と git merge main --no-edit を実行し、Already up to date を確認した。
+基点mainは引き続き 4a75410a832ac29361f422be72a1e05cf450a4a0。
+取得した origin/main も対象HEADの祖先であり、追加統合すべき変更はなかった。
+実装・テスト・生成物は前回のコミットから変更していない。
+- mutation_check . main --record: MUTATION OK、終了コード0。
+  新規テストモジュール全体が成功することを確認した後、実装ハンクを実際に戻してテスト失敗を確認。
+  test_crowded_fundraiser_acquires_home_catalogue_like_warrior が旧条件を検出した。
+  2ハンク中、実装1ハンクは caught、説明文だけの1ハンクは TEXT ONLY。未検出0。
+  ソースは自動復元済み。対象HEADとソース・テストのツリーをキーとする成功記録を保存済み。
+- preflight . main: 5変更ファイル、指摘0、PREFLIGHT OK、終了コード0。
+  生成マニフェスト、構造検査、行数上限を含めて成功。
+- fast_tier . main: 1,681件、111.9秒、終了コード0。
+  失敗0、エラー0、クラッシュ0。1,680件の高速テストと新規1モジュールを実行。
+  ツールの通常規則により実測60秒超の50モジュールは全体スイート側へ委ねた。
+前回は共有マージゲートの待機と45分上限により2検査が未完了だったが、今回両検査が完了した。
+指定された検査の未完了・未実行はない。
 derived scope / derived modules および全体スイートは指示どおり実行していない。
 
 終了状態
