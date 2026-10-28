@@ -49,16 +49,35 @@ LUNA-REPORT-opening-block.txt
 - 既存テストの期待値変更は test_opening_route_r2_recorded.py::test_known_lantern_or_torch_with_visit_fuel_needs_no_spare_oil のみ。装備光源が訪問推計燃料を1下回る場合も、使用可能な携行松明があればQ1では ready とする（松明・ランタンの2ケース）。他の既存期待値は変更していない。
 - Q1専用の緩和条件を凝集した小モジュールへ置き、受諾と移動で重量の契約を共有した。cappedファイル policy_quest.py の行数は増やしていない。
 
-4. 検証結果
-- 指定Python 3.13、PYTHONPATH=src;tests;scripts を使用。
-- 序盤ルート4モジュール、新規回帰ピン、戦略データ、Q2光源：52件成功。
-- 追加のQ2重量対照：1件成功。
-- tests.test_policy_quest：334件成功（既存skip 7件）。
-- preflight . main：初回は生成マニフェスト更新のみ指摘。更新コミット後の再実行は指摘0件で成功。構造検査・行数上限を含む。
-- policy_quest.pyはmain／変更後とも6047行で増加なし。
-- Q1のentry_requirementsをメモリ上で差し戻す対照実行：3件とも元の拒否（light-oil／overweight／light-oil）へ戻ることを確認。
-- mutation_check . main --record：マージゲートのフル検証終了を待機中。
-- fast_tier . main：mutation_check完了後に実行予定。derived scope／derived modulesは実行していない。
+4. 最終検証結果
+指定Python 3.13、PYTHONPATH=src;tests;scripts を使用した。
+待機中にmainが進んだため、最新main（268b92dbc）を取り込み直して検証した。
+最終的なコード・テストの検証対象HEADは be5b4a3e1。以後の変更はこの報告書のみ。
 
-買い物完了ラッチを明示した再実行では、3件ともQ1受諾・入場へ進み、緩和後の空キー停止は再現しなかった。
-これは指定キャプチャの状態を使った再実行であり、原プロセスの全チェックポイント状態を復元した実機再開ではない。
+- 回帰ピン6件を含む序盤ルート4モジュール、戦略データ、Q2光源：53件成功。
+  tests.test_opening_block_recorded / tests.test_opening_route_pins /
+  tests.test_opening_route_recorded / tests.test_opening_route_r2_recorded /
+  tests.test_opening_route_r3_recorded / tests.test_quest_strategies /
+  tests.test_light_rootfix_q2_recorded
+- tests.test_policy_quest：334件成功（既存skip 7件）。
+- preflight . main：最新main取り込み後も指摘0件で成功。構造検査・行数上限を含む。
+  初回の生成マニフェスト更新の指摘は、再生成・コミットして解消した。
+- policy_quest.pyは最新main／変更後とも6030行で増加なし（当初のmainでは双方6047行）。
+- Q1のentry_requirementsをメモリ上で差し戻す対照実行：3件とも元の拒否
+  light-oil／overweight／light-oilへ戻ることを確認。
+- mutation_check . main --record：成功。初回に5変更箇所すべての差し戻しをテストが検出。
+  最新main取り込み後は、変更のない5箇所の成功記録を再利用し、
+  通常状態のテスト・構造検査も確認して be5b4a3e の記録を保存。未検出箇所0。
+- fast_tier . main：1776件、168.3秒、Failures none、Errors none、Crashed shards none。
+  mainの計測に基づく1768 fast testsと変更テストモジュール2本を4分割で実行。
+  derived scope／derived modulesおよびフルスイートは実行していない。
+- main取り込み前に起動したfast tierは、自分の実行の子プロセスだけを特定して停止し、
+  取り込み後に上記のとおり再実行した。他作業のプロセスは停止していない。
+- 取り込み時の競合は生成マニフェストだけで、生成コマンドで解消した。実装の競合なし。
+- 報告書はPythonでUTF-8、BOMなし、LFとして書き込んだ。
+
+買い物完了ラッチを明示した再実行では、3件ともQ1受諾・入場へ進み、
+緩和後の空キー停止は再現しなかった。
+これは指定キャプチャの状態を使った再実行であり、
+原プロセスの全チェックポイント状態を復元した実機再開ではない。
+開始した検証はすべて終了を確認済み。未実行の指定検証・残した検証プロセスはない。
