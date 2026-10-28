@@ -3629,7 +3629,7 @@ class QuestMixin(OpeningRouteMixin):
                 None,
             )
             if planned_throw is not None:
-                planned = planned_throw_key(self, snapshot, profile, planned_throw, torch)
+                planned = planned_throw_key(self, snapshot, profile, planned_throw, torch, suffix=self._direction_key(snapshot.player.position, planned_throw[1].position))
                 if planned is not None:
                     return planned
             if (

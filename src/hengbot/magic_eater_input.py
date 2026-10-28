@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 import re
 
 from hengbot.input_executor import Continuation, ScreenKind
-from hengbot.input_context import read_input_context
+from hengbot.input_context import read_input_view
 from hengbot.magic_eater import ABSORB_REASON, MISSILE_REASON
 
 
@@ -63,13 +63,30 @@ def _power_row(lines):
 
 
 def _answer(step, screen, operation):
-    reading = read_input_context(screen)
+    reading, lines = read_input_view(screen)
     prompt = reading.prompt.rstrip()
-    lines = [str(line).rstrip() for line in screen.get("lines", ())]
     row0 = lines[0].strip() if lines else ""
     if step.stage == "absorb":
         if reading.kind != "item" or not prompt.endswith(ABSORB_PROMPTS):
             raise ValueError("unowned absorption prompt")
+        area = reading.details.get("area")
+        menu = reading.details.get("menu")
+        if area == "floor" and "inventory" in reading.details.get("areas", ()):
+            return "6" if menu else "/", "absorb"
+        if area != "inventory" or menu not in {True, False}:
+            raise ValueError("unowned absorption item area")
+        if menu:
+            old = next((item for item in (operation.observation or {}).get("inventory", ())
+                        if item.get("slot") == step.keys), {})
+            name = old.get("name")
+            selected = [line.strip() for line in lines[1:24]
+                        if line.strip().startswith(("》", "> "))]
+            if not name or len(selected) != 1:
+                raise ValueError("unrecognized absorption menu cursor")
+            return ("\r", "done") if name in selected[0] else ("2", "absorb")
+        first, last = reading.details.get("first_label", ""), reading.details.get("last_label", "")
+        if not first <= step.keys <= last:
+            raise ValueError("absorption slot outside observed labels")
         return step.keys, "done"
     if step.stage == "kind":
         if reading.kind == "command_char" and prompt in TYPE_PROMPTS:
@@ -110,11 +127,18 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
     if not operation.continuations or not isinstance(operation.continuations[0], MagicEaterStep):
         return None
     step = operation.continuations[0]
+    _, messages = read_input_view(screen)
+    failed = any(text in line for text in FAILURES for line in messages)
+    if failed:
+        if any(text in line for text in FAILURES[2:] for line in messages):
+            operation.magic_eater_wand_charges = 0
+        operation.business_outcome = "failed:magic-eater"
+        step = replace(step, stage="done")
+        operation.continuations[0] = step
+    if match.kind is ScreenKind.MORE:
+        return None
     if match.kind is ScreenKind.COMMAND:
-        messages = [*screen.get("lines", ())]
-        if step.stage == "done" or any(text in str(line) for text in FAILURES for line in messages):
-            if step.stage == "kind":
-                operation.magic_eater_wand_charges = 0
+        if step.stage == "done":
             operation.continuations.pop(0)
             return None
     try:

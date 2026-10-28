@@ -54,8 +54,8 @@ class MagicEaterO3Test(unittest.TestCase):
             inventory.append(item("b", TVAL_WAND, 15, charges=17))
         monster = replace(hostile(1, *target, distance=3), race_id=race)
         snap = Snapshot(
-            replace(player(*stand, hp=100, max_hp=100, class_id=class_id),
-                    race_id=30),
+            replace(player(*stand, hp=100, max_hp=100, class_id=class_id, food_type=4),
+                    race_id=25),
             {Position(y, x): grid(y, x, monster=(y, x) == target, in_view=True)
              for y in range(3, 14) for x in range(1, 17)},
             [monster], inventory=inventory, equipment=[replace(torch, slot="light", count=1)],
@@ -117,6 +117,17 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(self.choose(policy, board), "Gb")
         self.assertEqual(policy.last_reason, ABSORB_REASON)
 
+    def test_absorption_registers_quest_owner_and_observation_goal(self):
+        from hengbot.claim_goal_typing import goal_typing
+        from hengbot.claim_ladder import rung_of
+        from hengbot.town_arbiter import reason_owner_family
+        from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE
+        from hengbot.magic_eater import absorb_key
+        self.assertEqual(reason_owner_family(ABSORB_REASON), "quest-request")
+        self.assertEqual(rung_of("quest-request", ABSORB_REASON).producer, "absorb_key")
+        self.assertIsNotNone(goal_typing("quest-request", ABSORB_REASON))
+        self.assertEqual(getattr(absorb_key, CLAIM_OWNER_ATTRIBUTE).value, "quest-request")
+
     def test_missile_is_reserved_from_zombie_food_and_counts(self):
         policy = self.policy()
         board = replace(self.board(wand=True), player=replace(self.board().player, food_type=4))
@@ -169,6 +180,16 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(status, SendResult.SENT, result.reason)
         self.assertEqual(game.accepted, ["m", "2", "\r", "\r", "6"])
 
+    def test_follow_power_menu_moves_then_observes_selection(self):
+        game, result, status = self.run_follow("mBp6", MISSILE_REASON, [
+            prompt("[A] 杖, [B] 魔法棒, [C] ロッド:"),
+            powers(menu=True, selected=False, japanese=True),
+            powers(menu=True, selected=True, japanese=True),
+            prompt("方向 ('*'でターゲット選択, ESCで中断)? ",
+                   "direction", can_choose_target=True)])
+        self.assertEqual(status, SendResult.SENT, result.reason)
+        self.assertEqual(game.accepted, ["m", "B", "2", "\r", "6"])
+
     def test_follow_zero_cancels_without_aim_and_public_falls_back(self):
         game, result, status = self.run_follow("mBp6", MISSILE_REASON, [
             prompt("[A] staff, [B] wand, [C] rod:"), powers(0)])
@@ -186,12 +207,30 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(status, SendResult.SENT, result.reason)
         self.assertEqual(game.accepted, ["m", "B", "p"])
 
+    def test_follow_failure_more_keeps_observed_charges_and_drops_aim(self):
+        game, result, status = self.run_follow("mBp6", MISSILE_REASON, [
+            prompt("[A] staff, [B] wand, [C] rod:"), powers(2),
+            input_tests.prompt_screen("You failed to get the magic off! -more-")])
+        self.assertEqual(status, SendResult.SENT, result.reason)
+        self.assertEqual(game.accepted, ["m", "B", "p", " "])
+        self.assertEqual(result.board["_magic_eater_wand_charges"], 2)
+
+    def test_follow_unlearned_wand_falls_back(self):
+        failure = input_tests.command_screen(2)
+        failure["lines"][0] = "You don't have that type of magic!"
+        game, result, status = self.run_follow("mBp6", MISSILE_REASON, [
+            prompt("[A] staff, [B] wand, [C] rod:"), failure])
+        self.assertEqual(status, SendResult.SENT, result.reason)
+        self.assertEqual(game.accepted, ["m", "B"])
+        self.assertEqual(result.board["_magic_eater_wand_charges"], 0)
+
     def test_follow_absorption_is_context_and_identity_bound(self):
         board = replace(self.board(wand=True), visible_monsters=[])
         policy = self.policy()
         key = self.choose(policy, board)
         game, result, status = self.run_follow(key, policy.last_reason, [
-            prompt("Gain power of which item? ", "item")],
+            prompt("Gain power of which item? ", "item", area="inventory",
+                   areas=["inventory", "floor"], menu=False, first_label="b", last_label="b")],
             inventory=[{key: value for key, value in asdict(board.inventory[-1]).items()
                         if key != "known_flags"}])
         self.assertEqual(status, SendResult.SENT, result.reason)
@@ -205,6 +244,47 @@ class MagicEaterO3Test(unittest.TestCase):
                 game, result, status = self.run_follow("mBp6", MISSILE_REASON, [screen])
                 self.assertEqual(status, SendResult.TERMINAL)
                 self.assertEqual(game.accepted, ["m"])
+
+    def test_follow_power_and_aim_reject_wrong_context(self):
+        bad_power = powers()
+        bad_power["input_context"]["kind"] = "item"
+        bad_aim = prompt("Direction?", "direction", can_choose_target=False)
+        for screens, expected in (([prompt("[A] staff, [B] wand, [C] rod:"), bad_power],
+                                   ["m", "B"]),
+                                  ([prompt("[A] staff, [B] wand, [C] rod:"), powers(), bad_aim],
+                                   ["m", "B", "p"])):
+            with self.subTest(expected=expected):
+                game, result, status = self.run_follow("mBp6", MISSILE_REASON, screens)
+                self.assertEqual(status, SendResult.TERMINAL)
+                self.assertEqual(game.accepted, expected)
+
+    def test_follow_absorb_floor_switch_is_observed(self):
+        wand = {"slot": "b", "tval": TVAL_WAND, "sval": 15, "known": True,
+                "name": "a Wand of Magic Missile (17 charges)", "charges": 17, "count": 1}
+        floor = prompt("Gain power of which item? ", "item", area="floor",
+                       areas=["floor", "inventory"], menu=False)
+        pack = prompt("Gain power of which item? ", "item", area="inventory",
+                      areas=["floor", "inventory"], menu=False, first_label="b", last_label="b")
+        game, result, status = self.run_follow("Gb", ABSORB_REASON, [floor, pack], inventory=[wand])
+        self.assertEqual(status, SendResult.SENT, result.reason)
+        self.assertEqual(game.accepted, ["G", "/", "b"])
+
+    def test_follow_absorb_menu_observes_named_device(self):
+        wand = {"slot": "b", "tval": TVAL_WAND, "sval": 15, "known": True,
+                "name": "a Wand of Magic Missile (17 charges)", "charges": 17, "count": 1}
+        first = prompt("Gain power of which item? ", "item", area="inventory", menu=True)
+        first["lines"][1:3] = [">  a Staff of Nothing (5 charges)", "   " + wand["name"]]
+        second = {**first, "lines": list(first["lines"])}
+        second["lines"][1:3] = ["   a Staff of Nothing (5 charges)", ">  " + wand["name"]]
+        game, result, status = self.run_follow("Gb", ABSORB_REASON, [first, second], inventory=[wand])
+        self.assertEqual(status, SendResult.SENT, result.reason)
+        self.assertEqual(game.accepted, ["G", "2", "\r"])
+
+    def test_follow_absorb_rejects_unowned_area(self):
+        game, result, status = self.run_follow("Gb", ABSORB_REASON, [
+            prompt("Gain power of which item? ", "item", area="equipment", menu=False)])
+        self.assertEqual(status, SendResult.TERMINAL)
+        self.assertEqual(game.accepted, ["G"])
 
 
 if __name__ == "__main__":

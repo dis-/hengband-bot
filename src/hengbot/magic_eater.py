@@ -1,6 +1,7 @@
 """O3: reserve the birth wand, absorb it safely, and use it at Q34's stands."""
 
 from hengbot.model import TVAL_WAND
+from hengbot.claim_register import claims
 
 
 MAGIC_EATER = 16
@@ -15,10 +16,13 @@ def reserved_for_absorption(player, item):
             and item.sval == MAGIC_MISSILE)
 
 
+@claims("quest-request")
 def absorb_key(policy, snapshot, hostiles):
     player = snapshot.player
     if (snapshot.store is not None or hostiles or player.hungry
-            or player.blind or player.confused or player.hp < player.max_hp):
+            or player.blind or player.confused or player.poisoned or player.cut
+            or player.stunned or player.paralyzed or player.hallucinated
+            or player.hp < player.max_hp):
         return None
     candidate = next((item for item in snapshot.inventory
                       if reserved_for_absorption(player, item) and item.known
@@ -30,14 +34,14 @@ def absorb_key(policy, snapshot, hostiles):
     key = "G" + candidate.slot
     if snapshot.in_town:
         policy._offer_execution(
-            key, producer="quest", work_id=ABSORB_REASON,
+            key, producer="quest-request", work_id=ABSORB_REASON,
             next_step="quest.absorb-birth-wand",
             arguments=(policy._item_signature(candidate),),
             expected_effect="device-absorbed")
     return key
 
 
-def q34_missile_key(policy, snapshot, profile, target):
+def q34_missile_key(policy, snapshot, profile, target, direction):
     if profile.quest_id != 34 or snapshot.player.class_id != MAGIC_EATER:
         return None
     # A zero is observed in the power list, never inferred from an inventory
@@ -52,10 +56,10 @@ def q34_missile_key(policy, snapshot, profile, target):
     policy.last_reason = MISSILE_REASON
     policy._quest_strategy_throw_exp[34] = (
         (target.race_id, target.position.y, target.position.x), snapshot.player.exp)
-    return "mBp" + policy._direction_key(snapshot.player.position, target.position)
+    return "mBp" + direction
 
 
-def planned_throw_key(policy, snapshot, profile, planned_throw, torch):
+def planned_throw_key(policy, snapshot, profile, planned_throw, torch, *, suffix):
     """Share the approved stand and kill evidence between missiles and torches."""
     from hengbot.model import Position
     from hengbot.policy_constants import WAIT_KEY
@@ -77,7 +81,7 @@ def planned_throw_key(policy, snapshot, profile, planned_throw, torch):
         policy.last_reason = "quest-strategy:approach-throw-point"
         policy._declare_reach(stand)
         return policy._step_toward(snapshot, step)
-    magic = q34_missile_key(policy, snapshot, profile, target_monster)
+    magic = q34_missile_key(policy, snapshot, profile, target_monster, suffix)
     if magic is not None:
         return magic
     if torch is not None:
@@ -91,6 +95,6 @@ def planned_throw_key(policy, snapshot, profile, planned_throw, torch):
             snapshot.player.exp,
         )
         return (
-            reserved_item_command(policy, snapshot, "throw", torch, suffix=policy._direction_key(snapshot.player.position, target_monster.position))
+            reserved_item_command(policy, snapshot, "throw", torch, suffix=suffix)
         )
     return None

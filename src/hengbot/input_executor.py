@@ -1370,6 +1370,10 @@ class OperationExecutor:
         self.state = ExecutorState.CONTINUATION
         if match.kind is ScreenKind.DEATH:
             return self._death(self.active, match)
+        from hengbot.magic_eater_input import advance_magic_eater
+        magic_result = advance_magic_eater(self, screen_value, match, deadline, outcome)
+        if magic_result is not None:
+            return magic_result
         if match.kind is ScreenKind.MORE:
             return self._post_and_barrier(" ", deadline, role="auxiliary-request")
         if match.kind is ScreenKind.LEVEL_UP_STAT:
@@ -1383,10 +1387,6 @@ class OperationExecutor:
                 return self._post_and_barrier(" ", deadline, role="auxiliary-request")
             if match.kind is ScreenKind.IDENTIFY_VIEWER_FINAL:
                 return self._post_and_barrier("\x1b", deadline, role="exit")
-        from hengbot.magic_eater_input import advance_magic_eater
-        magic_result = advance_magic_eater(self, screen_value, match, deadline, outcome)
-        if magic_result is not None:
-            return magic_result
         while self.active.continuations:
             continuation = self.active.continuations[0]
             expected_features = (

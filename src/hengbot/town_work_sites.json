@@ -1078,7 +1078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b9a7c1d10c4d44995171304bd51fbf1caf86f56ba7f50109b2a036bbf3a9bfb7"
+    "ast_sha256": "cd55d15caf42de0a961a7317259648a650b0c533b7b8901337be83fddb85e966"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
@@ -1580,7 +1580,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5422273465630ce33c21041e9fd0a1797ebd6f5175953ee4111df4e7bd9d9cd4"
+    "ast_sha256": "d047fe90f1856d44e635e7b65eeba466807421cbe604c143658ccf4a76dc32bf"
   },
   "magic_eater.py:planned_throw_key": {
     "classification": "dungeon-only",
@@ -1588,7 +1588,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1cce2e29cdeb625cd36dff9fc538d53ccfeb794334c322cab8c562f0842acb34"
+    "ast_sha256": "f36b2b1e33465aafce7c7858b9fec51d4eee78d5caa738b046c441ecb370c941"
   },
   "magic_eater.py:q34_missile_key": {
     "classification": "dungeon-only",
@@ -1596,7 +1596,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9b6f6c47bd528f3d548d936c043ecab686778aa8bc34724fb4eb305e90bcf981"
+    "ast_sha256": "64d6e4c6542adfea923bddb577dbe23e061f871abba570a680be9eaa0ed6b14b"
   },
   "magic_eater.py:reserved_for_absorption": {
     "classification": "data",
@@ -1645,7 +1645,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "70b605d02b210e187ac7e1b79e7f96531085d0271a3f2f530e06a062b8dd7ec7"
+    "ast_sha256": "e6594e2b33e54f82c9374573a212a2034a02d2a24ab0b675f3f3ad70e761e01d"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -6353,7 +6353,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "4b443638ff6c41aa4ba2cb680711b08df2dd7a6ecee9f30b798d7b817fcf9d82"
+    "ast_sha256": "e695fe30ab3fd033a8dfbdc05e642ab9d100d60d6f3394a0f2d6637ed39d840b"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
