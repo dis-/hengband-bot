@@ -361,3 +361,92 @@ src/ と tests/ の追跡差分はなく、修正と新規ピンはコミット�
 タスクの完了条件（全列挙テストと既存ピンの成功、mutationの成功記録）は未達であり、
 完了扱いにはしない。未実行の必須コマンドはないが、mutationの各ハンク差し戻し検査は
 事前テスト失敗により未実施。派生モジュールは指示どおり未実行。
+
+
+ラウンド5（2026-10-28、ISSUE #47）
+
+状態：完了。ユーザーが選択した「待っても来ないかで判定」を実装・検証した。
+依頼ファイルの参照Issueは #117、作業識別子はユーザー指定の #47。
+開始時に origin をfetchし、最新ローカル main のマージを実行した（Already up to date）。
+基準 main: 4a75410a832ac29361f422be72a1e05cf450a4a0
+早期実装コミット: 09e2ebf00238ed8ca9438f49f2a9482cca139184
+検証対象の最終製品・テストHEAD: 3d32ebc8828c204f681fd8ce1092e7bc41fba98f
+
+方針と状態の所有
+「歩行経路がない」という地形の証明を共通述語から撤去した。
+専用の summoner_reachability.py と、不要になったbaseline/review登録を削除した。
+NEVER_MOVEによる即時判定、PASS_WALL/KILL_WALLを除外する従来の順序は維持した。
+新しい summoner_wait.py が、実際に選択した summoner:hold-choke の対象だけについて、
+個体のindex/race、待機開始ターン、その時の距離、待機位置・階層を管理する。
+待機開始時より距離が減るとその個体だけ時計をリセットする。別の行動、待機位置の変更、
+対象の観測消失、階層変更でも待機時計を破棄する。複数個体の時計は独立する。
+50ゲームターン待っても近づかなければ、唯一の _summoner_never_approaches が真となる。
+期限後は待機時計を破棄し、回避判定だけを既存の脅威記憶とともに保持する。
+召喚者自身が移動して近づいた場合はその判定と古い位置の記憶を解除する。
+自分から近づいたための距離減少では解除せず、撤退不能時は攻撃を続ける。
+既存の安全な探索・拾得、階段、テレポート・レベル、帰還、撤退不能時の戦闘へ委譲した。
+待機していない遠方の検知召喚者は時間経過だけでは対象にしない。
+
+50ターンの根拠
+ガラス壁3記録の待機判断は171 / 206 / 206件、ターン差の中央値はすべて10。
+各記録の連続する全区間を調べると、50ターン到達まで4～7判断だった。
+通常約5回、記録上でも最大7回の待機で接近の有無を判断できる値として50を選んだ。
+CLIの通常ループガードは LOOP_WINDOW=40判断（増殖戦闘用は80）であり、十分早く終了する。
+保存盤面からの再起動ピンでは既存のカーソル射撃3回の後に待機へ入り、
+10ターン刻みの構成応答で5回の待機を本番follow executorへ送信し、その後帰還する。
+射撃が進展しない後続観測、待機応答、帰還の巻物プロンプトは明示的な構成データ。
+実機で追加の成功プレイを観測したとは主張しない。原本fixtureは変更していない。
+実測根拠: r5-capture-timing.json。
+
+ラウンド3ピンの変更（最終キー・理由は維持）
+test_glass_first_capture_leaves_and_posts / second / third の3件は、
+最初のchoose_keyではなく、反復待機が終わった時点で rg / summoner:recall を検証する。
+各待機と最終帰還を本番follow executorで送信する。
+test_glass_constructed_quest_does_not_wait_for_unreachable_mobile_summoner と
+test_glass_constructed_detected_quest_releases_cached_hold も、即時判定を待機終了時へ移した。
+期待する最終結果 4 / explore と、検知待機の解除は維持した。
+test_glass_constructed_opened_route_retires_avoidance は、地形だけでの解除を廃止する
+今回の決定に合わせ test_glass_constructed_closer_summoner_retires_avoidance へ変更した。
+期限後の rr / summoner:recall を確認し、召喚者が一歩接近した後に従来の
+5 / summoner:hold-choke へ戻ることと、回避記憶の解除を検証する。
+ラウンド4が列挙した全モジュールの既存期待値は変更していない。
+
+追加ピンと差し戻し検証
+接近による時計リセット、回復行動と階層変更による時計破棄、待機対象外の遠方個体、
+通常の敵集団待機への遠方個体の混入防止、複数個体の独立した時計、
+撤退不能時の接近後も攻撃を続けることを6件追加した。
+変更6件・追加6件の計12件について、該当する判定を無効化した独立プロセスで
+各1件のassertion失敗・エラー0を確認した。ディスク上の製品ソースは変更していない。
+最終ソースの通常実行も全件成功した。証跡: r5-pin-reverts.json / r5-revert-*.log。
+
+検証（指定Python 3.13、PYTHONPATH=src;tests;scripts）
+・最終専用モジュール: 34件、8.032秒、OK。
+・r4列挙の全モジュールと専用ピン: 124件、1953.304秒、OK。
+  最終ソース更新前の重複した2実行は終了させ、この最終HEADの全モジュール実行に一本化した。
+  tests.test_pure_decision_telemetry / tests.test_declarations_r14 /
+  tests.test_overweight_home_unreachable_recorded / tests.test_guardian_recall_pingpong_recorded /
+  tests.test_protocol3_client / tests.test_esp_threat_rest_recorded /
+  tests.test_loot_before_recall_recorded / tests.test_morivant_travel_retired_recorded /
+  tests.test_town_terminal_declarations / tests.test_immobile_summoner_recorded を実行した。
+  前回失敗した42Fの test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result も成功。
+・preflight（構造検査・行数上限を含む、base main）: 終了0。
+  [preflight] PREFLIGHT OK: 17 changed files, 0 findings ( vs main)
+・mutation_check --record（base main）: 終了0、成功記録を作成。
+  同一HEADの一時worktreeで差し戻し、実行中のリプレイとはソースを分離した。
+  検査後に一時worktreeを削除した。
+  [mutation] MUTATION OK: 0 of 16 hunks are not pinned by a test
+・fast_tier（base main）: 終了0、失敗・エラー・クラッシュなし。
+  Total: 1714 tests, 115.6s
+・git diff --check: 成功。派生scope/modulesと全件スイートは指示どおり実行していない。
+
+保守性と行数
+待機の証拠収集・期限・解除を小さな専用モジュールにまとめ、3か所の待機生成を共通化した。
+地形証明専用モジュールと登録を削除し、manifestを再生成した。
+このラウンド開始時から policy.py は20450→20449行、policy_combat.pyは4477行のまま、
+cli.pyは5942行のまま。他の上限対象ファイルには変更していない。
+preflightの既存ブランチ免除NOTEは以前からの上限超過であり、今回増やしていない。
+開始した検証・差し戻しプロセスはすべて終了を確認し、待機やfinalizerを残していない。
+src/とtests/はコミット済みでクリーン。未実行・未完了の指定チェックはない。
+この日本語報告はPythonのPath.write_text(..., encoding="utf-8")で追記した。
+検証ログと補助スクリプトは validation/immobile-summoner-1027/r5-* にローカル保持し、
+コミットには含めない。
