@@ -91,6 +91,7 @@ class WarriorCombatInputs:
     lazy_personality: bool = False
     intrinsic_str: int = 0
     intrinsic_dex: int = 0
+    class_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -295,17 +296,21 @@ def _distributed_bonus(loadout: Loadout, hand_slot: str, attribute: str) -> int:
 
 def _warrior_blows(
     weapon: OwnedEquipment, *, str_idx: int, dex_idx: int, level: int,
-    two_hand_bonus: bool, extra_blows: int,
+    two_hand_bonus: bool, extra_blows: int, class_id: int = 0,
 ) -> int:
     if ADJ_STR_HOLD[str_idx] < weapon.item.weight // 10:
         return 1
-    strength_index = ADJ_STR_BLOW[str_idx] * 5 // max(70, weapon.item.weight)
+    from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
+
+    profile = EQUIPMENT_CLASS_PROFILES[class_id]
+    strength_index = (ADJ_STR_BLOW[str_idx] * profile.strength_multiplier
+                      // max(profile.minimum_weapon_weight, weapon.item.weight))
     if two_hand_bonus:
-        strength_index += level // 23 + 1
+        strength_index += level // 23 + 1 if profile.warrior_bonuses else 1
     strength_index = min(11, strength_index)
     dexterity_index = min(11, ADJ_DEX_BLOW[dex_idx])
-    blows = min(6, BLOWS_TABLE[strength_index][dexterity_index])
-    return max(1, blows + extra_blows + level // 40)
+    blows = min(profile.max_blows, BLOWS_TABLE[strength_index][dexterity_index])
+    return max(1, blows + extra_blows + (level // 40 if profile.warrior_bonuses else 0))
 
 
 def _extra_blows(loadout: Loadout, hand_slot: str) -> int:
@@ -390,7 +395,7 @@ def evaluate_warrior_melee(
         extra_blows = _extra_blows(loadout, hand_slot)
         blows = _warrior_blows(
             weapon, str_idx=str_idx, dex_idx=dex_idx, level=inputs.level,
-            two_hand_bonus=two_hand_bonus, extra_blows=extra_blows,
+            two_hand_bonus=two_hand_bonus, extra_blows=extra_blows, class_id=inputs.class_id,
         )
         to_hit = ADJ_DEX_TO_H[dex_idx] + ADJ_STR_TO_H[str_idx]
         to_damage = ADJ_STR_TO_D[str_idx]

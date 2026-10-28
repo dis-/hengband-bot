@@ -1,0 +1,70 @@
+ISSUE #47 / Magic-Eater O4 作業報告
+
+対象
+- 依頼の #47 に対する O4（タスク本文の ISSUE 表記は #116）。較正を職業16にも広げ、専用評価器は作らない。
+- 作業開始時のローカル main: 03df7d9e3d415ae1d6e389d76cd9d59331c17163。
+  origin/main を fetch し、origin/main と main の merge がともに Already up to date であることを確認した。
+
+変更内容
+- 装備中 C 画面の較正を戦士0と魔道具術師16で受理する。
+- 職業ごとの装備評価入力を equipment_class_profile.py に集約した。
+  戦士: 打撃上限6、最低武器重量70、筋力倍率5。
+  魔道具術師: 打撃上限5、最低武器重量100、筋力倍率3。
+- 既存の共通評価器に職業を渡す。魔道具術師には戦士固有のレベル/40打撃、
+  両手持ちのレベル/23筋力添字加算、レベル×2射撃回数加算を適用しない。
+- 装備最適化の入口、出発前装備確認、胴防具の優先再装備を職業16にも開いた。
+- 技能値は盤面、能力補正は表示された C 画面、HP と AC の固定部分は既存の較正から得る。
+  魔道具術師専用の評価器、魔道具攻撃評価、受注閾値の変更は追加していない。
+- 戦士の既存テストの期待値は変更していない。行数上限のある policy_quest.py は増行していない。
+- 保守性: 対応職業と打撃定数を小さな共通モジュールにまとめ、職業判定の重複定数と
+  戦士専用の打撃定数を既存経路の中で整理した。町行動マニフェストも再生成する。
+
+C 画面の根拠と限界
+- 実機で C 画面を採取するための元セーブの具体的な場所は今回の入力に含まれていない。
+  実セーブを起動しての採取は行わず、ゲームの表示コードから構成した縮約テキストを使用した。
+  tests/fixtures/magic-eater-o4-sheet.txt の先頭にも構成資料であることを明記した。
+- 参照したゲームソース HEAD: 53cc253aa2735d20ef985ce9dc404ddae03d806f。
+  src/player-info/class-info.cpp の MAGIC_EATER 行（能力補正 -1,+2,+1,+2,-2,+1 と num/wgt/mul）、
+  class-info.h の項目順、src/view/display-player-stat-info.cpp の表示列、
+  src/player/player-status.cpp の calc_num_blow と射撃回数処理を確認した。
+- ゾンビ・ちからじまん・Lv27 の盤面を構成し、実際の parser と derive_equipped_calibration に渡す。
+  HP/AC/装備はテスト用の観測値であり、実プレイの記録ではない。
+- 共通評価器での運用を可能にする変更であり、高レベル帯を実プレイで検証したものではない。
+
+検証結果
+- 使用 Python: 指定の Python 3.13。PYTHONPATH=src;tests;scripts。
+- 対象モジュール全体: 611件、失敗0、エラー0、スキップ7、終了コード0。
+  tests.test_magic_eater_calibration / tests.test_character_sheet_calibration /
+  tests.test_character_sheet_eucjp / tests.test_warrior_equipment_evaluator /
+  tests.test_warrior_loadout_evaluator / tests.test_warrior_optimization /
+  tests.test_policy_equipment / tests.test_policy_quest。
+- mutation の途中で、初期のロング・ソードでは両職業の打撃回数が同じになるため、
+  DPS と最適化への class_id の受け渡し2箇所を検出できないと判明した。
+  ゲームの BaseitemDefinitions.jsonc にあるツーハンデッド・ソード（重量200、3d6）に
+  構成資料と盤面を更新し、魔道具術師2回／戦士3回の差を検出する条件へ強化した。
+  この修正後、追加モジュール7件は全件成功、終了コード0。
+- mutation_check.py . main --record: 最終実行は全16ソース変更を検出、未検出0、終了コード0。
+  fc4749675 に対する記録と、ソース／テストのツリーに対する記録を作成済み。
+- 新規ピンは実際の生成処理を呼ぶ。C画面 parser → derive_equipped_calibration、
+  policy の _prepare_equipment_optimization、_equipment_departure_ready、
+  _request_priority_body_rearm、weapon_expected_dps、共通の打撃・射撃評価器。
+  計算結果や最適化結果の差し込みはしていない。
+- 取り消し検証では、較正の職業制限、最適化の職業制限、出発判定、胴防具再装備、
+  打撃の職業定数と受け渡し、射撃ボーナス、DPS の職業受け渡しをそれぞれ戻して失敗を確認した。
+  実装は検証ツールが復元した。
+- preflight 初回は再生成したマニフェストの未コミットのみを指摘した。更新をコミットした。
+- fast_tier.py . main: 1734件、失敗0、エラー0、クラッシュ0、109.2秒、終了コード0。
+  4シャード、基準 main 03df7d9e3。既定の高速層選択を使い、派生モジュールは指定していない。
+- preflight.py . main: PREFLIGHT OK、変更11ファイル、指摘0、終了コード0。
+  構造検査、行数上限、テスト偽装／item sink 検査、マニフェスト整合性を含む。
+- 派生スコープ／派生モジュールと全スイートは指示どおり実行していない。
+  マージゲートが全スイートを実行する。実機の継続運用も今回の対象外。
+
+
+最終状態
+- 実装とテストの対象 HEAD: fc4749675（レポート追加前）。
+- 日本語レポートは Python の Path.write_text(..., encoding="utf-8", newline="\n") で作成した。
+- 開始した検証はすべて終了し、mutation の一時的なソース変更も復元済み。
+  自分で開始した検証プロセス、待機スクリプト、後処理スクリプトを残していない。
+- src/ と tests/ に未コミットの変更はない。
+  入力タスクファイルと開始時からあった実行ログ2件は未追跡のまま保持した。
