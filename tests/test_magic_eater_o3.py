@@ -149,8 +149,17 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(getattr(absorb_key, CLAIM_OWNER_ATTRIBUTE).value, "quest-request")
 
     def run_follow(self, key, owner, screens, *, inventory=()):
+        # Every prompt variant starts with the public producer on a class-16
+        # zombie board, including menu, failure and cancellation paths.
+        board = self.board()
+        if owner == ABSORB_REASON:
+            board = replace(self.board(wand=True), visible_monsters=[])
+        policy = self.policy()
+        produced = self.choose(policy, board)
+        self.assertEqual((produced, policy.last_reason), (key, owner))
         game = input_tests.FaithfulHookGame()
         game.state = {"turn": 1, "player": {"y": 10, "x": 20, "class_id": 16,
+                                            "race_id": 25, "food_type": 4,
                                             "hp": 100, "max_hp": 100},
                       "inventory": list(inventory), "equipment": [], "grid_map": {"runs": []}}
         client = ControlClient(1, request_budget=2, retries=1, backoff=0,
@@ -161,7 +170,7 @@ class MagicEaterO3Test(unittest.TestCase):
         game.screens = [*screens, input_tests.command_screen(2)]
         game.states = [dict(game.state) for _ in game.screens]
         send = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
-        status = send(key, decision={"reason": owner, "sequence": 1})
+        status = send(produced, decision={"reason": owner, "sequence": 1})
         return game, send.last_result, status
 
     def test_follow_answers_each_nonmenu_prompt_and_tracks_screen_charges(self):
