@@ -215,7 +215,7 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "1f1c03c037d658326466889827d6d8d926c18c290404ad9e43dc9c00c335e551"
+    "ast_sha256": "e44ebc30ddda3d6b68a06333ac10ae52a7bdb3bcd191bb8cdb296cae7848ae7e"
   },
   "cli.py:_send_stall_recovery_nudge": {
     "classification": "driver",
@@ -1078,7 +1078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c06a5497f35b511f47b4a224cef7e64c257f46ccac3a66ba3fa749ad27fae7fa"
+    "ast_sha256": "77820cd263b59ead0ab15b06cab2a2919b78b74fcd2069751c216f61f0f8ec8e"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",

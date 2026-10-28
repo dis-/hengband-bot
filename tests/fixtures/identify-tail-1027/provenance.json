@@ -1,0 +1,20 @@
+{
+  "151405": {
+    "sha256": "cd18bd4130ae186af23ebd5afc50be374861ca91e55db0744961b6f645dc37c2",
+    "sources": {
+      "state.jsonl.gz": "918654e2577753b126ca97d8bf606e0b35bfd7a11e21bf09d5336d3e8c1e25f4",
+      "bot-decisions.jsonl.gz": "9f7a9e0d2f5d6a499cdba5fcaecf15f7fd35ae4f4ca0af56409cc3a532137fbc",
+      "bot-posted-characters.jsonl.gz": "21f72be7f8d6c2f9279a4e783f607e6974a8d505049e5642ff900ee74875f546",
+      "control-at-stop.json.gz": "5aabbdec57481651745bcb446befd027de57c434fc8664dae0d3627898f1c0c4"
+    }
+  },
+  "151412": {
+    "sha256": "c803500f7b7f60ae9af00e1cef5b55750577cefc9a865a1aadb0e95e85fed088",
+    "sources": {
+      "state.jsonl.gz": "249f5d317e7d890b350cbaa7ac1b56b591f0b71d560a6904f3d2dae0c888e048",
+      "bot-decisions.jsonl.gz": "e27e5389c29bcd60626ebaaee954f972452d7a3e827acd2a7880c92b5bbfa9a4",
+      "bot-posted-characters.jsonl.gz": "59390d3e04c8f3415519c941ce8d193ac492b6aefbc867ffd2c0c49541669e61",
+      "control-at-stop.json.gz": "e39bfb9c27f1588709eea29b9d8d535aa400d33c5896d2772f7918ed3c3ba61e"
+    }
+  }
+}

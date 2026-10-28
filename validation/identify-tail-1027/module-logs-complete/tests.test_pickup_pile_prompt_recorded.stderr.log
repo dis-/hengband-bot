@@ -1,0 +1,19 @@
+test_floor_chooser_is_owned_in_both_languages (test_pickup_pile_prompt_recorded.FloorChooserClassificationTest.test_floor_chooser_is_owned_in_both_languages) ... ok
+test_other_get_prompts_are_not_the_floor_chooser (test_pickup_pile_prompt_recorded.FloorChooserClassificationTest.test_other_get_prompts_are_not_the_floor_chooser) ... ok
+test_model_reproduces_the_recorded_stop_for_the_atomic_macro (test_pickup_pile_prompt_recorded.PickupPilePromptRecordedTest.test_model_reproduces_the_recorded_stop_for_the_atomic_macro) ... <stuck-prompt> owner=conquest:pickup phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned unknown: unrecognized
+ok
+test_p1_recorded_board_composes_the_recorded_key (test_pickup_pile_prompt_recorded.PickupPilePromptRecordedTest.test_p1_recorded_board_composes_the_recorded_key) ... ok
+test_p2_recorded_pickup_answers_only_the_observed_chooser (test_pickup_pile_prompt_recorded.PickupPilePromptRecordedTest.test_p2_recorded_pickup_answers_only_the_observed_chooser) ... ok
+test_recorded_pickup_on_a_two_item_pile_with_one_free_slot (test_pickup_pile_prompt_recorded.PickupPilePromptRecordedTest.test_recorded_pickup_on_a_two_item_pile_with_one_free_slot) ... ok
+test_an_unknown_screen_after_g_still_stops (test_pickup_pile_prompt_recorded.PileChangedBetweenComposeAndPostTest.test_an_unknown_screen_after_g_still_stops) ... <stuck-prompt> owner=conquest:pickup phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned unknown: unrecognized
+ok
+test_auto_destroy_shrank_the_pile_after_compose (test_pickup_pile_prompt_recorded.PileChangedBetweenComposeAndPostTest.test_auto_destroy_shrank_the_pile_after_compose) ... ok
+test_home_get_command_is_not_staged (test_pickup_pile_prompt_recorded.PileChangedBetweenComposeAndPostTest.test_home_get_command_is_not_staged) ... ok
+test_pack_filled_before_the_pile_drained (test_pickup_pile_prompt_recorded.PileChangedBetweenComposeAndPostTest.test_pack_filled_before_the_pile_drained) ... ok
+test_pile_grew_after_compose (test_pickup_pile_prompt_recorded.PileChangedBetweenComposeAndPostTest.test_pile_grew_after_compose) ... ok
+test_pile_shrank_to_a_lone_item (test_pickup_pile_prompt_recorded.PileChangedBetweenComposeAndPostTest.test_pile_shrank_to_a_lone_item) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 1.367s
+
+OK

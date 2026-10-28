@@ -1,0 +1,19 @@
+test_admission_refusal_prints_the_context_too (test_input_context.ExecutorRecordsWithoutDeciding.test_admission_refusal_prints_the_context_too) ... ok
+test_lost_screen_reads_unavailable_not_absent (test_input_context.ExecutorRecordsWithoutDeciding.test_lost_screen_reads_unavailable_not_absent) ... ok
+test_new_game_posts_the_same_keys_and_names_the_context (test_input_context.ExecutorRecordsWithoutDeciding.test_new_game_posts_the_same_keys_and_names_the_context) ... ok
+test_old_game_stop_line_reads_absent_and_nothing_else_changes (test_input_context.ExecutorRecordsWithoutDeciding.test_old_game_stop_line_reads_absent_and_nothing_else_changes) ... ok
+test_four_states_are_never_confused (test_input_context.ReaderStates.test_four_states_are_never_confused) ... ok
+test_stop_line_fields_name_the_kind_or_the_source (test_input_context.ReaderStates.test_stop_line_fields_name_the_kind_or_the_source) ... ok
+test_every_recorded_screen (test_input_context.RecordedScreensKeepTheirClassification.test_every_recorded_screen) ... ok
+test_verdicts_compare_the_context_with_the_classifier (test_input_context.RecordedScreensKeepTheirClassification.test_verdicts_compare_the_context_with_the_classifier) ... ok
+test_death_writes_the_counts (test_input_context.ShadowLog.test_death_writes_the_counts) ... ok
+test_default_log_is_the_runtime_file (test_input_context.ShadowLog.test_default_log_is_the_runtime_file) ... ok
+test_disagreement_and_stop_counts_are_logged (test_input_context.ShadowLog.test_disagreement_and_stop_counts_are_logged) ... ok
+test_residual_tail_at_a_command_barrier_is_counted_per_owner (test_input_context.ShadowLog.test_residual_tail_at_a_command_barrier_is_counted_per_owner) ... ok
+test_rotates_itself_with_one_predecessor (test_input_context.ShadowLog.test_rotates_itself_with_one_predecessor) ... ok
+test_write_failures_are_swallowed (test_input_context.ShadowLog.test_write_failures_are_swallowed) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 3.337s
+
+OK

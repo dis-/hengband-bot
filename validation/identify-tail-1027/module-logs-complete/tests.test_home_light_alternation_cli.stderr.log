@@ -1,0 +1,12 @@
+test_pin_d6_1c_releases_each_segment_under_its_prompt (test_home_light_alternation_cli.PromptGatedIdentificationPins.test_pin_d6_1c_releases_each_segment_under_its_prompt) ... ok
+test_pin_d6_1m_staff_misfire_never_posts_target (test_home_light_alternation_cli.PromptGatedIdentificationPins.test_pin_d6_1m_staff_misfire_never_posts_target) ... ok
+test_pin_d6_5_commit_and_key_replacement_lifecycle (test_home_light_alternation_cli.PromptGatedIdentificationPins.test_pin_d6_5_commit_and_key_replacement_lifecycle) ... ok
+test_pin_d6_6_prompt_constants_and_normalisation (test_home_light_alternation_cli.PromptGatedIdentificationPins.test_pin_d6_6_prompt_constants_and_normalisation) ... ok
+test_pin_d6_8_real_follow_posts_ordinary_non_chain_decision_once (test_home_light_alternation_cli.PromptGatedIdentificationPins.test_pin_d6_8_real_follow_posts_ordinary_non_chain_decision_once) ... ok
+test_pin_d6_8_real_follow_releases_real_identify_chain (test_home_light_alternation_cli.PromptGatedIdentificationPins.test_pin_d6_8_real_follow_releases_real_identify_chain) ... ok
+test_prompt_timeout_ends_visibly_without_blind_escape (test_home_light_alternation_cli.PromptGatedIdentificationPins.test_prompt_timeout_ends_visibly_without_blind_escape) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 63.540s
+
+OK

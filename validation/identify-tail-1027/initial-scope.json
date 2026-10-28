@@ -1,0 +1,121 @@
+{
+  "allowlist_coverage": {
+    "known_failures": [],
+    "known_lint_failures": []
+  },
+  "derived": {
+    "lints": [
+      "scripts/sale_key_lint.py",
+      "scripts/test_fakery_lint.py"
+    ],
+    "modules": [
+      "tests.test_absorbing_states",
+      "tests.test_cli",
+      "tests.test_curse_priority_recorded",
+      "tests.test_equipment_in_home_stage1",
+      "tests.test_exclude_forest",
+      "tests.test_headless_character_dump",
+      "tests.test_home_knowledge_scan",
+      "tests.test_home_light_alternation_cli",
+      "tests.test_identify_device_fail_20261017",
+      "tests.test_identify_tail_recorded",
+      "tests.test_identify_wake_interrupt_20261017",
+      "tests.test_input_context",
+      "tests.test_input_context_structure",
+      "tests.test_input_executor",
+      "tests.test_live15_identify_source",
+      "tests.test_pickup_pile_prompt_recorded",
+      "tests.test_policy",
+      "tests.test_policy_structure",
+      "tests.test_resume_inside_store",
+      "tests.test_store_reentry_recorded",
+      "tests.test_town_work_contract",
+      "tests.test_travel_interrupted_store_await"
+    ],
+    "paths": [
+      "scripts/town_work_manifest.json.gz",
+      "src/hengbot/cli.py",
+      "src/hengbot/input_executor.py",
+      "src/hengbot/town_work_sites.json",
+      "tests/fixtures/identify-tail-1027/151405.json",
+      "tests/fixtures/identify-tail-1027/151412.json",
+      "tests/fixtures/identify-tail-1027/provenance.json",
+      "tests/fixtures/identify-tail-1027/skill-knowledge.json",
+      "tests/test_identify_device_fail_20261017.py",
+      "tests/test_identify_tail_recorded.py",
+      "tests/test_identify_wake_interrupt_20261017.py"
+    ],
+    "symbols": {
+      "src/hengbot/cli.py": [
+        "_send_prompt_gated_decision_key"
+      ],
+      "src/hengbot/input_executor.py": [
+        "CARRIED_IDENTIFY_OWNERS",
+        "OperationExecutor",
+        "_expected_prompt_absence_is_complete"
+      ]
+    }
+  },
+  "known_failure_list": [
+    {
+      "count": 1,
+      "date": "2026-08-18",
+      "module": "tests.test_shop_one_shot",
+      "pattern": "evidence-sale-inflight-lines.jsonl",
+      "reason": "pre-existing missing artifact"
+    },
+    {
+      "count": 1,
+      "date": "2026-08-18",
+      "module": "tests.test_home_knowledge_scan",
+      "pattern": "stalled_capture",
+      "reason": "pre-existing missing artifact"
+    },
+    {
+      "count": 4,
+      "date": "2026-08-18",
+      "module": "tests.test_home_visit",
+      "pattern": "FileNotFoundError",
+      "reason": "artifact-dependent; required incident-captures/ and evidence/ files were destroyed by the gate junction incident on 2026-08-18 and no backup exists"
+    },
+    {
+      "count": 1,
+      "date": "2026-08-18",
+      "module": "tests.test_worldmap_key_hygiene",
+      "pattern": "FileNotFoundError",
+      "reason": "artifact-dependent; required incident-captures/ and evidence/ files were destroyed by the gate junction incident on 2026-08-18 and no backup exists"
+    },
+    {
+      "count": 1,
+      "date": "2026-08-18",
+      "module": "tests.test_test_fakery_lint",
+      "pattern": "test_tree_has_only_catalogued_undeclared_shapes",
+      "reason": "same 9 undeclared shapes already count-exactly allowed for scripts/test_fakery_lint.py"
+    }
+  ],
+  "known_untested_paths": {
+    "test_cli.DecisionTimingTest": "known hang; exclusion required by SOL-TASK-verification-gates.md"
+  },
+  "modules": {},
+  "runtime_artifacts": {
+    "evidence": [
+      "ammo2-report.json",
+      "ammo2-revert-check.txt",
+      "ammo2-tests.test_policy_home.txt",
+      "ammo2-weight-verdict.md",
+      "ammofit-validation.json",
+      "ammofit-weight-verdict.md"
+    ],
+    "incident-captures": [
+      "20260919-2334-prepare-choke-oscillation/snapshots.jsonl",
+      "20260920-0025-choke-vs-loot-oscillation/snapshots.jsonl"
+    ]
+  },
+  "tool": {
+    "base_ref": "726627a6b7e612d62efe1a2d7a507b69cec5b480",
+    "name": "verify_scope",
+    "target": "413e1e2b73287aa1203e463a5f6bbc84de9c2f9b",
+    "tree_fingerprint": "dc9607315c537b00623b4ed5312e31a3b6ad6ffb27c04c0d9f9947e9a99c2786",
+    "version": "1.0"
+  }
+}

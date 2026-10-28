@@ -1,0 +1,17 @@
+test_a_name_cut_at_the_weight_column_still_binds (test_resume_inside_store.ResumeInsideStorePins.test_a_name_cut_at_the_weight_column_still_binds) ... ok
+test_a_partial_last_page_must_end_where_the_row_ends (test_resume_inside_store.ResumeInsideStorePins.test_a_partial_last_page_must_end_where_the_row_ends) ... ok
+test_attach_row_is_still_bound_to_the_tcp_state (test_resume_inside_store.ResumeInsideStorePins.test_attach_row_is_still_bound_to_the_tcp_state) ... ok
+test_attach_row_is_still_bound_to_the_visible_page (test_resume_inside_store.ResumeInsideStorePins.test_attach_row_is_still_bound_to_the_visible_page) ... ok
+test_bootstrap_on_recorded_store_page_composes_the_store_board (test_resume_inside_store.ResumeInsideStorePins.test_bootstrap_on_recorded_store_page_composes_the_store_board) ... ok
+test_every_slot_must_carry_its_own_item (test_resume_inside_store.ResumeInsideStorePins.test_every_slot_must_carry_its_own_item) ... ok
+test_only_the_first_boundary_may_use_the_attach_row (test_resume_inside_store.ResumeInsideStorePins.test_only_the_first_boundary_may_use_the_attach_row) ... ok
+test_only_the_newest_board_before_attach_is_offered (test_resume_inside_store.ResumeInsideStorePins.test_only_the_newest_board_before_attach_is_offered) ... ok
+test_page_indicator_must_agree_with_page_top (test_resume_inside_store.ResumeInsideStorePins.test_page_indicator_must_agree_with_page_top) ... ok
+test_recorded_rows_are_the_home_page_the_resume_attached_to (test_resume_inside_store.ResumeInsideStorePins.test_recorded_rows_are_the_home_page_the_resume_attached_to) ... ok
+test_recorded_screen_binds_only_the_row_of_its_own_page (test_resume_inside_store.ResumeInsideStorePins.test_recorded_screen_binds_only_the_row_of_its_own_page) ... ok
+test_same_turn_other_page_sharing_one_name_does_not_bind (test_resume_inside_store.ResumeInsideStorePins.test_same_turn_other_page_sharing_one_name_does_not_bind) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.773s
+
+OK

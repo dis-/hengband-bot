@@ -1,0 +1,19 @@
+test_travel_interrupted_store_await (unittest.loader._FailedTest.test_travel_interrupted_store_await) ... ERROR
+
+======================================================================
+ERROR: test_travel_interrupted_store_await (unittest.loader._FailedTest.test_travel_interrupted_store_await)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_travel_interrupted_store_await
+Traceback (most recent call last):
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\loader.py", line 137, in loadTestsFromName
+    module = __import__(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\identify-tail-1027\tests\test_travel_interrupted_store_await.py", line 16, in <module>
+    from tests.test_input_executor import FaithfulHookGame, command_screen
+ModuleNotFoundError: No module named 'tests'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
