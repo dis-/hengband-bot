@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.town_pack_budget import find_pressure_sale
+from hengbot.town_pack_budget import find_pressure_sale, native_travel_fits
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
@@ -5135,14 +5135,7 @@ class TownMixin:
     def _town_travel_key(
         self, snapshot: Snapshot, goal: Position, macro: str, reason: str
     ) -> str | None:
-        """Progress-based gate shared by every native-travel leg (stores, Home,
-        the dungeon entrance). Travel is re-issued after an interruption (a
-        monster, a nudge Escape) as long as it got CLOSER to the goal since the
-        last issue; TOWN_TRAVEL_STALL_LIMIT issues with no progress latch a
-        fallback to BFS walking for that goal (the game rejects travel over an
-        unknown approach). The latch clears when the goal changes or the floor
-        does. Near goals just walk — a travel round-trip costs more than the
-        last couple of steps."""
+        """Bound native travel by observed progress; otherwise use BFS walking."""
         route_kind = "entrance" if reason == "town:travel-entrance" else "store"
         family = self._claim_family_of(reason)
         work_id = f"route:{route_kind}:{goal.y},{goal.x}"
@@ -5150,6 +5143,9 @@ class TownMixin:
             self._offer_execution_no_step(
                 producer=family, work_id=work_id, cause=cause,
             )
+        if not native_travel_fits(snapshot):
+            no_route("pack-budget-floor-pickup")
+            return None
         if goal not in snapshot.grids:
             # An undisclosed goal cannot support native travel.  The emitted
             # grid set is not, however, an authoritative projection of

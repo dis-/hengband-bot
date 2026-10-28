@@ -11695,5 +11695,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_budget.py:floor_step_fits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "evidence": "Pure observed floor-pickup slot estimate for walking/native travel; delegates to the same permits predicate, no command or independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_budget.py:native_travel_fits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "evidence": "Pure observed floor-pickup slot estimate for walking/native travel; delegates to the same permits predicate, no command or independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
   }
 }

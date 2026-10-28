@@ -14,6 +14,16 @@ def permits(snapshot, slots: int) -> bool:
             >= MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
+def floor_step_fits(snapshot, position) -> bool:
+    grid = snapshot.grid_at(position)
+    return grid is None or permits(snapshot, grid.object_count)
+
+
+def native_travel_fits(snapshot) -> bool:
+    # Native travel can traverse several pickup tiles before the next board.
+    return permits(snapshot, sum(grid.object_count for grid in snapshot.grids.values()))
+
+
 def incoming_slots(snapshot, item, quantity: int) -> int:
     """Conservative carry estimate using the shared exported similarity fields.
 

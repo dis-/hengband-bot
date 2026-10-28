@@ -247,6 +247,31 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         policy._chest_phase_counts = {"open": 1}
         self.assertIsNone(policy._chest_processing_key(board, []))
 
+    def test_automatic_pickup_tiles_are_budgeted_by_routes_and_the_walk_executor(self):
+        policy, board, _ = self.attached(2)
+        neighbor = policy._walkable_neighbors(board, board.player.position)[0]
+        grids = dict(board.grids)
+        grids[neighbor] = replace(grids[neighbor], object_count=1, object_tvals=(10,))
+        four = replace(board, inventory=board.inventory[:19], grids=grids)
+        self.assertNotIn(neighbor, policy._walkable_neighbors(four, four.player.position))
+        self.assertEqual(policy._step_toward(four, neighbor), "5")
+        self.assertEqual(policy.last_reason, "warning:blocked-step")
+        five = replace(four, inventory=four.inventory[:-1])
+        self.assertIn(neighbor, policy._walkable_neighbors(five, five.player.position))
+
+    def test_native_travel_cannot_hide_automatic_pickups_between_boards(self):
+        for freed_first in (False, True):
+            with self.subTest(freed_first=freed_first):
+                policy, board, _ = self.attached(2)
+                neighbor = policy._walkable_neighbors(board, board.player.position)[0]
+                grids = dict(board.grids)
+                grids[neighbor] = replace(grids[neighbor], object_count=1, object_tvals=(10,))
+                board = replace(board, inventory=board.inventory[:18 if freed_first else 19], grids=grids)
+                goal = policy._town_map.store_position(STORE_HOME)
+                macro = "\x1b`n(."
+                key = policy._town_travel_key(board, goal, macro, "shop:travel")
+                self.assertEqual(key, macro if freed_first else None)
+
     def test_pressure_deposits_preserve_reservations_and_purpose_purchases(self):
         policy, board, _ = self.attached(2)
         candidate = policy._find_home_deposit(board)

@@ -5,6 +5,7 @@ from hengbot.item_reservation import (
     claim_candidate_memo, decision_memo, decision_caches_enabled,
 )
 from hengbot.town_work import town_work_decision
+from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 
 from collections import Counter, deque
@@ -17348,7 +17349,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         pickup_reason: str,
         trigger_reason: str,
     ) -> str | None:
-        from hengbot.town_pack_budget import permits
         if len(snapshot.inventory) >= PACK_CAPACITY or not permits(snapshot, 1):
             return None
         here = snapshot.grid_at(snapshot.player.position)
@@ -19933,6 +19933,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if key in floor:
                 neighbor = Position(ny, nx)
                 grid = snapshot.grids.get(neighbor)
+                if not floor_step_fits(snapshot, neighbor):
+                    continue
                 if self._on_town_border(snapshot, neighbor) and not (
                     grid is not None and grid.has_entrance
                 ):
