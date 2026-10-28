@@ -69,9 +69,19 @@ def find_pressure_deposit(policy, snapshot):
                                        policy._pending_disposal_slot}), None)
 
 
-def overflow_key(policy, snapshot):
-    key = relief_key(policy, snapshot)
-    return key if key is not None else policy._town_overflow_destroy_key(snapshot)
+def pressure_sales(policy, snapshot):
+    """Only the fallback sale after normal selectors and Home relief fail."""
+    store = snapshot.store
+    if (store is None or store.store_type == STORE_HOME
+            or store.store_type in policy._store_sale_refused
+            or PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS
+            or (policy._home_available(snapshot) and not policy._home_is_full(snapshot)
+                and not policy._home_deposit_abandoned)):
+        return []
+    return [item for item in snapshot.inventory
+            if pressure_deposit(policy, snapshot, item)
+            and policy._store_accepts_sale(store.store_type, item)
+            and policy._item_signature(item) not in policy._unsellable_items]
 
 
 def relief_key(policy, snapshot):
@@ -80,7 +90,7 @@ def relief_key(policy, snapshot):
     Keep the normal route/operation owners, refusal latches and visit bounds.
     A deposit/sale of a partial reserved stack cannot free a slot.
     """
-    if not snapshot.in_town or (
+    if not policy._home_knowledge_current or not snapshot.in_town or (
             PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS):
         return None
     disposable = policy._overflow_disposal_item(snapshot)
@@ -92,18 +102,27 @@ def relief_key(policy, snapshot):
         key = _relief_route(policy, snapshot, STORE_HOME, deposit)
         if key is not None:
             return key
-    for item in snapshot.inventory:
-        if not pressure_deposit(policy, snapshot, item):
-            continue
+    organization = policy._find_town_organization_surplus(snapshot)
+    candidates = ([organization] if organization is not None else []) + [
+        item for item in snapshot.inventory if pressure_deposit(policy, snapshot, item)]
+    for item in dict.fromkeys(candidates):
         store = policy._town_organization_sale_store(snapshot, item)
         if store is not None:
             key = _relief_route(policy, snapshot, store, item)
             if key is not None:
                 return key
+    return _use_key(policy, snapshot)
+
+
+def _use_key(policy, snapshot):
+    hostiles = policy._physical_hostiles(snapshot)
     for consume in (
-            lambda: policy._stat_restore_quaff_key(snapshot, []),
-            lambda: policy._experience_potion_quaff_key(snapshot, []),
-            lambda: policy._stat_gain_quaff_key(snapshot, [])):
+            lambda: policy._town_producer_entry("_stat_restore_quaff_key",
+                lambda: policy._stat_restore_quaff_key(snapshot, hostiles), board=snapshot),
+            lambda: policy._town_producer_entry("_experience_potion_quaff_key",
+                lambda: policy._experience_potion_quaff_key(snapshot, hostiles), board=snapshot),
+            lambda: policy._town_producer_entry("_stat_gain_quaff_key",
+                lambda: policy._stat_gain_quaff_key(snapshot, hostiles), board=snapshot)):
         key = consume()
         if key is not None:
             return key
@@ -116,7 +135,8 @@ def _relief_route(policy, snapshot, store, item):
         if snapshot.store.store_type != store:
             return None
         if store == STORE_HOME:
-            return policy._home_deposit_key(snapshot, item)
+            return policy._town_producer_entry("_open_home_deposit_key",
+                lambda: policy._open_home_deposit_key(snapshot), family=family, board=snapshot)
         return policy._store_sale_entry_key(snapshot, item, "shop:batch-sell")
     if policy._town_store_blocked_under_applicable_bound(store):
         return None

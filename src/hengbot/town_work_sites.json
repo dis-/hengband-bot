@@ -330,7 +330,7 @@
       "quest-service"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b093546d27e3b0c448dffd5d152c077c23983a51344e561ce126cd447ed204af"
+    "ast_sha256": "e253ecd2123cdbf4d14e68c2437fe03d7415457eedf79535c88d2e5d9e4f6d9d"
   },
   "equipment_mutation.py:EquipmentMutationExecutor.request_wield": {
     "classification": "adapter",
@@ -339,7 +339,7 @@
       "quest-service"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "387a67768183ee5b318bb223369275e88ed8c94576be9b062eba9f3889625f7a"
+    "ast_sha256": "c86e8eec868a8c3bd3a0169233cd88b87c41db542061818244d26c235c9f3186"
   },
   "equipment_mutation.py:_fuel": {
     "classification": "data",
@@ -1470,7 +1470,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "62df70746637d1b463aafe8d5863f94ed4f20a989f2c484b7a789b1f7f055b43"
+    "ast_sha256": "89690b647f182a14771a6c9cab499a1f791ba9a77e85a9374ba605e8047a3e1a"
   },
   "item_reservation.py:standalone_verdict": {
     "classification": "data",
@@ -1497,7 +1497,7 @@
       "survival"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c3ad0fbd28c58403f42b5722297d121be712b311020c4270b64f2a31e2284b4d"
+    "ast_sha256": "d4908081f204a3b4de0914aab32d924e23a14c5313855b3fdcf2fc20ca5c85fc"
   },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
@@ -2036,7 +2036,7 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "7f4d81b7dd67f54fed1b87e39dd3bb22c5a280cdbd385106ba9b123fbe2db5c2"
+    "ast_sha256": "727b3a99aca22964ffbf51ef6f0074cd78c7f067d59f55ab09fd43381fb23ef3"
   },
   "policy.py:HengbotPolicy._cursor_delta_keys": {
     "classification": "adapter",
@@ -5101,7 +5101,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "95a1318767a4514809797df879353a295730f036e5f9605da16143c68d763a86"
+    "ast_sha256": "2f46fdabd4829e7eafaf9a2d0230d3719089e232974049c0f4dabb63bd62c6a2"
   },
   "policy_home.py:HomeMixin._home_available": {
     "classification": "data",
@@ -5497,7 +5497,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "697b35af3ff4f30095790f5bab0b9a85bec71fd75936874a9a72df312db979d0"
+    "ast_sha256": "3150986f330fd8314d50f29a5f3d50bb7494c1d7a149c01f5c580617766ef77c"
   },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
@@ -6590,7 +6590,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d4af93341846d545f620d68fb6b969f182334a83e6c020d93db1d7c61021e957"
+    "ast_sha256": "1ef278027eb6a357cca02aecf0f9a0187ac7b3fbfd8b0252512fa68ad59710fc"
   },
   "policy_shop.py:ShopMixin._departure_blocking_page_operation": {
     "classification": "data",
@@ -7791,13 +7791,21 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "ac90857cf2181811af84b368fc014a013c2f52872ec37aabdc5b47e60172c6d6"
   },
+  "policy_town.py:TownMixin._town_organization_sale_store": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "2eb8825a9850a09e8ba3770932cbb66e59a837e926753e90630ddf58d44b0776"
+  },
   "policy_town.py:TownMixin._town_overflow_destroy_key": {
     "classification": "producer",
     "rows": [
       "destruction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8370d0e3c57475cabfa71e02bde99c76a936ac9878d7d73b9b6dfddb481c3e55"
+    "ast_sha256": "5ec5c0dc8ffe5a07e4af54721a4f65224469e747fc481c64282602da2ccf5805"
   },
   "policy_town.py:TownMixin._town_pack_space_ready": {
     "classification": "data",
@@ -8477,6 +8485,60 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "2199ef17444a25a7b198a7f84ab57cbcef6e4c0f1683c5837e856e19335d8ec9"
   },
+  "town_pack_budget.py:_relief_route": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "sale-address",
+      "store-approach"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "38dbf58c1f5c6da745a52136f38a78978c3fd3c00e88a7b6c8f7445c792568d9"
+  },
+  "town_pack_budget.py:_use_key": {
+    "classification": "adapter",
+    "rows": [
+      "stat-recovery"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "3c1840eedc5de643bbded97819e248701bc2347dba18e035f0eb91751437405d"
+  },
+  "town_pack_budget.py:find_pressure_deposit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "4e22149e98e9e00ffd3008550bfa3ccb54d4ae65c333cbeb2af4d7722ee53b75"
+  },
+  "town_pack_budget.py:pressure_deposit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "4715bcb3db37f85949863307726c0effedf27d154ab1c56cd18903422f605a03"
+  },
+  "town_pack_budget.py:pressure_sales": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "31ac10037bcce1de3a8e7640fff7592ec5ece0f71d6e36fa83619d01664bb207"
+  },
+  "town_pack_budget.py:relief_key": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "ab568ac464afd8d8dec22ce8f155924252c19215172f53c3bee2a24684fa8c7d"
+  },
   "town_terminal.py:_commit_curse_remove": {
     "classification": "adapter",
     "rows": [
@@ -8667,7 +8729,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "a2a3278bfbe540ac91faf8d58ed44a0e154e08c9891c705aba662d328b64b703"
+    "ast_sha256": "dfacf36ca59b2c453a9d0cc0563fd0cbd613501aa57cba56029d426ba47d542c"
   },
   "town_terminal.py:verdict_home_withdraw": {
     "classification": "data",

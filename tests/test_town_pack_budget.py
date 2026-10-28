@@ -23,7 +23,7 @@ import time
 
 from hengbot.cli import _consume_response_sequence, _ExecutorInputPort, _send_new_decision_key
 from hengbot.item_reservation import reserved_item_command, store_item_key
-from hengbot.model import STORE_HOME, TVAL_SCROLL, parse_snapshot
+from hengbot.model import STORE_HOME, STORE_TEMPLE, TVAL_SCROLL, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 from hengbot.town_pack_budget import incoming_slots, permits, pressure_deposit
@@ -106,6 +106,29 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         self.assertTrue(permits(five, 1))
         self.assertFalse(permits(five, 2))
         self.assertTrue(permits(board, 0))
+
+    def test_terminal_overflow_retries_a_legal_home_route_before_blocking(self):
+        policy, board, _ = self.attached(2)
+        key = policy._town_overflow_destroy_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+
+    def test_full_home_fallback_reaches_the_real_store_sale_selector(self):
+        policy, board, _ = self.attached(2)
+        candidate = policy._find_home_deposit(board)
+        # Constructed: Home has refused this visit. Keep all other signatures
+        # reserved so that the existing normal sale finders cannot take them.
+        policy._home_deposit_abandoned = True
+        for item in board.inventory:
+            if item.slot != candidate.slot:
+                signature = policy._item_signature(item)
+                policy._town_visit_purchases.add(signature)
+                policy._town_visit_purchase_quantities[signature] = item.count
+        raw_home = next(row for row in reversed(self.records[2]["states"])
+                        if row.get("store", {}).get("store_type") == STORE_HOME)
+        store = replace(parse_snapshot(raw_home).store, store_type=STORE_TEMPLE, items=[])
+        sale_board = replace(board, store=store)
+        self.assertIn(candidate, policy._current_store_sale_candidates(sale_board))
 
     def test_home_take_and_purchase_cannot_spend_the_fourth_slot(self):
         policy, board, _ = self.attached(1)

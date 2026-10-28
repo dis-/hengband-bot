@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.town_pack_budget import incoming_slots, permits
+from hengbot.town_pack_budget import incoming_slots, permits, pressure_sales
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -4132,6 +4132,8 @@ class ShopMixin(InStoreMixin):
             ):
                 if not self._equipment_transaction_owns_item(organization):
                     result.append(organization)
+        if not result:
+            result = pressure_sales(self, snapshot)
         return [item for item in result
                 if self._store_accepts_sale(store.store_type, item)
                 and item_available(self, snapshot, item, "shop-sell", "sell")]

@@ -12053,7 +12053,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return destroy
 
         # Last-resort overflow disposal: in town without the required expedition
-        from hengbot.town_pack_budget import overflow_key
         # free slots and no productive
         # action left (nothing to deposit, sell, buy, or fundraise), shed one
         # non-essential item so the pack can shrink and the bot can descend
@@ -12064,7 +12063,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not physical_adjacent
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
         ):
-            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: overflow_key(self, snapshot))
+            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: self._town_overflow_destroy_key(snapshot))
             if overflow_destroy is not None:
                 self._terminal_pack_space_signature = None
                 return overflow_destroy

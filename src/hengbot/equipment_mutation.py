@@ -386,7 +386,7 @@ class EquipmentMutationExecutor:
                         verdict: ReservationVerdict | None = None, policy=None) -> EquipmentMutationResult:
         slot = _SLOT_BY_KEY.get(slot_key)
         item = _worn(snapshot, slot) or slot_key
-        if not permits(snapshot, incoming_slots(snapshot, item, 1)
+        if not permits(snapshot, incoming_slots(snapshot, item, item.count)
                        if hasattr(item, "tval") else 1):
             return EquipmentMutationResult(None, "town-pack-budget")
         if verdict is None:
@@ -405,7 +405,8 @@ class EquipmentMutationExecutor:
             return EquipmentMutationResult(None, "unknown-equipment-slot")
         displaced = _worn(snapshot, target_slot)
         slots = incoming_slots(snapshot, displaced, 1) if displaced is not None else 0
-        if not permits(snapshot, slots - int(getattr(item, "count", 1) == 1)):
+        freed = int(any(carried is item and carried.count == 1 for carried in snapshot.inventory))
+        if not permits(snapshot, slots - freed):
             return EquipmentMutationResult(None, "town-pack-budget")
         main = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
         sub = next((it for it in snapshot.equipment if it.slot == "sub_hand"), None)

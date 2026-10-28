@@ -2527,12 +2527,12 @@ class TownMixin:
 
     @claims(ClaimOwner.TOWN_PLAN)
     def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
-        """Free town pack space without creating floor-item pickup loops."""
+        from hengbot.town_pack_budget import relief_key
+        key = relief_key(self, snapshot)
+        if key is not None:
+            return key
         key = self._verified_destroy_key(
-            snapshot,
-            self._overflow_disposal_item,
-            "town:destroy-overflow",
-        )
+            snapshot, self._overflow_disposal_item, "town:destroy-overflow")
         if key is not None:
             return key
         if (
