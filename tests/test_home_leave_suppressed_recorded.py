@@ -27,6 +27,7 @@ the live row 3681: 35b1cf2d posts ``("\\x1b", "home:scan-leave-store")``
 with the leave still in flight.
 """
 
+from recorded_pack_budget import pre_pack_budget_replay
 import tests  # noqa: F401 -- live runtime-file isolation
 import gzip
 import hashlib
@@ -106,6 +107,7 @@ class HomeLeaveSuppressedRecordedTest(unittest.TestCase):
         self.assertEqual(final["inventory"], {"used": 23, "free": 0})
         self.assertEqual(final["gold"], 9982)
 
+    @pre_pack_budget_replay  # W: 22 used; Light scrolls need a new slot; posted-exit subject.
     def test_outside_board_releases_the_posted_home_exit(self):
         policy, board, inflight = self.replay(PIN)
         self.assertIsNone(board.store)

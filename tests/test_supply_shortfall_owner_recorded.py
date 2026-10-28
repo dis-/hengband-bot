@@ -31,6 +31,7 @@ binding.  Under these walls every recorded decision before each pin
 reproduces (asserted below); the pinned board is the first changed response.
 """
 
+from recorded_pack_budget import pre_pack_budget_replay
 import tests  # noqa: F401 -- live runtime-file isolation
 import gzip
 import hashlib
@@ -180,6 +181,7 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
             policy._shop_selector_diagnostics.get("pack_refusal"),
             "full-pack-nonstacking")
 
+    @pre_pack_budget_replay  # W: 19 used; staff charges 13 cannot merge with charges 5/4; supplier ledger subject.
     def test_identify_staff_swap_returns_to_the_blocked_magic_shop(self):
         policy, board, key, prefix, recorded = self.replay("idstaff-0353")
         # Rows 104-126 are outside the walls' reach (Home trips the live
@@ -204,6 +206,7 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
         purchase = policy._departure_blocking_page_purchase(page_board)
         self.assertEqual(purchase.item.charges, 13)
 
+    @pre_pack_budget_replay  # W: 19 used; staff charges 13 cannot merge with charges 5/4; supplier ledger subject.
     def test_blocked_stop_without_a_required_offer_stays_closed(self):
         # Control (constructed page): with the Identify staves removed from
         # the remembered Magic page, the blocked stop is not re-routed.
@@ -214,6 +217,7 @@ class SupplyShortfallOwnerRecordedTest(unittest.TestCase):
         self.assertIn(STORE_MAGIC, policy._town_errand_plan.blocked_this_visit)
         self.assertIsNone(policy._town_procurement_progress_key(board))
 
+    @pre_pack_budget_replay  # W: 19 used; staff charges 13 cannot merge with charges 5/4; supplier ledger subject.
     def test_blocked_stop_the_plan_moved_past_stays_closed(self):
         # Control (constructed plan): the remembered Magic page still offers
         # the required 13-charge staff, but the plan no longer routes to the
