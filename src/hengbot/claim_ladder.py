@@ -335,6 +335,7 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_home_full_knowledge_key", "home-scan"),  # posted named-take prerequisite
     _decide("_shopping_approach_key", "store-router",
             ordinary=True),                                            # 6923
+    _decide("_town_overflow_relief_key", "town-plan"),
     # Its own site writes ``town:blocked:overflow-no-legal-disposal``, which
     # ranks here, not at town-plan's rewrite rung; the shop-sell
     # ``town:destroy-overflow`` it passes to ``_verified_destroy_key`` ranks

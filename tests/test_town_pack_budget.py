@@ -109,9 +109,15 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
 
     def test_terminal_overflow_retries_a_legal_home_route_before_blocking(self):
         policy, board, _ = self.attached(2)
-        key = policy._town_overflow_destroy_key(board)
+        key = policy._town_overflow_relief_key(board)
         self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
         self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+
+    def test_terminal_overflow_observes_unknown_home_stock_before_giving_up(self):
+        policy, board, _ = self.attached(2)
+        policy._invalidate_home_observation()
+        key = policy._town_overflow_relief_key(board)
+        self.assertEqual((key, policy.last_reason), ("~9\x1b", "home:request-knowledge-scan"))
 
     def test_full_home_fallback_reaches_the_real_store_sale_selector(self):
         policy, board, _ = self.attached(2)
@@ -150,6 +156,35 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         self.assertTrue(policy._store_purchase_fits_pack(five, item))
         self.assertIsNotNone(store_item_key(policy, five, "withdraw", item,
                                             "home-errand", quantity=1))
+
+    def test_recorded_atomic_withdrawal_keeps_four_slots_until_a_deposit_lands(self):
+        facts = next(d for d in reversed(self.records[1]["decisions"])
+                     if d["reason"] == "home:atomic-withdraw")
+        raw = next(row for row in reversed(self.records[1]["states"])
+                   if row["turn"] == facts["turn"] and row["type"] == "player_turn")
+        captured = parse_snapshot(raw)
+        self.assertEqual(len(captured.inventory), 19)
+        for freed_first in (False, True):
+            with self.subTest(freed_first=freed_first):
+                policy, _, _ = self.attached(1)
+                take = facts["home_atomic_withdraw"]
+                signature = tuple(take["selected_signature"])
+                policy._shopping_approach_store_type = STORE_HOME
+                policy._home_pending_item = signature
+                policy._home_pending_quantity = take["quantity"]
+                policy._home_pending_quantities[signature] = take["quantity"]
+                policy._home_page_size = 52  # recorded Home page_size
+                # Constructed control: only the already observed one-slot
+                # deposit effect differs; no promise of a later sale is credit.
+                board = (replace(captured, inventory=captured.inventory[:-1])
+                         if freed_first else captured)
+                key = policy._atomic_home_withdraw_dispatch_key(board, board.player.position)
+                if freed_first:
+                    self.assertEqual(key, "5pj5\r\x1b")
+                    self.assertIsNotNone(policy._home_atomic_withdraw_pending)
+                else:
+                    self.assertIsNone(key)
+                    self.assertIsNone(policy._home_atomic_withdraw_pending)
 
     def test_stack_merge_costs_no_slot_but_a_different_inscription_does(self):
         board = parse_snapshot(self.records[0]["states"][-1])

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.town_pack_budget import find_pressure_sale
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
@@ -2375,10 +2376,7 @@ class TownMixin:
             len(snapshot.inventory) < PACK_CAPACITY
             and self._town_order_step4_pending(snapshot)
         ):
-            # A merely tight pack is the normal-order surplus deposit (step
-            # 10), not the common full-pack deposit (step 3).  Let the town
-            # order owner finish reward/bounty work before that optional Home
-            # route can acquire the store arbiter.
+            # Bounty work precedes optional surplus deposits in the town order.
             return None
         # Stage-2 quest travel (rung #1) keeps the shortage actionable for
         # earlier scan suppression and departure gating; the rung's terminal
@@ -2526,11 +2524,13 @@ class TownMixin:
         )
 
     @claims(ClaimOwner.TOWN_PLAN)
-    def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
+    def _town_overflow_relief_key(self, snapshot: Snapshot) -> str | None:
         from hengbot.town_pack_budget import relief_key
-        key = relief_key(self, snapshot)
-        if key is not None:
-            return key
+        return relief_key(self, snapshot)
+
+    @claims(ClaimOwner.TOWN_PLAN)
+    def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
+        """Free town pack space without creating floor-item pickup loops."""
         key = self._verified_destroy_key(
             snapshot, self._overflow_disposal_item, "town:destroy-overflow")
         if key is not None:
@@ -5072,7 +5072,7 @@ class TownMixin:
                 self._town_organization_sale_store(snapshot, item) is not None
                 or self._town_organization_home_routable(snapshot, item)
             ),
-        )
+        ) or find_pressure_sale(self, snapshot)
 
     def _town_organization_home_routable(
         self, snapshot: Snapshot, item: InventoryItem

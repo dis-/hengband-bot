@@ -11621,17 +11621,6 @@
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
   },
-  "town_pack_budget.py:pressure_sales": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
-    "delegation": "Selected child owns admission and observed effects; no independent success."
-  },
   "policy_town.py:TownMixin._town_organization_sale_store": {
     "classification": "data",
     "rows": [
@@ -11678,6 +11667,31 @@
     ],
     "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
     "evidence": "Try existing useful consumption producers through their own literal terminal entries, with the actual physical hostile set.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "policy_town.py:TownMixin._town_overflow_relief_key": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "evidence": "Terminal pack-space adapter in the existing town-plan family, before destruction. Selected child owns the scan/route/deposit/sale/use effect.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_budget.py:find_pressure_sale": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."

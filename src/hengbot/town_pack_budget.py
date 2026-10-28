@@ -69,19 +69,15 @@ def find_pressure_deposit(policy, snapshot):
                                        policy._pending_disposal_slot}), None)
 
 
-def pressure_sales(policy, snapshot):
-    """Only the fallback sale after normal selectors and Home relief fail."""
-    store = snapshot.store
-    if (store is None or store.store_type == STORE_HOME
-            or store.store_type in policy._store_sale_refused
-            or PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS
+def find_pressure_sale(policy, snapshot):
+    """File an ordinary organization sale after Home relief is unavailable."""
+    if (PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS
             or (policy._home_available(snapshot) and not policy._home_is_full(snapshot)
                 and not policy._home_deposit_abandoned)):
-        return []
-    return [item for item in snapshot.inventory
-            if pressure_deposit(policy, snapshot, item)
-            and policy._store_accepts_sale(store.store_type, item)
-            and policy._item_signature(item) not in policy._unsellable_items]
+        return None
+    return next((item for item in snapshot.inventory
+                 if pressure_deposit(policy, snapshot, item)
+                 and policy._town_organization_sale_store(snapshot, item) is not None), None)
 
 
 def relief_key(policy, snapshot):
@@ -90,12 +86,17 @@ def relief_key(policy, snapshot):
     Keep the normal route/operation owners, refusal latches and visit bounds.
     A deposit/sale of a partial reserved stack cannot free a slot.
     """
-    if not policy._home_knowledge_current or not snapshot.in_town or (
-            PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS):
+    if not snapshot.in_town or permits(snapshot, 1):
         return None
     disposable = policy._overflow_disposal_item(snapshot)
     if disposable is not None and policy._junk_class(snapshot, disposable) is not None:
         return None
+    if (not policy._home_knowledge_current and policy._home_available(snapshot)
+            and not policy._home_deposit_abandoned
+            and any(pressure_deposit(policy, snapshot, item) for item in snapshot.inventory)):
+        return policy._town_producer_entry("_home_full_knowledge_key",
+            lambda: policy._home_full_knowledge_key(snapshot, leave_foreign_store=True),
+            family="home-scan", board=snapshot)
     deposit = policy._find_home_deposit(snapshot)
     if (deposit is not None and policy._entire_stack_is_surplus(snapshot, deposit)
             and policy._home_available(snapshot) and not policy._home_is_full(snapshot)):
@@ -115,6 +116,8 @@ def relief_key(policy, snapshot):
 
 
 def _use_key(policy, snapshot):
+    if snapshot.store is not None:
+        return None
     hostiles = policy._physical_hostiles(snapshot)
     for consume in (
             lambda: policy._town_producer_entry("_stat_restore_quaff_key",
