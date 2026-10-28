@@ -7515,7 +7515,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0d6df026acdbd0af766e6b08ffa9061de3d0b4c0ee4c9a94ea143d4a95edf4a3"
+    "ast_sha256": "22cd6d99f9f85ae1bb360bce50b4479461b1c0375d4efe88dc41d64710d34cdf"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_key": {
     "classification": "producer",
