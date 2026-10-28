@@ -5117,7 +5117,14 @@ class TownMixin:
                     snapshot, TownNeed(store_type, "organization-sale", "")
                 )
                 and store_type not in self._store_sale_refused
-                and store_type not in self._town_store_attempted
+                # A completed purchase/observation visit does not prove that
+                # this surplus was offered for sale. Reconsider that outlet
+                # under pack pressure before falling back to destruction.
+                # Actual sale refusals above still close it on every page.
+                and (
+                    store_type not in self._town_store_attempted
+                    or self._town_pack_space_shortage(snapshot)
+                )
             ):
                 return store_type
         return None
