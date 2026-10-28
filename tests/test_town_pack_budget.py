@@ -213,6 +213,26 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         self.assertEqual(incoming_slots(board, replace(item, inscription="other"), 1), 1)
         self.assertEqual(incoming_slots(board, replace(item, known=False), 1), 1)
 
+    def test_consumable_merge_ignores_protocol_recharge_representation(self):
+        policy, board, _ = self.attached(0)
+        carried = next(item for item in board.inventory if item.is_potion)
+        carried = replace(carried, count=2, timeout=None)
+        four = replace(board, inventory=[carried, *board.inventory[1:19]])
+        incoming = replace(carried, slot="z", count=3, timeout=0)
+        self.assertEqual(incoming_slots(four, incoming, 1), 0)
+        self.assertIsNotNone(store_item_key(policy, four, "withdraw", incoming,
+                                            "home-errand", quantity=1, address="a"))
+        # Different inscriptions still cannot share a pack slot.
+        self.assertEqual(incoming_slots(four, replace(incoming, inscription="other"), 1), 1)
+
+    def test_four_free_slots_do_not_start_overflow_relief(self):
+        policy, board, _ = self.attached(2)
+        candidate = policy._find_home_deposit(board)
+        self.assertTrue(pressure_deposit(policy, board, candidate))
+        four = replace(board, inventory=board.inventory[:19])
+        self.assertFalse(pressure_deposit(policy, four, candidate))
+        self.assertIsNone(policy._town_overflow_destroy_key(four, try_relief=True))
+
     def test_staff_use_cannot_unstack_into_the_reserve(self):
         policy, board, _ = self.attached(0)
         staff = next(item for item in board.inventory if item.tval == 55 and item.count > 1)

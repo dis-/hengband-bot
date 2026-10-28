@@ -5,7 +5,7 @@ zero-cost operation may repair an already over-budget pack.
 """
 
 from hengbot.policy_constants import MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY
-from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD, TVAL_WAND
+from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
 
 
 def permits(snapshot, slots: int) -> bool:
@@ -38,12 +38,16 @@ def incoming_slots(snapshot, item, quantity: int) -> int:
         return 1
     fields = (
         "tval", "sval", "aware", "known", "fully_known", "pval", "fuel",
-        "timeout", "is_ego", "is_artifact", "is_cursed", "is_broken",
+        "is_ego", "is_artifact", "is_cursed", "is_broken",
         "to_h", "to_d", "to_a", "ac", "damage_dice_num", "damage_dice_sides",
         "known_flags", "inscription",
     )
     return int(not any(
         carried.count + quantity <= 99
+        # Consumables have no recharge state. Home protocol-2 catalogues
+        # export 0 where protocol-3 pack observations omit it (None).
+        and (item.tval in {TVAL_FOOD, TVAL_POTION, TVAL_SCROLL}
+             or carried.timeout == item.timeout)
         and all(getattr(carried, field, 0) == getattr(item, field, 0)
                 for field in fields)
         for carried in snapshot.inventory
@@ -58,7 +62,7 @@ def pressure_deposit(policy, snapshot, item) -> bool:
     """
     return bool(
         snapshot is not None and snapshot.in_town
-        and not permits(snapshot, 1)
+        and PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS
         and item.known and item.aware and not item.is_equipment
         and not item.is_bounty and not item.is_cursed
         and (item.is_potion or item.is_scroll or item.is_wand_staff
@@ -99,7 +103,8 @@ def relief_key(policy, snapshot):
     Keep the normal route/operation owners, refusal latches and visit bounds.
     A deposit/sale of a partial reserved stack cannot free a slot.
     """
-    if not snapshot.in_town or permits(snapshot, 1):
+    if (not snapshot.in_town
+            or PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS):
         return None
     disposable = policy._overflow_disposal_item(snapshot)
     if disposable is not None and policy._junk_class(snapshot, disposable) is not None:

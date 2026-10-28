@@ -8602,7 +8602,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "4715bcb3db37f85949863307726c0effedf27d154ab1c56cd18903422f605a03"
+    "ast_sha256": "c13759835f17dc70f8a1476b61283ab0744d9c58b777e18dc4cea4f4361a7b3e"
   },
   "town_pack_budget.py:relief_key": {
     "classification": "adapter",
@@ -8613,7 +8613,7 @@
       "store-approach"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "b2aaa8e16a7eae22482662a839ca389d1b1251f19ce9e569a6d99dc3b0eac66a"
+    "ast_sha256": "bb9a38be7fa9fa788e29d90a45b8826ded91d535c0f3374388f284859da010bd"
   },
   "town_terminal.py:_commit_curse_remove": {
     "classification": "adapter",
