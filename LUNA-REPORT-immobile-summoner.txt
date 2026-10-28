@@ -450,3 +450,118 @@ src/とtests/はコミット済みでクリーン。未実行・未完了の指�
 この日本語報告はPythonのPath.write_text(..., encoding="utf-8")で追記した。
 検証ログと補助スクリプトは validation/immobile-summoner-1027/r5-* にローカル保持し、
 コミットには含めない。
+
+
+ラウンド6（2026-10-28、ISSUE #47）
+
+状態：完了。最新ローカルmainを統合し、構造検査の失敗を修正した。
+依頼ファイルの参照Issueは #117、作業識別子はユーザー指定の #47。
+git fetch origin後、origin/mainより先行していた最新ローカルmainを最初にマージした。
+基準main: 809dbbdb797c44407026d3902c38c9a51522879f
+統合コミット: 229b5f03e（生成データ2ファイルの競合は統合後のソースから再生成して解決）。
+早期実装コミット・検証対象HEAD: d402c1541d8bb61786d05ba6852458f797a2aa1b
+
+指摘の再現と実際の原因
+開始時の既存HEAD 796a65af3でも、_immobile_summoner_keyの方向キー生成5か所は
+すべて既に_step_towardを経由しており、生の_direction_key呼び出しはなかった。
+main統合直後の指定検査で、依頼記載どおり
+policy_combat.py:_immobile_summoner_key: expected 0, found 2 を再現した。
+ただし、この同じエラーメッセージは移動キーと警告集合参照の両方に使われる。
+scan_sourceを分けて確認した結果、実際には移動キーが7か所で正常、警告参照が13か所で、
+当該関数の_warning_refused_cells直接参照2か所が余分だった。
+方向キーを再度変更する必要はなく、この2か所の所有権違反を修正した。
+
+修正と挙動の維持
+既存の警告管理所有者_refresh_warning_avoidanceにreleased_cells引数を追加し、
+召喚者の古い回避領域と、撤退不能時の回避解除という2か所の処理を委譲した。
+解除する集合から交戦所有者・警告ラッチ・麻痺敵所有者の集合を除く演算は従来と同一。
+released_cells指定時は、この集合差分だけを適用して戻る。
+巻物などの移動物資が尽きていても、召喚者が他の所有者の回避を解除しない点を維持した。
+通常の警告更新時だけが物資に応じた回避解除を判断し、共通step gateが移動を裁定する。
+方向キー5か所、50ゲームターンの待機期限、帰還・探索・撤退不能時の攻撃の方針は変更なし。
+MOVEMENT_BYPASSES / WARNING_READ_BYPASSES、検査コード、既存テストの期待値は変更なし。
+最終censusは移動7か所・警告参照11か所で成功した。
+
+保守性と行数
+警告セル集合の直接参照と重複した集合差分処理を戦闘側から撤去し、既存所有者へ集約した。
+警告所有者への追加は小さな引数分岐のみで、無関係なリファクタリングはしていない。
+今回の修正でpolicy_combat.pyは4477→4469行（8行減）、policy.pyはmain統合後20448行のまま。
+その他の行数上限対象ファイルも今回の修正では増やしていない。
+生成manifestとruntime indexを再生成・コミットした。
+
+追加ピンと差し戻しの証拠
+tests.test_summoner_avoidance_ownership に2件を追加。
+物資あり／なしの双方で、警告・交戦・麻痺敵の回避が重なるセルを保護し、
+召喚者だけが所有するセルは解除、無関係なセルは保持することを検証した。
+警告ラッチが空でも召喚者の回避を解除できることも検証した。
+新しい解除分岐だけをメモリ上で無効にすると、それぞれassertion失敗2件／1件、エラー0件。
+通常実行は2件とも成功。証跡: r6-pin-reverts.json。
+ソースのハンク差し戻し検証は別の一時worktreeで実行し、通常リプレイのソースとは分離した。
+
+検証（指定Python 3.13、PYTHONPATH=src;tests;scripts）
+・専用ピン＋構造検査＋近接攻撃検査＋追加ピン: Ran 52 tests in 17.234s、OK。
+  tests.test_step_gate_lint / tests.test_melee_site_lint /
+  tests.test_immobile_summoner_recorded / tests.test_summoner_avoidance_ownership。
+・r4列挙の全モジュール: Ran 90 tests in 1788.164s、OK。
+  tests.test_pure_decision_telemetry / tests.test_declarations_r14 /
+  tests.test_overweight_home_unreachable_recorded / tests.test_guardian_recall_pingpong_recorded /
+  tests.test_protocol3_client / tests.test_esp_threat_rest_recorded /
+  tests.test_loot_before_recall_recorded / tests.test_morivant_travel_retired_recorded /
+  tests.test_town_terminal_declarations。
+  指定の42Fリプレイとラウンド1～5のピンも成功、既存期待値の変更なし。
+・preflight（base main、構造検査・行数上限を含む）: 終了0。
+・mutation_check --record（base main）: 終了0、同じHEADとsrc/testsツリーの成功記録あり。
+  ガード標準の増分検証で既存成功記録3d32ebc88を再利用し、今回変化した3ハンクは検出した。
+・fast_tier（base main、--shards 4）: 終了0。
+・git diff --check: 成功。
+・派生scope/modulesと全件スイートは指示どおり実行していない。
+
+ガード出力
+preflight.py <本worktree> main:
+[preflight] NOTE line-cap: src/hengbot/policy.py has 20448 lines, over its cap 20431; put new code in another file (exempt)
+[preflight] NOTE line-cap: src/hengbot/cli.py has 5942 lines, over its cap 5941; put new code in another file (exempt)
+[preflight] NOTE line-cap: src/hengbot/policy_combat.py has 4469 lines, over its cap 4303; put new code in another file (exempt)
+[preflight] PREFLIGHT OK: 19 changed files, 0 findings ( vs main)
+
+mutation_check.py <同一HEADの一時worktree> main --tests tests.test_immobile_summoner_recorded tests.test_summoner_avoidance_ownership --record:
+[mutation] 18 source hunks, tests: tests.test_immobile_summoner_recorded tests.test_summoner_avoidance_ownership
+[mutation] incremental: green record at 3d32ebc88; hunks unchanged since then are skipped
+[mutation] GREEN EARLIER src/hengbot/claim_goal_typing.py:602 (("summoner:cornered-approach", R, WALK_TARGET),)
+[mutation] GREEN EARLIER src/hengbot/cli.py:364 ("summoner:wait-recall",)
+[mutation] GREEN EARLIER src/hengbot/policy.py:5 (from hengbot.summoner_wait import hold_key, summoner_wait_decision)
+[mutation] GREEN EARLIER src/hengbot/policy.py:2657 (@summoner_wait_decision)
+[mutation] GREEN EARLIER src/hengbot/policy.py:10913 (if not snapshot.in_town:)
+[mutation] GREEN EARLIER src/hengbot/policy.py:11350 (and not self._summoner_never_approaches(snapshot, monster))
+[mutation] GREEN EARLIER src/hengbot/policy.py:11470 (return hold_key(self, snapshot, summoners))
+[mutation] GREEN EARLIER src/hengbot/policy.py:12797 (and not self._summoner_never_approaches(snapshot, monster))
+[mutation] GREEN EARLIER src/hengbot/policy.py:19145 (perceived = self._perceived_hostiles(snapshot))
+[mutation] GREEN EARLIER src/hengbot/policy.py:19186 (return hold_key(self, snapshot, perceived, continuing=True))
+[mutation] GREEN EARLIER src/hengbot/policy.py:19275 (return hold_key(self, snapshot, converging))
+[mutation] GREEN EARLIER src/hengbot/policy_combat.py:1 (from hengbot.summoner_wait import wait_expired)
+[mutation] caught     src/hengbot/policy_combat.py:253 (def _summoner_never_approaches(): test_approach_resets_only_the_summoner_that_moved, test_cached_pack_wait_does_not_adopt_an_unrelated_far_summoner, test_choke_wait_clock_clears_on_other_action_
+[mutation] caught     src/hengbot/policy_observation.py:1418 (def _refresh_warning_avoidance(): test_approach_resets_only_the_summoner_that_moved, test_cached_pack_wait_does_not_adopt_an_unrelated_far_summoner, test_choke_wait_clock_clears_on_other_action_
+[mutation] caught     src/hengbot/policy_observation.py:1429 (avoidance so the user-sanctioned forced walk can route through.): test_constructed_no_exit_also_attacks, test_constructed_quest_approaches_then_melees, test_expired_cornered_wait_keeps_fighting_after_our_own_approach, test_rec
+[mutation] GREEN EARLIER src/hengbot/summoner_wait.py:1 ("""Own the evidence collected while waiting for summoners at a choke.")
+[mutation] GREEN EARLIER src/hengbot/town_arbiter.py:164 (classification("combat", ("melee", "ranged:", "summoner:ranged-kill",)
+[mutation] GREEN EARLIER src/hengbot/town_terminal.py:1675 ('_immobile_summoner_key': 'dungeon-only: avoid or leave a summoner kno)
+[mutation] MUTATION OK: 0 of 18 hunks are not pinned by a test
+[mutation] recorded for d402c154
+
+fast_tier.py <本worktree> main --shards 4:
+[fast] 1742 fast tests (<2.0s in 809dbbdb7) + 2 changed modules, 4 shards
+[fast] excluded 50 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-i_f5tet6)
+Failures: none
+Errors: none
+Total: 1778 tests, 152.5s
+
+実行中の調整と終了状態
+最初の構造検査失敗は上記原因を再現したもの。追加テスト作成時のfixture名の誤りは修正済み。
+修正前ソースで開始したr4モジュール実行は自分のプロセスだけ終了させ、修正後に再実行した。
+深いパスへの一時worktree作成はWindowsのパス長制限で失敗したため、短い専用パスで再試行した。
+失敗した作成先に残骸はなく、検証用一時worktreeも削除済み。
+開始したすべてのチェックは終了し、未実行・未完了の指定チェックはない。
+バックグラウンドのチェック・待機・finalizerは残していない。他の作業ツリーとそのプロセスは変更なし。
+src/とtests/はコミット済みでクリーン。
+日本語報告はPythonのPath.write_text(..., encoding="utf-8")で追記し、UTF-8の再読込を確認した。
+ログ・補助スクリプトはvalidation/immobile-summoner-1027/r6-*にローカル保持し、コミット対象から除外。
