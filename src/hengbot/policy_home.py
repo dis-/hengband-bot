@@ -148,7 +148,7 @@ class HomeMixin:
 
     @claims(ClaimOwner.SHOP_SELL)
     def _overweight_surplus_sale_key(self, snapshot: Snapshot) -> str | None:
-        """Last-resort, recorded disposal after Home relief proves impossible."""
+        """Dispose surplus; only observed Home room can preempt selection."""
         state = self._overweight_surplus_disposal
         if state is None or not snapshot.in_town or self._equipment_transaction_owned_items:
             return None
@@ -172,9 +172,10 @@ class HomeMixin:
                 or snapshot.player.food_state not in {"normal", "full", "gorged"}
                 or self._physical_hostiles(snapshot)):
             return None
-        if (not state.get("pending", {}).get("posted")
-                and self._find_home_deposit(snapshot) is not None
-                and self._weight_relief_selection(snapshot).route == "deposit"):
+        if ((self._home_capacity_observation is not None or snapshot.store is not None)
+                and not state.get("pending", {}).get("posted")
+                and self._weight_relief_selection(snapshot).route == "deposit"
+                and self._find_home_deposit(snapshot) is not None):
             self._overweight_surplus_disposal = None
             return None
         if not self._inventory_overweight(snapshot):

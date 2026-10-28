@@ -288,6 +288,8 @@ class TownTurnArbiter:
         # Declaration continuations added after the frozen S2a registration
         # table still spend their producing family's arbitration budget.
         explicit = {
+            "shop:opening-route-page": "shop-buy",
+            "opening-q1:equip-light": "equipment-txn",
             "shop:purchase-deferred": "shop-buy",
             "shop:outpost-fare-earned-leave": "shop-sell",
             "shop:outpost-fare-seek-sale-leave": "shop-sell",
@@ -298,6 +300,8 @@ class TownTurnArbiter:
         }
         if normalized in {"no-wait:escape-scroll", "no-wait:flee"}:
             return "survival"
+        if normalized.startswith("magic-eater:absorb"):
+            return "quest-request"
         if normalized in explicit:
             return explicit[normalized]
         for entry in self._ordered:

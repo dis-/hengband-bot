@@ -4300,7 +4300,7 @@
       "loot-exploration"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ff4478ba90a241acf9f2e06bad25e4e75770037594b8df2c59e6bb4de88f2297"
+    "ast_sha256": "3bae4e73167d6654649d2b03525a3d19038f0e3930d82e6631b88d21af2a1f9c"
   },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
@@ -5439,7 +5439,7 @@
       "overweight-surplus"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "936b4dacf7141c3110007ee86960fb4f4b039166d8f3455a722b44bf4e9696e9"
+    "ast_sha256": "1e593ba944aa574d5517fbb8951ec86805348f2c28ebadfa6d5e108ceba657af"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
     "classification": "data",
@@ -6013,7 +6013,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0a3cf6b085fc6fa3b225b85cb4ffba9de1de02e9b4253338958100e2ecbef16e"
+    "ast_sha256": "296486449053e90b50987a826787563e27ca0b67bcacb359f4f89de32227d494"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": {
     "classification": "producer",
@@ -6024,7 +6024,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9428d71316c0da1ce6d50a5e43b5deaa25eb0b794d296482bfc66f2c80636518"
+    "ast_sha256": "9e2d47a0ebdc27d2b2bb5a629614aeeb312749db2778f7954ed2f8677498cc8a"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": {
     "classification": "producer",
@@ -6035,7 +6035,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c19966f1339e252866b0e4d44ae7a133dae60206f303ef141655d54befb2b90c"
+    "ast_sha256": "c46b500a734e09ffe547c0c786294ff7a5847f0fd1dadd6c7aa2366125e3c687"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -8503,7 +8503,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "01667e8c9f5135c16b6c0c3ad9e9321c5ebf22053cb211d495d47b60cee1228e"
+    "ast_sha256": "8e00417e4fc9bf12a630b466eba38f4431c787759b43bc5ea94ec76f773190a5"
   },
   "town_arbiter.py:TownTurnArbiter.ownership_family": {
     "classification": "data",

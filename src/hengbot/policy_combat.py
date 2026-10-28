@@ -267,7 +267,7 @@ class CombatMixin:
             return False
         return wait_expired(self, snapshot, monster)
 
-    @claims(ClaimOwner.COMBAT)
+    @claims(ClaimOwner.COMBAT, census_only=True)
     def _immobile_summoner_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:

@@ -89,7 +89,7 @@ class OpeningRouteMixin:
             pages[snapshot.store.store_type] = snapshot.store
         return pages
 
-    @claims(ClaimOwner.SHOP_BUY)
+    @claims(ClaimOwner.SHOP_BUY, census_only=True)
     def _opening_q1_store_key(self, snapshot):
         """Survey every emitted shelf page before choosing the affordable kit."""
         page = snapshot.store
@@ -217,14 +217,14 @@ class OpeningRouteMixin:
         # A cached letter is never an address on a different observed page.
         return next((item for item in snapshot.store.items if item == ware), None)
 
-    @claims(ClaimOwner.QUEST_REQUEST)
+    @claims(ClaimOwner.QUEST_REQUEST, census_only=True)
     def _opening_q1_stop(self, detail):
         self._opening_q1_failure = detail
         self.last_reason = "quest:blocked:opening-route"
         # An empty envelope cannot activate a building beneath the player.
         return ""
 
-    @claims(ClaimOwner.QUEST_REQUEST)
+    @claims(ClaimOwner.QUEST_REQUEST, census_only=True)
     def _opening_q1_town_key(self, snapshot, hostiles):
         if not self._opening_q1_active(snapshot) or not snapshot.in_town:
             return None

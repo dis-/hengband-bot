@@ -48,6 +48,10 @@ def _functions(tree):
 def _producers(tree):
     return {function.name for function in _functions(tree)
             if any(isinstance(decorator, ast.Call) and _name(decorator.func) == 'claims'
+                   and not any(keyword.arg == 'census_only'
+                               and isinstance(keyword.value, ast.Constant)
+                               and keyword.value.value is True
+                               for keyword in decorator.keywords)
                    for decorator in function.decorator_list)}
 
 
