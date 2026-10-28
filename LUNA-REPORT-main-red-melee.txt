@@ -1,0 +1,76 @@
+ISSUE #47: main の近接攻撃 lint 修復
+
+対象タスク: LUNA-TASK-main-red-melee.txt
+基準: main = 4a75410a832ac29361f422be72a1e05cf450a4a0
+ソース・テストの最終コミット: e192ab2d2（初回コミット: 80bb8d0f4）
+
+変更内容
+- Q1 の町での回復分岐に _can_fight_in_dungeon(0) による拒否時の早期 return を追加。
+  町の floor_key は (0, 0, 0)。既存の判定は通常の町では True を返すため、隣接敵への近接攻撃を維持する。
+  判定関数の実装は変更していない。
+- MELEE_SITE_CENSUS を、承認された実数 20 → 22 に更新。他のテスト期待値は変更していない。
+- opening-route のマージ 0f58e0e35 により増えた生成箇所は、policy_opening.py の
+  _opening_q1_town_key 内の「買い物前の町戦闘」と「負傷時の町回復」の2箇所。
+  買い物側は既存ガード付きで、回復側を今回修正した。全22箇所がガード済み。
+- 新規回帰テストは既存の記録済み盤面・準備ハーネスを再利用する。
+  Q1受諾状態と装備した灯りを記録済みの負傷・隣接敵盤面に組み合わせた構成条件を明記した。
+  choose_key 経由で通常の町ではキー「3」・理由 melee、NO_MELEE を与えた反実仮想の町では
+  空キー・理由 quest:blocked:opening-route・詳細 recovery-hostile-unreachable を確認する。
+  メソッドの置換や判定結果のモックは使用していない。
+- 保守性: 独自ルールを増やさず既存の単一判定を再利用した。
+  既存の item-sink 登録条件を保つ早期 return とし、期待値の追加変更を避けた。
+  生成ASTマニフェスト2ファイルも最終コードに同期した。行数制限対象ファイルの変更はない。
+
+検証経過
+- 修正前の tests.test_melee_site_lint: 8件中1件失敗。回復側の314行目が未ガードだった。
+- 新規テストを修正前のコードで実行: NO_MELEE の拒否ケースが失敗し、キー「3」が返る問題を再現した。
+- 初回ガード適用後: lint と opening-route 全4モジュール、36件成功（250.721秒）。
+- 最初の preflight: 失敗。生成マニフェストの更新が必要だったことと、
+  条件式へのガード追加が既存 item-sink 登録の枝条件に一致しなかったことを検出した。
+  登録の期待値を変更せず、早期 return に修正してマニフェストを再生成した。
+- 最終コードの lint・item-sink・新規回帰テスト: 27件成功（190.396秒）。
+- town_work_manifest.py --write: 903 candidates, 22964 sites, zero unmapped。
+
+最終検証（対象 e192ab2d2269f668ab169ca268a8704262f46b89、全コマンド終了コード0）
+使用 Python: C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe
+PYTHONPATH=src;tests;scripts
+基準引数は main。開始時・最終確認時とも 4a75410a832ac29361f422be72a1e05cf450a4a0。
+
+1. preflight.py <この作業ツリー> main
+[preflight] PREFLIGHT OK: 5 changed files, 0 findings (main-red-melee-1028 vs main)
+
+2. mutation_check.py <この作業ツリー> main --tests
+   tests.test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_q1_town_recovery_melee_obeys_the_dungeon_predicate --record
+[mutation] waiting: the merge gate is running its full suite (gate step-gate-census-1028, since 17:43:11); owner decision 2026-10-25
+[mutation] the merge gate's full suite finished; starting after 15 min
+[mutation] 1 source hunks, tests: tests.test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_q1_town_recovery_melee_obeys_the_dungeon_predicate
+[mutation] caught     src/hengbot/policy_opening.py:310 (if not self._can_fight_in_dungeon(0):): test_q1_town_recovery_melee_obeys_the_dungeon_predicate
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for e192ab2d
+
+3. fast_tier.py <この作業ツリー> main --shards 4
+[fast] 1680 fast tests (<2.0s in 67f6218ca) + 2 changed modules, 4 shards
+[fast] excluded 50 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-40flj0o2)
+Failures: none
+Errors: none
+Total: 1695 tests, 163.5s
+
+4. 最終コードでの指定モジュール再実行
+   python -m unittest tests.test_melee_site_lint tests.test_opening_route_pins
+   tests.test_opening_route_recorded tests.test_opening_route_r2_recorded
+   tests.test_opening_route_r3_recorded
+....................................
+----------------------------------------------------------------------
+Ran 36 tests in 116.697s
+
+OK
+
+完了状態
+- 指定チェックはすべて完了。未実行の指定チェックはない。
+- 派生スコープ／派生モジュールとフルスイートは実行していない。
+- mutation check はゲート解除まで15分待機し、解除後に成功・記録保存した。
+- 本作業が起動したチェック・待機処理はすべて終了済み。バックグラウンド処理の残留なし。
+- src/ と tests/ に未コミット変更はない。
+- 作業開始時から存在した未追跡タスクファイルと2ログは、そのまま保持した。
+- 本レポートは Python の write_text(encoding="utf-8") で作成し、UTF-8の日本語を読み戻して確認した。
