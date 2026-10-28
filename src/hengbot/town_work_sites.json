@@ -2094,7 +2094,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "a9ef1c76e8dbd6156109ec2d6657f15c6907b4127b6a43f28e4ef0365a64fd4b"
+    "ast_sha256": "af7bb7de20fe94a040817bc66b2d84a09f57b565c6580875a5e6c3236c1c6690"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -2151,7 +2151,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "682922037c09734a19e24be277e6aa3ced9259eff02da205ce644627e1409037"
+    "ast_sha256": "148d3266815913bfa5ac14ba0b19150b6e87d4d96ad5ad5e14c3ab17ce883f31"
   },
   "policy.py:HengbotPolicy._device_food_reserve_slot": {
     "classification": "data",
@@ -3901,7 +3901,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "eb790d2ae37b9852888023fc52022a74a3c8a30ebd8f3af3c70a21fb6641f49d"
+    "ast_sha256": "de354096160a951bf863cb57451966adb02d0f83d22fd03a896f6eb974cd7286"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4290,6 +4290,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "e81788c458c2e50c6dfcdd11d77970432963032e7f2ae40730012d036345f8be"
   },
+  "policy_combat.py:CombatMixin._perceived_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "No independent success; existing wait or avoidance owner.",
+    "ast_sha256": "1014d752a5e6773b8a027ab248419ce0df0bc4a3b1f27cdc83eb61eedec19401"
+  },
   "policy_combat.py:CombatMixin._predicted_damage": {
     "classification": "data",
     "rows": [
@@ -4360,7 +4368,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "97689c06e42d5a4e260e591d96073dcc7c2168f7c6d27069c0f9cc458515ae34"
+    "ast_sha256": "af99c87d963c4d210ccbb1d6ef6b224202a1b1415afbb005923105348e810464"
   },
   "policy_combat.py:CombatMixin._update_combat_outcome": {
     "classification": "producer",
@@ -8309,13 +8317,21 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "bc97ab02677388fcdb5b50d4d0e9675941ae45526245c950c67258cbbdc05feb"
   },
-  "summoner_reachability.py:known_walking_separation": {
+  "summoner_wait.py:hold_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait or avoidance owner.",
+    "ast_sha256": "369fdd47810be3405b5e5257d7959cb48687af0f48cbd947a5a24a93e2dad2a3"
+  },
+  "summoner_wait.py:wait_expired": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "00765b5d625944484d26743fb928b3bd3b0c70493019822d50d0376a54a897a5"
+    "delegation": "No independent success; existing wait or avoidance owner.",
+    "ast_sha256": "bdbf13f2e914cb294fe28d31a3d102432454eebd85628d49c6aa21fe78b1e458"
   },
   "town_arbiter.py:TownArbiterMixin._emission_item_state": {
     "classification": "data",

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.summoner_reachability import known_walking_separation
+from hengbot.summoner_wait import wait_expired
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -256,7 +256,7 @@ class CombatMixin:
     def _summoner_never_approaches(
         self, snapshot: Snapshot, monster: MonsterState
     ) -> bool:
-        """Use race knowledge and the observed walking route, not a timeout."""
+        """Use immobile race knowledge or evidence from our own choke wait."""
         if not monster.can_summon:
             return False
         knowledge = self._monrace_knowledge.get(monster.race_id)
@@ -265,7 +265,7 @@ class CombatMixin:
             return True
         if {"PASS_WALL", "KILL_WALL"} & flags:
             return False
-        return known_walking_separation(snapshot, monster.position)
+        return wait_expired(self, snapshot, monster)
 
     def _immobile_summoner_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

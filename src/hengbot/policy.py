@@ -5,6 +5,7 @@ from hengbot.item_reservation import (
     claim_candidate_memo, decision_memo, decision_caches_enabled,
 )
 from hengbot.town_work import town_work_decision
+from hengbot.summoner_wait import hold_key, summoner_wait_decision
 
 from collections import Counter, deque
 import random
@@ -2658,6 +2659,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     @town_work_decision
     @reservation_decision
+    @summoner_wait_decision
     def choose_key(self, snapshot: Snapshot) -> str | None:
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
@@ -11468,8 +11470,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._detected_threat_hold_position = player.position
                 if snapshot.turn - hold[1] > DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
                     return None
-            self.last_reason = "summoner:hold-choke"
-            return WAIT_KEY
+            return hold_key(self, snapshot, summoners)
 
         # A material threat that cannot be attacked from the current square
         # must not fall through to descent or exploration.  Live on Orc cave
@@ -19186,8 +19187,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             # Keep the bounded choke owner ahead of loot if the unseen pack's
             # distances briefly leave the convergence window.
-            self.last_reason = "summoner:hold-choke"
-            return WAIT_KEY
+            return hold_key(self, snapshot, perceived)
         detected = [
             monster
             for monster in self._perceived_hostiles(snapshot)
@@ -19276,8 +19276,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # its start turn and learn the choke position on re-entry.
                 self._detected_threat_hold_position = snapshot.player.position
             if snapshot.turn - hold[1] <= DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
-                self.last_reason = "summoner:hold-choke"
-                return WAIT_KEY
+                return hold_key(self, snapshot, converging)
             return None
         if route is not None and committed:
             if snapshot.player.position != route[1]:

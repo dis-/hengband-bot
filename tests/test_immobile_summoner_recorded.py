@@ -29,6 +29,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
+from hengbot.summoner_wait import SUMMONER_WAIT_GAME_TURNS
 from tests import policy_fixtures as fixtures
 from tests import test_input_executor as executor_pins
 
@@ -358,12 +359,32 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertFalse(wall.enterable)
         policy = self._policy(board)
         self.assertIsNone(policy._monster_path_distance(board, monster.position))
-        key = policy.choose_key(board)
+        board, key = self._until_wait_ends(policy, board, record["board"])
         self.assertEqual((str(key), policy.last_reason), ("rg", "summoner:recall"))
         self.assertIn(monster.position, policy._immobile_summoner_memory[1])
         # No safe useful target or stairs exist on these observed boards.
         # _post supplies a CONSTRUCTED scroll prompt / command response.
         self._post(policy, board, key, record["board"])
+
+    def _until_wait_ends(self, policy, board, raw=None):
+        # DECLARED CONSTRUCTED: unchanged monsters, HP and ammo on later turns.
+        # A restarted glass capture first tries three ineffective cursor shots.
+        # Only command/scroll/wait boundaries are constructed; fixtures stay raw.
+        waited = 0
+        for step in range(30):
+            later = replace(board, turn=board.turn + step * 10)
+            key = policy.choose_key(later)
+            if policy.last_reason == "summoner:hold-choke":
+                waited += 1
+                if raw is not None:
+                    boundary = copy.deepcopy(raw)
+                    boundary["turn"] = later.turn
+                    self._post(policy, later, key, boundary)
+            elif not policy.last_reason.startswith("ranged:"):
+                self.assertGreater(waited, 0)
+                self.assertLess(step, 40)  # cli.LOOP_WINDOW
+                return later, key
+        self.fail("summoner wait did not end before the loop guard")
 
     def test_glass_first_capture_leaves_and_posts(self):
         self._assert_glass_capture(0)
@@ -381,6 +402,43 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
                                inventory=[fixtures.item("r", 70, 11)])
         channel = "detected_monsters" if detected else "visible_monsters"
         return replace(board, **{channel: [replace(getattr(board, channel)[0], race_id=915)]})
+
+    def test_closer_summoner_restarts_its_wait_clock(self):
+        board = self._walking_summoner_corridor()
+        policy = self._policy(board)
+        for delta in (0, 10, 20, 30, 40):
+            current = replace(board, turn=board.turn + delta)
+            self.assertEqual(str(policy.choose_key(current)), "5")
+        monster = replace(board.visible_monsters[0], position=Position(10, 14), distance=4)
+        closer = replace(board, turn=board.turn + 50, visible_monsters=[monster])
+        self.assertEqual((str(policy.choose_key(closer)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+        identity = (monster.index, monster.race_id)
+        self.assertEqual(policy._summoner_wait.started[identity], (closer.turn, 4))
+        before = replace(closer, turn=closer.turn + SUMMONER_WAIT_GAME_TURNS - 1)
+        self.assertEqual((str(policy.choose_key(before)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+        expired = replace(closer, turn=closer.turn + SUMMONER_WAIT_GAME_TURNS)
+        policy.choose_key(expired)
+        self.assertNotEqual(policy.last_reason, "summoner:hold-choke")
+        self.assertEqual(policy._summoner_wait.started, {})
+
+    def test_choke_wait_clock_clears_on_other_action_and_floor_change(self):
+        board = self._walking_summoner_corridor()
+        policy = self._policy(board)
+        policy.choose_key(board)
+        self.assertTrue(policy._summoner_wait.started)
+        adjacent = replace(board.visible_monsters[0], position=Position(10, 11), distance=1)
+        policy.choose_key(replace(board, turn=board.turn + 10, visible_monsters=[adjacent]))
+        self.assertEqual(policy.last_reason, "melee")
+        self.assertEqual(policy._summoner_wait.started, {})
+        restarted = replace(board, turn=board.turn + 100)
+        policy.choose_key(restarted)
+        self.assertEqual(next(iter(policy._summoner_wait.started.values())), (restarted.turn, 5))
+        new_floor = replace(board, turn=board.turn + 200, floor_key=(3, 24, 0))
+        self.assertEqual(str(policy.choose_key(new_floor)), "5")
+        self.assertEqual(next(iter(policy._summoner_wait.started.values())), (new_floor.turn, 5))
+        self.assertEqual(policy._summoner_wait.refused, {})
 
     def test_glass_constructed_walkable_control_keeps_wait(self):
         board = self._walking_summoner_corridor()
@@ -417,14 +475,16 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
     def test_glass_constructed_quest_does_not_wait_for_unreachable_mobile_summoner(self):
         board = self._walking_summoner_corridor(wall=True, quest=True)
         policy = self._policy(board)
-        self.assertEqual((str(policy.choose_key(board)), policy.last_reason), ("4", "explore"))
+        later, key = self._until_wait_ends(policy, board)
+        self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
 
     def test_glass_constructed_detected_quest_releases_cached_hold(self):
         board = self._walking_summoner_corridor(wall=True, quest=True, detected=True)
         policy = self._policy(board)
         policy._detected_threat_hold = (board.floor_key, board.turn)
         policy._detected_threat_hold_position = board.player.position
-        self.assertEqual((str(policy.choose_key(board)), policy.last_reason), ("4", "explore"))
+        later, key = self._until_wait_ends(policy, board)
+        self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
         self.assertIsNone(policy._detected_threat_hold)
 
     def test_glass_constructed_pass_wall_control_keeps_wait(self):
@@ -443,15 +503,18 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("5", "summoner:hold-choke"))
 
-    def test_glass_constructed_opened_route_retires_avoidance(self):
+    def test_glass_constructed_closer_summoner_retires_avoidance(self):
         board = self._walking_summoner_corridor(wall=True)
         policy = self._policy(board)
         policy._visit_counts.update({position: 1 for position in board.grids})
-        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+        later, key = self._until_wait_ends(policy, board)
+        self.assertEqual((str(key), policy.last_reason),
                          ("rr", "summoner:recall"))
         grids = dict(board.grids)
         grids[Position(10, 12)] = fixtures.grid(10, 12, in_view=True, lit=True)
-        opened = replace(board, grids=grids, turn=board.turn + 10)
+        # Opening terrain alone is no longer evidence; the monster approaches.
+        closer = replace(board.visible_monsters[0], position=Position(10, 14), distance=4)
+        opened = replace(board, grids=grids, turn=later.turn + 10, visible_monsters=[closer])
         self.assertEqual((str(policy.choose_key(opened)), policy.last_reason),
                          ("5", "summoner:hold-choke"))
         self.assertEqual(policy._immobile_summoner_memory[1], {})

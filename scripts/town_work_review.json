@@ -11555,15 +11555,37 @@
     "observer": "ordinary batch sale observation",
     "delegation": "no independent success"
   },
-  "summoner_reachability.py:known_walking_separation": {
+  "summoner_wait.py:hold_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Existing dungeon choke wait and stationary summoner avoidance.",
+    "evidence": "dungeon-only: shared adapter for existing summoner choke wait; records only its awaited monsters and returns the existing wait key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait or avoidance owner."
+  },
+  "summoner_wait.py:wait_expired": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
-    "context": "Race knowledge used by stationary summoner avoidance and choke eligibility.",
-    "evidence": "Pure boolean terrain reachability helper; no command or independent progress. Unknown cells remain traversable.",
+    "context": "Existing dungeon choke wait and stationary summoner avoidance.",
+    "evidence": "pure helper: boolean from a summoner wait clock, preserves its avoidance verdict; no command or independent progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait or avoidance owner."
+  },
+  "policy_combat.py:CombatMixin._perceived_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Existing dungeon choke wait and stationary summoner avoidance.",
+    "evidence": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait or avoidance owner."
   }
 }

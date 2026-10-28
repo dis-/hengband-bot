@@ -743,5 +743,7 @@
   "policy_town.py:TownMixin._outpost_return_fare": "pure helper: existing game fare to reserve outside Outpost; no key or independent work.",
   "policy_town.py:TownMixin._outpost_fare_recovery_key": "delegated adapter: emergency surplus sale/approach and inn return use existing gated owners; named terminal stops grant no work success.",
   "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention.",
-  "summoner_reachability.py:known_walking_separation": "pure helper: boolean proof of walking separation through known barriers; unknown terrain remains traversable, no command or independent progress."
+  "summoner_wait.py:hold_key": "dungeon-only: shared adapter for existing summoner choke wait; records only its awaited monsters and returns the existing wait key.",
+  "summoner_wait.py:wait_expired": "pure helper: boolean from a summoner wait clock, preserves its avoidance verdict; no command or independent progress.",
+  "policy_combat.py:CombatMixin._perceived_hostiles": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress."
 }
