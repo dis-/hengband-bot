@@ -12,7 +12,8 @@ that many dots. Absent index_width means 1. No palette size is truncated.
 Only grid_map runs from this state supply terrain, never remembered policy
 maps, found_items, look results, or another frame. Lighting is the emitter's
 canonical *symbol* index, not physical illumination. Legacy protocols use the
-standard symbol. Without this state's panel there is no tile projection.
+standard symbol. The frame's unique on-map '@' anchors its panel; a received
+state panel must agree with that anchor. Ambiguous screens have no tiles.
 Nothing in the decision path imports this module.
 """
 
@@ -77,10 +78,38 @@ def _encode_index(index, width):
     return "".join(reversed(digits))
 
 
-def spectator_tiles(state: Mapping[str, object], screen: Mapping[str, object]) -> dict | None:
-    """Copy only received, on-screen cells using this state's panel offset."""
+def _screen_panel(state, screen):
+    """Resolve only this frame's anchor, never a previous frame's offset."""
+    anchors = [(row, col)
+               for row, line in enumerate(screen.get("lines", ())[:screen["height"] - 1])
+               if row >= ROW_MAP
+               for col, glyph in enumerate(line[COL_MAP:screen["width"]], COL_MAP)
+               if glyph == "@"]
+    if len(anchors) != 1:
+        return None, "player_glyph_count"
+    player = state.get("player", {})
+    if any(type(player.get(axis)) is not int for axis in ("y", "x")):
+        return None, "player_position"
+    row, col = anchors[0]
+    derived = {"row_min": player["y"] - (row - ROW_MAP),
+               "col_min": player["x"] - (col - COL_MAP)}
     panel = state.get("panel")
-    if not isinstance(panel, Mapping):
+    if panel is None:
+        return derived, "derived"
+    if not isinstance(panel, Mapping) or any(
+            type(panel.get(key)) is not int or panel[key] != value
+            for key, value in derived.items()):
+        return None, "mismatch"
+    return panel, "state"
+
+
+def spectator_tiles(state: Mapping[str, object], screen: Mapping[str, object],
+                    *, panel_counts=None) -> dict | None:
+    """Copy received cells; optionally count panel outcomes per projection attempt."""
+    panel, outcome = _screen_panel(state, screen)
+    if panel_counts is not None:
+        panel_counts[outcome] = panel_counts.get(outcome, 0) + 1
+    if panel is None:
         return None
     height = max(0, screen["height"] - 2)
     width = max(0, screen["width"] - COL_MAP)
