@@ -1,0 +1,14 @@
+Source: immutable 2026-10-28 overflow capture state.jsonl.gz and bot-decisions.jsonl.gz.
+States copied without mutation, in original order. Decisions project only named facts, plus claim.owner.
+No Python checkpoint, transport response to the new key, or character calibration is included.
+Attach/replay boundary and constructed controls: tests/test_town_pack_budget.py.
+Fixture SHA256: 794486145fba9316f799e3ec33b331b07e4e479b9dfedcf3470cacdb769cdbdf
+n1b-life-213\20261028-172102-town-blocked-overflow-no-legal-disposal
+  state.jsonl.gz SHA256 addeddc596581c90afad02aeb107de3a682aea2246d283d3867c2b2cea1e7711
+  bot-decisions.jsonl.gz SHA256 76c064cadcd5c8bf435a7870b3ae70662ddaab7f465cac82b9421d7d34f686b0
+n1b-life-214\20261028-195400-town-blocked-overflow-no-legal-disposal
+  state.jsonl.gz SHA256 eb68bd5abec01a9e7686265d714be76201e1c06e2b8b3d437bb83afc1736425e
+  bot-decisions.jsonl.gz SHA256 ee2e41e01c31e416c953b6ddd21d795a20b4d5e3cdb551fa5676bc53d991b39b
+20261028-205420-town-blocked-overflow-no-legal-disposal
+  state.jsonl.gz SHA256 ec9d615dca149ec73ea29521ae095d11e1a84ef936dff3dc8ec4d910541dd0ef
+  bot-decisions.jsonl.gz SHA256 ab890ec92c1d32c0f634bc96abaffa6d2332d5494f291a520ef01e72b196e6dd

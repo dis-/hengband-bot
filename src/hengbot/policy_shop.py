@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.town_pack_budget import incoming_slots, permits
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -2462,36 +2463,10 @@ class ShopMixin(InStoreMixin):
         return item
 
     def _store_purchase_fits_pack(self, snapshot: Snapshot, item: StoreItem) -> bool:
-        """Mirror the emitted portion of Hengband's full-pack carry predicate.
-
-        ``purchase-order.cpp:204`` calls ``check_store_item_to_inventory``;
-        ``inventory-object.cpp:341-355`` accepts a full pack only when
-        ``ItemEntity::is_similar`` accepts the incoming stack.  The comparison
-        below covers every identity/modifier field exported for both shelf and
-        pack items and the game's ordinary 99-item stack ceiling
-        (``item-entity.cpp:994-1013``).  Being conservative when an unexported
-        flag differs is safe: it can only defer a purchase, never type one into
-        a pack which the game will refuse.
-        """
-        if len(snapshot.inventory) < PACK_CAPACITY:
-            return True
+        """Apply the common town budget and conservative carry estimate."""
         quantity = min(item.count, max(1, self._purchase_quantity(snapshot, item)))
-        fields = (
-            "tval", "sval", "aware", "known", "fully_known", "pval",
-            "fuel", "timeout", "is_ego", "is_artifact", "is_cursed",
-            "is_broken", "to_h", "to_d", "to_a", "ac",
-            "damage_dice_num", "damage_dice_sides", "known_flags",
-        )
-        defaults = {"known_flags": frozenset()}
-        return any(
-            pack.count + quantity <= 99
-            and all(
-                getattr(pack, field) == getattr(item, field, defaults.get(field, 0))
-                for field in fields
-            )
-            and (not pack.inscription or pack.inscription == item.inscription)
-            for pack in snapshot.inventory
-        )
+        slots = incoming_slots(snapshot, item, quantity)
+        return permits(snapshot, slots) and (len(snapshot.inventory) < PACK_CAPACITY or slots == 0)
 
     @staticmethod
     def _purchase_diagnostic_category(item: StoreItem) -> str:

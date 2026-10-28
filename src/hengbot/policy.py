@@ -5,6 +5,7 @@ from hengbot.item_reservation import (
     claim_candidate_memo, decision_memo, decision_caches_enabled,
 )
 from hengbot.town_work import town_work_decision
+from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 
 from collections import Counter, deque
@@ -12052,18 +12053,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if destroy is not None:
             return destroy
 
-        # Last-resort overflow disposal: in town without the required expedition
-        # free slots and no productive
-        # action left (nothing to deposit, sell, buy, or fundraise), shed one
-        # non-essential item so the pack can shrink and the bot can descend
-        # again. Without this the bot cannot re-enter the dungeon (pack-full
-        # blocks descent) and wanders the town forever. Skipped mid-fight.
+        # Exhaust preserving overflow remedies before terminal destruction.
         if (
             snapshot.in_town
             and not physical_adjacent
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
         ):
-            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: self._town_overflow_destroy_key(snapshot))
+            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: self._town_overflow_destroy_key(snapshot, try_relief=True))
             if overflow_destroy is not None:
                 self._terminal_pack_space_signature = None
                 return overflow_destroy
@@ -17355,6 +17351,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:
             return None
+        if not permits(snapshot, here.object_count):
+            return None
         if self._floor_pile_is_junk(snapshot, here):
             return None
         if here.position in self._deferred_loot:
@@ -17384,10 +17382,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             here.position,
             here.object_count,
         )
-        # Hengband picks a lone floor item immediately, but a pile opens the
-        # floor-item chooser and waits for one selection per item. Each accepted
-        # selection rebuilds the list, so repeatedly choosing its first entry
-        # drains the whole pile in the same command cycle.
         if here.object_count > 1:
             return PICKUP_KEY + ("a" * here.object_count)
         return PICKUP_KEY
@@ -19936,6 +19930,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if key in floor:
                 neighbor = Position(ny, nx)
                 grid = snapshot.grids.get(neighbor)
+                if not floor_step_fits(snapshot, neighbor):
+                    continue
                 if self._on_town_border(snapshot, neighbor) and not (
                     grid is not None and grid.has_entrance
                 ):
