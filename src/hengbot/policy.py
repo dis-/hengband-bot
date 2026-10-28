@@ -11772,12 +11772,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._escape_state.enter("return", self.last_reason)
             return town_return
 
-        # Identification can consume the same scarce gold as the mining setup.
-        # While fundraising, finish Treasure Detection scrolls and a digging
-        # tool first; retain any pending identification request for afterwards.
+        # Acquire the Home catalogue before a crowded pack blocks town work.
         if (
             snapshot.store is None
-            and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and self._active_quest_id(snapshot) is None
             and "quest-request" not in self._town_turn_arbiter._retired
             and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
@@ -11832,6 +11829,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                 return key
 
+        # Identification shares the mining budget: secure detection and a tool
+        # first, retaining pending identification requests for afterwards.
         if not (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and not self._fundraising_supplies_ready(snapshot)
