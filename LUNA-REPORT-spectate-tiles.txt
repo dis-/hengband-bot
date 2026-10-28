@@ -1,0 +1,96 @@
+ISSUE #47 観戦用タイル層（設計段階2）実施報告
+
+対象・実装
+- 開始時に main をマージ確認済み（Already up to date）。基点は
+  809dbbdb797c44407026d3902c38c9a51522879f。
+- 設計書は親リポジトリ plans/DESIGN-spectate-tiles-1028.md の4.1・6を確認。
+- src/hengbot/spectator_tiles.py に観戦専用の投影を独立させた。
+  同じ state_line の panel と grid_map から、画面の行1〜height-2、列13〜width-1だけを出力。
+  地形は受信済みの mimic ID、明暗はパレットの表示用インデックス。
+  cells.m を visible_monsters / detected_monsters に結び、幻覚・不明なら種族IDを出さない。
+  品は cells.t の先頭だけ。found_items からの補完はしない。
+  プレイヤーの位置を真偽値で表し、地形不明のマスは空にする。
+- tiles は origin=[1,13]、palette、rows。索引の順は
+  ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/。
+  空は .。64種類超では index_width を追加し、全マスを固定桁のbase64にする。
+  既定は1桁。2桁なら空は ..。仕様はモジュールのdocstringに明記。
+- panel 欠落時は tiles 自体を省略する。画面なしでも省略する。
+  player は毎フレーム出力し、受信した race_id / class_id からprefの英語名に変換。
+  例: Zombie / Warrior / Magic-Eater。未知のIDは名前を推測しない。
+- 原子的なスナップショットと、投稿確認後の保留フレームの両方に同じ投影を渡す。
+  判断経路からは参照しない。既存の方策・降下条件には変更なし。
+
+保守性
+- 投影、画面範囲への切り出し、索引符号化、種族・職業の名前変換を小さな専用モジュールに分離。
+- 明暗の検証には既存の protocol.grid_lighting を再利用。
+- JSON状態の解析は一度だけ行い、既存の観戦詳細と共有する。
+- 行数制限対象ファイルは変更していない。preflight が再生成したマニフェストはコミット済み。
+
+検証
+- 既存 tests/test_spectator*.py: 59件成功、169.379秒、終了コード0。既存の期待値は変更なし。
+- 新規 tests.test_spectator_tiles: 7件成功、0.063秒、終了コード0。
+  構成状態で地形・lit/dark・可視/感知モンスター・先頭の品・プレイヤー・空・範囲外の切り捨て、
+  panel移動、幻覚、未知種族、panel欠落、64/65種類の境界、旧プロトコル、pref名、
+  スナップショットと保留フレームの一致を検証。
+- mutation_check . main --record: MUTATION OK、4ハンクすべて取消時に失敗、終了コード0。
+  実装コミット b4e3cf61c と src/hengbot・tests のツリーに成功記録あり。
+- preflight初回: マニフェスト再生成による1件のみ失敗。生成物を db52ad3e7 でコミット。
+- preflight再実行: PREFLIGHT OK、変更4ファイル、指摘0、終了コード0。構造検査・行数制限を含む。
+- fast_tier初回（base main、4並列）: 1749件、146.8秒、終了コード1。
+  tests.test_input_executor.AcceptedObservationRetryPins.
+  test_single_segment_ack_gets_post_ack_observation_grace のみ失敗。
+  screenの再取得が想定より1回多かった。同テストの単独再実行は0.042秒で成功（終了コード0）。
+- fast_tier再実行（base main、1並列）: 1739件成功、304.7秒、終了コード0。
+  マージ検査の待機制御で約30分待った後に開始。失敗・エラー・クラッシュはいずれもなし。
+  待機中にmainが進み、再実行時のmainは aafb6d41e275ae639454844c04233555feae363c。
+  初回の時間制限テストの失敗も含め、テストや実装を変更せずに再実行して成功した。
+- 派生スコープ／派生モジュール検査は指示どおり実行していない。
+
+容量測定（バイト、gzipは観戦サーバと同じlevel 5）
+- 観戦2体の停止時キャプチャの state.jsonl.gz 全行を使用（A:81行、B:92行）。
+  A: viewing-captures-1028/20261028-205420-town-blocked-overflow-no-legal-disposal
+  B: viewing-captures-1028/n1b-life-214/20261028-195400-town-blocked-overflow-no-legal-disposal
+- 各キャプチャの control-at-stop.json.gz の画面を固定して、各記録状態からフレームを再構成。
+  画面は213列×68行、attrsなし。time=1000、key=6、reason=size-measurementを固定し、
+  他の観戦詳細も同じ関数で作り、変更前（追加キーなし）／変更後を比較した。
+  これは保存・転送サイズの比較であり、その時点の実際のカラー観戦フレームの計測ではない。
+- 記録173行すべてで top-level panel が欠落している。
+  現行記録での実測では tiles は省略され、player のみ追加される。
+  このため、地図層が付いた場合は panel.row_min=0, col_min=0 を明示的に補った仮定試算を別記。
+  この仮定を本番コードに入れたり、panelを他の応答から流用したりしていない。
+
+viewing-a（81状態の平均）
+  変更前: 非圧縮 18300.89 / gzip 2696.47 bytes
+    16MiB上限で約916コマ、8MiB整理直後で約458コマ
+  変更後・記録どおり: 非圧縮 18350.89 / gzip 2729.69 bytes
+    変更前からの増分: 非圧縮 +50.00 / gzip +33.22 bytes
+    16MiB上限で約914コマ、8MiB整理直後で約457コマ
+  panel=(0,0)仮定: 非圧縮 32430.98 / gzip 3737.56 bytes
+    変更前からの増分: 非圧縮 +14130.09 / gzip +1041.09 bytes
+    16MiB上限で約517コマ、8MiB整理直後で約258コマ
+  仮定試算のtiles単独増分: 非圧縮 +14080.09 / gzip +1007.87 bytes
+
+viewing-b（92状態の平均）
+  変更前: 非圧縮 17869.70 / gzip 2522.21 bytes
+    16MiB上限で約938コマ、8MiB整理直後で約469コマ
+  変更後・記録どおり: 非圧縮 17919.70 / gzip 2554.13 bytes
+    変更前からの増分: 非圧縮 +50.00 / gzip +31.92 bytes
+    16MiB上限で約936コマ、8MiB整理直後で約468コマ
+  panel=(0,0)仮定: 非圧縮 31925.03 / gzip 3486.30 bytes
+    変更前からの増分: 非圧縮 +14055.33 / gzip +964.09 bytes
+    16MiB上限で約525コマ、8MiB整理直後で約262コマ
+  仮定試算のtiles単独増分: 非圧縮 +14005.33 / gzip +932.17 bytes
+
+- コマ数は floor(上限 / 平均非圧縮フレーム長) の概算。保存ログ自体はgzipではない。
+  実際には可変長の完全な行を残すため変動し、上限到達時は約半分へ整理される。
+- 再実行用Python: C:/hengband-backups/spectate-tiles-1028-measure.py
+  数値JSON: C:/hengband-backups/spectate-tiles-1028-size.json
+  作業ツリーで指定のPythonと PYTHONPATH=src;tests;scripts を使う。
+
+残る条件・制限
+- 現行の記録ではpanelがないため、実運転でのタイル層付きカラー画面のサイズ、
+  地図と文字画面の同時性・食い違い率は確認できない。仮定試算を実測とは扱わない。
+  同じ状態にpanelが届くようになった時点で、この観戦用投影が利用可能になる。
+- 段階3以降の画像配布・対応表・ブラウザ表示は今回の対象外。
+- 開始した検査はすべて終了を確認済み。検査や待機プロセスを残していない。
+  元から存在したタスクファイルと実行ログ3ファイルは未追跡のまま保全する。
