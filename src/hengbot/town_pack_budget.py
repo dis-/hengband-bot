@@ -14,6 +14,12 @@ def permits(snapshot, slots: int) -> bool:
             >= MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
+def below_floor(snapshot) -> bool:
+    """Distinguish an actual reserve deficit from a refused additional slot."""
+    return (snapshot.in_town
+            and PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS)
+
+
 def floor_step_fits(snapshot, position) -> bool:
     if not getattr(snapshot, "in_town", False):
         return True
@@ -61,16 +67,14 @@ def pressure_deposit(policy, snapshot, item) -> bool:
     reservations and purpose purchases keep their existing authorities.
     """
     from hengbot.town_pack_headroom import preservable
-    return bool(snapshot is not None and snapshot.in_town
-                and PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS
+    return bool(snapshot is not None and below_floor(snapshot)
                 and preservable(policy, snapshot, item))
 
 
 def relief_key(policy, snapshot):
     """Terminal overflow delegates to the same proactive town owner."""
     from hengbot.town_pack_headroom import key
-    if (not snapshot.in_town
-            or PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS):
+    if not below_floor(snapshot):
         return None
     disposable = policy._overflow_disposal_item(snapshot)
     if disposable is not None and policy._junk_class(snapshot, disposable) is not None:

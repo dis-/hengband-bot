@@ -155,6 +155,19 @@ class TownPackHeadroomTest(harness.ProductionHarness):
         self.assertEqual(policy._town_overflow_destroy_key(view, try_relief=True), "qt")
         self.assertEqual(policy.last_reason, "stat-gain:quaff")
 
+    def test_overflow_waits_for_its_posted_home_census_instead_of_blocking(self):
+        policy, board, _ = self.attached()
+        extra = replace(board.inventory[1], slot="t", inscription="spare")
+        view = replace(board, inventory=[*board.inventory, extra])
+        policy._invalidate_home_observation()
+        request = policy._town_overflow_destroy_key(view, try_relief=True)
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        self.assertTrue(policy.confirm_key_posted(request))
+        self.assertEqual(policy._town_overflow_destroy_key(
+            replace(view, turn=view.turn + 1), try_relief=True), "")
+        self.assertEqual(policy.last_reason, "home:scan-await-observation")
+        self.assertIsNone(policy._town_blocked_reason)
+
     def test_four_free_slots_with_full_home_routes_sale_before_shopping(self):
         policy, board, record = self.attached()
         policy._home_capacity_observation = (240, 240, policy._effective_town_id(board))

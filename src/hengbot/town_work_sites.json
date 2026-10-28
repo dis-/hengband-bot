@@ -8587,7 +8587,7 @@
       "store-approach"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "9783abd766ef82473f4bd36439db31e4ec9ba5fec35b48ffdfee2fc3b0778cb3"
+    "ast_sha256": "e3a1c314eb7258164a84102cbcc6c7d684029e09bd6fa9f907143a4beac23fb1"
   },
   "town_pack_headroom.py:_relief_route": {
     "classification": "adapter",
@@ -8633,7 +8633,7 @@
       "store-approach"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "0cec6ea3571c12c54b39173c8c1b65d44f15e14e7069c18406f5bca5415f4ff7"
+    "ast_sha256": "dd364c0e798ed17db457ce5d5453cb8efc49e8404fad418545fbd2a7ac42fc07"
   },
   "town_pack_headroom.py:preservable": {
     "classification": "data",

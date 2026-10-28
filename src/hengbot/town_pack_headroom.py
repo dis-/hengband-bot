@@ -61,7 +61,16 @@ def acquisition_waits(policy, snapshot):
 
 def key(policy, snapshot):
     """Use beneficial supplies, preserve surplus, sell, then destroy junk."""
-    if not eligible(policy, snapshot) or policy._home_knowledge_scan_inflight:
+    from hengbot.town_pack_budget import below_floor
+    if not eligible(policy, snapshot):
+        return None
+    if policy._home_knowledge_scan_inflight:
+        # Optional work can continue beside a census, but an actual overflow
+        # must await that census rather than declaring preserving relief absent.
+        if below_floor(snapshot):
+            return policy._town_producer_entry("_home_full_knowledge_key",
+                lambda: policy._home_full_knowledge_key(snapshot, leave_foreign_store=True),
+                family="home-scan", board=snapshot)
         return None
     result = _use_key(policy, snapshot)
     if result is not None:
