@@ -181,3 +181,87 @@ mutation_check 結果抜粋:
 最終更新: 2026-10-27T23:51:46+09:00
 指定ガードと必須モジュールの検証は未完了。完了扱いにはしない。
 ガードは依頼どおりマージゲートを待機させ、こちらから停止していない。
+
+
+ラウンド3（2026-10-28、ISSUE #47）
+
+対象と方針
+作業識別子は依頼どおり #47。タスク本文が参照するIssueは #117。
+指定されたLUNA-TASK-immobile-summoner-r3.txtを読み、ラウンド2の
+run_guards.py / run_required_scope.py / mutation_checkが残っていないこと、
+src/とtests/がクリーンであることをプロセス一覧とgit statusで確認して開始した。
+「動かない敵と同じに扱う」という判断に従い、通常歩行では来られない召喚者にも
+従来の回避・離脱と、撤退不能時の討伐方針を適用した。
+
+取り込みと実装
+origin/mainをfetchしたうえで、より新しいローカルmainを取り込んだ。
+基準main: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+マージコミット: 39c592754。
+競合はscripts/town_work_manifest.json.gzのみ。指定Python 3.13で再生成した。
+製品・テストの早期コミット: 1e86d5095。
+最終製品コミット: f79615daec3a1ab630637477809858bea9395b49
+
+共通述語_summoner_never_approachesだけを拡張し、snapshotを全呼び出しへ渡した。
+非召喚者は対象外。NEVER_MOVEは引き続き接近不能と判断する。
+PASS_WALLまたはKILL_WALLを持つ移動個体は壁越しでも待機対象となる。
+それ以外は既存の_monster_path_distanceで観測地形上の歩行経路を確認し、
+経路がない召喚者を不動個体と同じ処理に渡す。新しい地形探索実装や閾値は追加していない。
+可視敵の通常戦闘、射撃前の待機、検知敵の集団待機と保存された待機にも同じ述語を使う。
+経路が開いた個体が引き続き見えている場合は、回避記憶を解除して通常戦闘へ戻す。
+初回preflightは、新しいmainの構造検査において、前ラウンドの討伐処理の
+直接方向キー生成を検出して失敗した。既存テストの期待値を変更せず、
+2か所の近接攻撃を既存_step_towardへ統一して解消した（f79615dae）。
+この統一だけを差し戻すと既存構造テストが失敗し、復元すると成功する。
+証跡はr3/revert-step-entry.log。初回ガードの全結果はr3/initial/に保存した。
+回避、探索、戦利品、階段、テレポート・レベル、帰還、討伐の射撃・接近、緊急回復は
+ラウンド1の既存処理を再利用した。キーの += 連結や既存テストの期待値変更はない。
+
+保存盤面の検証
+20261027-202502 / 202605 / 202707の3原本から末尾stateを無加工抽出し、
+tests/fixtures/glass-summoner-20261027.json.gzとして追加した。
+原本とfixtureのSHA256は同名の.provenance.txtへ記録した。
+3盤面ともプレイヤーは(y=29,x=50)、召喚者はrace 915、(y=26,x=49)、距離3。
+NEVER_MOVE/PASS_WALL/KILL_WALLはなく、地形218（GLASS_WALL）が射線を通し歩行を遮る。
+公開choose_keyは3盤面とも「rg / summoner:recall」を選択した。
+安全な有用目標や既知の階段がないため、接近や通路待機をせず既存の帰還処理へ進む。
+3盤面とも本番follow executorを通し、巻物選択プロンプトを経てrgの送信完了を確認した。
+これは新規policyをprimeした再起動再生であり、実機を追加稼働させた記録ではない。
+送信後のプロンプト・command応答は明示した構成データ。共有ハーネスは
+既存のモジュール別名executor_pins経由で利用した。
+
+新規ピンと単独差し戻し
+新規9件: 保存盤面3件、歩行可能対照、PASS_WALL対照、KILL_WALL対照、
+撤退不能クエスト、検知敵の保存待機解除、経路開通後の回避解除。
+保存盤面以外の6件は明示した構成盤面である。
+9件をそれぞれ関連変更の単独差し戻しで実行し、全件が期待する行動の違いで失敗
+（各終了コード1）。経路判定、壁通過能力の例外、歩行可能対照、記憶解除を個別に検査した。
+全差し戻しはfinallyで元のバイト列に復元した。
+復元後、新規9件とラウンド1/2の17件、計26件、および既存構造テスト1件の
+計27件が成功（終了コード0）。
+差し戻しの詳細はr3/pin-reverts.jsonとrevert-test_glass_*.logに記録した。
+
+指定ガード
+Python: 3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]
+ガード対象HEAD: f79615daec3a1ab630637477809858bea9395b49
+基準: main（上記SHA）。派生モジュールの追加実行は今回の指定に従い行っていない。
+preflight / mutation_check --record / fast_tierを順次実行した。
+初回のmutation_checkは全9ハンクを差し戻して成功した。
+最終コミットでは同一基準の成功記録を再利用し、変更された1ハンクを再検証した。
+preflight: 終了コード0、136.6秒。
+mutation_check: 終了コード0、9.2秒。
+fast_tier: 終了コード0、70.3秒。
+
+結果抜粋:
+[preflight] PREFLIGHT OK: 15 changed files, 0 findings (immobile-summoner-1027 vs main)
+[mutation] MUTATION OK: 0 of 9 hunks are not pinned by a test
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 1670 tests, 69.9s
+
+証跡: validation/immobile-summoner-1027/r3/（ローカル保持）。
+ガードログはコミット対象に含めていない。
+開始したガードはすべて終了してから報告した。実行中の検証・待機プロセスは残していない。
+実行用run_guards.pyと報告追記用write_report.pyも、完了後に除去した。
+
+最終更新: 2026-10-28T12:53:40+09:00
