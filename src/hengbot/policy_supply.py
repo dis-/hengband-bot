@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.magic_eater import reserved_for_absorption
+from hengbot.magic_eater_devices import mana_food_devices
 
 from collections import deque
 from contextlib import contextmanager
@@ -423,34 +423,20 @@ class SupplyMixin:
         return statuses
 
     def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
-        carried_charges = sum(
-            self._stack_charges(it)
-            for it in snapshot.inventory
-            if it.known and it.is_wand_staff and it.charges > 0
-            and not reserved_for_absorption(snapshot.player, it)
-        )
+        devices = mana_food_devices(snapshot)
+        carried_charges = sum(self._stack_charges(it) for it in devices)
         # Home stock is a supplier, never food carried into the dungeon.
-        known_charges = carried_charges
         if snapshot.player.food_state in {"weak", "fainting"}:
-            return known_charges
+            return carried_charges
         identify_charges = sum(
             self._stack_charges(it)
-            for it in snapshot.inventory
-            if it.known
-            and it.tval == TVAL_STAFF
-            and it.sval == SV_STAFF_IDENTIFY
-            and it.charges > 0
+            for it in devices
+            if it.tval == TVAL_STAFF and it.sval == SV_STAFF_IDENTIFY
         )
-        return known_charges - min(IDENTIFY_CHARGE_FLOOR, identify_charges)
+        return carried_charges - min(IDENTIFY_CHARGE_FLOOR, identify_charges)
 
     def _count_mana_food_devices(self, snapshot: Snapshot) -> int:
-        carried = sum(
-            it.count
-            for it in snapshot.inventory
-            if it.known and it.is_wand_staff and it.charges > 0
-            and not reserved_for_absorption(snapshot.player, it)
-        )
-        return carried
+        return sum(it.count for it in mana_food_devices(snapshot))
 
     def _light_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() >= 2 and not self._owns_lantern(snapshot):
@@ -1354,12 +1340,7 @@ class SupplyMixin:
         # empty one is skipped, an unknown one is worth the attempt) — but prefer
         # a device we know still has charges.
         if snapshot.player.food_type == FOOD_TYPE_MANA:
-            charged = [
-                it
-                for it in snapshot.inventory
-                if it.is_wand_staff and it.known and it.charges > 0
-                and not reserved_for_absorption(snapshot.player, it)
-            ]
+            charged = mana_food_devices(snapshot)
             non_utility = [it for it in charged if not self._is_useful_device(it)]
             if non_utility:
                 return min(non_utility, key=lambda it: (-it.count, -it.charges, it.slot))
@@ -1391,7 +1372,6 @@ class SupplyMixin:
                 )
             return self._first_item(
                 snapshot, lambda it: it.is_wand_staff and not it.known
-                and not reserved_for_absorption(snapshot.player, it)
             )
         return self._first_item(
             snapshot, lambda it: it.is_food and it.aware and it.sval >= FOOD_MIN_SVAL

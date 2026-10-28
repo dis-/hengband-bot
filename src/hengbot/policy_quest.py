@@ -29,6 +29,7 @@ from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.wilderness_map import WildernessMap
 from hengbot.town_terminal import gather_quest_work, verdict_quest_work
 from hengbot.dungeon_knowledge import DungeonInfo
+from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS,
     FIXED_SLOTS,
@@ -317,7 +318,6 @@ from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
     DUNGEON_YEEK_CAVE,
-    PLAYER_CLASS_WARRIOR,
     STORE_ALCHEMIST,
     STORE_ARMOURY,
     STORE_BLACK,
@@ -1080,7 +1080,7 @@ class QuestMixin(OpeningRouteMixin):
     def _request_priority_body_rearm(self, snapshot: Snapshot) -> None:
         """Ask the shared selector to resolve body armour with the whole kit."""
         if (
-            not snapshot.in_town or snapshot.player.class_id != PLAYER_CLASS_WARRIOR or self._equipment_transaction_session is not None or (self._validated_character_calibration(snapshot) is None) or (not self._equipment_catalog.home_scan_complete) or (not self._home_knowledge_current)
+            not snapshot.in_town or snapshot.player.class_id not in EQUIPMENT_CLASS_PROFILES or self._equipment_transaction_session is not None or (self._validated_character_calibration(snapshot) is None) or (not self._equipment_catalog.home_scan_complete) or (not self._home_knowledge_current)
         ):
             return
         if current_loadout(self._equipment_catalog.items).item_at(SLOT_BODY) is not None:

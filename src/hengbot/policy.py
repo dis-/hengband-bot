@@ -505,7 +505,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
-from hengbot.quest_strategies import StrategyProfile
+from hengbot.quest_strategies import StrategyProfile, acceptance_dps_floor
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -11772,12 +11772,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._escape_state.enter("return", self.last_reason)
             return town_return
 
-        # Identification can consume the same scarce gold as the mining setup.
-        # While fundraising, finish Treasure Detection scrolls and a digging
-        # tool first; retain any pending identification request for afterwards.
+        # Acquire the Home catalogue before a crowded pack blocks town work.
         if (
             snapshot.store is None
-            and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and self._active_quest_id(snapshot) is None
             and "quest-request" not in self._town_turn_arbiter._retired
             and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
@@ -11832,6 +11829,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                 return key
 
+        # Identification shares the mining budget: secure detection and a tool
+        # first, retaining pending identification requests for afterwards.
         if not (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and not self._fundraising_supplies_ready(snapshot)
@@ -17534,7 +17533,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
         details = {
             "reference_ac": reference_ac,
-            "dps": {"measured": dps, "required": float(force.get("min_expected_dps", 0) or 0)},
+            "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id)},
             "hp": {"measured": snapshot.player.max_hp, "required": int(force.get("min_hp", 0))},
             "carries": carry_status,
             "speed_potions": {"measured": speed_count, "required": int(force.get("speed_potions", 0))},
@@ -17559,21 +17558,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         no_heal = force.get("no_healing_tier")
         if isinstance(no_heal, dict) and (
             snapshot.player.max_hp >= int(no_heal.get("min_hp", 0))
-            and dps >= float(no_heal.get("min_expected_dps", 0) or 0)
+            and dps >= acceptance_dps_floor(no_heal, snapshot.player.class_id)
         ):
             details["failed"] = []
             return True
         details["failed"] = [
             name for name, ready in (
                 ("hp", snapshot.player.max_hp >= int(force.get("min_hp", 0))),
-                ("dps", dps >= float(force.get("min_expected_dps", 0) or 0)),
+                ("dps", dps >= acceptance_dps_floor(force, snapshot.player.class_id)),
                 ("speed_potions", speed_count >= int(force.get("speed_potions", 0))),
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),
             ) if not ready
         ]
         return (
             snapshot.player.max_hp >= int(force.get("min_hp", 0))
-            and dps >= float(force.get("min_expected_dps", 0) or 0)
+            and dps >= acceptance_dps_floor(force, snapshot.player.class_id)
             and speed_count >= int(force.get("speed_potions", 0))
             and healing >= int(force.get("heal_potions", 0))
         )

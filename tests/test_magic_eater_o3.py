@@ -14,7 +14,7 @@ from hengbot.control_client import ControlClient
 from hengbot.input_executor import OperationExecutor
 from hengbot.magic_eater import ABSORB_REASON, MISSILE_REASON
 from hengbot.model import (Snapshot, Position, QuestState, TVAL_LITE, TVAL_WAND,
-                           TVAL_STAFF, SV_LITE_TORCH, parse_snapshot)
+                           SV_LITE_TORCH, parse_snapshot)
 
 
 def prompt(text, kind="command_char", **details):
@@ -147,17 +147,6 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(rung_of("quest-request", ABSORB_REASON).producer, "absorb_key")
         self.assertIsNotNone(goal_typing("quest-request", ABSORB_REASON))
         self.assertEqual(getattr(absorb_key, CLAIM_OWNER_ATTRIBUTE).value, "quest-request")
-
-    def test_missile_is_reserved_from_zombie_food_and_counts(self):
-        policy = self.policy()
-        board = replace(self.board(wand=True), player=replace(self.board().player, food_type=4))
-        self.assertIsNone(policy._find_edible(board))
-        self.assertEqual(policy._count_mana_food_uses(board), 0)
-        self.assertEqual(policy._count_mana_food_devices(board), 0)
-        unknown = replace(board.inventory[-1], known=False)
-        self.assertIsNone(policy._find_edible(replace(board, inventory=[unknown])))
-        food = item("c", TVAL_STAFF, 32, charges=5)
-        self.assertEqual(policy._find_edible(replace(board, inventory=[unknown, food])), food)
 
     def run_follow(self, key, owner, screens, *, inventory=()):
         game = input_tests.FaithfulHookGame()

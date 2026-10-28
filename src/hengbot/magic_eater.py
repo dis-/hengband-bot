@@ -2,18 +2,12 @@
 
 from hengbot.model import TVAL_WAND
 from hengbot.claim_register import claims
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, is_absorption_device
 
 
-MAGIC_EATER = 16
 MAGIC_MISSILE = 15  # sv-definition/sv-wand-types.h
 ABSORB_REASON = "magic-eater:absorb"
 MISSILE_REASON = "quest-strategy:ranged-fire:magic-eater"
-
-
-def reserved_for_absorption(player, item):
-    """The O3 device is an attack resource, including before identification."""
-    return (player.class_id == MAGIC_EATER and item.tval == TVAL_WAND
-            and item.sval == MAGIC_MISSILE)
 
 
 @claims("quest-request")
@@ -25,7 +19,8 @@ def absorb_key(policy, snapshot, hostiles):
             or player.hp < player.max_hp):
         return None
     candidate = next((item for item in snapshot.inventory
-                      if reserved_for_absorption(player, item) and item.known
+                      if is_absorption_device(player.class_id, item)
+                      and item.tval == TVAL_WAND and item.sval == MAGIC_MISSILE
                       and item.charges > 0 and not item.charging
                       and not (item.timeout or 0)), None)
     if candidate is None:
@@ -42,7 +37,7 @@ def absorb_key(policy, snapshot, hostiles):
 
 
 def q34_missile_key(policy, snapshot, profile, target, direction):
-    if profile.quest_id != 34 or snapshot.player.class_id != MAGIC_EATER:
+    if profile.quest_id != 34 or snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
         return None
     # A zero is observed in the power list, never inferred from an inventory
     # wand or decremented speculatively after a failed spell. Permit a throw

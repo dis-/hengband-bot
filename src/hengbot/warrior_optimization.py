@@ -31,7 +31,8 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
     plan_equipment_transactions,
 )
-from hengbot.model import InventoryItem, PLAYER_CLASS_WARRIOR, Snapshot, StoreItem
+from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
+from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
 from hengbot.protocol import skill_exp_known
@@ -596,6 +597,7 @@ def weapon_expected_dps(
     current = current_loadout(equipped)
     inputs = WarriorCombatInputs(
         level=snapshot.player.level,
+        class_id=snapshot.player.class_id,
         natural_str=(calibration.natural_stats or calibration.base_stats)[0],
         natural_dex=(calibration.natural_stats or calibration.base_stats)[3],
         intrinsic_str=calibration.intrinsic_adjustments[0] if calibration.natural_stats else 0,
@@ -675,7 +677,7 @@ def prepare_warrior_optimization(
     current = current_loadout(items)
     blockers: list[str] = []
     player = snapshot.player
-    if player.class_id != PLAYER_CLASS_WARRIOR:
+    if player.class_id not in EQUIPMENT_CLASS_PROFILES:
         blockers.append("unsupported-class")
     # Protocol 3 prints no raw stat_cur; the printed natural max stands in.
     natural = player.stat_cur if player.stat_cur is not None else player.stat_max
@@ -770,6 +772,7 @@ def prepare_warrior_optimization(
     inputs = WarriorLoadoutInputs(
         combat=WarriorCombatInputs(
             level=player.level,
+            class_id=player.class_id,
             natural_str=base_str,
             natural_dex=base_dex,
             intrinsic_str=adjustments[0],

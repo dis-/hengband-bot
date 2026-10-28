@@ -1580,7 +1580,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d047fe90f1856d44e635e7b65eeba466807421cbe604c143658ccf4a76dc32bf"
+    "ast_sha256": "e548210a95018ca5e305ed13bc245a7fd32105b6ee06607fe1308d28076db64e"
   },
   "magic_eater.py:planned_throw_key": {
     "classification": "dungeon-only",
@@ -1596,15 +1596,23 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "97e9ecbd2937054b9aebe6b0e9587200b3b6a0847bf5dd0150b29927133d6c17"
+    "ast_sha256": "6b24302f3981096254897709cc9f830f9cdbf95193987e7db9532c5b820c38e3"
   },
-  "magic_eater.py:reserved_for_absorption": {
+  "magic_eater_devices.py:is_absorption_device": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selector input; no independent command or success",
+    "ast_sha256": "daf24040cb8711f47ad01c0b2c93aa277ab179876f27b7c3110182f8b2c1043f"
+  },
+  "magic_eater_devices.py:mana_food_devices": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "975930f0f683ce7c8fa538e5c1d9bbb1ba91b41e8e210190cf8d746a7aada3fb"
+    "ast_sha256": "398d4ffbe391de14ac3f4c272a936fab6bc1a9ccfe30fb00aa52e6994e30f76a"
   },
   "magic_eater_input.py:advance_magic_eater": {
     "classification": "driver",
@@ -2170,7 +2178,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "598d85e487c0b4bcc57f8cbedcc948243e57bb053da3f17d1319fe4afd24609e"
+    "ast_sha256": "cc0448d7efbdd7cc04a3dd2fdc658ff262688302401468f3f7f3c698754dc2e8"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4499,7 +4507,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c5b26648caa78e0f1c45b19777bcfa2bd6542cf729192124d57e6f1eb083202d"
+    "ast_sha256": "6c7e5e2185f0826bf009b049de4d5731b2ac548a776bacc34f22c317ab71ab40"
   },
   "policy_equipment.py:EquipmentMixin._equipment_exclusion_telemetry": {
     "classification": "data",
@@ -4683,7 +4691,7 @@
       "equipment-optimization"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "1e14f41521ac959a62f9cebd97b409c706d864a25066b66d0c952b2bcf99f7c3"
+    "ast_sha256": "e3911c57106571ecdae4f952d721eb851af8168f27cb91e05bb8b64c5558313a"
   },
   "policy_equipment.py:EquipmentMixin._prepare_equipment_transaction_command": {
     "classification": "producer",
@@ -7173,7 +7181,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "541b9ded6c1d4d3022a1698f0169cf40940cf7f5112caec7a2601dde941f7556"
+    "ast_sha256": "9d457dfb45c7af3f75d49f678cdc68dadd037af4e70641274d92015f427fadd7"
   },
   "policy_supply.py:SupplyMixin._expedition_light_ready": {
     "classification": "data",
@@ -7197,7 +7205,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "452879655bd6012b2e83234b0b062a745de16fd5043989c124b2dc02798a032b"
+    "ast_sha256": "17315451e947093c9b2a43860b33f32fb32a9d41494ff1b537cfca639e90fa66"
   },
   "policy_supply.py:SupplyMixin._find_surplus_identify_staff": {
     "classification": "data",
@@ -8872,7 +8880,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ebb225fc9a3d9f8577441b8a0e2c96db9ddf2be852dccf08fd270ff1eb493048"
+    "ast_sha256": "9f26e86110c868b9b9f2b22ba0c2f3498ce85eae28db3625966f1753c5f8398f"
   },
   "warrior_optimization.py:warrior_optimizer_input_key": {
     "classification": "data",
