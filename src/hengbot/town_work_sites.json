@@ -8315,7 +8315,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9ca542ba1a868e118c9eda4ca152fcec5fe56c235a4364fa54a137a6cb1682ab"
+    "ast_sha256": "00765b5d625944484d26743fb928b3bd3b0c70493019822d50d0376a54a897a5"
   },
   "town_arbiter.py:TownArbiterMixin._emission_item_state": {
     "classification": "data",

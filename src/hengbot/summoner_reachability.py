@@ -30,8 +30,6 @@ def known_walking_separation(snapshot: Snapshot, origin: Position) -> bool:
             grid = snapshot.grid_at(neighbor)
             if neighbor != target and grid is not None and grid.known and not grid.enterable:
                 continue
-            if grid is not None and grid.known and grid.is_door and dy and dx:
-                continue
             seen.add(neighbor)
             queue.append(neighbor)
     return True
