@@ -1,0 +1,73 @@
+ISSUE #47 観戦タイル層 round 2 実施報告（2026-10-29）
+
+実装
+- 開始時に最新のローカル main をマージ確認済み（Already up to date）。基準は 268b92dbc882f08881da67f12b342bc17d5dcfdc。
+- 同一フレームの画面の行1..height-2、列13..width-1にある @ を数え、厳密に1個の場合だけ投影する。
+- row_min = player.y - (画面行 - 1)、col_min = player.x - (画面列 - 13)。過去の画面・panel・look応答を流用しない。
+- state の panel がある場合は両座標の一致を確認し、一致する panel を使う。不一致・@が0個または2個以上・位置不明の場合は tiles を省略する。
+- SpectatorWriter.tile_panel_counts に derived/state/mismatch/player_glyph_count/player_position を集計する。これは書込済みフレーム数ではなく、スナップショット専用・保留中を含む投影試行数。
+- ゲーム側・判断経路・装備選択・降下条件は変更していない。第1版のパレット、明暗、可視/感知モンスター、先頭アイテム、幻覚時の制限、64/65境界、保留フレームの保持を維持。
+
+保守性
+- 小さい既存の spectator_tiles.py 内に座標解決を _screen_panel として分離。投影・地形抽出・符号化の責務を分けた。
+- 画面読取箇所を凍結する構造テストへ観戦専用の1関数を明示登録した。走査や検出ルールは緩和していない。
+- 計測スクリプトは既存の JSONC 読取・parse_snapshot・SpectatorWriter を再利用する。保持数も同じライターで測る。
+- 行数制限対象ファイルは変更していない。
+
+保存データによる再計測
+- 入力: C:/hengband-backups/viewing-captures-1028 配下の停止キャプチャ2組。
+  A: 20261028-205420-town-blocked-overflow-no-legal-disposal
+  B: 20261028-195400-town-blocked-overflow-no-legal-disposal
+- state.jsonl.gz と control-at-stop.json.gz を使用。今回見つかった停止画面は213列×68行の文字画面で attrs がない。色属性を捏造せず、指示で認められた「記録state＋control画面」の方式で再構成した。
+- 各キャプチャの停止時画面を固定し、記録の board（player_turn/store）から観戦フレームを再構成した。knowledge/character は board ではないため除外。
+- 全期間の同期したカラー画面を保存したライブフレームの計測ではない。固定画面と異なる時点のstateを比較するため、全期間の不一致率には時刻差・店内状態・画面移動の影響が含まれる。
+- 100%の付与率は固定画面に@が1個ある条件での値。ライブでの画面欠落・複数@・メニューの頻度は、この再構成からは測れない。
+- 再構成時のtime=1000、key=6、reason=capture-reconstructionは固定。decision_sequenceは入力行番号。policy専用の補助表示は渡していない。
+- 比較はゲーム定義の標準文字を使用し、terrain/monster が出る既知セルを対象とした。player・先頭itemが覆うセルは除外。未知セルは比較対象に含めない。
+- 不一致率は「比較可能なterrain/monsterセルを分母」と「空を含む地図領域全体を分母」の両方を示す。色・prefによる表示差は評価しない。
+- gzip はフレーム単位、level=5、mtime=0。ログ実体は非圧縮。16 MiB=16,777,216 bytes。保持数はサンプルを繰り返し実ライターへ書き、最初の整理直前と直後を測定。
+
+サンプルA
+- 再構成 73 フレーム中 73 に tiles（100.00%）。panel判定: {'derived': 73}。不一致panelによる省略0。
+- board以外の除外: {'knowledge': 5, 'character': 3}。
+- 地図全体 963,600 セル、比較可能 607,923、不一致 103,777。比較可能セル基準 17.0707%、地図全体基準 10.7697%。
+- 平均 bytes/frame: 非圧縮 33363.97、gzip 3924.73。attrsを持つライブカラー画面のサイズではない。
+- 16 MiB到達直前 502 フレーム、最初の整理直後 251 フレーム（8,384,754 bytes）。可変長のため一般の保持数を保証する値ではない。
+- 補助計測: 停止時controlのturn/clock/player座標と一致する最後のboard（記録行81、turn=1015844）では、不一致 219/13,067 = 1.6760%。地図全体基準 1.6591%。
+- この補助計測も原子的な同時取得の保証ではない。地形文字の差などが残るため、同期完全一致とは報告しない。
+
+サンプルB
+- 再構成 85 フレーム中 85 に tiles（100.00%）。panel判定: {'derived': 85}。不一致panelによる省略0。
+- board以外の除外: {'knowledge': 5, 'character': 2}。
+- 地図全体 1,122,000 セル、比較可能 541,795、不一致 75,628。比較可能セル基準 13.9588%、地図全体基準 6.7405%。
+- 平均 bytes/frame: 非圧縮 32574.00、gzip 3614.61。attrsを持つライブカラー画面のサイズではない。
+- 16 MiB到達直前 515 フレーム、最初の整理直後 257 フレーム（8,370,906 bytes）。可変長のため一般の保持数を保証する値ではない。
+- 補助計測: 停止時controlのturn/clock/player座標と一致する最後のboard（記録行92、turn=1375504）では、不一致 146/10,447 = 1.3975%。地図全体基準 1.1061%。
+- この補助計測も原子的な同時取得の保証ではない。地形文字の差などが残るため、同期完全一致とは報告しない。
+
+検証
+- 初回の tests/test_spectator*.py は70件成功（289.365秒）。後から境界テスト1件を追加し、最終状態で71件成功を確認した。
+- scripts/check_spectator_tiles_pins.py: 無変更の全12件成功を前提に、独立した動作変更13/13を指定テストのアサーション失敗で検出。作業ツリーを変更しない使い捨てコピーを使用。
+- mutation_check . main --record: 成功。4ハンクのうち実装3ハンクを検出、コメントのみ1ハンク。6addb9cb6 と src/hengbot・tests のツリーに記録。
+- preflight 初回: マニフェスト更新と画面読取関数の登録不足を検出。生成物をコミットし、対象関数を登録した。
+- fast_tier 初回（base main）: 1778件、200.7秒。ACK後の観測猶予テスト test_single_segment_ack_gets_post_ack_observation_grace のみ失敗。エラー・クラッシュなし。mutation_checkとの実行時間が重なったため、最終確認は逐次再実行した。失敗したACKテストの期待値や当該実装は変更していない。
+- 派生スコープ・派生モジュールの検証は指示どおり実行していない。
+
+再現資料
+- scripts/measure_spectator_tiles.py CAPTURE... --definitions C:/hengband/lib/edit --output RESULT.json
+- scripts/check_spectator_tiles_pins.py
+- validation/spectate-tiles-r2-20261029/measure.json と各検証ログ。
+- Python: C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe。PYTHONPATH=src;tests;scripts。
+- 本レポートはPythonのPath.write_text(encoding="utf-8", newline="\n")で作成した。
+
+最終検証（対象HEAD a5146a7a99cd87c28f6aab711d696a3135c9773c）
+- preflight . main: PREFLIGHT OK、8変更ファイル、指摘0。構造検査・行数上限を含む。533.368秒、終了コード0。
+- tests/test_spectator*.py: 全71件成功。unittest 481.246秒（起動全体489.369秒）、終了コード0。
+- fast_tier . main: 全1778件成功。Failures/Errors/Crashed shardsはいずれもnone。実行98.3秒、終了コード0。
+- マージ検証の終了を約36分待機してからfast tierを実行した。待機を含む起動全体は2261.531秒。対象mainは268b92dbc882f08881da67f12b342bc17d5dcfdc。マージ検証やほかの作業のプロセスは停止・変更していない。
+
+終了確認
+- 開始した検証・計測はすべて終了を確認済み。バックグラウンドの検証プロセスや待機・最終化スクリプトを残していない。
+- 指示された検証に未実行の項目はない。派生スコープ・派生モジュールおよびフルスイートは指示どおり実行していない。
+- src/ と tests/ の変更はコミット済み。開始時から存在する未追跡のタスクファイルと実行ログ2ファイルは保存する。
+- 初期実装コミット: 74dd31e33。追加ピン・構造登録・マニフェスト: 6addb9cb6。計測資料: a5146a7a9。最終コミットは本レポートと完了済み検証ログだけを追加し、mutation記録のsrc/hengbot・testsツリーを維持する。

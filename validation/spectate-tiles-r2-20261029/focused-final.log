@@ -1,0 +1,180 @@
+7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+.7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+.7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+.......7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+.7
+<player-death> feature=You die.
+.R1
+
+R1
+
+R1
+
+.R1
+
+R1
+
+R1
+
+.R1
+
+R1
+
+R1
+
+.R1
+
+R1
+
+R1
+
+.R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+.7
+8
+7
+8
+7
+8
+7
+8
+7
+8
+7
+8
+.R1
+
+<test-refusal> {'marker': 'test-refusal', 'owner': 'rest', 'key': 'R1\r'}
+R1
+
+R1
+
+.R1
+
+R1
+
+R1
+
+.R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+R1
+
+.......7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+..............7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+.....Timeout (0:01:30)!
+Thread 0x00018e88 (most recent call first):
+  File "C:\hengband\bot-client\.worktrees\spectate-tiles-r2-1028\src\hengbot\quest_knowledge.py", line ??? in <lambda>
+  <invalid frame>
+.............7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+7
+7
+7
+8
+3
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.5s after a decision produced no command; stopping the bot
+.............
+----------------------------------------------------------------------
+Ran 71 tests in 481.246s
+
+OK
