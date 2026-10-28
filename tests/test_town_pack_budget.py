@@ -23,7 +23,7 @@ import time
 
 from hengbot.cli import _consume_response_sequence, _ExecutorInputPort, _send_new_decision_key
 from hengbot.item_reservation import reserved_item_command, store_item_key
-from hengbot.model import STORE_HOME, STORE_TEMPLE, TVAL_SCROLL, parse_snapshot
+from hengbot.model import STORE_HOME, TVAL_SCROLL, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 from hengbot.town_pack_budget import incoming_slots, permits, pressure_deposit
@@ -132,7 +132,9 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
                 policy._town_visit_purchase_quantities[signature] = item.count
         raw_home = next(row for row in reversed(self.records[2]["states"])
                         if row.get("store", {}).get("store_type") == STORE_HOME)
-        store = replace(parse_snapshot(raw_home).store, store_type=STORE_TEMPLE, items=[])
+        outlet = policy._town_organization_sale_store(board, candidate)
+        self.assertIsNotNone(outlet)
+        store = replace(parse_snapshot(raw_home).store, store_type=outlet, items=[])
         sale_board = replace(board, store=store)
         self.assertIn(candidate, policy._current_store_sale_candidates(sale_board))
 

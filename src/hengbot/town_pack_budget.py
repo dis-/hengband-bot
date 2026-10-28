@@ -9,19 +9,22 @@ from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD, TVAL_STAFF, TVAL_W
 
 
 def permits(snapshot, slots: int) -> bool:
-    return (not snapshot.in_town or slots <= 0
+    return (not getattr(snapshot, "in_town", False) or slots <= 0
             or PACK_CAPACITY - len(snapshot.inventory) - slots
             >= MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
 def floor_step_fits(snapshot, position) -> bool:
-    grid = snapshot.grid_at(position)
+    if not getattr(snapshot, "in_town", False):
+        return True
+    grid = snapshot.grids.get(position)
     return grid is None or permits(snapshot, grid.object_count)
 
 
 def native_travel_fits(snapshot) -> bool:
     # Native travel can traverse several pickup tiles before the next board.
-    return permits(snapshot, sum(grid.object_count for grid in snapshot.grids.values()))
+    return (not getattr(snapshot, "in_town", False)
+            or permits(snapshot, sum(grid.object_count for grid in snapshot.grids.values())))
 
 
 def incoming_slots(snapshot, item, quantity: int) -> int:

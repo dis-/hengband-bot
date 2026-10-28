@@ -1,5 +1,4 @@
 from __future__ import annotations
-from hengbot.town_pack_budget import floor_step_fits
 
 from collections import Counter, deque
 from heapq import heappop, heappush
@@ -1875,6 +1874,7 @@ class NavigationMixin:
                 # through the final entrance-WAIT safety envelope.
                 self._intentional_entrance_activation = True
             return WAIT_KEY + tail
+        from hengbot.town_pack_budget import floor_step_fits
         if not floor_step_fits(snapshot, step):
             self.last_reason = "warning:blocked-step"
             return WAIT_KEY

@@ -2036,7 +2036,7 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "727b3a99aca22964ffbf51ef6f0074cd78c7f067d59f55ab09fd43381fb23ef3"
+    "ast_sha256": "06989c74df475e3ae4ca8cb389a4fa632d9be2eed973d19d33fe501df6243743"
   },
   "policy.py:HengbotPolicy._cursor_delta_keys": {
     "classification": "adapter",
@@ -3812,7 +3812,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5b8060bd524150ddf66b280027735e9971d333b0a7ed7b0a34b62d0171ce2c8e"
+    "ast_sha256": "f150d9fe50e1ce13153f71344c800083e9dd6d55303236c9c314a3d6c80d1428"
   },
   "policy.py:HengbotPolicy._warning_prompt_response_key": {
     "classification": "producer",
@@ -5878,7 +5878,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8e0287448e8b0d7f47c552bbdd4841ac618b9def4e3167bfa56461d92fc7f4a4"
+    "ast_sha256": "befc982415c096ee907e34aafb2f38b4413937e7c4601e74f2ed6c1c874af133"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
     "classification": "adapter",
@@ -8033,7 +8033,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "77c671434c3ee7b3786b41910f7ac415c4afef7537b518dafcd98a9d5cc90f06"
+    "ast_sha256": "99f065b20cb1b50e36be74df35f9ce4e5fa97c8bc23e5462025d6cef2a948af9"
   },
   "policy_town.py:TownMixin._town_travel_key.no_route": {
     "classification": "producer",
