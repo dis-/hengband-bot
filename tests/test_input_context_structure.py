@@ -9,7 +9,8 @@ later slices shrink the lists.
    executor's ``_classify``).
 2. ``input_context`` is read only by the reader.
 3. A screen reply's ``"lines"`` is read (``x["lines"]`` or ``x.get("lines", ...)``)
-   only by the eight functions of 17b8907c and the reader.
+   only by the registered functions and the reader. The viewer-only tile
+   anchor is registered separately from the input-wait inference sites.
 4. The prompt literals ("[y/n]", "[Y/n]", "-more-", "-続く-") and the
    ``*_PROMPT_MESSAGE_PREFIXES`` tables are referenced only where they are today.
 """
@@ -35,6 +36,8 @@ LINES_READERS = {
     ("input_executor.py", "OperationExecutor._after_post"),
     ("cli.py", "_release_prompt_gated_tail"),
     ("observed_input.py", "compile_observed_input"),
+    # Issue #47: viewer projection only; no decision consumes this offset.
+    ("spectator_tiles.py", "_screen_panel"),
 }
 PROMPT_LITERALS = ("[y/n]", "[Y/n]", "-more-", "-続く-")
 PROMPT_TEXT_SITES = {

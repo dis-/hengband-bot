@@ -1,0 +1,5 @@
+[preflight] NOTE existing-test MODIFIED: tests/test_spectator_tiles.py::SpectatorTilesTest.test_clipped_map_lighting_monster_item_player_and_empty
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_spectator_tiles.py::SpectatorTilesTest.test_missing_panel_omits_tiles
+[preflight] NOTE existing-test MODIFIED: tests/test_spectator_tiles.py::SpectatorTilesTest.test_overflow_has_fixed_two_digit_indices_and_empty_sentinel
+[preflight] NOTE existing-test MODIFIED: tests/test_spectator_tiles.py::SpectatorTilesWriterTest.test_snapshot_and_deferred_frame_use_the_same_received_state
+[preflight] PREFLIGHT OK: 8 changed files, 0 findings ( vs main)
