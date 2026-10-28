@@ -108,6 +108,12 @@ class SpectatorTilesTest(unittest.TestCase):
             self.assertIsNone(spectator_tiles(state, SCREEN, panel_counts=counts))
             self.assertEqual(counts, {"mismatch": 1})
 
+    def test_anchor_search_is_clipped_to_the_map_area(self):
+        screen = dict(SCREEN, lines=["@" * 21, "@" * 13 + " " * 7 + "@",
+                                     "@" * 13 + " @" + " " * 5 + "@",
+                                     "@" * 21, "@" * 21])
+        self.assertEqual(spectator_tiles(constructed_state(), screen), EXPECTED)
+
     def test_each_frame_uses_its_own_anchor_and_position(self):
         state = constructed_state()
         del state["panel"]
