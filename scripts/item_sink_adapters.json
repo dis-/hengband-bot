@@ -436,9 +436,6 @@
   "policy_town.py:_town_procurement_progress_key": {
     "self._shopping_approach_key(snapshot, step, reason) @ ": 1
   },
-  "policy_town.py:_town_space_deposit_key": {
-    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ ": 1
-  },
   "policy_town.py:_town_special_key": {
     "self._cross_town_shopping_key(snapshot) @ If:body:blocking_needs and all((need.store_type in self._town_visit_ledger.nonhome_attempted_without_effect for need in blocking_needs)) and (not self._town_claims_active(snapshot))": 1,
     "self._cross_town_shopping_key(snapshot) @ If:body:recall_dest is not None and (not departure_ok) / If:body:not self._town_claims_active(snapshot)": 1,

@@ -31,8 +31,24 @@ def eligible(policy, snapshot):
         and not (snapshot.player.hungry and policy._find_edible(snapshot) is None)
         and policy._equipment_mutation.state.name == "IDLE"
         and policy._equipment_transaction_session is None
+        and policy._home_atomic_deposit_pending is None
+        and policy._home_atomic_withdraw_pending is None
         and not policy._fixed_quest_prepare_return_required(snapshot)
+        and not _merging_home_take(policy, snapshot)
     )
+
+
+def _merging_home_take(policy, snapshot):
+    """Finish a selected zero-slot merge without changing its shelf address."""
+    from hengbot.town_pack_budget import incoming_slots
+    signature = policy._home_pending_item
+    if signature is None or not policy._home_knowledge_current:
+        return False
+    quantity = policy._home_pending_quantities.get(signature,
+        policy._home_pending_quantity or 1)
+    return any(policy._item_signature(item) == signature
+               and incoming_slots(snapshot, item, quantity) == 0
+               for item in policy._home_knowledge_items)
 
 
 def acquisition_waits(policy, snapshot):
@@ -44,15 +60,30 @@ def acquisition_waits(policy, snapshot):
 
 
 def key(policy, snapshot):
-    """Preserve first, sell next, use beneficial supplies, then destroy junk."""
-    if not eligible(policy, snapshot):
+    """Use beneficial supplies, preserve surplus, sell, then destroy junk."""
+    if not eligible(policy, snapshot) or policy._home_knowledge_scan_inflight:
         return None
+    result = _use_key(policy, snapshot)
+    if result is not None:
+        return result
+    # The approved four-staff cap sells its weakest release before shelving.
+    release = policy._find_surplus_identify_staff(snapshot)
+    if release is not None:
+        outlet = policy._town_organization_sale_store(snapshot, release)
+        if outlet is not None:
+            result = _relief_route(policy, snapshot, outlet, release)
+            if result is not None:
+                return result
     if (not policy._home_knowledge_current and policy._home_available(snapshot)
             and not policy._home_deposit_abandoned
+            and not policy._home_knowledge_scan_inflight
+            and policy._home_knowledge_scan_epoch is None
             and any(preservable(policy, snapshot, item) for item in snapshot.inventory)):
-        return policy._town_producer_entry("_home_full_knowledge_key",
+        result = policy._town_producer_entry("_home_full_knowledge_key",
             lambda: policy._home_full_knowledge_key(snapshot, leave_foreign_store=True),
             family="home-scan", board=snapshot)
+        if result is not None:
+            return result
     deposit = policy._find_home_deposit(snapshot)
     if (deposit is not None and policy._home_available(snapshot)
             and not policy._home_is_full(snapshot)):
@@ -66,9 +97,6 @@ def key(policy, snapshot):
             result = _relief_route(policy, snapshot, store, sale)
             if result is not None:
                 return result
-    result = _use_key(policy, snapshot)
-    if result is not None:
-        return result
     if snapshot.store is None:
         return policy._town_producer_entry("_worthless_junk_destroy_key",
             lambda: policy._worthless_junk_destroy_key(snapshot), family="shop-sell")
@@ -76,7 +104,8 @@ def key(policy, snapshot):
 
 
 def find_deposit(policy, snapshot):
-    if not policy._home_knowledge_current or policy._home_is_full(snapshot):
+    if (not eligible(policy, snapshot) or not policy._home_knowledge_current
+            or policy._home_is_full(snapshot)):
         return None
     return next((item for item in snapshot.inventory
                  if preservable(policy, snapshot, item)
@@ -88,11 +117,15 @@ def find_deposit(policy, snapshot):
 
 def find_sale(policy, snapshot):
     """File an ordinary organization sale after Home relief is unavailable."""
-    if (policy._home_available(snapshot) and not policy._home_is_full(snapshot)
-            and not policy._home_deposit_abandoned):
+    if not eligible(policy, snapshot) or policy._home_knowledge_scan_inflight:
         return None
+    home_open = (policy._home_available(snapshot) and not policy._home_is_full(snapshot)
+                 and not policy._home_deposit_abandoned
+                 and not policy._town_store_blocked_under_applicable_bound(STORE_HOME))
     return next((item for item in snapshot.inventory
                  if preservable(policy, snapshot, item)
+                 and (not home_open or policy._item_signature(item)
+                      in policy._home_rejected_deposits)
                  and policy._town_organization_sale_store(snapshot, item) is not None), None)
 
 

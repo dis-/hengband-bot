@@ -41,6 +41,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import TR_NO_TELE
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_pack_headroom import pre_pack_headroom_class
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "teleport-items-safe-c4a-20261021.jsonl.gz"
@@ -53,6 +54,7 @@ STOP_BOARD = 13  # state row 30: the recorded stop board
 AMULET = "反テレポートのアミュレット"
 
 
+@pre_pack_headroom_class  # declared wall: measured row-6 surplus order; hazard checks stay live
 class TeleportItemsSafeRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

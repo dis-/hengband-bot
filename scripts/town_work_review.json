@@ -11710,7 +11710,7 @@
       "store-approach"
     ],
     "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Choose existing Home relief, sale, or useful consumption before the existing destruction producer. Every child keeps its own entry and refusal bounds.",
+    "evidence": "Keep the terminal four-slot threshold and existing junk destroy reason, then delegate preserving remedies to the same proactive headroom owner.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
@@ -11743,7 +11743,7 @@
     "rows": [
       "data/no-independent-credit"
     ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
     "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
@@ -11754,7 +11754,7 @@
     "rows": [
       "data/no-independent-credit"
     ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
     "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
@@ -11765,7 +11765,7 @@
     "rows": [
       "data/no-independent-credit"
     ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
     "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
@@ -11779,8 +11779,8 @@
       "stat-recovery",
       "store-approach"
     ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Choose existing Home relief, sale, or useful consumption before the existing destruction producer. Every child keeps its own entry and refusal bounds.",
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Delegate beneficial use first, the approved Identify cap release, preservation at Home, sale fallback and approved junk destruction to their existing admitted executors; no independent completion credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
@@ -11790,7 +11790,7 @@
     "rows": [
       "stat-recovery"
     ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
     "evidence": "Try existing useful consumption producers through their own literal terminal entries, with the actual physical hostile set.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
@@ -11804,7 +11804,7 @@
       "sale-address",
       "store-approach"
     ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
     "evidence": "Bind one existing relief route or store operation; delegate to its existing terminal entry without independent completion credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",

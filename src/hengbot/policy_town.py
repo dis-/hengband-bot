@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
-from hengbot.town_pack_headroom import find_sale
+from hengbot import town_pack_headroom
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
@@ -2354,15 +2354,16 @@ class TownMixin:
         return PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
 
     def _town_space_deposit_actionable(self, snapshot: Snapshot) -> bool:
-        """Whether an identified surplus can restore the town-work pack reserve."""
+        """Whether Home can safely accept observed surplus before acquisition."""
         from hengbot.town_pack_headroom import eligible
         return (eligible(self, snapshot) and self._home_available(snapshot)
                 and not self._home_is_full(snapshot)
+                and not self._town_store_blocked_under_applicable_bound(STORE_HOME)
                 and self._find_home_deposit(snapshot) is not None)
 
     @claims(ClaimOwner.STORE_ROUTER)
     def _town_space_deposit_key(self, snapshot: Snapshot) -> str | None:
-        """Route shortage relief before any transaction that may need a slot."""
+        """Keep the established early rung as the town headroom owner's entry."""
         from hengbot.town_pack_headroom import key
         return key(self, snapshot)
 
@@ -5047,7 +5048,7 @@ class TownMixin:
                 self._town_organization_sale_store(snapshot, item) is not None
                 or self._town_organization_home_routable(snapshot, item)
             ),
-        ) or find_sale(self, snapshot)
+        ) or town_pack_headroom.find_sale(self, snapshot)
 
     def _town_organization_home_routable(
         self, snapshot: Snapshot, item: InventoryItem
@@ -5095,6 +5096,7 @@ class TownMixin:
                 and (
                     store_type not in self._town_store_attempted
                     or self._town_pack_space_shortage(snapshot)
+                    or town_pack_headroom.preservable(self, snapshot, item)
                 )
             ):
                 return store_type
