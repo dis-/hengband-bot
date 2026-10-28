@@ -178,7 +178,7 @@ def warrior_ranged_offense_dps(
     shots = 100 + 100 * sum(
         1 for _, item in loadout.slots if TR_XTRA_SHOTS in item.flags
     )
-    if not heavy:
+    if not heavy and inputs.class_id == 0:
         shots += inputs.level * 2
     if any(TR_XTRA_MIGHT in item.flags for _, item in loadout.slots):
         multiplier += 1

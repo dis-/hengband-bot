@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
 
@@ -833,7 +834,7 @@ class EquipmentMixin:
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
-        if snapshot.player.class_id != PLAYER_CLASS_WARRIOR or not snapshot.in_town:
+        if snapshot.player.class_id not in EQUIPMENT_CLASS_PROFILES or not snapshot.in_town:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "stale-republished"
@@ -2905,7 +2906,7 @@ class EquipmentMixin:
         the same verdict without the confirmation writes or the cache write.
         ``codes`` receives the refusal codes of a False verdict.
         """
-        if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
+        if snapshot.player.class_id not in EQUIPMENT_CLASS_PROFILES:
             return True
         # Calibration controls optimization, never ordinary movement. Depth
         # abilities are checked separately from the current ability_sources.

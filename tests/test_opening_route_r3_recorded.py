@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hengbot.model import parse_snapshot, _GRID_TERRAIN_NAMES
+from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.warrior_optimization import load_character_calibration
@@ -169,6 +170,39 @@ class OpeningRouteR3RecordedTest(executor_harness.ProductionHarness):
             key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
         self.assertEqual(policy.last_reason, "quest:enter:approach", key)
         self.assertEqual(ready.call_count, 0)
+
+    def test_q1_town_recovery_melee_obeys_the_dungeon_predicate(self):
+        for melee_allowed in (True, False):
+            with self.subTest(melee_allowed=melee_allowed):
+                policy, accepted = self.case("1")
+                raw = copy.deepcopy(self.stops["1"]["detection"]["snapshot"])
+                # DECLARED CONSTRUCTED: accepted Q1 and its equipped light on
+                # the recorded injured town board with an adjacent hostile.
+                # This completes shopping and reaches recovery, not its melee.
+                raw["progress"]["quests"] = accepted["progress"]["quests"]
+                raw["equipment"] = accepted["equipment"]
+                board = parse_snapshot(raw, policy._monrace_knowledge)
+                policy.prime(board)
+                self.assertEqual(board.floor_key, (0, 0, 0))
+                self.assertLess(board.player.hp, board.player.max_hp)
+                self.assertEqual(policy._opening_q1_plan(board)[:2], ("quest", None))
+                self.assertTrue(policy._can_fight_in_dungeon(board.floor_key[0]))
+                if not melee_allowed:
+                    # DECLARED CONSTRUCTED: a town with NO_MELEE exercises the
+                    # real predicate's refusal without replacing any methods.
+                    policy._dungeon_knowledge[0] = DungeonInfo(
+                        0, "constructed town", 0, 0, 0, frozenset({"NO_MELEE"}))
+
+                key = str(policy.choose_key(board))
+
+                if melee_allowed:
+                    self.assertEqual((key, policy.last_reason), ("3", "melee"))
+                    self.assertIsNone(getattr(policy, "_opening_q1_failure", None))
+                else:
+                    self.assertEqual((key, policy.last_reason),
+                                     ("", "quest:blocked:opening-route"))
+                    self.assertEqual(policy._opening_q1_failure,
+                                     "recovery-hostile-unreachable")
 
     def test_detection_stop_settles_combat_instead_of_reversing_shop_step(self):
         policy, _ = self.case("1")

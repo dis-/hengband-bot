@@ -12,6 +12,12 @@ from typing import Any
 from hengbot.monrace_knowledge import _strip_jsonc
 
 
+def acceptance_dps_floor(force: dict[str, Any], class_id: int) -> float:
+    """Resolve a class-specific melee floor for an acceptance tier only."""
+    overrides = force.get("min_expected_dps_by_class", {})
+    return float(overrides.get(str(class_id), force.get("min_expected_dps", 0)) or 0)
+
+
 @dataclass(frozen=True)
 class StrategyProfile:
     quest_id: int

@@ -6,6 +6,7 @@ import hashlib
 import re
 import unicodedata
 
+from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.warrior_equipment_evaluator import modify_stat_value
 
 
@@ -230,7 +231,7 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
                                             PLAYER_ABILITY_FLAGS)
 
     player = snapshot.player
-    if player.class_id != 0:
+    if player.class_id not in EQUIPMENT_CLASS_PROFILES:
         raise CharacterSheetUnavailable("unsupported-class")
     if player.mimic_form:
         raise CharacterSheetUnavailable("unsupported-active-form")

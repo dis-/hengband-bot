@@ -1556,6 +1556,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "magic_eater_devices.py:mana_food_devices": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: food counts and selectors use this inventory filter.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns list[InventoryItem] only. Excludes identified Magic-Eater absorption stock; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
   "model.py:Position.distance_to": {
     "classification": "data",
     "rows": [
