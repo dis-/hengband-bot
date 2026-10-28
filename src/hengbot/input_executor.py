@@ -206,6 +206,12 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
             lines[footer_y][cox:].strip() in character_footers
         if centered_character and coy < len(lines):
             prompt = lines[coy][cox:].rstrip()
+            # file_character's msg_erase waits at logical row zero while the
+            # character footer remains visible. Keep its exit continuation
+            # until the executor has dismissed this message page.
+            found = _suffix_match(prompt, ("-more-", "-続く-"))
+            if found:
+                return ScreenMatch(ScreenKind.MORE, found[0], coy, cox + found[1])
             if prompt.startswith(("ファイル名: ", "File name: ")):
                 return ScreenMatch(ScreenKind.FILE_NAME, prompt, coy, cox)
             if re.fullmatch(
