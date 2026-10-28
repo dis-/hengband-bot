@@ -176,20 +176,118 @@ git diff main -- src tests は空、src/testsに未コミット変更なし。
 
 第2ラウンド（2026-10-28、ISSUE #47）
 
-今回の指示に従いA〜D・Fの本体修正を先行してコミットする。
-A: readyな準備ではblockersを読まない順序へ修正。
-B/D: dispatchは_departure_block_stateのfailedを消費する。供給不足と
-未完了の物理移動の判定を共通化し、入場の盤面条件と準備開始を分離した。
-店内でも3周期上限の可視停止を維持し、部分装備計画を許すマージの意図を保つ。
-C: 取引後の保持判定に、選択した光源を装備として投影する。
-Home恒久光源に交換する場合は、外したランタンを出発用として予約しない。
-F: 2つのrungをNO_REFUSAL_REASONS経由でTERMINALSに宣言する。
-買物は既存の移動本体が運賃と経路を判定し、一括売却は既存の本体が
-予約・保持・店の受入れと投稿済み効果の確認を実施する。
-A/B/C/D/Fの指定テストは修正後にすべて成功した。
-各原因マージは第1ラウンド記載の通り（A:515dde885、B/C/D:76f484a64、F:069d2e7ce）。
+結果：A〜D・Fを修正しコミット済み。E/P5だけが残るため、mainの赤解消は未達。
+Eに対する今回の権限は盤面変更だけだが、現行本体は売却できる品が皆無でも
+別の名前付き停止を返す。元の期待値を維持するにはEの本体修正も必要となる。
+その可否を確認し、回答は未受領。許可されていないEの本体変更や期待値変更はしない。
 
-Eの追加発見: 現行本体では売れる品がなくてもoutpost-fare-no-saleで停止する。
-盤面だけを変更してwalk-in-entrance-unavailableの元の期待を満たすことはできない。
-Eの本体への最小限の修正可否を確認中。他の修正・検証は継続する。
-以下に最終的な実装・検証結果を追記する。
+対象
+基準 main: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+最終ソース・テストの対象HEAD: 58e795c215cf3a41879d9aa1781f461bc4dbd918
+src/hengbot tree: dd565b647552ac9809347a80f1dca9a87ea2210a
+tests tree: 6f162bb4e0b59eea2197b643520cb36de472f902
+最終報告コミットでは本報告だけを変更する。
+Pythonは今回の指示のPython 3.13実行ファイルを使用。
+PYTHONPATH=src;tests;scripts、PYTHONIOENCODING=utf-8。
+
+修正と対応する回帰防止テスト
+
+A（原因マージ515dde885）
+policy_equipment.pyのpartial_identificationを計算する際、readyを先に判定する。
+readyな準備では従来どおりblockers属性を要求しない。
+第1ラウンドのAの既存テストが成功し、この差分を戻すと同テストがエラーになる。
+
+B/D（原因マージ76f484a64）
+policy_town.pyのdispatchは_departure_block_state(snapshot)["failed"]を消費する。
+入場の盤面条件と、採掘準備を開始できる供給不足の条件を分離した。
+town_terminal.pyのstockout_mining_supply_terminalは既存の供給不足判定を共有する。
+入場側の町・店外条件は維持し、未完了の装備取引・Home移動を拒否する条件や、
+部分的な装備作業を準備段階で許す条件も維持する。
+店内からのdispatchでも3周期上限の可視停止と未消化時の準備開始が復元された。
+第1ラウンドのB/Dが成功。dispatchと共通関数の各差分を戻すとB/Dが失敗する。
+
+C（原因マージ76f484a64）
+policy_helpers.pyの取引後保持判定へ、交換先として選択した光源を装備として投影する。
+Home恒久光源へ交換する際、外したランタンを出発用として予約しない。
+光源がHomeにあるだけでは不要と判断しない既存ルールは維持する。
+第1ラウンドのCが成功し、投影の差分を戻すと同テストが失敗する。
+
+F（原因マージ069d2e7ce）
+_cross_town_shopping_keyと_batch_sell_keyを、NO_REFUSAL_REASONS経由で
+TERMINALSに宣言した。前者は移動本体の運賃・経路判定を用い、後者は
+既存の売却本体の予約・保持・受入れ確認と投稿済み取引の効果確認を用いる。
+第1ラウンドのFが成功し、宣言を戻すと同テストが不足した2項目を検出する。
+
+E（原因マージ069d2e7ce）：承認範囲内のテスト変更と追加発見
+P5の盤面から売却用の品を除き、帰還の巻物・財宝感知の巻物・シャベル1本を残した。
+帰還の巻物は運賃確保に売らない仕様、残した採掘用品も保持対象であり、
+この盤面では運賃を回復できない。gold以外はinventoryだけを変更している。
+共有の_driveにはinventoryの置換オプションを足し、他の呼出しは変えていない。
+元のP5の期待値、停止回数、許可リストはすべて維持した。
+新テストtest_unaffordable_return_sells_from_the_original_p5_boardは、
+元の売却可能なP5盤面を公開choose_keyで駆動し、次の決定が
+shop:outpost-fare-sale-approachになることを固定した。このテストは成功。
+既存テストのAST比較でも、変更した既存メソッドはP5だけと確認した。
+
+残る不整合の具体的な経路：
+policy.pyの運賃不足分岐は、従来の入口不足フォールバックより前に
+_outpost_fare_recovery_keyを呼ぶ。この本体は、売却候補がない場合でも
+Noneを返さず、WAIT_KEYとtown:blocked:outpost-fare-no-saleを返す。
+したがって、inventoryを空にした追加プローブでも、採掘用品だけを残したP5でも、
+元のtown:blocked:walk-in-entrance-unavailableへは到達しない。
+
+今回の指示はEについて「remove/replace the saleable items of that fixture,
+nothing else」と限定する。一方で元の停止理由の維持も要求するため、
+盤面変更だけでは両条件を同時に満たせない。A〜D・Fの修正は止めず完了した。
+必要な次の変更は、売却手段がなく、採掘の徒歩入口も使えない場合に限り、
+運賃回復の失敗分岐で元の入口不足停止を返す修正である。
+売却できる場合は新テストで固定した売却アプローチを維持する。
+E本体の変更には上記制約の解除が必要なため、未適用。
+
+検証
+
+指定6件＋新テスト：7件、40.451秒、終了1。P5だけ失敗、他6件成功。
+ログ: validation/main-red-1028/seven-tests-r2.log
+
+最終HEADでの6モジュール全体：63件、261.177秒、終了1。P5のみ失敗、expected failures 8。
+ログ: validation/main-red-1028/six-modules-r2-final.log
+先行実行でも63件、294.385秒、終了1、P5のみ失敗、expected failures 8。
+先行実行後に共通関数の戻り値を従来と同じTerminalRefへ整理したため再確認した。
+
+preflight（base main）：終了0、9 changed files、0 findings。
+既存テスト変更の注記はP5だけ。マニフェストは更新してコミット済み。
+最初のpreflightは未コミットの更新マニフェストを検出して終了1だったが、
+コミット後の再実行で成功した。
+ログ: validation/main-red-1028/preflight-r2-final.log
+
+mutation_check --record（base main、指定6件＋新テスト）：終了2。
+P5の事前テストが赤で、変異試験本体には進まず、有効な成功記録も作られない。
+ログ: validation/main-red-1028/mutation-r2.log
+
+A/B/C/D/F＋新テストに限定した補助検証：
+mutation_check --full --record（base main、上記6テスト）：終了0。
+MUTATION OK: 0 of 5 hunks are not pinned by a test。
+5差分すべてを実際に戻して失敗を検出し、58e795c2とソース・テストのツリーに
+紐づく記録を作成した。この記録はP5を含む検証の成功を意味しない。
+ログ: validation/main-red-1028/mutation-fixed-r2.log
+
+最終HEADでのfast_tier（base main、--shards 4）：1,657件、209.3秒、終了1。P5のみ失敗、Errorsなし、クラッシュなし。
+ログ: validation/main-red-1028/fast-tier-r2-final.log
+先行実行も1,657件、235.1秒、終了1、P5のみ失敗、Errorsなし。
+
+未達はP5の成功、P5を含むmutation成功記録、fast tier全件成功。
+指定チェックの起動漏れはないが、P5を含むmutation本体は事前失敗で未実施。
+派生モジュール群・フルスイートは今回の指示どおり実行していない。
+
+作業規則と終了状態：
+追加のキー結合に += は使っていない。共有TestCaseの直接導入もない。
+既存テストの期待値と許可リストは変更していない。上限制限は今回の例外内。
+本報告は指定PythonのPath.write_text(..., encoding="utf-8")で書き、
+UTF-8で読み戻し、BOMがないことを確認した。
+開始したテスト・ガードはすべて終了結果を回収した。
+バックグラウンド処理、待機スクリプト、finalizer、一時worktreeは残していない。
+src/、tests/、scripts/に未コミット変更はない。
+開始時からの未追跡入力・実行ログ、および今回の生ログはコミット対象外。
+コミット: 4c34d2a0c（本体修正）、462ee3c47（盤面分離と共通関数の整理）、
+58e795c21（最終マニフェスト）、および本報告の最終コミット。
+
