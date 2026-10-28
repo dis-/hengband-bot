@@ -27,6 +27,8 @@
     // 追い剥ぎ r_idx 150 の実AC。
     "reference_ac": 24,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
+    // Q34 -> mining kit -> Q1: accept carried torches and kit weight (2026-10-28).
+    "entry_requirements": {"allow_overweight": true, "carried_torch_min_fuel": 100},
     "throwing_items": {"lit_torch": 5},
     // 受注条件の2段構造（ユーザー確認 2026-07-17）: 基本ゲート
     // (min_hp/min_expected_dps) で受注する場合は下記の携行品
