@@ -7132,10 +7132,10 @@ class TownMixin:
         """
         if self._fundraising_mode is not None or snapshot.player.recalling:
             return None
-        from hengbot.town_terminal import stockout_mining_supplies_blocked
+        from hengbot.town_terminal import stockout_mining_supply_terminal
 
         failed = tuple(self._departure_block_state(snapshot)["failed"])
-        if not stockout_mining_supplies_blocked(self, snapshot, failed):
+        if stockout_mining_supply_terminal(self, snapshot, failed=failed) is None:
             return None
         # ``no-actionable-supplier`` covers both an exhausted shelf and stock
         # that the player cannot currently afford. Shelf observations are
