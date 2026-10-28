@@ -1,0 +1,187 @@
+"""#47 / #119 third recurrence: immutable boards and a shared slot budget.
+
+ATTACH WALL: no Python checkpoint was captured. Each stop board attaches a
+fresh policy, the preceding recorded Home knowledge answer and the recorded
+fundraising facts. The established recorded-policy helper supplies static
+game definitions; its older calibration is not claimed to be this character's
+calibration. The skill census cache is constructed to isolate town work.
+Stop at the first divergent key. Executor responses below are explicitly
+constructed command boundaries, not live responses to the new action.
+"""
+
+from __future__ import annotations
+
+import tests  # noqa: F401 -- isolate runtime writes
+import copy
+from dataclasses import replace
+import gzip
+import hashlib
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import time
+
+from hengbot.cli import _consume_response_sequence, _ExecutorInputPort, _send_new_decision_key
+from hengbot.item_reservation import reserved_item_command, store_item_key
+from hengbot.model import STORE_HOME, TVAL_SCROLL, parse_snapshot
+from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
+from hengbot.town_pack_budget import incoming_slots, permits, pressure_deposit
+from hengbot.town_terminal import TerminalRef, terminal_admission
+from tests import test_input_executor as executor_harness
+from tests.test_esp_threat_rest_recorded import _policy
+
+
+FIXTURE = Path(__file__).parent / "fixtures/overflow-root-20261028.json.gz"
+SHA256 = "794486145fba9316f799e3ec33b331b07e4e479b9dfedcf3470cacdb769cdbdf"
+
+
+class TownPackBudgetTest(executor_harness.ProductionHarness):
+    @classmethod
+    def setUpClass(cls):
+        assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == SHA256
+        cls.records = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+
+    def attached(self, index):
+        temporary = TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        record = self.records[index]
+        policy = _policy(directory, {})
+        home = next(row for row in reversed(record["states"])
+                    if row.get("knowledge", {}).get("category") == "home")
+        policy._home_knowledge_scan_inflight = True
+        policy._home_knowledge_scan_epoch = None
+        _consume_response_sequence(
+            [json.dumps(home)], policy, lambda key: True, {},
+            knowledge_ledger_path=directory / "knowledge.jsonl")
+        raw = record["states"][-1]
+        board = parse_snapshot(raw)
+        policy.prime(board)
+        facts = record["decisions"][-1]
+        policy._fundraising_mode = facts["fundraising"]["mode"]
+        policy._planned_mining_runs = facts["fundraising"]["planned_runs"]
+        policy._skill_exp_cache = (0, 0, board.player.level, policy._town_visit_epoch)
+        return policy, board, raw
+
+    def test_three_captured_stops_choose_a_preserving_next_step_and_follow_posts_it(self):
+        for index in range(3):
+            with self.subTest(capture=index):
+                policy, board, raw = self.attached(index)
+                self.assertEqual(self.records[index]["decisions"][-1]["reason"],
+                                 "town:blocked:overflow-no-legal-disposal")
+                self.assertEqual(len(board.inventory), 20)
+                candidate = policy._find_home_deposit(board)
+                self.assertIsNotNone(candidate)
+                self.assertEqual(policy._retention_reservation(board, candidate), 0)
+                key = policy.choose_key(board)
+                self.assertIn(policy.last_reason, {"shop:travel", "home:atomic-deposit"})
+                self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+                game = executor_harness.FaithfulHookGame()
+                game.state = copy.deepcopy(raw)
+                game.screen = executor_harness.command_screen(board.turn)
+                after = copy.deepcopy(raw)
+                after["turn"] += 1
+                game.states = [after]
+                game.screens = [executor_harness.command_screen(after["turn"])]
+                _, _, executor = self.make(game)
+                self.assertEqual(executor.observe_boundary(
+                    deadline=time.monotonic() + 2).outcome, "ready")
+                port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                          request_budget=2, policy=policy)
+                _send_new_decision_key(
+                    port, json.dumps(raw), key, None, set(), in_store=False,
+                    snapshot=board, decision={"sequence": policy._decision_sequence,
+                                             "reason": policy.last_reason, "key": key})
+                self.assertEqual(port.last_result.outcome, "completed")
+                self.assertTrue(game.accepted)
+                self.assertNotIn("p", game.accepted)
+
+    def test_budget_allows_only_observed_room_or_zero_slot_operations(self):
+        board = parse_snapshot(self.records[1]["states"][-1])
+        four = replace(board, inventory=board.inventory[:19])
+        five = replace(board, inventory=board.inventory[:18])
+        self.assertFalse(permits(four, 1))
+        self.assertTrue(permits(four, 0))
+        self.assertTrue(permits(five, 1))
+        self.assertFalse(permits(five, 2))
+        self.assertTrue(permits(board, 0))
+
+    def test_home_take_and_purchase_cannot_spend_the_fourth_slot(self):
+        policy, board, _ = self.attached(1)
+        four = replace(board, inventory=board.inventory[:19])
+        # Constructed known new kind, with a valid shelf address and price.
+        shelf_board = next(parse_snapshot(row) for row in self.records[1]["states"]
+                           if row.get("type") == "store" and row["store"]["store_type"] != STORE_HOME)
+        item = replace(shelf_board.store.items[0], tval=TVAL_SCROLL, sval=99,
+                       known=True, aware=True, count=1, price=1)
+        self.assertEqual(incoming_slots(four, item, 1), 1)
+        for kind in ("buy", "withdraw"):
+            with self.subTest(kind=kind):
+                self.assertIsNone(store_item_key(policy, four, kind, item,
+                                                 "shop-buy" if kind == "buy" else "home-errand",
+                                                 quantity=1))
+        # A completed prior deposit is credited only on its new observation.
+        five = replace(four, inventory=four.inventory[:-1])
+        self.assertIsNotNone(store_item_key(policy, five, "withdraw", item,
+                                            "home-errand", quantity=1))
+
+    def test_stack_merge_costs_no_slot_but_a_different_inscription_does(self):
+        board = parse_snapshot(self.records[0]["states"][-1])
+        item = board.inventory[0]
+        self.assertEqual(incoming_slots(board, item, 1), 0)
+        self.assertEqual(incoming_slots(board, replace(item, inscription="other"), 1), 1)
+        self.assertEqual(incoming_slots(board, replace(item, known=False), 1), 1)
+
+    def test_staff_use_cannot_unstack_into_the_reserve(self):
+        policy, board, _ = self.attached(0)
+        staff = next(item for item in board.inventory if item.tval == 55 and item.count > 1)
+        self.assertIsNone(reserved_item_command(policy, board, "staff", staff))
+        roomy = replace(board, inventory=board.inventory[:10])
+        self.assertIsNotNone(reserved_item_command(policy, roomy, "staff", staff))
+
+    def test_reward_admission_reserves_the_whole_visible_pile(self):
+        board = parse_snapshot(self.records[0]["states"][-1])
+        policy = HengbotPolicy()
+        self.assertFalse(terminal_admission(
+            policy, board, TerminalRef("quest-reward", (22,))).admitted)
+
+    def test_equipment_takeoff_and_stack_wield_consult_the_same_budget(self):
+        policy, board, _ = self.attached(0)
+        worn = next(item for item in board.equipment if item.slot in EQUIPMENT_SLOT_KEY)
+        four = replace(board, inventory=board.inventory[:19])
+        result = policy._equipment_mutation.request_takeoff(
+            four, "test", EQUIPMENT_SLOT_KEY[worn.slot], policy=policy)
+        self.assertIsNone(result.key)
+        self.assertEqual(result.report, "town-pack-budget")
+        # Constructed: wield one item from a two-item pack stack, so the old
+        # occupant needs an additional slot rather than replacing a pack slot.
+        stack = replace(worn, slot="a", count=2)
+        four = replace(four, inventory=[stack, *four.inventory[1:]])
+        result = policy._equipment_mutation.request_wield(
+            four, "test", stack, worn.slot, EQUIPMENT_SLOT_KEY, policy=policy)
+        self.assertIsNone(result.key)
+        self.assertEqual(result.report, "town-pack-budget")
+
+    def test_town_floor_pickup_cannot_consume_reserved_slots(self):
+        policy, board, _ = self.attached(0)
+        here = board.grid_at(board.player.position)
+        grids = dict(board.grids)
+        grids[here.position] = replace(here, object_count=2)
+        four = replace(board, inventory=board.inventory[:19], grids=grids)
+        self.assertIsNone(policy._current_floor_item_key(
+            four, pickup_reason="pickup", trigger_reason="pickup"))
+        five = replace(four, inventory=four.inventory[:-1])
+        policy._position_changed = True
+        self.assertIsNone(policy._current_floor_item_key(
+            five, pickup_reason="pickup", trigger_reason="pickup"))
+
+    def test_pressure_deposits_preserve_reservations_and_purpose_purchases(self):
+        policy, board, _ = self.attached(2)
+        candidate = policy._find_home_deposit(board)
+        self.assertTrue(pressure_deposit(policy, board, candidate))
+        policy._town_visit_purchases.add(policy._item_signature(candidate))
+        self.assertFalse(pressure_deposit(policy, board, candidate))
+        for item in board.inventory:
+            if policy._retention_reservation(board, item):
+                self.assertFalse(pressure_deposit(policy, board, item))

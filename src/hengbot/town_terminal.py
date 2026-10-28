@@ -31,6 +31,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
+from hengbot.town_pack_budget import permits
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2072,6 +2073,11 @@ def terminal_admission(policy: Any, board: Any, terminal: TerminalRef) -> Admiss
                  else verdict_visit(policy, board, terminal)
                  if terminal.terminal_id in {"store-route", "home-recovery"}
                  else verdict(policy, board) if verdict is not None else ADMIT)
+    if terminal.terminal_id == "quest-reward":
+        here = board.grid_at(board.player.position)
+        slots = max(1, here.object_count) if here is not None else 1
+        if not permits(board, slots):
+            admission = refused(("free_pack_slots_ready",))
     if admission.admitted and terminal.terminal_id == "quest-entry":
         quest_id = terminal.args[0]
         info = policy._quest_knowledge.get(quest_id)

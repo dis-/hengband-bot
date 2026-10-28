@@ -1,7 +1,8 @@
 """Decision-local views of existing item reservations; no checkpoint state."""
 from __future__ import annotations
 
-from hengbot.model import TVAL_WAND
+from hengbot.model import TVAL_STAFF, TVAL_WAND
+from hengbot.town_pack_budget import incoming_slots, permits
 
 from contextvars import ContextVar
 from contextlib import contextmanager
@@ -489,6 +490,9 @@ def reserved_item_command(policy, snapshot, kind, item, owner=None, *, address=N
     # Identification selects a source using the game's observed command key.
     # Normalize it here so all item commands share the same checked serializer.
     kind = {'r': 'read', 'u': 'staff', 'z': 'rod', 'a': 'wand'}.get(kind, kind)
+    if (kind == "staff" and item.tval == TVAL_STAFF and item.count > 1
+            and not permits(snapshot, 1)):
+        return None
     if owner is None:
         # Consumption has no outstanding transfer claim of its own. A stale
         # last_reason must not borrow the owner of an item's pending deposit.
@@ -515,6 +519,9 @@ def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=Non
       purchase: prompt_to_buy's ``[Y/n]`` (Return takes DEFAULT_Y); the Home
       asks nothing more.
     """
+    if kind in {"buy", "withdraw"} and not permits(
+            snapshot, incoming_slots(snapshot, item, quantity)):
+        return None
     if kind == "buy":
         fare = policy._outpost_return_fare(snapshot)
         # A split wand stack rounds charges in purchase-order.cpp; its actual

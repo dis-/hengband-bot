@@ -12053,6 +12053,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return destroy
 
         # Last-resort overflow disposal: in town without the required expedition
+        from hengbot.town_pack_budget import overflow_key
         # free slots and no productive
         # action left (nothing to deposit, sell, buy, or fundraise), shed one
         # non-essential item so the pack can shrink and the bot can descend
@@ -12063,7 +12064,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not physical_adjacent
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
         ):
-            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: self._town_overflow_destroy_key(snapshot))
+            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: overflow_key(self, snapshot))
             if overflow_destroy is not None:
                 self._terminal_pack_space_signature = None
                 return overflow_destroy
@@ -17350,7 +17351,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         pickup_reason: str,
         trigger_reason: str,
     ) -> str | None:
-        if len(snapshot.inventory) >= PACK_CAPACITY:
+        from hengbot.town_pack_budget import permits
+        if len(snapshot.inventory) >= PACK_CAPACITY or not permits(snapshot, 1):
             return None
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:
@@ -17384,10 +17386,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             here.position,
             here.object_count,
         )
-        # Hengband picks a lone floor item immediately, but a pile opens the
-        # floor-item chooser and waits for one selection per item. Each accepted
-        # selection rebuilds the list, so repeatedly choosing its first entry
-        # drains the whole pile in the same command cycle.
+        if not permits(snapshot, here.object_count):
+            return None
         if here.object_count > 1:
             return PICKUP_KEY + ("a" * here.object_count)
         return PICKUP_KEY
