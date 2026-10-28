@@ -1,0 +1,8 @@
+[fast] waiting: the merge gate is running its full suite (gate opening-block-1028+overflow-root-1028, since 00:12:51); owner decision 2026-10-25
+[fast] the merge gate's full suite finished; starting after 36 min
+[fast] 1768 fast tests (<2.0s in 268b92dbc) + 2 changed modules, 4 shards
+[fast] excluded 52 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-yftsg2_g)
+Failures: none
+Errors: none
+Total: 1778 tests, 98.3s

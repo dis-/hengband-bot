@@ -200,6 +200,7 @@ class SpectatorWriter:
         self.messages: list[str] = []
         self.last_write: float | None = None
         self.last_error_report: float | None = None
+        self.tile_panel_counts: dict[str, int] = {}
 
     def observe(self, snapshot, key: str | None, reason: str | None,
                 decision_sequence: int | None,
@@ -279,7 +280,7 @@ class SpectatorWriter:
                 content.update(spectator_details(state, snapshot))
                 content["player"] = spectator_player(state.get("player", {}))
                 if screen is not None:
-                    tiles = spectator_tiles(state, screen)
+                    tiles = spectator_tiles(state, screen, panel_counts=self.tile_panel_counts)
                     if tiles is not None:
                         content["tiles"] = tiles
             # The two outputs fail independently; a broken compatibility snapshot

@@ -43,3 +43,21 @@ The test suite uses injected clocks and temporary files. Offline cost probe:
 `PYTHONPATH=src python scripts/perf_spectator_frames.py --iterations 300`.
 Per-pin behavioural revert proofs: `python scripts/check_spectator_frames_pins.py`.
 The probe only contacts its own fixture TCP server, never a running game.
+
+The optional `tiles` layer uses only the frame's received grid map and screen.
+Exactly one `@` must occur in screen rows 1 through height-2 and columns 13
+through width-1. Its screen position and the state's player dungeon position
+give the panel offset. A state `panel`, when supplied, must agree in both
+coordinates; otherwise the layer is omitted. No offset is reused across frames.
+`SpectatorWriter.tile_panel_counts` counts projection attempts by outcome:
+`derived`, `state`, `mismatch`, `player_glyph_count`, or `player_position`.
+These diagnostics include snapshot-only/deferred attempts, not just posted
+frames, and are held in memory for the lifetime of the writer.
+
+Tile pins: `python scripts/check_spectator_tiles_pins.py` checks independent
+behavioural mutations in a disposable source copy. Offline reconstruction:
+`python scripts/measure_spectator_tiles.py CAPTURE --definitions LIB/EDIT --output result.json`.
+This pairs recorded board states with the capture's fixed stop screen. It
+reports coverage, default-definition glyph disagreement, plain/gzip size,
+and actual writer retention on repeating that window. It does not measure
+live screen/state synchronization or fabricate missing colour attributes.

@@ -1,0 +1,83 @@
+ISSUE: #47
+LUNA-REPORT-opening-block.txt
+
+1. キャプチャ別の診断
+対象は指示ファイルに指定された停止記録3件。指示ファイル冒頭には #110 とあるが、今回の依頼の #47 として作業した。
+作業開始時に main を merge し、Already up to date を確認した。基点は aafb6d41e。
+
+キャプチャ1（life 381、turn 79508、所持金192）
+- 最初に失敗する受諾条件は light-oil。
+- 未鑑定ランタンを装備し、油は0。既存判定は燃料を使う光源について油5個を要求する。
+- 投擲松明16本、既知の予備松明燃料2500/2486/2300。記録のQ1訪問燃料見積りは2390。
+- HP175、対AC24の記録DPS30.24。無回復ティア（HP88、DPS28）を満たす。
+- 速度薬0/1、回復薬0/2と表示されるが strategy_force.failed は空。薬不足は実際の拒否原因ではない。
+- 重量超過なし。原記録の opening_route_failure は reward-unavailable。
+
+キャプチャ2（life 382、turn 82751、所持金7）
+- 最初に失敗する条件は overweight。採掘キット、予備ランタン、松明を保持している。
+- HP189、記録DPS32.556388652307696。無回復ティアを満たし、薬0本でも strategy_force.failed は空。
+- 投擲松明14本。携行松明の燃料2500/2487/2300、装備松明も既知。
+- readiness の重量判定を緩めるだけでは、_fixed_quest_key の共通重量判定が次に受諾への移動を止める。この受諾・入場側の重量条件も同じQ1専用契約に従わせた。
+
+キャプチャ3（life 216、turn 80234、所持金295）
+- 最初の拒否は light-oil。未鑑定ランタン、油0、投擲松明15本。
+- 携行松明燃料2500/2488/2300。HP175、記録DPS32.76で無回復ティアを満たす。
+- 薬0/1、0/2は表示上の通常ティア要求であり、失敗条件ではない。
+- 重量超過なし。原記録の opening_route_failure は reward-unavailable。
+
+条件の定義箇所：
+- strategy/quests/QUEST_1.jsonc の required_force：通常HP36、DPS28、速度薬1、回復薬2、点火済み投擲松明5。no_healing_tier はHP88、DPS28、薬0。
+- policy.py::_approved_strategy_force_ready：携行品・耐性を確認後、無回復ティアを満たせば通常ティアの薬数を要求せず受諾する。
+- policy_quest.py::_evaluate_fixed_quest_readiness：戦力、全快、一時状態、戦闘武器、空き枠、重量、ランダムテレポート阻害、光源、3ターン脅威、撃破時間。
+- policy_supply.py::LightJudgment.one_shot_quest_entry_reject_reason：既存の油5個／松明のみの拒否。
+- policy_quest.py::_fixed_quest_key：受諾・入場へ向かう際の重量判定。
+
+2. 下げた要求と変更範囲
+- Q1の重量：従来は超過時に受諾判定とクエスト移動を拒否。変更後はQ1受諾・入場で超過を許す。Q1完了後の報酬段階・後続クエスト移動には適用しない。
+- Q1の光源：従来は共通の油5個等の条件、または装備済み既知光源にQ1訪問全体の推計燃料が必要。変更後は追加の選択肢として、携行する既知・非呪い・非破損の松明に燃料100以上があれば油0でも受諾可能。投擲松明5本の要求は維持。
+- 速度薬1／回復薬2、無回復ティアHP88／DPS28は変更しなかった。実測3件ではすでに薬不要であり、不要な範囲の挙動変更を避けた。
+- HP、DPS、耐性、全快、一時状態、武器、空き枠、テレポート阻害、脅威・撃破時間の判定は維持。
+- Q1だけに entry_requirements をデータで追加。小さな quest_entry_requirements.py が読み取りと適用を担当する。他IDへQ1プロファイルを複写した対照例にも適用しない。
+- 油購入や採掘キット預け等の町行動は追加していない。既存の松明装備動作と入力実行経路を使う。クエスト内の光源補給・失敗帰還は変更していない。
+
+3. 回帰ピンと保守性
+- tests/fixtures/opening-block-20261028.json.gz に指定キャプチャの最終player_turn、直近skill知識、元の拒否理由を抽出して固定した。テストは外部キャプチャや稼働中データに依存しない。
+- 公開choose_keyから本番follow executorを経て、既存の光源装備、受諾への移動、受諾要求、Q1入場と確認入力を検証する。
+- 3件の実測所持品に加え、携行松明をちょうど5本にした構成でも同じ経路を確認する。
+- ゲームの受諾・入場応答と町の歩行終了位置は構成した応答であり、実エンジンを起動した試験ではない。買い物完了ラッチを明示して、既存の任意購入を繰り返さず、購入済みの状態から再開する。
+- 薬0本の既存ティア、燃料99では拒否されること、Q1完了後の重量制限を対照として固定。
+- 既存テストの期待値変更は test_opening_route_r2_recorded.py::test_known_lantern_or_torch_with_visit_fuel_needs_no_spare_oil のみ。装備光源が訪問推計燃料を1下回る場合も、使用可能な携行松明があればQ1では ready とする（松明・ランタンの2ケース）。他の既存期待値は変更していない。
+- Q1専用の緩和条件を凝集した小モジュールへ置き、受諾と移動で重量の契約を共有した。cappedファイル policy_quest.py の行数は増やしていない。
+
+4. 最終検証結果
+指定Python 3.13、PYTHONPATH=src;tests;scripts を使用した。
+待機中にmainが進んだため、最新main（268b92dbc）を取り込み直して検証した。
+最終的なコード・テストの検証対象HEADは be5b4a3e1。以後の変更はこの報告書のみ。
+
+- 回帰ピン6件を含む序盤ルート4モジュール、戦略データ、Q2光源：53件成功。
+  tests.test_opening_block_recorded / tests.test_opening_route_pins /
+  tests.test_opening_route_recorded / tests.test_opening_route_r2_recorded /
+  tests.test_opening_route_r3_recorded / tests.test_quest_strategies /
+  tests.test_light_rootfix_q2_recorded
+- tests.test_policy_quest：334件成功（既存skip 7件）。
+- preflight . main：最新main取り込み後も指摘0件で成功。構造検査・行数上限を含む。
+  初回の生成マニフェスト更新の指摘は、再生成・コミットして解消した。
+- policy_quest.pyは最新main／変更後とも6030行で増加なし（当初のmainでは双方6047行）。
+- Q1のentry_requirementsをメモリ上で差し戻す対照実行：3件とも元の拒否
+  light-oil／overweight／light-oilへ戻ることを確認。
+- mutation_check . main --record：成功。初回に5変更箇所すべての差し戻しをテストが検出。
+  最新main取り込み後は、変更のない5箇所の成功記録を再利用し、
+  通常状態のテスト・構造検査も確認して be5b4a3e の記録を保存。未検出箇所0。
+- fast_tier . main：1776件、168.3秒、Failures none、Errors none、Crashed shards none。
+  mainの計測に基づく1768 fast testsと変更テストモジュール2本を4分割で実行。
+  derived scope／derived modulesおよびフルスイートは実行していない。
+- main取り込み前に起動したfast tierは、自分の実行の子プロセスだけを特定して停止し、
+  取り込み後に上記のとおり再実行した。他作業のプロセスは停止していない。
+- 取り込み時の競合は生成マニフェストだけで、生成コマンドで解消した。実装の競合なし。
+- 報告書はPythonでUTF-8、BOMなし、LFとして書き込んだ。
+
+買い物完了ラッチを明示した再実行では、3件ともQ1受諾・入場へ進み、
+緩和後の空キー停止は再現しなかった。
+これは指定キャプチャの状態を使った再実行であり、
+原プロセスの全チェックポイント状態を復元した実機再開ではない。
+開始した検証はすべて終了を確認済み。未実行の指定検証・残した検証プロセスはない。

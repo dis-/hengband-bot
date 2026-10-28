@@ -38,7 +38,7 @@ def constructed_state():
     }
 
 
-SCREEN = {"height": 4, "width": 20, "lines": [" " * 20] * 4}
+SCREEN = {"height": 4, "width": 20, "lines": [" " * 20, " " * 20, " " * 14 + "@" + " " * 5, " " * 20]}
 EXPECTED = {
     "origin": [1, 13],
     "palette": [[1, 0, None, None, False], [2, 1, None, None, False],
@@ -56,7 +56,7 @@ class SpectatorTilesTest(unittest.TestCase):
         self.assertEqual(spectator_tiles(state, SCREEN), EXPECTED)
         self.assertEqual(state, before)
         shifted = dict(state, panel={"row_min": 11, "col_min": 21})
-        self.assertEqual(spectator_tiles(shifted, SCREEN), {
+        self.assertEqual(spectator_tiles(shifted, dict(SCREEN, lines=[" " * 20, " " * 13 + "@" + " " * 6, " " * 20, " " * 20])), {
             "origin": [1, 13],
             "palette": [[1, 0, None, None, True], [1, 0, None, None, False]],
             "rows": ["AB.....", "BB....."],
@@ -80,28 +80,74 @@ class SpectatorTilesTest(unittest.TestCase):
                 if change == "player":
                     self.assertTrue(all(row[2:4] == [None, None] for row in tiles["palette"]))
 
-    def test_missing_panel_omits_tiles(self):
+    def test_missing_panel_is_derived_from_this_screen(self):
         state = constructed_state()
         del state["panel"]
-        self.assertIsNone(spectator_tiles(state, SCREEN))
+        self.assertEqual(spectator_tiles(state, SCREEN), EXPECTED)
         state["panel"] = None
-        self.assertIsNone(spectator_tiles(state, SCREEN))
+        self.assertEqual(spectator_tiles(state, SCREEN), EXPECTED)
+
+    def test_zero_or_two_map_anchors_omit_even_with_a_state_panel(self):
+        for panel in (True, False):
+            for line in (" " * 20, " " * 14 + "@@" + " " * 4):
+                with self.subTest(panel=panel, line=line):
+                    state = constructed_state()
+                    if not panel:
+                        del state["panel"]
+                    screen = dict(SCREEN, lines=["@" * 20, "@" * 13 + " " * 7,
+                                                 line, "@" * 20])
+                    counts = {}
+                    self.assertIsNone(spectator_tiles(state, screen, panel_counts=counts))
+                    self.assertEqual(counts, {"player_glyph_count": 1})
+
+    def test_state_panel_must_agree_with_both_derived_coordinates(self):
+        for field in ("row_min", "col_min"):
+            state = constructed_state()
+            state["panel"][field] += 1
+            counts = {}
+            self.assertIsNone(spectator_tiles(state, SCREEN, panel_counts=counts))
+            self.assertEqual(counts, {"mismatch": 1})
+
+    def test_anchor_search_is_clipped_to_the_map_area(self):
+        screen = dict(SCREEN, lines=["@" * 21, "@" * 13 + " " * 7 + "@",
+                                     "@" * 13 + " @" + " " * 5 + "@",
+                                     "@" * 21, "@" * 21])
+        self.assertEqual(spectator_tiles(constructed_state(), screen), EXPECTED)
+
+    def test_each_frame_uses_its_own_anchor_and_position(self):
+        state = constructed_state()
+        del state["panel"]
+        counts = {}
+        self.assertEqual(spectator_tiles(state, SCREEN, panel_counts=counts), EXPECTED)
+        shifted = dict(SCREEN, lines=[" " * 20, " " * 13 + "@" + " " * 6,
+                                      " " * 20, " " * 20])
+        self.assertEqual(spectator_tiles(state, shifted)["rows"], ["AB.....", "BB....."])
+        state["player"].update(y=10, x=20)
+        self.assertEqual(spectator_tiles(state, shifted)["rows"][0], "ABCDE..")
+        self.assertEqual(counts, {"derived": 1})
+
+    def test_missing_player_position_does_not_invent_an_origin(self):
+        state = constructed_state()
+        del state["player"]["y"]
+        counts = {}
+        self.assertIsNone(spectator_tiles(state, SCREEN, panel_counts=counts))
+        self.assertEqual(counts, {"player_position": 1})
 
     def test_overflow_has_fixed_two_digit_indices_and_empty_sentinel(self):
         state = constructed_state()
-        state["player"] = {}
+        state["player"] = {"y": 10, "x": 20}
         state["grid_map"] = {
             "palette": [[i, 0, 0, 1] for i in range(65)],
             "runs": [[10, 20 + i, 1, i] for i in range(65)],
         }
-        tiles = spectator_tiles(state, {"width": 80, "height": 3})
+        tiles = spectator_tiles(state, {"width": 80, "height": 3, "lines": [" " * 80, " " * 13 + "@" + " " * 66, " " * 80]})
         self.assertEqual(tiles["index_width"], 2)
         self.assertEqual(len(tiles["palette"]), 65)
         self.assertEqual(tiles["rows"], [
             "AAABACADAEAFAGAHAIAJAKALAMANAOAPAQARASATAUAVAWAXAYAZAaAbAcAdAeAf"
             "AgAhAiAjAkAlAmAnAoApAqArAsAtAuAvAwAxAyAzA0A1A2A3A4A5A6A7A8A9A+A/BA...."])
         state["grid_map"]["runs"].pop()
-        self.assertNotIn("index_width", spectator_tiles(state, {"width": 80, "height": 3}))
+        self.assertNotIn("index_width", spectator_tiles(state, {"width": 80, "height": 3, "lines": [" " * 80, " " * 13 + "@" + " " * 66, " " * 80]}))
 
     def test_pref_names_and_unknown_ids(self):
         self.assertEqual(spectator_player({"race_id": 25, "class_id": 0}),
@@ -146,7 +192,14 @@ class SpectatorTilesWriterTest(unittest.TestCase):
             writer.observe(snapshot, "6", "no-panel", 2, SCREEN,
                            state_line=json.dumps(state), append_frame=True)
             frame = json.loads(writer.frames_path.read_text(encoding="utf-8").splitlines()[-1])
+            self.assertEqual(frame["tiles"], EXPECTED)
+            self.assertEqual(writer.tile_panel_counts, {"state": 1, "derived": 1})
+            state["panel"] = {"row_min": 99, "col_min": 20}
+            writer.observe(snapshot, "6", "mismatch", 3, SCREEN,
+                           state_line=json.dumps(state), append_frame=True)
+            frame = json.loads(writer.frames_path.read_text(encoding="utf-8").splitlines()[-1])
             self.assertNotIn("tiles", frame)
+            self.assertEqual(writer.tile_panel_counts["mismatch"], 1)
             writer.observe(snapshot, "6", "no-screen", 3, None,
                            state_line=json.dumps(state), append_frame=True)
             frame = json.loads(writer.frames_path.read_text(encoding="utf-8").splitlines()[-1])
