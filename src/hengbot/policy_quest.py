@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready
 from hengbot.policy_opening import OpeningRouteMixin
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -4171,7 +4172,7 @@ class QuestMixin(OpeningRouteMixin):
             # Fixed-quest travel used to bypass ordinary town readiness entirely.
             # Let the town router shed weight at Home before accepting, claiming,
             # or travelling to another fixed quest.
-            if self._inventory_overweight(snapshot):
+            if self._inventory_overweight(snapshot) and not allows_overweight_travel(self, snapshot):
                 return None
 
             fixed_quest_candidates = [
@@ -4853,12 +4854,11 @@ class QuestMixin(OpeningRouteMixin):
         # administration, not quest-entry safety, and previously stranded a
         # fully prepared Q2 character in town. Keep the two universal inventory
         # hazards explicit while allowing the reviewed strategy to own supplies.
-        if profile is not None and self._inventory_overweight(snapshot):
+        if profile is not None and not allows_overweight(profile) and self._inventory_overweight(snapshot):
             return reject("overweight")
         if profile is not None and self._teleport_blocked_by_equipment(snapshot):
             return reject("random-teleport")
         # USER DECISION 2026-10-25 round 2: oil cannot refill a torch.
-        # The shared judgment owns entry readiness and its rejection reason.
         if self._fixed_quest_is_once(quest_id):
             light = self._light_judgment(snapshot)
             q1_fuel_ready = False
@@ -4872,7 +4872,7 @@ class QuestMixin(OpeningRouteMixin):
                     light.worn is not None and light.worn.known
                     and light.worn.fuel >= fuel_required
                 )
-            if not q1_fuel_ready and not light.one_shot_quest_entry_ready:
+            if not (q1_fuel_ready or carried_torch_entry_ready(snapshot, profile) or light.one_shot_quest_entry_ready):
                 return reject(light.one_shot_quest_entry_reject_reason)
         if (
             profile is None

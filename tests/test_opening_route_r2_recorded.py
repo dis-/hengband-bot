@@ -173,9 +173,10 @@ class OpeningRouteR2RecordedTest(executor_harness.ProductionHarness):
                 self.assertEqual(policy.fixed_quest_readiness_state()["simultaneous_melee"], 1)
                 short = replace(enough, equipment=tuple(replace(it, fuel=int(required)-1)
                                                        if it.is_light else it for it in equipment))
-                self.assertFalse(policy._fixed_quest_ready(short, 1))
-                self.assertEqual(policy.fixed_quest_readiness_state()["reason"],
-                                 "light-torch-only" if sval == SV_LITE_TORCH else "light-oil")
+                # Q1 now accepts the recorded usable carried torches even
+                # when the worn light is short of the full-visit estimate.
+                self.assertTrue(policy._fixed_quest_ready(short, 1))
+                self.assertEqual(policy.fixed_quest_readiness_state()["reason"], "ready")
 
     def test_other_once_quests_keep_the_spare_oil_gate(self):
         policy, raw = self.case("1")
