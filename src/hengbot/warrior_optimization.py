@@ -10,7 +10,6 @@ from math import isfinite
 from pathlib import Path
 from typing import Mapping
 
-from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_encounters import normal_encounters, representative_encounters
 from hengbot.equipment_optimizer import (
     ABILITY_FLAG,
@@ -32,6 +31,7 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
     plan_equipment_transactions,
 )
+from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
