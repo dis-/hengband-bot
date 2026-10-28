@@ -7,7 +7,7 @@ from hengbot.claim_register import claims
 MAGIC_EATER = 16
 MAGIC_MISSILE = 15  # sv-definition/sv-wand-types.h
 ABSORB_REASON = "magic-eater:absorb"
-MISSILE_REASON = "magic-eater:q34-missile"
+MISSILE_REASON = "quest-strategy:ranged-fire:magic-eater"
 
 
 def reserved_for_absorption(player, item):

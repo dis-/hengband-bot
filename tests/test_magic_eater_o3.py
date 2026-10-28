@@ -74,6 +74,15 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(self.choose(policy, self.board()), "mBp6")
         self.assertEqual(policy.last_reason, MISSILE_REASON)
 
+    def test_public_missile_uses_existing_stationary_combat_guard(self):
+        from hengbot.cli import _cell_loop_guard_applies
+        policy = self.policy()
+        board = self.board()
+        self.assertEqual(self.choose(policy, board), "mBp6")
+        self.assertFalse(_cell_loop_guard_applies(board, policy.last_reason, board.player.position))
+        self.assertTrue(_cell_loop_guard_applies(
+            board, policy.last_reason, Position(board.player.position.y, board.player.position.x - 1)))
+
     def test_public_sword_prefers_absorbed_missile(self):
         policy = self.policy()
         board = self.board(race=107)
