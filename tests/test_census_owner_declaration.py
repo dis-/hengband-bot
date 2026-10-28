@@ -5,11 +5,24 @@ import ast
 import unittest
 
 from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE, ClaimOwner, claims
+from hengbot.magic_eater import ABSORB_REASON
+from hengbot.town_arbiter import _new_town_turn_arbiter
 import item_sink_lint
 import ownership_claim_lint
 
 
 class CensusOwnerDeclarationTest(unittest.TestCase):
+    def test_declaration_continuations_keep_their_budget_owner(self):
+        arbiter = _new_town_turn_arbiter()
+        for reason, owner in (
+            (ABSORB_REASON, "quest-request"),
+            ("shop:opening-route-page", "shop-buy"),
+            ("opening-q1:equip-light", "equipment-txn"),
+        ):
+            with self.subTest(reason=reason):
+                self.assertEqual(arbiter.owner_for_reason(reason), owner)
+                self.assertEqual(arbiter.ownership_family(reason), owner)
+
     def test_census_annotation_preserves_callable_and_operational_marker(self):
         def dispatcher():
             return "selected-child"
