@@ -19,8 +19,8 @@ def magic_eater_inputs():
     sheet = parse_character_sheet(
         (Path(__file__).parent / "fixtures/magic-eater-o4-sheet.txt").read_bytes())
     equipment = (
-        replace(item("main_hand", 23, 17, name="Long Sword (2d5) (+0,+0)",
-                     damage_dice_num=2, damage_dice_sides=5), weight=130, weapon_proficiency=4000),
+        replace(item("main_hand", 23, 25, name="Two-Handed Sword (3d6) (+0,+0)",
+                     damage_dice_num=3, damage_dice_sides=6), weight=200, weapon_proficiency=4000),
         item("light", 39, SV_LITE_FEANOR, name="Feanorian Lamp"),
         item("body", 36, 2, name="Robe [2,+0]", ac=2),
     )
@@ -80,7 +80,7 @@ class MagicEaterCalibrationTest(unittest.TestCase):
         self.assertIsNotNone(prepared)
         self.assertTrue(prepared.ready, prepared.blockers)
         self.assertEqual(prepared.result.best.loadout.item_at("body").item.to_a, 20)
-        self.assertAlmostEqual(prepared.result.best.metrics.expected_dps, 16.52176467692308)
+        self.assertAlmostEqual(prepared.result.best.metrics.expected_dps, 15.1591952)
         self.assertTrue(prepared.transaction.actions)
 
     def test_class16_departure_checks_pending_equipment(self):
@@ -102,9 +102,9 @@ class MagicEaterCalibrationTest(unittest.TestCase):
         board, calibration = self.calibrated()
         dps = weapon_expected_dps(board, board.equipment[0], 100, calibration)
         self.assertIsNotNone(dps)
-        # calc_num_blow: STR index 23, DEX index 18, weight 130, mul 3,
-        # two-hand index +1 gives 3 blows. The AC100 score includes criticals.
-        self.assertAlmostEqual(dps, 16.52176467692308)
+        # calc_num_blow: STR index 23, DEX index 18, weight 200, mul 3,
+        # two-hand index +1 gives 2 blows. The AC100 score includes criticals.
+        self.assertAlmostEqual(dps, 15.1591952)
 
     def test_class16_blow_limits_weight_and_two_hand_level_bonus(self):
         board, calibration = self.calibrated()
