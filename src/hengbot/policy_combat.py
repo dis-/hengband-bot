@@ -307,11 +307,7 @@ class CombatMixin:
 
         # Withdraw only this owner's veto, just as paralyzer avoidance does.
         previous = getattr(self, "_immobile_summoner_avoid_cells", set())
-        self._engagement_avoid_cells -= (
-            previous - self._engagement_owned_avoid_cells
-            - self._warning_refused_cells
-            - getattr(self, "_paralyzer_avoid_cells", set())
-        )
+        self._refresh_warning_avoidance(snapshot, released_cells=previous)
         if not remembered:
             self._immobile_summoner_avoid_cells = set()
             return None
@@ -352,11 +348,7 @@ class CombatMixin:
             or recall is not None or snapshot.player.recalling
         )
         if not retreat_possible:
-            self._engagement_avoid_cells -= (
-                cells - self._engagement_owned_avoid_cells
-                - self._warning_refused_cells
-                - getattr(self, "_paralyzer_avoid_cells", set())
-            )
+            self._refresh_warning_avoidance(snapshot, released_cells=cells)
             self._immobile_summoner_avoid_cells = set()
             targets = [m for m in perceived if self._summoner_never_approaches(snapshot, m)]
             if not targets:

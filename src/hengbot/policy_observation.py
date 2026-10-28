@@ -1418,7 +1418,9 @@ class ObservationMixin:
             missing.discard(SPEED_GATE_LABEL)
         return frozenset(missing)
 
-    def _refresh_warning_avoidance(self, snapshot: Snapshot) -> None:
+    def _refresh_warning_avoidance(
+        self, snapshot: Snapshot, *, released_cells: set | None = None,
+    ) -> None:
         """Keep warning-refused grids at lethal-danger navigation weight.
 
         Injected into (or withdrawn from) the shared avoid set once per
@@ -1427,8 +1429,19 @@ class ObservationMixin:
         remain, a destination only reachable through one is simply
         unreachable by walking and the existing danger/escape machinery owns
         the situation; only the entirely-exhausted ledger withdraws the
-        avoidance so the user-sanctioned forced walk can route through."""
+        avoidance so the user-sanctioned forced walk can route through.
+
+        When another owner releases cells, preserve all other contributions,
+        including warning latches. This only withdraws that owner's veto;
+        the normal per-decision refresh still owns warning supply policy.
+        """
         cells = self._warning_refused_cells
+        if released_cells is not None:
+            self._engagement_avoid_cells -= (
+                released_cells - self._engagement_owned_avoid_cells - cells
+                - getattr(self, "_paralyzer_avoid_cells", set())
+            )
+            return
         if not cells:
             return
         if self._warning_supplies_exhausted(snapshot):
