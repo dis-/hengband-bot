@@ -1420,6 +1420,7 @@ class ObservationMixin:
 
     def _refresh_warning_avoidance(
         self, snapshot: Snapshot, *, released_cells: set | None = None,
+        added_cells: set | None = None,
     ) -> None:
         """Keep warning-refused grids at lethal-danger navigation weight.
 
@@ -1442,9 +1443,8 @@ class ObservationMixin:
                 - getattr(self, "_paralyzer_avoid_cells", set())
             )
             return
-        if not cells:
-            return
-        if self._warning_supplies_exhausted(snapshot):
+        active = set(added_cells or ())
+        if cells and self._warning_supplies_exhausted(snapshot):
             # Withdraw ONLY the warning owner's contribution: a coordinate the
             # engagement/status-threat owner also claims stays avoided — the
             # forced-walk permission must never erase another owner's
@@ -1453,8 +1453,9 @@ class ObservationMixin:
                 cells - self._engagement_owned_avoid_cells
             )
         else:
-            self._engagement_avoid_cells |= cells
-            if any(step in cells for step in self._explore_path):
-                # A committed exploration path replays without re-planning;
-                # drop it rather than march the tail back into the grid.
-                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+            active |= cells
+        self._engagement_avoid_cells |= active
+        if any(step in active for step in self._explore_path):
+            # Every new veto invalidates a committed path through it, whether
+            # it belongs to a warning refusal or an immobile summoner.
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)

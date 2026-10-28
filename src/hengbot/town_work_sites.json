@@ -4300,7 +4300,7 @@
       "loot-exploration"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3fdf1bb1cd01b455177a67eb03ef5eb28b576a4000446377576dce9e9a8ca422"
+    "ast_sha256": "ff4478ba90a241acf9f2e06bad25e4e75770037594b8df2c59e6bb4de88f2297"
   },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
@@ -5439,7 +5439,7 @@
       "overweight-surplus"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "55d4383dac5bce74672fbde0ed572f477151723dadec98196e4879c1e64b824b"
+    "ast_sha256": "936b4dacf7141c3110007ee86960fb4f4b039166d8f3455a722b44bf4e9696e9"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
     "classification": "data",
@@ -5555,7 +5555,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "efe4f90bd38158329593c1547dc14e5520509f6445a1e08f6e8ec110b5728985"
+    "ast_sha256": "123b0ebd238c159ea48dce768f716b8e64e9c4f62aad703978411c07d231caa2"
   },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {
     "classification": "producer",
@@ -6013,7 +6013,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b2208983ca7d9dc08a7982c7e807c21245142b2553a1383d8a62e22c0f7da8f1"
+    "ast_sha256": "0a3cf6b085fc6fa3b225b85cb4ffba9de1de02e9b4253338958100e2ecbef16e"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": {
     "classification": "producer",
@@ -6024,7 +6024,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "79b143f2819e63ed7d9057402d365c7ea4c455f1ba9691cea1066385e525baeb"
+    "ast_sha256": "9428d71316c0da1ce6d50a5e43b5deaa25eb0b794d296482bfc66f2c80636518"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": {
     "classification": "producer",
@@ -6035,7 +6035,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b2f049bd9ee8cc623554694fe51c5d72f308067b5b60a9d41e84d8e7b1657e63"
+    "ast_sha256": "c19966f1339e252866b0e4d44ae7a133dae60206f303ef141655d54befb2b90c"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",

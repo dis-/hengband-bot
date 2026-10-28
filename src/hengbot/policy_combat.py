@@ -267,6 +267,7 @@ class CombatMixin:
             return False
         return wait_expired(self, snapshot, monster)
 
+    @claims(ClaimOwner.COMBAT)
     def _immobile_summoner_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -321,9 +322,7 @@ class CombatMixin:
             )
         }
         self._immobile_summoner_avoid_cells = cells
-        self._engagement_avoid_cells |= cells
-        if any(step in cells for step in self._explore_path):
-            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+        self._refresh_warning_avoidance(snapshot, added_cells=cells)
 
         # Use the existing stair routing and scroll order. An inaccessible stair
         # behind the summoner is not an available retreat through safe terrain.
