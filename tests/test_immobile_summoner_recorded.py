@@ -46,6 +46,9 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         data = FIXTURE.read_bytes()
         assert hashlib.sha256(data).hexdigest() == SHA256
         cls.records = json.loads(gzip.decompress(data))
+        glass = FIXTURE.with_name("glass-summoner-20261027.json.gz").read_bytes()
+        assert hashlib.sha256(glass).hexdigest() == "59c9c108d76f2279e7c4f2e854abb3f32206c846dccfe2181450ec04f49f9abb"
+        cls.glass_records = json.loads(gzip.decompress(glass))
         cls.knowledge = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
     def _policy(self, board, *, mobile=False):
@@ -339,6 +342,94 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(policy._loot_target, safe)
         self.assertIn(unsafe, policy._deferred_loot)
         self._post(policy, board, key, record["board"])
+
+    def _assert_glass_capture(self, index):
+        record = self.glass_records[index]
+        board = parse_snapshot(record["board"], self.knowledge)
+        self.assertEqual(board.player.position, Position(29, 50))
+        monster = next(m for m in board.visible_monsters if m.race_id == 915)
+        self.assertEqual((monster.position, monster.distance), (Position(26, 49), 3))
+        self.assertFalse(self.knowledge[915].flags & {"NEVER_MOVE", "PASS_WALL", "KILL_WALL"})
+        self.assertEqual(record["decision"]["reason"], "summoner:hold-choke")
+        self.assertEqual(record["decision"]["key"], "5")
+        wall = board.grid_at(Position(28, 50))
+        self.assertEqual(wall.terrain_id, 218)
+        self.assertTrue(wall.allows_los)
+        self.assertFalse(wall.enterable)
+        policy = self._policy(board)
+        self.assertIsNone(policy._monster_path_distance(board, monster.position))
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("rg", "summoner:recall"))
+        self.assertIn(monster.position, policy._immobile_summoner_memory[1])
+        # No safe useful target or stairs exist on these observed boards.
+        # _post supplies a CONSTRUCTED scroll prompt / command response.
+        self._post(policy, board, key, record["board"])
+
+    def test_glass_first_capture_leaves_and_posts(self):
+        self._assert_glass_capture(0)
+
+    def test_glass_second_capture_leaves_and_posts(self):
+        self._assert_glass_capture(1)
+
+    def test_glass_third_capture_leaves_and_posts(self):
+        self._assert_glass_capture(2)
+
+    def _walking_summoner_corridor(self, *, wall=False, quest=False, detected=False):
+        # DECLARED CONSTRUCTED: same corridor, mobile race 915; the barrier
+        # determines reachability independently of NEVER_MOVE knowledge.
+        board = self._corridor(wall=wall, quest=quest, detected=detected,
+                               inventory=[fixtures.item("r", 70, 11)])
+        channel = "detected_monsters" if detected else "visible_monsters"
+        return replace(board, **{channel: [replace(getattr(board, channel)[0], race_id=915)]})
+
+    def test_glass_constructed_walkable_control_keeps_wait(self):
+        board = self._walking_summoner_corridor()
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+
+    def test_glass_constructed_quest_does_not_wait_for_unreachable_mobile_summoner(self):
+        board = self._walking_summoner_corridor(wall=True, quest=True)
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason), ("4", "explore"))
+
+    def test_glass_constructed_detected_quest_releases_cached_hold(self):
+        board = self._walking_summoner_corridor(wall=True, quest=True, detected=True)
+        policy = self._policy(board)
+        policy._detected_threat_hold = (board.floor_key, board.turn)
+        policy._detected_threat_hold_position = board.player.position
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason), ("4", "explore"))
+        self.assertIsNone(policy._detected_threat_hold)
+
+    def test_glass_constructed_pass_wall_control_keeps_wait(self):
+        board = self._walking_summoner_corridor(wall=True)
+        policy = self._policy(board)
+        policy._monrace_knowledge[915] = replace(self.knowledge[915],
+                                                flags=self.knowledge[915].flags | {"PASS_WALL"})
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+
+    def test_glass_constructed_kill_wall_control_keeps_wait(self):
+        board = self._walking_summoner_corridor(wall=True)
+        policy = self._policy(board)
+        policy._monrace_knowledge[915] = replace(self.knowledge[915],
+                                                flags=self.knowledge[915].flags | {"KILL_WALL"})
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+
+    def test_glass_constructed_opened_route_retires_avoidance(self):
+        board = self._walking_summoner_corridor(wall=True)
+        policy = self._policy(board)
+        policy._visit_counts.update({position: 1 for position in board.grids})
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("rr", "summoner:recall"))
+        grids = dict(board.grids)
+        grids[Position(10, 12)] = fixtures.grid(10, 12, in_view=True, lit=True)
+        opened = replace(board, grids=grids, turn=board.turn + 10)
+        self.assertEqual((str(policy.choose_key(opened)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+        self.assertEqual(policy._immobile_summoner_memory[1], {})
+        self.assertEqual(policy._immobile_summoner_avoid_cells, set())
 
 
 if __name__ == "__main__":

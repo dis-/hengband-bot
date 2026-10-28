@@ -253,14 +253,19 @@ from hengbot.policy_constants import (
 
 
 class CombatMixin:
-    def _summoner_never_approaches(self, monster: MonsterState) -> bool:
-        """NEVER_MOVE is race knowledge, not a wait-and-see movement timeout."""
+    def _summoner_never_approaches(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Use race knowledge and the observed walking route, not a timeout."""
+        if not monster.can_summon:
+            return False
         knowledge = self._monrace_knowledge.get(monster.race_id)
-        return bool(
-            monster.can_summon
-            and knowledge is not None
-            and "NEVER_MOVE" in knowledge.flags
-        )
+        flags = knowledge.flags if knowledge is not None else frozenset()
+        if "NEVER_MOVE" in flags:
+            return True
+        if {"PASS_WALL", "KILL_WALL"} & flags:
+            return False
+        return self._monster_path_distance(snapshot, monster.position) is None
 
     def _immobile_summoner_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
@@ -279,13 +284,15 @@ class CombatMixin:
         perceived = self._perceived_hostiles(snapshot)
         if (
             not remembered
-            and not any(self._summoner_never_approaches(m) for m in perceived)
+            and not any(self._summoner_never_approaches(snapshot, m) for m in perceived)
             and not getattr(self, "_immobile_summoner_avoid_cells", set())
         ):
             return None
         for monster in perceived:
-            if self._summoner_never_approaches(monster):
+            if self._summoner_never_approaches(snapshot, monster):
                 remembered[monster.position] = monster.race_id
+            else:
+                remembered.pop(monster.position, None)
         perceived_positions = {monster.position for monster in perceived}
         for position, race_id in list(remembered.items()):
             grid = snapshot.grid_at(position)
@@ -351,11 +358,11 @@ class CombatMixin:
                 - getattr(self, "_paralyzer_avoid_cells", set())
             )
             self._immobile_summoner_avoid_cells = set()
-            targets = [m for m in perceived if self._summoner_never_approaches(m)]
+            targets = [m for m in perceived if self._summoner_never_approaches(snapshot, m)]
             if not targets:
                 return None
             adjacent = [m for m in hostiles if m.distance <= 1]
-            visible_targets = [m for m in hostiles if self._summoner_never_approaches(m)]
+            visible_targets = [m for m in hostiles if self._summoner_never_approaches(snapshot, m)]
             ranged = self._town_producer_entry(
                 "_ranged_attack_key",
                 lambda: self._ranged_attack_key(snapshot, visible_targets, adjacent),
@@ -386,7 +393,7 @@ class CombatMixin:
         self._detected_threat_hold_position = None
         if self._choke_plan_active(snapshot):
             self._release_choke_plan("immobile-summoner")
-        other_hostiles = [m for m in hostiles if not self._summoner_never_approaches(m)]
+        other_hostiles = [m for m in hostiles if not self._summoner_never_approaches(snapshot, m)]
         adjacent = [m for m in other_hostiles if m.distance <= 1]
         if (
             adjacent and not snapshot.player.afraid

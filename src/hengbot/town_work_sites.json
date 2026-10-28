@@ -2094,7 +2094,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f24b15b462dd1f35d8611a63b7629838e867c6d985455745595597a8db2d2a79"
+    "ast_sha256": "3c1479cdb4f6929e0c42c754721a619e7f9221581747d37734fb7653ef684dcd"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -2151,7 +2151,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "087531ef05989d9475d1241f9cab7a6bcd1255b31be3361b7cd66adef5c17a3c"
+    "ast_sha256": "682922037c09734a19e24be277e6aa3ced9259eff02da205ce644627e1409037"
   },
   "policy.py:HengbotPolicy._device_food_reserve_slot": {
     "classification": "data",
@@ -3193,7 +3193,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8569864af050476576c31206d867512234880d9d835ffb0e5224747d4e6a29b4"
+    "ast_sha256": "573ae22babb7f6da9483a5aa819708a8f1dd9fa99a5f10795299d6040a29af8d"
   },
   "policy.py:HengbotPolicy._summoner_retreat_route": {
     "classification": "data",
@@ -4216,7 +4216,7 @@
       "loot-exploration"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "aacc8a69ee46d06c2a8e338982916e9f64315e905a93813c3dcf3a119e8a1c27"
+    "ast_sha256": "9038e5324a86f33a3e474a3a1bed026d571c746421c2f34f846bae6b40316c0a"
   },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
@@ -4360,7 +4360,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "316cb8cd67755eeac8a21ebcdf5c349b7d5f9f7a6908b54a24acdbec5a5285bb"
+    "ast_sha256": "e1e1b45d2adbfe5ae697789e023c77df677f2a1b2eafd0efe31fc5ea9fce8ce6"
   },
   "policy_combat.py:CombatMixin._update_combat_outcome": {
     "classification": "producer",
