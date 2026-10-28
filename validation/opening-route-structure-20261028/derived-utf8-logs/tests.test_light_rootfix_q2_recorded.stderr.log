@@ -1,0 +1,17 @@
+test_control_104_and_100_boards_keep_sweeping (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_control_104_and_100_boards_keep_sweeping) ... ok
+test_control_faint_board_with_oil_keeps_the_quest (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_control_faint_board_with_oil_keeps_the_quest) ... ok
+test_faint_board_releases_the_quest_lock_and_reads_recall (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_faint_board_releases_the_quest_lock_and_reads_recall) ... ok
+test_faint_torch_without_refill_or_swap_still_releases_quest (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_faint_torch_without_refill_or_swap_still_releases_quest) ... ok
+test_fixture_is_the_recorded_lantern_run_out (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_fixture_is_the_recorded_lantern_run_out) ... ok
+test_lightless_pair_leaves_instead_of_alternating (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_lightless_pair_leaves_instead_of_alternating) ... ok
+test_one_shot_quest_entry_admitted_for_a_fuelless_light (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_one_shot_quest_entry_admitted_for_a_fuelless_light) ... ok
+test_one_shot_quest_entry_admitted_with_oil (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_one_shot_quest_entry_admitted_with_oil) ... ok
+test_one_shot_quest_entry_refused_for_torch_only_even_with_oil (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_one_shot_quest_entry_refused_for_torch_only_even_with_oil) ... ok
+test_one_shot_quest_entry_refused_without_oil (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_one_shot_quest_entry_refused_without_oil) ... ok
+test_one_shot_quest_entry_with_torch_and_spare_fuelless_light_admitted (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_one_shot_quest_entry_with_torch_and_spare_fuelless_light_admitted) ... ok
+test_one_shot_quest_entry_with_torch_and_spare_lantern_needs_oil (test_light_rootfix_q2_recorded.LightRootFixQ2RecordedTest.test_one_shot_quest_entry_with_torch_and_spare_lantern_needs_oil) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 110.442s
+
+OK

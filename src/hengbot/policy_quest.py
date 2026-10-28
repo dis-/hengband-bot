@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.policy_opening import OpeningRouteMixin
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
@@ -418,7 +419,7 @@ QUEST_LAUNCHER_AMMO_CARRIES = frozenset({
 })
 
 
-class QuestMixin:
+class QuestMixin(OpeningRouteMixin):
     def _derived_home_visit_request(
         self, snapshot: Snapshot
     ) -> PhysicalHomeVisitRequest | None:
@@ -547,6 +548,11 @@ class QuestMixin:
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
         """Give the accepted Q34 opening sole non-emergency town ownership."""
+        if snapshot.store is not None and self._opening_q1_active(snapshot):
+            return self._opening_q1_store_key(snapshot)
+        opening = self._opening_q1_town_key(snapshot, hostiles)
+        if opening is not None:
+            return opening
         if not self._opening_q34_active(snapshot):
             return None
 
@@ -1044,7 +1050,8 @@ class QuestMixin:
             and self._morivant_full_identify.temporary_deposits
         ):
             return False
-        if self._opening_q34_active(snapshot) and quest_id == 34:
+        if ((quest_id == 34 and self._opening_q34_active(snapshot))
+                or (quest_id == 1 and self._opening_q1_active(snapshot))):
             ready = self._evaluate_fixed_quest_readiness(
                 snapshot, quest_id, require_target_town=True
             )
@@ -4764,6 +4771,20 @@ class QuestMixin:
         info = self._quest_knowledge.get(quest_id)
         return info is None or bool(info.flags & QUEST_FLAG_ONCE)
 
+    def _q1_visit_light_fuel(self, snapshot: Snapshot) -> float:
+        from hengbot.quest_navigator import DEFAULT_HOLD_BUDGET, SWEEP_BUDGET
+        profile = self.approved_quest_strategy(1)
+        info = self._quest_knowledge[1]
+        # The approved wait, one kill window per opponent, static navigation,
+        # and loot sweep. At native speed 110 one action burns one fuel unit
+        # (src/object/lite-processor.cpp:18). Slow players need proportionally more.
+        actions = (
+            int(profile.engagement_plan.get("hold_budget", DEFAULT_HOLD_BUDGET))
+            + info.threat_roster_count * FIXED_QUEST_TOUGHEST_KILL_TURNS
+            + len(info.battlefield.terrain) + SWEEP_BUDGET
+        )
+        return actions * self._speed_energy(110) / self._speed_energy(snapshot.player.speed)
+
     def _fixed_quest_ready(self, snapshot: Snapshot, quest_id: int) -> bool:
         return self._evaluate_fixed_quest_readiness(
             snapshot, quest_id, require_target_town=True
@@ -4840,7 +4861,18 @@ class QuestMixin:
         # The shared judgment owns entry readiness and its rejection reason.
         if self._fixed_quest_is_once(quest_id):
             light = self._light_judgment(snapshot)
-            if not light.one_shot_quest_entry_ready:
+            q1_fuel_ready = False
+            if quest_id == 1 and profile is not None and info.battlefield is not None:
+                fuel_required = self._q1_visit_light_fuel(snapshot)
+                telemetry["quest_light"] = {
+                    "fuel": light.worn.fuel if light.worn is not None else 0,
+                    "required": fuel_required,
+                }
+                q1_fuel_ready = bool(
+                    light.worn is not None and light.worn.known
+                    and light.worn.fuel >= fuel_required
+                )
+            if not q1_fuel_ready and not light.one_shot_quest_entry_ready:
                 return reject(light.one_shot_quest_entry_reject_reason)
         if (
             profile is None

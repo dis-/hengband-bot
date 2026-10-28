@@ -1,0 +1,23 @@
+test_building_menu_pin_does_not_exempt_item_command_in_same_function (test_item_sink_lint.ItemSinkLintTest.test_building_menu_pin_does_not_exempt_item_command_in_same_function) ... ok
+test_enforcement_result_cannot_be_discarded_at_exit (test_item_sink_lint.ItemSinkLintTest.test_enforcement_result_cannot_be_discarded_at_exit) ... ok
+test_every_pinned_adapter_call_still_exists (test_item_sink_lint.ItemSinkLintTest.test_every_pinned_adapter_call_still_exists) ... ok
+test_low_level_adapter_cannot_bypass_verdict_in_a_new_module (test_item_sink_lint.ItemSinkLintTest.test_low_level_adapter_cannot_bypass_verdict_in_a_new_module) ... ok
+test_new_call_in_existing_adapter_is_rejected (test_item_sink_lint.ItemSinkLintTest.test_new_call_in_existing_adapter_is_rejected) ... ok
+test_new_direct_producer_mutant_fails (test_item_sink_lint.ItemSinkLintTest.test_new_direct_producer_mutant_fails) ... ok
+test_new_selector_cannot_serialize_reserved_item_without_verdict (test_item_sink_lint.ItemSinkLintTest.test_new_selector_cannot_serialize_reserved_item_without_verdict) ... ok
+test_none_exit_cannot_bypass_final_record (test_item_sink_lint.ItemSinkLintTest.test_none_exit_cannot_bypass_final_record) ... ok
+test_public_exit_mutant_is_rejected (test_item_sink_lint.ItemSinkLintTest.test_public_exit_mutant_is_rejected) ... ok
+test_raw_command_forms_and_aliases_fail (test_item_sink_lint.ItemSinkLintTest.test_raw_command_forms_and_aliases_fail) ... ok
+test_raw_consumption_command_mutations_fail (test_item_sink_lint.ItemSinkLintTest.test_raw_consumption_command_mutations_fail) ... ok
+test_raw_deposit_mutant_fails (test_item_sink_lint.ItemSinkLintTest.test_raw_deposit_mutant_fails) ... ok
+test_repository_item_sinks (test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks) ... ok
+test_returned_key_must_be_the_recorded_final_key (test_item_sink_lint.ItemSinkLintTest.test_returned_key_must_be_the_recorded_final_key) ... ok
+test_rumor_menu_macro_pin_is_exact (test_item_sink_lint.ItemSinkLintTest.test_rumor_menu_macro_pin_is_exact) ... ok
+test_serializer_alias_and_overwritten_verdict_are_rejected (test_item_sink_lint.ItemSinkLintTest.test_serializer_alias_and_overwritten_verdict_are_rejected) ... ok
+test_serializer_has_required_verdict_signature (test_item_sink_lint.ItemSinkLintTest.test_serializer_has_required_verdict_signature) ... ok
+test_verdict_construction_outside_core_fails (test_item_sink_lint.ItemSinkLintTest.test_verdict_construction_outside_core_fails) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 127.107s
+
+OK

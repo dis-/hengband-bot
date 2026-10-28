@@ -36,8 +36,8 @@ class WeightRelief(NamedTuple):
 
     Junk goes first through the town junk step (#95).  Then the carried
     retention surplus: a Home deposit while the Home has a free slot, else a
-    sale, else a destruction (owner 2026-10-10).  When neither covers the
-    excess, only retained weight remains and the route names it.
+    sale, else a destruction (owner 2026-10-10). Only the absence of both
+    deposit and surplus candidates means that retained weight alone remains.
     """
     weight: int
     limit: int | None
@@ -172,9 +172,8 @@ class HomeMixin:
                 or snapshot.player.food_state not in {"normal", "full", "gorged"}
                 or self._physical_hostiles(snapshot)):
             return None
-        capacity = self._home_capacity_observation
-        if (capacity and capacity[1] > 0 and capacity[0] < capacity[1]
-                and capacity[2] == self._effective_town_id(snapshot)
+        relief = self._weight_relief_selection(snapshot)
+        if (relief.route == "deposit"
                 and not state.get("pending", {}).get("posted")
                 and self._find_home_deposit(snapshot) is not None):
             self._overweight_surplus_disposal = None
@@ -2114,6 +2113,8 @@ class HomeMixin:
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
         """Return the existing reservation together with its observed branch."""
+        if self._opening_q1_active(snapshot) and (item.is_digging_tool or item.is_treasure_detection_scroll):
+            return item.count, "opening-q1:kit"
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (
@@ -2782,7 +2783,22 @@ class HomeMixin:
         if not plan:
             return WeightRelief(weight, limit, excess, deposits, (), False,
                                 "unplanned", ())
-        home = self._home_available(snapshot)
+        # An already active physical Home visit keeps its installed budget.
+        # Historical passes under equipment work's larger bound must not
+        # retire it when the current work limit shrinks. An idle visit still
+        # obeys the ordinary pass bound, even after a need re-arms its block.
+        ledger = self._town_visit_ledger
+        home_visit = self._home_visit
+        home = (
+            self._home_available(snapshot)
+            and not self._town_store_blocked_under_applicable_bound(
+                STORE_HOME, need="weight-overload")
+            and (home_visit is None
+                 or home_visit.attempts_used < home_visit.attempt_limit)
+            and ((ledger.unsatisfied_passes[STORE_HOME] < self._town_store_visit_limit(STORE_HOME)
+                  and ledger.approach_fails[STORE_HOME] < self._town_store_visit_limit(STORE_HOME))
+                 or (home_visit is not None and home_visit.active))
+        )
         # A free Home slot is an observation (page or capacity fact), never
         # the absence of a "full" fact.
         store = snapshot.store
@@ -2790,17 +2806,26 @@ class HomeMixin:
         if (store is not None and store.store_type == STORE_HOME
                 and isinstance(store.stock_num, int)
                 and isinstance(store.capacity, int) and store.capacity > 0):
-            home_room = store.stock_num < store.capacity
+            home_capacity_known = True
+            home_room = home and store.stock_num < store.capacity
         else:
-            home_room = bool(home and fact and fact[1] > 0 and fact[0] < fact[1]
-                             and fact[2] == self._effective_town_id(snapshot))
+            home_capacity_known = bool(fact and fact[1] > 0
+                                       and fact[2] == self._effective_town_id(snapshot))
+            home_room = bool(home and home_capacity_known and fact[0] < fact[1])
         surplus = tuple(self._overweight_surplus_candidates(snapshot))
         if deposits and home_room:
             route = "deposit"
+        elif deposits and home and not home_capacity_known:
+            # Unknown capacity is not a full Home. Observe the available
+            # route before retiring its deposits into carried disposal.
+            route = "home-relief"
         elif sum(item.weight * count for _, _, item, count, _ in surplus) >= excess:
             route = "sell-or-destroy"
-        elif deposits and home:
-            route = "home-relief"
+        elif deposits or surplus:
+            # Exhausting Home's route does not turn its remaining deposit
+            # candidates into retained items. Keep the unreachable terminal
+            # when legal shedding cannot clear the excess on this board.
+            route = "home-relief" if home else "home-unreachable"
         else:
             route = "retained-only"
         shed = {item.slot for item in deposits} | {entry[2].slot for entry in surplus}

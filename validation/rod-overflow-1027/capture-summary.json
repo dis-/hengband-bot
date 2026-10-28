@@ -1,0 +1,32 @@
+[
+  {
+    "capture": "20261027-201020-town-blocked-overflow-no-legal-disposal",
+    "board_count": 99,
+    "decision_count": 192,
+    "last_turn": 1664234,
+    "inventory_count": 20,
+    "gold": 5900,
+    "last_reason": "town:blocked:overflow-no-legal-disposal",
+    "state_sha256": "9e788800628c248097c1cf26115aee647f294e2028efbd225c78f44118333290"
+  },
+  {
+    "capture": "20261027-201032-town-blocked-overflow-no-legal-disposal",
+    "board_count": 95,
+    "decision_count": 177,
+    "last_turn": 1664847,
+    "inventory_count": 20,
+    "gold": 5900,
+    "last_reason": "town:blocked:overflow-no-legal-disposal",
+    "state_sha256": "fc6a9d40bd044eb51897e9b291225263c27847975153fcf75674896c8c9926fa"
+  },
+  {
+    "capture": "20261027-201044-town-blocked-overflow-no-legal-disposal",
+    "board_count": 94,
+    "decision_count": 163,
+    "last_turn": 1665476,
+    "inventory_count": 20,
+    "gold": 5900,
+    "last_reason": "town:blocked:overflow-no-legal-disposal",
+    "state_sha256": "ab3c5349d4a7025e15040cd937a156d8c7f65a06910ba2849856a6dad59a8c72"
+  }
+]

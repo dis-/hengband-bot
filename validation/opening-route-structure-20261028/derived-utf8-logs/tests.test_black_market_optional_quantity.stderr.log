@@ -1,0 +1,12 @@
+test_baseitem_costs_price_every_known_departure_and_quest_category (test_black_market_optional_quantity.BlackMarketOptionalQuantityReserveTest.test_baseitem_costs_price_every_known_departure_and_quest_category) ... ok
+test_constructed_affordable_optional_buy_reaches_public_boundary (test_black_market_optional_quantity.BlackMarketOptionalQuantityReserveTest.test_constructed_affordable_optional_buy_reaches_public_boundary)
+CONSTRUCTED price/gold keep the selector's purchase path exercised. ... ok
+test_multi_unit_optional_buy_preserves_full_resupply_reserve (test_black_market_optional_quantity.BlackMarketOptionalQuantityReserveTest.test_multi_unit_optional_buy_preserves_full_resupply_reserve) ... ok
+test_recorded_20261008_speed_board_is_blocked_and_affordable_control_passes (test_black_market_optional_quantity.BlackMarketOptionalQuantityReserveTest.test_recorded_20261008_speed_board_is_blocked_and_affordable_control_passes) ... ok
+test_reserve_not_kept_by_one_unit_buys_nothing (test_black_market_optional_quantity.BlackMarketOptionalQuantityReserveTest.test_reserve_not_kept_by_one_unit_buys_nothing) ... ok
+test_satisfied_stock_still_reserves_its_full_rebuy_cost (test_black_market_optional_quantity.BlackMarketOptionalQuantityReserveTest.test_satisfied_stock_still_reserves_its_full_rebuy_cost) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.884s
+
+OK

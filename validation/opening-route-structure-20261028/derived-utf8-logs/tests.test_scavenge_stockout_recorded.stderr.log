@@ -1,0 +1,14 @@
+test_captured_stockout_takes_scavenge_transition (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_captured_stockout_takes_scavenge_transition) ... ok
+test_carried_or_home_detection_vetoes_stockout_exception (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_carried_or_home_detection_vetoes_stockout_exception) ... ok
+test_existing_too_expensive_case_still_scavenges (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_existing_too_expensive_case_still_scavenges) ... ok
+test_overdue_return_without_found_stairs_reads_recall (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_overdue_return_without_found_stairs_reads_recall) ... ok
+test_overdue_return_without_recall_keeps_searching (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_overdue_return_without_recall_keeps_searching) ... ok
+test_restored_checkpoint_defaults_run_clock (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_restored_checkpoint_defaults_run_clock) ... ok
+test_scavenge_departure_keeps_survival_gates_without_cure_potions (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_scavenge_departure_keeps_survival_gates_without_cure_potions) ... ok
+test_scavenge_run_returns_at_10000_and_new_run_resets_clock (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_scavenge_run_returns_at_10000_and_new_run_resets_clock) ... ok
+test_unobserved_alchemist_does_not_prove_stockout (test_scavenge_stockout_recorded.ScavengeStockoutRecordedTest.test_unobserved_alchemist_does_not_prove_stockout) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 4.564s
+
+OK

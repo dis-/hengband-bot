@@ -1,0 +1,7 @@
+[preflight] FAIL fakery/sink: FAIL: test_every_pinned_adapter_call_still_exists (tests.test_item_sink_lint.ItemSinkLintTest.test_every_pinned_adapter_call_still_exists) (site='policy_fundraising.py:_fundraising_key')
+[preflight] FAIL fakery/sink: AssertionError: Count[1145 chars]: 1, 'self._leave_fundraising_floor(snapshot) [2144 chars]: 1}) != Count[1145 chars]: 1, "self._leave_fundraising_floor(snapshot) [2503 chars]: 1})
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy_fundraising.py: line 1162: _start[522 chars]ion'] != []
+[preflight] FAIL fakery/sink: + []
+[preflight] FAIL fakery/sink: - ['policy_fundraising.py: line 1162: _start_fundraising_return calls a claims '
+[preflight] PREFLIGHT FAIL: 59 changed files, 6 findings (opening-route-1026 vs 78deea2a)

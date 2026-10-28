@@ -1834,7 +1834,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2946be945896761a2bc3adcd124995d0230ad2beb87d90f7c37c231efcaea7ea"
+    "ast_sha256": "c097536f1e837301299eba0aa58bc0f45c674e04b9fb4d633033fdd2a588ffe5"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -2094,7 +2094,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3c1479cdb4f6929e0c42c754721a619e7f9221581747d37734fb7653ef684dcd"
+    "ast_sha256": "a9ef1c76e8dbd6156109ec2d6657f15c6907b4127b6a43f28e4ef0365a64fd4b"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4304,7 +4304,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "48295370f1c912acd362478428d577b0c3f05d3503c9f760efe6ad83b8c47166"
+    "ast_sha256": "752b96b626c3e1c1b6ba7bf7f736b4df29e27125154b10ff2f3be5e2fc1fb3ec"
   },
   "policy_combat.py:CombatMixin._ranged_target": {
     "classification": "data",
@@ -4746,7 +4746,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e35e6a15b9bdd00c6ac8b17aa2dd0973f348070279d8e293022843498c3ab8e5"
+    "ast_sha256": "f2710a44860e3838068a2cd2979feaff94b71aaf61d01516e862e92cdb2d436b"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": {
     "classification": "producer",
@@ -4829,6 +4829,15 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "97c5d05c532b34ceb7cfa9d8ea598f7f609684446acbf59e11d3db2e09e5e331"
+  },
+  "policy_fundraising.py:FundraisingMixin._start_fundraising_return": {
+    "classification": "producer",
+    "rows": [
+      "fundraising",
+      "store-exit"
+    ],
+    "delegation": "_leave_fundraising_floor; no independent progress",
+    "ast_sha256": "8cb1058f4e8dd4b7b6b8f76f2ad9a83e57475f71e274cc82e72825e9551f122c"
   },
   "policy_fundraising.py:FundraisingMixin._tunnel_step_toward": {
     "classification": "adapter",
@@ -4940,7 +4949,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fd553ef7fe6eb9b92501a646e51143e3fde01dc60031dd36d6c3bd516213037f"
+    "ast_sha256": "edb661d0f6dbb60e7329bc6775f9556b44cce9e24a58d4a108b24fc24f3bf7f7"
   },
   "policy_helpers.py:PolicyHelpersMixin._weakest": {
     "classification": "data",
@@ -5338,7 +5347,7 @@
       "overweight-surplus"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8c88132f602ff5706cc4ced3e8bd6cdd959d258bc199971b09b6e0435b99ac9d"
+    "ast_sha256": "55d4383dac5bce74672fbde0ed572f477151723dadec98196e4879c1e64b824b"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
     "classification": "data",
@@ -5381,7 +5390,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "22b4ffff947ac64c620c1264dcb4945fbe09de848d98889bbe49865f4be902a6"
+    "ast_sha256": "377b82d094ac51ae2f77596064a70ccf0a76c440a8743c41b5628f0e8f921030"
   },
   "policy_home.py:HomeMixin._retention_reservation_detail": {
     "classification": "data",
@@ -5454,7 +5463,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5520a8de8b58af34b9c196b301131b8137bb9a7c8c95bcb30081d947cc62cb29"
+    "ast_sha256": "efe4f90bd38158329593c1547dc14e5520509f6445a1e08f6e8ec110b5728985"
   },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {
     "classification": "producer",
@@ -5895,6 +5904,47 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "d1cb5055e6db5ef3779c20e2e84eb1fc6d4a77cccfc3fb625c2b2e7b8fa6666f"
   },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "04d35e31c1c2666f0f51dbac1baf8266e7a99848e04b6f13eb95fcbe4fff3953"
+  },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_stop": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "b2208983ca7d9dc08a7982c7e807c21245142b2553a1383d8a62e22c0f7da8f1"
+  },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "79b143f2819e63ed7d9057402d365c7ea4c455f1ba9691cea1066385e525baeb"
+  },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "fbe6a2a306193c8a340e13b3f4de13eceb5cc743fb7bf1fb225422ca32bd3753"
+  },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
     "rows": [
@@ -5934,7 +5984,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "737eeed46ad9acfd59a9b13e6599157a2038d12ca3c07df86a368b08a119a2ae"
+    "ast_sha256": "8bd6ea08d8f5bc892e165b32c9d5ad483e65696c7338f4fbecdb46a9e5365447"
   },
   "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness.reject": {
     "classification": "data",
@@ -6105,7 +6155,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "833cf7e392d6fb5bf8a5df5e199b196c20a6d18a748f389275745730c124b6e1"
+    "ast_sha256": "accb5c3a9fc4aa634846e64af36a902ba8a237f2a56201772fd5e84d9071eac9"
   },
   "policy_quest.py:QuestMixin._prepare_return_1_candidate": {
     "classification": "adapter",
@@ -6236,7 +6286,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "aeecb10ab291aaeb8e497d8ea25f392d95889ec2acd86b167b45234896746107"
+    "ast_sha256": "341fa3943806a117169b72885f50d15611473b659351aa23d35a0c39b245bf7b"
   },
   "policy_quest.py:QuestMixin._quest_execute_key": {
     "classification": "dungeon-only",
@@ -6684,7 +6734,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8089e48bd4d60517d27456dc71accabb3cee5983355f4a6c2e8cec863d8330ad"
+    "ast_sha256": "ec0c9743469c49db1180bf87707482fe49b039662b4163b06b6feb330da127c5"
   },
   "policy_shop.py:ShopMixin._next_purchase_unreserved": {
     "classification": "data",
@@ -6734,7 +6784,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2dc124a50f7396197b3993151ca557465bdabeaf5cf8f842878923bef8978eb7"
+    "ast_sha256": "2e5b5a1e3015b593017e1a41429e588ae9adb9a5f93d3accc1fa6c3a5b83e1fa"
   },
   "policy_shop.py:ShopMixin._purchase_rungs": {
     "classification": "data",
@@ -6742,7 +6792,15 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3d086b64b55fee5d62e76d5f3605f34ae98fe017d0f93956050c59d14f0d16c8"
+    "ast_sha256": "355217d1f3bcca7a376616358c6ed1fdbde4c742d711686536c7021d01ac547b"
+  },
+  "policy_shop.py:ShopMixin._purchase_rungs.match": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "561e573600f99883bcdfec3572e90b2b5b7ba3146f969e44991b095bddc04eb2"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.rung.match": {
     "classification": "data",
@@ -7032,7 +7090,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f610bfb57ccccf2c9f3144e7217826fa903466d3e54b951f48f07edd8ae4ba72"
+    "ast_sha256": "9976e2082d62c5cf137a2f2a51c26daf751ff8bc204e1332815ca9e5de6f281c"
   },
   "policy_supply.py:SupplyMixin._carry_strategy_potion_target": {
     "classification": "data",
@@ -7532,7 +7590,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f35d5bacd6a4888126196de7bd0e5d06cf8762d1e68c77434755edd307181c96"
+    "ast_sha256": "22cd6d99f9f85ae1bb360bce50b4479461b1c0375d4efe88dc41d64710d34cdf"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_key": {
     "classification": "producer",
@@ -7549,7 +7607,7 @@
       "plan-routing"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "01f0e01c02a1e52ae9f13923b1931c4b93976e23bfd12df4cc8d99b9f2b7cb38"
+    "ast_sha256": "f25b3f9bba04e06ec5f04b95711907b9c5a5c389ca9f0bf23793db527996f1dd"
   },
   "policy_town.py:TownMixin._town_cancel_unsafe_recall_key": {
     "classification": "producer",

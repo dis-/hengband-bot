@@ -1,0 +1,7 @@
+test_each_selector_or_named_close_preserves_its_result (test_town_terminal_no_refusal_round11.NoRefusalDeclarationTest.test_each_selector_or_named_close_preserves_its_result) ... ok
+test_the_13_classified_rungs_have_reasons_and_no_shadow (test_town_terminal_no_refusal_round11.NoRefusalDeclarationTest.test_the_13_classified_rungs_have_reasons_and_no_shadow) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.027s
+
+OK

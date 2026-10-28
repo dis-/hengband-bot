@@ -1,0 +1,9 @@
+test_captured_inferior_stack_routes_to_home (test_ammo_surplus.AmmoSurplusTest.test_captured_inferior_stack_routes_to_home) ... ok
+test_live_post_swap_releases_all_incompatible_ammo_to_home (test_ammo_surplus.AmmoSurplusTest.test_live_post_swap_releases_all_incompatible_ammo_to_home) ... ok
+test_plain_stack_is_retained_with_highest_power_stack (test_ammo_surplus.AmmoSurplusTest.test_plain_stack_is_retained_with_highest_power_stack) ... ok
+test_post_shed_shortfall_reaches_normal_supplier (test_ammo_surplus.AmmoSurplusTest.test_post_shed_shortfall_reaches_normal_supplier) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 145.917s
+
+OK

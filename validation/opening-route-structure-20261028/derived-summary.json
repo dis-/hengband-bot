@@ -1,0 +1,826 @@
+{
+  "provenance": "unittest stderr summaries; process exit codes are not inferred",
+  "counts": {
+    "ran": 78,
+    "incomplete": 2,
+    "failed": 2
+  },
+  "modules": {
+    "tests.test_absorbing_states": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_absorbing_states.stderr.log",
+      "tests": 22,
+      "seconds": 332.461,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_absorbing_states.stderr.log"
+    },
+    "tests.test_ammo_surplus": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_ammo_surplus.stderr.log",
+      "tests": 4,
+      "seconds": 145.917,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_ammo_surplus.stderr.log"
+    },
+    "tests.test_black_market_optional_quantity": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_black_market_optional_quantity.stderr.log",
+      "tests": 6,
+      "seconds": 0.884,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_black_market_optional_quantity.stderr.log"
+    },
+    "tests.test_broke_prevent_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_broke_prevent_recorded.stderr.log",
+      "tests": 18,
+      "seconds": 190.407,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_broke_prevent_recorded.stderr.log"
+    },
+    "tests.test_broke_prevent_reserved": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_broke_prevent_reserved.stderr.log",
+      "tests": 9,
+      "seconds": 114.305,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_broke_prevent_reserved.stderr.log"
+    },
+    "tests.test_buy_deposit_loop_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_buy_deposit_loop_recorded.stderr.log",
+      "tests": 3,
+      "seconds": 1.893,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_buy_deposit_loop_recorded.stderr.log"
+    },
+    "tests.test_classC2_departure_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_classC2_departure_recorded.stderr.log",
+      "tests": 10,
+      "seconds": 233.659,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_classC2_departure_recorded.stderr.log"
+    },
+    "tests.test_cli": {
+      "status": "incomplete",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_cli.stderr.log"
+    },
+    "tests.test_crossarea_fundraising": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_crossarea_fundraising.stderr.log",
+      "tests": 16,
+      "seconds": 9.815,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_crossarea_fundraising.stderr.log"
+    },
+    "tests.test_crossarea_live2": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_crossarea_live2.stderr.log",
+      "tests": 3,
+      "seconds": 0.042,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_crossarea_live2.stderr.log"
+    },
+    "tests.test_curse_priority_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_curse_priority_recorded.stderr.log",
+      "tests": 10,
+      "seconds": 9.13,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_curse_priority_recorded.stderr.log"
+    },
+    "tests.test_darkwalk": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_darkwalk.stderr.log",
+      "tests": 25,
+      "seconds": 3.088,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_darkwalk.stderr.log"
+    },
+    "tests.test_declarations_r5": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_declarations_r5.stderr.log",
+      "tests": 9,
+      "seconds": 0.046,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_declarations_r5.stderr.log"
+    },
+    "tests.test_declarations_r7": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_declarations_r7.stderr.log",
+      "tests": 12,
+      "seconds": 0.215,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_declarations_r7.stderr.log"
+    },
+    "tests.test_destroy_procurement_guard": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_destroy_procurement_guard.stderr.log",
+      "tests": 7,
+      "seconds": 2.912,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_destroy_procurement_guard.stderr.log"
+    },
+    "tests.test_destruction_gate_procurement": {
+      "status": "ran",
+      "log_encoding": "cp932",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_destruction_gate_procurement.stderr.log",
+      "tests": 21,
+      "seconds": 246.3,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_destruction_gate_procurement.stderr.log"
+    },
+    "tests.test_device_purchase_preemption_trajectory": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_device_purchase_preemption_trajectory.stderr.log",
+      "tests": 4,
+      "seconds": 9.584,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_device_purchase_preemption_trajectory.stderr.log"
+    },
+    "tests.test_equipment_alternation_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_equipment_alternation_recorded.stderr.log",
+      "tests": 5,
+      "seconds": 17.925,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_equipment_alternation_recorded.stderr.log"
+    },
+    "tests.test_execution_declaration": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_execution_declaration.stderr.log",
+      "tests": 27,
+      "seconds": 31.053,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_execution_declaration.stderr.log"
+    },
+    "tests.test_exploration_commitment_observation": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_exploration_commitment_observation.stderr.log",
+      "tests": 7,
+      "seconds": 5.516,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_exploration_commitment_observation.stderr.log"
+    },
+    "tests.test_fundraise_light_block": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_fundraise_light_block.stderr.log",
+      "tests": 6,
+      "seconds": 16.908,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_fundraise_light_block.stderr.log"
+    },
+    "tests.test_identify_staff_procurement_step15d": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_identify_staff_procurement_step15d.stderr.log",
+      "tests": 12,
+      "seconds": 8.302,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_identify_staff_procurement_step15d.stderr.log"
+    },
+    "tests.test_input_executor": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_input_executor.stderr.log",
+      "tests": 73,
+      "seconds": 6.936,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_input_executor.stderr.log"
+    },
+    "tests.test_item_sink_lint": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_item_sink_lint.stderr.log",
+      "tests": 18,
+      "seconds": 127.107,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_item_sink_lint.stderr.log"
+    },
+    "tests.test_junk_scope_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_junk_scope_recorded.stderr.log",
+      "tests": 17,
+      "seconds": 195.594,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_junk_scope_recorded.stderr.log"
+    },
+    "tests.test_keep_running_a0": {
+      "status": "failed",
+      "log_encoding": "utf-8",
+      "failing_headers": [
+        "FAIL: test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False)"
+      ],
+      "stderr_path": "derived-logs\\tests.test_keep_running_a0.stderr.log",
+      "tests": 17,
+      "seconds": 18.898,
+      "summary": "FAILED (failures=1)",
+      "utf8_log": "derived-utf8-logs\\tests.test_keep_running_a0.stderr.log"
+    },
+    "tests.test_light_in_hand_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_light_in_hand_recorded.stderr.log",
+      "tests": 5,
+      "seconds": 49.24,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_light_in_hand_recorded.stderr.log"
+    },
+    "tests.test_light_judgment_census": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_light_judgment_census.stderr.log",
+      "tests": 3,
+      "seconds": 14.757,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_light_judgment_census.stderr.log"
+    },
+    "tests.test_light_pingpong_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_light_pingpong_recorded.stderr.log",
+      "tests": 3,
+      "seconds": 0.387,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_light_pingpong_recorded.stderr.log"
+    },
+    "tests.test_light_rootfix_q2_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_light_rootfix_q2_recorded.stderr.log",
+      "tests": 12,
+      "seconds": 110.442,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_light_rootfix_q2_recorded.stderr.log"
+    },
+    "tests.test_newchar_light_churn_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_newchar_light_churn_recorded.stderr.log",
+      "tests": 3,
+      "seconds": 12.074,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_newchar_light_churn_recorded.stderr.log"
+    },
+    "tests.test_opening_route_pins": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_opening_route_pins.stderr.log",
+      "tests": 2,
+      "seconds": 4.404,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_opening_route_pins.stderr.log"
+    },
+    "tests.test_opening_route_r2_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_opening_route_r2_recorded.stderr.log",
+      "tests": 4,
+      "seconds": 54.092,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_opening_route_r2_recorded.stderr.log"
+    },
+    "tests.test_opening_route_r3_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_opening_route_r3_recorded.stderr.log",
+      "tests": 6,
+      "seconds": 38.826,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_opening_route_r3_recorded.stderr.log"
+    },
+    "tests.test_opening_route_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_opening_route_recorded.stderr.log",
+      "tests": 15,
+      "seconds": 90.022,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_opening_route_recorded.stderr.log"
+    },
+    "tests.test_owner_retirement_slice1": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_owner_retirement_slice1.stderr.log",
+      "tests": 16,
+      "seconds": 1.051,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_owner_retirement_slice1.stderr.log"
+    },
+    "tests.test_ownership_s2a1_closure": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_ownership_s2a1_closure.stderr.log",
+      "tests": 80,
+      "seconds": 367.326,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_ownership_s2a1_closure.stderr.log"
+    },
+    "tests.test_ownership_s2b1_ladder": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_ownership_s2b1_ladder.stderr.log",
+      "tests": 52,
+      "seconds": 56.271,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_ownership_s2b1_ladder.stderr.log"
+    },
+    "tests.test_policy_combat": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_combat.stderr.log",
+      "tests": 303,
+      "seconds": 60.916,
+      "summary": "OK (skipped=5)",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_combat.stderr.log"
+    },
+    "tests.test_policy_equipment": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_equipment.stderr.log",
+      "tests": 197,
+      "seconds": 61.668,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_equipment.stderr.log"
+    },
+    "tests.test_policy_fundraising": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_fundraising.stderr.log",
+      "tests": 53,
+      "seconds": 0.268,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_fundraising.stderr.log"
+    },
+    "tests.test_policy_home": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_home.stderr.log",
+      "tests": 171,
+      "seconds": 87.833,
+      "summary": "OK (skipped=4)",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_home.stderr.log"
+    },
+    "tests.test_policy_identification": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_identification.stderr.log",
+      "tests": 48,
+      "seconds": 0.29,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_identification.stderr.log"
+    },
+    "tests.test_policy_observation": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_observation.stderr.log",
+      "tests": 57,
+      "seconds": 4.589,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_observation.stderr.log"
+    },
+    "tests.test_policy_quest": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_quest.stderr.log",
+      "tests": 334,
+      "seconds": 349.56,
+      "summary": "OK (skipped=7)",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_quest.stderr.log"
+    },
+    "tests.test_policy_shop": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_shop.stderr.log",
+      "tests": 275,
+      "seconds": 57.534,
+      "summary": "OK (skipped=1)",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_shop.stderr.log"
+    },
+    "tests.test_policy_supply": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_supply.stderr.log",
+      "tests": 208,
+      "seconds": 146.973,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_supply.stderr.log"
+    },
+    "tests.test_policy_town": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_policy_town.stderr.log",
+      "tests": 593,
+      "seconds": 782.481,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_policy_town.stderr.log"
+    },
+    "tests.test_protocol3_display_align": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_protocol3_display_align.stderr.log",
+      "tests": 13,
+      "seconds": 5.306,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_protocol3_display_align.stderr.log"
+    },
+    "tests.test_purchase_retention_root_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_purchase_retention_root_recorded.stderr.log",
+      "tests": 16,
+      "seconds": 289.43,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_purchase_retention_root_recorded.stderr.log"
+    },
+    "tests.test_purchase_rung_registry": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_purchase_rung_registry.stderr.log",
+      "tests": 5,
+      "seconds": 1.641,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_purchase_rung_registry.stderr.log"
+    },
+    "tests.test_quest_ammo_not_bought": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_quest_ammo_not_bought.stderr.log",
+      "tests": 8,
+      "seconds": 57.963,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_quest_ammo_not_bought.stderr.log"
+    },
+    "tests.test_quest_carry_departure_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_quest_carry_departure_recorded.stderr.log",
+      "tests": 4,
+      "seconds": 34.363,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_quest_carry_departure_recorded.stderr.log"
+    },
+    "tests.test_quest_carry_town_block": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_quest_carry_town_block.stderr.log",
+      "tests": 4,
+      "seconds": 44.374,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_quest_carry_town_block.stderr.log"
+    },
+    "tests.test_quest_door_confirm_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_quest_door_confirm_recorded.stderr.log",
+      "tests": 16,
+      "seconds": 5.863,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_quest_door_confirm_recorded.stderr.log"
+    },
+    "tests.test_quest_navigator": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_quest_navigator.stderr.log",
+      "tests": 17,
+      "seconds": 32.806,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_quest_navigator.stderr.log"
+    },
+    "tests.test_quest_torch_stall_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_quest_torch_stall_recorded.stderr.log",
+      "tests": 6,
+      "seconds": 11.576,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_quest_torch_stall_recorded.stderr.log"
+    },
+    "tests.test_quest_travel_progress": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_quest_travel_progress.stderr.log",
+      "tests": 3,
+      "seconds": 50.336,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_quest_travel_progress.stderr.log"
+    },
+    "tests.test_recall_readiness_contradiction": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_recall_readiness_contradiction.stderr.log",
+      "tests": 4,
+      "seconds": 0.01,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_recall_readiness_contradiction.stderr.log"
+    },
+    "tests.test_runtime_file_isolation": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_runtime_file_isolation.stderr.log",
+      "tests": 13,
+      "seconds": 19.17,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_runtime_file_isolation.stderr.log"
+    },
+    "tests.test_scavenge_stockout_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_scavenge_stockout_recorded.stderr.log",
+      "tests": 9,
+      "seconds": 4.564,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_scavenge_stockout_recorded.stderr.log"
+    },
+    "tests.test_shop_one_shot": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_shop_one_shot.stderr.log",
+      "tests": 54,
+      "seconds": 15.334,
+      "summary": "OK (skipped=1)",
+      "utf8_log": "derived-utf8-logs\\tests.test_shop_one_shot.stderr.log"
+    },
+    "tests.test_shop_uncomposable_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_shop_uncomposable_recorded.stderr.log",
+      "tests": 4,
+      "seconds": 0.24,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_shop_uncomposable_recorded.stderr.log"
+    },
+    "tests.test_store_reentry_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_store_reentry_recorded.stderr.log",
+      "tests": 36,
+      "seconds": 331.076,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_store_reentry_recorded.stderr.log"
+    },
+    "tests.test_supply_ledger_observer_memo": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_supply_ledger_observer_memo.stderr.log",
+      "tests": 5,
+      "seconds": 80.407,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_supply_ledger_observer_memo.stderr.log"
+    },
+    "tests.test_torch_predicate_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_torch_predicate_recorded.stderr.log",
+      "tests": 3,
+      "seconds": 1.639,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_torch_predicate_recorded.stderr.log"
+    },
+    "tests.test_town_decision_speed_caches": {
+      "status": "incomplete",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_decision_speed_caches.stderr.log"
+    },
+    "tests.test_town_latency_caches": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_latency_caches.stderr.log",
+      "tests": 14,
+      "seconds": 0.09,
+      "summary": "OK (skipped=1)",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_latency_caches.stderr.log"
+    },
+    "tests.test_town_plan_exhausted_wander": {
+      "status": "failed",
+      "log_encoding": "utf-8",
+      "failing_headers": [
+        "FAIL: test_p5_unaffordable_return_still_names_the_missing_entrance (test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance)"
+      ],
+      "stderr_path": "derived-logs\\tests.test_town_plan_exhausted_wander.stderr.log",
+      "tests": 12,
+      "seconds": 383.622,
+      "summary": "FAILED (failures=1)",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_plan_exhausted_wander.stderr.log"
+    },
+    "tests.test_town_progress_invariant": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_progress_invariant.stderr.log",
+      "tests": 22,
+      "seconds": 147.298,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_progress_invariant.stderr.log"
+    },
+    "tests.test_town_stall": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_stall.stderr.log",
+      "tests": 0,
+      "seconds": 2.829,
+      "summary": "OK (skipped=1)",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_stall.stderr.log"
+    },
+    "tests.test_town_structure_lint": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_structure_lint.stderr.log",
+      "tests": 19,
+      "seconds": 179.956,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_structure_lint.stderr.log"
+    },
+    "tests.test_town_terminal_direct_round8": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_direct_round8.stderr.log",
+      "tests": 4,
+      "seconds": 0.299,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_direct_round8.stderr.log"
+    },
+    "tests.test_town_terminal_fundraising_round10": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_fundraising_round10.stderr.log",
+      "tests": 2,
+      "seconds": 0.077,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_fundraising_round10.stderr.log"
+    },
+    "tests.test_town_terminal_n1a_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_n1a_recorded.stderr.log",
+      "tests": 9,
+      "seconds": 4.418,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_n1a_recorded.stderr.log"
+    },
+    "tests.test_town_terminal_no_refusal_round11": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_no_refusal_round11.stderr.log",
+      "tests": 2,
+      "seconds": 0.027,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_no_refusal_round11.stderr.log"
+    },
+    "tests.test_town_terminal_rest_round14": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_rest_round14.stderr.log",
+      "tests": 8,
+      "seconds": 0.148,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_rest_round14.stderr.log"
+    },
+    "tests.test_town_terminal_routes_round6": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_routes_round6.stderr.log",
+      "tests": 14,
+      "seconds": 0.122,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_routes_round6.stderr.log"
+    },
+    "tests.test_town_terminal_shopping_fold": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_shopping_fold.stderr.log",
+      "tests": 6,
+      "seconds": 0.091,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_shopping_fold.stderr.log"
+    },
+    "tests.test_town_terminal_tactical_round13": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_terminal_tactical_round13.stderr.log",
+      "tests": 1,
+      "seconds": 0.049,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_terminal_tactical_round13.stderr.log"
+    },
+    "tests.test_town_work_contract": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_town_work_contract.stderr.log",
+      "tests": 9,
+      "seconds": 761.073,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_town_work_contract.stderr.log"
+    },
+    "tests.test_weight_relief_root_recorded": {
+      "status": "ran",
+      "log_encoding": "utf-8",
+      "failing_headers": [],
+      "stderr_path": "derived-logs\\tests.test_weight_relief_root_recorded.stderr.log",
+      "tests": 13,
+      "seconds": 119.904,
+      "summary": "OK",
+      "utf8_log": "derived-utf8-logs\\tests.test_weight_relief_root_recorded.stderr.log"
+    }
+  }
+}

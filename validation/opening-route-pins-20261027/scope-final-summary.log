@@ -1,0 +1,8 @@
+tests.test_opening_route_pins ran 6.572
+tests.test_policy ran 7.975
+tests.test_policy_fundraising ran 3.152
+scripts/sale_key_lint.py ran 2.908
+tests.test_cli ran 20.043
+scripts/test_fakery_lint.py failed 25.964
+tests.test_policy_structure ran 176.797
+tests.test_absorbing_states ran 294.25

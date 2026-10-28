@@ -1,0 +1,7 @@
+test_dispatcher_runs_the_reaction_without_borrowing_a_run_confirmation (test_town_terminal_fundraising_round10.FundraisingRefusalConfirmationTest.test_dispatcher_runs_the_reaction_without_borrowing_a_run_confirmation) ... ok
+test_run_rungs_keep_the_body_confirmation_in_every_town_mode (test_town_terminal_fundraising_round10.FundraisingRefusalConfirmationTest.test_run_rungs_keep_the_body_confirmation_in_every_town_mode) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.077s
+
+OK

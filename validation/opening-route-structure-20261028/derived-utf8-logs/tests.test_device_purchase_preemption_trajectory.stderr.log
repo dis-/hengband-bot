@@ -1,0 +1,10 @@
+test_affordable_device_composes_before_repetition_terminal (test_device_purchase_preemption_trajectory.DevicePurchasePreemptionTrajectoryTest.test_affordable_device_composes_before_repetition_terminal) ... ok
+test_affordable_device_composes_on_adjacent_outside_page (test_device_purchase_preemption_trajectory.DevicePurchasePreemptionTrajectoryTest.test_affordable_device_composes_on_adjacent_outside_page) ... ok
+test_component_restored_checkpoint_does_not_give_magic_visit_to_calibration (test_device_purchase_preemption_trajectory.DevicePurchasePreemptionTrajectoryTest.test_component_restored_checkpoint_does_not_give_magic_visit_to_calibration)
+Public choose_key pin for an unrelated post-calibration store visit. ... ok
+test_unaffordable_device_still_reaches_repetition_terminal (test_device_purchase_preemption_trajectory.DevicePurchasePreemptionTrajectoryTest.test_unaffordable_device_still_reaches_repetition_terminal) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 9.584s
+
+OK

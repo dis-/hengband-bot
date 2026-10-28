@@ -1,0 +1,9 @@
+test_both_actual_stops_equip_a_fuelled_torch_request_and_enter_q1 (test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_both_actual_stops_equip_a_fuelled_torch_request_and_enter_q1) ... ok
+test_known_lantern_or_torch_with_visit_fuel_needs_no_spare_oil (test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_known_lantern_or_torch_with_visit_fuel_needs_no_spare_oil) ... ok
+test_other_once_quests_keep_the_spare_oil_gate (test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_other_once_quests_keep_the_spare_oil_gate) ... ok
+test_required_potions_still_use_the_existing_black_market_supplier (test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_required_potions_still_use_the_existing_black_market_supplier) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 54.092s
+
+OK

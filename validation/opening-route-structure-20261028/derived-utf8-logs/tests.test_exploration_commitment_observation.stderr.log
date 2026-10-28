@@ -1,0 +1,13 @@
+test_replanning_holds_one_incident_destination (test_exploration_commitment_observation.CapturedGoalFlipCharacterizationTest.test_replanning_holds_one_incident_destination)
+Update the stage-1 characterization to pin committed replanning. ... ok
+test_monster_on_goal_keeps_routing_with_same_identity (test_exploration_commitment_observation.ExplorationCommitmentReplanningTest.test_monster_on_goal_keeps_routing_with_same_identity) ... ok
+test_stationary_occupant_retires_after_three_failed_origins (test_exploration_commitment_observation.ExplorationCommitmentReplanningTest.test_stationary_occupant_retires_after_three_failed_origins) ... ok
+test_unreachable_identity_is_dropped_without_suppression_write (test_exploration_commitment_observation.ExplorationCommitmentReplanningTest.test_unreachable_identity_is_dropped_without_suppression_write) ... ok
+test_frontier_and_window_edge_identities_remain_typed (test_exploration_commitment_observation.ExplorationIdentityObservationTest.test_frontier_and_window_edge_identities_remain_typed) ... ok
+test_visit_identity_records_signature_then_success_on_entry (test_exploration_commitment_observation.ExplorationIdentityObservationTest.test_visit_identity_records_signature_then_success_on_entry) ... ok
+test_every_path_writer_and_clear_outcome_is_inventoried (test_exploration_commitment_observation.ExplorationPathInventoryTest.test_every_path_writer_and_clear_outcome_is_inventoried) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 5.516s
+
+OK

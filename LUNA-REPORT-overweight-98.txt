@@ -1,0 +1,693 @@
+ISSUE #47 / 指示ファイルの対象: dis-/hengband-bot #98
+町での重量超過停止の再発調査・修正報告（2026-10-27）
+
+依頼文は ISSUE #47、LUNA-TASK-overweight-98.txt の本文は #98 を指定している。本文で指定された2記録だけを対象にした。
+基準コミット: 4db110bd5beb2544c87f6c26b84d390b7216d661。
+
+結論
+1. 20261027-011308 は (b)。重量1656、上限1650、超過6。Homeは28/240で満杯ではない。購入履歴と予定深度20を復元すると預入・売却/破壊候補は空になる。保持規則を維持し、overweight-retained-only として数値を記録する。
+2. 20261026-231603 は (a)。重量1899、上限1750、超過149。Homeは109/240だが未達成パス3回で今回の経路が閉じている。空の鑑定の杖4本（重量200）などが合法な余剰。Homeに空きがあっても経路が尽きていれば売却/破壊へ進む。
+
+変更
+- 共通選択器 _weight_relief_selection が既存の _overweight_home_bound_exhausted を読む。空きと利用可能性の両方を満たす場合に預入を選ぶ。
+- _town_need_candidates は共通選択器の sell-or-destroy を余剰処分の開始条件とする。「Homeが存在し預入候補がない場合だけ」という旧条件を除いた。
+- _overweight_surplus_sale_key はHomeに空きがあるという理由だけで処分を解除せず、共通選択器が deposit を返すときに解除する。
+- _town_blocked_key は旧2停止名と departure-unsatisfiable を共通選択器で確認する。合法な経路があれば既存の余剰処分へ渡す。必要作業の計画器がすでに開いた処分も引き継ぐ。retained-only なら既存の数値記録と正式な停止名を使う。
+- 処分送信後の効果待ちと既存の STORE_STUCK_LIMIT は維持する。処分失敗の停止から同じ処分を再初期化しない。
+- 新しいガード定数、重量上限や出発要件の緩和、装備比較の変更はない。既存テストの期待値は変更していない。
+
+重量はゲーム出力の内部単位。装備重量も総重量に含める。
+明示予約は最終decisionの retention_reservations。予約0でも充填維持や未*鑑定*装備の保護等で処分できない品がある。
+Home一覧は最終の全件knowledge。109件の記録は52件だけの店画面から推測していない。
+共通選択器の既存 retained 記録は明示予約理由のない品の理由をnullにする場合がある。その実際の除外理由も下記に補記した。
+
+20261027-011308-town-blocked-overweight-home-full-no-legal-relief
+ターン556321。荷物989+装備667=1656。Home 28/240。
+容量観測ターン556295、全件knowledgeターン556248。
+所持品（単位重量×個数、明示予約数／理由）:
+  a: 油つぼ | 10×5=50 | 5 / supply-ledger:oil
+  b: スピードの薬 | 4×9=36 | 9 / carry-strategy:speed-potions
+  c: 致命傷の治癒の薬 | 4×10=40 | 10 / supply-ledger:cure
+  d: 体力回復の薬 | 4×2=8 | 2 / carry-strategy:heal-potions
+  e: テレポートの巻物 | 5×15=75 | 15 / carry-strategy:teleport
+  f: 帰還の詔の巻物 | 5×9=45 | 9 / supply-ledger:recall
+  g: *鑑定*の巻物 | 5×3=15 | 3 / visit-purchase
+  h: 光の巻物 | 5×6=30 | 6 / carry-strategy:light
+  i: 岩石溶解の魔法棒 (7回分) | 10×1=10 | 1 / utility:stone-to-mud
+  j: スリープ・モンスターの魔法棒 (21回分) | 10×2=20 | 2 / mana-device
+  k: 鑑定の杖 (2x 6回分) | 50×2=100 | 0 / 明示予約なし。鑑定の杖4本で計22回分を保持。スタック除去は出発の20回分保護を下回る。
+  l: 鑑定の杖 (2x 5回分) | 50×2=100 | 0 / 明示予約なし。鑑定の充填維持。1本だけ除いても22回から5回減り20回未満になる。
+  m: 松明(2500ターンの寿命) {明} | 30×5=150 | 5 / torch-carry
+  n: (トランプ)グレイブ (2d6) (+5,+7) (+1探索) {.} | 190×1=190 | 0 / 明示予約なし。known=True、fully_known=Falseのトランプ武器。未*鑑定*装備の保護。
+  o: シャベル (1d2) (+0,+0) (+1) {+掘} | 60×2=120 | 2 / mining:digging-tool
+装備（装備中として保持）:
+  main_hand: (防衛者)大鎌 (5d3) (+7,+12) [+1] (+2隠密) {.} | 250×1=250
+  bow: ライト・クロスボウ (x3) (0.90turn) (+2,+6) | 110×1=110
+  main_ring: 恐れ知らずの指輪 | 2×1=2
+  light: 長持ちの真鍮のランタン(1974ターンの寿命) {明} | 50×1=50
+  body: 皮石よろい (-1) [15,+8] | 200×1=200
+  outer: ★クローク『コランノン』 [1,+15] (+5隠密) {.} | 10×1=10
+  arms: 魔力支配の革グローブ [1,+2] (+3) {+道, .} | 5×1=5
+  feet: 硬革ブーツ [3,+4] | 40×1=40
+Home全件（当時のknowledge、単位重量×個数）:
+  1: 赤外線視力の薬 | 4×1=4
+  2: 透明物体感知の薬 | 4×1=4
+  3: ヒーローの薬 | 4×1=4
+  4: 重傷の治癒の薬 | 4×2=8
+  5: 帰還の詔の巻物 | 5×1=5
+  6: *解呪*の巻物 | 5×1=5
+  7: 魔法の地図の巻物 | 5×1=5
+  8: 財宝感知の巻物 | 5×15=75
+  9: トラップ感知のロッド | 15×1=15
+  10: 鑑定の杖 (0回分) | 50×1=50
+  11: 光の杖 (10回分) | 50×1=50
+  12: アイテム感知の杖 (8回分) | 50×1=50
+  13: 警告の指輪 | 2×1=2
+  14: 松明(2500ターンの寿命) {明} | 30×5=150
+  15: 真鍮のランタン(6838ターンの寿命) | 50×1=50
+  16: 鎖かたびら (-2) [14,+0] | 220×1=220
+  17: 鋲付軟革よろい [5,+6] | 90×1=90
+  18: クローク [1,+1] | 10×1=10
+  19: クローク [1] {並} | 10×1=10
+  20: 革グローブ [1,+0] | 5×1=5
+  21: マン・ゴーシュ (1d5) {並} | 30×1=30
+  22: レイピア (1d6) {並} | 40×1=40
+  23: 人喰いのスモール・ソード (1d6) (+2,+3) (+3隠密) {+器隠r恐/X人~人} | 75×1=75
+  24: ブロード・ソード (2d5) (+0,+0) | 150×1=150
+  25: 電撃のメイス (2d4) (+2,+7) {r電|電} | 120×1=120
+  26: 錫杖 (1d7) (+1,+4) | 70×1=70
+  27: シャベル (1d2) (+0,+0) (+1) {+掘} | 60×1=60
+  28: 鉄弾 (1d3) (+0,+0) (14/shot 23/turn) | 5×37=185
+最後の20判断:
+  decision 3024, turn 556214: equipment-transaction:atomic-deposit / key='5'
+  decision 3025, turn 556214: home:weight-overload-deposit / key='dn\x1b'
+  decision 3026, turn 556226: periodic:character-dump / key='Cf\ry\x1b\x1b'
+  decision 3027, turn 556226: home:request-knowledge-scan / key='~9\x1b'
+  decision 3028, turn 556226: home:atomic-withdraw / key='5pA1\r\x1b'
+  decision 3029, turn 556234: town:entrance-step-off:home:atomic-withdraw-complete / key='9'
+  decision 3030, turn 556243: shop:approach / key='1'
+  decision 3031, turn 556243: home:queue-digging-tool-withdraw / key='\x1b'
+  decision 3032, turn 556248: home:request-knowledge-scan / key='~9\x1b'
+  decision 3033, turn 556248: shop:travel:await-entry / key='5'
+  decision 3034, turn 556248: policy:none-store-exit / key='\x1b'
+  decision 3035, turn 556256: equipment-transaction:takeoff / key='tc'
+  decision 3036, turn 556261: equipment-transaction:equip / key='wq'
+  decision 3037, turn 556271: home:atomic-withdraw / key='5pA\x1b'
+  decision 3038, turn 556283: town:entrance-step-off:home:atomic-withdraw-complete / key='6'
+  decision 3039, turn 556295: equipment-transaction:approach-home / key='4'
+  decision 3040, turn 556295: equipment-transaction:deposit / key='dp'
+  decision 3041, turn 556295: home:leave-after-one-operation / key='\x1b'
+  decision 3042, turn 556308: inventory:destroy-worthless-junk / key='062kp'
+  decision 3043, turn 556321: town:blocked:overweight-home-full-no-legal-relief / key='9'
+各救済段階の回答:
+  不用品: decision3042で破壊済み。最終盤面にそのスタックはない。
+  預入: 候補なし。購入した*鑑定*3枚、予定深度20で予約する帰還9枚、鑑定の充填、未*鑑定*装備等の保持を維持する。
+  Homeの空き確保: 実際には28/240で空きがあり、この停止を「満杯」と呼ぶのは誤り。
+  売却/破壊: 候補なし。記録の停止は _overweight_surplus_sale_key の総救済重量チェックから発生した。
+  修正後: 公開choose_keyは key=9 / town:blocked:overweight-retained-only。記録に weight=1656, limit=1650, excess=6 を出す。
+証拠ファイルのSHA-256:
+  snapshots\snapshots-current.jsonl.gz: 26c914c8b8aa79e8ff061a6497daa80dd673e8ab949c64a4452c1a7bb2b25907
+  decision-tail.jsonl: efd41dc8075afd561ea4cedc23c347a52808fd77ff7c2e86b22f0a5b3fbdc0ea
+  policy-state.json: 8ab67968d0c6a246274878ba0d6dfdee4e52f48744b18d07b83804c5d602b62b
+
+20261026-231603-town-blocked-overweight-home-unreachable
+ターン1576347。荷物812+装備1087=1899。Home 109/240。
+容量観測ターン1576335、全件knowledgeターン1576347。
+所持品（単位重量×個数、明示予約数／理由）:
+  a: 重傷の治癒のキノコ | 2×1=2 | 0 / 明示予約なし
+  b: しわしわのキノコ | 1×1=1 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  c: スピードの薬 {25%引き} | 4×5=20 | 5 / emergency-potion:speed
+  d: 致命傷の治癒の薬 | 4×10=40 | 10 / supply-ledger:cure
+  e: 体力回復の薬 | 4×3=12 | 3 / emergency-potion:heal
+  f: 賢さ復活の薬 | 4×1=4 | 0 / 明示予約なし
+  g: テレポートの巻物 | 5×15=75 | 15 / supply-ledger:teleport
+  h: 帰還の詔の巻物 | 5×9=45 | 9 / supply-ledger:recall
+  i: スズメッキのロッド | 15×1=15 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  j: 岩石溶解の魔法棒 (2回分) | 10×1=10 | 1 / mana-device
+  k: アイス・ボルトの魔法棒 | 10×1=10 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  l: 鑑定の杖 (4x 0回分) {@0} | 50×4=200 | 0 / 明示予約なし
+  m: 守りの指輪 {未鑑定} | 2×1=2 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  n: 耐混乱の指輪 {未鑑定} | 2×1=2 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  o: 玻璃瓶 {未鑑定, !!} | 10×1=10 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  p: 赤外線視力の鉄ヘルメット [5,+7] (+4) | 75×1=75 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  q: 硬革ブーツ [3] {上質} | 40×1=40 | 0 / 明示予約なし。未鑑定・*鑑定*待ち等でそのままの売却/破壊には不適格。
+  r: クロスボウの矢 (1d5) (+0,+0) (46/shot 98/turn) | 3×83=249 | 83 / ammo:carry-plan
+装備（装備中として保持）:
+  main_hand: (防衛者)ヘヴィ・フレイル (3d6) (+5,+8) [+4] (+4隠密) {+隠r酸電火冷沌;麻視活浮(魅, .} | 280×1=280
+  bow: ☆ライト・クロスボウ『氷の支配者』 (x3) (0.46turn) (+18,+10) (+3) {+腕*冷r毒轟沌;射, .} | 110×1=110
+  main_ring: スピードの指輪 (+7) | 2×1=2
+  sub_ring: 電撃の指輪 [+14] | 2×1=2
+  neck: 賢者のアミュレット {未鑑定} | 3×1=3
+  light: ★知識の石 {明} | 15×1=15
+  body: ☆フル・プレート・メイル『闇の護り手』 (-3) [25,+11] (+3) {+腕器r盲劣, .} | 380×1=380
+  outer: 守りの毛皮のクローク [3,+25] {.} | 30×1=30
+  head: 守りの鉄ヘルメット [5,+15] {r呪, .} | 75×1=75
+  arms: 俊敏のセスタス [5,+4] (+2) {+器, .} | 40×1=40
+  feet: ★鉄鋲底の靴『炎の鉄ゲタ』 (-5,+10) [6,+20] (-1加速) {.} | 150×1=150
+Home全件（当時のknowledge、単位重量×個数）:
+  1: 恐怖除去のキノコ | 1×1=1
+  2: 油つぼ | 10×6=60
+  3: 透明物体感知の薬 | 4×1=4
+  4: スピードの薬 {25%引き} | 4×4=16
+  5: 耐火の薬 | 4×5=20
+  6: ヒーローの薬 | 4×3=12
+  7: 重傷の治癒の薬 | 4×1=4
+  8: 致命傷の治癒の薬 | 4×2=8
+  9: 魅力復活の薬 | 4×1=4
+  10: 自己分析の薬 | 4×1=4
+  11: 癒しの薬 | 4×1=4
+  12: ショート・テレポートの巻物 | 5×2=10
+  13: 鑑定の巻物 | 5×1=5
+  14: 防具強化の巻物 | 5×1=5
+  15: 光の巻物 | 5×1=5
+  16: 財宝感知の巻物 | 5×6=30
+  17: 聖唱歌の巻物 | 5×1=5
+  18: 聖祈言の巻物 | 5×1=5
+  19: パニック・モンスターの巻物 | 5×5=25
+  20: トラップ感知のロッド | 15×3=45
+  21: ドア/階段感知のロッド | 15×6=90
+  22: 帰還のロッド | 15×1=15
+  23: イルミネーションのロッド | 15×3=45
+  24: アシッド・ボルトのロッド | 15×1=15
+  25: サンダー・ボルトのロッド | 15×2=30
+  26: ファイア・ボルトのロッド | 15×1=15
+  27: アシッド・ボールのロッド | 15×1=15
+  28: トラップ/ドア破壊の魔法棒 (10回分) | 10×1=10
+  29: スロウ・モンスターの魔法棒 (9回分) | 10×1=10
+  30: パニック・モンスターの魔法棒 (13回分) | 10×1=10
+  31: 謎の魔法棒 (24回分) | 10×1=10
+  32: 暗闇の杖 | 50×1=50
+  33: テレポートの杖 (6回分) | 50×1=50
+  34: 鑑定の杖 (14x 0回分) {@0} | 50×14=700
+  35: スターライトの杖 (11回分) | 50×1=50
+  36: 周辺感知の杖 (10回分) | 50×1=50
+  37: 周辺感知の杖 (9回分) | 50×1=50
+  38: アイテム感知の杖 (11回分) | 50×1=50
+  39: 透明物体感知の杖 (12回分) | 50×1=50
+  40: 軽傷の治癒の杖 (10回分) | 50×1=50
+  41: 軽傷の治癒の杖 | 50×1=50
+  42: スロウ・モンスターの杖 (12回分) | 50×1=50
+  43: 浮遊の指輪 {浮} | 2×1=2
+  44: 耐火の指輪 | 2×1=2
+  45: 耐冷の指輪 | 2×1=2
+  46: 賢さ維持の指輪 | 2×1=2
+  47: 氷の指輪 [+13] | 2×1=2
+  48: 氷の指輪 [+12] | 2×1=2
+  49: 恐れ知らずの指輪 | 2×1=2
+  50: 耐光耐暗の指輪 | 2×1=2
+  51: 警告の指輪 | 2×1=2
+  52: 耐酸のアミュレット | 3×1=3
+  53: 知能のアミュレット (+2) | 3×1=3
+  54: 耐電のアミュレット | 2×2=4
+  55: 松明(2500ターンの寿命) {明} | 30×5=150
+  56: 真鍮のランタン(491ターンの寿命) | 50×1=50
+  57: フェアノールのランプ | 60×3=180
+  58: 光明のフェアノールのランプ {明} | 60×1=60
+  59: 鎖かたびら (-2) [14,+0] | 220×1=220
+  60: 二重リングメイル (-2) [15,+6] | 230×1=230
+  61: 重鎖かたびら (-2) [16,+2] | 270×1=270
+  62: 全耐性の二重鎖かたびら (-2) [16,+8] {r酸電火冷因} | 250×1=250
+  63: 強化鎖かたびら (-2) [18,+5] | 280×1=280
+  64: ドワーフのスプリント・メイル (-2) [24,+14] (+2) {+耐r電} | 166×1=166
+  65: ドワーフの金属製ラメラー・アーマー (-3) [28,+16] (+2) {+耐r火} | 226×1=226
+  66: フル・プレート・メイル (-3) [25,+6] | 380×1=380
+  67: 汚れたボロ服 [1] {並} | 20×1=20
+  68: ローブ [2,+3] | 20×1=20
+  69: ★軟革よろい『ヒスロミア』 [4,+20] (+4隠密) {+隠r酸電火冷毒暗} | 80×1=80
+  70: 鋲付硬革よろい (-1) [7,+5] | 110×1=110
+  71: ★ダサイ皮よろい (-1) [8,+64] (-10) {+魅;怒(魅} | 110×1=110
+  72: 革製スケイル・メイル (-1) [11,+2] | 140×1=140
+  73: クローク [1] {並} | 10×1=10
+  74: エルフのクローク [4,+6] (+3隠密) | 5×1=5
+  75: エルフのクローク [4,+4] (+3隠密) | 5×1=5
+  76: 忍びの毛皮のクローク [3,+5] (+1隠密) {+隠} | 30×1=30
+  77: 革製スモール・シールド [3,+3] | 50×1=50
+  78: 全耐性の金属製ラージ・シールド [8,+8] {r酸電火冷閃} | 120×1=120
+  79: 知性の鉄ヘルメット [5,+9] (+1) {+知賢魅(知賢魅} | 75×1=75
+  80: ☆星兜『ガーディアン』 [7,+11] (+4赤外線視力) {+赤r劣時呪} | 80×1=80
+  81: 麻痺知らずの革グローブ [1,+3] {麻} | 5×1=5
+  82: ダガー (1d4) {並} | 12×1=12
+  83: 切れ味の短刀 (1d5) (+11,+7) (+1) {+掘|切} | 20×1=20
+  84: バゼラード (1d8) (+7,+2) | 80×1=80
+  85: 凍結のサーベル (1d7) (+10,+5) {r冷|凍} | 50×1=50
+  86: サーベル (1d7) {並} | 50×1=50
+  87: 虹色のブロード・ソード (2d5) (+6,+2) {明|電焼凍} | 150×1=150
+  88: アンデッドスレイヤーのロング・ソード (2d5) (+1,+5) (+1) {+賢r獄;視祝/X死~死} | 130×1=130
+  89: ★ロング・ソード『デーモンベーン』 (2d5) (+5,+0) {/デ} | 130×1=130
+  90: パイク (2d5) (+4,+5) | 160×1=160
+  91: 溶解のビークド・アックス (2d6) (+5,+8) {r酸|酸} | 120×1=120
+  92: (混沌)グレイブ (2d6) (+4,+4) {r電沌|沌} | 190×1=190
+  93: 殺戮のグレイブ (4d6) (+8,+5) | 190×1=190
+  94: ☆グレイブ『ク=モン』 (2d6) (+6,+10) (+3) {+知掘|焼魔} | 190×1=190
+  95: 凍結のギザルム (2d5) (+3,+4) {r冷|凍} | 165×1=165
+  96: デーモンスレイヤーのロッホアーバー・アックス (3d8) (+2,+3) (+3) {+知r火/Xデ~デ} | 250×1=250
+  97: 焼棄のロッホアーバー・アックス (3d8) (+4,+1) {r火;明|焼, .} | 250×1=250
+  98: ★ウォー・ハンマー『トロルズベーン』 (4d3) (+0,+10) (+1) {+腕r火恐|焼/ト} | 240×1=240
+  99: 三節棍 (3d3) (+5,+4) | 120×1=120
+  100: (吸血)鉛詰めメイス (3d4) (+11,+8) {経|吸} | 180×1=180
+  101: 虹色の鉛詰めメイス (3d4) (+4,+5) {明|電焼凍} | 180×1=180
+  102: シャベル (1d2) (+0,+0) (+1) {+掘} | 60×2=120
+  103: スリング (x2) {並} | 5×1=5
+  104: ショート・ボウ (x2) (0.63turn) (+5,+7) | 30×1=30
+  105: 高速度のショート・ボウ (x2) (0.63turn) (+6,+15) | 30×1=30
+  106: ライト・クロスボウ (x3) (0.75turn) (+9,+8) | 110×1=110
+  107: クロスボウの矢 (1d5) (+0,+0) (46/shot 98/turn) | 3×68=204
+  108: 矢 (1d4) (+0,+0) | 2×67=134
+  109: モンスター・ボール (空) | 120×1=120
+最後の20判断:
+  decision 2144, turn 1575899: equipment-transaction:takeoff / key='td'
+  decision 2145, turn 1575899: equipment-transaction:equip / key='wn('
+  decision 2146, turn 1575899: equipment-transaction:defer-identification / key='\x1b'
+  decision 2147, turn 1575906: equipment:suppress-random-teleport / key='{q.\r'
+  decision 2148, turn 1575906: equipment-transaction:takeoff / key='tl'
+  decision 2149, turn 1575909: equipment-transaction:equip / key='wr'
+  decision 2150, turn 1575913: equipment-transaction:travel-home:await-entry / key='5'
+  decision 2151, turn 1575913: equipment-transaction:defer-identification / key='\x1b'
+  decision 2152, turn 1575919: town-progress-invariant:defect:home:await-fresh-knowledge=>town-progress-invariant:approach / key='\x1b`n%.'
+  decision 2153, turn 1576120: shop:observe-and-leave / key='\x1b'
+  decision 2154, turn 1576126: equipment-transaction:travel-home / key='\x1b`n(.'
+  decision 2155, turn 1576330: equipment-transaction:withdraw / key='pW'
+  decision 2156, turn 1576330: home:store-context-exit / key='\x1b'
+  decision 2157, turn 1576335: equipment-transaction:travel-home:await-entry / key='5'
+  decision 2158, turn 1576335: equipment-transaction:takeoff / key='te'
+  decision 2159, turn 1576335: equipment-transaction:equip / key='wn)'
+  decision 2160, turn 1576335: equipment-transaction:defer-identification / key='\x1b'
+  decision 2161, turn 1576343: town-progress-invariant:defect:town:blocked:overweight-home-unreachable=>town:entrance-step-off:home:scan-step-off / key='9'
+  decision 2162, turn 1576347: home:request-knowledge-scan / key='~9\x1b\x1b'
+  decision 2163, turn 1576347: town:blocked:overweight-home-unreachable / key='5'
+各救済段階の回答:
+  不用品: この最終盤面ではworthless-junk段階に先行破壊候補なし。
+  預入の品候補: p,q,i,k,o,a,m,n,b。ただしunsatisfied_passes=3、home_visit_limit=3、home_blocked=Trueで今回の経路は尽きている。
+  売却/破壊: a 重傷治癒キノコ1個（重量2、General/Black）、f 賢さ復活薬1本（重量4、Alchemist/Magic/Temple/Black）、l 空の鑑定の杖4本（重量200、Magic/Black）。計206で超過149を解消できる。
+  保留: スピード5、致命傷治癒10、体力回復3、テレポート15、帰還9、岩石溶解1、矢83の記録上の保持理由を維持する。
+  修正後: 公開choose_keyはGeneral Storeへのshop:travelを返す。論理キーESC `n!.はfollow実行器で登録済みCtrl-Kへ変換され、1回だけ送信される。
+  候補を順に処分した場合の重量計算は1899→1897→1893→1693。これは予測であり、実ゲームで売却を完了したとは主張しない。
+証拠ファイルのSHA-256:
+  state.jsonl.gz: 8ea522574a95a6e656b9c274f03637760dbafe4aa1603ec1e7dd9b43d8feb95e
+  bot-decisions.jsonl.gz: 65873af351d36e10fc9d0b209b5de81a67a20d99d1c4dea6882229ffba683640
+
+再生・検証の範囲
+抽出器: tests/extract_overweight_recurrence_1027.py。完全なgzip memberからJSONを読む。入力盤面は改変せず固定した。
+fixture: tests/fixtures/overweight-recurrence-1027.json.gz。
+SHA-256: c2ad676e1c7357ba6cab572965130ca704b5d3171ffdc827dd19bea6da8a74c0。
+新規テスト: tests.test_overweight_recurrence_1027。公開choose_keyと本番follow実行器を使う。共有ハーネスは import tests.test_input_executor as executor_harness で参照する。キーを += で組み立てていない。
+全生涯の復元ではなく境界再生。新規policyへ、記録にあるHome一覧・容量・予定深度・購入予約・fundraising mode・Homeパス情報と停止時の所有状態を復元する。既知だったskill listの再要求だけを抑制し、選択器と実行器は置き換えていない。
+followの応答画面は構成したcommand境界。公開choose_keyの返したキーを本番送信経路へ渡し、FIFOの完了と重複送信なしを検証する。実ゲーム再稼働・売却完了の検証ではない。
+対照は、Homeの経路上限を取り除いた状態、送信済み処分が効果待ち上限を使い切った状態、停止の荷物へ最後のHome画面を組み合わせた状態。変えた事実はテスト中に明記した。
+
+自動導出スコープ
+scripts/verify_scope.py --target HEAD --base 4db110bd5 --derive-only: 終了コード0。
+対象HEAD: 68482246fffef7ff817fcdcb7f12e53df23ec7e5
+導出モジュール（全件）:
+  tests.test_absorbing_states
+  tests.test_cli
+  tests.test_item_reservation
+  tests.test_overweight_recurrence_1027
+  tests.test_policy
+  tests.test_policy_home
+  tests.test_policy_structure
+  tests.test_policy_town
+  tests.test_town_work_contract
+導出lint: scripts/sale_key_lint.py, scripts/test_fakery_lint.py
+最終の検証結果は末尾の追記を参照。
+
+最終検証結果
+検証対象のソース／テストHEAD: cd0fa08de0ae56bbee0c0c8bfb7b58ac105cf880
+実装は早期コミット9137b9e7bから段階的にコミットした。以下の結果はその後の修正を含む。
+Python実体を用いて実行した。WindowsAppsのスタブは使っていない。
+preflight:
+  [preflight] PREFLIGHT OK: 8 changed files, 0 findings (overweight-98-1027 vs 4db110bd)
+  終了コード0。
+  ログ: C:/hengband-backups/overweight-98-preflight-final.log
+mutation_check --record:
+  [mutation] MUTATION OK: 0 of 5 hunks are not pinned by a test
+  [mutation] recorded for cd0fa08d
+  5箇所すべてを個別に差し戻すとテストが失敗した。未検出0件、終了コード0。
+  ログ: C:/hengband-backups/overweight-98-mutation-final.log
+fast_tier:
+  [fast] waiting: the merge gate is running its full suite (gate home-loop-63-1027, since 14:50:24); owner decision 2026-10-25
+  未完了。全体検証のロック待ちのため本体は実行されていない。成功扱いにしていない。
+  ログ: C:/hengband-backups/overweight-98-fast-final.log
+導出スコープの全モジュール検証:
+  scripts/verify_scope.py --target HEAD --base 4db110bd5 --timeout 600
+  対象HEAD: cd0fa08de0ae56bbee0c0c8bfb7b58ac105cf880
+  既存ツールの除外規則: {'test_cli.DecisionTimingTest': 'known hang; exclusion required by SOL-TASK-verification-gates.md'}
+  scripts/sale_key_lint.py: ran, 失敗0件, skip 0件, 13.288秒
+  scripts/test_fakery_lint.py: failed, 失敗13件, skip 0件, 136.82秒
+  tests.test_absorbing_states: failed, 失敗0件, skip 0件, 1.982秒
+  tests.test_cli: failed, 失敗0件, skip 0件, 16.231秒
+  tests.test_item_reservation: failed, 失敗0件, skip 0件, 2.452秒
+  tests.test_overweight_recurrence_1027: failed, 失敗0件, skip 0件, 1.791秒
+  tests.test_policy: failed, 失敗0件, skip 0件, 1.731秒
+  tests.test_policy_home: failed, 失敗0件, skip 0件, 2.222秒
+  tests.test_policy_structure: failed, 失敗0件, skip 0件, 1.896秒
+  tests.test_policy_town: failed, 失敗0件, skip 0件, 3.982秒
+  tests.test_town_work_contract: failed, 失敗0件, skip 0件, 4.766秒
+  JSON結果: C:/hengband-backups/overweight-98-scope-full.json
+  元の -c 起動はテスト本体の前にimportエラーとなった。AttributeError: bytes object has no attribute co_filename。期待値の失敗として扱っていない。
+  ファイル起動での再実行（同じverify_scope._test_code・run_item・除外規則、検索パスに作業ツリーを設定）:
+    tests.test_absorbing_states: 完了結果未取得
+    tests.test_cli: 完了結果未取得
+    tests.test_item_reservation: ran, 失敗0件, skip 0件, 95.273秒
+    tests.test_overweight_recurrence_1027: 完了結果未取得
+    tests.test_policy: 完了結果未取得
+    tests.test_policy_home: failed, 失敗1件, skip 4件, 158.154秒
+    tests.test_policy_structure: 完了結果未取得
+    tests.test_policy_town: 完了結果未取得
+    tests.test_town_work_contract: failed, 失敗0件, skip 0件, 333.354秒
+    scripts/sale_key_lint.py: 完了結果未取得
+    scripts/test_fakery_lint.py: 完了結果未取得
+  再実行JSON: C:/hengband-backups/overweight-98-scope-file-runner.json
+
+補足と制約
+初回の追加検討では「超過を解消できない部分的な余剰も処分する」という範囲拡張により既存テストが失敗した。範囲拡張を撤回して既存契約を維持し、今回の2盤面の修正に絞った。期待値を書き換えて通過させていない。
+停止からの引き継ぎと、送信済み処分の既存上限を両立する経路は、新規テストと差し戻し検証で確認した。
+fast tierの待機は、検証ツールの既存規則によるもの。指示の60分上限を越えて実行を継続する扱いにはしない。
+本レポートはPythonのPath.write_text(encoding="utf-8")で保存し、日本語の読み戻しを確認した。
+
+時間上限時点の未完了事項
+60分上限に従い、待機中のfast tierと実行中のファイル起動検証を停止した。最終状態を検証完了・マージ可能とは扱わない。
+既存の失敗: test_policy_home.WeightOverloadTownTest.test_retired_weight_claim_hands_off_without_an_ownerless_pass。
+期待値: overweight-home-unreachable。実値: overweight-retained-only。既存期待値は変更していない。
+この対照はHome経路の失敗後にも預入候補が残る盤面であり、「経路が尽きた」と「保持品だけが残る」の分類をさらに区別する必要がある。今回の2実記録の改善とは別に、この分類修正は未完了である。
+tests.test_policy_home は171件、失敗1件、skip4件。tests.test_item_reservation は通過。ほかのファイル起動モジュールは完了結果を回収できていない。
+新規6件は差し戻し検証の事前実行で通過している。5箇所すべての差し戻しを検出し、mutation記録を残した。
+preflightは8変更ファイル・指摘0件で通過。fast tierは本体未実行。導出スコープ全体を通過したとは主張しない。
+再開時は上記の分類を共通選択器で修正し、既存期待値を維持したまま当該テスト・新規6件・全スコープ・差し戻し・fast tierを再検証する必要がある。
+
+
+第2ラウンド（2026-10-27）
+対象は指定されたLUNA-TASK-overweight-98-r2.txtの重量停止問題。
+ソース／テスト検証対象HEAD: c9101e751c60206a1597840d75d15d15acb77f87
+基準: 4db110bd5beb2544c87f6c26b84d390b7216d661
+
+原因と修正
+Home経路が尽きたことと、保持品しか残らないことを前回の選択器が混同していた。
+_weight_relief_selectionの「Home経路は利用可能か」という既存判定を維持し、
+預入候補または余剰候補が残る場合はretained-onlyへ分類しないよう修正した。
+超過を解消できる余剰があれば従来どおりsell-or-destroyを優先する。
+それでは解消できずHome経路も尽きている場合はhome-unreachableとし、
+_town_blocked_keyが既存のoverweight-home-unreachable停止を維持できるようにした。
+Homeに余地が観測され利用可能な場合のdeposit優先は維持した。
+WeightReliefの説明も候補の有無という実際の分類条件に訂正した。
+新しい上限定数は追加していない。重量制限・出発条件・保持理由は変更していない。
+既存テストの期待値は一切変更していない。
+既存の失敗テストと前回の6件をそのまま使用し、容量不明の対照を1件追加した。
+生成manifestを更新し、実装を68a8a1dffへ早期コミットした。
+
+導出スコープで見つかった追加の退行
+tests.test_policy_townの既存重量再生2件が68a8a1dffで失敗した。
+基準4db110bd5の別作業ツリーで同じTownWeightDepartureRecordedTestを実行すると、
+4件すべてが372.282秒で通過したため、ブランチの退行として追跡した。
+その過程で、選択器がHomeの容量がまだ不明な状態を満杯と同じに扱い、預入候補があるのに
+余剰売却を先に開始できる別の問題を修正した。Home経路が利用可能で容量だけが不明な場合は
+home-reliefを返し、先にHomeを観測する。満杯と確認された場合や経路が尽きた場合の
+合法な余剰処分は維持する。この追加修正をc9101e751にコミットし、最終スコープを再実行した。
+ただし既存重量再生2件はc9101e751でも失敗しており、この退行の解消は未完了。
+新規対照: test_reachable_home_with_unknown_capacity_observes_before_surplus。
+記録の231603盤面から経路上限と容量観測だけを取り除いた構成対照で、公開choose_keyと
+本番follow実行器も通す。共有ハーネスは既存のモジュール別名経由で利用する。
+別作業ツリーで追加条件だけを68a8a1dff相当へ戻すとこの対照は失敗し、復元すると通過。
+revert-proofの終了コード: 正常0、差し戻し1、検証器0。
+証拠: C:/hengband-backups/overweight-98-r2-new-pin-revert.json。
+
+記録された2盤面の判断
+011308: 重量1656、上限1650、超過6。預入・処分候補なし。
+  overweight-retained-onlyと数値・保持理由の記録を維持。公開choose_keyとfollow実行器のpinが通過。
+231603: 重量1899、上限1750、超過149。Home経路は使い切っている。
+  a/f/lの余剰重量は合計206でありsell-or-destroyを維持。
+  公開choose_keyのshop:travelとfollow実行器のpinが通過。
+対照の既存テスト: 預入候補が残る一方、経路を使い切った盤面。
+  test_retired_weight_claim_hands_off_without_an_ownerless_passは、期待値を変えずに通過。
+  保持品だけという誤った停止へ書き換えず、overweight-home-unreachableとWAIT_KEYを維持。
+これは記録の境界再生であり、実ゲームで処分が完了したとは主張しない。
+
+完了済みの初期検証
+Codex付属Python 3.12の実体を使用（WindowsAppsスタブ不使用）。
+既存の失敗1件＋新規6件: 7件、69.712秒、OK、終了コード0。
+tests.test_policy_home全体: 171件、125.923秒、OK、skip 4件、終了コード0。
+最終修正後の新規7件＋tests.test_policy_home全体: 178件、272.513秒、OK、skip 4件、終了コード0。
+preflight（基準4db110bd5）: 8 changed files、0 findings、終了コード0。
+git diff --check 4db110bd5 HEAD: 終了コード0。
+導出スコープ --target HEAD --base 4db110bd5 --derive-only: 終了コード0。
+導出9モジュール: tests.test_absorbing_states / tests.test_cli / tests.test_item_reservation /
+  tests.test_overweight_recurrence_1027 / tests.test_policy / tests.test_policy_home /
+  tests.test_policy_structure / tests.test_policy_town / tests.test_town_work_contract。
+導出lint: scripts/sale_key_lint.py / scripts/test_fakery_lint.py。
+導出スコープは前回のpython -c起動時のimportエラーを避け、同じverify_scope._test_codeと
+run_itemをファイル起動で実行する。DecisionTimingTestの既存除外規則は維持する。
+対象コミットは一時作業ツリーで固定する。
+
+最終時点の結果と未完了事項
+第2ラウンドも全検証成功・マージ可能とは扱わない。残る退行がある。
+最終ソース／テストHEAD: c9101e751c60206a1597840d75d15d15acb77f87
+指定された90分の作業上限に従い、未解決部分を明記する。
+
+最終preflight: 8 changed files、0 findings、終了コード0。
+旧HEAD 68a8a1dffのmutation_check --record --full: 終了コード0。
+  7ハンクのうち動作変更6箇所をすべて検出、説明文1箇所はTEXT ONLY。未検出0件。
+  今回の最初の分類修正を戻すと、指定された既存テストが再び失敗した。
+最終HEADの追加対照は独立差し戻し済み（正常0、差し戻し1、検証器0）。
+最終HEADのmutation_check --recordは別の全体検証のロック待ち。未完了。
+旧HEAD 68a8a1dffのfast_tier: 1900件、230.9秒、失敗・エラー・クラッシュなし、終了コード0。
+最終HEADのfast_tierは別の全体検証のロック待ち。未完了。
+待機中のガードは停止していない。後続の結果は下記ログで確認する必要がある。
+
+最終HEADの導出スコープの回収済み結果:
+  scripts/sale_key_lint.py: ran、件数該当なし、失敗識別子0件、skip 0件、4.937秒。
+  scripts/test_fakery_lint.py: failed、件数該当なし、失敗識別子13件、skip 0件、55.25秒。
+  tests.test_absorbing_states: ran、件数22、失敗識別子0件、skip 0件、562.516秒。
+  tests.test_cli: failed、件数229、失敗識別子1件、skip 0件、65.047秒。
+  tests.test_item_reservation: ran、件数17、失敗識別子0件、skip 0件、91.203秒。
+  tests.test_overweight_recurrence_1027: ran、件数7、失敗識別子0件、skip 0件、155.859秒。
+  tests.test_policy: ran、件数57、失敗識別子0件、skip 0件、19.532秒。
+  tests.test_policy_home: ran、件数171、失敗識別子0件、skip 4件、204.078秒。
+  tests.test_policy_structure: ran、件数7、失敗識別子0件、skip 0件、289.656秒。
+  tests.test_policy_town: failed、件数593、失敗識別子2件、skip 2件、986.328秒。
+  tests.test_town_work_contract: 実行中。最終HEADの完了結果未取得。
+  初回の同モジュールは1800秒でタイムアウトし、最終HEADでは3600秒に延ばして再実行した。
+  最終スコープは同じverify_scope._test_codeとrun_item・除外規則を使うファイル起動。
+  対象コミットを一時作業ツリーへ固定し、ゲーム定義をHENGBAND_MONRACE_DEFINITIONSで指定。
+  初回にあったMonraceDefinitions.jsonc未検出のエラーは、最終スコープのPolicy/Homeでは解消。
+
+残る退行: tests.test_policy_town.TownWeightDepartureRecordedTestのr1/r2。
+  最終HEADの同クラス単独でも4件中2件失敗（346.268秒）。基準では4件すべて通過。
+  r1: home:weight-overload-depositが判断列に現れない。
+  r2: decisions[84]が期待値dp+ESC/home:weight-overload-depositに対し、
+      ESC/home:scan-incomplete-open-pageとなる。既存期待値は変更していない。
+  85盤面までの診断再生では、turn 4102557の超過は7、預入候補はp,r,q,m,n,o,d,e,l,k。
+  町のHome台帳はunsatisfied_passes=5、blocked=True、記録された上限3。
+  Home訪問実行器はAPPROACHING、SCAN要求と預入要求のキューを保持し、
+  attempt_limit=300、attempts_used=3、visit_id=3。Home画面はstock_num=111、capacityなし。
+  Home知識はcurrent=False、invalidated=False。StoreVisitは別店舗のLEAVINGのまま。
+  この経路・所有状態の不一致を、共通選択器の経路枯渇判定と照合する作業が残る。
+  上記は診断境界の事実であり、修正済みの主張ではない。
+
+基準にも再現した問題:
+  tests.test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder。
+  子プロセスの5秒タイムアウト。基準4db110bd5でも同じ1件を実行し、5.656秒で同じエラー。
+  scripts/test_fakery_lint.pyの未宣言13件は既存テストの固定値13と一致。
+  verify_scope側の既知失敗数9は更新されていない。今回、その許容値や期待値を変更していない。
+  最終スコープの全成功とは扱わない。
+
+証拠（すべてC:/hengband-backups配下）:
+  overweight-98-r2-home-pins-updated.log / overweight-98-r2-preflight-updated.log
+  overweight-98-r2-base-town.log / overweight-98-r2-base-cli.log
+  overweight-98-r2-new-pin-revert.json / overweight-98-r2-new-pin-green.log / overweight-98-r2-new-pin-reverted.log
+  overweight-98-r2-mutation.log / overweight-98-r2-mutation-final.log
+  overweight-98-r2-fast.log / overweight-98-r2-fast-final.log
+  overweight-98-r2-final-scope-progress.json / overweight-98-r2-final-scope.log
+  overweight-98-r2-final-scope-stderr/ / overweight-98-r2-town-trace.jsonl
+
+報告後も実行中の検証の結果はまだ取り込んでいない。完了・成功とみなさず回収が必要。
+実行中に本レポートだけを更新したため、verify_scopeの終了時指紋は文書差分を検出する可能性がある。
+テスト対象の一時作業ツリーはc9101e751に固定しており、報告作業ではソース／テストを変更していない。
+
+保存方法: この追記はPythonのPath.write_text(encoding="utf-8")で作成した。
+
+
+第3ラウンド（2026-10-27）
+管理番号 #47 の依頼に従い、指定タスクファイルの重量停止 #98 を修正した。
+ソース／テスト検証対象HEAD: 45f118ae91615fb76e6a0e00f2dfd57a61d27857
+取り込んだmainと検証の基準: 726627a6b7e612d62efe1a2d7a507b69cec5b480
+指定された76f484a64以降のmainを先にマージし、競合したマニフェストと実行時索引を再生成した。
+マージコミット: c836437f9。実装・対照テストは早期コミット済み。
+
+最初の分岐と原因
+TownWeightDepartureRecordedTestのr1/r2は、同じ177盤面の公開choose_key再生を共有する。
+基準4db110bd5では4件すべて成功、修正前のマージHEADでは指定のr1/r2だけが失敗した。
+両者の最初の判断差分は0始まりindex 82、turn 4102322。
+  基準: key=9、reason=shop:approach。
+  修正前: key=5、reason=shop:travel:await-entry。
+index 81では両者の返すキー・理由は同じだが、ブランチでは余剰処分状態を作り始めていた。
+index 83では基準がhome:weight-overload-deposit、ブランチが別店舗へのshop:travelとなる。
+index 84では基準のdp+ESC／home:weight-overload-depositに対し、
+ブランチはESC／home:scan-incomplete-open-pageだった。
+この時の重量超過は7、預入候補はp,r,q,m,n,o,d,e,l,k。
+過去の未達回数4に対し現在の一般上限は3だが、実際のHome訪問はAPPROACHINGで継続中。
+実行器にはSCANと預入要求があり、設置済み予算300に対して使用済み3。
+選択器が過去の回数だけを見て経路枯渇としたため、進行中のHome訪問を余剰処分が横取りした。
+
+最終修正
+判定は一つの_weight_relief_selectionに置いた。再生番号・turn・品名による特例はない。
+適用可能なHome停止記録、接近失敗上限、訪問実行器の残予算を確認する。
+活動中の物理訪問には設置済み予算を適用し、過去の未達回数だけで途中終了させない。
+待機状態の実行器には従来の未達回数上限を適用する。
+共通ヘルパー全体から回数判定を除く案では231603の処分が止まることを検出したため、
+その変更は撤回した。_overweight_home_bound_exhaustedと既存の再試行停止条件は変更していない。
+新しい上限定数、重量上限の緩和、出発条件の緩和、保持理由の変更はない。
+既存テストの期待値は一切変更していない。
+
+維持した盤面と新規対照
+011308: 重量1656、上限1650、超過6。retained-onlyの名前と数値を記録する。
+231603: 重量1899、上限1750、超過149。余剰a/f/lの合計206をsell-or-destroyへ渡す。
+容量不明だが利用可能なHomeは先に観測する。使い切った経路はHome画面だけでは再開しない。
+待機状態の既存WeightOverloadTownTestのhome-unreachable停止も維持する。
+新規対照: test_historical_passes_without_a_block_observe_home_before_surplus。
+記録231603の荷物・過去の未達回数を保ち、停止記録と容量観測を取り除き、
+古い重量再生で確認した「訪問が活動中」という前提をSCAN要求のfileで与える構成対照である。
+公開choose_keyと本番follow実行器を通し、Home観測より先に余剰処分を始めないことを確認する。
+共有ハーネスはモジュール別名で利用し、キーの+=構築は追加していない。
+新規対照の独立差し戻し: 正常0、選択器の今回の変更だけを戻すと1、復元後0、検証器0。
+証拠: overweight-98-r3-revert.json と同名のgreen/reverted/restoredログ。
+
+検証
+Codex付属Python 3.12の実体を使用し、WindowsAppsスタブは使用していない。
+最終修正の前回7件＋新規1件＋WeightOverloadTownTestの15件: 23件、83.315秒、成功、終了コード0。
+導出スコープはverify_scopeの同じ_test_code/run_itemをファイル起動で使用する。
+対象HEADを別作業ツリーに固定し、既存のDecisionTimingTest除外は維持する。
+ゲーム定義はHENGBAND_MONRACE_DEFINITIONSで指定した。
+  scripts/sale_key_lint.py: 状態=ran、件数=該当なし、失敗識別子=0、skip=0、時間=3.921秒。
+  scripts/test_fakery_lint.py: 状態=failed、件数=該当なし、失敗識別子=13、skip=0、時間=40.235秒。
+  tests.test_absorbing_states: 状態=ran、件数=22、失敗識別子=0、skip=0、時間=414.797秒。
+  tests.test_cli: 状態=failed、件数=229、失敗識別子=1、skip=0、時間=36.016秒。
+    test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder
+  tests.test_item_reservation: 状態=ran、件数=17、失敗識別子=0、skip=0、時間=67.656秒。
+  tests.test_overweight_recurrence_1027: 状態=ran、件数=8、失敗識別子=0、skip=0、時間=96.156秒。
+  tests.test_policy: 状態=ran、件数=57、失敗識別子=0、skip=0、時間=12.735秒。
+  tests.test_policy_home: 状態=ran、件数=171、失敗識別子=0、skip=4、時間=92.859秒。
+  tests.test_policy_structure: 状態=ran、件数=7、失敗識別子=0、skip=0、時間=226.156秒。
+  tests.test_policy_town: 状態=ran、件数=593、失敗識別子=0、skip=2、時間=732.797秒。
+  tests.test_town_work_contract: 状態=ran、件数=9、失敗識別子=0、skip=0、時間=1013.578秒。
+
+最終preflight（取り込んだmain基準）: 8変更ファイル、指摘0件、終了コード0。
+mutation_check --record（同じmainの固定HEAD基準）:
+  マージゲートの全体検証が終わるまで待機し、ガードは停止していない。
+  全6ハンク。動作変更5箇所をすべて検出、説明文1箇所、未検出0件、終了コード0。
+  重量対照8件とWeightOverloadTownTestの15件を使用した。
+  45f118ae9および同じソース／テストのツリーへ成功記録を保存済み。
+fast_tier（同じmainの固定HEAD基準）:
+  全体検証の完了を待って開始。1689件と変更モジュール1件を4分割で実行した。
+  1697件、180.1秒、失敗1件、エラー0件、クラッシュ0件、終了コード1。
+  失敗は下記の基準mainでも再現するflight recorderの1件。
+導出スコープの終了コードは1（下記のCLIとlint）。終了時の指紋不一致は発生していない。
+
+基準にもある失敗と限界
+tests.test_cli.Stage2aFollowBarrierPin.test_second_process_fails_fast_without_contacting_holder:
+5秒の子プロセス起動タイムアウト。基準mainの単独実行でも同じエラー、1件、5.264秒、終了コード1。
+scripts/test_fakery_lint.py: 基準mainでも13件。verify_scopeの既知件数9と一致しない。
+既存テストの固定値13と一致することも確認した。今回、許容値は変更していない。
+tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop:
+stat呼び出し回数は実値5・期待値4。基準mainの単独実行でも同じ失敗（1件、0.118秒）。
+最終HEADの単独実行でも同じ失敗であり、両者の終了コードは1。
+したがって導出スコープ／fast tier全体が無条件で成功したとは扱わない。
+記録の再生と入力境界の検証であり、実ゲームで処分が完了したとの主張ではない。
+
+証拠（C:/hengband-backups配下）
+overweight-98-r3-base-trace.jsonl / overweight-98-r3-current-trace.jsonl
+overweight-98-r3-base-trace.log / overweight-98-r3-current-trace.log
+overweight-98-r3-pins-updated.log / overweight-98-r3-revert.json
+overweight-98-r3-final-derived.json / overweight-98-r3-final-derived.log
+overweight-98-r3-final-preflight.log / overweight-98-r3-final-mutation.log / overweight-98-r3-final-fast.log
+overweight-98-r3-final-scope.json / overweight-98-r3-final-scope-progress.json / overweight-98-r3-final-scope-stderr/
+overweight-98-r3-main-cli.log / overweight-98-r3-main-fakery.log
+overweight-98-r3-flight-base.log / overweight-98-r3-flight-final.log / overweight-98-r3-flight-baseline.json
+
+保存方法: この第3ラウンド追記はPythonのPath.write_text(encoding="utf-8")で作成した。
+
+
+追加検証の回収（第3ラウンド）
+先にmain参照で起動した追加のmutation_check --recordも停止せず最後まで完了した。
+重量対照8件、WeightOverloadTownTestの15件、TownWeightDepartureRecordedTestの4件、
+合計27件を各差し戻しで実行し、r1/r2の既存記録再生も含めて確認した。
+全6ハンクのうち動作変更5箇所をすべて検出、説明文1箇所、未検出0件、終了コード0。
+追加ログ: C:/hengband-backups/overweight-98-r3-mutation.log。
+固定基準の成功記録もoverweight-98-r3-final-mutation-record.txtへ保存している。
+起動したガードはすべて終了し、検証の待機・実行を途中停止していない。
+この追加回収後もソース／テストの内容は45f118ae9と同一である。
+この追記もPythonのPath.write_text(encoding="utf-8")で保存した。
+
+
+第4ラウンド（2026-10-28）
+管理依頼 #47、指定タスクの対象 dis-/hengband-bot #98。
+取り込んだ最新main・検証基準: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+マージコミット: d391653aa。競合したtown_work_manifest.json.gzとtown_work_sites.jsonは再生成した。
+実装修正の早期コミット: a3e2c58cf。
+検証対象HEAD: a3e2c58cff83ef27ac7e086b4591c6161f00ee29
+
+最初の分岐と原因
+対象はOverweightHomeHoldRecordedTestの独立チェックポイント11、turn 3079009である。
+現在の再生接頭辞はHome到着のindex 3で終了するため、それ以降を同じ軌跡として継続していない。
+既存テストの宣言済み五本杖・弩装備の境界をそのまま適用し、同じ独立盤面で比較した。
+重量1752、上限1750、超過2。Home容量は未観測。預入候補はk/j/i。
+Home実行器はAPPROACHING、attempt_limit=300、attempts_used=1。
+通常上限3に対し、問題の反実仮想ではapproach_fails=3、unsatisfied_passes=2。
+修正前の選択器は未達パス数だけに活動中訪問の例外を適用し、接近失敗数には通常上限を適用した。
+そのためHomeを使えないと判断し、sell-or-destroyを選んだ。
+既存の経路側はoverweight-home-unreachableを確定したが、ブランチの余剰回復処理がこれを解除し、
+武器店への移動マクロ（キーのreprは\x1b`n#.、理由shop:travel）へ進んだ。
+同じmain盤面はキー5、理由town:blocked:overweight-home-unreachable。
+公開choose_keyの最初の出力差分はこの独立index 11のapproach_fails反実仮想である。
+unsatisfied_passesの反実仮想は修正前からmainと同じ停止結果だった。
+
+修正
+_weight_relief_selectionの中で、活動中の物理Home訪問が残り予算を持つ場合は、
+過去の未達パス数と接近失敗数を同じように扱うようにした。
+適用可能な停止記録と実行器の予算枯渇は引き続き優先し、待機中実行器には両方の通常上限を適用する。
+_overweight_home_bound_exhaustedや既存の再試行・停止条件は変更していない。
+これにより選択器がHome観測を余剰処分に横取りさせず、経路側の既存上限による名前付き停止が維持される。
+既存テストの期待値・fixtureは変更せず、新規テストも追加していない。
+回帰を検出する既存ピン自体が修正前RED・修正後GREENであり、差し戻し検証でも選択器の保護を確認した。
+記録番号・turn・品名による実装特例、新しい定数、重量・出発条件の緩和、キーの+=構築はない。
+共有ハーネスの既存モジュール別名参照を維持した。
+
+検証
+全ガード・全テストは指定のシステムPython 3.13で実行した。
+最初の集約実行は19件が成功したが、WeightOverloadTownTestを誤ってtest_policy_townに指定し、
+その1件がローダーエラーになった。正しいtest_policy_home.WeightOverloadTownTestの15件を実行し直して成功した。
+この19件には記録011308/231603、容量不明Home、活動中Home予算、TownWeightDepartureRecordedTest r1/r2、
+今回失敗したHome停止を含む。mainの元の停止テストも1件成功（6.486秒）。
+PowerShellがstderrをNativeCommandErrorとして包む初回ログのため、以後はPython subprocessで
+UTF-8ログと実際の終了コードを保存した。
+weight-pins: 終了コード0、2.343秒。
+mutation: 終了コード0、395.059秒。
+fast: 終了コード0、78.676秒。
+modules: 終了コード0、400.699秒。
+
+preflight: 8変更ファイル、指摘0件、終了コード0。
+既存の行数上限超過は適用除外ブランチの注記2件であり、今回の条件式修正で行数は増えていない。
+mutation_check --record: 6ハンク中未検出0、終了コード0。
+増分検証として今回変わった選択部分の差し戻しを検出し、残り5ハンクは45f118ae9の成功記録を再利用した。
+検証前の34件は全成功。実装HEADとソース／テストツリーの成功記録を保存した。
+記録の控え: overweight-98-r4-mutation-record.txt（基準78deea2acを明記）。
+fast_tier: 1652件、78.3秒、失敗0、エラー0、クラッシュ0、終了コード0。
+指定3モジュール: tests.test_overweight_home_hold_recorded / tests.test_policy_town / tests.test_policy_home。
+合計771件、テスト本体383.434秒、プロセス全体400.699秒、失敗0、エラー0、既存スキップ4、終了コード0。
+Home停止記録7件、町593件、Home171件。r1/r2とWeightOverloadTownTestの15件も成功した。
+スキップ4件は既存のHomeWithdrawTargetUnobservedRecordedPinsで、引出対象が観測ページにない場合の新しい実録を要する境界。
+今回スキップ条件を追加・変更していない。
+git diff --check mainも成功した。レポート追加後の静的preflight（--no-tests）も指摘0件、終了コード0。
+
+要求されたガードと指定モジュールに未完了・未実行はない。
+派生モジュールの追加検査と全体スイートは、2026-10-28の指定に従い今回は実行していない。
+実ゲームの実行確認ではなく、宣言済み記録再生と入力実行器・単体検証の結果である。
+開始したガード・テストはすべて終了し、途中停止した検査や待機／最終処理スクリプトの残存はない。
+差し戻しは復元済みでsrc/とtests/は変更なし。比較用main作業ツリーも削除した。
+
+証拠はC:/hengband-backups配下:
+overweight-98-r4-main-pin.log / overweight-98-r4-pins.log / overweight-98-r4-weight-pins.log
+overweight-98-r4-main-walled-trace.jsonl / overweight-98-r4-before-walled-trace.jsonl / overweight-98-r4-fixed-trace.jsonl
+overweight-98-r4-preflight.log / overweight-98-r4-mutation.log / overweight-98-r4-fast.log
+overweight-98-r4-modules.log / overweight-98-r4-results.json
+トレースの修正前比較は診断プロセス内でコミットd391653aaの選択器を読み込んだもので、作業ツリーのソースは変更していない。
+本追記はPythonのPath.write_text(encoding="utf-8")で保存した。

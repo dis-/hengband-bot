@@ -1,0 +1,8 @@
+<no-key:warning:refused-without-key>
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> 2 consecutive decisions produced no command; stopping the bot
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.278s
+
+OK

@@ -1,0 +1,18 @@
+ISSUE: #47
+ROUND 3 of LUNA-TASK-opening-route.txt (owner decisions in round 1 and 2 still apply). The supervisor ran your
+49e50cd01 from FRESH characters on the verification machine (seeds 20261026 and 20261101). Progress: quest 34 claimed,
+quest 1 readiness verdict true (lit torches 14/5), fixedquest:request '9q ESC' accepted quest 1 (19:35:17), then
+quest:enter:approach walked to the quest-1 entrance, opening-q1:equip-light 'wd' swapped to a fresh torch, and ON the
+entrance cell (34,176) both runs stopped: CLI reason quest:blocked:opening-route, opening_route_failure
+"quest-request-unavailable" (key ''), three times -> escalate. So the route still wants to REQUEST quest 1 after it was
+accepted, instead of entering it. (Seed 20261026 also logged "no-progress:observe:fundraising-detection" once before.)
+Second finding: quest:enter:approach took 1.0-1.8 s of choose_key per step (timing.choose_key_ms), about 2-3 s per
+step in town; find what is recomputed per step on that path and avoid it if it is part of your change.
+Records: nth-vps ~/hengbot-verify/opening-r2-1 and opening-r2-2 (home/hengbot-soak/fresh/life-001/jsonlog,
+incident-captures).
+Do: fix the accepted-quest-1 state (taken -> enter at the entrance -> the approved quest-1 strategy), and the
+detection-observe no-progress if it is the same no-money shelf loop as round 2. Pins (public choose_key + follow
+executor) from these stops: before = blocked on the entrance; after = the enter key and the quest-1 floor. Keep all
+earlier pins green.
+Rules as before. Guards: preflight / mutation_check --record / fast_tier with base 5eca3f7a4. Token budget 80k HARD,
+wall time 60 minutes. Append round 3 to LUNA-REPORT-opening-route.txt (Japanese) and commit.

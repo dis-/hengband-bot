@@ -313,6 +313,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'dark:locomotion-exhausted',
         'quest:blocked:fixed-target-not-visible',
         'quest:blocked:q34-opening-door-locked',
+        'quest:blocked:opening-route',
         'quest:blocked:q34-recovery-no-progress',
         'quest:blocked:q34-throw-point-unreachable',
         'town:blocked:departure-unsatisfiable',

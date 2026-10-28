@@ -1,0 +1,19 @@
+test_legacy_and_cached_policies_match_every_decision (test_town_latency_caches.CapturedSequenceEquivalenceTest.test_legacy_and_cached_policies_match_every_decision) ... skipped 'set HENGBOT_CAPTURE_REPLAY=1 for the slow incident replay'
+test_entrance_cache_rebuilds_for_new_town_and_keeps_routing (test_town_latency_caches.TownLatencyCacheTest.test_entrance_cache_rebuilds_for_new_town_and_keeps_routing) ... ok
+test_fixed_quest_caches_do_not_change_checkpoint_bytes (test_town_latency_caches.TownLatencyCacheTest.test_fixed_quest_caches_do_not_change_checkpoint_bytes) ... ok
+test_fixed_quest_head_is_computed_once_per_snapshot_identity (test_town_latency_caches.TownLatencyCacheTest.test_fixed_quest_head_is_computed_once_per_snapshot_identity) ... ok
+test_fixed_quest_offer_cache_clears_at_public_decision_boundary (test_town_latency_caches.TownLatencyCacheTest.test_fixed_quest_offer_cache_clears_at_public_decision_boundary) ... ok
+test_fixed_quest_offer_cache_preserves_gridless_fallback (test_town_latency_caches.TownLatencyCacheTest.test_fixed_quest_offer_cache_preserves_gridless_fallback) ... ok
+test_fixed_quest_offer_scan_is_shared_with_original_decision_snapshot (test_town_latency_caches.TownLatencyCacheTest.test_fixed_quest_offer_scan_is_shared_with_original_decision_snapshot) ... ok
+test_fixed_quest_offer_scan_runs_once_per_merged_decision (test_town_latency_caches.TownLatencyCacheTest.test_fixed_quest_offer_scan_runs_once_per_merged_decision) ... ok
+test_grid_memory_discards_cached_terrain_on_region_change (test_town_latency_caches.TownLatencyCacheTest.test_grid_memory_discards_cached_terrain_on_region_change) ... ok
+test_grid_memory_reuses_terrain_and_clears_every_transient_field (test_town_latency_caches.TownLatencyCacheTest.test_grid_memory_reuses_terrain_and_clears_every_transient_field) ... ok
+test_home_fact_survives_unlit_snapshot_then_invalidates_when_emitted (test_town_latency_caches.TownLatencyCacheTest.test_home_fact_survives_unlit_snapshot_then_invalidates_when_emitted) ... ok
+test_persistent_signature_covers_every_non_transient_grid_field (test_town_latency_caches.TownLatencyCacheTest.test_persistent_signature_covers_every_non_transient_grid_field) ... ok
+test_snapshot_hazard_cache_invalidates_when_trap_appears (test_town_latency_caches.TownLatencyCacheTest.test_snapshot_hazard_cache_invalidates_when_trap_appears) ... ok
+test_town_facts_clear_on_floor_change (test_town_latency_caches.TownLatencyCacheTest.test_town_facts_clear_on_floor_change) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.090s
+
+OK (skipped=1)

@@ -1,0 +1,18 @@
+test_both_hands_and_mutations_are_independently_modelled (test_protocol3_display_align.DisplayAlignmentTest.test_both_hands_and_mutations_are_independently_modelled) ... ok
+test_canonical_lighting_one_cannot_certify_fixed_target_death (test_protocol3_display_align.DisplayAlignmentTest.test_canonical_lighting_one_cannot_certify_fixed_target_death) ... ok
+test_constructed_new_snapshot_preserves_inactive_hand (test_protocol3_display_align.DisplayAlignmentTest.test_constructed_new_snapshot_preserves_inactive_hand) ... ok
+test_current_weapon_dps_uses_damage_total_once_and_no_inactive_attack (test_protocol3_display_align.DisplayAlignmentTest.test_current_weapon_dps_uses_damage_total_once_and_no_inactive_attack) ... ok
+test_debug_exp_never_overrides_visible_capped_skill (test_protocol3_display_align.DisplayAlignmentTest.test_debug_exp_never_overrides_visible_capped_skill) ... ok
+test_displayed_hit_total_does_not_add_skill_or_weapon_twice (test_protocol3_display_align.DisplayAlignmentTest.test_displayed_hit_total_does_not_add_skill_or_weapon_twice) ... ok
+test_inconsistent_inactive_hand_and_noninteger_bonuses_rejected (test_protocol3_display_align.DisplayAlignmentTest.test_inconsistent_inactive_hand_and_noninteger_bonuses_rejected) ... ok
+test_new_character_fields_do_not_affect_equipped_calibration (test_protocol3_display_align.DisplayAlignmentTest.test_new_character_fields_do_not_affect_equipped_calibration) ... ok
+test_new_fields_never_silently_default (test_protocol3_display_align.DisplayAlignmentTest.test_new_fields_never_silently_default) ... ok
+test_new_grid_symbol_indices_do_not_recreate_visibility_bits (test_protocol3_display_align.DisplayAlignmentTest.test_new_grid_symbol_indices_do_not_recreate_visibility_bits) ... ok
+test_old_current_weapon_dps_keeps_legacy_arithmetic (test_protocol3_display_align.DisplayAlignmentTest.test_old_current_weapon_dps_keeps_legacy_arithmetic) ... ok
+test_per_snapshot_detection_can_switch_back_to_old_exe (test_protocol3_display_align.DisplayAlignmentTest.test_per_snapshot_detection_can_switch_back_to_old_exe) ... ok
+test_readiness_fallback_uses_new_total_and_handles_null_main_hand (test_protocol3_display_align.DisplayAlignmentTest.test_readiness_fallback_uses_new_total_and_handles_null_main_hand) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 5.306s
+
+OK

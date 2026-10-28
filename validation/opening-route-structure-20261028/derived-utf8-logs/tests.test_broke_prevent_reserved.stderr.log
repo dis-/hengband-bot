@@ -1,0 +1,14 @@
+test_foreign_home_retry_reservation_is_skipped (test_broke_prevent_reserved.ReservedFareTest.test_foreign_home_retry_reservation_is_skipped) ... ok
+test_no_sale_stop_banner_names_the_unfunded_outpost_fare (test_broke_prevent_reserved.ReservedFareTest.test_no_sale_stop_banner_names_the_unfunded_outpost_fare) ... ok
+test_observed_price_quantity_never_crosses_existing_return_floor (test_broke_prevent_reserved.ReservedFareTest.test_observed_price_quantity_never_crosses_existing_return_floor) ... ok
+test_ordinary_sales_cannot_borrow_the_fare_grant (test_broke_prevent_reserved.ReservedFareTest.test_ordinary_sales_cannot_borrow_the_fare_grant) ... ok
+test_plentiful_is_releasable_count_not_pack_order_or_raw_count (test_broke_prevent_reserved.ReservedFareTest.test_plentiful_is_releasable_count_not_pack_order_or_raw_count) ... ok
+test_recorded_reserved_sale_observed_price_minimum_and_outpost_follow (test_broke_prevent_reserved.ReservedFareTest.test_recorded_reserved_sale_observed_price_minimum_and_outpost_follow) ... ok
+test_reserved_refusal_is_not_retried_forever (test_broke_prevent_reserved.ReservedFareTest.test_reserved_refusal_is_not_retried_forever) ... ok
+test_single_unit_covers_fare_without_a_second_sale (test_broke_prevent_reserved.ReservedFareTest.test_single_unit_covers_fare_without_a_second_sale) ... ok
+test_surplus_still_precedes_reserved_supplies (test_broke_prevent_reserved.ReservedFareTest.test_surplus_still_precedes_reserved_supplies) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 114.305s
+
+OK

@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_existing_supply_stockout_fallback_and_exhausted_hard_stop (tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Temp\opening-structure-baseline-wb85ya31\tests\test_keep_running_a0.py", line 288, in test_existing_supply_stockout_fallback_and_exhausted_hard_stop
+    self.assertEqual(policy._fundraising_mode, None if exhausted else "prepare")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 'prepare'
+
+----------------------------------------------------------------------
+Ran 1 test in 2.973s
+
+FAILED (failures=1)

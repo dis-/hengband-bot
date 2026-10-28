@@ -716,6 +716,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:outpost-fare-return-route-unavailable": "the recovered Outpost fare has no admitted return route",
         "town:blocked:outpost-fare-recall-active": "a recall is already active during Outpost fare recovery",
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
+        "quest:blocked:opening-route": "the Q34 -> mining kit -> Q1 route cannot continue; inspect _opening_q1_failure in the policy checkpoint",
         "quest:blocked:q34-opening-door-locked": "the Q34 opening door stayed locked after the bounded lock-pick attempts",
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",

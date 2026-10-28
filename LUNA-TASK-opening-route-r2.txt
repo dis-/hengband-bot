@@ -1,0 +1,34 @@
+ISSUE: #47
+ROUND 2 of LUNA-TASK-opening-route.txt. The owner added (verbatim, 2026-10-26 17:3x):
+「必要ならQ1受諾条件の変更も許可する。Q34受諾直後の物資のない状態でも問題なくクリアできるはず。」
+So: quest 1 must be taken and cleared by a character in the state right after quest 34 (Lv~7, almost no gold, no
+potions, no oil) - changing the quest-1 acceptance conditions is ALLOWED. "可能な限り採掘キットを買う" means buy what the
+gold allows; with no gold, buy nothing and go straight to quest 1 (no fundraising before quest 1 just to buy the kit or
+reserves).
+
+The supervisor ran your 8a42516a from FRESH characters on the verification machine (two seeds). Both stopped about 4
+minutes in, right after quest 34, three times each (no-key-exhausted), CLI reason quest:blocked:opening-route:
+- seed 20261026: gold 5, opening_route_failure "readiness:{... strategy_force failed [] (torches 15/5 ready, speed 0/1,
+  heal 0/2) ..., 'reason': 'light-oil'}" - the one-shot-quest lantern oil rule blocks quest 1 and 5 gold cannot buy oil.
+- seed 20261101: gold 11, opening_route_failure "no-progress:observe:fundraising-digger" - shop:approach 1/2 alternating
+  with town:kill-mob-approach while trying to observe digger shelves with no money.
+Records (on nth-vps): ~/hengbot-verify/opening-fresh-1 and opening-fresh-2 (home/hengbot-soak/fresh/life-001/jsonlog,
+incident captures). The supervisor will copy them if you ask in the report; you can also read the decision fields above.
+
+Do:
+1. Quest 1 acceptance after quest 34: make the quest-1 readiness pass for the post-quest-34 state. Read the quest-1
+   definition and its approved strategy (and the C++ source C:\hengband\src / lib for what quest 1 contains) and keep
+   only what is actually needed to clear it safely (e.g. the light: is the current lantern/torch fuel enough for one
+   quest-1 visit? then no spare oil is required for quest 1; speed/heal potions not required if the HP/DPS margins of
+   the existing calculation hold). Write in the report exactly which conditions you dropped or changed and why.
+   Do not weaken other quests' rules.
+2. Mining kit "as far as possible": buy the best digger / Treasure Detection the gold allows after the quest-1 needs;
+   with too little gold, skip the kit and go to quest 1. Never loop observing shelves with no money; no pre-quest-1
+   fundraising for the kit.
+3. Pins (public choose_key + follow executor) from these two stops: before = blocked / no-progress; after = quest 1
+   requested and entered with the post-quest-34 state. Keep round-1 and quest-34 pins green.
+Rules as before (Python UTF-8, no process control, no game/bot control, no push/merge/rebase/reset --hard/stash,
+existing tests (= tests at 5eca3f7a4) unchanged, no logs committed, no new magic numbers). Guards: preflight /
+mutation_check --record / fast_tier with base 5eca3f7a4. Token budget 120k HARD (round 1 used 890k - stay inside it),
+wall time 90 minutes. Append round 2 to LUNA-REPORT-opening-route.txt (Japanese) and commit. The supervisor reruns the
+fresh-character check after you, including quest 1 itself (survive and clear it).

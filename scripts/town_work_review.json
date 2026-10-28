@@ -5446,6 +5446,18 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy_fundraising.py:FundraisingMixin._start_fundraising_return": {
+    "classification": "producer",
+    "rows": [
+      "fundraising",
+      "store-exit"
+    ],
+    "context": "Income-floor return shared by opening Q1 resumption and detectionless scavenging exit.",
+    "evidence": "Records the ordinary return and latches it before delegating the command to _leave_fundraising_floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "_leave_fundraising_floor; no independent progress"
+  },
   "policy_fundraising.py:FundraisingMixin._fundraising_key": {
     "classification": "producer",
     "rows": [
@@ -11419,6 +11431,70 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed Q1 opening route projection: observed supplier pages, readiness-derived counts and existing mining-tool quality; no independent action or progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._purchase_rungs.match": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed Q1 opening route projection: observed supplier pages, readiness-derived counts and existing mining-tool quality; no independent action or progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Exclusive Q34 reward -> affordable optional kit -> Q1 owner; delegates existing shopping, light equipment, town recovery/combat and quest entry. No pre-Q1 fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_stop": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Exclusive Q34 reward -> affordable optional kit -> Q1 owner; delegates existing shopping, light equipment, town recovery/combat and quest entry. No pre-Q1 fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Delegated store-page census and bounded page navigation under the exclusive opening owner; returns no independent purchase or economic progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_helpers.py:PolicyHelpersMixin._pick_alternate_dungeon": {
     "admission": "_town_producer_entry / town_work.validate_emit",

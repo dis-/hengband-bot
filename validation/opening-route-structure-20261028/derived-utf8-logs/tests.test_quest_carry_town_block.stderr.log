@@ -1,0 +1,9 @@
+test_fresh_purchasable_page_keeps_ammo_claim_actionable (test_quest_carry_town_block.QuestCarryTownBlockPins.test_fresh_purchasable_page_keeps_ammo_claim_actionable) ... ok
+test_recorded_home_and_store_exhaustion_waives_only_town_departure (test_quest_carry_town_block.QuestCarryTownBlockPins.test_recorded_home_and_store_exhaustion_waives_only_town_departure) ... ok
+test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop (test_quest_carry_town_block.QuestCarryTownBlockPins.test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop) ... ok
+test_remote_scan_with_matching_plain_ammo_routes_home_first (test_quest_carry_town_block.QuestCarryTownBlockPins.test_remote_scan_with_matching_plain_ammo_routes_home_first) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 44.374s
+
+OK

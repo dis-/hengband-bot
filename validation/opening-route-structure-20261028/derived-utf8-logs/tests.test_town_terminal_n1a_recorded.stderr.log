@@ -1,0 +1,14 @@
+test_identification_is_served_by_the_cross_town_trip (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_identification_is_served_by_the_cross_town_trip) ... ok
+test_material_read_does_not_commit (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_material_read_does_not_commit) ... ok
+test_q34_readiness_reason_is_committed_only_at_the_entry (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_q34_readiness_reason_is_committed_only_at_the_entry) ... ok
+test_recorded_boards (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_recorded_boards) ... ok
+test_refused_entry_yields_without_the_claim_switch (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_refused_entry_yields_without_the_claim_switch) ... ok
+test_reward_terminal_is_not_the_refused_entry (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_reward_terminal_is_not_the_refused_entry) ... ok
+test_unroutable_trip_is_not_progress (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_unroutable_trip_is_not_progress) ... ok
+test_walk_to_the_inn_keeps_yielding (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_walk_to_the_inn_keeps_yielding) ... ok
+test_yields_without_server_progress_close_the_entry (test_town_terminal_n1a_recorded.N1aTerminalAdmissionTest.test_yields_without_server_progress_close_the_entry) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 4.418s
+
+OK

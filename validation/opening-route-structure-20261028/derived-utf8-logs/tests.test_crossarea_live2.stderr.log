@@ -1,0 +1,8 @@
+test_recorded_withdraw_effect_dispatches_equip_on_next_board (test_crossarea_live2.CrossareaLive2Test.test_recorded_withdraw_effect_dispatches_equip_on_next_board) ... ok
+test_unobserved_store_action_keeps_atomic_wait (test_crossarea_live2.CrossareaLive2Test.test_unobserved_store_action_keeps_atomic_wait) ... ok
+test_withdraw_effect_does_not_finish_another_visit_operation (test_crossarea_live2.CrossareaLive2Test.test_withdraw_effect_does_not_finish_another_visit_operation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.042s
+
+OK

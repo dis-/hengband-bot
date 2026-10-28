@@ -1,0 +1,1157 @@
+{
+  "base": "78deea2accc3ce2aaa0780ed15f73aa13e2328c9",
+  "head": "bf5d5739fbf68ccc94f42111748fe2e7faf36f8d",
+  "modules": {
+    "tests.test_black_market_optional_quantity": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_black_market_optional_quantity"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_black_market_optional_quantity"
+      ],
+      "duration": 0.19,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_black_market_optional_quantity.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_absorbing_states": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_absorbing_states"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_absorbing_states"
+      ],
+      "duration": 0.201,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_absorbing_states.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_ammo_surplus": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_ammo_surplus"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_ammo_surplus"
+      ],
+      "duration": 0.204,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_ammo_surplus.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_broke_prevent_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_broke_prevent_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_broke_prevent_recorded"
+      ],
+      "duration": 0.219,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_broke_prevent_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_broke_prevent_reserved": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_broke_prevent_reserved"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_broke_prevent_reserved"
+      ],
+      "duration": 0.191,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_broke_prevent_reserved.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_buy_deposit_loop_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_buy_deposit_loop_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_buy_deposit_loop_recorded"
+      ],
+      "duration": 0.182,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_buy_deposit_loop_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_classC2_departure_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_classC2_departure_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_classC2_departure_recorded"
+      ],
+      "duration": 0.187,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_classC2_departure_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_curse_priority_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_curse_priority_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_curse_priority_recorded"
+      ],
+      "duration": 0.183,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_curse_priority_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_crossarea_live2": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_crossarea_live2"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_crossarea_live2"
+      ],
+      "duration": 0.337,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_crossarea_live2.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_crossarea_fundraising": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_crossarea_fundraising"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_crossarea_fundraising"
+      ],
+      "duration": 0.36,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_crossarea_fundraising.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_darkwalk": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_darkwalk"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_darkwalk"
+      ],
+      "duration": 0.202,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_darkwalk.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_declarations_r5": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_declarations_r5"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_declarations_r5"
+      ],
+      "duration": 0.196,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_declarations_r5.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_declarations_r7": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_declarations_r7"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_declarations_r7"
+      ],
+      "duration": 0.178,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_declarations_r7.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_device_purchase_preemption_trajectory": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_device_purchase_preemption_trajectory"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_device_purchase_preemption_trajectory"
+      ],
+      "duration": 0.195,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_device_purchase_preemption_trajectory.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_destruction_gate_procurement": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_destruction_gate_procurement"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_destruction_gate_procurement"
+      ],
+      "duration": 0.209,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_destruction_gate_procurement.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_execution_declaration": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_execution_declaration"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_execution_declaration"
+      ],
+      "duration": 0.203,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_execution_declaration.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_equipment_alternation_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_equipment_alternation_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_equipment_alternation_recorded"
+      ],
+      "duration": 0.36,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_equipment_alternation_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_exploration_commitment_observation": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_exploration_commitment_observation"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_exploration_commitment_observation"
+      ],
+      "duration": 0.205,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_exploration_commitment_observation.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_identify_staff_procurement_step15d": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_identify_staff_procurement_step15d"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_identify_staff_procurement_step15d"
+      ],
+      "duration": 0.219,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_identify_staff_procurement_step15d.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_fundraise_light_block": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_fundraise_light_block"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_fundraise_light_block"
+      ],
+      "duration": 0.281,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_fundraise_light_block.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_item_sink_lint": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_item_sink_lint"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_item_sink_lint"
+      ],
+      "duration": 0.213,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_item_sink_lint.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_input_executor": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_input_executor"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_input_executor"
+      ],
+      "duration": 0.24,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_input_executor.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_junk_scope_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_junk_scope_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_junk_scope_recorded"
+      ],
+      "duration": 0.22,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_junk_scope_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_keep_running_a0": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_keep_running_a0"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_keep_running_a0"
+      ],
+      "duration": 0.219,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_keep_running_a0.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_cli": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_cli"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_cli"
+      ],
+      "duration": 2.058,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_cli.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_light_in_hand_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_light_in_hand_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_light_in_hand_recorded"
+      ],
+      "duration": 0.211,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_light_in_hand_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_light_judgment_census": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_light_judgment_census"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_light_judgment_census"
+      ],
+      "duration": 0.201,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_light_judgment_census.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_light_pingpong_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_light_pingpong_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_light_pingpong_recorded"
+      ],
+      "duration": 0.206,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_light_pingpong_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_light_rootfix_q2_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_light_rootfix_q2_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_light_rootfix_q2_recorded"
+      ],
+      "duration": 0.188,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_light_rootfix_q2_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_opening_route_pins": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_opening_route_pins"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_opening_route_pins"
+      ],
+      "duration": 0.248,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_opening_route_pins.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_destroy_procurement_guard": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_destroy_procurement_guard"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_destroy_procurement_guard"
+      ],
+      "duration": 2.001,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_destroy_procurement_guard.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_opening_route_r2_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_opening_route_r2_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_opening_route_r2_recorded"
+      ],
+      "duration": 0.235,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_opening_route_r2_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_newchar_light_churn_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_newchar_light_churn_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_newchar_light_churn_recorded"
+      ],
+      "duration": 0.419,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_newchar_light_churn_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_opening_route_r3_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_opening_route_r3_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_opening_route_r3_recorded"
+      ],
+      "duration": 0.175,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_opening_route_r3_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_owner_retirement_slice1": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_owner_retirement_slice1"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_owner_retirement_slice1"
+      ],
+      "duration": 0.279,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_owner_retirement_slice1.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_opening_route_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_opening_route_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_opening_route_recorded"
+      ],
+      "duration": 0.34,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_opening_route_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_ownership_s2a1_closure": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_ownership_s2a1_closure"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_ownership_s2a1_closure"
+      ],
+      "duration": 0.293,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_ownership_s2a1_closure.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_ownership_s2b1_ladder": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_ownership_s2b1_ladder"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_ownership_s2b1_ladder"
+      ],
+      "duration": 0.237,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_ownership_s2b1_ladder.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_fundraising": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_fundraising"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_fundraising"
+      ],
+      "duration": 0.194,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_fundraising.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_equipment": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_equipment"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_equipment"
+      ],
+      "duration": 0.266,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_equipment.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_home": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_home"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_home"
+      ],
+      "duration": 0.26,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_home.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_combat": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_combat"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_combat"
+      ],
+      "duration": 0.302,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_combat.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_identification": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_identification"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_identification"
+      ],
+      "duration": 0.213,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_identification.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_observation": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_observation"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_observation"
+      ],
+      "duration": 0.2,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_observation.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_shop": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_shop"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_shop"
+      ],
+      "duration": 0.279,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_shop.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_quest": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_quest"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_quest"
+      ],
+      "duration": 0.322,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_quest.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_supply": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_supply"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_supply"
+      ],
+      "duration": 0.266,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_supply.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_protocol3_display_align": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_protocol3_display_align"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_protocol3_display_align"
+      ],
+      "duration": 0.2,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_protocol3_display_align.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_purchase_retention_root_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_purchase_retention_root_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_purchase_retention_root_recorded"
+      ],
+      "duration": 0.204,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_purchase_retention_root_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_policy_town": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_policy_town"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_policy_town"
+      ],
+      "duration": 0.399,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_policy_town.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_ammo_not_bought": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_quest_ammo_not_bought"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_quest_ammo_not_bought"
+      ],
+      "duration": 0.208,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_quest_ammo_not_bought.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_carry_departure_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_quest_carry_departure_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_quest_carry_departure_recorded"
+      ],
+      "duration": 0.204,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_quest_carry_departure_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_carry_town_block": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_quest_carry_town_block"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_quest_carry_town_block"
+      ],
+      "duration": 0.191,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_quest_carry_town_block.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_door_confirm_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_quest_door_confirm_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_quest_door_confirm_recorded"
+      ],
+      "duration": 0.18,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_quest_door_confirm_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_navigator": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_quest_navigator"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_quest_navigator"
+      ],
+      "duration": 0.181,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_quest_navigator.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_recall_readiness_contradiction": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_recall_readiness_contradiction"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_recall_readiness_contradiction"
+      ],
+      "duration": 0.192,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_recall_readiness_contradiction.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_travel_progress": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_quest_travel_progress"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_quest_travel_progress"
+      ],
+      "duration": 0.222,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_quest_travel_progress.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_quest_torch_stall_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_quest_torch_stall_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_quest_torch_stall_recorded"
+      ],
+      "duration": 0.338,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_quest_torch_stall_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_scavenge_stockout_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_scavenge_stockout_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_scavenge_stockout_recorded"
+      ],
+      "duration": 0.203,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_scavenge_stockout_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_runtime_file_isolation": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_runtime_file_isolation"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_runtime_file_isolation"
+      ],
+      "duration": 0.344,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_runtime_file_isolation.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_shop_uncomposable_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_shop_uncomposable_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_shop_uncomposable_recorded"
+      ],
+      "duration": 0.192,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_shop_uncomposable_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_store_reentry_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_store_reentry_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_store_reentry_recorded"
+      ],
+      "duration": 0.206,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_store_reentry_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_supply_ledger_observer_memo": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_supply_ledger_observer_memo"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_supply_ledger_observer_memo"
+      ],
+      "duration": 0.364,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_supply_ledger_observer_memo.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_torch_predicate_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_torch_predicate_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_torch_predicate_recorded"
+      ],
+      "duration": 0.348,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_torch_predicate_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_decision_speed_caches": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_decision_speed_caches"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_decision_speed_caches"
+      ],
+      "duration": 0.193,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_decision_speed_caches.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_purchase_rung_registry": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_purchase_rung_registry"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_purchase_rung_registry"
+      ],
+      "duration": 1.778,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_purchase_rung_registry.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_latency_caches": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_latency_caches"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_latency_caches"
+      ],
+      "duration": 0.192,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_latency_caches.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_plan_exhausted_wander": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_plan_exhausted_wander"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_plan_exhausted_wander"
+      ],
+      "duration": 0.182,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_plan_exhausted_wander.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_progress_invariant": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_progress_invariant"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_progress_invariant"
+      ],
+      "duration": 0.187,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_progress_invariant.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_stall": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_stall"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_stall"
+      ],
+      "duration": 0.194,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_stall.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_structure_lint": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_structure_lint"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_structure_lint"
+      ],
+      "duration": 0.192,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_structure_lint.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_direct_round8": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_direct_round8"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_direct_round8"
+      ],
+      "duration": 0.188,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_direct_round8.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_fundraising_round10": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_fundraising_round10"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_fundraising_round10"
+      ],
+      "duration": 0.173,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_fundraising_round10.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_no_refusal_round11": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_no_refusal_round11"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_no_refusal_round11"
+      ],
+      "duration": 0.218,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_no_refusal_round11.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_rest_round14": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_rest_round14"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_rest_round14"
+      ],
+      "duration": 0.213,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_rest_round14.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_n1a_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_n1a_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_n1a_recorded"
+      ],
+      "duration": 0.348,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_n1a_recorded.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_shop_one_shot": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_shop_one_shot"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_shop_one_shot"
+      ],
+      "duration": 1.849,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_shop_one_shot.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_shopping_fold": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_shopping_fold"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_shopping_fold"
+      ],
+      "duration": 0.181,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_shopping_fold.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_tactical_round13": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_tactical_round13"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_tactical_round13"
+      ],
+      "duration": 0.177,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_tactical_round13.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_terminal_routes_round6": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_terminal_routes_round6"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_terminal_routes_round6"
+      ],
+      "duration": 0.189,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_terminal_routes_round6.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_town_work_contract": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_town_work_contract"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_town_work_contract"
+      ],
+      "duration": 0.178,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_town_work_contract.stderr.log",
+      "known_failures": []
+    },
+    "tests.test_weight_relief_root_recorded": {
+      "status": "failed",
+      "failed": 1,
+      "skipped": 0,
+      "failing_test_ids": [
+        "unittest.loader._FailedTest.test_weight_relief_root_recorded"
+      ],
+      "errors": [
+        "unittest.loader._FailedTest.test_weight_relief_root_recorded"
+      ],
+      "duration": 0.171,
+      "stderr_path": "validation/opening-route-structure-20261028/derived-logs/tests.test_weight_relief_root_recorded.stderr.log",
+      "known_failures": []
+    }
+  },
+  "excluded_tests": {
+    "test_cli.DecisionTimingTest": "known hang; exclusion required by SOL-TASK-verification-gates.md"
+  }
+}

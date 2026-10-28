@@ -1,0 +1,8 @@
+test_recorded_purchase_then_first_home_divergence (test_buy_deposit_loop_recorded.BuyDepositLoopRecordedTest.test_recorded_purchase_then_first_home_divergence) ... ok
+test_required_count_and_only_excess_can_be_deposited (test_buy_deposit_loop_recorded.BuyDepositLoopRecordedTest.test_required_count_and_only_excess_can_be_deposited) ... ok
+test_restored_checkpoint_preserves_purchased_scrolls (test_buy_deposit_loop_recorded.BuyDepositLoopRecordedTest.test_restored_checkpoint_preserves_purchased_scrolls) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.893s
+
+OK

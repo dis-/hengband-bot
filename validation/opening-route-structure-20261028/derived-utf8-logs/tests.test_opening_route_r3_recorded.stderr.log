@@ -1,0 +1,11 @@
+test_actual_calibrated_stops_enter_by_step_and_use_approved_floor_strategy (test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_actual_calibrated_stops_enter_by_step_and_use_approved_floor_strategy) ... ok
+test_completed_shopping_is_not_reopened_before_request_after_restart (test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_completed_shopping_is_not_reopened_before_request_after_restart) ... ok
+test_detection_stop_settles_combat_instead_of_reversing_shop_step (test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_detection_stop_settles_combat_instead_of_reversing_shop_step) ... ok
+test_entry_rechecks_missing_torches_and_temporary_status (test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_entry_rechecks_missing_torches_and_temporary_status) ... ok
+test_restart_on_entrance_posts_downstairs_and_confirmation (test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_restart_on_entrance_posts_downstairs_and_confirmation) ... ok
+test_taken_quest_does_not_reopen_shops_or_rebuild_readiness_while_walking (test_opening_route_r3_recorded.OpeningRouteR3RecordedTest.test_taken_quest_does_not_reopen_shops_or_rebuild_readiness_while_walking) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 38.826s
+
+OK

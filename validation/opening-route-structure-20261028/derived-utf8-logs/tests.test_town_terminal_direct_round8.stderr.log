@@ -1,0 +1,9 @@
+test_committed_departure_block_asks_before_dispatch (test_town_terminal_direct_round8.DirectEntryTest.test_committed_departure_block_asks_before_dispatch) ... ok
+test_normal_town_dispatch_asks_before_each_direct_body (test_town_terminal_direct_round8.DirectEntryTest.test_normal_town_dispatch_asks_before_each_direct_body) ... ok
+test_quest_return_applicability_is_asked_by_its_terminal (test_town_terminal_direct_round8.DirectEntryTest.test_quest_return_applicability_is_asked_by_its_terminal) ... ok
+test_town_shelter_walk_keeps_its_survival_entry (test_town_terminal_direct_round8.DirectEntryTest.test_town_shelter_walk_keeps_its_survival_entry) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.299s
+
+OK

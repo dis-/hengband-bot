@@ -1,0 +1,7 @@
+{
+  "module": "tests.test_cli",
+  "exit_code": null,
+  "timeout": 300,
+  "head": "98f7fab5ff6e5b15110e4746d8c9a451ea13cc61",
+  "seconds": 301.607
+}

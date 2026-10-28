@@ -1,0 +1,18 @@
+F
+======================================================================
+FAIL: test_p5_unaffordable_return_still_names_the_missing_entrance (tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance)
+The fallback: the return is refused, so the stop names the cause.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Temp\opening-structure-baseline-wb85ya31\tests\test_town_plan_exhausted_wander.py", line 438, in test_p5_unaffordable_return_still_names_the_missing_entrance
+    self.assertEqual(reasons[1], BLOCKED_REASON)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'shop:outpost-fare-sale-approach' != 'town:blocked:walk-in-entrance-unavailable'
+- shop:outpost-fare-sale-approach
++ town:blocked:walk-in-entrance-unavailable
+
+
+----------------------------------------------------------------------
+Ran 1 test in 19.584s
+
+FAILED (failures=1)

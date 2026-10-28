@@ -1,0 +1,32 @@
+test_all_v0_hooks_and_hard_reasons_keep_their_boundary (test_keep_running_a0.DepartureTest.test_all_v0_hooks_and_hard_reasons_keep_their_boundary) ... ok
+test_burst_three_retirements_depart_or_retain_hard_stop (test_keep_running_a0.DepartureTest.test_burst_three_retirements_depart_or_retain_hard_stop) ... ok
+test_committed_descent_ignores_soft_preparation_but_keeps_hard_minimum (test_keep_running_a0.DepartureTest.test_committed_descent_ignores_soft_preparation_but_keeps_hard_minimum) ... ok
+test_committed_recall_keeps_existing_hard_hazard_cancellation (test_keep_running_a0.DepartureTest.test_committed_recall_keeps_existing_hard_hazard_cancellation) ... ok
+test_committed_visit_preempts_release_shopping_and_refused_entrance (test_keep_running_a0.DepartureTest.test_committed_visit_preempts_release_shopping_and_refused_entrance) ... ok
+test_existing_ability_gap_fundraising_gate (test_keep_running_a0.DepartureTest.test_existing_ability_gap_fundraising_gate) ... ok
+test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) ...
+  test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False) ... FAIL
+test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once (test_keep_running_a0.DepartureTest.test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once) ... ok
+test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock (test_keep_running_a0.DepartureTest.test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock) ... ok
+test_one_slot_record_and_real_latched_entry (test_keep_running_a0.DepartureTest.test_one_slot_record_and_real_latched_entry) ... ok
+test_restore_defaults_and_visit_transition_release_commitment (test_keep_running_a0.DepartureTest.test_restore_defaults_and_visit_transition_release_commitment) ... ok
+test_transfer_debt_cannot_fall_back_to_income (test_keep_running_a0.DepartureTest.test_transfer_debt_cannot_fall_back_to_income) ... ok
+test_minimum_entry_mode_keeps_recall_depth_and_digger_invariants (test_keep_running_a0.MinimumTest.test_minimum_entry_mode_keeps_recall_depth_and_digger_invariants) ... ok
+test_minimum_is_pure_and_each_hard_leaf_blocks (test_keep_running_a0.MinimumTest.test_minimum_is_pure_and_each_hard_leaf_blocks) ... ok
+test_ordinary_identify_readiness_keeps_keywordless_strategy_override (test_keep_running_a0.MinimumTest.test_ordinary_identify_readiness_keeps_keywordless_strategy_override) ... ok
+test_soft_work_and_one_free_slot_do_not_block (test_keep_running_a0.MinimumTest.test_soft_work_and_one_free_slot_do_not_block) ... ok
+test_unknown_evidence_fails_closed (test_keep_running_a0.MinimumTest.test_unknown_evidence_fails_closed) ... ok
+
+======================================================================
+FAIL: test_existing_supply_stockout_fallback_and_exhausted_hard_stop (test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop) (exhausted=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\opening-route-1026\tests\test_keep_running_a0.py", line 288, in test_existing_supply_stockout_fallback_and_exhausted_hard_stop
+    self.assertEqual(policy._fundraising_mode, None if exhausted else "prepare")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 'prepare'
+
+----------------------------------------------------------------------
+Ran 17 tests in 18.898s
+
+FAILED (failures=1)

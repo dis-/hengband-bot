@@ -1,0 +1,17 @@
+test_open_home_page_deposit_offers_composed_key (test_declarations_r7.AtomicHomeRows.test_open_home_page_deposit_offers_composed_key) ... ok
+test_tour_staged_home_deposit_binds_final_key (test_declarations_r7.AtomicHomeRows.test_tour_staged_home_deposit_binds_final_key) ... ok
+test_tour_departure_dump_binds_bookkeeping (test_declarations_r7.BookkeepingRows.test_tour_departure_dump_binds_bookkeeping) ... ok
+test_overweight_calibration_tail_keeps_calibration_owner (test_declarations_r7.CalibrationRows.test_overweight_calibration_tail_keeps_calibration_owner) ... ok
+test_tour_2654_home_leave_uses_operation_owner (test_declarations_r7.EquipmentTransactionRows.test_tour_2654_home_leave_uses_operation_owner) ... ok
+test_town_1904_leave_uses_visit_owner_without_operation_family (test_declarations_r7.EquipmentTransactionRows.test_town_1904_leave_uses_visit_owner_without_operation_family) ... ok
+test_town_1907_pending_action_has_owner_matched_offer (test_declarations_r7.EquipmentTransactionRows.test_town_1907_pending_action_has_owner_matched_offer) ... ok
+test_town_1907_posted_action_wait_is_an_acting_wait_command (test_declarations_r7.EquipmentTransactionRows.test_town_1907_posted_action_wait_is_an_acting_wait_command) ... ok
+test_town_1919_stale_home_action_offers_store_noop_key (test_declarations_r7.EquipmentTransactionRows.test_town_1919_stale_home_action_offers_store_noop_key) ... ok
+test_town_1941_knowledge_request_uses_errand_owner (test_declarations_r7.HomeErrandRows.test_town_1941_knowledge_request_uses_errand_owner) ... ok
+test_town_1185_page_seek_has_home_scan_offer (test_declarations_r7.HomeScanRows.test_town_1185_page_seek_has_home_scan_offer) ... ok
+test_stuck_sequence_2_recovery_has_final_survival_offer (test_declarations_r7.SurvivalRows.test_stuck_sequence_2_recovery_has_final_survival_offer) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.215s
+
+OK
