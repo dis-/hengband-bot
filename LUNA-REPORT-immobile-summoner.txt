@@ -1,0 +1,567 @@
+ISSUE #47 不動召喚者の通路待機停止 修正報告
+作成日時: 2026-10-27T16:57:09+09:00
+
+作業状況
+実装と重点検証は完了したが、指定された総合検証は未完了。
+mutation_check --record は別のマージ検証の全件テスト終了を待機中。
+fast_tier はその後に実行する構成で起動しており、検査本体はまだ未実施。
+待機ガードは依頼どおり停止していない。検証完了とは報告しない。
+依頼文内の参照Issueは #117。作業識別子はユーザー指定の #47。
+基準: 76f484a64。最初の実装コミット: 080e8a252。
+最終製品ソースおよび生成物: 1222b598b8f89c3e0c81e30f21275bbc1ec934e8。
+この後の差分は新規テストの送信検証補強と本報告のみ。
+
+実装
+NEVER_MOVEを持つ召喚者を、待っても近づかないと判断する共通述語を追加した。
+移動する召喚者に対する待機方針は維持する。
+撤退可能な場合、召喚者の射線内のセルを既存の危険区域回避へ登録する。
+安全な探索と通常の拾得処理を使い、有用な目標がなくなれば階段経路、
+テレポート・レベル、帰還の順で既存の移動・アイテム処理へ委譲する。
+視界を外れても脅威の位置を記憶し、空セルの確認または階層変更で撤回する。
+クエストの離脱ロック、または利用可能な離脱手段がない場合は既存の射撃を試し、
+射撃不能なら接近して近接攻撃する。緊急回復の処理が先に働く。
+検知のみの敵と通常戦闘の通路待機も、同じ不動判定で待機対象から外した。
+帰還待ちは既存の定常行動リストへ登録した。
+行動階層の段数81と既存テストの期待値は維持した。新しい数値閾値は追加していない。
+
+保存資料と構成データの境界
+20261027-150150 / 150252 の両停止キャプチャから末尾stateを無加工で抽出した。
+保存決定の最後のturnと停止後stateのturnには数tickの差がある。
+完全なpolicyチェックポイントはないため、新規policyをprimeする再起動再生である。
+skill-exp観測キャッシュだけを設定し、判断関数は差し替えていない。
+両保存盤面で公開choose_keyが西への移動4を選び、production follow executorが受理する。
+送信後のcommand画面と一歩の移動効果は明示的な構成データであり、実機成功記録ではない。
+クエスト、離脱手段、射撃、回復、検知のみの敵、視界喪失と死亡確認も構成ピンである。
+クエストピンには離脱用巻物があるがロックが保持される条件を使い、4歩の接近を
+すべてfollow executorで送信する。帰還の読書は実際のアイテム選択プロンプトを通す。
+移動個体、既存射撃、回復は不変動作の対照ピンである。
+出所とSHA256はtests/fixtures/immobile-summoner-20261027.provenance.txtに記載。
+
+完了した検証
+・新規テスト16件を追加。最終の送信検証補強後も16件すべて成功。
+・最終製品ソースの重点33件が成功。内訳は新規16件、既存の定常行動16件、
+  既存の直接_decide呼び出し1件。既存テストの期待値は変更していない。
+・preflight（基準76f484a64、対象1222b598b）は終了0、
+  13ファイル、指摘0件、439.4秒。実体のPython 3.13.14を使用した。
+・git diff --checkを通過。既存テストファイルの変更はなく、新規テストとfixtureのみ追加。
+・日本語報告はPythonのPath.write_text(..., encoding="utf-8")で作成した。
+
+影響範囲検証と未完了事項
+指定のverify_scope --target HEAD --derive-onlyは対象1222b598bで終了0。
+列挙モジュール: tests.test_absorbing_states、tests.test_cli、tests.test_policy、tests.test_policy_structure。
+一つ前の実装段階での列挙5モジュールは、77dec4817の独立checkout上で計618件実行した。
+その時点で通常方針57件、構造7件、停止状態22件は成功。
+CLIの待機理由登録と直接_decide呼び出しの製品側の問題は上記重点33件で修正確認済み。
+CLIの子プロセス起動が5秒でタイムアウトする1件は、Python 3.12 / 3.13の単独実行でも残った。
+既存のタイムアウト値や期待値を緩和していない。
+verify_scopeの通常起動はpython -cでのライブラリ読み込みエラーが出たため、
+同じ選択・除外条件をスクリプトファイルから実行した。既存のDecisionTimingTest除外を維持。
+基準76f484a64からの広い影響範囲は293モジュール。77dec4817での独立検証は
+報告作成時点で59/293モジュール完走、残りは継続中であり、全件成功とはしていない。
+独立checkoutへの定義データ配置後、購入・チェックポイント・Home巡回の3モジュールと
+通信クライアントの再実行は成功した。後続ソース変更の全範囲再検証も未完了。
+各変更動作の差し戻し検出を確認するmutation_check --recordはゲート待機中のため、
+差し戻し検証済みとは主張しない。fast_tierの完了記録もまだない。
+指定の90分枠内に総合検証を完了できていないため、作業全体は未完了として引き継ぐ。
+
+継続箇所と証跡
+validation/immobile-summoner-1027/preflight-stable.log / preflight-stable.json
+validation/immobile-summoner-1027/mutation_check-final.log
+validation/immobile-summoner-1027/scope-derive-tip.json
+validation/immobile-summoner-1027/scope-mandatory-final-results.json
+validation/immobile-summoner-1027/scope-broad-file-results.json / scope-data-rerun.json
+ガード用の継続処理: C:/hengband-backups/run-immobile-guards-final.py
+広域検証の継続処理: C:/hengband-backups/run-immobile-broad-final.py
+検証ログと継続用スクリプトはローカルに保持しており、コミットには含めていない。
+
+
+ラウンド2（2026-10-27、ISSUE #47）
+
+対象と取り込み
+依頼ファイルの参照Issueは #117、今回の作業識別子はユーザー指定の #47。
+前回報告にある15:01停止の階層表記を訂正する。Angbandではなく、オークの洞窟
+（dungeon 3）の23階。前回の方針決定は変更していない。
+最初に main 2399220372a2d2a514652c2e980f86b203b35921
+（指定の069d2e7ce以降）をマージした。競合は圧縮マニフェストだけで、
+Python 3.13で再生成して解消した。マージコミットは de365d410。
+ラウンド2で新たな製品コード変更はない。共通述語 _summoner_never_approaches を維持し、
+未保護だった検知敵フィルタを公開 choose_key の新規テストで保護した。
+追加述語、新しい数値ガード、既存テストの期待値変更、キーの += 連結はない。
+
+単独差し戻し検証
+新規テスト:
+tests.test_immobile_summoner_recorded.ImmobileSummonerRecordedTest.
+test_constructed_detected_melee_only_summoner_does_not_complete_pack
+これは明示的な構成盤面である。離脱不能クエストの壁の向こうに、距離3の
+不動召喚者と、距離3の移動可能な検知敵を置く。召喚者の最大遠隔ダメージは0。
+壁のため直接接近できず、移動する検知敵は1体だけなので待機集団は成立しない。
+公開 choose_key が西への探索「4」を選び、本番follow executorへの送信も完了する。
+共有ハーネスはモジュール別名 executor_pins 経由で使用する。
+送信後のcommand画面・一歩移動の応答は構成データで、実機追加観測ではない。
+_detected_threat_preparation_key の
+and not self._summoner_never_approaches(monster)
+だけを取り除くと、不動召喚者を2体目の近接集団として数えてしまい、
+「5 / summoner:hold-choke」に変わって新規テストが失敗した（終了コード1）。
+同じ一行を復元すると成功した（終了コード0）。差し戻し時も元のバイト列を
+finallyで復元した。証跡は r2/single-hunk-revert.log と single-hunk-restored.log。
+今回のソース・テスト対象コミットは c3c92764f（新規テスト追加）。
+
+20:25〜20:27の新しい停止の調査
+20261027-202502 / 202605 / 202707 の各圧縮stateと決定記録を読み取った。
+各stateは115件。末尾stateのturnは2552919 / 2557825 / 2562830。
+決定記録は171 / 206 / 206件で、全件が「5 / summoner:hold-choke」。
+プレイヤーは全キャプチャで (y=29,x=50)、HP 673/673。
+依頼文はMountain（dungeon 14）30階とするが、保存されたfloorは3件とも
+(dungeon_id=12, level=30, quest_id=0)である。原本のdungeon_nameは文字化けして
+いるため、ここでは同定を広げず、保存されたIDを報告する。
+待ち対象は race 915、index 43、位置(y=26,x=49)、距離3、asleep=false、
+can_summon=true、max_ranged_damage=0、speed=115、最大HP350。
+観測のnever_moves=falseで、モンスター定義にもNEVER_MOVEがない。
+能力はS_SPIDERとHEAL。既存の共通述語はfalseとなり、不動召喚者ではない。
+残りの可視敵は race 60（距離2）、411（距離2）、421（距離3）、176（距離2）。
+近接距離1の敵はいない。3件とも保存期間中のrace 915の位置は変わらないが、
+これは種族の不動属性を意味しない。予測内のpath_distanceは全敵nullである。
+間の (y=28,x=49〜52) はterrain_id=218、enterable=false、allows_los=true。
+ローカル TerrainDefinitions.jsonc:4628 の定義で218はGLASS_WALL（ガラスの壁）。
+race 915にPASS_WALL/KILL_WALLはない。つまり「見えているが通常歩行では
+直接接近できない」壁越しの敵を待つ盤面である。待機条件はこの地形の分離を
+確認せず距離だけを見るため、可視状態が維持されて待機が終わらない。
+
+待機継続の直接の条件は、通常戦闘処理の
+summoners and all(monster.distance > 2 for monster in summoners)
+である。召喚者は距離3なので成立し、近接敵もいない。可視敵が存在するため、
+unseen_detected and at_choke and not snapshot.visible_monsters の時間制限分岐は
+動かない。_detected_threat_preparation_keyの検知集団待機とは別の経路である。
+ここには可視召喚者が接近しない場合の期限がなく、敵の位置が変わらない限り
+無期限に待てる。open_neighbors=3で、検知待機用の狭い通路条件（2以下）も不成立。
+停止時の射撃内部キャッシュは原本にないため、その値そのものは断定しない。
+新規policyをprimeした再起動再生では最初にranged:fire-targetを選ぶ。
+直接方向射撃の対象はなく、召喚者の概算必要射数は12（即殺の3射条件を超える）。
+弾数・敵HP・位置が進展しない後続観測を構成すると、カーソル射撃を3回試み、
+macro_failures=3で射撃抑止となった後、4回目以降は同じ待機へ移行した。
+この構成再生は待機経路を説明するが、過去の射撃失敗そのものの実機証拠とは
+区別する。ゲーム側が接近しなかった原因の完全な再現も主張しない。
+本件は「移動可能な召喚者が距離3、他の敵が距離2〜3に留まる」別件であり、
+今回の指示に従って動作変更や不動述語の拡張はしていない。
+上位担当者が、可視の移動可能召喚者に対する待機解除方針をユーザーへ確認する
+ための判断材料とする。
+原本SHA256・全判断フィールド・構成再生は r2/capture-audit.json に保存した。
+
+検証（全ガード・テスト実行は指定のシステムPython 3.13）
+公開choose_keyと本番follow executorを使う追加分を含め、新規モジュールの17テストは
+最終状態で全件成功（2.689秒、終了コード0）。
+新規ピンの最終地形調整後も単独差し戻し・復元を確認。
+証跡: r2/recorded-module-final.log。
+scripts/verify_scope.py --target HEAD --derive-only が列挙した必須モジュールは
+tests.test_absorbing_states / tests.test_cli / tests.test_immobile_summoner_recorded /
+tests.test_policy / tests.test_policy_structure の5個。
+main基準の広い導出範囲も別途取得して検証する。除外は検証スクリプト既定の
+test_cli.DecisionTimingTestだけで、今回追加の除外や期待値緩和はない。
+Python: 3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]
+検証基準HEAD: 2399220372a2d2a514652c2e980f86b203b35921
+製品・テスト最終コミット: c3c92764f
+preflight: {'exit': 0, 'seconds': 237.5}
+mutation_check: マージゲート終了待機中（検証本体は未実行）
+fast_tier: mutation_check終了待ち（未実行）
+scope: fast_tier終了待ち（未実行）
+
+preflight 結果抜粋:
+[preflight] PREFLIGHT OK: 13 changed files, 0 findings (immobile-summoner-1027 vs main)
+
+mutation_check 結果抜粋:
+[mutation] waiting: the merge gate is running its full suite (gate identify-tail-1027, since 22:22:13); owner decision 2026-10-25
+
+証跡の保存先: validation/immobile-summoner-1027/r2/（ローカル保持）。
+継続用スクリプト: 同ディレクトリのrun_guards.py / run_required_scope.py。
+結果の再反映: システムPython 3.13で同ディレクトリのwrite_report.pyを実行。
+これらのログ・継続用スクリプトはコミットには含めていない。
+
+必須5モジュールのスクリプトファイル経由実行結果は、まだ揃っていない。
+
+最終更新: 2026-10-27T23:51:46+09:00
+指定ガードと必須モジュールの検証は未完了。完了扱いにはしない。
+ガードは依頼どおりマージゲートを待機させ、こちらから停止していない。
+
+
+ラウンド3（2026-10-28、ISSUE #47）
+
+対象と方針
+作業識別子は依頼どおり #47。タスク本文が参照するIssueは #117。
+指定されたLUNA-TASK-immobile-summoner-r3.txtを読み、ラウンド2の
+run_guards.py / run_required_scope.py / mutation_checkが残っていないこと、
+src/とtests/がクリーンであることをプロセス一覧とgit statusで確認して開始した。
+「動かない敵と同じに扱う」という判断に従い、通常歩行では来られない召喚者にも
+従来の回避・離脱と、撤退不能時の討伐方針を適用した。
+
+取り込みと実装
+origin/mainをfetchしたうえで、より新しいローカルmainを取り込んだ。
+基準main: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+マージコミット: 39c592754。
+競合はscripts/town_work_manifest.json.gzのみ。指定Python 3.13で再生成した。
+製品・テストの早期コミット: 1e86d5095。
+最終製品コミット: f79615daec3a1ab630637477809858bea9395b49
+
+共通述語_summoner_never_approachesだけを拡張し、snapshotを全呼び出しへ渡した。
+非召喚者は対象外。NEVER_MOVEは引き続き接近不能と判断する。
+PASS_WALLまたはKILL_WALLを持つ移動個体は壁越しでも待機対象となる。
+それ以外は既存の_monster_path_distanceで観測地形上の歩行経路を確認し、
+経路がない召喚者を不動個体と同じ処理に渡す。新しい地形探索実装や閾値は追加していない。
+可視敵の通常戦闘、射撃前の待機、検知敵の集団待機と保存された待機にも同じ述語を使う。
+経路が開いた個体が引き続き見えている場合は、回避記憶を解除して通常戦闘へ戻す。
+初回preflightは、新しいmainの構造検査において、前ラウンドの討伐処理の
+直接方向キー生成を検出して失敗した。既存テストの期待値を変更せず、
+2か所の近接攻撃を既存_step_towardへ統一して解消した（f79615dae）。
+この統一だけを差し戻すと既存構造テストが失敗し、復元すると成功する。
+証跡はr3/revert-step-entry.log。初回ガードの全結果はr3/initial/に保存した。
+回避、探索、戦利品、階段、テレポート・レベル、帰還、討伐の射撃・接近、緊急回復は
+ラウンド1の既存処理を再利用した。キーの += 連結や既存テストの期待値変更はない。
+
+保存盤面の検証
+20261027-202502 / 202605 / 202707の3原本から末尾stateを無加工抽出し、
+tests/fixtures/glass-summoner-20261027.json.gzとして追加した。
+原本とfixtureのSHA256は同名の.provenance.txtへ記録した。
+3盤面ともプレイヤーは(y=29,x=50)、召喚者はrace 915、(y=26,x=49)、距離3。
+NEVER_MOVE/PASS_WALL/KILL_WALLはなく、地形218（GLASS_WALL）が射線を通し歩行を遮る。
+公開choose_keyは3盤面とも「rg / summoner:recall」を選択した。
+安全な有用目標や既知の階段がないため、接近や通路待機をせず既存の帰還処理へ進む。
+3盤面とも本番follow executorを通し、巻物選択プロンプトを経てrgの送信完了を確認した。
+これは新規policyをprimeした再起動再生であり、実機を追加稼働させた記録ではない。
+送信後のプロンプト・command応答は明示した構成データ。共有ハーネスは
+既存のモジュール別名executor_pins経由で利用した。
+
+新規ピンと単独差し戻し
+新規9件: 保存盤面3件、歩行可能対照、PASS_WALL対照、KILL_WALL対照、
+撤退不能クエスト、検知敵の保存待機解除、経路開通後の回避解除。
+保存盤面以外の6件は明示した構成盤面である。
+9件をそれぞれ関連変更の単独差し戻しで実行し、全件が期待する行動の違いで失敗
+（各終了コード1）。経路判定、壁通過能力の例外、歩行可能対照、記憶解除を個別に検査した。
+全差し戻しはfinallyで元のバイト列に復元した。
+復元後、新規9件とラウンド1/2の17件、計26件、および既存構造テスト1件の
+計27件が成功（終了コード0）。
+差し戻しの詳細はr3/pin-reverts.jsonとrevert-test_glass_*.logに記録した。
+
+指定ガード
+Python: 3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]
+ガード対象HEAD: f79615daec3a1ab630637477809858bea9395b49
+基準: main（上記SHA）。派生モジュールの追加実行は今回の指定に従い行っていない。
+preflight / mutation_check --record / fast_tierを順次実行した。
+初回のmutation_checkは全9ハンクを差し戻して成功した。
+最終コミットでは同一基準の成功記録を再利用し、変更された1ハンクを再検証した。
+preflight: 終了コード0、136.6秒。
+mutation_check: 終了コード0、9.2秒。
+fast_tier: 終了コード0、70.3秒。
+
+結果抜粋:
+[preflight] PREFLIGHT OK: 15 changed files, 0 findings (immobile-summoner-1027 vs main)
+[mutation] MUTATION OK: 0 of 9 hunks are not pinned by a test
+Crashed shards: none
+Failures: none
+Errors: none
+Total: 1670 tests, 69.9s
+
+証跡: validation/immobile-summoner-1027/r3/（ローカル保持）。
+ガードログはコミット対象に含めていない。
+開始したガードはすべて終了してから報告した。実行中の検証・待機プロセスは残していない。
+実行用run_guards.pyと報告追記用write_report.pyも、完了後に除去した。
+
+最終更新: 2026-10-28T12:53:40+09:00
+
+
+ラウンド4（2026-10-28、ISSUE #47、継続指示 r4b）
+
+状態：未完了。修正と回帰ピンはコミット済みだが、指示間の不整合がある。
+タスク本文の参照Issueは #117、今回の作業識別はユーザー指定の #47。
+前回の未コミット作業を引き継ぎ、origin を fetch 後、最新ローカル main をマージした。
+基準 main: 4a75410a832ac29361f422be72a1e05cf450a4a0
+マージ: 35f536c29。製品・テストの早期コミット: bb43bd3c8。
+検証対象の最終製品HEAD: 15acddbc4ea2df3a5769c951716815f35ebc30f1
+
+原因と修正
+従来の _monster_path_distance は既知の歩行経路を探す補助処理であり、未観測・欠落セルを
+通れないものとして扱う。その None をそのまま「召喚者が接近不能」へ読み替えたため、
+部分地図や遠方の敵でも回避処理を起動していた。
+新しい summoner_reachability.known_walking_separation は未観測・欠落セルを通行可能と
+仮定して探索し、既知の通行不能地形だけを障害とする。地図寸法が不明・位置が範囲外なら
+接近不能とは断定しない。非召喚者の除外、NEVER_MOVE、PASS_WALL/KILL_WALL の既存分岐は維持。
+共通述語だけをこの補助処理へ接続した。戦闘・回避・離脱処理の順序や閾値は変更していない。
+
+保守性
+到達可能性の証明を小さな専用モジュールへ分離した。町のproducer baseline/reviewへ
+副作用のない真偽値ヘルパーとして登録し、manifestを再生成した。新しい入口4件は既存の
+NO_REFUSAL_REASONSへ理由を登録した。既存の期待値は変更していない。
+このラウンドでは policy_combat.py の行数を開始時から増やしていない。
+
+追加した回帰ピンと差し戻し検証
+明示的な構成盤面2件を既存のモジュールへ追加した。観測済みの封鎖壁を未観測セルへ
+置き換えた可視の移動可能召喚者、および壁セルを欠落させた検知召喚者について、公開
+choose_key が既存の summoner:hold-choke を維持することを確認した。
+ラウンド3の述語を git show から取り出して独立したテストプロセス内にだけ復元すると、
+2件はそれぞれ期待動作の差によって失敗した。ディスク上の製品ソースは変更していない。
+証跡: validation/immobile-summoner-1027/r4-pin-reverts.log。
+
+指示間の不整合（既存期待値を無断変更していない）
+ガラス壁の保存盤面3件は従来 rg / summoner:recall を要求する。しかし3件とも、召喚者
+(y=26,x=49) の北側に未観測セルがあり、西へ回って既知の開いた扉(y=28,x=48)へ至る
+可能性が残る。観測済みのガラス壁だけでは全経路の遮断を証明できない。
+未観測セルを使う経路の座標列は r4-glass-unknown-route.json に保存した。
+今回の「既知の障害によって歩行不能と分かる場合だけ」という要件を守ると、これらは
+通常の ranged:fire-target となり、既存ピン3件が失敗する。
+完全な遮断証明を保ったまま、この盤面で必ず帰還することは両立しない。
+厳密判定を優先した3件の期待値変更か、ガラス壁盤面を帰還対象とする追加の判定方針か、
+どちらを採用するかユーザーへ確認を出した。回答・許可なしに依存する変更は行っていない。
+
+検証（システムPython 3.13、PYTHONPATH=src;tests;scripts）
+・最終補助処理での専用モジュール: 28件、失敗3件、エラー0件。
+  追加2件と既存23件は成功。失敗は保存ガラス壁盤面3件のみ。
+・preflight: 終了コード0、17変更ファイル、指摘0件。
+  既存の行数上限超過は当該ブランチの既存免除としてNOTE表示された。
+・mutation_check --record: 終了コード1。12 source hunks、既存の成功記録を認識。
+  事前テストのガラス壁3件が失敗するため差し戻し前に停止。成功記録は作成していない。
+・fast_tier（base main）: 終了コード1。1745件、107.0秒、失敗3件、エラー0件、
+  crashed shardsなし。失敗は上記ガラス壁3件のみ。派生scope/modulesは実行していない。
+・タスク列挙の全モジュールと既存専用ピン: 116件、1709.821秒、失敗4件、エラー0件。
+  失敗はガラス壁の保存盤面3件と、下記の町到着テスト1件。列挙の回帰群90件中89件は成功。
+  この全モジュール実行開始時には専用ピンは26件で、追加2件は別途実行した最終28件に含む。
+・町到着テスト単独の最終版再検証: 1件、400.900秒、失敗1件。
+・基準 main で同じ町到着テスト: 1件、141.331秒、OK。基準の失敗ではない。
+・git diff --check は成功。派生scope/modulesは実行していない。
+
+残る町到着テストの詳細
+失敗テスト:
+tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.
+test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result
+最初の差分は記録インデックス150（比較時は除外処理のため149）。キーは同じ7だが、
+理由が explore から explore:avoid-immobile-summoner へ変わる。
+42F、プレイヤー(y=58,x=21)、検知召喚者 race 281 が(y=40,x=16)にいる。
+この召喚者は NEVER_MOVE/PASS_WALL/KILL_WALL を持たない。今回の楽観探索でも既知地形で
+分離されているため、共通述語が真となる。非召喚者 race 1216 は正しく偽となる。
+距離は既存の召喚距離計算で20であり、直近の召喚射程外の隔離個体にも反応している。
+証跡: r4-town-first-divergence.json / r4-town-arrival-final.log / r4-town-arrival-main.log。
+
+判断が必要な点
+「既知の障害で接近不能な召喚者を回避する」という条件だけでは、この遠方個体も対象に
+なる。一方、全列挙テストの既存期待値を維持する要件では、この場面では従来どおりに
+探索する必要がある。回避対象を現在の召喚脅威に限定する案を、ファイルを書き換えない
+独立プロセス内で試したところ、町到着テストは118.513秒で成功した。しかしその条件は
+既存の構成ピン3件（撤退不能の可視・検知個体、経路開通後の記憶解除）も追加で壊す。
+そのため、記録を通すためだけに新しい適用条件を製品へ入れることはしていない。
+実験結果は r4-town-threat-experiment.log / r4-pins-threat-experiment.log に保存した。
+既存ピン全件を変えずに満たすという要求と、今回の厳密な判定条件について、対象範囲の
+優先順位・例外の指定が必要。許可なしの既存期待値変更は行っていない。
+
+検証資料は validation/immobile-summoner-1027/r4-*.log / r4-glass-unknown-route.json に
+ローカル保存した。ログ・タスクファイル・検証用スクリプトはコミット対象に含めない。
+
+
+最終状態
+開始した全モジュール検証、個別検証、mainとの比較、ガード、実験はすべて終了を確認。
+検証待ち・差し戻し・報告更新用のバックグラウンド処理は残していない。
+src/ と tests/ の追跡差分はなく、修正と新規ピンはコミット済み。
+本報告はPythonのUTF-8書き込みで追記し、日本語の文字列が保存されていることを検証した。
+タスクの完了条件（全列挙テストと既存ピンの成功、mutationの成功記録）は未達であり、
+完了扱いにはしない。未実行の必須コマンドはないが、mutationの各ハンク差し戻し検査は
+事前テスト失敗により未実施。派生モジュールは指示どおり未実行。
+
+
+ラウンド5（2026-10-28、ISSUE #47）
+
+状態：完了。ユーザーが選択した「待っても来ないかで判定」を実装・検証した。
+依頼ファイルの参照Issueは #117、作業識別子はユーザー指定の #47。
+開始時に origin をfetchし、最新ローカル main のマージを実行した（Already up to date）。
+基準 main: 4a75410a832ac29361f422be72a1e05cf450a4a0
+早期実装コミット: 09e2ebf00238ed8ca9438f49f2a9482cca139184
+検証対象の最終製品・テストHEAD: 3d32ebc8828c204f681fd8ce1092e7bc41fba98f
+
+方針と状態の所有
+「歩行経路がない」という地形の証明を共通述語から撤去した。
+専用の summoner_reachability.py と、不要になったbaseline/review登録を削除した。
+NEVER_MOVEによる即時判定、PASS_WALL/KILL_WALLを除外する従来の順序は維持した。
+新しい summoner_wait.py が、実際に選択した summoner:hold-choke の対象だけについて、
+個体のindex/race、待機開始ターン、その時の距離、待機位置・階層を管理する。
+待機開始時より距離が減るとその個体だけ時計をリセットする。別の行動、待機位置の変更、
+対象の観測消失、階層変更でも待機時計を破棄する。複数個体の時計は独立する。
+50ゲームターン待っても近づかなければ、唯一の _summoner_never_approaches が真となる。
+期限後は待機時計を破棄し、回避判定だけを既存の脅威記憶とともに保持する。
+召喚者自身が移動して近づいた場合はその判定と古い位置の記憶を解除する。
+自分から近づいたための距離減少では解除せず、撤退不能時は攻撃を続ける。
+既存の安全な探索・拾得、階段、テレポート・レベル、帰還、撤退不能時の戦闘へ委譲した。
+待機していない遠方の検知召喚者は時間経過だけでは対象にしない。
+
+50ターンの根拠
+ガラス壁3記録の待機判断は171 / 206 / 206件、ターン差の中央値はすべて10。
+各記録の連続する全区間を調べると、50ターン到達まで4～7判断だった。
+通常約5回、記録上でも最大7回の待機で接近の有無を判断できる値として50を選んだ。
+CLIの通常ループガードは LOOP_WINDOW=40判断（増殖戦闘用は80）であり、十分早く終了する。
+保存盤面からの再起動ピンでは既存のカーソル射撃3回の後に待機へ入り、
+10ターン刻みの構成応答で5回の待機を本番follow executorへ送信し、その後帰還する。
+射撃が進展しない後続観測、待機応答、帰還の巻物プロンプトは明示的な構成データ。
+実機で追加の成功プレイを観測したとは主張しない。原本fixtureは変更していない。
+実測根拠: r5-capture-timing.json。
+
+ラウンド3ピンの変更（最終キー・理由は維持）
+test_glass_first_capture_leaves_and_posts / second / third の3件は、
+最初のchoose_keyではなく、反復待機が終わった時点で rg / summoner:recall を検証する。
+各待機と最終帰還を本番follow executorで送信する。
+test_glass_constructed_quest_does_not_wait_for_unreachable_mobile_summoner と
+test_glass_constructed_detected_quest_releases_cached_hold も、即時判定を待機終了時へ移した。
+期待する最終結果 4 / explore と、検知待機の解除は維持した。
+test_glass_constructed_opened_route_retires_avoidance は、地形だけでの解除を廃止する
+今回の決定に合わせ test_glass_constructed_closer_summoner_retires_avoidance へ変更した。
+期限後の rr / summoner:recall を確認し、召喚者が一歩接近した後に従来の
+5 / summoner:hold-choke へ戻ることと、回避記憶の解除を検証する。
+ラウンド4が列挙した全モジュールの既存期待値は変更していない。
+
+追加ピンと差し戻し検証
+接近による時計リセット、回復行動と階層変更による時計破棄、待機対象外の遠方個体、
+通常の敵集団待機への遠方個体の混入防止、複数個体の独立した時計、
+撤退不能時の接近後も攻撃を続けることを6件追加した。
+変更6件・追加6件の計12件について、該当する判定を無効化した独立プロセスで
+各1件のassertion失敗・エラー0を確認した。ディスク上の製品ソースは変更していない。
+最終ソースの通常実行も全件成功した。証跡: r5-pin-reverts.json / r5-revert-*.log。
+
+検証（指定Python 3.13、PYTHONPATH=src;tests;scripts）
+・最終専用モジュール: 34件、8.032秒、OK。
+・r4列挙の全モジュールと専用ピン: 124件、1953.304秒、OK。
+  最終ソース更新前の重複した2実行は終了させ、この最終HEADの全モジュール実行に一本化した。
+  tests.test_pure_decision_telemetry / tests.test_declarations_r14 /
+  tests.test_overweight_home_unreachable_recorded / tests.test_guardian_recall_pingpong_recorded /
+  tests.test_protocol3_client / tests.test_esp_threat_rest_recorded /
+  tests.test_loot_before_recall_recorded / tests.test_morivant_travel_retired_recorded /
+  tests.test_town_terminal_declarations / tests.test_immobile_summoner_recorded を実行した。
+  前回失敗した42Fの test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result も成功。
+・preflight（構造検査・行数上限を含む、base main）: 終了0。
+  [preflight] PREFLIGHT OK: 17 changed files, 0 findings ( vs main)
+・mutation_check --record（base main）: 終了0、成功記録を作成。
+  同一HEADの一時worktreeで差し戻し、実行中のリプレイとはソースを分離した。
+  検査後に一時worktreeを削除した。
+  [mutation] MUTATION OK: 0 of 16 hunks are not pinned by a test
+・fast_tier（base main）: 終了0、失敗・エラー・クラッシュなし。
+  Total: 1714 tests, 115.6s
+・git diff --check: 成功。派生scope/modulesと全件スイートは指示どおり実行していない。
+
+保守性と行数
+待機の証拠収集・期限・解除を小さな専用モジュールにまとめ、3か所の待機生成を共通化した。
+地形証明専用モジュールと登録を削除し、manifestを再生成した。
+このラウンド開始時から policy.py は20450→20449行、policy_combat.pyは4477行のまま、
+cli.pyは5942行のまま。他の上限対象ファイルには変更していない。
+preflightの既存ブランチ免除NOTEは以前からの上限超過であり、今回増やしていない。
+開始した検証・差し戻しプロセスはすべて終了を確認し、待機やfinalizerを残していない。
+src/とtests/はコミット済みでクリーン。未実行・未完了の指定チェックはない。
+この日本語報告はPythonのPath.write_text(..., encoding="utf-8")で追記した。
+検証ログと補助スクリプトは validation/immobile-summoner-1027/r5-* にローカル保持し、
+コミットには含めない。
+
+
+ラウンド6（2026-10-28、ISSUE #47）
+
+状態：完了。最新ローカルmainを統合し、構造検査の失敗を修正した。
+依頼ファイルの参照Issueは #117、作業識別子はユーザー指定の #47。
+git fetch origin後、origin/mainより先行していた最新ローカルmainを最初にマージした。
+基準main: 809dbbdb797c44407026d3902c38c9a51522879f
+統合コミット: 229b5f03e（生成データ2ファイルの競合は統合後のソースから再生成して解決）。
+早期実装コミット・検証対象HEAD: d402c1541d8bb61786d05ba6852458f797a2aa1b
+
+指摘の再現と実際の原因
+開始時の既存HEAD 796a65af3でも、_immobile_summoner_keyの方向キー生成5か所は
+すべて既に_step_towardを経由しており、生の_direction_key呼び出しはなかった。
+main統合直後の指定検査で、依頼記載どおり
+policy_combat.py:_immobile_summoner_key: expected 0, found 2 を再現した。
+ただし、この同じエラーメッセージは移動キーと警告集合参照の両方に使われる。
+scan_sourceを分けて確認した結果、実際には移動キーが7か所で正常、警告参照が13か所で、
+当該関数の_warning_refused_cells直接参照2か所が余分だった。
+方向キーを再度変更する必要はなく、この2か所の所有権違反を修正した。
+
+修正と挙動の維持
+既存の警告管理所有者_refresh_warning_avoidanceにreleased_cells引数を追加し、
+召喚者の古い回避領域と、撤退不能時の回避解除という2か所の処理を委譲した。
+解除する集合から交戦所有者・警告ラッチ・麻痺敵所有者の集合を除く演算は従来と同一。
+released_cells指定時は、この集合差分だけを適用して戻る。
+巻物などの移動物資が尽きていても、召喚者が他の所有者の回避を解除しない点を維持した。
+通常の警告更新時だけが物資に応じた回避解除を判断し、共通step gateが移動を裁定する。
+方向キー5か所、50ゲームターンの待機期限、帰還・探索・撤退不能時の攻撃の方針は変更なし。
+MOVEMENT_BYPASSES / WARNING_READ_BYPASSES、検査コード、既存テストの期待値は変更なし。
+最終censusは移動7か所・警告参照11か所で成功した。
+
+保守性と行数
+警告セル集合の直接参照と重複した集合差分処理を戦闘側から撤去し、既存所有者へ集約した。
+警告所有者への追加は小さな引数分岐のみで、無関係なリファクタリングはしていない。
+今回の修正でpolicy_combat.pyは4477→4469行（8行減）、policy.pyはmain統合後20448行のまま。
+その他の行数上限対象ファイルも今回の修正では増やしていない。
+生成manifestとruntime indexを再生成・コミットした。
+
+追加ピンと差し戻しの証拠
+tests.test_summoner_avoidance_ownership に2件を追加。
+物資あり／なしの双方で、警告・交戦・麻痺敵の回避が重なるセルを保護し、
+召喚者だけが所有するセルは解除、無関係なセルは保持することを検証した。
+警告ラッチが空でも召喚者の回避を解除できることも検証した。
+新しい解除分岐だけをメモリ上で無効にすると、それぞれassertion失敗2件／1件、エラー0件。
+通常実行は2件とも成功。証跡: r6-pin-reverts.json。
+ソースのハンク差し戻し検証は別の一時worktreeで実行し、通常リプレイのソースとは分離した。
+
+検証（指定Python 3.13、PYTHONPATH=src;tests;scripts）
+・専用ピン＋構造検査＋近接攻撃検査＋追加ピン: Ran 52 tests in 17.234s、OK。
+  tests.test_step_gate_lint / tests.test_melee_site_lint /
+  tests.test_immobile_summoner_recorded / tests.test_summoner_avoidance_ownership。
+・r4列挙の全モジュール: Ran 90 tests in 1788.164s、OK。
+  tests.test_pure_decision_telemetry / tests.test_declarations_r14 /
+  tests.test_overweight_home_unreachable_recorded / tests.test_guardian_recall_pingpong_recorded /
+  tests.test_protocol3_client / tests.test_esp_threat_rest_recorded /
+  tests.test_loot_before_recall_recorded / tests.test_morivant_travel_retired_recorded /
+  tests.test_town_terminal_declarations。
+  指定の42Fリプレイとラウンド1～5のピンも成功、既存期待値の変更なし。
+・preflight（base main、構造検査・行数上限を含む）: 終了0。
+・mutation_check --record（base main）: 終了0、同じHEADとsrc/testsツリーの成功記録あり。
+  ガード標準の増分検証で既存成功記録3d32ebc88を再利用し、今回変化した3ハンクは検出した。
+・fast_tier（base main、--shards 4）: 終了0。
+・git diff --check: 成功。
+・派生scope/modulesと全件スイートは指示どおり実行していない。
+
+ガード出力
+preflight.py <本worktree> main:
+[preflight] NOTE line-cap: src/hengbot/policy.py has 20448 lines, over its cap 20431; put new code in another file (exempt)
+[preflight] NOTE line-cap: src/hengbot/cli.py has 5942 lines, over its cap 5941; put new code in another file (exempt)
+[preflight] NOTE line-cap: src/hengbot/policy_combat.py has 4469 lines, over its cap 4303; put new code in another file (exempt)
+[preflight] PREFLIGHT OK: 19 changed files, 0 findings ( vs main)
+
+mutation_check.py <同一HEADの一時worktree> main --tests tests.test_immobile_summoner_recorded tests.test_summoner_avoidance_ownership --record:
+[mutation] 18 source hunks, tests: tests.test_immobile_summoner_recorded tests.test_summoner_avoidance_ownership
+[mutation] incremental: green record at 3d32ebc88; hunks unchanged since then are skipped
+[mutation] GREEN EARLIER src/hengbot/claim_goal_typing.py:602 (("summoner:cornered-approach", R, WALK_TARGET),)
+[mutation] GREEN EARLIER src/hengbot/cli.py:364 ("summoner:wait-recall",)
+[mutation] GREEN EARLIER src/hengbot/policy.py:5 (from hengbot.summoner_wait import hold_key, summoner_wait_decision)
+[mutation] GREEN EARLIER src/hengbot/policy.py:2657 (@summoner_wait_decision)
+[mutation] GREEN EARLIER src/hengbot/policy.py:10913 (if not snapshot.in_town:)
+[mutation] GREEN EARLIER src/hengbot/policy.py:11350 (and not self._summoner_never_approaches(snapshot, monster))
+[mutation] GREEN EARLIER src/hengbot/policy.py:11470 (return hold_key(self, snapshot, summoners))
+[mutation] GREEN EARLIER src/hengbot/policy.py:12797 (and not self._summoner_never_approaches(snapshot, monster))
+[mutation] GREEN EARLIER src/hengbot/policy.py:19145 (perceived = self._perceived_hostiles(snapshot))
+[mutation] GREEN EARLIER src/hengbot/policy.py:19186 (return hold_key(self, snapshot, perceived, continuing=True))
+[mutation] GREEN EARLIER src/hengbot/policy.py:19275 (return hold_key(self, snapshot, converging))
+[mutation] GREEN EARLIER src/hengbot/policy_combat.py:1 (from hengbot.summoner_wait import wait_expired)
+[mutation] caught     src/hengbot/policy_combat.py:253 (def _summoner_never_approaches(): test_approach_resets_only_the_summoner_that_moved, test_cached_pack_wait_does_not_adopt_an_unrelated_far_summoner, test_choke_wait_clock_clears_on_other_action_
+[mutation] caught     src/hengbot/policy_observation.py:1418 (def _refresh_warning_avoidance(): test_approach_resets_only_the_summoner_that_moved, test_cached_pack_wait_does_not_adopt_an_unrelated_far_summoner, test_choke_wait_clock_clears_on_other_action_
+[mutation] caught     src/hengbot/policy_observation.py:1429 (avoidance so the user-sanctioned forced walk can route through.): test_constructed_no_exit_also_attacks, test_constructed_quest_approaches_then_melees, test_expired_cornered_wait_keeps_fighting_after_our_own_approach, test_rec
+[mutation] GREEN EARLIER src/hengbot/summoner_wait.py:1 ("""Own the evidence collected while waiting for summoners at a choke.")
+[mutation] GREEN EARLIER src/hengbot/town_arbiter.py:164 (classification("combat", ("melee", "ranged:", "summoner:ranged-kill",)
+[mutation] GREEN EARLIER src/hengbot/town_terminal.py:1675 ('_immobile_summoner_key': 'dungeon-only: avoid or leave a summoner kno)
+[mutation] MUTATION OK: 0 of 18 hunks are not pinned by a test
+[mutation] recorded for d402c154
+
+fast_tier.py <本worktree> main --shards 4:
+[fast] 1742 fast tests (<2.0s in 809dbbdb7) + 2 changed modules, 4 shards
+[fast] excluded 50 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-i_f5tet6)
+Failures: none
+Errors: none
+Total: 1778 tests, 152.5s
+
+実行中の調整と終了状態
+最初の構造検査失敗は上記原因を再現したもの。追加テスト作成時のfixture名の誤りは修正済み。
+修正前ソースで開始したr4モジュール実行は自分のプロセスだけ終了させ、修正後に再実行した。
+深いパスへの一時worktree作成はWindowsのパス長制限で失敗したため、短い専用パスで再試行した。
+失敗した作成先に残骸はなく、検証用一時worktreeも削除済み。
+開始したすべてのチェックは終了し、未実行・未完了の指定チェックはない。
+バックグラウンドのチェック・待機・finalizerは残していない。他の作業ツリーとそのプロセスは変更なし。
+src/とtests/はコミット済みでクリーン。
+日本語報告はPythonのPath.write_text(..., encoding="utf-8")で追記し、UTF-8の再読込を確認した。
+ログ・補助スクリプトはvalidation/immobile-summoner-1027/r6-*にローカル保持し、コミット対象から除外。

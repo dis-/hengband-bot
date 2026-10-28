@@ -364,6 +364,7 @@ STATIONARY_REASONS = frozenset(
         # armed by the breeder-containment disengage re-trips it.
         "combat:disengage-wait-recall",
         "breeder-breakthrough:wait-recall",
+        "summoner:wait-recall",
         # _fruitless_disengage_key re-labels return:* reasons before the CLI
         # sees them; this is the same bounded _wall_search_counts search above.
         "combat:disengage-search-upstairs",

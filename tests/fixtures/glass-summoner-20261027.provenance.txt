@@ -1,0 +1,16 @@
+2026-10-27 ガラス壁越し召喚者の停止盤面。各原本の末尾stateを無加工抽出。
+fixture SHA256: 59c9c108d76f2279e7c4f2e854abb3f32206c846dccfe2181450ec04f49f9abb
+チェックポイントなし。新規policyをprimeする再起動再生。
+decisionは停止前の末尾決定、boardは停止後の末尾観測。
+20261027-202502-stall-summoner-hold-choke
+state.jsonl.gz SHA256: 626e87312e03222a60e7e878c9de696782d45648c0f7e40b3d726e57bdefb409
+bot-decisions.jsonl.gz SHA256: 5fa825d73e0e38338dbd3a37213f9488ef893636c8d1b8015d24e7f79428f8fb
+control-at-stop.json.gz SHA256: 22da7da5ef9ca8d2edad57c3679c67eceea7930901aef49fe0d7c7f8fcaa0378
+20261027-202605-stall-summoner-hold-choke
+state.jsonl.gz SHA256: cc1ab3df1cb4687706f550e9d73d538d4fd1645d3a33cca05bdc5bb7263414eb
+bot-decisions.jsonl.gz SHA256: 5136f0041f5989de128791996a4a4eb32e5dc969312d9e45de61e804fb912b2b
+control-at-stop.json.gz SHA256: e3f6fac2569bc017466caaeb00e6d8d432ee4a4fb32167ffe7658875457b6e16
+20261027-202707-stall-summoner-hold-choke
+state.jsonl.gz SHA256: 881746c38c378af1e0c81d8d719d5e1c29f8085d8964b2b2f07757a153db2985
+bot-decisions.jsonl.gz SHA256: 8bf9f99fbe445cb9bd686ab5b5ce5bdecfd0755c0a8adbbf7921281a1a34a269
+control-at-stop.json.gz SHA256: adf4884a30aedfeb54af699eae73cdd618eced283c6baf1aa65d37078bb091fd

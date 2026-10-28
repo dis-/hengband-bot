@@ -1,4 +1,6 @@
 {
+  "policy_combat.py:CombatMixin._immobile_summoner_key": "dungeon-only: immobile summoner tactical adapter; delegates existing combat/loot producers and navigation/exit serializers, with no town work or independent item intent.",
+  "policy_combat.py:CombatMixin._summoner_never_approaches": "pure helper: boolean NEVER_MOVE summoner race predicate; no command or independent progress.",
   "ammo_carry.py:AmmoCarryPlan.kept_slots": "pure helper: kept_slots returns frozenset[str] used as input/observation, not an independently selected game action",
   "ammo_carry.py:AmmoCarryPlan.reservation": "pure helper: reservation returns int used as input/observation, not an independently selected game action",
   "ammo_carry.py:ammo_carry_plan": "pure helper: ammo_carry_plan returns AmmoCarryPlan used as input/observation, not an independently selected game action",
@@ -741,5 +743,8 @@
   "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": "pure helper: returns an execution-only Loadout projection, no command or independent completion",
   "policy_town.py:TownMixin._outpost_return_fare": "pure helper: existing game fare to reserve outside Outpost; no key or independent work.",
   "policy_town.py:TownMixin._outpost_fare_recovery_key": "delegated adapter: emergency surplus sale/approach and inn return use existing gated owners; named terminal stops grant no work success.",
-  "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention."
+  "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention.",
+  "summoner_wait.py:hold_key": "dungeon-only: shared adapter for existing summoner choke wait; records only its awaited monsters and returns the existing wait key.",
+  "summoner_wait.py:wait_expired": "pure helper: boolean from a summoner wait clock, preserves its avoidance verdict; no command or independent progress.",
+  "policy_combat.py:CombatMixin._perceived_hostiles": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress."
 }

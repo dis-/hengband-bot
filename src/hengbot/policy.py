@@ -5,6 +5,7 @@ from hengbot.item_reservation import (
     claim_candidate_memo, decision_memo, decision_caches_enabled,
 )
 from hengbot.town_work import town_work_decision
+from hengbot.summoner_wait import hold_key, summoner_wait_decision
 
 from collections import Counter, deque
 import random
@@ -2656,6 +2657,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
+    @summoner_wait_decision
     @town_work_decision
     @reservation_decision
     def choose_key(self, snapshot: Snapshot) -> str | None:
@@ -10911,6 +10913,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if paralyzer_prevention is not None:
             return paralyzer_prevention
 
+        if not snapshot.in_town:
+            immobile_summoner = self._town_producer_entry(
+                "_immobile_summoner_key",
+                lambda: self._immobile_summoner_key(snapshot, physical_hostiles),
+                board=snapshot,
+            )
+            if immobile_summoner is not None:
+                return immobile_summoner
+
         unseen_intercept = self._town_producer_entry("_unseen_retreat_intercept_key", lambda: self._unseen_retreat_intercept_key(
             snapshot, physical_hostiles, physical_adjacent
         ))
@@ -11339,6 +11350,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         summoners = [
             monster for monster in strategic_hostiles
             if monster.can_summon and not monster.asleep
+            and not self._summoner_never_approaches(snapshot, monster)
         ]
         # A KILL_NUMBER pack gets the same reviewed choke-point movement as a
         # summoner fight.  The normal ranged phase below then softens pursuers.
@@ -11458,8 +11470,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._detected_threat_hold_position = player.position
                 if snapshot.turn - hold[1] > DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
                     return None
-            self.last_reason = "summoner:hold-choke"
-            return WAIT_KEY
+            return hold_key(self, snapshot, summoners)
 
         # A material threat that cannot be attacked from the current square
         # must not fall through to descent or exploration.  Live on Orc cave
@@ -12786,6 +12797,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         summoners = [
             monster for monster in hostiles
             if monster.can_summon and not monster.asleep
+            and not self._summoner_never_approaches(snapshot, monster)
         ]
         candidates = [
             (shots, monster)
@@ -19133,6 +19145,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
     ) -> str | None:
         """Anticipate detected threats without treating them as attack targets."""
+        perceived = self._perceived_hostiles(snapshot)
+        if perceived and all(self._summoner_never_approaches(snapshot, m) for m in perceived):
+            self._detected_threat_hold = None
+            self._detected_threat_hold_position = None
+            self._detected_threat_route = None
+            return None
         hold = getattr(self, "_detected_threat_hold", None)
         if hold is not None and hold[0] != snapshot.floor_key:
             self._detected_threat_hold = None
@@ -19168,12 +19186,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             # Keep the bounded choke owner ahead of loot if the unseen pack's
             # distances briefly leave the convergence window.
-            self.last_reason = "summoner:hold-choke"
-            return WAIT_KEY
+            return hold_key(self, snapshot, perceived, continuing=True)
         detected = [
             monster
             for monster in self._perceived_hostiles(snapshot)
             if monster.perception == "detected"
+            and not self._summoner_never_approaches(snapshot, monster)
         ]
         if not detected:
             if hold is None:
@@ -19257,8 +19275,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # its start turn and learn the choke position on re-entry.
                 self._detected_threat_hold_position = snapshot.player.position
             if snapshot.turn - hold[1] <= DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
-                self.last_reason = "summoner:hold-choke"
-                return WAIT_KEY
+                return hold_key(self, snapshot, converging)
             return None
         if route is not None and committed:
             if snapshot.player.position != route[1]:

@@ -2102,7 +2102,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "cc0448d7efbdd7cc04a3dd2fdc658ff262688302401468f3f7f3c698754dc2e8"
+    "ast_sha256": "e0a512039be4faefe07ee360fe06206514c239d31533c161b70d6998341d9658"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -2159,7 +2159,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c27ae1ace7a23c7946de0df1052f1c7352f9ade8f6de4fdbff0416086ef447d0"
+    "ast_sha256": "fb4cc337cfd2a3bbdb62a56a41ce4d2c9021566805843adac132b296e4d954bc"
   },
   "policy.py:HengbotPolicy._device_food_reserve_slot": {
     "classification": "data",
@@ -3201,7 +3201,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "40042d4587e278337c16bfce76b214183a376704bf371223e26a278ec9268a71"
+    "ast_sha256": "573ae22babb7f6da9483a5aa819708a8f1dd9fa99a5f10795299d6040a29af8d"
   },
   "policy.py:HengbotPolicy._summoner_retreat_route": {
     "classification": "data",
@@ -3909,7 +3909,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "eb790d2ae37b9852888023fc52022a74a3c8a30ebd8f3af3c70a21fb6641f49d"
+    "ast_sha256": "a2448a845468d7c5efa01f1c02f468fee403507790dccbbe211b4e0d41ccbe89"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4217,6 +4217,15 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "b9a0eebe176322f4528bfcefb279b7297448afe344dccafa56edb5ad39e89767"
   },
+  "policy_combat.py:CombatMixin._immobile_summoner_key": {
+    "classification": "producer",
+    "rows": [
+      "survival",
+      "loot-exploration"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "3fdf1bb1cd01b455177a67eb03ef5eb28b576a4000446377576dce9e9a8ca422"
+  },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
     "rows": [
@@ -4289,6 +4298,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "e81788c458c2e50c6dfcdd11d77970432963032e7f2ae40730012d036345f8be"
   },
+  "policy_combat.py:CombatMixin._perceived_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "No independent success; existing wait or avoidance owner.",
+    "ast_sha256": "1014d752a5e6773b8a027ab248419ce0df0bc4a3b1f27cdc83eb61eedec19401"
+  },
   "policy_combat.py:CombatMixin._predicted_damage": {
     "classification": "data",
     "rows": [
@@ -4352,6 +4369,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "2443f16ce24fb0e9ae29e28d6fb97ef8b7a241a0900962575702a881768f6b32"
+  },
+  "policy_combat.py:CombatMixin._summoner_never_approaches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "af99c87d963c4d210ccbb1d6ef6b224202a1b1415afbb005923105348e810464"
   },
   "policy_combat.py:CombatMixin._update_combat_outcome": {
     "classification": "producer",
@@ -8299,6 +8324,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "bc97ab02677388fcdb5b50d4d0e9675941ae45526245c950c67258cbbdc05feb"
+  },
+  "summoner_wait.py:hold_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait or avoidance owner.",
+    "ast_sha256": "10c9004e8d4ae442340045cb96cbca83e3230e39f112f08a7b92a17f4f79a391"
+  },
+  "summoner_wait.py:wait_expired": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "No independent success; existing wait or avoidance owner.",
+    "ast_sha256": "bdbf13f2e914cb294fe28d31a3d102432454eebd85628d49c6aa21fe78b1e458"
   },
   "town_arbiter.py:TownArbiterMixin._emission_item_state": {
     "classification": "data",
