@@ -1,20 +1,174 @@
-ISSUE #47 main-red-1028 調査報告（途中記録）
+ISSUE #47 main-red-1028 調査・検証報告
+2026-10-28
+
+結果：タスクの STOP 条件に該当したため、修正を停止した。main の赤は未解消。
+指定6件を main で再現し、各 first-parent コミットの実行によって原因マージを特定した。
+本体、既存テスト、期待値、許可リストは一切変更していない。
+コミット対象は本報告と、履歴再現用の validation/main-red-1028/history.py のみ。
+
+停止の根拠
+
+LUNA-TASK-main-red-1028.txt は、意図的なオーナー承認済み動作変更と旧期待値が
+衝突する場合、期待値を編集せず STOP して理由を報告するよう明記している。
+この条件に E（P5）が該当するため、残る修正も実装せず調査結果を保存した。
+
+LUNA-TASK-broke-prevent.txt:2-7 の2026-10-26オーナー決定は、辺境以外で
+金欠になった場合「売れるものを売って運賃を作る」ことを指定する。
+不要品を売れない場合に名前付き停止とし、帰還の巻物を移動に使わない。
+さらに LUNA-TASK-broke-prevent-r2.txt:8-12 は、通常の余剰で足りなければ
+取り置き品を少し売ることも明示的に承認している。
+
+しかし tests/test_town_plan_exhausted_wander.py:426-441 の P5 は、
+運賃499Gの構成で、店を出た次の決定が即座に
+ town:blocked:walk-in-entrance-unavailable
+となること、決定が計2回で終わることを要求する。
+現在は売却先があるため shop:outpost-fare-sale-approach となる。
+これは運賃を回復する承認済み動作であり、この盤面を旧停止に戻す修正は決定に反する。
+テスト名での例外分岐、既存期待値の変更、許可リストの緩和は行っていない。
+P5を承認済み動作への更新対象とするかの判断が必要であり、今回の権限では変更しない。
+
+対象と方法
+
 対象 main: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
-使用 Python: 指定のシステム Python 3.13。PYTHONPATH=src;tests;scripts。
+使用実行ファイル:
+ C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe
+環境: PYTHONPATH=src;tests;scripts、PYTHONIOENCODING=utf-8。
+以下の python はすべてこの指定実行ファイルを指す。
 
-停止条件に該当したため、本体および既存テストの修正を停止した。
-tests.test_town_plan_exhausted_wander の P5 は、運賃不足時に
-walk-in-entrance-unavailable で即停止する旧期待を持つ。
-一方、LUNA-TASK-broke-prevent.txt:2-7 のオーナー決定（2026-10-26）は、
-辺境以外で金欠になった場合、不要品を売って運賃を作り辺境へ戻ることを指定する。
-現在の shop:outpost-fare-sale-approach はこの回復手順であり、旧停止へ戻すと決定に反する。
-今回のタスクは、意図的なオーナー承認済み変更と期待値が衝突する場合に STOP と明記する。
-よって期待値・許可リストは変更せず、承認済みの回復動作も取り消さない。
+履歴は git log --first-parent main で確認し、
+ git rev-list --first-parent --reverse 524054b47..78deea2ac
+に、10月26日の基準コミット524054b47を加えた全11コミットを検証した。
+専用の detached worktree で各コミットを checkout し、同じ6件を unittest -v で実行した。
+調査用worktreeは finally で削除し、git worktree list からも消えたことを確認済み。
+再現コマンド: python validation/main-red-1028/history.py
+このスクリプトの main は今回の対象78deea2acを指していた。
+生ログは validation/main-red-1028/history-<SHA>.log に保存し、コミットしていない。
 
-main で指定6件すべてを再現：6件実行、失敗5件・エラー1件、終了1。
-2026-10-27以前の 524054b47 では同じ6件が全成功、終了0。
-first-parent 全対象コミットの検証、6モジュールおよび指定ガードの結果は追記予定。
-未完了のチェックを残したまま作業を終了しない。
+テストの対応表（A〜Fは下の履歴表と共通）
+A. tests.test_equipment_in_home_stage1.EquipmentInHomeBehaviorPins.test_supplementary_planner_admits_pack_space_deposit_inside_home
+B. tests.test_keep_running_a0.DepartureTest.test_existing_supply_stockout_fallback_and_exhausted_hard_stop
+C. tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_worn_lantern_withdraws_the_home_lamp_before_departure
+D. tests.test_recall_churn_stockout_recorded.RecallChurnStockoutRecordedTest.test_supply_stockout_owner_keeps_its_three_round_stop
+E. tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p5_unaffordable_return_still_names_the_missing_entrance
+F. tests.test_town_terminal_declarations.TerminalDeclarationTest.test_1_every_entry_rung_is_declared
 
-初回の途中記録は PowerShell 5.1 の標準入力パイプで日本語が失われたため、
-UTF-8 の OutputEncoding を明示して Python で再作成し、読み戻して検証した。
+履歴実行結果（P=成功、F=失敗、E=エラー。列順 A B C D E F）
+524054b47  P  P  P  P  P  P  終了0  34.020秒
+2791b5c3d  P  P  P  P  P  P  終了0  33.601秒
+28f3e33f2  P  P  P  P  P  P  終了0  35.842秒
+4db110bd5  P  P  P  P  P  P  終了0  34.963秒
+0b7e8c49f  P  P  P  P  P  P  終了0  32.634秒
+76f484a64  P  F  F  F  P  P  終了1  34.722秒
+726627a6b  P  F  F  F  P  P  終了1  32.949秒
+515dde885  E  F  F  F  P  P  終了1  31.379秒
+069d2e7ce  E  F  F  F  F  F  終了1  30.873秒
+239922037  E  F  F  F  F  F  終了1  27.599秒
+78deea2ac  E  F  F  F  F  F  終了1  27.966秒
+
+各テストの原因
+
+A. 原因マージ 515dde885（直前726627a6bでは成功）。
+   Homeの部分装備計画を入れた265d63e21由来。
+   src/hengbot/policy_equipment.py:1633-1637 で partial_identification の計算が
+   preparation.ready の判定より先に preparation.blockers を直接読むようになった。
+   既存の ready=True、transaction付き SimpleNamespace には blockers がないため、
+   tests/test_equipment_in_home_stage1.py:344 で AttributeError になる。
+   readyな準備については従来不要だった属性の参照が加わった互換性の回帰。
+
+B. 原因マージ 76f484a64（直前0b7e8c49fでは成功）。
+   src/hengbot/policy_town.py:7136-7140 の dispatch が、従来の
+   _departure_block_state(snapshot)["failed"] の消費から、
+   _recall_town_departure_conjuncts の再計算と入場判定の再呼出しへ変わった。
+   テストの供給不足評価は recall_departure_ready のみだが、再計算には
+   home_catalog_ready も残ることを同じ構成の読み取り用プローブで確認した。
+   stockout_mining_intended_terminal がそれを供給不足として扱えず、準備が始まらない。
+   tests/test_keep_running_a0.py:288 の未消化周期ケースで None != "prepare"。
+   3周期消化済み側の停止期待値を変更する必要はない。
+
+C. 原因マージ 76f484a64（直前0b7e8c49fでは成功）。
+   1d7df7331で追加された src/hengbot/policy_home.py:2235-2242 の
+   light:departure-lantern 予約が、最適化で外すランタンにも適用される。
+   src/hengbot/policy_helpers.py:37-109 の取引投影は外す装備を荷物に移し、
+   装備から外すが、Homeから選択した恒久光源をまだ投影へ加えない。
+   このため恒久光源なしと評価され、不要になるランタンが予約される。
+   tests/test_optimizer_lamp_recorded.py:179 の取引から最後の deposit が消える。
+   松明を使う際に必要なランタンを携行する変更そのものと、
+   フェアノールのランプへ交換する本ケースの投影を区別する必要がある。
+
+D. 原因マージ 76f484a64（直前0b7e8c49fでは成功）。
+   Bと同じ入場判定の再呼出しが原因。
+   src/hengbot/town_terminal.py:1364-1366 は board.store があると None を返す。
+   既存リプレイの盤面は錬金術店内なので、dispatch からこの判定を呼ぶと、
+   src/hengbot/policy_town.py:7148 の3周期上限処理より前に帰ってしまう。
+   tests/test_recall_churn_stockout_recorded.py:163 の可視停止が設定されない。
+   「3回で買えなければ見える停止」のオーナー決定は引き続き有効。
+
+E. 原因マージ 069d2e7ce（直前515dde885では成功）。
+   運賃回復ブランチ2734010faのマージ。
+   src/hengbot/policy.py:8756-8764 で運賃不足の回復を先に選び、
+   src/hengbot/policy_town.py:7214以降が不要品売却を選択する。
+   同ファイル7400の shop:outpost-fare-sale-approach が旧停止に優先する。
+   上記のオーナー承認済み変更と旧期待値の衝突であり、今回の STOP 理由。
+
+F. 原因マージ 069d2e7ce（直前515dde885では成功）。
+   src/hengbot/policy.py:8772 の _cross_town_shopping_key、
+   src/hengbot/policy_town.py:7287,7378 の _batch_sell_key を
+   _town_producer_entry の rung として追加したが、
+   src/hengbot/town_terminal.py:1749以降の TERMINALS に宣言がない。
+   tests/test_town_terminal_declarations.py:80 はこの2項目の不足を検出する。
+   既存テストの許可リストではなく、本体側の宣言漏れを修正する案件。
+
+検証結果
+
+指定6件：main上で全件失敗を再現（5失敗、1エラー、終了1）。
+履歴上のmain再実行も同じ結果（6件、27.966秒、終了1）。
+10月26日の524054b47では6件すべて成功。
+
+6モジュール全体：
+ python -m unittest -v tests.test_equipment_in_home_stage1 tests.test_keep_running_a0
+   tests.test_optimizer_lamp_recorded tests.test_recall_churn_stockout_recorded
+   tests.test_town_plan_exhausted_wander tests.test_town_terminal_declarations
+結果：62件、271.978秒、5失敗、1エラー、expected failures 8、終了1。
+失敗・エラーは指定6件のみ。既存のexpectedFailure指定も変更していない。
+ログ: validation/main-red-1028/six-modules.log
+
+以下3コマンドは、この順で実行し、すべて終了結果を回収した。
+本体の変更はなく、チェック時と最終成果物でsrc/testsのtreeは同一。
+
+python C:/hengband-backups/guard-tools/preflight.py <本worktree> main
+終了0。出力:
+[preflight] PREFLIGHT OK: 2 changed files, 0 findings (main-red-fix-1028 vs main)
+
+python C:/hengband-backups/guard-tools/mutation_check.py <本worktree> main
+  --tests tests.test_equipment_in_home_stage1 tests.test_keep_running_a0
+  tests.test_optimizer_lamp_recorded tests.test_recall_churn_stockout_recorded
+  tests.test_town_plan_exhausted_wander tests.test_town_terminal_declarations --record
+終了2。事前テストが赤なので変異試験本体へ進まず、有効な成功記録は生成されない。
+ソース差分は0 hunk。出力:
+[mutation] 0 source hunks, tests: tests.test_equipment_in_home_stage1 tests.test_keep_running_a0 tests.test_optimizer_lamp_recorded tests.test_recall_churn_stockout_recorded tests.test_town_plan_exhausted_wander tests.test_town_terminal_declarations
+[mutation] STOP: the tests are not green before any reversion (test_supplementary_planner_admits_pack_space_deposit_inside_home, test_existing_supply_stockout_fallback_and_exhausted_hard_stop, test_worn_lantern_withdraws_the_home_lamp_before_departure, test_supply_stockout_owner_keeps_its_three_round_stop, test_p5_unaffordable_return_still_names_the_missing_entrance, test_1_every_entry_rung_is_declared)
+
+python C:/hengband-backups/guard-tools/fast_tier.py <本worktree> main --shards 4
+終了0。出力:
+[fast] 1644 fast tests (<2.0s in 78deea2ac) + 0 changed modules, 4 shards
+[fast] excluded 49 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-q8zhuacr)
+Failures: none
+Errors: none
+Total: 1644 tests, 70.5s
+
+fast_tierとpreflightの成功は、上記6件が直ったことを意味しない。
+指定した各チェックの起動漏れはないが、mutationの成功検証と記録は未達。
+修正後の成功確認も、STOPして本体を修正していないため未実施。
+派生スコープ・派生モジュール群およびフルスイートは指示通り実行していない。
+
+作業状態
+
+src/hengbot tree: dd7d47c61df952e6ecefb20f5eb11b708b222e1f（mainと同一）
+tests tree: 5502926c9e6f128310981da190585a0dece46e3a（mainと同一）
+git diff main -- src tests は空、src/testsに未コミット変更なし。
+上限制限ファイルへの追加、キーへの +=、共有ハーネスのTestCase直接導入はない。
+報告書は指定Pythonの Path.write_text(..., encoding="utf-8") で作成し、読み戻しを検証した。
+ローカルの生ログと、開始時から存在したタスク・実行ログはコミット対象外。
+開始したテスト・ガードはすべて終了済み。一時worktreeも削除済み。
+バックグラウンドのチェック、待機スクリプト、finalizerを残していない。
