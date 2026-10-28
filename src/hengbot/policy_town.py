@@ -3115,14 +3115,10 @@ class TownMixin:
         if (self._overweight_surplus_disposal is None
                 and self._home_full_relief is None
                 and weight_relief is not None
-                and self._home_available(snapshot)
-                and self._find_home_deposit(snapshot) is None):
-            candidates = weight_relief.surplus
-            excess = weight_relief.excess
-            if sum(item.weight * count for _, _, item, count, _ in candidates) >= excess:
-                self._overweight_surplus_disposal = {
-                    "town": self._effective_town_id(snapshot),
-                }
+                and weight_relief.route == "sell-or-destroy"):
+            self._overweight_surplus_disposal = {
+                "town": self._effective_town_id(snapshot),
+            }
         if self._overweight_surplus_disposal is not None and weight_relief is not None:
             candidates = weight_relief.surplus
             store = candidates[0][4][0] if candidates and candidates[0][4] else STORE_HOME
@@ -5940,12 +5936,27 @@ class TownMixin:
         issue WAIT forever outside a store, so the CLI could only stop the bot.
         Other blocked reasons remain visible terminal waits.
         """
-        if (self._town_blocked_reason == "departure-unsatisfiable"
-                and self._inventory_overweight(snapshot)
-                and self._record_weight_relief_retained_only(snapshot)):
-            # Only retained weight is left over the limit: name it, with the
-            # numbers in the record, instead of the generic departure block.
-            self._town_blocked_reason = "overweight-retained-only"
+        if (self._town_blocked_reason in {
+                "departure-unsatisfiable", "overweight-home-unreachable",
+                "overweight-home-full-no-legal-relief"}
+                and self._inventory_overweight(snapshot)):
+            relief = self._weight_relief_selection(snapshot)
+            if (relief.route == "sell-or-destroy"
+                    and (self._overweight_surplus_disposal is None
+                         or self._town_blocked_reason != "overweight-home-full-no-legal-relief")):
+                # Home's exhausted route does not exhaust legal carried
+                # surplus. Hand it to the same producer the need router uses.
+                self._town_blocked_reason = None
+                if self._overweight_surplus_disposal is None:
+                    self._overweight_surplus_disposal = {
+                        "town": self._effective_town_id(snapshot),
+                    }
+                return self._town_producer_entry(
+                    "_overweight_surplus_sale_key",
+                    lambda: self._overweight_surplus_sale_key(snapshot),
+                    family="shop-sell")
+            if self._record_weight_relief_retained_only(snapshot):
+                self._town_blocked_reason = "overweight-retained-only"
         if (self._town_blocked_reason in VISIT_CLOSABLE_REASONS
                 and not self._visit_departure_committed):
             departure = self.force_visit_departure(snapshot, self._town_blocked_reason)
