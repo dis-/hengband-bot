@@ -749,5 +749,12 @@
   "policy_combat.py:CombatMixin._perceived_hostiles": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress.",
   "magic_eater.py:planned_throw_key": "delegated adapter: extracted from QuestMixin._quest_execute_key; shares its approved stand, movement and reserved throw child, never independent town work.",
   "magic_eater.py:q34_missile_key": "dungeon-only: called only by planned_throw_key on an approved quest floor; explicitly requires profile.quest_id == 34 and class 16.",
-  "magic_eater_devices.py:is_absorption_device": "pure helper: shared O5 class/identification/device predicate; returns eligibility, never an input command."
+  "magic_eater_devices.py:is_absorption_device": "pure helper: shared O5 class/identification/device predicate; returns eligibility, never an input command.",
+  "policy_town.py:TownMixin._town_organization_sale_store": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:pressure_deposit": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:find_pressure_deposit": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:find_pressure_sale": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:relief_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "town_pack_budget.py:_relief_route": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer."
 }

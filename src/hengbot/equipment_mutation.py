@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from hengbot.item_reservation import ReservationVerdict, standalone_verdict, checked_item_command
+from hengbot.town_pack_budget import incoming_slots, permits
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -385,6 +386,9 @@ class EquipmentMutationExecutor:
                         verdict: ReservationVerdict | None = None, policy=None) -> EquipmentMutationResult:
         slot = _SLOT_BY_KEY.get(slot_key)
         item = _worn(snapshot, slot) or slot_key
+        if getattr(snapshot, "in_town", False) and not permits(snapshot, incoming_slots(snapshot, item, item.count)
+                       if hasattr(item, "tval") else 1):
+            return EquipmentMutationResult(None, "town-pack-budget")
         if verdict is None:
             verdict = standalone_verdict("takeoff", item)
         return self._prepare(
@@ -399,6 +403,12 @@ class EquipmentMutationExecutor:
     ) -> EquipmentMutationResult:
         if target_slot not in slot_keys:
             return EquipmentMutationResult(None, "unknown-equipment-slot")
+        displaced = _worn(snapshot, target_slot)
+        slots = (incoming_slots(snapshot, displaced, 1)
+                 if displaced is not None and getattr(snapshot, "in_town", False) else 0)
+        freed = int(any(carried is item and carried.count == 1 for carried in snapshot.inventory))
+        if not permits(snapshot, slots - freed):
+            return EquipmentMutationResult(None, "town-pack-budget")
         main = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
         sub = next((it for it in snapshot.equipment if it.slot == "sub_hand"), None)
         suffix = ""

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.town_pack_budget import find_pressure_sale, native_travel_fits
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
@@ -2375,10 +2376,7 @@ class TownMixin:
             len(snapshot.inventory) < PACK_CAPACITY
             and self._town_order_step4_pending(snapshot)
         ):
-            # A merely tight pack is the normal-order surplus deposit (step
-            # 10), not the common full-pack deposit (step 3).  Let the town
-            # order owner finish reward/bounty work before that optional Home
-            # route can acquire the store arbiter.
+            # Bounty work precedes optional surplus deposits in the town order.
             return None
         # Stage-2 quest travel (rung #1) keeps the shortage actionable for
         # earlier scan suppression and departure gating; the rung's terminal
@@ -2526,13 +2524,14 @@ class TownMixin:
         )
 
     @claims(ClaimOwner.TOWN_PLAN)
-    def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
-        """Free town pack space without creating floor-item pickup loops."""
+    def _town_overflow_destroy_key(self, snapshot: Snapshot, *, try_relief: bool = False) -> str | None:
+        """Keep the destroy primitive; the town dispatcher first requests relief."""
+        from hengbot.town_pack_budget import relief_key
+        key = relief_key(self, snapshot) if try_relief else None
+        if key is not None:
+            return key
         key = self._verified_destroy_key(
-            snapshot,
-            self._overflow_disposal_item,
-            "town:destroy-overflow",
-        )
+            snapshot, self._overflow_disposal_item, "town:destroy-overflow")
         if key is not None:
             return key
         if (
@@ -5072,7 +5071,7 @@ class TownMixin:
                 self._town_organization_sale_store(snapshot, item) is not None
                 or self._town_organization_home_routable(snapshot, item)
             ),
-        )
+        ) or find_pressure_sale(self, snapshot)
 
     def _town_organization_home_routable(
         self, snapshot: Snapshot, item: InventoryItem
@@ -5135,14 +5134,7 @@ class TownMixin:
     def _town_travel_key(
         self, snapshot: Snapshot, goal: Position, macro: str, reason: str
     ) -> str | None:
-        """Progress-based gate shared by every native-travel leg (stores, Home,
-        the dungeon entrance). Travel is re-issued after an interruption (a
-        monster, a nudge Escape) as long as it got CLOSER to the goal since the
-        last issue; TOWN_TRAVEL_STALL_LIMIT issues with no progress latch a
-        fallback to BFS walking for that goal (the game rejects travel over an
-        unknown approach). The latch clears when the goal changes or the floor
-        does. Near goals just walk — a travel round-trip costs more than the
-        last couple of steps."""
+        """Bound native travel by observed progress; otherwise use BFS walking."""
         route_kind = "entrance" if reason == "town:travel-entrance" else "store"
         family = self._claim_family_of(reason)
         work_id = f"route:{route_kind}:{goal.y},{goal.x}"
@@ -5150,6 +5142,9 @@ class TownMixin:
             self._offer_execution_no_step(
                 producer=family, work_id=work_id, cause=cause,
             )
+        if not native_travel_fits(snapshot):
+            no_route("pack-budget-floor-pickup")
+            return None
         if goal not in snapshot.grids:
             # An undisclosed goal cannot support native travel.  The emitted
             # grid set is not, however, an authoritative projection of

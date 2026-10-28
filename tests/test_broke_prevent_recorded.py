@@ -12,6 +12,7 @@ and the admitted supplier circuit. They are counterfactuals, not replayed
 post-fix game outcomes. UI controls use the production follow executor's
 faithful hook harness; no send or decision implementation is mocked.
 """
+from recorded_pack_budget import pre_pack_budget_replay
 import tests  # noqa: F401
 import copy
 import gzip
@@ -141,6 +142,7 @@ class BrokePreventRecordedTest(executor_harness.ProductionHarness):
             ("fixedquest:q2-travel", "1mb"),
         ])
 
+    @pre_pack_budget_replay  # W: recorded pack 19 (20 with extra target); new slot, fare subject.
     def test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one(self):
         raw = self.raw(2933932, gold=5299, store=4)
         # DECLARED CONSTRUCTED: a second incomplete ego target represents the
@@ -159,6 +161,7 @@ class BrokePreventRecordedTest(executor_harness.ProductionHarness):
         self.assertLess(board.player.gold - 2 * item.price, TOWN_TELEPORT_COST)
         self.assertEqual(self.follow(key, reason, raw, inside=True), ["p","k","1\r","\r"])
 
+    @pre_pack_budget_replay  # W: recorded pack 19 (20 with extra target); new slot, fare subject.
     def test_common_purchase_composer_refuses_stale_overbudget_quantity(self):
         raw = self.raw(2933932, gold=5299, store=4)
         p = self.policy(raw)
@@ -177,6 +180,7 @@ class BrokePreventRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual((key,reason),("\x1b","shop:observe-and-leave"))
         self.assertEqual(self.follow(key,reason,raw,inside=True),[key])
 
+    @pre_pack_budget_replay  # W: recorded pack 19 (20 with extra target); new slot, fare subject.
     def test_partial_wand_price_uncertainty_cannot_use_reserved_fare(self):
         # DECLARED CONSTRUCTED charge-rounding control on the captured shelf:
         # partial wand copies may cost more than the exported per-unit price.
@@ -253,6 +257,7 @@ class BrokePreventRecordedTest(executor_harness.ProductionHarness):
                 self.assertEqual(gold - key.count(RUMOR_READ_KEY) * RUMOR_COST, reserve)
                 self.assertEqual(self.follow(key, reason, raw), [key])
 
+    @pre_pack_budget_replay  # W: recorded pack 19 (20 with extra target); new slot, fare subject.
     def test_outpost_has_no_return_fare_purchase_reserve(self):
         raw = self.raw(2933932, gold=5299, store=4)
         raw["floor"].update(town_id=0, town_index=1)
