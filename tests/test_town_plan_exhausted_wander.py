@@ -137,6 +137,7 @@ RETURN_WINDOW = tuple(range(59, 70))
 MORIVANT_TOWN_ID = 2
 ALCHEMIST = 4
 BLOCKED_REASON = "town:blocked:walk-in-entrance-unavailable"
+FARE_NO_SALE_REASON = "town:blocked:outpost-fare-no-sale"
 RETURN_REASON = "town:cross-town-walk-in-return"
 
 
@@ -432,6 +433,8 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
         The Inn fare is out of reach, and only Recall, treasure detection and
         one digging tool remain in the pack. The mining kit is still complete,
         but there is no surplus or releasable supply to sell for the fare.
+        Since the 2026-10-26 fare recovery (owner decision 2026-10-28) that
+        named stop is town:blocked:outpost-fare-no-sale.
         """
         inventory = tuple(
             replace(item, count=1) if item.is_digging_tool else item
@@ -446,8 +449,8 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
         self.assertNotIn("stuck:wander", reasons)
         self.assertNotIn("town:blocked:owner-retired", reasons)
         self.assertNotIn(RETURN_REASON, reasons)
-        self.assertEqual(reasons[1], BLOCKED_REASON)
-        self.assertIn(BLOCKED_REASON, POLICY_FINAL_STOP_REASONS)
+        self.assertEqual(reasons[1], FARE_NO_SALE_REASON)
+        self.assertIn(FARE_NO_SALE_REASON, POLICY_FINAL_STOP_REASONS)
         # The driver stops there instead of deciding again.
         self.assertEqual(len(emitted), 2)
 
