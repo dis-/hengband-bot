@@ -2151,7 +2151,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "148d3266815913bfa5ac14ba0b19150b6e87d4d96ad5ad5e14c3ab17ce883f31"
+    "ast_sha256": "fb4cc337cfd2a3bbdb62a56a41ce4d2c9021566805843adac132b296e4d954bc"
   },
   "policy.py:HengbotPolicy._device_food_reserve_slot": {
     "classification": "data",
@@ -3901,7 +3901,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "de354096160a951bf863cb57451966adb02d0f83d22fd03a896f6eb974cd7286"
+    "ast_sha256": "a2448a845468d7c5efa01f1c02f468fee403507790dccbbe211b4e0d41ccbe89"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -8323,7 +8323,7 @@
       "positioning"
     ],
     "delegation": "No independent success; existing wait or avoidance owner.",
-    "ast_sha256": "369fdd47810be3405b5e5257d7959cb48687af0f48cbd947a5a24a93e2dad2a3"
+    "ast_sha256": "10c9004e8d4ae442340045cb96cbca83e3230e39f112f08a7b92a17f4f79a391"
   },
   "summoner_wait.py:wait_expired": {
     "classification": "data",

@@ -13,6 +13,8 @@ SUMMONER_WAIT_GAME_TURNS = 50
 class SummonerWait:
     floor: tuple
     position: Position
+    targets: set[tuple[int, int]] = field(default_factory=set)
+    holding: bool = False
     started: dict[tuple[int, int], tuple[int, int]] = field(default_factory=dict)
     refused: dict[tuple[int, int], tuple[int, Position]] = field(default_factory=dict)
 
@@ -20,6 +22,8 @@ class SummonerWait:
         """A closer monster invalidates both its wait and its stale verdict."""
         if self.position != snapshot.player.position:
             self.started.clear()
+            self.targets.clear()
+            self.holding = False
             self.position = snapshot.player.position
         current = {(m.index, m.race_id): m for m in monsters}
         for identity, (turn, distance) in list(self.started.items()):
@@ -45,13 +49,16 @@ def wait_state(policy, snapshot):
     return state
 
 
-def hold_key(policy, snapshot, monsters):
+def hold_key(policy, snapshot, monsters, *, continuing=False):
     """Start clocks only for the summoners this selected wait is awaiting."""
     state = wait_state(policy, snapshot)
     waiting = {
         (m.index, m.race_id): m for m in monsters
         if m.can_summon and not m.asleep
+        and (not continuing or not state.holding or (m.index, m.race_id) in state.targets)
     }
+    state.targets = set(waiting)
+    state.holding = True
     state.started = {
         identity: state.started.get(identity, (snapshot.turn, m.distance))
         for identity, m in waiting.items()
@@ -74,9 +81,13 @@ def summoner_wait_decision(decide):
     @wraps(decide)
     def wrapped(policy, snapshot):
         state = wait_state(policy, snapshot)
+        key = None
         try:
-            return decide(policy, snapshot)
+            key = decide(policy, snapshot)
+            return key
         finally:
-            if policy.last_reason != "summoner:hold-choke":
+            if key != "5" or policy.last_reason != "summoner:hold-choke":
                 state.started.clear()
+                state.targets.clear()
+                state.holding = False
     return wrapped

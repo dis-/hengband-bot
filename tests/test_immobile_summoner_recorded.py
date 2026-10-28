@@ -416,6 +416,22 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
             self.assertEqual(policy._summoner_wait.started, {})
             self.assertEqual(policy._summoner_wait.refused, {})
 
+    def test_cached_pack_wait_does_not_adopt_an_unrelated_far_summoner(self):
+        board = self._walking_summoner_corridor(detected=True)
+        first = replace(board.detected_monsters[0], race_id=60, position=Position(10, 13),
+                        distance=3, can_summon=False, max_ranged_damage=0)
+        second = replace(first, index=20, position=Position(10, 14), distance=3)
+        far = replace(board.detected_monsters[0], index=21, position=Position(10, 30), distance=20)
+        board = replace(board, detected_monsters=[first, second, far], width=40)
+        policy = self._policy(board)
+        for delta in (0, 10, 20, 30, 40, 50, 60):
+            current = replace(board, turn=board.turn + delta)
+            self.assertEqual((str(policy.choose_key(current)), policy.last_reason),
+                             ("5", "summoner:hold-choke"))
+            self.assertFalse(policy._summoner_never_approaches(current, far))
+            self.assertEqual(policy._summoner_wait.started, {})
+            self.assertEqual(policy._summoner_wait.refused, {})
+
     def test_approach_resets_only_the_summoner_that_moved(self):
         board = self._walking_summoner_corridor()
         first = board.visible_monsters[0]

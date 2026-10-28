@@ -2657,9 +2657,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
+    @summoner_wait_decision
     @town_work_decision
     @reservation_decision
-    @summoner_wait_decision
     def choose_key(self, snapshot: Snapshot) -> str | None:
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
@@ -19187,7 +19187,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             # Keep the bounded choke owner ahead of loot if the unseen pack's
             # distances briefly leave the convergence window.
-            return hold_key(self, snapshot, perceived)
+            return hold_key(self, snapshot, perceived, continuing=True)
         detected = [
             monster
             for monster in self._perceived_hostiles(snapshot)
