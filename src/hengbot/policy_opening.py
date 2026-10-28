@@ -310,6 +310,8 @@ class OpeningRouteMixin:
                             if snapshot.player.position.distance_to(monster.position) <= 1
                             and not self._step_raises_unintended_confirm(snapshot, monster.position)]
                 if adjacent:
+                    if not self._can_fight_in_dungeon(0):
+                        return self._opening_q1_stop("recovery-hostile-unreachable")
                     self.last_reason = "melee"
                     return self._direction_key(snapshot.player.position, self._weakest(adjacent).position)
                 return self._opening_q1_stop("recovery-hostile-unreachable")

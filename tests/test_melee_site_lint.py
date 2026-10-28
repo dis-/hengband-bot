@@ -11,7 +11,7 @@ import unittest
 from melee_site_lint import analyze_repository, melee_sites, unguarded_melee_sites
 
 
-MELEE_SITE_CENSUS = 20
+MELEE_SITE_CENSUS = 22
 
 
 class MeleeSiteLintTest(unittest.TestCase):
