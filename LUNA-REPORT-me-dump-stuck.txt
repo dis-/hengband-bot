@@ -1,0 +1,80 @@
+ISSUE #47：魔道具術師の periodic:character-dump 停止
+
+1. 原因調査
+開始時のmainは b29da8463。作業開始直後にgit merge mainを行い、同期済みを確認した。
+Linux検証環境の停止2件（04:43:09、04:43:27）、戦士対照、後から追加されたWindows再現記録を調査した。
+
+元のdecision_sequence=3、reason=periodic:character-dump、key='Cf\ry\x1b\x1b'に対し、実送信はindex 0～4の C / f / Enter / y / ESC。
+戦士対照も同じ5文字だが、その後はsequence=4のshop:approachへ進む。
+魔道具術師の停止フィールドはowner=periodic:character-dump、phase=continuation、transport=accepted、request_id=43、ctx=null、ctx_prompt=""。
+control-at-stopのscreenはwidth=213、height=68、input_context=null。45行目は
+['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]
+で、state.messagesには書き出し成功メッセージがある。2件とも同じ状態。
+元のキャプチャには途中の全screen応答がないため、各文字後の画面と文脈は別途実測した。
+
+魔道具術師の元の保存データを、隔離した未変更のWindowsヘッドレスゲーム（213x68）へコピーして再測定した。元のゲーム・セーブ・userディレクトリには書き込んでいない。
+C後：CHARACTER、input_context=null、キャラクター画面。
+f後：FILE_NAME、kind=string、prompt='ファイル名: '、initial='bot-test.txt'。物理22行目。
+Enter後：CONFIRM、kind=confirm、prompt='現存するファイル <出力先>/bot-test.txt に上書きしますか? [y/n]'。
+y後：22行目が「キャラクタ情報のファイルへの書き出しに成功しました。-続く-」。input_context={kind:'more', prompt:'-続く-'}。
+修正前のclassify_screenはこの画面をCHARACTERと誤判定した。
+次のESC後：メッセージ待ちだけが解除され、input_context=null、CHARACTERのまま。
+もう一度ESCを送るとCOMMAND、input_context.kind=commandへ戻る。
+上書き質問は実在し、yは正しく回答されている。
+
+戦士テンプレートも同じ手順で測定した。y後はinput_context=null、CHARACTERで、最初のESCでCOMMANDへ戻る。
+オプション画面の実測値は、魔道具術師がauto_more=いいえ、skip_more=いいえ、戦士テンプレートが両方はい。
+保存データのメッセージ待ち設定の差によって、既存の判定漏れが露呈した。職業専用ページや高負荷による遅延ではない。
+戦士側の追加実測は元のLv45テンプレートをロードしたもの。元のLv1対照の途中screenは残っていないが、同じ5送信区間で通過した元の記録と整合する。
+
+参照ゲームソースはローカルGit内のupstream develop a2bafaaabで確認した。
+cmd-visual/cmd-draw.cpp：80x24の中央寄せを保ち、fからinput_string→file_characterを呼ぶ。メッセージから戻った後、別のESCでキャラクター画面を閉じる。
+io/files-util.cpp：実在ファイルだけ上書き確認し、成功時にmsg_print→msg_eraseを呼ぶ。
+view/display-messages.cpp：skip_moreで待ちを省略し、待つ場合はMORE文脈を公開する。SpaceやESCはこのメッセージ待ちを解除する。
+ボットの中央寄せCHARACTER判定はファイル名・上書き確認を認識する一方、MOREは物理0行目しか確認していなかった。
+そのため残存フッターに一致して終了用ESCのcontinuationを消費し、ESCがMOREへ消費された後の画面をunownedとした。遷移待ち時間を延ばす問題ではない。
+
+2. 修正と保守性
+src/hengbot/input_executor.pyの既存の中央寄せ判定に6行を追加した。同じ論理0行目で日本語／英語MOREをフッターより先に認識する。
+既存executorのMORE処理がSpaceを送る間、同じoperationが終了用ESCを保持し、CHARACTERへ戻ってからESCで閉じる。
+既存のオフセット計算と_suffix_matchを再利用し、画面判定と継続手順の責務を維持した。重複する新モジュールや別ownerを作らず、修正対象の判定ブロック内で処理を完結させた。
+新しいガード定数・sleep・時間調整・ゲーム変更・オプション変更はない。行数制限対象ファイルも変更していない。
+
+3. 回帰テストと証拠
+fixtureはLinuxの2停止screen/state、開始前のJSONL、Windowsで文字ごとに実測したscreen/state、両保存データのオプション画面、元の戦士対照の送信5文字を保存する。
+SHA-256：19623f10a8cf62f7c3d6bd10f92833d8dd4322ea62537bfada673d78089ed26c
+抽出：validation/me-dump-stuck-1029/extract_fixture.py
+実測：validation/me-dump-stuck-1029/measure_dump.py
+
+公開choose_keyへ開始時のJSONLと送信確認を順に渡し、~f / ~9 / game-save / character-dumpを実際に選択させる。
+生成されたマクロを_send_new_decision_key→_ExecutorInputPort→OperationExecutor→ControlClientへ通し、入力に反応するソース準拠peerでMOREを解除し、2件の実際の停止画面を経てCOMMANDへ戻ることを検査する。
+中間の入力待ちは別途実測したWindows画面を使用する。元のLinux応答をすべて保存・再現したという主張ではない。
+修正後の実送信は C / f / Enter / y / Space / ESC。元の戦士対照は C / f / Enter / y / ESCを維持する。
+初回の上書き質問省略、日本語／英語、null文脈、フッターのない無関係画面も検査する。
+
+修正後の実ゲームfollow検証も、隔離したゲームで完了した。
+魔道具術師：completed→command、['C','f','\r','y',' ','\x1b']。
+戦士テンプレート：completed→command、['C','f','\r','y','\x1b']。
+スクリプト：validation/me-dump-stuck-1029/verify_live_dump.py。起動した各ゲームはfinallyで終了・wait済み。
+Linux検証環境上の新たなゲーム起動や全スイート実行は行っていない。
+
+4. 必須検査
+集中テスト：tests.test_character_dump_more_recorded（追加5件）とtests.test_headless_character_dump（既存3件）、計8件成功。最新mainマージ後・取り消し試験後にも再実行し成功。
+mutation_check <作業ツリー> main --record --tests tests.test_character_dump_more_recorded：終了コード0、MUTATION OK、1 source hunk中0件未検出。90d8515aの記録およびsrc/testsツリー単位の記録を作成。
+個別の取り消し試験：revert_pins.pyが修正ファイルをmain版へ戻して実際のテストを実行し、finallyで復元した。
+追加5テスト中、修正対象の3経路が計7サブケースで期待どおり失敗、エラー0。停止2件は両方失敗し、戦士対照および無関係画面の負例は成功した。
+証拠：validation/me-dump-stuck-1029/revert-pins.log、mutation.log、focused.log。
+
+初回preflightは実行中にmainが更新されたため、古いツリーの既存巨大ファイルと新しいmainの行数差、および再生成されたマニフェストを検出して終了コード1。
+その後mainの eebc99f0e をマージし、マニフェストを再生成・コミットしてから最終検査を開始した。今回の実装修正はinput_executor.pyの6行だけ。
+fast_tier <作業ツリー> main：終了コード0、1,813件、134.9秒。Failuresなし、Errorsなし、クラッシュなし。
+基準はmain=eebc99f0e。仕様どおり60秒超の52モジュールは除外され、derived scope／derived modules／全スイートは実行していない。全スイートはマージゲートへ委ねる。
+最終preflight <作業ツリー> main：終了コード0、PREFLIGHT OK、0 findings。構造テスト・行数制限を含む。証拠はpreflight-final.log。
+検証対象HEADは90d8515a6615e05d6eeb346f52a6a3af74700f66（以後は報告書・検証記録だけを追加し、src/testsは変更していない）。
+check_report_privacy.py LUNA-REPORT-me-dump-stuck.txt：REPORT_PRIVACY_PASS。
+報告書はPythonのPath.write_text(..., encoding='utf-8')で保存し、日本語の再読込と置換文字なしを確認した。
+
+5. 完了状態
+必須検査に未実行・実行中のものはない。検査の取り消し操作はすべて復元済みで、src/とtests/はクリーン。
+起動した検査・隔離ゲーム・通信コマンドはすべて終了確認済み。待機スクリプトやバックグラウンド処理を残していない。
+依頼時点から存在した未追跡のタスクファイルと起動ログはそのまま保持した。他の作業ツリーや他のプロセスは変更・停止していない。

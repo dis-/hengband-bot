@@ -1,0 +1,4 @@
+[mutation] 1 source hunks, tests: tests.test_character_dump_more_recorded
+[mutation] caught     src/hengbot/input_executor.py:206 (# file_character's msg_erase waits at logical row zero while the): test_centered_more_uses_same_rendered_origin_in_both_languages, test_first_dump_without_existing_file_still_owns_success_more, test_public_choose_and_follow_rep
+[mutation] MUTATION OK: 0 of 1 hunks are not pinned by a test
+[mutation] recorded for 90d8515a

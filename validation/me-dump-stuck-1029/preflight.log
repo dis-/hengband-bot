@@ -1,0 +1,35 @@
+[preflight] NOTE existing-test MODIFIED: tests/test_broke_prevent_recorded.py::BrokePreventRecordedTest.test_common_purchase_composer_refuses_stale_overbudget_quantity
+[preflight] NOTE existing-test MODIFIED: tests/test_broke_prevent_recorded.py::BrokePreventRecordedTest.test_outpost_has_no_return_fare_purchase_reserve
+[preflight] NOTE existing-test MODIFIED: tests/test_broke_prevent_recorded.py::BrokePreventRecordedTest.test_partial_wand_price_uncertainty_cannot_use_reserved_fare
+[preflight] NOTE existing-test MODIFIED: tests/test_broke_prevent_recorded.py::BrokePreventRecordedTest.test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one
+[preflight] NOTE existing-test MODIFIED: tests/test_equipment_in_home_stage1.py::EquipmentInHomeBehaviorPins.test_h10_completed_operations_continue_visit_without_attempt_reset
+[preflight] NOTE existing-test MODIFIED: tests/test_equipment_in_home_stage1.py::EquipmentInHomeBehaviorPins.test_h1_incident_finishes_with_one_exit_and_zero_reentries
+[preflight] NOTE existing-test MODIFIED: tests/test_home_full_await_knowledge_recorded.py::HomeFullAwaitKnowledgeRecordedTest.test_recorded_sale_delta_scans_then_selects_next_withdrawal
+[preflight] NOTE existing-test MODIFIED: tests/test_home_leave_suppressed_recorded.py::HomeLeaveSuppressedRecordedTest.test_outside_board_releases_the_posted_home_exit
+[preflight] NOTE existing-test MODIFIED: tests/test_supply_shortfall_owner_recorded.py::SupplyShortfallOwnerRecordedTest.test_blocked_stop_the_plan_moved_past_stays_closed
+[preflight] NOTE existing-test MODIFIED: tests/test_supply_shortfall_owner_recorded.py::SupplyShortfallOwnerRecordedTest.test_blocked_stop_without_a_required_offer_stays_closed
+[preflight] NOTE existing-test MODIFIED: tests/test_supply_shortfall_owner_recorded.py::SupplyShortfallOwnerRecordedTest.test_identify_staff_swap_returns_to_the_blocked_magic_shop
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_automatic_pickup_tiles_are_budgeted_by_routes_and_the_walk_executor
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_budget_allows_only_observed_room_or_zero_slot_operations
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_consumable_merge_ignores_protocol_recharge_representation
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_equipment_takeoff_and_stack_wield_consult_the_same_budget
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_every_production_overflow_call_enables_legal_relief
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_four_free_slots_do_not_start_overflow_relief
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_full_home_fallback_reaches_the_real_store_sale_selector
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_home_take_and_purchase_cannot_spend_the_fourth_slot
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_native_travel_cannot_hide_automatic_pickups_between_boards
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_open_chest_collection_yields_to_pack_relief_in_town
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_pressure_deposits_preserve_reservations_and_purpose_purchases
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_recorded_atomic_withdrawal_keeps_four_slots_until_a_deposit_lands
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_reward_admission_reserves_the_whole_visible_pile
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_stack_merge_costs_no_slot_but_a_different_inscription_does
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_staff_use_cannot_unstack_into_the_reserve
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_terminal_overflow_observes_unknown_home_stock_before_giving_up
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_terminal_overflow_retries_a_legal_home_route_before_blocking
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_three_captured_stops_choose_a_preserving_next_step_and_follow_posts_it
+[preflight] NOTE existing-test REMOVED or renamed: tests/test_town_pack_budget.py::TownPackBudgetTest.test_town_floor_pickup_cannot_consume_reserved_slots
+[preflight] FAIL manifest: the town work manifest was stale; it has been regenerated - commit it (regenerate after the LAST source edit)
+[preflight] FAIL line-cap: src/hengbot/policy.py has 20448 lines, over its cap 20444; put new code in another file
+[preflight] FAIL line-cap: src/hengbot/policy_town.py has 8396 lines, over its cap 8391; put new code in another file
+[preflight] FAIL line-cap: src/hengbot/policy_shop.py has 6567 lines, over its cap 6542; put new code in another file
+[preflight] PREFLIGHT FAIL: 32 changed files, 4 findings (me-dump-stuck-1029 vs main)
