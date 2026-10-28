@@ -742,5 +742,6 @@
   "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": "pure helper: returns an execution-only Loadout projection, no command or independent completion",
   "policy_town.py:TownMixin._outpost_return_fare": "pure helper: existing game fare to reserve outside Outpost; no key or independent work.",
   "policy_town.py:TownMixin._outpost_fare_recovery_key": "delegated adapter: emergency surplus sale/approach and inn return use existing gated owners; named terminal stops grant no work success.",
-  "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention."
+  "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention.",
+  "summoner_reachability.py:known_walking_separation": "pure helper: boolean proof of walking separation through known barriers; unknown terrain remains traversable, no command or independent progress."
 }

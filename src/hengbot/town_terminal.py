@@ -1675,6 +1675,10 @@ EXEMPT_RUNGS = frozenset({
 NO_REFUSAL_REASONS = {
     "_cross_town_shopping_key": "Select or settle the shopping expedition; the teleport body admits its route and fare before travel.",
     "_batch_sell_key": "Confirm the posted batch or compose its inscription-bound sale after checking item availability, retention and store acceptance.",
+    '_immobile_summoner_key': 'dungeon-only: avoid or leave a summoner known unable to approach, or fight when retreat is unavailable; src/hengbot/policy_combat.py',
+    '_ranged_attack_key': 'tactical survival/combat: delegated attack against a cornered summoner; src/hengbot/policy_combat.py',
+    '_normal_loot_key': 'dungeon-only: collect safe loot while avoiding a stationary summoner; src/hengbot/policy_combat.py',
+    '_explore_step': 'Select a safe exploration coordinate away from a stationary summoner; the separate movement entry owns the game command.',
     '_chest_processing_key#1': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
     '_chest_processing_key#2': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
     '_normal_loot_key#1': 'not a town errand: defend, pick up or walk to visible floor loot; src/hengbot/policy_identification.py:1322',

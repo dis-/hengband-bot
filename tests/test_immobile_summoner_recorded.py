@@ -388,6 +388,32 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("5", "summoner:hold-choke"))
 
+    def test_partial_map_unknown_barrier_keeps_mobile_summoner_wait(self):
+        # DECLARED CONSTRUCTED: the corridor barrier is unobserved. A missing
+        # known route cannot prove that the mobile summoner cannot approach.
+        board = self._walking_summoner_corridor(wall=True)
+        grids = dict(board.grids)
+        grids[Position(10, 12)] = fixtures.grid(10, 12, known=False)
+        board = replace(board, grids=grids)
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+        self.assertFalse(getattr(policy, "_immobile_summoner_avoid_cells", set()))
+
+    def test_partial_map_absent_barrier_keeps_detected_summoner_wait(self):
+        # DECLARED CONSTRUCTED: absent map cells are also unknown; detected
+        # mobile summoners retain the ordinary choke preparation behaviour.
+        board = self._walking_summoner_corridor(wall=True, detected=True)
+        grids = dict(board.grids)
+        del grids[Position(10, 12)]
+        board = replace(board, grids=grids)
+        policy = self._policy(board)
+        policy._detected_threat_hold = (board.floor_key, board.turn)
+        policy._detected_threat_hold_position = board.player.position
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("5", "summoner:hold-choke"))
+        self.assertIsNotNone(policy._detected_threat_hold)
+
     def test_glass_constructed_quest_does_not_wait_for_unreachable_mobile_summoner(self):
         board = self._walking_summoner_corridor(wall=True, quest=True)
         policy = self._policy(board)

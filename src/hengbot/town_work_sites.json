@@ -4360,7 +4360,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e1e1b45d2adbfe5ae697789e023c77df677f2a1b2eafd0efe31fc5ea9fce8ce6"
+    "ast_sha256": "97689c06e42d5a4e260e591d96073dcc7c2168f7c6d27069c0f9cc458515ae34"
   },
   "policy_combat.py:CombatMixin._update_combat_outcome": {
     "classification": "producer",
@@ -8308,6 +8308,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "bc97ab02677388fcdb5b50d4d0e9675941ae45526245c950c67258cbbdc05feb"
+  },
+  "summoner_reachability.py:known_walking_separation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "9ca542ba1a868e118c9eda4ca152fcec5fe56c235a4364fa54a137a6cb1682ab"
   },
   "town_arbiter.py:TownArbiterMixin._emission_item_state": {
     "classification": "data",

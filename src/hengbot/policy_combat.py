@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
+from hengbot.summoner_reachability import known_walking_separation
 
 from collections import Counter, deque
 from heapq import heappop, heappush
@@ -265,7 +266,7 @@ class CombatMixin:
             return True
         if {"PASS_WALL", "KILL_WALL"} & flags:
             return False
-        return self._monster_path_distance(snapshot, monster.position) is None
+        return known_walking_separation(snapshot, monster.position)
 
     def _immobile_summoner_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
