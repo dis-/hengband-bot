@@ -30,7 +30,9 @@ def powers(charges=17, *, menu=False, selected=True, japanese=False):
     screen = prompt(text)
     label = ("》" if japanese else "> ") if menu and selected else "  " if menu else "p)"
     name = "マジック・ミサイル" if japanese else "Magic Missile"
-    screen["lines"][3] = f"{label} {name:<22}    {charges:2}/17  35%"
+    screen["lines"][17] = f"{label} {name:<22}    {charges:2}/17  35%"
+    if menu and not selected:
+        screen["lines"][2] = ">  Heal Monster               1/1  10%"
     return screen
 
 
@@ -52,7 +54,7 @@ class MagicEaterO3Test(unittest.TestCase):
         inventory = [torch]
         if wand:
             inventory.append(item("b", TVAL_WAND, 15, charges=17))
-        monster = replace(hostile(1, *target, distance=3), race_id=race)
+        monster = replace(hostile(1, *target, distance=2), race_id=race)
         snap = Snapshot(
             replace(player(*stand, hp=100, max_hp=100, class_id=class_id, food_type=4),
                     race_id=25),
@@ -83,6 +85,14 @@ class MagicEaterO3Test(unittest.TestCase):
         policy = self.policy()
         self.assertEqual(self.choose(policy, self.board(charges=0)), "vt6")
         self.assertEqual(policy.last_reason, "quest-strategy:throw-torch")
+
+    def test_public_reobserves_charge_regeneration_after_throw_turn(self):
+        policy = self.policy()
+        board = self.board(charges=0)
+        self.assertEqual(self.choose(policy, board), "vt6")
+        self.assertEqual(self.choose(policy, replace(board, magic_eater_wand_charges=None)), "vt6")
+        later = replace(board, turn=board.turn + 1, magic_eater_wand_charges=None)
+        self.assertEqual(self.choose(policy, later), "mBp6")
 
     def test_public_warrior_preserves_torch(self):
         policy = self.policy()

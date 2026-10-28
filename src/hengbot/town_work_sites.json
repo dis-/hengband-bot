@@ -1596,7 +1596,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "64d6e4c6542adfea923bddb577dbe23e061f871abba570a680be9eaa0ed6b14b"
+    "ast_sha256": "97e9ecbd2937054b9aebe6b0e9587200b3b6a0847bf5dd0150b29927133d6c17"
   },
   "magic_eater.py:reserved_for_absorption": {
     "classification": "data",

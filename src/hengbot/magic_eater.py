@@ -45,13 +45,15 @@ def q34_missile_key(policy, snapshot, profile, target, direction):
     if profile.quest_id != 34 or snapshot.player.class_id != MAGIC_EATER:
         return None
     # A zero is observed in the power list, never inferred from an inventory
-    # wand or decremented speculatively after a failed spell. Recheck at the
-    # next approved target, where natural regeneration may have restored it.
-    empty = getattr(policy, "_q34_empty_magic_target", None)
+    # wand or decremented speculatively after a failed spell. Permit a throw
+    # on this board, then reopen the list after time advances so regeneration
+    # is observed rather than estimated.
+    empty = getattr(policy, "_q34_empty_magic_board", None)
+    board_key = (target.position, snapshot.turn)
     if snapshot.magic_eater_wand_charges == 0:
-        empty = target.position
-        policy._q34_empty_magic_target = empty
-    if empty == target.position:
+        empty = board_key
+        policy._q34_empty_magic_board = empty
+    if empty == board_key:
         return None
     policy.last_reason = MISSILE_REASON
     policy._quest_strategy_throw_exp[34] = (
