@@ -1078,7 +1078,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "77820cd263b59ead0ab15b06cab2a2919b78b74fcd2069751c216f61f0f8ec8e"
+    "ast_sha256": "b9a7c1d10c4d44995171304bd51fbf1caf86f56ba7f50109b2a036bbf3a9bfb7"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
@@ -1570,6 +1570,82 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "6ca8f4392a5413e4a6caad905163913c2e354c5231a359df2a14fb728f3865e9"
+  },
+  "magic_eater.py:absorb_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "5422273465630ce33c21041e9fd0a1797ebd6f5175953ee4111df4e7bd9d9cd4"
+  },
+  "magic_eater.py:planned_throw_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "1cce2e29cdeb625cd36dff9fc538d53ccfeb794334c322cab8c562f0842acb34"
+  },
+  "magic_eater.py:q34_missile_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "9b6f6c47bd528f3d548d936c043ecab686778aa8bc34724fb4eb305e90bcf981"
+  },
+  "magic_eater.py:reserved_for_absorption": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "975930f0f683ce7c8fa538e5c1d9bbb1ba91b41e8e210190cf8d746a7aada3fb"
+  },
+  "magic_eater_input.py:advance_magic_eater": {
+    "classification": "driver",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "70b605d02b210e187ac7e1b79e7f96531085d0271a3f2f530e06a062b8dd7ec7"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -6138,7 +6214,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "accb5c3a9fc4aa634846e64af36a902ba8a237f2a56201772fd5e84d9071eac9"
+    "ast_sha256": "3139bbd35d922174fc285fe9b8646b915ae9c99e89c931858729a7561c7fe2b7"
   },
   "policy_quest.py:QuestMixin._prepare_return_1_candidate": {
     "classification": "adapter",
@@ -6277,7 +6353,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "48d06faf38b598c0bdd2d1aaf77c627d75945056318e29e781148b89cf749aeb"
+    "ast_sha256": "4b443638ff6c41aa4ba2cb680711b08df2dd7a6ecee9f30b798d7b817fcf9d82"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -7097,7 +7173,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "4c9fc3e9a03c1eb09a8e126f25ce43f4690b878c917da81f21b5495194efe346"
+    "ast_sha256": "541b9ded6c1d4d3022a1698f0169cf40940cf7f5112caec7a2601dde941f7556"
   },
   "policy_supply.py:SupplyMixin._expedition_light_ready": {
     "classification": "data",
@@ -7121,7 +7197,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "da33a555562701df05b6cd0b50f85203f73d58313e99a255b798cfe4eaea4f1d"
+    "ast_sha256": "452879655bd6012b2e83234b0b062a745de16fd5043989c124b2dc02798a032b"
   },
   "policy_supply.py:SupplyMixin._find_surplus_identify_staff": {
     "classification": "data",
