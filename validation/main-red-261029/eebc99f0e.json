@@ -1,0 +1,98 @@
+{
+  "tests.test_exploration_commitment_observation.ExplorationPathInventoryTest.test_every_path_writer_and_clear_outcome_is_inventoried": {
+    "ran": 1,
+    "seconds": 4.81,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_exploration_commitment_observation.py\", line 78, in test_every_path_writer_and_clear_outcome_is_inventoried\n    self.assertCountEqual(\n    ~~~~~~~~~~~~~~~~~~~~~^\n        clears,\n        ^^^^^^^\n    ...<50 lines>...\n        ],\n        ^^\n    )\n    ^\nAssertionError: Element counts were not equal:\nFirst has 1, Second has 0:  ('_immobile_summoner_key', 'ExplorationPathOutcome.INVALIDATE')\n"
+    ],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.ExceptionsFileTest.test_no_uncovered_site_is_unexcused": {
+    "ran": 1,
+    "seconds": 2.12,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_ownership_s2a_classification.py\", line 305, in test_no_uncovered_site_is_unexcused\n    self.assertEqual(\n    ~~~~~~~~~~~~~~~~^\n        self.summary[\"unexcused\"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n         for site in self.summary[\"unexcused_sites\"][:20]],\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: 16 != 0 : ['policy_combat.py:_immobile_summoner_key:366', 'policy_combat.py:_immobile_summoner_key:373', 'policy_combat.py:_immobile_summoner_key:389', 'policy_combat.py:_immobile_summoner_key:402', 'policy_combat.py:_immobile_summoner_key:407', 'policy_combat.py:_immobile_summoner_key:410', 'policy_combat.py:_immobile_summoner_key:414', 'policy_combat.py:_immobile_summoner_key:417', 'policy_combat.py:_immobile_summoner_key:419', 'policy_opening.py:_opening_q1_store_key:121', 'policy_opening.py:_opening_q1_stop:220', 'policy_opening.py:_opening_q1_town_key:277', 'policy_opening.py:_opening_q1_town_key:284', 'policy_opening.py:_opening_q1_town_key:301', 'policy_opening.py:_opening_q1_town_key:315', 'policy_opening.py:_opening_q1_town_key:318']\n"
+    ],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.CensusSeparationTest.test_the_arbitration_table_is_the_one_that_existed_before_s2a": {
+    "ran": 1,
+    "seconds": 0.0,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_ownership_s2a_classification.py\", line 238, in test_the_arbitration_table_is_the_one_that_existed_before_s2a\n    self.assertEqual(\n    ~~~~~~~~~~~~~~~~^\n        hashlib.sha256(table.encode(\"utf-8\")).hexdigest(),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        ARBITRATION_TABLE_SHA256,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: '3e0cbb5ec29ce1e8f3c875c9f2e72180d0e0e53ab81c4e397633b9b61bada832' != 'e2dd0182f7dbafd9a23eeb9714d05a739a6a0df346a2433cd74686c400a50ccd'\n- 3e0cbb5ec29ce1e8f3c875c9f2e72180d0e0e53ab81c4e397633b9b61bada832\n+ e2dd0182f7dbafd9a23eeb9714d05a739a6a0df346a2433cd74686c400a50ccd\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.ExceptionsFileTest.test_the_lint_still_reports_rather_than_failing": {
+    "ran": 1,
+    "seconds": 4.09,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_ownership_s2a_classification.py\", line 335, in test_the_lint_still_reports_rather_than_failing\n    self.assertEqual(payload[\"unexcused\"], 0)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 16 != 0\n"
+    ],
+    "errors": []
+  },
+  "tests.test_reward_pack_full_handoff.RewardPackFullHandoffTest.test_captured_board_releases_reward_to_existing_overflow_owner": {
+    "ran": 1,
+    "seconds": 0.22,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_reward_pack_full_handoff.py\", line 55, in test_captured_board_releases_reward_to_existing_overflow_owner\n    self.assertEqual(key, \"01ka\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\nAssertionError: '01ke' != '01ka'\n- 01ke\n?    ^\n+ 01ka\n?    ^\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_town_terminal_disposal_round14.DisposalAdmissionTest.test_overweight_dispatch_cannot_bypass_the_selected_command_admission": {
+    "ran": 1,
+    "seconds": 0.09,
+    "failures": [],
+    "errors": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_town_terminal_disposal_round14.py\", line 96, in test_overweight_dispatch_cannot_bypass_the_selected_command_admission\n    key = policy._overweight_surplus_sale_key(snap)\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\src\\hengbot\\policy_home.py\", line 176, in _overweight_surplus_sale_key\n    if (relief.route == \"deposit\"\n        ^^^^^^^^^^^^\nAttributeError: 'types.SimpleNamespace' object has no attribute 'route'\n"
+    ]
+  },
+  "tests.test_town_terminal_no_refusal_round11.NoRefusalDeclarationTest.test_the_13_classified_rungs_have_reasons_and_no_shadow": {
+    "ran": 1,
+    "seconds": 0.01,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_town_terminal_no_refusal_round11.py\", line 45, in test_the_13_classified_rungs_have_reasons_and_no_shadow\n    self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12 | round13 | round14 | round15)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'_conquest_loot_key', '_direction_key#1'[1730 chars]key'} != frozenset({'_fruitless_disengage_key', '_[1609 chars]ey'})\n"
+    ],
+    "errors": []
+  },
+  "tests.test_two_cell_oscillation_recorded.SummonerRetreatVetoRecordedTest.test_replay_reproduces_the_retreat": {
+    "ran": 1,
+    "seconds": 5.12,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_two_cell_oscillation_recorded.py\", line 377, in test_replay_reproduces_the_retreat\n    self.assertEqual(rows, {n: self._live(n) for n in range(1, C_RETREAT + 1)})\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {1: ('7', 'seek-loot'), 2: ('7', 'seek-loot')} != {1: ('7', 'seek-loot'), 2: ('3', 'summoner:retreat')}\n- {1: ('7', 'seek-loot'), 2: ('7', 'seek-loot')}\n?                              ^       ^^^^^\n\n+ {1: ('7', 'seek-loot'), 2: ('3', 'summoner:retreat')}\n?                              ^     +++++ +++ ^^^^\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_two_cell_oscillation_recorded.SummonerRetreatVetoRecordedTest.test_seek_loot_does_not_walk_back_into_the_abandoned_square": {
+    "ran": 1,
+    "seconds": 7.83,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_two_cell_oscillation_recorded.py\", line 386, in test_seek_loot_does_not_walk_back_into_the_abandoned_square\n    self.assertIn(C_RETREAT_CELL, self.policy._engagement_avoid_cells)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Position(y=23, x=115) not found in {Position(y=32, x=101), Position(y=33, x=100), Position(y=21, x=80), Position(y=24, x=97), Position(y=35, x=97), Position(y=26, x=103), Position(y=20, x=84), Position(y=22, x=81), Position(y=20, x=93), Position(y=22, x=90), Position(y=31, x=102), Position(y=19, x=82), Position(y=21, x=101), Position(y=22, x=99), Position(y=23, x=98), Position(y=34, x=101), Position(y=22, x=108), Position(y=37, x=97), Position(y=23, x=107), Position(y=32, x=103), Position(y=33, x=102), Position(y=24, x=99), Position(y=35, x=99), Position(y=25, x=98), Position(y=20, x=86), Position(y=22, x=83), Position(y=29, x=98), Position(y=20, x=95), Position(y=22, x=92), Position(y=31, x=104), Position(y=22, x=101), Position(y=21, x=103), Position(y=23, x=100), Position(y=23, x=109), Position(y=27, x=100), Position(y=33, x=104), Position(y=24, x=101), Position(y=35, x=101), Position(y=25, x=100), Position(y=20, x=79), Position(y=20, x=88), Position(y=22, x=85), Position(y=29, x=100), Position(y=20, x=97), Position(y=22, x=94), Position(y=21, x=96), Position(y=31, x=97), Position(y=22, x=103), Position(y=23, x=102), Position(y=23, x=111), Position(y=27, x=102), Position(y=19, x=98), Position(y=30, x=98), Position(y=33, x=97), Position(y=25, x=102), Position(y=16, x=99), Position(y=20, x=81), Position(y=20, x=90), Position(y=22, x=87), Position(y=21, x=89), Position(y=23, x=86), Position(y=29, x=102), Position(y=20, x=99), Position(y=22, x=96), Position(y=21, x=98), Position(y=31, x=99), Position(y=23, x=104), Position(y=36, x=98), Position(y=19, x=91), Position(y=24, x=87), Position(y=28, x=103), Position(y=30, x=100), Position(y=33, x=99), Position(y=20, x=83), Position(y=22, x=80), Position(y=21, x=82), Position(y=20, x=92), Position(y=22, x=89), Position(y=21, x=91), Position(y=23, x=88), Position(y=31, x=101), Position(y=22, x=98), Position(y=21, x=100), Position(y=23, x=97), Position(y=23, x=106), Position(y=19, x=84), Position(y=36, x=100), Position(y=27, x=97), Position(y=19, x=93), Position(y=30, x=102), Position(y=33, x=101), Position(y=25, x=97), Position(y=20, x=85), Position(y=22, x=82), Position(y=21, x=84), Position(y=26, x=98), Position(y=29, x=97), Position(y=20, x=94), Position(y=22, x=91), Position(y=21, x=93), Position(y=31, x=103), Position(y=21, x=102), Position(y=23, x=99), Position(y=23, x=108), Position(y=19, x=86), Position(y=27, x=99), Position(y=28, x=98), Position(y=19, x=95), Position(y=25, x=99), Position(y=32, x=98), Position(y=20, x=87), Position(y=22, x=84), Position(y=21, x=86), Position(y=15, x=100), Position(y=24, x=103), Position(y=20, x=96), Position(y=26, x=100), Position(y=21, x=95), Position(y=29, x=99), Position(y=21, x=104), Position(y=23, x=101), Position(y=19, x=79), Position(y=34, x=98), Position(y=19, x=88), Position(y=22, x=105), Position(y=27, x=101), Position(y=28, x=100), Position(y=19, x=97), Position(y=30, x=97), Position(y=32, x=100), Position(y=20, x=80), Position(y=20, x=89), Position(y=21, x=88), Position(y=26, x=102), Position(y=29, x=101), Position(y=18, x=98), Position(y=21, x=97), Position(y=19, x=81), Position(y=34, x=100), Position(y=36, x=97), Position(y=19, x=90), Position(y=22, x=107), Position(y=27, x=103), Position(y=28, x=102), Position(y=30, x=99), Position(y=32, x=102), Position(y=20, x=82), Position(y=21, x=81), Position(y=24, x=98), Position(y=35, x=98), Position(y=21, x=90), Position(y=23, x=87), Position(y=21, x=99), Position(y=19, x=83), Position(y=22, x=100), Position(y=34, x=102), Position(y=36, x=99), Position(y=37, x=98), Position(y=19, x=92), Position(y=30, x=101), Position(y=32, x=104), Position(y=33, x=103), Position(y=21, x=83), Position(y=24, x=100), Position(y=26, x=97), Position(y=35, x=100), Position(y=21, x=92), Position(y=23, x=89), Position(y=22, x=93), Position(y=19, x=85), Position(y=22, x=102), Position(y=27, x=98), Position(y=28, x=97), Position(y=19, x=94), Position(y=23, x=110), Position(y=30, x=103), Position(y=32, x=97), Position(y=33, x=105), Position(y=21, x=85), Position(y=24, x=102), Position(y=25, x=101), Position(y=26, x=99), Position(y=35, x=102), Position(y=21, x=94), Position(y=22, x=86), Position(y=20, x=98), Position(y=22, x=95), Position(y=31, x=98), Position(y=34, x=97), Position(y=19, x=87), Position(y=22, x=104), Position(y=23, x=103), Position(y=28, x=99), Position(y=19, x=96), Position(y=23, x=112), Position(y=24, x=86), Position(y=32, x=99), Position(y=33, x=98), Position(y=21, x=87), Position(y=26, x=101), Position(y=25, x=103), Position(y=20, x=91), Position(y=22, x=88), Position(y=29, x=103), Position(y=20, x=100), Position(y=19, x=80), Position(y=22, x=97), Position(y=31, x=100), Position(y=34, x=99), Position(y=19, x=89), Position(y=22, x=106), Position(y=23, x=105), Position(y=28, x=101)}\n"
+    ],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_control_unobserved_home_capacity_keeps_the_relief": {
+    "ran": 1,
+    "seconds": 6.79,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_weight_relief_root_recorded.py\", line 160, in test_control_unobserved_home_capacity_keeps_the_relief\n    self.assertEqual((relief.route, relief.home_room), (\"sell-or-destroy\", False))\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: ('home-relief', False) != ('sell-or-destroy', False)\n\nFirst differing element 0:\n'home-relief'\n'sell-or-destroy'\n\n- ('home-relief', False)\n+ ('sell-or-destroy', False)\n"
+    ],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_generic_departure_block_is_named_when_only_retained_weight_remains": {
+    "ran": 1,
+    "seconds": 6.48,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_weight_relief_root_recorded.py\", line 219, in test_generic_departure_block_is_named_when_only_retained_weight_remains\n    self.assertEqual(policy.last_reason, \"town:blocked:overweight-retained-only\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'town:blocked:departure-unsatisfiable' != 'town:blocked:overweight-retained-only'\n- town:blocked:departure-unsatisfiable\n+ town:blocked:overweight-retained-only\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_retained_only_weight_is_named_with_numbers": {
+    "ran": 1,
+    "seconds": 6.26,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_weight_relief_root_recorded.py\", line 199, in test_retained_only_weight_is_named_with_numbers\n    self.assertEqual((relief.route, relief.weight, relief.limit, relief.excess),\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                     (\"retained-only\", 1908, LIMIT, 158))\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: ('home-relief', 1908, 1750, 158) != ('retained-only', 1908, 1750, 158)\n\nFirst differing element 0:\n'home-relief'\n'retained-only'\n\n- ('home-relief', 1908, 1750, 158)\n+ ('retained-only', 1908, 1750, 158)\n"
+    ],
+    "errors": []
+  }
+}
