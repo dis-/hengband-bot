@@ -1,7 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_reachability import known_walking_separation
-
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
