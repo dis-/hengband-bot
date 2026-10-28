@@ -65,9 +65,10 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         return policy, board, raw
 
     def test_three_captured_stops_choose_a_preserving_next_step_and_follow_posts_it(self):
-        for index in range(3):
-            with self.subTest(capture=index):
+        for index, enforced in ((i, flag) for i in range(3) for flag in (False, True)):
+            with self.subTest(capture=index, enforced=enforced):
                 policy, board, raw = self.attached(index)
+                policy._town_claim_bar_enforced = enforced
                 self.assertEqual(self.records[index]["decisions"][-1]["reason"],
                                  "town:blocked:overflow-no-legal-disposal")
                 self.assertEqual(len(board.inventory), 20)
