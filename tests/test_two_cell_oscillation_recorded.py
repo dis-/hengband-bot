@@ -91,10 +91,6 @@ B_LATCH = 5620
 B_COMMITTED_FRONTIER_DIVERGENCE = 5644
 B_DIVERGENCE = 5647
 
-C_RETREAT = 2
-C_DIVERGENCE = 3
-C_RETREAT_CELL = Position(23, 115)
-
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
@@ -317,7 +313,15 @@ class BreederBreakthroughAdjacentHostileRecordedTest(unittest.TestCase):
 
 
 class SummonerRetreatVetoRecordedTest(unittest.TestCase):
-    """(c) seek-loot must not walk straight back into the abandoned square."""
+    """(c) seek-loot must not walk straight back into the abandoned square.
+
+    The replay pins of the retreat (test_replay_reproduces_the_retreat and
+    test_seek_loot_does_not_walk_back_into_the_abandoned_square) were removed
+    on 2026-10-29 by owner decision: the summoner here is NEVER_MOVE, and the
+    owner decisions of 2026-10-27/28 avoid an immobile summoner instead of
+    retreating from it, so the recorded summoner:retreat no longer happens.
+    The new behaviour is pinned by tests.test_immobile_summoner_recorded.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -370,25 +374,6 @@ class SummonerRetreatVetoRecordedTest(unittest.TestCase):
         self.assertEqual(
             {tuple(self.recorded[n]["position"]) for n in range(1, 23)},
             {(24, 116), (23, 115)},
-        )
-
-    def test_replay_reproduces_the_retreat(self):
-        rows, board = self._replay_through(C_RETREAT)
-        self.assertEqual(rows, {n: self._live(n) for n in range(1, C_RETREAT + 1)})
-        self.assertEqual(board.player.position, C_RETREAT_CELL)
-        self.assertTrue(any(
-            monster.can_summon and monster.distance == 18
-            for monster in board.visible_monsters
-        ))
-
-    def test_seek_loot_does_not_walk_back_into_the_abandoned_square(self):
-        rows, board = self._replay_through(C_DIVERGENCE)
-        self.assertIn(C_RETREAT_CELL, self.policy._engagement_avoid_cells)
-        self.assertFalse(any(m.can_summon for m in board.visible_monsters))
-        self.assertEqual(self._live(C_DIVERGENCE), ("7", "seek-loot"))
-        key, _reason = rows[C_DIVERGENCE]
-        self.assertNotEqual(
-            key, self.policy._step_toward(board, C_RETREAT_CELL)
         )
 
 
