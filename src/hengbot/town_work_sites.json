@@ -4216,7 +4216,7 @@
       "loot-exploration"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9038e5324a86f33a3e474a3a1bed026d571c746421c2f34f846bae6b40316c0a"
+    "ast_sha256": "6f863e06ce8f17f5cc062c80e89928adbe59faa492a7bebbb83309f506ff7b91"
   },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",

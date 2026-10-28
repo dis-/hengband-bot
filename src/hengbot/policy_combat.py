@@ -372,12 +372,7 @@ class CombatMixin:
             if not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 if adjacent:
                     self.last_reason = "melee"
-                    return self._town_producer_entry(
-                        "_direction_key",
-                        lambda: self._direction_key(
-                            snapshot.player.position, self._weakest(adjacent).position
-                        ), family="combat",
-                    )
+                    return self._step_toward(snapshot, self._weakest(adjacent).position)
                 target = min(targets, key=lambda monster: monster.distance)
                 step = self._nearest_goal_step(
                     snapshot, lambda grid: grid.position.distance_to(target.position) <= 1
@@ -400,12 +395,7 @@ class CombatMixin:
             and self._can_fight_in_dungeon(snapshot.floor_key[0])
         ):
             self.last_reason = "melee"
-            return self._town_producer_entry(
-                "_direction_key",
-                lambda: self._direction_key(
-                    snapshot.player.position, self._weakest(adjacent).position
-                ), family="combat",
-            )
+            return self._step_toward(snapshot, self._weakest(adjacent).position)
         if snapshot.player.position not in cells:
             loot = self._town_producer_entry(
                 "_normal_loot_key",
