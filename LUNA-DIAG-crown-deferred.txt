@@ -1,0 +1,27 @@
+ISSUE #47 冠の自宅留置・診断書
+対象基準: 524054b47 / 保存記録: state-logs/n1a-crown-home-1027
+
+結論
+最適化は冠を選択していた。未完全鑑定のオログ鎧のテレポート抑制待ちが、冠・指輪を含む取引全体を消していた。冠自身の評価不足や耐性不足ではない。
+
+根拠と時系列（時刻は日本時間、記録の行番号は1始まり）
+・bot-decisions.jsonl.1:9771、02:09:50、turn 921418: オログのフル・プレート・メイルの保留署名と pending-random-teleport-suppression が初めて同時に記録される。これは保存範囲内で確認できる最初であり、取得時刻とは断定しない。
+・loadout-report.jsonl:275、02:17:03: 完全鑑定済み冠を pack の head 候補として選択。bot-decisions.jsonl:1273 も同じ抑制待ち。
+・bot-decisions.jsonl:1276、02:17:30: home:atomic-deposit。loadout-report.jsonl:279、02:17:43 には冠が home の head 候補になる。以後の帰還でも冠を含む最終セットを選ぶが装備取引は生成されない。
+・bot-decisions.jsonl:2097、02:22:01、turn 991350: 較正は正常、Home スキャン完了、冠を含む band 30、未完全鑑定品は鎧1点、blockers=[pending-random-teleport-suppression]、transaction_actions=0、session は no-session。保留品が原因となる停止を直接確認できる。
+・loadout-report.jsonl:338、02:30:03: 先頭候補は冠・火炎の指輪・オログ鎧を採用。bot-decisions.jsonl:3192、02:30:16 は帰還待ちで unknown-timed-effect:recall により calibration-required-return。この値は後続の較正状態であり、それ以前から続く冠の未装備の根因ではない。
+・dump-0217.txt の装備一覧は頭枠なし、自宅一覧に力の鉄冠を記載。ダンプ単独から候補選択や取引の因果は判断せず、上記の記録と照合した。
+
+停止する呼出経路（基準コミットの file:line）
+・src/hengbot/policy_equipment.py:1125: 評価可能な未完全鑑定品を、抑制後の性質で検索する。
+・src/hengbot/policy_equipment.py:1478-1489: 選択品に実物の抑制待ちが1点でもあると transaction=None に置換する。
+・src/hengbot/policy_equipment.py:1554-1564: transaction がなければ実行セッションを作らない。従って既知の冠も取り出し・装備へ進まない。
+・src/hengbot/policy.py:16916: known・非呪い・未完全鑑定の選択品も抑制対象と判定する。保留署名は経路選択を止める一方、通常の最適化の選択対象からは除かれない（policy_equipment.py:1024）。
+
+成立時期と安全上の判断
+この全体停止の構造は 412e05865（2026-07-25、Evaluate known uncursed equipment safely）で入った。その後の修正や mixin 分離を経ても基準コミットに残っている。今回の冠に限ると、保存記録では02:17:03の pack 候補選択時から停止し、自宅留置後は02:17:43から確認できる。
+plan_equipment_transactions は取外し・装備を段階実行し、容量不足時にもスロット単位のバッチを作る（src/hengbot/equipment_transaction_planner.py:197、267）。耐性を満たすためセット全体を不可分に適用する設計ではない。従って安全のため変更を中止すべき不可分性は認められない。
+修正では最終選択セットと降下判定を保持し、未処理品のスロットは現在の装備を維持する。既存の荷物容量・Home・呪い・取引確認・復元の規則を通した実行用計画だけを作る。
+
+再現の限界
+提供資料には生の状態JSONLや復元チェックポイントがない。追加fixtureはダンプ、候補記録、保存較正からの明示的な再構成。町の表示・地形は既存fixtureの外枠を使い、原資料にない重量・熟練度などを構成値とし、無関係な持ち物・自宅在庫と射撃武器は省略した。実記録の完全リプレイとは称しない。最適化・公開choose_key・followの入力executorは実装を置換せずに通す。

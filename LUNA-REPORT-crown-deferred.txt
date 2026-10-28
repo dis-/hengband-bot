@@ -1,0 +1,72 @@
+ISSUE #47 冠・保留装備の修正報告
+基準コミット: 524054b47
+ソース・テストの検証対象HEAD: 19b789851
+
+結果
+未完全鑑定のオログ鎧が選択セットに含まれると、テレポート抑制待ちが冠と火炎の指輪の取引まで取り消していた。実行用のセットだけを準備済みスロットへ投影し、冠・指輪を取り出して装備できるようにした。鎧は既存の鑑定・保留解除後に同じ最適化経路で追加装備する。原因・記録の行番号・成立時期は LUNA-DIAG-crown-deferred.txt を参照。
+
+実装
+・最適化が選ぶ最終セットと評価入力は維持。新しい数値基準、深度条件、重さによる比較は追加していない。
+・未処理の装備が使うスロットは現在の装備を維持し、取り出し・取外し・装備対象から外す。保持中の物理アイテムを別のスロットへ同時に移す変更と、両手の構成に依存する変更は待機する。独立した指輪は先行できる。
+・準備済みスロットは従来の plan_equipment_transactions と EquipmentTransactionSession に通し、荷物容量、Home満杯、呪い、移動、入力確認、取引復元の制約を使う。
+・鑑定待ちのblockerを保持したまま安全な部分計画のセッションを作る。荷物数だけが変わったキャッシュ再計画でもそのblockerを保持し、実行計画が空になっただけで鑑定待ちを完了と判定しない。
+・町の処理の純粋なデータ補助関数として登録し、既存のマニフェスト生成器で生成物を更新した。CodexランタイムPython 3.12のASTで再生成したため、既存生成物のPython版に由来するハッシュ差分も含む。
+
+修正前後とテスト
+・基準コミットを独立した一時worktreeで実行。同じ再構成データの公開choose_keyは key=Esc、reason=home:scan-complete-from-open-page、blockers=[pending-random-teleport-suppression]、実行セッションなし。冠は未装備で取り出しにも進まない。一時worktreeはこの作業で作成したものだけを片付けた。
+・追加テストは最適化や選択関数を差し替えず、公開choose_keyと、followで使用する送信関数・ControlClient・OperationExecutorを通す。ゲーム側だけを模擬し、観測されたアイテム選択・装備先のプロンプトを挟んで持ち物と装備の変化を返す。
+・冠・指輪の先行取り出しと装備、現在の鎧の保持、後から完全鑑定された鎧の追加装備、キャッシュ再計画、空の部分計画での鑑定待ち保持、独立指輪の先行と物理アイテム重複の防止を検証した。
+・提供資料に生の状態JSONL／完全なチェックポイントがないためfixtureは再構成。原資料にない値や省略はテストの先頭と診断書に明記した。実記録の完全リプレイとは称しない。
+・基準コミットに存在するテストは変更していない。保存ログはコミットしていない。
+
+検証
+・ソース／テストHEAD: 19b789851。ローカルガード対象HEAD: 11c3a105c（報告書のみの追加で、src/hengbot・testsのツリーは同一）。
+・CodexランタイムPython 3.12.14、PYTHONPATH=src;tests。
+・追加8テスト＋既存のキャッシュ再計画テスト1件: 計9件、95.665秒、終了コード0。
+・preflight（基準524054b47）: 最終ソースで9変更ファイル、指摘0、終了コード0。
+・verify_scope.py --base 524054b47 --target HEAD --derive-only: 終了コード0、6モジュールを導出。追加test_crown_deferredは上記ローカル実行とfast-tierで検証。
+・残る既存5モジュールをLinux検証環境でHEAD／基準コミットの両方について実行。test_cli、test_policy_equipmentは終了コード0。test_absorbing_states（11件）、test_policy（1件）、test_policy_structure（1件）の失敗は基準と同じ。比較検証全体の終了コード0、新規失敗0件。全モジュール無条件成功とはしていない。
+・初回の広域検証では既存の空カタログ／キャッシュ再計画テストの回帰1件を検出。既存テストを変えずに修正し、最終ソースで再実行して新規失敗0件を確認した。
+・mutation_check . 524054b47 --record: 5差分すべてでテストが欠落を検出。未検出0/5、終了コード0。HEADとsrc/hengbot・testsのツリーに対する成功記録を保存。
+・fast_tier . 524054b47: 1817件、110.3秒、クラッシュなし、エラーなし、失敗1件、終了コード1。失敗は tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop（tests/test_flight_recorder.py:425、AssertionError: 5 != 4）。この1件を基準524054b47の独立した一時worktreeでも同じPythonで実行し、同じ失敗を確認した。新規失敗とは扱わず、今回の範囲外のソースや既存テストは変更しない。fast-tier全体成功とは報告しない。
+・既存の共有全体検証終了を約37分待ってからmutation、fast-tierを順番に実行した。
+・git diff --check 524054b47 HEAD: 成功。報告書2ファイルの機密情報チェックも成功。
+・作業で生成した検証記録は C:/hengband-backups/crown-deferred-1027-validation/run-01a1794d に保存。ログはコミットしていない。
+
+コミット
+最小再現4テスト通過後、265d63e21で実装・fixture・回帰テストを先行コミットした。その後、キャッシュ、既存テストとの互換性、後続鑑定、指輪の物理依存関係を補強した。
+
+操作範囲
+ゲーム・BOTの操作、他者のプロセス停止、push、merge、rebase、reset --hard、stashは実施していない。ローカル検証のガードが別の全体検証を検知したため待機した。自分で起動した待機中のfast-tierだけを一度停止して後で再実行し、ソースを一時反転するmutation検証と同時実行にならないよう順序を調整した。
+
+
+第2ラウンド（2026-10-27、ISSUE #47）
+基準: 4db110bd5。検証対象ソースHEAD: cff5a2e43。
+
+判断と修正
+選択肢(a)として修正した。live27の選択セットはWar Hammerを主手にして副手を空けるが、実物のWar Hammerには抑制銘がまだない。第1ラウンドの投影は両手を現在の構成へ戻しながら、弓だけのHome交換を計画していた。この盤面の次の仕事は手持ちWar Hammerへの抑制銘であり、その前提が残ったまま部分セットのHomeセッションを開始すべきではない。
+既存の _random_teleport_suppression_actionable を使い、抑制を現在実行できる間は transaction=None を維持する。抑制を今は実行できない鑑定保留品については、第1ラウンドの物理スロット依存を調べる投影で、独立した準備済み装備を先行させる。実行可能な抑制銘を先に済ませれば、実物の銘の変化で最適化入力が更新され、通常の取引計画へ進める。
+修正箇所: src/hengbot/policy_equipment.py:1547。既存の判定定義: src/hengbot/policy.py:16955。既存live27ピン: tests/test_xbow_pref_recorded_divergence.py:202。
+既存テストの期待値は変更していない。新規ピンは追加せず、問題を検出していた既存の記録ピンをそのまま回帰検証に用いた。共有ハーネスの追加参照、キーの += 組立、新しい数値基準はない。
+
+取り込みとコミット
+第2ラウンドで明示された指示に従って4db110bd5を取り込んだ。登録JSONは双方の追加キーを保持し、生成マニフェストと実行時索引は生成器で再生成した。
+・c97070387: 基準の取り込み。
+・cff5a2e43: 実装と生成物を先行コミット。
+
+確定した検証結果
+・Windowsの実体Python 3.13.14、PYTHONPATH=src;tests。WindowsAppsのスタブは使っていない。
+・tests.test_crown_deferred（8件）と tests.test_xbow_pref_recorded_divergence（3件）: 計11件、374.994秒、unittest結果OK。PowerShellの標準エラーリダイレクトはNativeCommandErrorとして外側を終了コード1と報告したため、シェル全体の終了コード0とは記載しない。
+・冠・指輪の取り出しと装備、鎧の鑑定後の追加装備、キャッシュ再計画・空計画のblocker保持・指輪の独立性を維持した。
+・live27は最初の分岐index=11、key={g.\r、reason=equipment:suppress-random-teleport、actions=Noneで既存ピンを通過。tpstockoutとclassC2の通常交換もWindowsでは成功した。
+・Linux検証環境で上記ソースHEADと基準4db110bd5の既存6モジュールを比較。比較検証の終了コード0、新規失敗0件。test_cli、test_policy_structure、test_policy_equipmentは両側で終了コード0。test_absorbing_statesは11件、test_policyは1件、test_xbow_pref_recorded_divergenceは2件の同じ失敗が両側にあり、各モジュール終了コード1。クロスボウのLinux失敗はclassC2とtpstockoutで、live27の失敗ではない。全6モジュールが無条件に成功したとは扱わない。
+・git diff --check 4db110bd5 HEAD: 成功。
+
+最終検査結果と未完了項目
+・preflight . 4db110bd5: 10変更ファイル、指摘0、終了コード0。
+・verify_scope.py --base 4db110bd5 --target HEAD --derive-only: 報告を固定したHEAD c4284b89eで終了コード0。ソースはcff5a2e43と同一。導出されたのは tests.test_absorbing_states、tests.test_cli、tests.test_crown_deferred、tests.test_policy、tests.test_policy_equipment、tests.test_policy_structure の6モジュール。冠はWindows、残る5モジュールはLinux検証環境で実行し、前述の基準比較を行った。追加でクロスボウの記録テストも両環境で実行した。
+・先行した導出はレポート更新と重なり、作業ツリー指紋の変更で終了コード1になった。上記の固定状態での再実行により解消した。
+・mutation_check . 4db110bd5 --record --tests tests.test_crown_deferred tests.test_xbow_pref_recorded_divergence、および fast_tier . 4db110bd5 は起動したが、共有の全体検証を検出し、ガードの指示で待機した。確認時点で共有側は32バッチ中6バッチが完了した状態だった。45分制約内に両検査まで終えられる見通しが立たず、自分が起動した待機プロセスだけを停止した（外側終了コード1）。両検査の本体は未実施で、第2ラウンドのmutation成功記録もない。この2つの必須検査は未完了であり、取り込み可能との判定はしていない。共有検証終了後に再実行が必要。
+・レポートのUTF-8読取、REPORT_PRIVACY_PASS、git diff --checkを確認した。
+ガードを迂回していない。他者のプロセスやゲーム・BOTは操作していない。push、rebase、reset --hard、stashは行っていない。第2ラウンドで明示された基準の取り込みだけを実施した。
+検証ログはC:/hengband-backups/crown-r2-*.logおよび同名JSONへ保存し、コミット対象から外した。

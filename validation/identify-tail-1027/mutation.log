@@ -1,0 +1,9 @@
+[mutation] 6 source hunks, tests: tests.test_identify_tail_recorded
+[mutation] caught     src/hengbot/cli.py:93 (CARRIED_IDENTIFY_OWNERS,): test_dungeon_and_pressure_rebind_visible_target_for_both_languages, test_older_larger_repeat_is_not_a_new_failure, test_recorded_concatenated_failure_completes_
+[mutation] caught     src/hengbot/cli.py:3174 (if decision is not None and decision.get("reason") in (): test_dungeon_and_pressure_rebind_visible_target_for_both_languages, test_older_larger_repeat_is_not_a_new_failure, test_recorded_concatenated_failure_completes_
+[mutation] caught     src/hengbot/input_executor.py:620 (CARRIED_IDENTIFY_OWNERS = frozenset({): test_identify_tail_recorded
+[mutation] caught     src/hengbot/input_executor.py:687 (operation: Operation, screen: Mapping[str, object], board: Mapping[str): test_older_larger_repeat_is_not_a_new_failure, test_recorded_concatenated_failure_completes_with_named_refusal, test_recorded_repeated_failure_outside_delta_com
+[mutation] caught     src/hengbot/input_executor.py:1403 (normal_carried = self.active.owner in CARRIED_IDENTIFY_OWNERS): test_dungeon_and_pressure_rebind_visible_target_for_both_languages
+[mutation] caught     src/hengbot/input_executor.py:1645 (self.active, screen_value, board, self._bound_state_value, state):): test_recorded_repeated_failure_outside_delta_completes
+[mutation] MUTATION OK: 0 of 6 hunks are not pinned by a test
+[mutation] recorded for 413e1e2b

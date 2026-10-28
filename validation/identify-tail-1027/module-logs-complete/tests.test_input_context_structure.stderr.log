@@ -1,0 +1,10 @@
+test_a_new_reader_in_another_function_is_found (test_input_context_structure.InputInferenceSitesAreFrozen.test_a_new_reader_in_another_function_is_found) ... ok
+test_classify_screen_is_called_only_by_the_reader (test_input_context_structure.InputInferenceSitesAreFrozen.test_classify_screen_is_called_only_by_the_reader) ... ok
+test_input_context_is_read_only_by_the_reader (test_input_context_structure.InputInferenceSitesAreFrozen.test_input_context_is_read_only_by_the_reader) ... ok
+test_prompt_text_is_referenced_only_where_it_is_today (test_input_context_structure.InputInferenceSitesAreFrozen.test_prompt_text_is_referenced_only_where_it_is_today) ... ok
+test_screen_lines_are_read_only_where_they_are_today (test_input_context_structure.InputInferenceSitesAreFrozen.test_screen_lines_are_read_only_where_they_are_today) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 2.767s
+
+OK

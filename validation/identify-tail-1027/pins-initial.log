@@ -1,0 +1,21 @@
+python.exe : <stuck-prompt> owner=identify:dungeon-equipment phase=screen transport=accepted request_id=9 ctx=unavailab
+le ctx_prompt="" reason=read-only request failed
+発生場所 行:4 文字:1
++ & C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependenc ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (<stuck-prompt> ... request failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+<stuck-prompt> owner=identify:dungeon-equipment phase=screen transport=accepted request_id=9 ctx=unavailable ctx_prompt
+="" reason=read-only request failed
+<stuck-prompt> owner=identify:pack-pressure phase=screen transport=accepted request_id=9 ctx=unavailable ctx_prompt=""
+reason=read-only request failed
+<stuck-prompt> owner=identify:pack-pressure phase=screen transport=accepted request_id=9 ctx=unavailable ctx_prompt=""
+reason=read-only request failed
+.....<stuck-prompt> owner=identify:dungeon-equipment phase=continuation transport=accepted request_id=6 ctx=absent ctx_
+prompt="" reason=expected prompt absent
+........
+----------------------------------------------------------------------
+Ran 13 tests in 55.276s
+
+OK

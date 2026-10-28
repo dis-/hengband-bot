@@ -93,6 +93,7 @@ from hengbot.ownership_metrics import (
 from hengbot.save_archive import LIVE_SAVE_PATH, SaveArchiveCoordinator
 from hengbot.spectator import SPECTATE_BACKLOG_POLL_SECONDS, SpectatorWriter
 from hengbot.input_executor import (
+    CARRIED_IDENTIFY_OWNERS,
     FLOOR_PICKUP_PROMPT_PATTERN,
     Continuation,
     Operation,
@@ -710,6 +711,9 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
         "town:blocked:walk-in-entrance-unavailable": "the mining plan refuses recall, and this town has no entrance the walk can use",
+        "town:blocked:outpost-fare-no-sale": "no legal surplus or releasable reserved sale remains available to fund the Outpost return fare",
+        "town:blocked:outpost-fare-return-route-unavailable": "the recovered Outpost fare has no admitted return route",
+        "town:blocked:outpost-fare-recall-active": "a recall is already active during Outpost fare recovery",
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
         "quest:blocked:q34-opening-door-locked": "the Q34 opening door stayed locked after the bounded lock-pick attempts",
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
@@ -3173,8 +3177,8 @@ def _send_prompt_gated_decision_key(
                 # never bundle the historical blind ESC dismissal tail with
                 # the target selection.
                 segment = segment[:1]
-            if decision is not None and decision.get("reason") in {
-                    "identify:full-equipped", "identify:normal"}:
+            if decision is not None and decision.get("reason") in (
+                    CARRIED_IDENTIFY_OWNERS | {"identify:full-equipped"}):
                 # The current screen is authoritative, including its language.
                 # A resumed process may have a different prompt_japanese setting.
                 prompt = prompts

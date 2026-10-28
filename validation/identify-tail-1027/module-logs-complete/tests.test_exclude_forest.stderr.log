@@ -1,0 +1,15 @@
+test_fundraising_modes_keep_the_existing_yeek_destination (test_exclude_forest.ExcludeForestTest.test_fundraising_modes_keep_the_existing_yeek_destination) ... ok
+test_public_inside_forest_and_saved_recall_do_not_reselect_it (test_exclude_forest.ExcludeForestTest.test_public_inside_forest_and_saved_recall_do_not_reselect_it) ... ok
+test_public_level_fit_switch_uses_another_landing (test_exclude_forest.ExcludeForestTest.test_public_level_fit_switch_uses_another_landing) ... ok
+test_public_main_target_and_committed_target_leave_forest (test_exclude_forest.ExcludeForestTest.test_public_main_target_and_committed_target_leave_forest) ... ok
+test_public_walking_discards_saved_forest_target_and_routes_left (test_exclude_forest.ExcludeForestTest.test_public_walking_discards_saved_forest_target_and_routes_left) ... ok
+test_retained_exclusion_reserves_the_alternate_departure_scroll (test_exclude_forest.ExcludeForestTest.test_retained_exclusion_reserves_the_alternate_departure_scroll) ... ok
+test_retained_exclusion_without_alternate_does_not_reserve_a_read (test_exclude_forest.ExcludeForestTest.test_retained_exclusion_without_alternate_does_not_reserve_a_read) ... ok
+test_saved_exclusion_uses_safe_deeper_candidate_without_progress_bound (test_exclude_forest.ExcludeForestTest.test_saved_exclusion_uses_safe_deeper_candidate_without_progress_bound) ... ok
+test_public_forest_only_fallback_uses_existing_guardian_no_destination_stop (test_exclude_forest.RecordedForestRecallTest.test_public_forest_only_fallback_uses_existing_guardian_no_destination_stop) ... ok
+test_public_recall_and_spectator_use_new_destination_and_its_own_depth (test_exclude_forest.RecordedForestRecallTest.test_public_recall_and_spectator_use_new_destination_and_its_own_depth) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 72.859s
+
+OK

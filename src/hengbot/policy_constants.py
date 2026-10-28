@@ -332,6 +332,9 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:recall-readiness-contradiction',
         'town:blocked:survival-mana-no-charges',
         'town:blocked:walk-in-entrance-unavailable',
+        'town:blocked:outpost-fare-no-sale',
+        'town:blocked:outpost-fare-return-route-unavailable',
+        'town:blocked:outpost-fare-recall-active',
         'wilderness:no-safe-route',
     }
 )
