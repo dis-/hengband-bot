@@ -79,6 +79,7 @@ def measure(capture, terrain, monsters):
     screen = control["screen"]
     frames, sizes, gzip_sizes = [], [], []
     cells, examples, skipped = Counter(), Counter(), Counter()
+    stop_match = None
     with TemporaryDirectory() as directory:
         writer = SpectatorWriter(Path(directory) / "spectate.json", clock=lambda: 1000.)
         with gzip.open(capture / "state.jsonl.gz", "rt", encoding="utf-8") as stream:
@@ -101,6 +102,13 @@ def measure(capture, terrain, monsters):
                     counts, mismatches = compare(frame["tiles"], screen, terrain, monsters)
                     cells.update(counts)
                     examples.update(mismatches)
+                    stopped = control.get("state", {})
+                    if (state.get("turn") == stopped.get("turn") and
+                            state.get("clock") == stopped.get("clock") and
+                            all(state["player"].get(axis) == stopped.get("player", {}).get(axis)
+                                for axis in ("y", "x"))):
+                        stop_match = {"state_sequence": sequence, "turn": state.get("turn"),
+                                      "cells": dict(counts), "examples": dict(mismatches)}
         panel_counts = writer.tile_panel_counts
     emitted = sum("tiles" in frame for frame in frames)
     return {"capture": capture.name, "method": "states + fixed stop screen",
@@ -110,6 +118,7 @@ def measure(capture, terrain, monsters):
             "cells": dict(cells), "disagreement_share_compared": cells["disagree"] / cells["compared"] if cells["compared"] else None,
             "disagreement_share_map": cells["disagree"] / cells["map_cells"] if cells["map_cells"] else None,
             "disagreement_examples": dict(examples.most_common(12)),
+            "last_board_matching_control_turn_clock_position": stop_match,
             "plain_bytes_per_frame": statistics.mean(sizes),
             "gzip5_bytes_per_frame": statistics.mean(gzip_sizes),
             "log_budget_bytes": SPECTATE_FRAMES_MAX_BYTES, "log_capacity": capacity(frames)}

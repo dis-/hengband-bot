@@ -1,0 +1,141 @@
+[
+  {
+    "capture": "20261028-205420-town-blocked-overflow-no-legal-disposal",
+    "method": "states + fixed stop screen",
+    "frames": 73,
+    "skipped_non_board": {
+      "knowledge": 5,
+      "character": 3
+    },
+    "frames_with_tiles": 73,
+    "tile_share": 1.0,
+    "panel_outcomes": {
+      "derived": 73
+    },
+    "screen": [
+      213,
+      68
+    ],
+    "attrs": false,
+    "cells": {
+      "map_cells": 963600,
+      "compared": 607923,
+      "disagree": 103777,
+      "player_or_item": 55
+    },
+    "disagreement_share_compared": 0.17070747446633866,
+    "disagreement_share_map": 0.10769717725197177,
+    "disagreement_examples": {
+      "'.'->'#'": 33040,
+      "'#'->'.'": 32689,
+      "'#'->'~'": 9246,
+      "'~'->'#'": 7074,
+      "'.'->'~'": 3659,
+      "'#'->':'": 3180,
+      "':'->'#'": 3046,
+      "'~'->'.'": 2922,
+      "':'->'.'": 1887,
+      "'.'->':'": 1458,
+      "'^'->'#'": 1308,
+      "'#'->'^'": 932
+    },
+    "last_board_matching_control_turn_clock_position": {
+      "state_sequence": 81,
+      "turn": 1015844,
+      "cells": {
+        "map_cells": 13200,
+        "compared": 13067,
+        "disagree": 219,
+        "player_or_item": 1
+      },
+      "examples": {
+        "'#'->':'": 44,
+        "'.'->':'": 44,
+        "':'->'#'": 42,
+        "':'->'.'": 44,
+        "':'->' '": 7,
+        "'.'->' '": 5,
+        "'.'->'#'": 7,
+        "'#'->' '": 19,
+        "'#'->'.'": 3,
+        "'#'->'~'": 2,
+        "'~'->'#'": 2
+      }
+    },
+    "plain_bytes_per_frame": 33363.97260273973,
+    "gzip5_bytes_per_frame": 3924.72602739726,
+    "log_budget_bytes": 16777216,
+    "log_capacity": {
+      "before_rotation": 502,
+      "after_rotation": 251,
+      "after_rotation_bytes": 8384754
+    }
+  },
+  {
+    "capture": "20261028-195400-town-blocked-overflow-no-legal-disposal",
+    "method": "states + fixed stop screen",
+    "frames": 85,
+    "skipped_non_board": {
+      "knowledge": 5,
+      "character": 2
+    },
+    "frames_with_tiles": 85,
+    "tile_share": 1.0,
+    "panel_outcomes": {
+      "derived": 85
+    },
+    "screen": [
+      213,
+      68
+    ],
+    "attrs": false,
+    "cells": {
+      "map_cells": 1122000,
+      "compared": 541795,
+      "disagree": 75628,
+      "player_or_item": 59
+    },
+    "disagreement_share_compared": 0.1395878514936461,
+    "disagreement_share_map": 0.06740463458110517,
+    "disagreement_examples": {
+      "'#'->' '": 42405,
+      "'~'->'#'": 8423,
+      "'#'->'~'": 7636,
+      "'~'->' '": 3595,
+      "'#'->':'": 3272,
+      "':'->'#'": 2715,
+      "':'->' '": 2175,
+      "'#'->'^'": 2117,
+      "'^'->'#'": 650,
+      "'#'->'.'": 598,
+      "'.'->'#'": 535,
+      "'.'->' '": 488
+    },
+    "last_board_matching_control_turn_clock_position": {
+      "state_sequence": 92,
+      "turn": 1375504,
+      "cells": {
+        "map_cells": 13200,
+        "compared": 10447,
+        "disagree": 146,
+        "player_or_item": 1
+      },
+      "examples": {
+        "':'->'#'": 36,
+        "'#'->':'": 37,
+        "':'->' '": 41,
+        "'#'->' '": 28,
+        "'#'->'~'": 2,
+        "'~'->'#'": 2
+      }
+    },
+    "plain_bytes_per_frame": 32574,
+    "gzip5_bytes_per_frame": 3614.6117647058823,
+    "log_budget_bytes": 16777216,
+    "log_capacity": {
+      "before_rotation": 515,
+      "after_rotation": 257,
+      "after_rotation_bytes": 8370906
+    }
+  }
+]
