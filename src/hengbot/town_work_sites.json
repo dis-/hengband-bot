@@ -5845,7 +5845,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "fc881fb9f4ae0de92a6e100fc5e07e9735e17ca619f11d3434c458dd650004ee"
+    "ast_sha256": "8e0287448e8b0d7f47c552bbdd4841ac618b9def4e3167bfa56461d92fc7f4a4"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
     "classification": "adapter",
