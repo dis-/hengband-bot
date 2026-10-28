@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
+from hengbot.town_pack_budget import permits
 
 from collections import deque
 import json
@@ -212,6 +213,8 @@ class IdentificationMixin:
                 if contents:
                     here = snapshot.grids.get(player.position)
                     if player.position in contents and here is not None:
+                        if not permits(snapshot, here.object_count):
+                            return None
                         if quest_profile is not None:
                             pack_space = self._quest_sweep_pack_space_key(snapshot, here)
                             if pack_space is not None:

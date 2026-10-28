@@ -116,6 +116,7 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         item = replace(shelf_board.store.items[0], tval=TVAL_SCROLL, sval=99,
                        known=True, aware=True, count=1, price=1)
         self.assertEqual(incoming_slots(four, item, 1), 1)
+        self.assertFalse(policy._store_purchase_fits_pack(four, item))
         for kind in ("buy", "withdraw"):
             with self.subTest(kind=kind):
                 self.assertIsNone(store_item_key(policy, four, kind, item,
@@ -123,6 +124,7 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
                                                  quantity=1))
         # A completed prior deposit is credited only on its new observation.
         five = replace(four, inventory=four.inventory[:-1])
+        self.assertTrue(policy._store_purchase_fits_pack(five, item))
         self.assertIsNotNone(store_item_key(policy, five, "withdraw", item,
                                             "home-errand", quantity=1))
 
@@ -156,7 +158,7 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         self.assertEqual(result.report, "town-pack-budget")
         # Constructed: wield one item from a two-item pack stack, so the old
         # occupant needs an additional slot rather than replacing a pack slot.
-        stack = replace(worn, slot="a", count=2)
+        stack = replace(worn, slot="a", count=2, to_h=worn.to_h + 1)
         four = replace(four, inventory=[stack, *four.inventory[1:]])
         result = policy._equipment_mutation.request_wield(
             four, "test", stack, worn.slot, EQUIPMENT_SLOT_KEY, policy=policy)
@@ -175,6 +177,17 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         policy._position_changed = True
         self.assertIsNone(policy._current_floor_item_key(
             five, pickup_reason="pickup", trigger_reason="pickup"))
+
+    def test_open_chest_collection_yields_to_pack_relief_in_town(self):
+        policy, board, _ = self.attached(0)
+        here = board.grid_at(board.player.position)
+        grids = dict(board.grids)
+        grids[here.position] = replace(here, object_count=2, object_tvals=(TVAL_SCROLL,))
+        board = replace(board, inventory=board.inventory[:19], grids=grids)
+        # Constructed opened-chest state on the captured town tile.
+        policy._chest_position = here.position
+        policy._chest_phase_counts = {"open": 1}
+        self.assertIsNone(policy._chest_processing_key(board, []))
 
     def test_pressure_deposits_preserve_reservations_and_purpose_purchases(self):
         policy, board, _ = self.attached(2)
