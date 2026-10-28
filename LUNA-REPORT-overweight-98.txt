@@ -616,3 +616,78 @@ overweight-98-r3-flight-base.log / overweight-98-r3-flight-final.log / overweigh
 起動したガードはすべて終了し、検証の待機・実行を途中停止していない。
 この追加回収後もソース／テストの内容は45f118ae9と同一である。
 この追記もPythonのPath.write_text(encoding="utf-8")で保存した。
+
+
+第4ラウンド（2026-10-28）
+管理依頼 #47、指定タスクの対象 dis-/hengband-bot #98。
+取り込んだ最新main・検証基準: 78deea2accc3ce2aaa0780ed15f73aa13e2328c9
+マージコミット: d391653aa。競合したtown_work_manifest.json.gzとtown_work_sites.jsonは再生成した。
+実装修正の早期コミット: a3e2c58cf。
+検証対象HEAD: a3e2c58cff83ef27ac7e086b4591c6161f00ee29
+
+最初の分岐と原因
+対象はOverweightHomeHoldRecordedTestの独立チェックポイント11、turn 3079009である。
+現在の再生接頭辞はHome到着のindex 3で終了するため、それ以降を同じ軌跡として継続していない。
+既存テストの宣言済み五本杖・弩装備の境界をそのまま適用し、同じ独立盤面で比較した。
+重量1752、上限1750、超過2。Home容量は未観測。預入候補はk/j/i。
+Home実行器はAPPROACHING、attempt_limit=300、attempts_used=1。
+通常上限3に対し、問題の反実仮想ではapproach_fails=3、unsatisfied_passes=2。
+修正前の選択器は未達パス数だけに活動中訪問の例外を適用し、接近失敗数には通常上限を適用した。
+そのためHomeを使えないと判断し、sell-or-destroyを選んだ。
+既存の経路側はoverweight-home-unreachableを確定したが、ブランチの余剰回復処理がこれを解除し、
+武器店への移動マクロ（キーのreprは\x1b`n#.、理由shop:travel）へ進んだ。
+同じmain盤面はキー5、理由town:blocked:overweight-home-unreachable。
+公開choose_keyの最初の出力差分はこの独立index 11のapproach_fails反実仮想である。
+unsatisfied_passesの反実仮想は修正前からmainと同じ停止結果だった。
+
+修正
+_weight_relief_selectionの中で、活動中の物理Home訪問が残り予算を持つ場合は、
+過去の未達パス数と接近失敗数を同じように扱うようにした。
+適用可能な停止記録と実行器の予算枯渇は引き続き優先し、待機中実行器には両方の通常上限を適用する。
+_overweight_home_bound_exhaustedや既存の再試行・停止条件は変更していない。
+これにより選択器がHome観測を余剰処分に横取りさせず、経路側の既存上限による名前付き停止が維持される。
+既存テストの期待値・fixtureは変更せず、新規テストも追加していない。
+回帰を検出する既存ピン自体が修正前RED・修正後GREENであり、差し戻し検証でも選択器の保護を確認した。
+記録番号・turn・品名による実装特例、新しい定数、重量・出発条件の緩和、キーの+=構築はない。
+共有ハーネスの既存モジュール別名参照を維持した。
+
+検証
+全ガード・全テストは指定のシステムPython 3.13で実行した。
+最初の集約実行は19件が成功したが、WeightOverloadTownTestを誤ってtest_policy_townに指定し、
+その1件がローダーエラーになった。正しいtest_policy_home.WeightOverloadTownTestの15件を実行し直して成功した。
+この19件には記録011308/231603、容量不明Home、活動中Home予算、TownWeightDepartureRecordedTest r1/r2、
+今回失敗したHome停止を含む。mainの元の停止テストも1件成功（6.486秒）。
+PowerShellがstderrをNativeCommandErrorとして包む初回ログのため、以後はPython subprocessで
+UTF-8ログと実際の終了コードを保存した。
+weight-pins: 終了コード0、2.343秒。
+mutation: 終了コード0、395.059秒。
+fast: 終了コード0、78.676秒。
+modules: 終了コード0、400.699秒。
+
+preflight: 8変更ファイル、指摘0件、終了コード0。
+既存の行数上限超過は適用除外ブランチの注記2件であり、今回の条件式修正で行数は増えていない。
+mutation_check --record: 6ハンク中未検出0、終了コード0。
+増分検証として今回変わった選択部分の差し戻しを検出し、残り5ハンクは45f118ae9の成功記録を再利用した。
+検証前の34件は全成功。実装HEADとソース／テストツリーの成功記録を保存した。
+記録の控え: overweight-98-r4-mutation-record.txt（基準78deea2acを明記）。
+fast_tier: 1652件、78.3秒、失敗0、エラー0、クラッシュ0、終了コード0。
+指定3モジュール: tests.test_overweight_home_hold_recorded / tests.test_policy_town / tests.test_policy_home。
+合計771件、テスト本体383.434秒、プロセス全体400.699秒、失敗0、エラー0、既存スキップ4、終了コード0。
+Home停止記録7件、町593件、Home171件。r1/r2とWeightOverloadTownTestの15件も成功した。
+スキップ4件は既存のHomeWithdrawTargetUnobservedRecordedPinsで、引出対象が観測ページにない場合の新しい実録を要する境界。
+今回スキップ条件を追加・変更していない。
+git diff --check mainも成功した。レポート追加後の静的preflight（--no-tests）も指摘0件、終了コード0。
+
+要求されたガードと指定モジュールに未完了・未実行はない。
+派生モジュールの追加検査と全体スイートは、2026-10-28の指定に従い今回は実行していない。
+実ゲームの実行確認ではなく、宣言済み記録再生と入力実行器・単体検証の結果である。
+開始したガード・テストはすべて終了し、途中停止した検査や待機／最終処理スクリプトの残存はない。
+差し戻しは復元済みでsrc/とtests/は変更なし。比較用main作業ツリーも削除した。
+
+証拠はC:/hengband-backups配下:
+overweight-98-r4-main-pin.log / overweight-98-r4-pins.log / overweight-98-r4-weight-pins.log
+overweight-98-r4-main-walled-trace.jsonl / overweight-98-r4-before-walled-trace.jsonl / overweight-98-r4-fixed-trace.jsonl
+overweight-98-r4-preflight.log / overweight-98-r4-mutation.log / overweight-98-r4-fast.log
+overweight-98-r4-modules.log / overweight-98-r4-results.json
+トレースの修正前比較は診断プロセス内でコミットd391653aaの選択器を読み込んだもので、作業ツリーのソースは変更していない。
+本追記はPythonのPath.write_text(encoding="utf-8")で保存した。
