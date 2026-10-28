@@ -17346,7 +17346,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         pickup_reason: str,
         trigger_reason: str,
     ) -> str | None:
-        if len(snapshot.inventory) >= PACK_CAPACITY or not permits(snapshot, 1):
+        if len(snapshot.inventory) >= PACK_CAPACITY:
             return None
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:

@@ -2112,7 +2112,7 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "cd8971678beae4f0eb5eaa6cb2792ec00f54aba1430b31054470c35883a73b0f"
+    "ast_sha256": "82dc42adcf738462a3a525d1f4d5e337b5123980dc9481d1f6cd5fbe79f207e4"
   },
   "policy.py:HengbotPolicy._cursor_delta_keys": {
     "classification": "adapter",
