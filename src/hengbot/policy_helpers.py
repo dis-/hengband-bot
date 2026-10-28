@@ -103,6 +103,10 @@ class PolicyHelpersMixin:
             ),
             equipment=tuple(
                 item for item in snapshot.equipment if item.slot not in displaced_slots
+            ) + tuple(
+                replace(owned.item, slot=slot)
+                for slot, owned in target_slots.items()
+                if slot == "light" and slot in displaced_slots
             ),
         )
         return self._home_visit_retention(projected)[1]
