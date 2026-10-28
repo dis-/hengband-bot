@@ -1,5 +1,6 @@
 from __future__ import annotations
-from hengbot.town_pack_budget import find_pressure_sale, native_travel_fits
+from hengbot.town_pack_budget import native_travel_fits
+from hengbot.town_pack_headroom import find_sale
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
@@ -2354,41 +2355,16 @@ class TownMixin:
 
     def _town_space_deposit_actionable(self, snapshot: Snapshot) -> bool:
         """Whether an identified surplus can restore the town-work pack reserve."""
-        return (
-            snapshot.in_town
-            and not snapshot.player.recalling
-            and self._equipment_mutation.state.name == "IDLE"
-            and not (
-                self._effective_town_id(snapshot) != 1
-                and self._fixed_quest_prepare_return_required(snapshot)
-            )
-            and self._town_pack_space_shortage(snapshot)
-            and self._home_available(snapshot)
-            and self._find_home_deposit(snapshot) is not None
-        )
+        from hengbot.town_pack_headroom import eligible
+        return (eligible(self, snapshot) and self._home_available(snapshot)
+                and not self._home_is_full(snapshot)
+                and self._find_home_deposit(snapshot) is not None)
 
     @claims(ClaimOwner.STORE_ROUTER)
     def _town_space_deposit_key(self, snapshot: Snapshot) -> str | None:
         """Route shortage relief before any transaction that may need a slot."""
-        if not self._town_space_deposit_actionable(snapshot):
-            return None
-        if (
-            len(snapshot.inventory) < PACK_CAPACITY
-            and self._town_order_step4_pending(snapshot)
-        ):
-            # Bounty work precedes optional surplus deposits in the town order.
-            return None
-        # Stage-2 quest travel (rung #1) keeps the shortage actionable for
-        # earlier scan suppression and departure gating; the rung's terminal
-        # (town_terminal.space_deposit_intended_terminal) does not apply then.
-        self._town_claims_active(snapshot)
-        step = self._shopping_approach_step(
-            snapshot, requester="home-visit"
-        )
-        if step is None or self._shopping_approach_store_type != STORE_HOME:
-            return None
-        self.last_reason = "shop:approach"
-        return self._shopping_approach_key(snapshot, step, "shop:travel")
+        from hengbot.town_pack_headroom import key
+        return key(self, snapshot)
 
     @staticmethod
     def _town_order_step4_pending(snapshot: Snapshot) -> bool:
@@ -5071,7 +5047,7 @@ class TownMixin:
                 self._town_organization_sale_store(snapshot, item) is not None
                 or self._town_organization_home_routable(snapshot, item)
             ),
-        ) or find_pressure_sale(self, snapshot)
+        ) or find_sale(self, snapshot)
 
     def _town_organization_home_routable(
         self, snapshot: Snapshot, item: InventoryItem

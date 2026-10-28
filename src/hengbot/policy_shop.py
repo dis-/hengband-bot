@@ -2363,6 +2363,9 @@ class ShopMixin(InStoreMixin):
 
     def _next_purchase(self, snapshot: Snapshot, *, commit_churn: bool = False) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
+        from hengbot.town_pack_headroom import acquisition_waits
+        if acquisition_waits(self, snapshot):
+            return None
         if self._opening_q1_shopping(snapshot):
             item = self._opening_q1_purchase(snapshot)
             return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
@@ -2421,9 +2424,7 @@ class ShopMixin(InStoreMixin):
             and not self._store_purchase_fits_pack(snapshot, item)
             and (item.tval, item.sval) not in refused
         ):
-            # A full pack refuses only this non-stacking ware. A later wanted
-            # ware that stacks onto a carried one (e.g. a departure supply)
-            # still fits and must not be hidden behind it.
+            # Skip this nonstacking ware; a later stacking supply can still fit.
             refused.add((item.tval, item.sval))
             item = self._legacy_next_purchase_unreserved(
                 snapshot, excluded_classes=refused, commit_state=commit_churn,
@@ -5874,11 +5875,9 @@ class ShopMixin(InStoreMixin):
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
-        # Record-only (rev 9.2 C): the walk below runs the errand that
-        # ``travel_reason`` names, whatever reason the decision still carries.
+        # Record the route named by travel_reason, regardless of last_reason.
         writer_family = self._claim_family_of(travel_reason)
-        # Restock and Home-relief dispatchers also call this route directly.
-        # Their walk must ask the same terminal as the ladder approach rungs.
+        # Direct restock/Home relief routes use the ladder's terminal too.
         if (writer_family == "detectors"
                 or not self._town_gate_exempt(writer_family, travel_reason, snapshot)):
             from hengbot.town_terminal import (
@@ -5922,7 +5921,8 @@ class ShopMixin(InStoreMixin):
                            or self._can_compose_shop_observation(snapshot) else None)
             if atomic_shop is not None:
                 return atomic_shop
-            atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
+            atomic_withdrawal = (None if self._town_space_deposit_actionable(snapshot) else
+                                 self._atomic_home_withdraw_key(snapshot, step))
             if atomic_withdrawal is not None:
                 return atomic_withdrawal
             session = self._equipment_transaction_session

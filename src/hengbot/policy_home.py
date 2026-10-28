@@ -8,7 +8,7 @@ from hengbot.item_reservation import (
 
 from hengbot.claim_register import ClaimOwner, claims, terminal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot.town_pack_budget import find_pressure_deposit
+from hengbot.town_pack_headroom import find_deposit
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
@@ -4454,7 +4454,7 @@ class HomeMixin:
             and self._item_signature(organization) not in self._home_rejected_deposits
         ):
             return organization
-        return find_pressure_deposit(self, snapshot) if organization is None else None
+        return find_deposit(self, snapshot) if organization is None else None
 
     def _observe_home_history(self, snapshot: Snapshot) -> None:
         """Persist only a Home command whose inventory delta confirms success."""
