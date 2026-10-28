@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from functools import wraps
 
+from hengbot.model import Position
+
 
 SUMMONER_WAIT_GAME_TURNS = 50
 
@@ -10,9 +12,9 @@ SUMMONER_WAIT_GAME_TURNS = 50
 @dataclass
 class SummonerWait:
     floor: tuple
-    position: object
-    started: dict = field(default_factory=dict)
-    refused: dict = field(default_factory=dict)
+    position: Position
+    started: dict[tuple[int, int], tuple[int, int]] = field(default_factory=dict)
+    refused: dict[tuple[int, int], tuple[int, Position]] = field(default_factory=dict)
 
     def observe(self, policy, snapshot, monsters):
         """A closer monster invalidates both its wait and its stale verdict."""
@@ -26,7 +28,8 @@ class SummonerWait:
                 del self.started[identity]
         for identity, (distance, position) in list(self.refused.items()):
             monster = current.get(identity)
-            if monster is not None and monster.distance < distance:
+            if (monster is not None and monster.position != position
+                    and monster.distance < distance):
                 del self.refused[identity]
                 floor, remembered = getattr(policy, "_immobile_summoner_memory", (None, {}))
                 if floor == snapshot.floor_key and remembered.get(position) == monster.race_id:

@@ -403,6 +403,35 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         channel = "detected_monsters" if detected else "visible_monsters"
         return replace(board, **{channel: [replace(getattr(board, channel)[0], race_id=915)]})
 
+    def test_far_detected_summoner_without_a_wait_keeps_ordinary_behavior(self):
+        board = self._walking_summoner_corridor(detected=True)
+        monster = replace(board.detected_monsters[0], position=Position(10, 30), distance=20)
+        board = replace(board, detected_monsters=[monster], width=40)
+        policy = self._policy(board)
+        for delta in (0, 10, 50, 100, 500):
+            current = replace(board, turn=board.turn + delta)
+            policy.choose_key(current)
+            self.assertNotEqual(policy.last_reason, "summoner:hold-choke")
+            self.assertFalse(policy._summoner_never_approaches(current, monster))
+            self.assertEqual(policy._summoner_wait.started, {})
+            self.assertEqual(policy._summoner_wait.refused, {})
+
+    def test_approach_resets_only_the_summoner_that_moved(self):
+        board = self._walking_summoner_corridor()
+        first = board.visible_monsters[0]
+        second = replace(first, index=20, position=Position(10, 16), distance=6)
+        board = replace(board, visible_monsters=[first, second])
+        policy = self._policy(board)
+        self.assertEqual(str(policy.choose_key(board)), "5")
+        closer = replace(first, position=Position(10, 14), distance=4)
+        current = replace(board, turn=board.turn + 40, visible_monsters=[closer, second])
+        self.assertEqual(str(policy.choose_key(current)), "5")
+        at_limit = replace(current, turn=board.turn + SUMMONER_WAIT_GAME_TURNS)
+        policy.choose_key(at_limit)
+        self.assertFalse(policy._summoner_never_approaches(at_limit, closer))
+        self.assertTrue(policy._summoner_never_approaches(at_limit, second))
+        self.assertNotEqual(policy.last_reason, "summoner:hold-choke")
+
     def test_closer_summoner_restarts_its_wait_clock(self):
         board = self._walking_summoner_corridor()
         policy = self._policy(board)
@@ -423,14 +452,30 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertNotEqual(policy.last_reason, "summoner:hold-choke")
         self.assertEqual(policy._summoner_wait.started, {})
 
+    def test_expired_cornered_wait_keeps_fighting_after_our_own_approach(self):
+        board = self._walking_summoner_corridor(quest=True)
+        policy = self._policy(board)
+        later, key = self._until_wait_ends(policy, board)
+        self.assertEqual((str(key), policy.last_reason), ("6", "summoner:cornered-approach"))
+        # DECLARED CONSTRUCTED: player walks; the summoner has not approached.
+        for step in range(1, 5):
+            current = replace(board, turn=later.turn + step * 10,
+                              player=replace(board.player, position=Position(10, 10 + step)),
+                              visible_monsters=[replace(board.visible_monsters[0], distance=5 - step)])
+            self.assertEqual(str(policy.choose_key(current)), "6")
+            self.assertEqual(policy.last_reason,
+                             "melee" if step == 4 else "summoner:cornered-approach")
+
     def test_choke_wait_clock_clears_on_other_action_and_floor_change(self):
         board = self._walking_summoner_corridor()
         policy = self._policy(board)
         policy.choose_key(board)
         self.assertTrue(policy._summoner_wait.started)
-        adjacent = replace(board.visible_monsters[0], position=Position(10, 11), distance=1)
-        policy.choose_key(replace(board, turn=board.turn + 10, visible_monsters=[adjacent]))
-        self.assertEqual(policy.last_reason, "melee")
+        hurt = replace(board, turn=board.turn + 10,
+                       player=replace(board.player, hp=200),
+                       inventory=[fixtures.item("h", 75, 37)])
+        self.assertEqual(str(policy.choose_key(hurt)), "qh")
+        self.assertEqual(policy.last_reason, "emergency:heal")
         self.assertEqual(policy._summoner_wait.started, {})
         restarted = replace(board, turn=board.turn + 100)
         policy.choose_key(restarted)
