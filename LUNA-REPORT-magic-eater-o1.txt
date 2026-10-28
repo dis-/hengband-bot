@@ -1,80 +1,88 @@
-Issue #47: 魔道具術師のクエスト受注DPS下限 (O1)
+Issue #47: 魔道具術師のクエスト受注DPS下限（O1）
 作成日: 2026-10-28
 
-対象
-指定タスク LUNA-TASK-magic-eater-o1.txt の O1 を実装した。
-タスク冒頭の Issue 表記は #116 だが、今回の依頼番号は #47 として記録する。
+対象と方針
+指定された LUNA-TASK-magic-eater-o1.txt の O1 を実施した。
+タスク冒頭は #116 と表記されているが、今回の依頼番号 #47 で記録する。
 所有者決定「職業ごとに下限を変える（魔道具術師だけ下げる。
-魔道具の威力を数えるのは戦術を作る時）」を適用した。
-作業開始時に fetch と git merge main を実行。Already up to date。
-基準 main: 4a75410a832ac29361f422be72a1e05cf450a4a0
-取得した origin/main はこの main の祖先だった。
+魔道具の威力を数えるのは戦術を作る時）」に従った。
+作業開始時に既に実装・検証レポート・コミットが存在したため、内容を確認し、
+最新mainを取り込んで再検証した。既存テストの期待値は変更していない。
+
+最終基準main: 03df7d9e3d415ae1d6e389d76cd9d59331c17163
+最終検証対象HEAD: 33801ffc35fadc8d0c546b5623104caa8bc74700
+origin/mainをfetchして取り込み済みと確認した後、ローカルmainも取り込んだ。
+待機中のmain更新も再度取り込んだ。生成マニフェストのバイナリ競合は
+scripts/town_work_manifest.py --write で再生成して解消し、コミットした。
 
 下限の算術
-ゲームの src/player-info/class-info.cpp:36 と :116 を確認した。
-戦士: c_thn=70, x_thn=30。魔道具術師: c_thn=48, x_thn=13。
-両戦略の level_guideline=5 を基準レベルとした。
-src/player/player-status.cpp:1267-1268 の職業近接技能の整数計算より、
+ゲームの src/player-info/class-info.cpp:36、:116 と
+src/player/player-status.cpp:1267-1268 を読み直して確認した。
+戦士: c_thn=70、x_thn=30。魔道具術師: c_thn=48、x_thn=13。
+両戦略の level_guideline=5 を基準に、職業近接技能の整数計算を用いる。
 戦士は 70 + (30*5//10) = 85、魔道具術師は 48 + (13*5//10) = 54。
-職業による近接技能比 54/85 を受注下限の調整係数として採用した。
+職業近接技能比54/85を、受注方針上の下限調整係数として採用した。
 Q34: ceil(8*54/85) = ceil(5.082352...) = 6（参照AC40）。
 Q1 : ceil(28*54/85) = ceil(17.788235...) = 18（参照AC24）。
-この比は所有者決定に沿った受注方針の補正であり、魔道具の期待威力や
-実際の撃破ターンを算出するものではない。実測DPSの計算は既存処理を使う。
+これは魔道具の期待威力や撃破ターンを算出するものではない。
+実測DPSの計算は既存処理を使い、魔道具ダメージは含めていない。
 
 実装と保守性
 - QUEST_34.jsonc と QUEST_1.jsonc の通常・無回復ティアに
-  min_expected_dps_by_class を追加。職業ID文字列 "16" だけを指定した。
-- 小さな既存の戦略モジュール quest_strategies.py に単一責務の
-  acceptance_dps_floor を設け、表示値・通常判定・無回復判定で共有した。
+  min_expected_dps_by_class を追加し、職業ID文字列「16」だけを指定した。
+- 小さな既存モジュール quest_strategies.py の acceptance_dps_floor に
+  下限解決を集約した。表示値・通常判定・無回復判定で同じ処理を共有する。
   未指定の職業・戦略は従来の min_expected_dps にフォールバックする。
-- strategy/CONVENTIONS.md に任意フィールドの意味と今回の適用範囲を記載した。
-- policy.py は main と同じ20,432行。他の上限対象ファイルも行数増加なし。
-- 戦士の下限はQ34=8、Q1=28のまま。既存テストの期待値は変更していない。
+- strategy/CONVENTIONS.md に任意フィールドの意味と適用範囲を記載した。
+- policy.py はmainと同じ20,432行。他の上限対象6ファイルもmainから増加なし。
+- 戦士の下限はQ34=8、Q1=28のまま。他職業も従来の値を使う。
 - HP下限はQ34の通常10・無回復54、Q1の通常36・無回復88を維持した。
-  松明数、薬の条件、参照AC、装備評価、魔道具を使う戦術は変更していない。
-- preflight が生成する town work manifest の呼出箇所更新もコミットした。
+  松明数、薬の条件、参照AC、装備評価、魔道具の戦術は変更していない。
 
 回帰テストと変更取り消し耐性
-- 新規 tests.test_magic_eater_acceptance は7テスト。
-  ゾンビ(race_id=25)・魔道具術師(class_id=16)の構成盤面を作り、
-  実際の受注戦力判定の生産元 _approved_strategy_force_ready を実行する。
-- Q34の実測6.8、Q1の実測20.28は、魔道具術師として受注可能。
-  同じ武器・打撃結果のまま職業だけ戦士にすると、それぞれ下限8・28で拒否される。
-- 通常・無回復ティア、下限未満の近接火力、HP不足、他職業の既定値、
-  十分な戦士火力での受注も確認した。
-- データの職業別設定をQ34通常・Q34無回復・Q1通常・Q1無回復の4箇所で
-  個別に一時除去し、対応する受注テストが失敗することを確認。すべて復元した。
-- mutation_check はPythonの4ハンクを個別に戻して全ハンクの検出に成功した。
-  MUTATION OK: 0 of 4 hunks are not pinned by a test。
+新規 tests.test_magic_eater_acceptance は7テスト。
+ゾンビ(race_id=25)・魔道具術師(class_id=16)の構成盤面から、
+実際の受注判定の生産元 _approved_strategy_force_ready を実行する。
+Q34の実測6.8、Q1の実測20.28は魔道具術師として受注可能だが、
+同じ打撃結果で職業だけ戦士にすると従来の下限8・28によって拒否される。
+通常・無回復ティア、DPS不足、HP不足、他職業の既定値、十分な戦士火力も確認した。
+Q34通常・無回復、Q1通常・無回復の職業別設定を個別に一時除去し、
+対応する受注テストが各々終了コード1で失敗することを再確認した（計4箇所）。
+全設定をバイト単位で復元後、新規7テストが成功（0.052秒、終了コード0）。
+Python側の4変更ハンクもmutation checkで個別に戻し、すべて検出できた。
 
-検証結果
-- Python 3.13、PYTHONPATH=src;tests;scripts で実行した。
-- 新規テスト単独: 7件成功、終了コード0。
-- 次のモジュール全体: 361件、成功（スキップ7件）、222.263秒、終了コード0。
+今回の最終検証結果
+Python 3.13、PYTHONPATH=src;tests;scripts を使用。
+- 対象モジュール全体: 369件、成功（スキップ7件）、205.014秒、終了コード0。
   tests.test_magic_eater_acceptance / tests.test_policy_quest /
-  tests.test_quest_strategies / tests.test_protocol3_display_align
-- fast_tier.py . main: 1,687件、115.7秒、終了コード0。
-  失敗なし、エラーなし、クラッシュしたシャードなし。
-- mutation_check.py . main --record: 成功、終了コード0。
-  対象HEAD 22b51e3c28837ce547faa71ab53072fb72bfb9ee に記録済み。
-  src/hengbot と tests のツリー別記録も生成され、レポート等のみの後続コミットで有効。
-- preflight初回: manifestの再生成が必要な点だけを検出。
-  更新を22b51e3c2にコミットした。
-- preflight再実行: PREFLIGHT OK、7変更ファイル、指摘0件、終了コード0。
-  構造テストと行数上限検査を含めて成功した。
-- 日本語コメント修正後の新規テストと戦略テスト: 14件成功、終了コード0。
-- git diff --check main: 成功。
-- 指示どおり派生スコープ／派生モジュールと全件スイートは実行していない。
+  tests.test_quest_strategies / tests.test_protocol3_display_align /
+  tests.test_melee_site_lint
+- preflight.py . main: PREFLIGHT OK、8変更ファイル、指摘0件、終了コード0。
+  構造テストと行数上限検査を含む。
+- fast_tier.py . main: 1,734件、117.1秒、終了コード0。
+  失敗・エラー・クラッシュしたシャードはいずれもなし。
+- mutation_check.py . main --record --full: 成功、終了コード0。
+  MUTATION OK: 0 of 4 hunks are not pinned by a test。
+  過去記録によるハンク省略を無効にして実行し、対象HEAD 33801ffc3に記録した。
+  ソース・テストのツリー別記録も生成され、レポートだけの後続コミットでも有効。
+- git diff --check main: 成功。上限対象7ファイルの行数もmain以下と再確認した。
+- 派生スコープ／派生モジュールと全件スイートは指示どおり実行していない。
   全件スイートはmerge gateが一度実行する。
 
-コミットと保存
-- bb349aa7c: 魔道具術師の受注DPS下限と回帰テスト・規約。
-- 22b51e3c2: town work manifest再生成。
-- 日本語コメントと本レポートは最終コミットに含める。
-- 本レポートはPythonのPath.write_text(encoding="utf-8")で保存した。
-  PowerShellのパイプによる文字置換を発見したため、入力もUTF-8に設定して再保存した。
+途中の停止と解消
+最初のmain取り込み後は対象361件とpreflightが成功した。
+mutation checkはmerge gateの終了を約23分待機し、解除後の開始前確認で、
+既存の近接判定構造テストが失敗したため変更を戻す前に停止した。
+待機中にmainへこの近接判定の修正が取り込まれたことを確認し、再マージした。
+その後、該当テストのモジュール全体を含めた上記369件、preflight、
+fast tier、mutation checkを再実行して成功した。未解消の失敗はない。
 
-終了状態
-本作業で起動した検査はすべて終了し、待機中の検査や補助プロセスは残していない。
-作業開始時からの未追跡タスクファイルと実行ログ2件は変更せず残した。
+コミットと終了状態
+- bb349aa7c: 魔道具術師の受注DPS下限・回帰テスト・規約。
+- 22b51e3c2: town work manifest再生成。
+- b01711b4c: 前回の日本語検証レポート。
+- 72e568e3b: main取り込みとマニフェスト再生成。
+- 33801ffc3: 待機中に更新されたmainの取り込みとマニフェスト再生成。
+- 本レポート更新はPythonのPath.write_text(encoding="utf-8")で保存した。
+本作業で起動した検査・待機プロセスはすべて終了し、補助プロセスは残していない。
+作業開始時から存在した未追跡タスクファイルと実行ログ4件は変更せず残した。
