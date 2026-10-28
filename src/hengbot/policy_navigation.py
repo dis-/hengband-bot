@@ -1948,41 +1948,39 @@ class NavigationMixin:
         ):
             tunnel = self._mining_tunnel_key(snapshot, step)
             return (tunnel if tunnel is not None else key) + tail
+        if self._warning_step_refused(snapshot, step):
+            # The gate on the COMPLETE composed key: a latched warning
+            # grid is never entered while a movement scroll remains (or
+            # while the engagement owner independently requires the cell
+            # avoided) — not even by a caller whose tail would have
+            # answered the re-raised prompt.  A bare walk is not a safer
+            # fallback: warning.cpp:501's old_damage suppression lets a
+            # repeated attempt enter silently.
+            #
+            # Reachability of this WAIT, honestly: every dungeon step
+            # producer excludes a refused grid while choosing.  The
+            # avoid-aware BFS pickers (loot/goal/mining/dig/device, the
+            # loot wiggle, the chest step-off) read the avoid set the
+            # latch also fills; the probe, the descent route, the choke
+            # and summoner retreat routes, the breeder breakthrough, the
+            # flee fallback, the low-HP no-kit step, the positional
+            # oscillation breaker and _breakout_step ask
+            # _warning_step_refused (this gate's own condition).  So the
+            # decision falls through to another candidate or the next
+            # producer instead of reaching this WAIT.  A dungeon repeat
+            # requires a quest-floor navigator static route, which
+            # terminates at the CLI loop-detector visible stop, the
+            # navigator's pre-existing terminal for its own
+            # quest:blocked states.  The reachable-in-principle
+            # unbounded route is a TOWN composed caller re-selecting a
+            # latched special tile (e.g. a fixed-quest entrance) every
+            # decision; the user has ruled that case out of scope
+            # (2026-08-03: 町で警告ブロックが発生することはほぼなく、
+            # 固定クエスト入口が封鎖されることは考えなくて良い), so it
+            # is recorded here rather than defended against.
+            self.last_reason = "warning:blocked-step"
+            return WAIT_KEY
         if step in self._warning_refused_cells:
-            if not self._warning_supplies_exhausted(snapshot) or (
-                step in self._engagement_owned_avoid_cells
-            ):
-                # The gate on the COMPLETE composed key: a latched warning
-                # grid is never entered while a movement scroll remains (or
-                # while the engagement owner independently requires the cell
-                # avoided) — not even by a caller whose tail would have
-                # answered the re-raised prompt.  A bare walk is not a safer
-                # fallback: warning.cpp:501's old_damage suppression lets a
-                # repeated attempt enter silently.
-                #
-                # Reachability of this WAIT, honestly: every dungeon step
-                # producer excludes a refused grid while choosing.  The
-                # avoid-aware BFS pickers (loot/goal/mining/dig/device, the
-                # loot wiggle, the chest step-off) read the avoid set the
-                # latch also fills; the probe, the descent route, the choke
-                # and summoner retreat routes, the breeder breakthrough, the
-                # flee fallback, the low-HP no-kit step, the positional
-                # oscillation breaker and _breakout_step ask
-                # _warning_step_refused (this gate's own condition).  So the
-                # decision falls through to another candidate or the next
-                # producer instead of reaching this WAIT.  A dungeon repeat
-                # requires a quest-floor navigator static route, which
-                # terminates at the CLI loop-detector visible stop, the
-                # navigator's pre-existing terminal for its own
-                # quest:blocked states.  The reachable-in-principle
-                # unbounded route is a TOWN composed caller re-selecting a
-                # latched special tile (e.g. a fixed-quest entrance) every
-                # decision; the user has ruled that case out of scope
-                # (2026-08-03: 町で警告ブロックが発生することはほぼなく、
-                # 固定クエスト入口が封鎖されることは考えなくて良い), so it
-                # is recorded here rather than defended against.
-                self.last_reason = "warning:blocked-step"
-                return WAIT_KEY
             # 物資が全て尽きている場合のみ徒歩強行を許す: the forced walk
             # carries its deliberate 'y' with the movement key, so the
             # re-raised input_check is answered inline; the caller's tail
