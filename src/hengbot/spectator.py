@@ -24,6 +24,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from hengbot.control_client import raw_keys_to_macro_notation
+from hengbot.spectator_tiles import spectator_player, spectator_tiles
 
 # Owner request 2026-10-23: the last 20 messages,
 # and one stderr line per hour at most for a failing write.
@@ -245,6 +246,8 @@ class SpectatorWriter:
                 "depth": snapshot.dungeon_level,
                 "dungeon": snapshot.floor_key[0],
                 "hp": [player.hp, player.max_hp],
+                "player": spectator_player({"race_id": player.race_id,
+                                             "class_id": player.class_id}),
             }
             if policy is not None:
                 destination = spectator_recall_destination(policy, snapshot)
@@ -272,7 +275,13 @@ class SpectatorWriter:
             content["messages"] = list(self.messages)
             temporary = self.path.with_name(self.path.name + ".tmp")
             if state_line is not None:
-                content.update(spectator_details(json.loads(state_line), snapshot))
+                state = json.loads(state_line)
+                content.update(spectator_details(state, snapshot))
+                content["player"] = spectator_player(state.get("player", {}))
+                if screen is not None:
+                    tiles = spectator_tiles(state, screen)
+                    if tiles is not None:
+                        content["tiles"] = tiles
             # The two outputs fail independently; a broken compatibility snapshot
             # must not suppress frames (or vice versa).
             if append_frame:
