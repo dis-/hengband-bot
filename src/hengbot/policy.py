@@ -12059,10 +12059,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not physical_adjacent
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
         ):
-            overflow_relief = self._town_producer_entry("_town_overflow_relief_key", lambda: self._town_overflow_relief_key(snapshot))
-            if overflow_relief is not None:
-                return overflow_relief
-            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: self._town_overflow_destroy_key(snapshot))
+            overflow_destroy = self._town_producer_entry("_town_overflow_destroy_key", lambda: self._town_overflow_destroy_key(snapshot, try_relief=True))
             if overflow_destroy is not None:
                 self._terminal_pack_space_signature = None
                 return overflow_destroy

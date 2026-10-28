@@ -2524,13 +2524,12 @@ class TownMixin:
         )
 
     @claims(ClaimOwner.TOWN_PLAN)
-    def _town_overflow_relief_key(self, snapshot: Snapshot) -> str | None:
+    def _town_overflow_destroy_key(self, snapshot: Snapshot, *, try_relief: bool = False) -> str | None:
+        """Keep the destroy primitive; the town dispatcher first requests relief."""
         from hengbot.town_pack_budget import relief_key
-        return relief_key(self, snapshot)
-
-    @claims(ClaimOwner.TOWN_PLAN)
-    def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
-        """Free town pack space without creating floor-item pickup loops."""
+        key = relief_key(self, snapshot) if try_relief else None
+        if key is not None:
+            return key
         key = self._verified_destroy_key(
             snapshot, self._overflow_disposal_item, "town:destroy-overflow")
         if key is not None:

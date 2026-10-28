@@ -1759,7 +1759,7 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_town_restore_weapon_key": TerminalDecl(item_command_intended_terminal, ENFORCE),
     "_heavy_curse_inscription_key": TerminalDecl(item_command_intended_terminal, ENFORCE),
     **{name: TerminalDecl(item_command_intended_terminal, ENFORCE) for name in (
-        "_overweight_surplus_sale_key", "_town_overflow_relief_key", "_town_overflow_destroy_key", "_worthless_junk_destroy_key",
+        "_overweight_surplus_sale_key", "_town_overflow_destroy_key", "_worthless_junk_destroy_key",
         "_full_pack_destroy_key", "_town_destroy_key", "verified-disposal")},
     **{name: TerminalDecl(equipment_transaction_intended_terminal, ENFORCE) for name in (
         "_equipment_transaction_home_key", "_equipment_transaction_town_key",

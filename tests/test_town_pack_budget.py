@@ -12,6 +12,7 @@ constructed command boundaries, not live responses to the new action.
 from __future__ import annotations
 
 import tests  # noqa: F401 -- isolate runtime writes
+import ast
 import copy
 from dataclasses import replace
 import gzip
@@ -108,16 +109,32 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         self.assertFalse(permits(five, 2))
         self.assertTrue(permits(board, 0))
 
+    def test_every_production_overflow_call_enables_legal_relief(self):
+        # The low-level destroy primitive remains compatible with existing
+        # callers, but no production path may use it as a terminal stop
+        # without trying the preserving remedies. Guard against new bypasses.
+        calls = []
+        source = Path(__file__).resolve().parents[1] / "src" / "hengbot"
+        for path in source.glob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "_town_overflow_destroy_key"):
+                    calls.append((path.name, node.lineno))
+                    enabled = next((kw.value for kw in node.keywords if kw.arg == "try_relief"), None)
+                    self.assertIsInstance(enabled, ast.Constant, calls[-1])
+                    self.assertIs(enabled.value, True, calls[-1])
+        self.assertTrue(calls)
+
     def test_terminal_overflow_retries_a_legal_home_route_before_blocking(self):
         policy, board, _ = self.attached(2)
-        key = policy._town_overflow_relief_key(board)
+        key = policy._town_overflow_destroy_key(board, try_relief=True)
         self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
         self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
 
     def test_terminal_overflow_observes_unknown_home_stock_before_giving_up(self):
         policy, board, _ = self.attached(2)
         policy._invalidate_home_observation()
-        key = policy._town_overflow_relief_key(board)
+        key = policy._town_overflow_destroy_key(board, try_relief=True)
         self.assertEqual((key, policy.last_reason), ("~9\x1b", "home:request-knowledge-scan"))
 
     def test_full_home_fallback_reaches_the_real_store_sale_selector(self):

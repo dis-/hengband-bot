@@ -746,5 +746,12 @@
   "item_reservation.py:outpost_fare_sale_quantity": "pure helper: reads an exact live-stack quantity grant only during Outpost fare recovery; does not emit commands or lower retention.",
   "summoner_wait.py:hold_key": "dungeon-only: shared adapter for existing summoner choke wait; records only its awaited monsters and returns the existing wait key.",
   "summoner_wait.py:wait_expired": "pure helper: boolean from a summoner wait clock, preserves its avoidance verdict; no command or independent progress.",
-  "policy_combat.py:CombatMixin._perceived_hostiles": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress."
+  "policy_combat.py:CombatMixin._perceived_hostiles": "pure helper: merges visible and detected hostile observations; no command, owner or independent progress.",
+  "policy_town.py:TownMixin._town_organization_sale_store": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:pressure_deposit": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:find_pressure_deposit": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:find_pressure_sale": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_budget.py:relief_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "town_pack_budget.py:_relief_route": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer."
 }
