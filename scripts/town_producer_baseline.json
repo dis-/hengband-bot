@@ -87,6 +87,7 @@
   "latch_onset_capture.py:restore_checkpoint": "pure helper: reconstructs policy state from a checkpoint, without selecting a key",
   "launcher_damage.py:best_obtainable_launcher_damage": "pure helper: Return damage with the best compatible carried or catalogued ammo.",
   "launcher_damage.py:launcher_average_damage": "pure helper: Return per-shot launcher damage for one compatible ammunition stack.",
+  "magic_eater_devices.py:mana_food_devices": "pure helper: returns identified charged inventory devices eligible as food, not an independently selected game action",
   "model.py:Position.distance_to": "pure helper: distance_to returns int used as input/observation, not an independently selected game action",
   "model.py:Snapshot.dungeon_level": "pure helper: dungeon_level returns int used as input/observation, not an independently selected game action",
   "model.py:Snapshot.grid_at": "pure helper: grid_at returns GridState | None used as input/observation, not an independently selected game action",

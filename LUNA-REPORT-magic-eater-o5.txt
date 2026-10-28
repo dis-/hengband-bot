@@ -1,0 +1,56 @@
+Magic-Eater O5 実装報告
+依頼番号: #47。タスクファイルの背景参照: #116。
+対象: LUNA-TASK-magic-eater-o5.txt の O5 のみ。
+
+実装
+class 16（魔道具術師）の鑑定済み魔法棒・杖・ロッドを取り込み予定品とする共通述語 is_absorption_device を追加した。
+ゲーム側の src/mind/mind-magic-eater.cpp と種別定義を確認し、無の杖（sval 32）は対象から外した。
+未鑑定品はこの予約の対象外。充填待ちや残量ゼロでも将来の取り込み予定は保持する。
+食事候補の選択、携行食料の充填数、食料用魔道具の個数集計は mana_food_devices を共有し、取り込み予定品を除外する。
+食料用魔道具2個の目標に、取り込み予定品を算入しない。Home側の目標確認も既存の集計関数を通じて同じ結果となる。
+取り込み操作そのもの（O3）、購入方針、Homeからの調達方針は変更していない。食料がない場合は既存経路へ進む。
+class 0 の選択順・充填数計算を維持し、既存テストの期待値は変更していない。
+
+保守性
+新しい判定を小さな magic_eater_devices.py に集約し、食事候補と在庫集計の条件重複を削減した。
+識別の杖の食料控除も同じ候補集合から計算し、予約済み品の充填数を二重に差し引かない。
+不要な中間変数を削除した。行数制限のあるファイルは変更していない。
+新しいデータ取得関数を town producer baseline / town work review に登録し、生成マニフェストを更新した。
+
+回帰テスト
+新規7テスト。盤面には class_id=16、race_id=25（ゾンビ）、food_type=4 を設定した。
+・Magic Missile と無の杖を持つ空腹時は、choose_key が無の杖を食べる。
+・Magic Missile しかない場合は、空腹・衰弱・失神の各段階で既存の食料なし経路となる。
+・Magic Missile と未鑑定魔道具を持つ場合は、未鑑定品を食べる。
+・取り込み予定品の個数・充填数は食料集計に入らない。
+・食料用魔道具が1個なら目標未達、2個なら達成となり、予約済み魔法棒は不足を埋めない。
+・戦士は従来どおり充填数の多い魔法棒を食べる。述語の鑑定・種別・クラス条件も検証した。
+本番の統合変更を一時的にmainへ戻すと、今回の振る舞いを固定する5テストがそれぞれ失敗することを確認し、復元した。
+
+検証
+使用Python: Python 3.13。PYTHONPATH=src;tests;scripts。
+最新mainを最初に確認し、作業中のmain更新も取り込んだ。
+最終検証基準main: 03df7d9e3d415ae1d6e389d76cd9d59331c17163。
+実装・統合コミット: 2d37315c75bf6d317a0d9e0fbd003a34fa78edc6。
+・tests.test_magic_eater_food + tests.test_policy_supply: 最終統合後215件成功、終了コード0。
+・関連既存6モジュール: 46件成功、終了コード0。
+  tests.test_hungry_mana_purchase_trajectory
+  tests.test_manafood_departure_recorded
+  tests.test_mana_home_recorded
+  tests.test_supply_stockout_recorded
+  tests.test_supply_shortfall_owner_recorded
+  tests.test_supply_ledger_observer_memo
+・mutation_check . main --record --full: 最終統合後も4箇所すべて検出、終了コード0。2d37315c7に対応する記録を保存済み。
+・preflight . main: PREFLIGHT OK、7変更ファイル、指摘0件、終了コード0。構造テスト・行数制限を含む。
+・fast_tier . main: 最終統合後1734件成功、失敗・エラー・クラッシュなし、125.8秒、終了コード0。
+・git diff --check: 成功。
+派生スコープ・派生モジュールと全件テストは実行していない。指示どおりmerge gateに任せる。
+
+補足
+初回preflightの登録漏れは修正済み。その後の生成物差分をコミットし、検証中に更新されたmainと構造テストを取り込んだ。
+待機中にmainがさらに更新され、途中のfast tierは未取り込みの近接攻撃ガードに関する構造テスト1件で失敗した。対応するmainの修正を取り込んだ上で、上記の必須チェックを再実行し、すべて通過した。
+merge gate実行中の待機は規定どおり継続し、完了後に検証した。
+レポートはPythonのPath.write_textでUTF-8として作成した。
+最終状態: 必須チェックはすべて成功。未完了・未実行の必須チェックはない。
+自身が開始した検証プロセスはすべて終了を確認済み。待機スクリプトやバックグラウンド処理は残していない。
+src/・tests/・scripts/はコミット済みで差分なし。開始時から存在した未追跡のタスクファイルと起動ログは変更していない。
