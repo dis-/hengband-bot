@@ -11783,5 +11783,17 @@
     "admission": "@claims(ClaimOwner.SHOP_BUY)",
     "observer": "store purchase effect observer",
     "delegation": "none"
+  },
+  "equipment_route_handoff.py:equipment_route_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-transaction",
+      "store-approach"
+    ],
+    "context": "Outside a shop: an equipment session refused an ordinary relocation.",
+    "evidence": "Issue #47: local equipment execution/observation delegates to the existing declared equipment producer; Home work retains the existing route refusal. No separate effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

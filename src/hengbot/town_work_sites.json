@@ -581,6 +581,15 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "504db0a36fede301ed21c6f2a6cd719b0fbbf9196232c41a0d18340ec139d9f4"
   },
+  "equipment_route_handoff.py:equipment_route_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-transaction",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "86bb45cd04ee6aa98016b6798bda363843f3e3178f865c067627582f81dc9ba5"
+  },
   "equipment_transaction_planner.py:_slots": {
     "classification": "data",
     "rows": [
@@ -2178,7 +2187,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "92efcb7c662c69fafb256ba12e74dd641e5271cc5519fe7052e47bc348d4666c"
+    "ast_sha256": "821ba81b921f382e02ea71cf696c11821bb542d41e744cd43a73fc16e1a22202"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4628,7 +4637,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d0650defbbed000eb8e0a4ee8b3a83ee3e85d1096a043fa6dbd67373ad857474"
+    "ast_sha256": "034f9ec03627361a5a13badd64f31a182b6ef8424b57e39c5d02c44eb2d0d992"
   },
   "policy_equipment.py:EquipmentMixin._equipment_wield": {
     "classification": "adapter",
@@ -7049,7 +7058,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0594479c8dc54c6ea1ca8de8e461b6a13875102ad83eb35e4b549a7ee32446ad"
+    "ast_sha256": "ec3527a0f05fccf57784a6fea58e103bc3b88c45930d13be56d24705b8111301"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
     "classification": "data",

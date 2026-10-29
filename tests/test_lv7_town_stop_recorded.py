@@ -203,12 +203,6 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
                     # the existing abandonment before deriving fresh work.
                     self.assertEqual((key, policy.last_reason),
                                      ("5", "equipment-transaction:equip-item-missing"))
-                    following = copy.deepcopy(raw)
-                    following["turn"] += 1
-                    self.post(policy, raw, key, following)
-                    raw = following
-                    key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-                    self.assertEqual(policy.last_reason, "equipment-transaction:abandon-blocked")
                     self.assertIsNone(policy._equipment_transaction_session)
                     following = copy.deepcopy(raw)
                     following["turn"] += 1

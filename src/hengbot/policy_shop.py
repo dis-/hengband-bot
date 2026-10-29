@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits
 from hengbot.shop_purchase_dispatch import next_purchase_key
+from hengbot.equipment_route_handoff import equipment_route_key
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -5903,16 +5904,9 @@ class ShopMixin(InStoreMixin):
             and self._shopping_approach_store_type != STORE_HOME
             and self._home_full_relief is None
         ):
-            # Ordinary errands cannot relocate a transaction. Survival is
-            # an interrupt and returns to that same session after safety work;
-            # the route neither mutates nor abandons the transaction.
-            self._offer_execution(
-                WAIT_KEY, producer="store-router",
-                work_id=f"route-refused:{self._shopping_approach_store_type}",
-                state="releasing", cause="equipment-transaction-owns-relocation",
-                post_on_emit=False,
-            )
-            return WAIT_KEY
+            # The owner refusing relocation must execute its own local work;
+            # earlier identification and Home dispatch keep their priority.
+            return equipment_route_key(self, snapshot)
         entry_failed_here = (
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )

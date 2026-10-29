@@ -490,5 +490,8 @@
   },
   "shop_purchase_dispatch.py:next_purchase_key": {
     "policy._shop_purchase_key(snapshot, selection) @ ": 1
+  },
+  "equipment_route_handoff.py:equipment_route_key": {
+    "policy._equipment_transaction_town_key(snapshot) @ If:body:session is not None and (not session.complete) and (session.required_context != 'home')": 1
   }
 }

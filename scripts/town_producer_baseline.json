@@ -757,5 +757,6 @@
   "town_pack_budget.py:relief_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
   "town_pack_budget.py:_relief_route": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
   "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
-  "shop_purchase_dispatch.py:next_purchase_key": "delegated adapter: _shop_core selects the live purchase and delegates to _shop_purchase_key with the same provenance, reservations and admission; no independent owner or effect credit"
+  "shop_purchase_dispatch.py:next_purchase_key": "delegated adapter: _shop_core selects the live purchase and delegates to _shop_purchase_key with the same provenance, reservations and admission; no independent owner or effect credit",
+  "equipment_route_handoff.py:equipment_route_key": "delegated adapter: the existing shop route refusal returns local equipment work to _equipment_transaction_town_key; Home dispatch and earlier identification retain their existing order"
 }

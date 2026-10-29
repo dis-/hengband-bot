@@ -10634,11 +10634,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return self._town_producer_entry("_town_blocked_key", lambda: self._town_blocked_key(snapshot), family="town-plan")
 
-        # Every active transaction owns its next action before errands that
-        # cannot relocate it. This includes the first equip before any strip.
+        # Once a transaction has physically stripped anything, restoration or
+        # completion owns every town decision.  No shopping, sale, disposal,
+        # fundraising, or errand classifier is reachable until ownership ends.
         if (
             snapshot.in_town
-            and self._equipment_transaction_has_town_work()
+            and self._equipment_transaction_owned_items
+            and not self._opening_q34_active(snapshot)
         ):
             return self._town_producer_entry("_equipment_transaction_town_owner_key", lambda: self._equipment_transaction_town_owner_key(snapshot)) or WAIT_KEY
 
