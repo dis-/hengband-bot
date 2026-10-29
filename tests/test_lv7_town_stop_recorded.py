@@ -233,7 +233,7 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual(len(policy._physical_adjacent_hostiles(board)), 1)
         key = str(policy.choose_key(board))
         self.assertEqual((key, policy.last_reason), ("7", "melee"))
-        # DECLARED CONSTRUCTED: the posted attack removes the recorded cat.
+        # DECLARED CONSTRUCTED: the posted attack removes the adjacent monster.
         following = copy.deepcopy(raw)
         following["visible_monsters"] = []
         following["turn"] += 1
