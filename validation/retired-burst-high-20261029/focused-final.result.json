@@ -1,0 +1,14 @@
+{
+  "check": "focused-final",
+  "args": [
+    "-m",
+    "unittest",
+    "tests.test_retired_burst_high",
+    "tests.test_equipment_transaction_planner",
+    "tests.test_equipment_transaction_session",
+    "tests.test_policy_equipment.EquipmentQuarantineInvariantTest.test_optimizer_candidate_telemetry_names_search_return_paths"
+  ],
+  "exit_code": 0,
+  "seconds": 5.83,
+  "head": "f4011fa03794e4bd877162646d74996c98dd71a1"
+}

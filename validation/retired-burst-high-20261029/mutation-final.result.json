@@ -1,0 +1,15 @@
+{
+  "check": "mutation-final",
+  "args": [
+    "C:\\hengband-backups\\guard-tools\\mutation_check.py",
+    ".",
+    "main",
+    "--tests",
+    "tests.test_retired_burst_high",
+    "--full",
+    "--record"
+  ],
+  "exit_code": 0,
+  "seconds": 92.34,
+  "head": "f4011fa03794e4bd877162646d74996c98dd71a1"
+}

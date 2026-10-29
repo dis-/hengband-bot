@@ -1,0 +1,6 @@
+[mutation] 3 source hunks, tests: tests.test_retired_burst_high
+[mutation] caught     src/hengbot/equipment_capacity.py:1 ("""Keep equipment plan admission consistent with the town mutation bud): test_retired_burst_high
+[mutation] caught     src/hengbot/policy_equipment.py:61 (from hengbot.equipment_capacity import plan_equipment_transactions, re): test_each_equipment_capture_releases_the_refused_work_before_follow_exit, test_town_planner_uses_the_mutation_budget_without_blocking_empty_plans
+[mutation] caught     src/hengbot/policy_equipment.py:834 (release_unaffordable_session(self, snapshot)): test_each_equipment_capture_releases_the_refused_work_before_follow_exit
+[mutation] MUTATION OK: 0 of 3 hunks are not pinned by a test
+[mutation] recorded for f4011fa0

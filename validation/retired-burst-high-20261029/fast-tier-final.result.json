@@ -1,0 +1,11 @@
+{
+  "check": "fast-tier-final",
+  "args": [
+    "C:\\hengband-backups\\guard-tools\\fast_tier.py",
+    ".",
+    "main"
+  ],
+  "exit_code": 0,
+  "seconds": 136.99,
+  "head": "f4011fa03794e4bd877162646d74996c98dd71a1"
+}
