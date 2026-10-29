@@ -1,0 +1,3 @@
+[mutation] waiting: the merge gate is running its full suite (gate main-red-fix-261029-0610+me-dump-stuck-1029+pack-headroom-1029+me-q34-entry-1029, since 10:11:50); owner decision 2026-10-25
+[mutation] the merge gate's full suite finished; starting after 61 min
+[mutation] 7 source hunks, tests: tests.test_lv7_town_stop_recorded tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_captured_r5_raw_board_does_not_return_to_home tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_unreachable_then_open_shop_leaves_without_crashing

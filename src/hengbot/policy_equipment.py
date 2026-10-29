@@ -2852,6 +2852,7 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     f"equip-item-missing:{action.item_id}"
                 )
+                self.last_reason = "equipment-transaction:equip-item-missing"
                 return self._equipment_town_outcome(
                     WAIT_KEY, label="equip-item-missing",
                 )

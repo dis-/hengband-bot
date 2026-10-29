@@ -1,0 +1,11 @@
+python.exe : ......
+発生場所 行:2 文字:38
++ ... s;scripts'; & C:\Users\user\.cache\codex-runtimes\codex-primary-runti ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (......:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 6 tests in 80.206s
+
+OK

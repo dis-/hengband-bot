@@ -1,0 +1,70 @@
+ISSUE #47 — Lv7町停止修正・第2回
+
+対象と結論
+main 6658e5c58bc1fb9f2e18a55f083d91f486ff8371 に5コミットをrebaseした。
+競合した town_work_manifest.json.gz / town_work_sites.json は手動結合せず再生成した。
+最終検証対象HEAD: 51e3f40ad。実装d8b99a2af、呼び出し登録f5396ba88、適用範囲修正51e3f40ad。レポートはPythonのPath.write_text、UTF-8で作成。
+採用した順序は、未投稿の光源装備 → 装備結果の確認 → 松明1本補充 → Q34受注・入場。
+戦士Lv7の既存pinの期待値は変更していない。
+
+1. opening-q34:wait の診断
+rebase直後、指定の魔道具術師Lv1 pinは key=5 / opening-q34:wait で失敗した。
+開幕ownerは _equipment_transaction_owned_items が空だと、未投稿sessionの最初のequipを実行しない。
+一方、開幕ownerはfallbackのWAIT_KEYを返すので、後段の装備処理へ制御も渡らない。
+session index=0 / pending_action=Noneのまま、同じ盤面で3判断しても同じ待機になった。
+これは投稿済み操作や期限のあるrestockの完了待ちではなく、自己解消しない新しい停止経路である。
+最初に動くべきownerは装備取引。復旧債務がある場合の従来ownerは維持し、未投稿sessionも開幕内で進める。
+
+従来fixtureは可視敵だけを保存し、Q34全rosterの敵知識が欠けていた。
+そのままではunknown-monsterが先に出るため、抽出器を直してQ34のrosterも保存した。
+MonraceDefinitionsのSHA256も記録し、盤面・所持品・判断履歴の原本は変えていない。
+敵知識を補った旧実装では、required_force.failed=[]なのにthree-turn-threatで拒否された。
+再現値はHP35、AC40に対するDPS約3.72、必要DPS3.5、予測被害26。
+通常の被害比率0.5では26 >= 35*0.5となり、mainのHP30引き下げを満たしても入れない。
+被害比率だけを合わせても、次はAC100の近接出力0.84*10 < 固定敵HP36でtoughest-kill-timeになる。
+固定敵は既存の承認済み投擲ルートで処理するため、この近接条件も引き下げの意図と一致していなかった。
+
+2. 修正と適用範囲
+Q34開幕で、既存sessionの最初の操作を装備取引の既存実行器に渡す。
+既に脱いだ装備の復旧owner・投稿確認・失敗解放の処理はそのまま使う。
+装備すると投擲用松明が20→19本になる。既存General棚の3goldの松明を1本買って20本へ戻す。
+その後は既存のQ34受注・入口処理に戻し、入場確認へのy応答までproduction executorで検証する。
+
+さらにQ34のclass16にだけ、mainで承認されたHP/DPS下限を完全な入場判定へ反映した。
+・被害比率を1.0とし、予測被害がHP/回復予算以上なら引き続き拒否する。
+  根拠は既存プロフィールの蜂の最大被害27に対して、承認済み無回復HP下限30が上回ること。
+・近接撃破時間は、投擲で処理する制御済み固定敵を除いた敵と、required_forceのAC40基準DPSで評価する。
+  蜂のAC20より厳しいAC40基準を使用し、近接DPS下限そのものは3.5を維持する。
+・光源装備後のtorch-only拒否を、既知・非呪い・非破損・燃料100以上の所持松明で解除する。
+  既存のQ34戦術は戦闘より先にランタンを回収・装備する。回収手順や戦闘中の光源判断は変えない。
+他クラス・他クエストは従来の比率、近接評価、光源条件を使う。戦士Lv7の3件も従来期待値のまま。
+
+保守性: 入場時のクラス別条件は小さなquest_entry_requirements.pyに集約した。
+policy_quest.pyは増行せず、ほかの上限対象ファイルも増やしていない。
+生成物と共通チェックはmainと同じPython 3.13で揃えた。Codex runtime 3.12でもfocusedを実施。
+3.12生成時に生じた既存site全体のAST digest差分は、3.13での最終再生成により取り除いた。
+行数はmain比でpolicy.py 20444→20444、policy_shop.py 6542→6534、policy_quest.py 6030→6029。
+その他の上限対象ファイルも増行なし。
+
+3. テストと限界
+既存のfour_burstsの装備期待値は維持し、魔道具術師の続きだけを受注・入場まで拡張した。
+別テストで、HP29・投擲松明19本・燃料99の拒否を確認する。
+TEST WALLS: 新規wall 0件、旧挙動へ切り替えて通す既存テスト0件、既存pinの期待値変更0件。
+再現にはpublic choose_keyとproduction follow executorを使用。装備・購入・移動・受注・入場応答は明示した構成応答。
+受注後の入口は記録されたQ34建物位置に公開されるものとして構成した。
+実機での新しい人生の完走やQ34クリアを主張するものではない。
+
+4. 検証結果
+最終focused（Python 3.13）: 記録盤面モジュール5テスト（8停止事象）、既存acceptance 8件、fast失敗の確認2件、計15テスト成功、exit 0。
+最終focused（Codex runtime Python 3.12.14）: 記録盤面モジュール5テスト（8停止事象）と既存spare-oil gate 1件、計6テスト成功、exit 0。
+初回fast（3.12）は2件失敗。Q1から複製した別profileまで光源条件が及ぶ問題はclass別明示設定に限定して修正し、既存期待値のまま成功。
+もう1件はflight recorderのPath.stat回数が3.12では5、既存期待値は4というPython差で、3.13では成功。
+flight recorder本体・テストの変更や除外はしていない。
+preflight（Python 3.13）: 31変更ファイル、指摘0件、exit 0。構造テスト・item sink・行数上限を含む。
+初回preflightの追加呼び出し未登録は、item_sink_adapters.jsonの正確な呼び出し登録で解消した。
+fast_tier . main（Python 3.13）: 1637テスト成功、Failures / Errors / Crashed shards はnone、exit 0。
+mutation_check . main --record（Python 3.13）: 13ソースhunkすべて検出、未検出0、exit 0。成功recordを保存済み。
+すべての最終チェックは51e3f40adを対象とし、base mainは6658e5c58。以後はレポートと検証ログのみのコミット。
+検証ログ・終了コード・対象HEAD・source/tests treeは validation/lv7-town-stop-r2-20261029/ に保存。
+開始した検証はすべて終了し、src/testsへの変異は復元済み。未完了チェックなし。
+派生scope・派生modules・全体suiteは指定どおり実行していない。

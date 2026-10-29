@@ -305,6 +305,7 @@
     "self._town_restore_weapon_key(snapshot) @ ": 1,
     "self._fixed_quest_key(snapshot, hostiles) @ ": 1,
     "self._equipment_transaction_town_owner_key(snapshot) @ If:body:self._equipment_transaction_owned_items": 1,
+    "self._equipment_transaction_town_key(snapshot) @ If:body:self._equipment_transaction_session is not None": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:claims_active / If:body:step is not None": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:failed / If:body:step is not None": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:failed / If:body:self._start_fundraising(snapshot) / If:body:step is not None": 1
@@ -354,29 +355,28 @@
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:step is not None and self._shopping_approach_store_type in store_types": 1
   },
   "policy_shop.py:_shop_core": {
+    "self._town_random_teleport_suppression_key(snapshot) @ ": 1,
     "self._batch_sell_key(snapshot) @ ": 1,
-    "self._equipment_transaction_home_key(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
-    "self._home_deposit_key(snapshot, deposit) @ If:body:store.store_type == STORE_HOME / If:body:deposit is not None and self._home_entry_operation_posted": 1,
-    "self._home_deposit_key(snapshot, deposit) @ If:body:store.store_type == STORE_HOME / If:body:self._fundraising_mode in {'prepare', 'mine', 'scavenge'} / If:body:deposit is not None and self._home_entry_operation_posted": 1,
-    "self._home_disposal_home_key(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
-    "self._home_dominated_disposal_key(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
     "self._home_full_relief_key(snapshot) @ If:body:self._home_full_relief is not None and (not snapshot.player.hungry) and (self._home_atomic_withdraw_pending is None)": 1,
     "self._morivant_home_item_key(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
+    "self._equipment_transaction_home_key(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
+    "self._home_dominated_disposal_key(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
+    "self._home_disposal_home_key(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
     "self._queue_standing_home_digger(snapshot) @ If:body:store.store_type == STORE_HOME": 1,
-    "self._store_sell_key(snapshot, book_sale, 'shop:sell-high-value-book', rejected_reason='shop:unsellable-book-leave') @ If:body:book_sale is not None": 1,
     "self._store_sell_key(snapshot, organization, 'shop:sell-town-surplus') @ If:body:organization is not None and ordinary_sale is None and (self._next_purchase(snapshot) is None) and self._store_accepts_sale(store.store_type, organization) and (store.store_type == self._town_organization_sale_store(snapshot, organization))": 1,
-    "self._store_sell_key(snapshot, sale, 'shop:sell-device', rejected_reason='shop:unsellable-device-leave') @ If:body:store.store_type == STORE_MAGIC / If:body:sale is not None": 1,
-    "self._store_sell_key(snapshot, sale, 'shop:sell-low-value-consumable') @ If:body:store.store_type == STORE_ALCHEMIST / If:body:sale is not None": 1,
-    "self._store_sell_key(snapshot, sale, 'shop:sell-mana-race-food') @ If:body:store.store_type == STORE_GENERAL / If:body:snapshot.player.food_type == FOOD_TYPE_MANA / If:body:sale is not None": 1,
-    "self._store_sell_key(snapshot, sale, 'survival:mana-sell-to-afford') @ If:body:snapshot.player.hungry and self._find_edible(snapshot) is None / If:body:snapshot.player.food_type == FOOD_TYPE_MANA and self._mana_survival_device_price is not None and (snapshot.player.gold < self._mana_survival_device_price) and (store.store_type in {STORE_ALCHEMIST, STORE_WEAPON}) / If:body:sale is not None": 1,
-    "self._store_sell_key(snapshot, sale, reason, rejected_reason='shop:unsellable-light-leave') @ If:body:store.store_type == STORE_GENERAL / If:body:sale is not None": 1,
-    "self._store_sell_key(snapshot, sale, reason, rejected_reason='shop:unsellable-weapon-leave') @ If:body:store.store_type == STORE_WEAPON / If:body:sale is not None": 1,
-    "self._store_sell_key(snapshot, target, 'equipment:sell-dominated', rejected_reason='equipment:sale-refused') @ If:body:self._pending_disposal_item is not None / If:orelse:target is None and self._pending_disposal_completed(snapshot) / If:orelse:target is None": 1,
-    "self._store_sell_key(snapshot, target, 'home-disposal:sell-approved', rejected_reason='home-disposal:sale-refused') @ If:body:self._home_disposal_pending is not None / If:body:decision == 'sell' and target is not None and target.known and (store.store_type == self._home_disposal_store(signature))": 1,
-    "self._town_random_teleport_suppression_key(snapshot) @ ": 1,
+    "self._store_sell_key(snapshot, book_sale, 'shop:sell-high-value-book', rejected_reason='shop:unsellable-book-leave') @ If:body:book_sale is not None": 1,
     "self._shop_purchase_key(snapshot, selection) @ If:body:item is not None": 1,
+    "self._store_sell_key(snapshot, target, 'home-disposal:sell-approved', rejected_reason='home-disposal:sale-refused') @ If:body:self._home_disposal_pending is not None / If:body:decision == 'sell' and target is not None and target.known and (store.store_type == self._home_disposal_store(signature))": 1,
+    "self._home_deposit_key(snapshot, deposit) @ If:body:store.store_type == STORE_HOME / If:body:deposit is not None and self._home_entry_operation_posted": 1,
+    "self._store_sell_key(snapshot, sale, 'shop:sell-low-value-consumable') @ If:body:store.store_type == STORE_ALCHEMIST / If:body:sale is not None": 1,
+    "self._store_sell_key(snapshot, sale, 'shop:sell-device', rejected_reason='shop:unsellable-device-leave') @ If:body:store.store_type == STORE_MAGIC / If:body:sale is not None": 1,
+    "self._store_sell_key(snapshot, sale, reason, rejected_reason='shop:unsellable-weapon-leave') @ If:body:store.store_type == STORE_WEAPON / If:body:sale is not None": 1,
+    "self._store_sell_key(snapshot, sale, reason, rejected_reason='shop:unsellable-light-leave') @ If:body:store.store_type == STORE_GENERAL / If:body:sale is not None": 1,
+    "self._store_sell_key(snapshot, sale, 'survival:mana-sell-to-afford') @ If:body:snapshot.player.hungry and self._find_edible(snapshot) is None / If:body:snapshot.player.food_type == FOOD_TYPE_MANA and self._mana_survival_device_price is not None and (snapshot.player.gold < self._mana_survival_device_price) and (store.store_type in {STORE_ALCHEMIST, STORE_WEAPON}) / If:body:sale is not None": 1,
     "self._shop_purchase_key(snapshot, completed_disposal_successor) @ If:body:self._pending_disposal_item is not None / If:body:target is None and self._pending_disposal_completed(snapshot) / If:body:completed_disposal_successor is not None": 1,
-    "self._shop_purchase_key(snapshot, PurchaseSelection(matches[0] if matches else None, item, store.store_type, PurchaseContext(snapshot), self._purchase_quantity(snapshot, item))) @ If:body:entry_ledger is not None and entry_ledger.get('ops', 0) > 0 and (self._batch_sell_pending is None) and (self._departure_blocking_page_purchase(snapshot) is not None) / If:body:item is not None": 1
+    "self._store_sell_key(snapshot, target, 'equipment:sell-dominated', rejected_reason='equipment:sale-refused') @ If:body:self._pending_disposal_item is not None / If:orelse:target is None and self._pending_disposal_completed(snapshot) / If:orelse:target is None": 1,
+    "self._home_deposit_key(snapshot, deposit) @ If:body:store.store_type == STORE_HOME / If:body:self._fundraising_mode in {'prepare', 'mine', 'scavenge'} / If:body:deposit is not None and self._home_entry_operation_posted": 1,
+    "self._store_sell_key(snapshot, sale, 'shop:sell-mana-race-food') @ If:body:store.store_type == STORE_GENERAL / If:body:snapshot.player.food_type == FOOD_TYPE_MANA / If:body:sale is not None": 1
   },
   "policy_shop.py:_store_sell_key": {
     "self._batch_sell_key(snapshot, [item]) @ ": 1
@@ -480,13 +480,19 @@
   "policy_opening.py:_opening_q1_town_key": {
     "self._fixed_quest_key(snapshot, hostiles) @ ": 1,
     "self._fixed_quest_key(snapshot, hostiles) @ If:body:self._fixed_quest_reward_pending is not None": 1,
-    "self._town_kill_mob_key(snapshot) @ If:body:store is not None": 1,
+    "self._town_kill_mob_key(snapshot) @ If:body:store is not None or self._physical_adjacent_hostiles(snapshot)": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:store is not None": 1,
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:store is not None / If:body:adjacent and self._can_fight_in_dungeon(0)": 1,
+    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:store is not None or self._physical_adjacent_hostiles(snapshot) / If:body:adjacent and self._can_fight_in_dungeon(0)": 1,
     "self._town_kill_mob_key(snapshot) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles": 1,
     "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles / If:body:adjacent": 1
   },
   "policy_fundraising.py:_start_fundraising_return": {
     "self._leave_fundraising_floor(snapshot) @ ": 1
+  },
+  "shop_purchase_dispatch.py:next_purchase_key": {
+    "policy._shop_purchase_key(snapshot, selection) @ ": 1
+  },
+  "equipment_route_handoff.py:equipment_route_key": {
+    "policy._equipment_transaction_town_key(snapshot) @ If:body:session is not None and (not session.complete) and (session.required_context != 'home')": 1
   }
 }

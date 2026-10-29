@@ -1,0 +1,11 @@
+python : ...............
+発生場所 行:2 文字:38
++ ... s;scripts'; python -m unittest tests.test_lv7_town_stop_recorded test ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (...............:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 15 tests in 70.943s
+
+OK

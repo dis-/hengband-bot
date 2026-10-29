@@ -581,6 +581,15 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "504db0a36fede301ed21c6f2a6cd719b0fbbf9196232c41a0d18340ec139d9f4"
   },
+  "equipment_route_handoff.py:equipment_route_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-transaction",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "86bb45cd04ee6aa98016b6798bda363843f3e3178f865c067627582f81dc9ba5"
+  },
   "equipment_transaction_planner.py:_slots": {
     "classification": "data",
     "rows": [
@@ -4620,7 +4629,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3e3ae06107a37458cac8f3630c099c5cacd5854bf35b2171dce8c30f2e252b6e"
+    "ast_sha256": "dd2e64703874c841c4d6d6da256ee5cd50492b3bd84db2fdd03332e32f426957"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_owner_key": {
     "classification": "producer",
@@ -6035,7 +6044,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c46b500a734e09ffe547c0c786294ff7a5847f0fd1dadd6c7aa2366125e3c687"
+    "ast_sha256": "ee16ea8722b7c16df27f4ce511b5c4af1eb4dfc68fb5bde549726d9fcfd0b84b"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -6076,7 +6085,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success",
-    "ast_sha256": "c84344053ff0f8d5beeb4cea5050482b9c706690cdabf6892f7f4c7c112d55e4"
+    "ast_sha256": "9d078670af97c82ae6caa7bd0edb805980c477890201fff6c5f90d5319ce16d3"
   },
   "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness.reject": {
     "classification": "data",
@@ -6247,7 +6256,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3139bbd35d922174fc285fe9b8646b915ae9c99e89c931858729a7561c7fe2b7"
+    "ast_sha256": "ad96965a9037e81c7d8cc8983748590b6b3f98c19cba7b214ce20bccda1f90e8"
   },
   "policy_quest.py:QuestMixin._prepare_return_1_candidate": {
     "classification": "adapter",
@@ -7033,7 +7042,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0fe1e031f02532c2125eb6d513eb7cc9f278b210900afaa937df35fa4371198f"
+    "ast_sha256": "a8b174709cfadbbe7963151f6fd2af4b5db5ff0ac5462ad18cabb6e4a74d1008"
   },
   "policy_shop.py:ShopMixin._shop_purchase_key": {
     "classification": "operation",
@@ -7049,7 +7058,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0594479c8dc54c6ea1ca8de8e461b6a13875102ad83eb35e4b549a7ee32446ad"
+    "ast_sha256": "ec3527a0f05fccf57784a6fea58e103bc3b88c45930d13be56d24705b8111301"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
     "classification": "data",
@@ -8351,6 +8360,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2bebccbb9df8eeae7630baacf9edfddb8072a63d16433021ce9c77cb80c40d62"
+  },
+  "shop_purchase_dispatch.py:next_purchase_key": {
+    "classification": "operation",
+    "rows": [
+      "shop-buy"
+    ],
+    "delegation": "none",
+    "ast_sha256": "0dd8f2c70a0008725fd7785495d6bc33da87b3a6bc613e75a256a45c4878c242"
   },
   "slow_decisions.py:SlowDecisionRecorder.choose_key": {
     "classification": "adapter",

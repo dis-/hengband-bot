@@ -1,5 +1,7 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits
+from hengbot.shop_purchase_dispatch import next_purchase_key
+from hengbot.equipment_route_handoff import equipment_route_key
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -5134,21 +5136,18 @@ class ShopMixin(InStoreMixin):
         if (entry_ledger is not None and entry_ledger.get("ops", 0) > 0
                 and self._batch_sell_pending is None
                 and self._departure_blocking_page_purchase(snapshot) is not None):
-            previous_commit_mode = getattr(self, "_shop_selection_commits", False)
-            self._shop_selection_commits = True
-            try:
-                item = self._next_purchase(snapshot)
-            finally:
-                self._shop_selection_commits = previous_commit_mode
-            if item is not None:
-                matches = self._matching_live_purchase_rungs(snapshot, item)
-                return self._shop_purchase_key(snapshot, PurchaseSelection(
-                    matches[0] if matches else None, item, store.store_type,
-                    PurchaseContext(snapshot), self._purchase_quantity(snapshot, item),
-                ))
+            purchase = next_purchase_key(self, snapshot)
+            if purchase is not None or self.last_reason == "shop:purchase-deferred":
+                return purchase
 
         batch_key = self._batch_sell_key(snapshot)
         if batch_key is not None:
+            # A sale that cannot bind its inscription has no operation to
+            # finish. Let the purchase owner use this already observed shelf.
+            if self.last_reason == "shop:sale-inscription-unavailable-leave":
+                purchase = next_purchase_key(self, snapshot)
+                if purchase is not None or self.last_reason == "shop:purchase-deferred":
+                    return purchase
             return batch_key
 
         organization = self._find_town_organization_surplus(snapshot)
@@ -5905,16 +5904,9 @@ class ShopMixin(InStoreMixin):
             and self._shopping_approach_store_type != STORE_HOME
             and self._home_full_relief is None
         ):
-            # Ordinary errands cannot relocate a transaction. Survival is
-            # an interrupt and returns to that same session after safety work;
-            # the route neither mutates nor abandons the transaction.
-            self._offer_execution(
-                WAIT_KEY, producer="store-router",
-                work_id=f"route-refused:{self._shopping_approach_store_type}",
-                state="releasing", cause="equipment-transaction-owns-relocation",
-                post_on_emit=False,
-            )
-            return WAIT_KEY
+            # The owner refusing relocation must execute its own local work;
+            # earlier identification and Home dispatch keep their priority.
+            return equipment_route_key(self, snapshot)
         entry_failed_here = (
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )

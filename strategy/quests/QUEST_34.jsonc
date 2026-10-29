@@ -4,6 +4,12 @@
   "approved": true,
   "approved_note": "User approved via manual-test-runner 2026-07-17T10:46:07.516Z. Feedback: 殺人蜂は上部小部屋から自力で出てくることがないので、先にクローカーデスソードを投擲で処理してレベルアップすることでさらに安全にクリアできる",
   "engagement_plan": {
+    // Class 16's approved HP 30 floor covers the bee's maximum 27 damage.
+    // Keep the threat calculation, but do not require twice that HP again.
+    "max_damage_ratio_by_class": {"16": 1.0},
+    // The lowered melee floor models the bee (AC20), not meleeing AC100
+    // stationary swords that the approved route kills entirely by throwing.
+    "force_melee_against_mobile_by_class": [16],
     "opening_light": {
       "position": [10, 20],
       "fuel_position": [9, 20],
@@ -59,6 +65,9 @@
   },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
+    // The opening route recovers its lantern before any combat. A known
+    // fuelled torch is sufficient to reach it; other classes retain their gate.
+    "entry_requirements": {"carried_torch_min_fuel_by_class": {"16": 100}},
     "min_hp": 10, "min_expected_dps": 8, "level_guideline": 5,
     // 魔道具術師 (class 16): CL5 の職業近接技能比 (48+13*5//10)/(70+30*5//10)
     // =54/85 で通常・無回復ティアの近接下限を切り上げ補正。魔道具の威力は含めない。
