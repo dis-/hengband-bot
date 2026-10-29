@@ -383,6 +383,9 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "fundraise:dig-mark-bump",
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
+        # Picking the closed door that leads back to a known up staircase;
+        # bounded per door by FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT (D19).
+        "fundraise:open-upstairs-door",
         "unseen:choke-wait",
         # Repeated opens against the reviewed Q34 ordinary locked door are
         # productive game actions: each lock-pick attempt advances the game

@@ -430,6 +430,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_nav_ledger_deferred_loot", set())
     restored.__dict__.setdefault("_loot_ledger_rearmed", set())
     restored.__dict__.setdefault("_dark_goal_counts", Counter())
+    restored.__dict__.setdefault("_fundraising_upstairs_door_attempts", Counter())
     restored.__dict__.setdefault("_dark_route", [])
     restored.__dict__.setdefault("_dark_route_goal", None)
     restored.__dict__.setdefault("_dark_route_expected", None)

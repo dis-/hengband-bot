@@ -1821,6 +1821,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._dark_route_expected: Position | None = None
         self._floor_trap_disarm_attempts: Counter[tuple[int, int]] = Counter()
         self._door_attempts: Counter[tuple[int, int]] = Counter()
+        self._fundraising_upstairs_door_attempts: Counter[tuple[int, int]] = Counter()
         self._blocked_doors: set[tuple[int, int]] = set()
         self._dig_attempts: Counter[tuple[int, int]] = Counter()
         self._last_dig_signature: tuple[tuple[int, int], int] | None = None

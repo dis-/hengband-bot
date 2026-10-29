@@ -902,6 +902,7 @@ class ObservationMixin:
             self._clear_dark_route()
             self._floor_trap_disarm_attempts.clear()
             self._door_attempts.clear()
+            self._fundraising_upstairs_door_attempts.clear()
             self._blocked_doors.clear()
             self._blocked_unknown.clear()
             self._dig_attempts.clear()
