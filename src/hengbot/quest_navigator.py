@@ -335,6 +335,29 @@ class QuestFloorNavigator:
             "tree",
         } or (self.allow_deep_water and kind == "deep_water")
 
+    @staticmethod
+    def placement_sweep_blocked(
+        owner: Any, snapshot: Snapshot, plan: dict[str, Any]
+    ) -> set[Position]:
+        """Keep placement routes and their exploration fallback behind door gates."""
+        blocked = {Position(*raw) for raw in plan.get("avoid_door_positions", ())}
+        # Q34's final door is opened by the approved engagement phase. Only
+        # reuse that crossing after observing it open; the sweep cannot open it.
+        final = plan.get("final_door")
+        if final is not None:
+            position = Position(*final)
+            grid = snapshot.grid_at(position)
+            if grid is not None and grid.enterable:
+                blocked.discard(position)
+        # Static terrain regards every door as walkable. Honour the ordinary
+        # movement owner's bounded open failures instead of retrying forever.
+        blocked.update(Position(*yx) for yx in owner._blocked_doors)
+        blocked.update(
+            Position(*yx) for floor, yx in getattr(owner, "_stuck_doors", ())
+            if floor == snapshot.floor_key
+        )
+        return blocked
+
     def route_to_static_goals(
         self,
         start: Position,

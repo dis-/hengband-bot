@@ -3881,6 +3881,10 @@ class QuestMixin(OpeningRouteMixin):
                 for dy in (-1, 0, 1)
                 for dx in (-1, 0, 1)
             }
+            blocked.update(navigator.placement_sweep_blocked(
+                self, snapshot, profile.engagement_plan
+            ))
+            sweep_targets.difference_update(blocked)
             unsurveyed = sweep_targets - surveyed
             if not unsurveyed:
                 rounds = self._quest_strategy_sweep_rounds.get(profile.quest_id, 0) + 1
