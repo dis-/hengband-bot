@@ -214,6 +214,7 @@ from hengbot.policy_constants import (
     BACKTRACK_PENALTY,
     DOOR_OPEN_LIMIT,
     Q34_FINAL_DOOR_ATTEMPT_LIMIT,
+    Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT,
     Q34_OPENING_DOOR_ATTEMPT_LIMIT,
     FIXED_TARGET_DEFEAT_VERBS,
     RUBBLE_DIG_LIMIT,
@@ -286,8 +287,12 @@ from hengbot.quest_strategies import StrategyProfile
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.quest_final_room import (
     door_gates,
+    door_open,
     final_door_open,
+    final_door_sequence,
     final_search_area,
+    in_main_room,
+    next_sequence_door,
 )
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -2758,6 +2763,53 @@ class QuestMixin(OpeningRouteMixin):
             return None
         return remembered
 
+    def _quest_sequence_door_key(
+        self,
+        snapshot: Snapshot,
+        profile: StrategyProfile,
+        hostiles: list[MonsterState],
+        never_move_races: set[int],
+    ) -> str | None:
+        """Open the plan's ``final_door_sequence`` in order after the final door.
+
+        The work runs from the main room, where the final door was opened.
+        Called after the adjacent-melee rung, so contact with the mobile
+        target always fights first; a mobile target seen in the main room
+        has left its room and is engaged by the existing approach.  Door
+        work resumes once it is gone.  Lock picks are exempt from the
+        driver's cell-loop guard and bounded here per door, ending in a
+        named final stop.
+        """
+        plan = profile.engagement_plan
+        if not in_main_room(snapshot.player.position, plan) or any(
+            monster.race_id not in never_move_races
+            and in_main_room(monster.position, plan)
+            for monster in hostiles
+        ):
+            return None
+        attempts = self._q34_sequence_door_attempts
+        for door, _ in final_door_sequence(plan):
+            if door_open(snapshot, door):
+                attempts.pop(door, None)
+        pending = next_sequence_door(snapshot, plan)
+        if pending is None:
+            return None
+        door, approach = pending
+        if snapshot.player.position == approach:
+            count = attempts.get(door, 0)
+            if count >= Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT:
+                self.last_reason = "quest:blocked:q34-sequence-door-locked"
+                return WAIT_KEY
+            attempts[door] = count + 1
+            self.last_reason = "quest-strategy:open-sequence-door"
+            return OPEN_KEY + self._direction_key(approach, door)
+        step = self._quest_strategy_route_step(snapshot, profile, approach)
+        if step is None:
+            return None
+        self.last_reason = "quest-strategy:approach-sequence-door"
+        self._declare_reach(approach)
+        return self._step_toward(snapshot, step)
+
     def _quest_strategy_route_step(
         self,
         snapshot: Snapshot,
@@ -3665,6 +3717,13 @@ class QuestMixin(OpeningRouteMixin):
             snapshot, profile, hostiles,
             initial_hold_complete=initial_hold_complete,
         )
+
+        if final_target_phase:
+            sequence_key = self._quest_sequence_door_key(
+                snapshot, profile, hostiles, never_move_races
+            )
+            if sequence_key is not None:
+                return sequence_key
 
         # Once the opening hold/light phase is complete, the placement sweep
         # owns movement.  A mobile enemy can flicker into view at the edge of

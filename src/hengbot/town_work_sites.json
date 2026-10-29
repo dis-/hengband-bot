@@ -4292,7 +4292,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6cab9e2069a901079b8596fa737372484f7b75bc286d4fca63e694e00acad80f"
+    "ast_sha256": "883566003383a7c37fe2d4d4923c6bec86932ba553483f077dcad884d013e5e5"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",
@@ -6403,7 +6403,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "006ba41a19314e01f708513c88d217f41bbc9382425eebb340cab5d3e24d3ce5"
+    "ast_sha256": "bef404d77212a6f1e52dc312ef6c198180ca6829742871625221f3fbefe4fbfe"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -6468,6 +6468,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "6fdbe008c473b02e4aab8d8484e33f5bdd305147466f3de19fa363f6a1ce2547"
+  },
+  "policy_quest.py:QuestMixin._quest_sequence_door_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "a55745da385ddb341d0f332d298dd9cc8564325acc5717be56ff386555526af2"
   },
   "policy_quest.py:QuestMixin._quest_strategy_emergency_hostiles": {
     "classification": "data",
@@ -8301,7 +8309,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6b052f95c733c3f2ba23290ec59e997928a40ef47b9036fa1a4cffe372681480"
+    "ast_sha256": "26abbfd6638b88ea7ca4c0c0902d067d34d056e459b23db92b1453ba8e0b49c0"
   },
   "quest_final_room.py:door_gates": {
     "classification": "data",
@@ -8309,7 +8317,15 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "de85d0641efe4e58545d314cb292d03940f342c265db8b1a06662e0063358963"
+    "ast_sha256": "bc0ee16c6fc9f7435ecf208a2aa28a302788d55a0ec9a5c62ee60a9daf7ff72e"
+  },
+  "quest_final_room.py:post_clear_pickup": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "b50da64569d13628bb0b0a17e4fd7a9216356595233bbff6b827a4653cddf99f"
   },
   "quest_navigator.py:QuestFloorNavigator._exit": {
     "classification": "dungeon-only",
@@ -8318,6 +8334,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "33888455f814783b0bece913338cfa78ce730f2b4cefc03ac8e1084063613a6a"
+  },
+  "quest_navigator.py:QuestFloorNavigator._post_clear_pickup": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "910d2904136ab454964034b2881cf3f3e325dedc8aaa5bc9ac076baf86deb2ed"
   },
   "quest_navigator.py:QuestFloorNavigator._static_path": {
     "classification": "data",
@@ -8358,7 +8382,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5a14f0703c6dd1c8ad97426953e50ee5389754f6e393cb658ab75ffdd282c5d6"
+    "ast_sha256": "d192c679f8f933a4468817dfce75984d911b3bc47d464b0397fd2a6ee47a26a9"
   },
   "quest_navigator.py:QuestFloorNavigator.enter_from_town": {
     "classification": "producer",

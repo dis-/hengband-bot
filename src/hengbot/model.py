@@ -227,6 +227,7 @@ TVAL_CRUSADE_BOOK = 99
 TVAL_MUSIC_BOOK = 105
 TVAL_HISSATSU_BOOK = 106
 TVAL_HEX_BOOK = 107
+TVAL_GOLD = 127  # gold ('$'); walking onto it collects it
 
 # These base items receive a random resistance even when they are neither ego
 # items nor artifacts.  Normal identification does not reveal that resistance.
