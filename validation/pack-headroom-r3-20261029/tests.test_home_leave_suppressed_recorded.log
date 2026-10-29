@@ -1,0 +1,6 @@
+test_outside_board_releases_the_posted_home_exit (tests.test_home_leave_suppressed_recorded.HomeLeaveSuppressedRecordedTest.test_outside_board_releases_the_posted_home_exit) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 17.602s
+
+OK

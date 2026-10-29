@@ -1,0 +1,7 @@
+test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one (tests.test_broke_prevent_recorded.BrokePreventRecordedTest.test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one) ... ok
+test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch (tests.test_broke_prevent_recorded.BrokePreventRecordedTest.test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 25.871s
+
+OK

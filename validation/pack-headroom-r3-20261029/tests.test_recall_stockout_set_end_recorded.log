@@ -1,0 +1,7 @@
+test_production_loot_route_changes_at_the_recorded_boundary (tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary) ... ok
+test_s0_replay_matches_recorded_lifetime_through_stockout_start (tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_s0_replay_matches_recorded_lifetime_through_stockout_start) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 407.190s
+
+OK

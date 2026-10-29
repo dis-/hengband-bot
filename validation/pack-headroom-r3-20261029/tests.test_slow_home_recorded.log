@@ -1,0 +1,6 @@
+test_recorded_suffix_keys_and_reasons_are_identical (tests.test_slow_home_recorded.SlowHomeRecordedTest.test_recorded_suffix_keys_and_reasons_are_identical) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 19.124s
+
+OK

@@ -1,0 +1,9 @@
+test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop (tests.test_oneshot_preempt_recorded.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop) ... ok
+test_pre_fix_vector_reproduces_every_live_key (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key) ... ok
+test_temple_entry_composes_and_releases_the_recall_purchase (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase) ... ok
+test_weapon_smith_one_shot_keeps_its_tail_and_buys (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 110.608s
+
+OK

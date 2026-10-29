@@ -1,0 +1,8 @@
+test_pin_late_home_response_is_recovered_at_decision_449 (tests.test_home_light_alternation.HomeLightAlternationPins.test_pin_late_home_response_is_recovered_at_decision_449)
+The fixture wall follows the real replay producer in ``setUpClass``. ... ok
+test_pin_s_and_c_incident_trajectory (tests.test_home_light_alternation.HomeLightAlternationPins.test_pin_s_and_c_incident_trajectory) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 109.655s
+
+OK

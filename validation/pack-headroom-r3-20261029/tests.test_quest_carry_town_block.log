@@ -1,0 +1,7 @@
+test_recorded_home_and_store_exhaustion_waives_only_town_departure (tests.test_quest_carry_town_block.QuestCarryTownBlockPins.test_recorded_home_and_store_exhaustion_waives_only_town_departure) ... ok
+test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop (tests.test_quest_carry_town_block.QuestCarryTownBlockPins.test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 20.855s
+
+OK

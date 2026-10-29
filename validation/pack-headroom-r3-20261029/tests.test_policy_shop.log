@@ -1,0 +1,14 @@
+test_august_22_unentered_general_oil_claim_routes_to_supplier (tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_august_22_unentered_general_oil_claim_routes_to_supplier)
+Replay incident rows 356-400 from the retained turn-712398 board. ... ok
+test_full_identify_errand_precedes_unrelated_home_deposit (tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_full_identify_errand_precedes_unrelated_home_deposit) ... ok
+test_fundraising_does_not_revisit_home_for_unrelated_deposit (tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_fundraising_does_not_revisit_home_for_unrelated_deposit) ... ok
+test_home_star_identify_source_breaks_incomplete_catalog_deadlock (tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_home_star_identify_source_breaks_incomplete_catalog_deadlock)
+02:13 naked-strip shape reaches the stored source via choose_key. ... ok
+test_all_deferred_identification_claim_self_retires (tests.test_policy_shop.TownErrandPlanTest.test_all_deferred_identification_claim_self_retires) ... ok
+test_catalogued_identification_withdrawal_is_composed_before_home_entry (tests.test_policy_shop.TownErrandPlanTest.test_catalogued_identification_withdrawal_is_composed_before_home_entry) ... ok
+test_deferred_only_identification_claim_self_retires (tests.test_policy_shop.TownErrandPlanTest.test_deferred_only_identification_claim_self_retires) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.579s
+
+OK

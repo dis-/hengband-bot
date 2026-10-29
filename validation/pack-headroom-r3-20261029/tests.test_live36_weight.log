@@ -1,0 +1,6 @@
+test_fewest_charges_staff_above_the_cap_is_the_weight_batch (tests.test_live36_weight.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_is_the_weight_batch) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 7.182s
+
+OK

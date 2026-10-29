@@ -1,0 +1,6 @@
+test_unposted_sale_watch_outside_is_settled (tests.test_oneshot_inflight_recorded.OneShotInFlightRecordedTest.test_unposted_sale_watch_outside_is_settled) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 84.919s
+
+OK

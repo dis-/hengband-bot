@@ -1,0 +1,161 @@
+----------------------------------------------------------------------
+Ran 17 tests in 0.225s
+
+OK
+----------------------------------------------------------------------
+Ran 7 tests in 0.053s
+
+OK
+----------------------------------------------------------------------
+Ran 7 tests in 0.195s
+
+OK
+<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 ctx=absent ctx_prompt="" reason=expected prompt absent
+<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 ctx=absent ctx_prompt="" reason=expected prompt absent
+<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 ctx=absent ctx_prompt="" reason=unowned item-target: Identify which item?
+<stuck-prompt> owner=quest:enter:approach phase=continuation transport=accepted request_id=3 ctx=absent ctx_prompt="" reason=unowned confirm: Enter the arena? [y/n]
+======================================================================
+FAIL: test_single_segment_ack_gets_post_ack_observation_grace (tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\pack-headroom-1029\tests\test_input_executor.py", line 424, in test_single_segment_ack_gets_post_ack_observation_grace
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        [entry[1] for entry in game.trace if entry[0] == "issue"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ["screen", "state", "keys", "screen", "state"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: Lists differ: ['screen', 'state', 'keys', 'screen', 'screen', 'state'] != ['screen', 'state', 'keys', 'screen', 'state']
+
+First differing element 4:
+'screen'
+'state'
+
+First list contains 1 additional elements.
+First extra element 5:
+'state'
+
+- ['screen', 'state', 'keys', 'screen', 'screen', 'state']
+?                                       ----------
+
++ ['screen', 'state', 'keys', 'screen', 'state']
+
+----------------------------------------------------------------------
+Ran 72 tests in 2.698s
+
+FAILED (failures=1)
+----------------------------------------------------------------------
+Ran 38 tests in 4.229s
+
+OK (skipped=1)
+----------------------------------------------------------------------
+Ran 25 tests in 15.092s
+
+OK
+----------------------------------------------------------------------
+Ran 16 tests in 0.007s
+
+OK
+----------------------------------------------------------------------
+Ran 14 tests in 0.926s
+
+OK
+----------------------------------------------------------------------
+Ran 13 tests in 0.168s
+
+OK
+----------------------------------------------------------------------
+Ran 11 tests in 6.966s
+
+OK
+----------------------------------------------------------------------
+Ran 9 tests in 2.708s
+
+OK
+----------------------------------------------------------------------
+Ran 8 tests in 12.096s
+
+OK
+----------------------------------------------------------------------
+Ran 6 tests in 0.018s
+
+OK
+----------------------------------------------------------------------
+Ran 6 tests in 0.216s
+
+OK
+----------------------------------------------------------------------
+Ran 6 tests in 4.738s
+
+OK
+<test-refusal> {'marker': 'test-refusal', 'owner': 'rest', 'key': 'R1\r'}
+----------------------------------------------------------------------
+Ran 5 tests in 1.160s
+
+OK
+----------------------------------------------------------------------
+Ran 5 tests in 2.616s
+
+OK
+----------------------------------------------------------------------
+Ran 4 tests in 4.070s
+
+OK
+----------------------------------------------------------------------
+Ran 4 tests in 0.329s
+
+OK
+----------------------------------------------------------------------
+Ran 4 tests in 1.371s
+
+OK
+----------------------------------------------------------------------
+Ran 3 tests in 8.198s
+
+OK
+----------------------------------------------------------------------
+Ran 3 tests in 3.778s
+
+OK
+----------------------------------------------------------------------
+Ran 3 tests in 4.123s
+
+OK
+----------------------------------------------------------------------
+Ran 2 tests in 2.706s
+
+OK
+----------------------------------------------------------------------
+Ran 2 tests in 4.623s
+
+OK
+----------------------------------------------------------------------
+Ran 2 tests in 0.037s
+
+OK
+----------------------------------------------------------------------
+Ran 1 test in 1.762s
+
+OK
+----------------------------------------------------------------------
+Ran 1 test in 0.894s
+
+OK
+----------------------------------------------------------------------
+Ran 1 test in 2.440s
+
+OK
+----------------------------------------------------------------------
+Ran 1 test in 2.592s
+
+OK
+----------------------------------------------------------------------
+Ran 1 test in 0.253s
+
+OK
+----------------------------------------------------------------------
+Ran 1 test in 3.437s
+
+OK

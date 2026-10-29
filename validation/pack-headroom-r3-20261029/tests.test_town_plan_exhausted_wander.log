@@ -1,0 +1,15 @@
+test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use (tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use)
+Root cause, and the refutation of the earlier round's diagnosis. ... ok
+test_p1_empty_procurement_stop_returns_to_the_outpost (tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p1_empty_procurement_stop_returns_to_the_outpost) ... ok
+test_p2_destruction_procurement_stop_returns_to_the_outpost (tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p2_destruction_procurement_stop_returns_to_the_outpost) ... ok
+test_p3_a_live_shop_errand_still_buys_from_the_same_page (tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p3_a_live_shop_errand_still_buys_from_the_same_page)
+The same recorded Alchemist page, with its errand still live. ... ok
+test_p7_each_closing_step_of_the_return_is_progress (tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p7_each_closing_step_of_the_return_is_progress)
+The recorded walk now registers its distance to the Inn. ... ok
+test_p8_a_return_that_stops_closing_is_still_retired (tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p8_a_return_that_stops_closing_is_still_retired)
+The existing bound is untouched: a walk that never advances retires. ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 277.854s
+
+OK

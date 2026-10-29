@@ -1,0 +1,9 @@
+test_exhausted_unaffordable_plan_walks_toward_fundraising_entrance (tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_exhausted_unaffordable_plan_walks_toward_fundraising_entrance) ... ok
+test_operator_continuation_stops_at_first_key_mismatch (tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_operator_continuation_stops_at_first_key_mismatch)
+USER: a plan/reason-only pin is vacuous; pin exact actions. ... ok
+test_recorded_low_gold_store_board_leaves_through_store_path (tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_recorded_low_gold_store_board_leaves_through_store_path) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 20.240s
+
+OK

@@ -1,0 +1,9 @@
+test_h1_the_observed_ring_swap_releases_the_mutation_gate (tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_h1_the_observed_ring_swap_releases_the_mutation_gate) ... ok
+test_production_buys_the_departure_recall_with_the_target (tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target)
+No wall: the first changed decision is the recall quantity at 68. ... ok
+test_replay_decides_as_live_until_the_first_overweight_board (tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_replay_decides_as_live_until_the_first_overweight_board) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 92.161s
+
+OK

@@ -1,0 +1,6 @@
+test_constructed_r3_catalogue_request_stays_outside_while_inflight (tests.test_live23_home_cycle.Live23HomeCycleTest.test_constructed_r3_catalogue_request_stays_outside_while_inflight) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 3.824s
+
+OK

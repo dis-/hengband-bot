@@ -1,0 +1,11 @@
+test_classC2_first_decision_is_the_crossbow_swap (tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_classC2_first_decision_is_the_crossbow_swap) ... ok
+test_live27_first_divergence_is_the_crossbow_target (tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_live27_first_divergence_is_the_crossbow_target) ... ok
+test_tpstockout_first_decision_is_the_crossbow_swap (tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_tpstockout_first_decision_is_the_crossbow_swap) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 63.733s
+
+OK
+LIVE27 XBOW FIRST DIVERGENCE 11 live '{f.\r' equipment:suppress-random-teleport new '{g.\r' equipment:suppress-random-teleport
+TPSTOCKOUT XBOW FIRST DIVERGENCE live '5' town:blocked:no-actionable-claim-owner new '\x1b`n(.' equipment-transaction:travel-home
+TPSTOCKOUT XBOW FIRST DIVERGENCE live '5' town:blocked:no-actionable-claim-owner new '\x1b`n(.' equipment-transaction:travel-home

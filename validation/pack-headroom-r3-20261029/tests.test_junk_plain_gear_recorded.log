@@ -1,0 +1,14 @@
+test_checkpoint_drops_derived_plain_gear_caches (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_checkpoint_drops_derived_plain_gear_caches) ... ok
+test_home_full_relief_checks_retention_lazily (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_home_full_relief_checks_retention_lazily) ... ok
+test_plain_selected_main_weapon_keeps_every_melee_weapon (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_plain_selected_main_weapon_keeps_every_melee_weapon) ... ok
+test_recorded_controls_stay (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_recorded_controls_stay) ... ok
+test_selected_dominance_implies_plain_gear (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_selected_dominance_implies_plain_gear) ... ok
+test_selected_plain_item_and_its_copy_stay (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_selected_plain_item_and_its_copy_stay) ... ok
+test_empty_slot_keeps_best_plain_shield (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_empty_slot_keeps_best_plain_shield) ... ok
+test_recorded_home_plain_gear_counts (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_recorded_home_plain_gear_counts) ... ok
+test_weapon_sale_offers_no_junk (tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_weapon_sale_offers_no_junk) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 66.969s
+
+OK

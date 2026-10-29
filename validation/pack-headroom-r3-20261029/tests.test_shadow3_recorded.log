@@ -1,0 +1,6 @@
+test_existing_last_deposit_completion_remains_observed (tests.test_shadow3_recorded.Shadow3Test.test_existing_last_deposit_completion_remains_observed) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 3.596s
+
+OK

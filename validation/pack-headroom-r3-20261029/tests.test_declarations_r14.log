@@ -1,0 +1,7 @@
+test_overweight_home_tail_keeps_its_operation_at_3715 (tests.test_declarations_r14.DeclarationR14Test.test_overweight_home_tail_keeps_its_operation_at_3715) ... ok
+test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair (tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 655.382s
+
+OK
