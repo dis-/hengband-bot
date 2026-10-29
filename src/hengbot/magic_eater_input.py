@@ -29,6 +29,13 @@ class MagicEaterStep(Continuation):
 
 
 def compile_magic_eater(key, owner):
+    if owner == MISSILE_REASON and key == "R100\r":
+        # Reuse the production rest prompt gate, allowing a refusal to return
+        # directly to command input without leaving a required answer pending.
+        from hengbot.observed_input import compile_observed_input
+        prefix, steps = compile_observed_input(
+            key, ScreenKind.COMMAND, None, "q34-recharge-prompt", [])
+        return prefix, [replace(step, optional=True) for step in steps]
     if owner == ABSORB_REASON and re.fullmatch(r"G[a-z]", key):
         return "G", [MagicEaterStep(frozenset(), key[1], stage="absorb")]
     if owner == MISSILE_REASON and re.fullmatch(r"mBp[1-9]", key):
@@ -136,7 +143,7 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
     failed = any(text in line for text in FAILURES for line in messages)
     if failed:
         if any(text in line for text in FAILURES[2:] for line in messages):
-            operation.magic_eater_wand_charges = 0
+            operation.magic_eater_wand_charges = -1
         operation.business_outcome = "failed:magic-eater"
         step = replace(step, stage="done")
         operation.continuations[0] = step
@@ -171,7 +178,8 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
         if operation.owner == MISSILE_REASON and _owns_power_prompt(reading):
             # Missing/unusable powers and bounded menu failures must return to
             # command input before the next policy decision can throw a torch.
-            operation.magic_eater_wand_charges = 0
+            operation.magic_eater_wand_charges = (
+                -1 if _power_row(read_input_view(screen)[1]) is None else 0)
             operation.continuations[0] = replace(step, stage="done", attempts=0)
             executor._bound_screen_value = screen
             return executor._post_and_barrier("\x1b", deadline, role="answer")

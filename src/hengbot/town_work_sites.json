@@ -1605,7 +1605,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6b24302f3981096254897709cc9f830f9cdbf95193987e7db9532c5b820c38e3"
+    "ast_sha256": "db82cad68882ca4fc9dad014cb2eaa4aaccc85732490cadbc391812f41e14d44"
   },
   "magic_eater_devices.py:is_absorption_device": {
     "classification": "data",
@@ -1662,7 +1662,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9d92f84487dffb3440c6a4cc01b118513c5ce661c0f92bb295880d7040ca0b21"
+    "ast_sha256": "6706011e0a555d8c05acdd4fe194a22e92d81bcc4ac767f64caa9257393e6c3c"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
