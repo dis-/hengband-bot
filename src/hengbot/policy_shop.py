@@ -32,6 +32,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
+from hengbot import me_staff_sequence
 from hengbot.purchase_rungs import (
     PurchaseContext,
     PurchaseMatch,
@@ -1908,6 +1909,11 @@ class ShopMixin(InStoreMixin):
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                 "opening-q1-current-shelf",
             )
+        if me_staff_sequence.shopping(self, snapshot) and me_staff_sequence.purchase(self, snapshot) == item:
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "me-staff-current-shelf",
+            )
         if self._is_required_identify_staff_purchase(snapshot, item):
             self._home_procurement_probe = None
             self._home_procurement_fallthrough = "required-current-shelf"
@@ -2153,6 +2159,11 @@ class ShopMixin(InStoreMixin):
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                 "opening-q1-current-shelf",
             )
+        if me_staff_sequence.shopping(self, snapshot) and me_staff_sequence.purchase(self, snapshot) == item:
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "me-staff-current-shelf",
+            )
         if self._is_required_identify_staff_purchase(snapshot, item):
             return self._record_home_gate(
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
@@ -2368,6 +2379,9 @@ class ShopMixin(InStoreMixin):
             return None
         if self._opening_q1_shopping(snapshot):
             item = self._opening_q1_purchase(snapshot)
+            return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
+        if me_staff_sequence.shopping(self, snapshot):
+            item = me_staff_sequence.purchase(self, snapshot)
             return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
         commit_churn = commit_churn or bool(
             getattr(self, "_shop_selection_commits", False)
@@ -2781,6 +2795,17 @@ class ShopMixin(InStoreMixin):
                 return PurchaseMatch(rung_id, stage, self._purchase_item_identity(item),
                                      shortage=quantity, rationale="opening-q1:" + stage)
             return (PurchaseRung(rung_id, stage, match, purchase_rung_retention(rung_id)),)
+        if me_staff_sequence.shopping(self, context.snapshot):
+            ware = me_staff_sequence.purchase(self, context.snapshot)
+            if ware is None:
+                return ()
+            def match(ctx, item):
+                if self._purchase_item_identity(item) != self._purchase_item_identity(ware):
+                    return None
+                return PurchaseMatch(me_staff_sequence.BUY_RUNG, "me-staff", self._purchase_item_identity(item),
+                                     shortage=1, rationale="me-staff:one-of-each")
+            return (PurchaseRung(me_staff_sequence.BUY_RUNG, "me-staff", match,
+                                 purchase_rung_retention(me_staff_sequence.BUY_RUNG)),)
         snapshot = context.snapshot
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         strategy = self._carry_procurement_strategy(snapshot)
@@ -3288,10 +3313,16 @@ class ShopMixin(InStoreMixin):
             for item in store.items
             if self._purchase_churn_rejected(store.store_type, item)
         )
+        if me_staff_sequence.applies(self, snapshot):
+            excluded_classes.update(
+                (TVAL_STAFF, sval) for sval in me_staff_sequence.SEQUENCE_SVALS)
         items = tuple(
             item for item in store.items
-            if (item.tval, item.sval) not in excluded_classes
-            or self._identify_staff_swap_purchase(item)
+            if ((item.tval, item.sval) not in excluded_classes
+                or self._identify_staff_swap_purchase(item))
+            # 「2本目は買わない」: after Q1 class 16 buys these two staffs
+            # only through me_staff_sequence.purchase (_next_purchase).
+            and not me_staff_sequence.purchase_excluded(self, snapshot, item)
         )
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}
@@ -3777,6 +3808,8 @@ class ShopMixin(InStoreMixin):
             if ware is not None and snapshot.store is not None and store == snapshot.store.store_type and ware == item:
                 return quantity
             return 0
+        if me_staff_sequence.shopping(self, snapshot):
+            return int(me_staff_sequence.purchase(self, snapshot) == item)
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         strategy = (
             self._carry_procurement_strategy(snapshot)

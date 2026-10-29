@@ -568,6 +568,10 @@ class QuestMixin(OpeningRouteMixin):
         opening = self._opening_q1_town_key(snapshot, hostiles)
         if opening is not None:
             return opening
+        from hengbot import me_staff_sequence
+        staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
+        if staff_sequence is not None:
+            return staff_sequence
         if not self._opening_q34_active(snapshot):
             return None
 

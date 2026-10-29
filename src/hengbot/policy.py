@@ -13720,9 +13720,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ]
 
     def _count_treasure_detection_scrolls(self, snapshot: Snapshot) -> int:
+        from hengbot.me_staff_sequence import SV_STAFF_DETECT_GOLD, absorbed_charges
+
+        # Class 16's absorbed Detect Treasure power counts by its charges.
         return sum(
             it.count for it in snapshot.inventory if it.is_treasure_detection_scroll
-        )
+        ) + absorbed_charges(self, snapshot, SV_STAFF_DETECT_GOLD)
 
     def _count_usable_torches(self, snapshot: Snapshot) -> int:
         return sum(
