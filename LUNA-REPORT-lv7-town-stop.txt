@@ -1,0 +1,225 @@
+ISSUE #47 / #110: 新規キャラクターの町停止調査・修正
+作業ブランチ: lv7-town-stop-1029 / 基準 main: eebc99f0e
+最新のローカル main を最初に merge し、Already up to date を確認した。
+
+1. 診断（保存資料の実測）
+結論: 戦士 Lv7 と魔道具術師 Lv1 の owner-retired-burst は同じ原因。
+4件とも、未投稿の光源装備取引が店舗移動を拒否する一方、町の優先 owner は
+脱装備済みの復旧債務がある場合にしか取引を実行しなかった。まだ何も脱いでいない
+最初の equip が取り残され、route-refused → shop:approach の 5 → breakout を反復した。
+退役したのは equipment-txn 自身ではなく detectors（breakout）。直前 owner は store-router。
+再帰 recurrence_count=2 / limit=2 に達し、1回の失敗でも退役している（単純な予算枯渇ではない）。
+3回の無進展退役を CLI が burst として停止した。停止監視や退役予算は緩めていない。
+
+no-key-exhausted 4件は同じ停止表示への別経路。life-400 は Q1 準備済みでも隣接猫への
+戦闘を引き継がず quest-entry-unavailable。life-226 の3件は売却対象の松明の @v0=g を
+売却 owner が上書きせず拒否するが、同じ棚の購入 owner に渡さず退店。General の
+入口 (31,119) と隣接セル (32,118) を往復し no-progress:fundraising-digger で空キーになった。
+この3件は再起動による反復で、4種類の別キャラクターではない。
+
+me-a/life-001/20261029-052320-town-blocked-owner-retired-burst
+  turn=75424, Lv=1, HP=35/35, gold=58, position={'y': 32, 'x': 119}
+  claim=21 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=44 turn=75377 breakout key='4'
+    seq=45 turn=75382 shop:approach key='5'
+    seq=46 turn=75393 shop:approach key='5'
+    seq=47 turn=75401 shop:approach key='5'
+    seq=48 turn=75410 shop:approach key='5'
+    seq=49 turn=75424 town:blocked:owner-retired-burst key='5'
+  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+    29 / 75231 / 13 / detectors / recurrence 2/2 / 1/2
+    39 / 75329 / 17 / detectors / recurrence 2/2 / 1/2
+    49 / 75424 / 21 / detectors / recurrence 2/2 / 1/2
+  town_plan=null
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': 'prepare', 'planned_runs': None, 'kit_secured': False, 'gold_trigger': True}
+  readiness: quest=34, verdict=False, reason=strategy-force, opening_route_failure=None
+  quest_light=None; required_force.failed=['dps', 'speed_potions', 'heal_potions']
+  equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:a6e1f2fc19f68e78:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  取引開始時の品物: 松明(3000ターンの寿命) / count=6
+  保存画面 input_context={"item_list": null, "kind": "command", "prompt": "", "shopping": false}
+  保存画面: 町の地形とキャラクター欄。店舗画面・選択質問は出ていない。
+
+n1-a/life-400/20261029-060556-no-key-exhausted
+  turn=81070, Lv=7, HP=179/179, gold=3, position={'y': 23, 'x': 148}
+  claim=56 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=292 turn=80992 quest:enter:approach key='9'
+    seq=293 turn=81003 quest:enter:approach key='9'
+    seq=294 turn=81018 quest:enter:approach key='9'
+    seq=295 turn=81035 quest:enter:approach key='9'
+    seq=296 turn=81055 quest:enter:approach key='9'
+    seq=297 turn=81070 quest:blocked:opening-route key=''
+  town_plan={"stops": ["General Store", "Alchemist"], "index": 2, "inserted_this_visit": [], "skipped_latched": ["Alchemist", "General Store", "Magic Shop"], "skipped_reasons": {"Alchemist": "shelf-evidence", "General Store": "shelf-evidence", "Magic Shop": "shelf-evidence"}}
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': None, 'planned_runs': None, 'kit_secured': True, 'gold_trigger': False}
+  readiness: quest=1, verdict=True, reason=ready, opening_route_failure=quest-entry-unavailable
+  quest_light={'fuel': 2490, 'required': 2390.0}; required_force.failed=[]
+  equipment: next=None, pending=None, result_source=calibration-required-return
+  盤面: 町の屋外、Q1 は受注済み。隣接 (22,147) に race_id=10 の猫がいる。
+  この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
+
+n1-a/life-401/20261029-060726-town-blocked-owner-retired-burst
+  turn=80759, Lv=7, HP=177/177, gold=144, position={'y': 32, 'x': 114}
+  claim=116 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=585 turn=80714 breakout key='4'
+    seq=586 turn=80723 shop:approach key='5'
+    seq=587 turn=80733 shop:approach key='5'
+    seq=588 turn=80739 shop:approach key='5'
+    seq=589 turn=80752 shop:approach key='5'
+    seq=590 turn=80759 town:blocked:owner-retired-burst key='5'
+  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+    570 / 80557 / 108 / detectors / recurrence 2/2 / 1/2
+    580 / 80656 / 112 / detectors / recurrence 2/2 / 1/2
+    590 / 80759 / 116 / detectors / recurrence 2/2 / 1/2
+  town_plan=null
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': None, 'planned_runs': None, 'kit_secured': False, 'gold_trigger': False}
+  readiness: quest=1, verdict=True, reason=ready, opening_route_failure=None
+  quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
+  equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:268da8223b8e5add:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  取引開始時の品物: 松明(2000ターンの寿命) {@v0=g} / count=4
+  保存画面 input_context={"kind": "command", "prompt": "", "shopping": false}
+  保存画面: 町の地形とキャラクター欄。店舗画面・選択質問は出ていない。
+
+n1-b/life-226/20261029-085113-town-blocked-owner-retired-burst
+  turn=79942, Lv=7, HP=177/177, gold=181, position={'y': 32, 'x': 114}
+  claim=109 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=465 turn=79887 breakout key='4'
+    seq=466 turn=79900 shop:approach key='5'
+    seq=467 turn=79913 shop:approach key='5'
+    seq=468 turn=79920 shop:approach key='5'
+    seq=469 turn=79936 shop:approach key='5'
+    seq=470 turn=79942 town:blocked:owner-retired-burst key='5'
+  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+    450 / 79737 / 101 / detectors / recurrence 2/2 / 1/2
+    460 / 79840 / 105 / detectors / recurrence 2/2 / 1/2
+    470 / 79942 / 109 / detectors / recurrence 2/2 / 1/2
+  town_plan=null
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': None, 'planned_runs': None, 'kit_secured': False, 'gold_trigger': False}
+  readiness: quest=1, verdict=True, reason=ready, opening_route_failure=None
+  quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
+  equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:6c8d3b2eb897823a:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  取引開始時の品物: 松明(1500ターンの寿命) {@v0=g} / count=3
+  この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
+
+n1-b/life-226/20261029-085127-no-key-exhausted
+  turn=81089, Lv=7, HP=177/177, gold=265, position={'y': 31, 'x': 119}
+  claim=33 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=29 turn=81065 shop:approach key='9'
+    seq=30 turn=81065 town-progress-invariant:continue-observed-shop key='\x1b'
+    seq=31 turn=81071 shop:approach key='1'
+    seq=32 turn=81078 shop:approach key='9'
+    seq=33 turn=81078 town-progress-invariant:continue-observed-shop key='\x1b'
+    seq=34 turn=81089 quest:blocked:opening-route key=''
+  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+    25 / 81031 / 26 / store-router / recurrence 2/2 / 1/8
+    29 / 81065 / 29 / store-router / recurrence 2/2 / 1/8
+    33 / 81078 / 32 / detectors / recurrence 2/2 / 1/2
+  town_plan=null
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': None, 'planned_runs': None, 'kit_secured': False, 'gold_trigger': False}
+  readiness: quest=1, verdict=True, reason=ready, opening_route_failure=no-progress:fundraising-digger
+  quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
+  equipment: next=None, pending=None, result_source=calibration-required-return
+  盤面: 町の屋外、General 入口 (31,119)、store コンテキストなし。直前の店内では Escape を投稿済み。
+  この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
+
+n1-b/life-226/20261029-085139-no-key-exhausted
+  turn=82183, Lv=7, HP=177/177, gold=265, position={'y': 31, 'x': 119}
+  claim=26 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=22 turn=82151 shop:approach key='9'
+    seq=23 turn=82151 town-progress-invariant:continue-observed-shop key='\x1b'
+    seq=24 turn=82164 shop:approach key='1'
+    seq=25 turn=82173 shop:approach key='9'
+    seq=26 turn=82173 town-progress-invariant:continue-observed-shop key='\x1b'
+    seq=27 turn=82183 quest:blocked:opening-route key=''
+  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+    18 / 82120 / 19 / store-router / recurrence 2/2 / 1/8
+    22 / 82151 / 22 / store-router / recurrence 2/2 / 1/8
+    26 / 82173 / 25 / detectors / recurrence 2/2 / 1/2
+  town_plan=null
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': None, 'planned_runs': None, 'kit_secured': False, 'gold_trigger': False}
+  readiness: quest=1, verdict=True, reason=ready, opening_route_failure=no-progress:fundraising-digger
+  quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
+  equipment: next=None, pending=None, result_source=calibration-required-return
+  盤面: 町の屋外、General 入口 (31,119)、store コンテキストなし。直前の店内では Escape を投稿済み。
+  この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
+
+n1-b/life-226/20261029-085151-no-key-exhausted
+  turn=83268, Lv=7, HP=177/177, gold=265, position={'y': 31, 'x': 119}
+  claim=26 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=22 turn=83239 shop:approach key='9'
+    seq=23 turn=83239 town-progress-invariant:continue-observed-shop key='\x1b'
+    seq=24 turn=83248 shop:approach key='1'
+    seq=25 turn=83259 shop:approach key='9'
+    seq=26 turn=83259 town-progress-invariant:continue-observed-shop key='\x1b'
+    seq=27 turn=83268 quest:blocked:opening-route key=''
+  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+    18 / 83210 / 19 / store-router / recurrence 2/2 / 1/8
+    22 / 83239 / 22 / store-router / recurrence 2/2 / 1/8
+    26 / 83259 / 25 / detectors / recurrence 2/2 / 1/2
+  town_plan=null
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': None, 'planned_runs': None, 'kit_secured': False, 'gold_trigger': False}
+  readiness: quest=1, verdict=True, reason=ready, opening_route_failure=no-progress:fundraising-digger
+  quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
+  equipment: next=None, pending=None, result_source=calibration-required-return
+  盤面: 町の屋外、General 入口 (31,119)、store コンテキストなし。直前の店内では Escape を投稿済み。
+  この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
+
+n1-b/life-227/20261029-085255-town-blocked-owner-retired-burst
+  turn=80569, Lv=7, HP=175/175, gold=52, position={'y': 32, 'x': 114}
+  claim=113 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  最後のキー（repr により空キーと Escape を区別）:
+    seq=530 turn=80509 breakout key='4'
+    seq=531 turn=80519 shop:approach key='5'
+    seq=532 turn=80531 shop:approach key='5'
+    seq=533 turn=80545 shop:approach key='5'
+    seq=534 turn=80558 shop:approach key='5'
+    seq=535 turn=80569 town:blocked:owner-retired-burst key='5'
+  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+    515 / 80366 / 105 / detectors / recurrence 2/2 / 1/2
+    525 / 80455 / 109 / detectors / recurrence 2/2 / 1/2
+    535 / 80569 / 113 / detectors / recurrence 2/2 / 1/2
+  town_plan=null
+  departure_block=決定ログに未出力（停止理由と混同しない）
+  fundraising={'mode': None, 'planned_runs': None, 'kit_secured': False, 'gold_trigger': False}
+  readiness: quest=1, verdict=True, reason=ready, opening_route_failure=None
+  quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
+  equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:268da8223b8e5add:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  取引開始時の品物: 松明(2500ターンの寿命) {@v0=g} / count=4
+  保存画面 input_context={"kind": "command", "prompt": "", "shopping": false}
+  保存画面: 町の地形とキャラクター欄。店舗画面・選択質問は出ていない。
+
+補足: Magic-Eater は Q34 前で、DPS 3.962/必要6、加速0/1、回復0/2。戦士3件は Q34 後・Q1 前で readiness は true。
+従って同じ装備 owner 欠落が、異なる開幕段階を止めていた。戦士 life-227 では取引選択後に松明が fully_known に変わり、
+旧 move_identity も現在の品物に一致しなくなっている。既存の失敗解放を実行して新しい観測から再開する。
+
+2. 修正
+町の装備 owner を、復旧債務だけでなく未完了取引の最初の操作から実行する。
+見失った equip 対象は理由を equipment-transaction:equip-item-missing と明示し、既存の放棄・再計画へ渡す。
+Q1 開幕 owner は、買物以外の段階でも隣接脅威を解決する。遠方を追う従来の優先順位は維持する。
+売却の銘を安全に付けられない場合は既存の購入選択・Home確認・予約・投稿判定を通じて同じ棚の購入へ渡す。
+銘の上書き、必要抵抗・光源/燃料条件、ジャンク範囲、荷物余裕、開幕順序、購入予算は変更しない。
+保守性: 購入選択から実行までを小さな shop_purchase_dispatch.py に集約し、コピーされた処理を削減した。
+policy.py / policy_shop.py は減行。上限ファイルへ新規ロジックを積み増していない。既存テストの期待値は変更しない。
+
+3. 検証範囲・限界
+8 incident の盤面、判断、診断状態、知識応答、品物原本、出典 SHA256 を fixture に固定。
+public choose_key と production follow executor を使用。ゲーム側の操作結果は明記した構成応答であり、実機の新規人生完走ではない。
+装備 session オブジェクトは診断 JSON に入らないため、transaction_next と同じ出典の元の品物から再構成する。
+life-226 の Black 棚は64品中の末尾12品しか保存されず、開幕ページ census も診断に未保存。再開時に棚を再観測する。
+テストではその12品だけになった再入荷を明示的な構成応答とし、General を改めて観測して採掘道具購入まで通す。
+欠けた52品や当時の全棚を再現できたとは主張しない。停止監視を弱める方法で pin を通していない。
+
+4. チェック結果
+検証実施中。最終結果はチェック完了後に追記する。

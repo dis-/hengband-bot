@@ -270,7 +270,7 @@ class OpeningRouteMixin:
             return self._opening_q1_stop("no-progress:" + stage)
         # Settle town combat before shopping travel can pull us away again.
         # Otherwise the shop step and mob approach undo one another forever.
-        if store is not None:
+        if store is not None or self._physical_adjacent_hostiles(snapshot):
             combat = self._town_kill_mob_key(snapshot)
             if combat is not None:
                 return combat

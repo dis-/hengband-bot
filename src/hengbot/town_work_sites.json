@@ -2178,7 +2178,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "821ba81b921f382e02ea71cf696c11821bb542d41e744cd43a73fc16e1a22202"
+    "ast_sha256": "92efcb7c662c69fafb256ba12e74dd641e5271cc5519fe7052e47bc348d4666c"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4620,7 +4620,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3e3ae06107a37458cac8f3630c099c5cacd5854bf35b2171dce8c30f2e252b6e"
+    "ast_sha256": "dd2e64703874c841c4d6d6da256ee5cd50492b3bd84db2fdd03332e32f426957"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_owner_key": {
     "classification": "producer",
@@ -4628,7 +4628,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "034f9ec03627361a5a13badd64f31a182b6ef8424b57e39c5d02c44eb2d0d992"
+    "ast_sha256": "d0650defbbed000eb8e0a4ee8b3a83ee3e85d1096a043fa6dbd67373ad857474"
   },
   "policy_equipment.py:EquipmentMixin._equipment_wield": {
     "classification": "adapter",
@@ -6035,7 +6035,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c46b500a734e09ffe547c0c786294ff7a5847f0fd1dadd6c7aa2366125e3c687"
+    "ast_sha256": "ee16ea8722b7c16df27f4ce511b5c4af1eb4dfc68fb5bde549726d9fcfd0b84b"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -7033,7 +7033,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0fe1e031f02532c2125eb6d513eb7cc9f278b210900afaa937df35fa4371198f"
+    "ast_sha256": "a8b174709cfadbbe7963151f6fd2af4b5db5ff0ac5462ad18cabb6e4a74d1008"
   },
   "policy_shop.py:ShopMixin._shop_purchase_key": {
     "classification": "operation",
@@ -8351,6 +8351,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2bebccbb9df8eeae7630baacf9edfddb8072a63d16433021ce9c77cb80c40d62"
+  },
+  "shop_purchase_dispatch.py:next_purchase_key": {
+    "classification": "operation",
+    "rows": [
+      "shop-buy"
+    ],
+    "delegation": "none",
+    "ast_sha256": "0dd8f2c70a0008725fd7785495d6bc33da87b3a6bc613e75a256a45c4878c242"
   },
   "slow_decisions.py:SlowDecisionRecorder.choose_key": {
     "classification": "adapter",

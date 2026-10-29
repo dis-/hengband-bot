@@ -421,6 +421,12 @@ from hengbot.model import (
 
 
 class EquipmentMixin:
+    def _equipment_transaction_has_town_work(self) -> bool:
+        """An unstripped transaction still owns its next executable action."""
+        session = self._equipment_transaction_session
+        return bool(self._equipment_transaction_owned_items
+                    or (session is not None and not session.complete))
+
     def _equipment_transaction_owns_town_relocation(
         self, snapshot: Snapshot
     ) -> bool:
@@ -2002,14 +2008,14 @@ class EquipmentMixin:
     def _equipment_transaction_town_owner_key(
         self, snapshot: Snapshot
     ) -> str | None:
-        """Give a stripped transaction exclusive ownership of town decisions."""
+        """Run the transaction that owns town relocation, including first equip."""
         if self._defer_town_errand("equipment-txn", "town-owner"):
             self._offer_execution_no_step(
                 producer="equipment-txn", work_id="equipment:town-owner",
                 cause="deferred-by-town-holder",
             )
             return None
-        if not self._equipment_transaction_owned_items:
+        if not self._equipment_transaction_has_town_work():
             self._offer_execution_no_step(
                 producer="equipment-txn", work_id="equipment:town-owner",
                 cause="no-transaction-debt",
@@ -2852,6 +2858,7 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     f"equip-item-missing:{action.item_id}"
                 )
+                self.last_reason = "equipment-transaction:equip-item-missing"
                 return self._equipment_town_outcome(
                     WAIT_KEY, label="equip-item-missing",
                 )

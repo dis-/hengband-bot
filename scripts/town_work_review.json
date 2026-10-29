@@ -11772,5 +11772,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "shop_purchase_dispatch.py:next_purchase_key": {
+    "classification": "operation",
+    "rows": [
+      "shop-buy"
+    ],
+    "context": "Observed ordinary-shop page; invoked by the existing shop dispatcher.",
+    "evidence": "Issue #47: shared purchase-selection adapter. Retains _next_purchase, live rung provenance, quantity and _shop_purchase_key admission; no independent completion credit.",
+    "admission": "@claims(ClaimOwner.SHOP_BUY)",
+    "observer": "store purchase effect observer",
+    "delegation": "none"
   }
 }
