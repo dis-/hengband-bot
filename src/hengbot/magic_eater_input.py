@@ -62,6 +62,11 @@ def _power_row(lines):
     return None
 
 
+def _owns_power_prompt(reading):
+    return (reading.kind in {"spell", "command_char"}
+            and reading.prompt.rstrip() in POWER_PROMPTS)
+
+
 def _answer(step, screen, operation):
     reading, lines = read_input_view(screen)
     prompt = reading.prompt.rstrip()
@@ -98,7 +103,7 @@ def _answer(step, screen, operation):
             return answer, "power" if answer == "\r" else "kind"
         raise ValueError("unowned Magic-Eater type prompt")
     if step.stage == "power":
-        if reading.kind != "command_char" or prompt not in POWER_PROMPTS:
+        if not _owns_power_prompt(reading):
             raise ValueError("unowned Magic-Eater power prompt")
         row = _power_row(lines)
         if row is None:
@@ -162,4 +167,12 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
             step, stage=stage, attempts=step.attempts + 1 if stage == step.stage else 0)
         return executor._post_and_barrier(answer, deadline, role="answer")
     except ValueError as error:
+        reading, _ = read_input_view(screen)
+        if operation.owner == MISSILE_REASON and _owns_power_prompt(reading):
+            # Missing/unusable powers and bounded menu failures must return to
+            # command input before the next policy decision can throw a torch.
+            operation.magic_eater_wand_charges = 0
+            operation.continuations[0] = replace(step, stage="done", attempts=0)
+            executor._bound_screen_value = screen
+            return executor._post_and_barrier("\x1b", deadline, role="answer")
         return executor._terminal(operation, "magic-eater", str(error), match, outcome)

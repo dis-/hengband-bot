@@ -28,7 +28,7 @@ def prompt(text, kind="command_char", **details):
 def powers(charges=17, *, menu=False, selected=True, japanese=False):
     text = ("('*'で一覧, ESCで中断) どの魔力を使いますか？" if japanese else
             "(*=List, ESC=exit) Use which power? ")
-    screen = prompt(text)
+    screen = prompt(text, "spell")
     label = ("》" if japanese else "> ") if menu and selected else "  " if menu else "p)"
     name = "マジック・ミサイル" if japanese else "Magic Missile"
     screen["lines"][17] = f"{label} {name:<22}    {charges:2}/17  35%"
@@ -178,7 +178,7 @@ class MagicEaterO3Test(unittest.TestCase):
             with self.subTest(japanese=jp):
                 kind = "[A] 杖, [B] 魔法棒, [C] ロッド:" if jp else "[A] staff, [B] wand, [C] rod:"
                 list_prompt = prompt("('*'で一覧, ESCで中断) どの魔力を使いますか？" if jp else
-                                     "(*=List, ESC=exit) Use which power? ")
+                                     "(*=List, ESC=exit) Use which power? ", "spell")
                 key = self.choose(self.policy(), self.board())
                 game, result, status = self.run_follow(key, MISSILE_REASON, [
                     prompt(kind), list_prompt, powers(7, japanese=jp),
