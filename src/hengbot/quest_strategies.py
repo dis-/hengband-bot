@@ -18,6 +18,12 @@ def acceptance_dps_floor(force: dict[str, Any], class_id: int) -> float:
     return float(overrides.get(str(class_id), force.get("min_expected_dps", 0)) or 0)
 
 
+def acceptance_hp_floor(force: dict[str, Any], class_id: int) -> int:
+    """Resolve a class-specific maximum-HP floor for an acceptance tier only."""
+    overrides = force.get("min_hp_by_class", {})
+    return int(overrides.get(str(class_id), force.get("min_hp", 0)) or 0)
+
+
 @dataclass(frozen=True)
 class StrategyProfile:
     quest_id: int
