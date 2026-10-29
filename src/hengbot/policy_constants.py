@@ -294,6 +294,11 @@ Q34_OPENING_DOOR_ATTEMPT_LIMIT = 200
 Q34_FINAL_DOOR_ATTEMPT_LIMIT = Q34_OPENING_DOOR_ATTEMPT_LIMIT
 # The sequence doors [4,15]/[4,16] are the same LOCKED_GLASS_DOOR_7.
 Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT = Q34_FINAL_DOOR_ATTEMPT_LIMIT
+# D19 (2026-10-30 n1-c, Yeek cave 1F): a fundraising return whose only way to a
+# known up staircase leaves the remembered map through a closed door keeps
+# picking that door past DOOR_OPEN_LIMIT.  Dungeon locks are LOCKED_DOOR_1..7
+# (the same powers as the Q34 locks), so the Q34 bound applies per door.
+FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT = Q34_OPENING_DOOR_ATTEMPT_LIMIT
 # Gold is collected by walking onto it; 'g' is only a bounded fallback.
 POST_CLEAR_PICKUP_ATTEMPT_LIMIT = 3
 # Japanese monster-death messages (living, undead/nonliving, destroyed).
@@ -774,6 +779,7 @@ MOVE_REASONS = frozenset(
         "fundraise:seek-upstairs",
         "fundraise:seek-upstairs-explore",
         "fundraise:seek-upstairs-wander",
+        "fundraise:seek-upstairs-door",
         "fundraise:seek-loot",
         "fundraise:trigger-autodestroy",
         "paralyzer-guard:approach-range",

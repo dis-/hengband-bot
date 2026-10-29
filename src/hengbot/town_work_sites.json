@@ -4889,7 +4889,7 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "64cf8731287b27eabbfd750b8d80b03dfcfc5bebc8915224f14b56c0eba0be66"
+    "ast_sha256": "917d1d1ab80baa06f36c8aa2a9385f1ac99a1760a71eceb86e3e2b57f4ea9862"
   },
   "policy_fundraising.py:FundraisingMixin._mining_closure_key": {
     "classification": "producer",
@@ -4963,6 +4963,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "bdf7cab39b98ad67d062a65ea5da0164d8dde47f4199302cb4c20325ccb6fa06"
+  },
+  "policy_fundraising.py:FundraisingMixin._upstairs_door_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "7a4e48b8046779b035815127adaf6428494a4ae9d56d6263b30397b2d2c52786"
   },
   "policy_helpers.py:PolicyHelpersMixin._carried_destruction_uses": {
     "classification": "data",

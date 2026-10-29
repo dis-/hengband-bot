@@ -41,6 +41,7 @@ from hengbot.policy_constants import (
     FUNDRAISING_DIGGER_BASE_PRICE,
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_KIT_MARGIN,
+    FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT,
     MINING_COMBAT_CONTACT_LIMIT,
     MINING_DETECTION_RADIUS,
     MINING_NAVIGATION_REVISIT_LIMIT,
@@ -609,6 +610,11 @@ class FundraisingMixin:
                 continuation="fundraising.observe-town-arrival",
             )
             return UP_STAIRS_KEY
+        # Before the confined-cycle break below: picking a lock holds the
+        # player on one cell, which that break would read as an oscillation.
+        door_key = self._upstairs_door_key(snapshot)
+        if door_key is not None:
+            return door_key
         # The remembered route to a distant staircase can change as mining
         # reveals terrain, making BFS alternate between two equally short first
         # steps at a junction.  Break that confined cycle before asking BFS for
@@ -743,6 +749,123 @@ class FundraisingMixin:
             expected_effect="exit-route-available",
         )
         return WAIT_KEY
+
+    def _upstairs_door_route(
+        self, snapshot: Snapshot
+    ) -> tuple[Position, list[Position]] | None:
+        """The closed door through which the known map leads to a known up staircase.
+
+        D19 (2026-10-30 n1-c, Yeek cave 1F): the corridor behind a closed door
+        was never remembered, so no route over remembered terrain reached the
+        known up staircase; after DOOR_OPEN_LIMIT failed picks the door also
+        stopped being a frontier, and the return wandered for hours.  This
+        search walks remembered terrain without entering any closed door, may
+        step orthogonally into a closed door that is neither stuck nor out of
+        picks, and past that door may also cross unremembered cells.  Returns
+        ``(door, approach)``, ``approach`` being the remembered steps to the
+        cell beside the door (empty when the player stands there), or None when
+        a staircase is reachable without a door or not even through one.
+        """
+        goals = {
+            position for position, grid in snapshot.grids.items()
+            if grid.has_up_stairs and self._is_upstairs_target(grid)
+        }
+        start = snapshot.player.position
+        if not goals or start in goals:
+            return None
+        stuck = {
+            yx for floor, yx in getattr(self, "_stuck_doors", ())
+            if floor == snapshot.floor_key
+        }
+        attempts = self._fundraising_upstairs_door_attempts
+        doors = {
+            yx for yx in self._remembered_door_t
+            if yx not in stuck
+            and attempts[yx] < FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT
+        }
+        known = self._remembered_known_t
+
+        def unremembered(position: Position) -> bool:
+            key = (position.y, position.x)
+            return (
+                key not in known
+                and key not in self._blocked_unknown
+                and snapshot.in_bounds(position)
+            )
+
+        # ``beyond`` is the first door crossed, or None on the remembered side.
+        # The remembered side is searched to exhaustion first, so a staircase
+        # reachable without a door is never traded for a shorter door route.
+        parent: dict[Position, Position | None] = {start: None}
+        beyond: dict[Position, Position | None] = {start: None}
+        remembered_side: deque[Position] = deque([start])
+        door_side: deque[Position] = deque()
+        while remembered_side or door_side:
+            position = (remembered_side or door_side).popleft()
+            door = beyond[position]
+            if position in goals:
+                if door is None:
+                    return None
+                path: list[Position] = []
+                node: Position | None = position
+                while node is not None and node != start:
+                    path.append(node)
+                    node = parent[node]
+                path.reverse()
+                return door, path[: path.index(door)]
+            walkable = set() if door is not None else {
+                neighbor
+                for neighbor in self._walkable_neighbors(
+                    snapshot, position, allow_damaging=True
+                )
+                if (neighbor.y, neighbor.x) not in self._remembered_door_t
+            }
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor in parent or neighbor in self._engagement_avoid_cells:
+                    continue
+                key = (neighbor.y, neighbor.x)
+                if key in doors and (door is not None or dy == 0 or dx == 0):
+                    next_door = neighbor if door is None else door
+                elif door is None:
+                    if neighbor not in walkable:
+                        continue
+                    next_door = None
+                elif (
+                    key in self._floor_t or neighbor in goals
+                    or unremembered(neighbor)
+                ):
+                    next_door = door
+                else:
+                    continue
+                parent[neighbor] = position
+                beyond[neighbor] = next_door
+                (remembered_side if next_door is None else door_side).append(neighbor)
+        return None
+
+    @claims(ClaimOwner.FUNDRAISING)
+    def _upstairs_door_key(self, snapshot: Snapshot) -> str | None:
+        """Walk to, then pick, the door that leads to a known up staircase."""
+        route = self._upstairs_door_route(snapshot)
+        if route is None:
+            return None
+        door, approach = route
+        if approach:
+            self.last_reason = "fundraise:seek-upstairs-door"
+            self._declare_reach(approach[-1])
+            return self._fundraising_return_route_key(
+                self._step_toward(snapshot, approach[0]),
+                step="fundraising.seek-upstairs-door",
+                work_id="fundraise:return:upstairs-door-approach",
+            )
+        self._fundraising_upstairs_door_attempts[(door.y, door.x)] += 1
+        self.last_reason = "fundraise:open-upstairs-door"
+        return self._fundraising_return_route_key(
+            self._step_toward(snapshot, door),
+            step="fundraising.open-upstairs-door",
+            work_id="fundraise:return:upstairs-door-open",
+            expected_effect="door-opened",
+        )
 
     def _tunnel_step_toward(self, snapshot: Snapshot, target: Position) -> str | None:
         """Tunnel one step toward ``target`` through an adjacent diggable wall/vein.
