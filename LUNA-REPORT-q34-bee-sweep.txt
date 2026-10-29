@@ -1,0 +1,56 @@
+ISSUE #47 / D7 — Q34 蜂の配置探索ループ修正
+作成日: 2026-10-29
+対象ベース: 47a66d593（この作業ツリーの変更前HEAD）
+
+1. 原因調査
+policy_quest.py の placement-sweep は battlefield 全体の静的歩行可能セルを探索対象にし、固定敵の隣接禁止だけを blocked に渡していた。QuestFloorNavigator._static_walkable は door を通行可能とするため、avoid_door_positions にある [2,14] も通過する最短路を選ぶ。停止時の目標は [1,12] であり、[3,14] から北のガラス扉へ向かって _step_toward が o8 を生成した。
+
+通常移動は DOOR_OPEN_LIMIT=3 で _blocked_doors に記録する。しかし配置探索の静的経路はその集合を参照せず、次回も同じ扉を選んだ。_step_toward 自体は記録後も開扉キーを返すため、失敗応答が何度来ても探索計画は変わらなかった。stuck のメッセージ認識だけではこの経路の反復を防げない。捕捉JSONには日本語の文字化けもあり、失敗メッセージの文字列一致に依存する解決にはしていない。
+
+ゲーム側の根拠:
+・lib/edit/quests/034_DumpWitness.jsonc は上部 [2,13..18] を JAMMED_GLASS_DOOR_7、[4,14..17] を LOCKED_GLASS_DOOR_7 と定義する。上部小部屋の初期蜂配置は [3,13]。
+・MonraceDefinitions.jsonc の種族174は CAN_FLY を持つが、OPEN_DOOR / BASH_DOOR / PASS_WALL / NEVER_MOVE / RAND_25 / RAND_50 は持たない。
+・src/monster-floor/monster-move.cpp の扉処理では開扉・破壊能力が必要であり、飛行だけで閉じたガラス扉を越えることはできない。monster-direction.cpp:226以降は敵対モンスターを移動候補選択へ渡す。蜂は固定配置に留まる敵ではない。
+・src/action/open-close-execution.cpp:39以降の exe_open は OPEN 特性のない扉について失敗を返し、地形を開いた状態に変えない。
+
+蜂の所在は「まだ上部小部屋」とは限らない。state.jsonl には turn 79342 の [3,18] に続き、79878 の [6,13]、79888 の [5,14] の実観測がある。最終扉 [4,14] が開いた後、蜂は下の大部屋へ移動していた。停止時の厳密な座標は不可視のため断定できないが、最終観測周辺を含む許可領域を探すべきで、北の閉鎖ガラス扉を開ける必要はない。
+
+2. 修正
+QuestFloorNavigator.placement_sweep_blocked に、配置探索用の扉制約をまとめた。
+・avoid_door_positions を経路・探索目標から除外する。
+・承認済みの最終扉は、盤面で既に通行可能と確認できた場合だけ通過を許す。配置探索自身では開けない。
+・通常移動が開扉を3回試して通行不可とした扉、および同じ階の stuck 記録も除外する。
+・通常探索への既存フォールバックにも同じ禁止セル判定を適用する。
+経路がなければ既存の quest:blocked:placement-sweep-route で停止する。max_sweep_rounds=3 と既存の枯渇時処理は維持した。
+
+戦士の開幕経路・投擲地点・回収手順、およびクローカー→デスソード二体→蜂の承認済み順序・戦略JSONは変更していない。保守性の改善は扉制約の小さなヘルパーへの集約であり、別の開扉試行カウンタは追加していない。旧挙動を温存するための検査の壁は追加していない。
+
+3. 実不具合の検査項目
+台帳追加用の代表identity:
+tests.test_q34_bee_sweep_recorded.Q34BeeSweepRecordedTest.test_captured_board_avoids_glass_door_and_engages_bee
+
+fixture: tests/fixtures/q34-bee-sweep-1029.json
+停止盤面 turn 80204 と、別途捕捉された上部隣接蜂・下部大部屋の蜂の盤面、停止時checkpointの調査済みセルを保存した。固定敵撃破証明を復元し、未出力の武器技能は検査用の知識応答で補う。公開 choose_key と本番 _ExecutorInputPort / OperationExecutor を使用し、入力受理・完了・FIFO残留なしを確認する。
+
+代表検査では停止盤面から東へ6を送ることを確認し、構成した移動応答として別の実捕捉隣接蜂盤面を接続し、近接6へ進むことを検査する。捕捉間の時刻変更と応答の接続は構成データであり、実ゲーム再走の主張ではない。
+同じモジュールの他3件は、開かない扉の3回後の回避、下部に実観測された蜂の追跡、失敗扉で全経路が塞がれた場合の明示停止を検査する。
+
+変更前HEADの該当ソースを一時ディレクトリに復元して代表検査を実行したところ、本番executor経由で o8 を送信し、期待6との不一致で失敗した（終了コード1）。修正後は追加4件とも成功（終了コード0）。一時コピーは削除済み。
+
+4. 許可された検証と制約
+使用Python: Codex同梱runtime。PYTHONPATH=src;tests。
+import hengbot.cli, hengbot.policy: 成功、終了コード0。
+
+PDCA台帳のD1〜D5:
+・D1 tests.test_lv7_town_stop_recorded: 5件成功。
+・D2 tests.test_town_pack_headroom: 22件成功。
+・D3 tests.test_spectator_tiles: 13件成功。
+・D4 tests.test_magic_eater_acceptance: 8件成功。
+・D5 tests.test_magic_eater_ranged_fire_recorded: 4件成功。
+追加D7: 4件成功。成功は合計56件。
+
+初回の台帳一括実行は、D1全件の成功後、D2途中で実行側の120秒上限に達して終了した。子プロセスを終了・回収後、D2以降を再実行し、上記の成功を確認した。
+
+作業中に台帳へ追加されたD6 tests.test_q34_torch_entry_recorded は、このベースの作業ツリーにモジュール自体がない。実行を試みたが ModuleNotFoundError で検査本体は実行不能だった。D2以降とD7の再実行は52件中51件成功・D6読込エラー1件、終了コード1。したがって「現時点の台帳が全件成功」とは報告しない。D6を含む統合後ツリーでの再検証が残る。
+
+指示に従い preflight、mutation_check、fast_tier、派生scope、全件suiteは実行していない。実ゲームの再走・Linux検証環境での新規実行も行っていない。起動した検査・一時検証プロセスはすべて終了済みで、待機スクリプトやバックグラウンド検査の残留はない。
