@@ -1,0 +1,11 @@
+{
+  "check": "preflight-complete",
+  "args": [
+    "C:\\hengband-backups\\guard-tools\\preflight.py",
+    ".",
+    "main"
+  ],
+  "exit_code": 0,
+  "seconds": 188.47,
+  "head": "f4011fa03794e4bd877162646d74996c98dd71a1"
+}

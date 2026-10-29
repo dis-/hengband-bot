@@ -1,0 +1,167 @@
+ISSUE #47 高レベル town:blocked:owner-retired-burst 調査・修正報告
+
+1. 捕捉ごとの診断（原因別）
+
+開始時に最新 main を merge し、Already up to date を確認した。
+基準 main: eebc99f0e7dde58f028cf7f980a823ea9e16cc25。
+別作業 lv7-town-stop-1029 のコミットはこの main に未統合だった。
+その別修正で今回の全捕捉が解消済みとは扱っていない。
+指定された停止7件と後続の departure-unsatisfiable 1件を固定した。
+17回という全体集計のうち、今回の証拠から診断できるのは指定された7停止である。
+なお、実際のレベルは life-221 が7、life-225の083759が14だった。
+
+A. 装備交換が容量拒否後も自宅移動を所有し続ける（3停止、今回の修正対象）
+指定7停止の中では最多の3件。Lv16以上に限ると2件で、後述Bの2件と同数。
+3件とも、到着不能ではなく自宅到着後の town-pack-budget 拒否が発端。
+自宅(45,123)から(44,124)への9、戻る1、自宅内のEscapeが繰り返された。
+装備変更も荷物の減少もないため、新しい仕事の成果や経路の最短距離更新にならない。
+装備交換は実行できない次操作を保持し、自宅以外の町仕事への引き渡しが起こらなかった。
+
+・life-218 / 20261029-062121、Lv30
+  自宅からの武器引出し後、main_handの装備496a911c336315dbを外し、
+  引き出したa8b52779f6359e82を装備し、旧武器を預ける計画。
+  自宅内の荷物は19枠。装備外しは追加枠を要するため予算拒否された。
+  退役したのは equipment-txn ではなく、結果の policy:none-store-exit を所有する idle。
+  turn 2055692、2055729、2055759で recurrence、回数2、未成功1/予算3。
+  最後が owner-retired-burst。装備計画が残るためHomeだけの町計画が続いた。
+
+・life-225 / 20261029-083759、Lv14
+  3品の準備預入れの後、main_handの9c2eb7e52ebfe13fを外し、
+  pack:02e74feabcf2387eを装備して旧武器を預ける計画のindex 3。
+  自宅内の荷物は19枠。ここでも town-pack-budget が出て装備外しは送信されない。
+  turn 381889、381966、382036で equipment-txn が未成功8/予算8に達して退役。
+  最後がburst。自宅到着では transaction Observe の装備効果が満たされず、
+  再許可後も同じ自宅移動だけを要求した。
+
+・life-225 / 20261029-084926、Lv17
+  bodyの8ecb1927dbcaf05dを外して預け、Homeの523d457d37cb5b14を引き出し装備する計画。
+  次操作はindex 0のtakeoff。自宅内の荷物は22枠。
+  turn 465770で idle がrecurrence 2、未成功1/予算3で退役。
+  465848、465930で equipment-txn が未成功8/予算8で退役し、最後がburst。
+  Recall、Teleport、Cure等の補給不足も残るが、実行不能な装備計画のHome所有が続いた。
+
+B. 鑑定杖の補給不能を店間ルートが解消できない（2停止、残課題）
+
+・life-218 / 20261029-062910、Lv30
+  鑑定杖の残量4、目標20、不足16。20回分の杖が895で観測され、所持金19292。
+  在庫切れや金不足ではなく、shop:sell-rebuy-churn-defect により構成が拒否された。
+  最終選択診断にも shop:observed-operation-uncomposable がある。
+  Magic Shopを観測して退出し、Alchemistへ向かい、再びMagicへ戻る巡回。
+  store-router の Reach(37,91) が turn 2095711、2096024、2096327でrecurrence 2、
+  未成功1/予算8として退役。最後がburst。
+  町の identify_staff_ready が満たされず、town-departure-not-ready が残る。
+
+・life-218 / 20261029-062929、Lv30
+  同じ在庫・金・不足が再起動後も続く。前回停止の証拠もtail内に残っている。
+  今回の巡回では2097097、2097388、2097701で同じstore-router/Reachが退役。
+  最終点はshop:leave。観測後の操作拒否が、補給仕事全体の終了・別手段への引き渡しに
+  つながらず、shop:observe-and-leave / continue-observed-shop / shop:travel が続いた。
+  この2件の購入・売買再購入禁止の所有権整理は今回の修正に含めない。
+
+C. 自宅の不要品整理と知識取得／店入口期待の再発（1停止、残課題）
+
+・life-218 / 20261029-050930、Lv27
+  Homeの full-home-discard 引出しと home:junk-sweep:plain-gear を反復。
+  Recallは9/目標11で、不足2の補給も残る。
+  turn 1509803で home-scan、1509853で store-router、1509882でhome-scanが退役。
+  いずれもrecurrence 2、未成功1。予算はhome-scan 300、store-router 8。
+  home-scanは同じ知識Observe期待(1508669,7,knowledge)、
+  store-routerはstore-entry Observe期待を保持していた。
+  引出し・破棄がある一方、その仕事の完了は退役会計上の観測成果として認識されず、
+  shop:travel:await-entryと知識再取得が再発した。最後はHome内のburst。
+  知識期待の世代とHome整理の効果確認・入口待ち所有権の整合が別の調査対象である。
+  操作結果と退役会計の不一致は記録で確認できるが、未修正の詳細実装原因を断定しない。
+
+D. quest 34報酬後の店入口待機とbreakout（1停止、低レベル別作業）
+
+・life-221 / 20261029-063340、Lv7
+  quest 34はstatus 4。turn 79854のfixedquest:claim、79864のreward-approach後、
+  shop:approachの5待機とbreakoutが繰り返される。所持金58、補給不足が多数残る。
+  detectorsのTerminal(breakout)が79945、80044、80147、80242、80337で
+  recurrence 2、未成功1/予算2として退役。最後がburst。
+  報酬回収後の仕事と店入口の進行が結び付かず、検出・脱出側のTerminalが再発した。
+  Lv16以上の停止ではなく、未統合のlv7-town-stop-1029が扱う系列に該当する。
+
+E. 指定された後続停止（burst件数には加えない）
+
+・life-218 / 20261029-062134、Lv30
+  再起動後にHome預入れ・鑑定・購入などは進むが、turn 2056195でdeparture-unsatisfiable。
+  departure_block.failed は equipment_departure_ready のみ。
+  記録のfree_pack_slotsは4、minimum_free_pack_slotsは5。
+  今回の基準mainの共有予約値は4であり、過去記録の5を新しい固定値として導入していない。
+  これは別の出発条件停止の証拠として残し、解消済みのburst pinには数えない。
+
+2. 実装と保守性
+
+equipment_capacity.py（小さな専用モジュール）に次の2責務を集約した。
+・町の装備計画は town_pack_budget と同じ予約枠を差し引いて既存plannerへ渡す。
+  計画が返す空き枠と実行側の許可条件を一致させ、実行不能なHome仕事の新規入場を防ぐ。
+  操作のない計画、容量を減らすだけの計画は既存plannerの結果を保持する。
+・既存セッションの未送信takeoffが観測荷物で実行不能になり、復元すべき装備の負債が
+  ない場合は、equipment-txnのclaimと専用store visitを解放して再計画する。
+  移動失敗やアイテムの失敗として登録しない。既に送信済みの操作、復元負債、
+  別理由でblockedのセッションには、その既存の所有者と確認処理を残す。
+
+policy_equipment.py側は既存plannerの呼出し先と準備入口の接続のみを変更した。
+容量計算、予算、経路探索、Home出入り、失敗アイテム隔離を重複実装していない。
+町の場面ガード、退役回数、burstの閾値を緩める修正はしていない。
+上限対象の7ファイルは増えていない。装備の深度条件や比較規則は変更していない。
+plannerは命令を返さない純粋なデータ計算としてcensusとmanifestへ明示登録した。
+
+3. 固定証拠とpinの範囲
+
+tests/fixtures/retired-burst-high-20261029.json.gzに、8捕捉の停止盤面、
+直前のHome拒否盤面、最後のHome／skill知識、70判断の窓、退役receipt、診断state、
+元ファイルのSHA-256を保存。抽出スクリプトは完全なgzip member／JSON行だけを読み、
+盤面の内容を書き換えない。修正対象3件のObserve claimに保存された全actionを復元し、
+計画のtarget_loadout_idが記録と一致すること、次のtakeoffの現物同一性も検証する。
+
+3件とも公開choose_keyを通して未実行セッションが解放され、自宅をEscapeで退出する。
+followの実際のsender、TCP client、OperationExecutorを通じて送信完了、受信FIFOの空を確認。
+退出後の次のchoose_keyでも停止や装備交換approachの再発がなく、失敗アイテム隔離も増えない。
+退出応答・拡張端末のHome描画は明記した構成データであり、新しいキーに対するライブ応答ではない。
+
+捕捉にはPython checkpointがないため、これは診断claimからのattach境界再生である。
+捕捉の全生涯、校正データ、過去のdriver退役カウンタを完全復元した長期プレイとは区別する。
+B/C/D/Eは証拠固定・診断のみであり、それらが今回の変更で完全解消したとは主張しない。
+
+revert-proof: 所有権解放の呼出しだけを実際に除去して実行すると、
+062121・083759・084926の全3 subtestが失敗した。finallyで元のソースを復元し差分ゼロを確認。
+planner側も、19枠からのHome交換が拒否され、17枠なら予約内で計画できること、
+22枠でも操作のない計画は拒否しないことを検証する。
+
+新規wallは0件。既存テスト・期待値・wallの対象範囲は変更していない。
+初回fast tierで既存の簡略なテレメトリ用セッションに次操作がない場合の例外が見つかったため、
+次操作が実際にtakeoffの場合だけ判定するよう修正し、既存テストを変更せず通過させた。
+
+4. 検証
+
+すべて同じ実装HEAD f4011fa03794e4bd877162646d74996c98dd71a1 で実行。
+Python 3.13、PYTHONPATH=src;tests;scripts。
+
+・focused-final: 38件、失敗0、例外0、終了コード0。
+  新規pin 3テスト（捕捉3件をsubtestで検証）、既存planner/session、
+  既存テレメトリreturn-pathテストを含む。unittest本体2.620秒。
+・preflight-complete: 9変更ファイル、指摘0、終了コード0、188.47秒。
+  通常の構造テスト、manifest、fakery/sink、行数上限を含め、省略オプションなし。
+・mutation-final: --full --record、source hunk 3か所すべてcaught、
+  未検出0/3、終了コード0、92.34秒。HEADに対する記録を書き込み済み。
+・fast-tier-final: base main、4 shards、1,811件、失敗0、例外0、crashなし、
+  終了コード0、unittest集計136.3秒。
+  共有の測定基準により60秒超の54モジュールは通常どおり対象外。
+・revert-proof: 所有権解放の呼出しを除去した場合に捕捉3件すべてが失敗。
+  失敗はこの反転確認の期待結果。ソースはfinallyで復元し、src/tests/scriptsの差分なし。
+・git diff --check: 問題なし。
+
+ログと終了コード記録: validation/retired-burst-high-20261029/。
+
+derived scope / derived modules とfull suiteは指示どおり実行していない。
+full suiteはmerge gateに委ねる。上記以外の未修正根本原因は1節B/C/D/Eに明記した。
+
+5. 作業状態
+
+実装・テスト対象HEAD: f4011fa03794e4bd877162646d74996c98dd71a1
+レポートはPythonのPath.write_text(encoding='utf-8')で作成。
+今回の作業で他worktreeや他の実行プロセスを変更・停止していない。
+開始した検証はすべて終了し、src/とtests/はコミット済みで差分なし。
+バックグラウンドの検証・待機・finalizerは残していない。

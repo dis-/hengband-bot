@@ -61,8 +61,8 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransaction,
     EquipmentTransactionPlan,
     _EQUIP_ORDER as EQUIP_ORDER,
-    plan_equipment_transactions,
 )
+from hengbot.equipment_capacity import plan_equipment_transactions, release_unaffordable_session
 from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonraceKnowledge
 from hengbot.navigation import NavigationLedger
 from hengbot.exploration_ledger import ExplorationLedger
@@ -834,6 +834,7 @@ class EquipmentMixin:
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
+        release_unaffordable_session(self, snapshot)
         if snapshot.player.class_id not in EQUIPMENT_CLASS_PROFILES or not snapshot.in_town:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"

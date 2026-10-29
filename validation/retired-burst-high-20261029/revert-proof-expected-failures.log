@@ -1,0 +1,36 @@
+test_each_equipment_capture_releases_the_refused_work_before_follow_exit (tests.test_retired_burst_high.RetiredBurstHighTest.test_each_equipment_capture_releases_the_refused_work_before_follow_exit) ...
+  test_each_equipment_capture_releases_the_refused_work_before_follow_exit (tests.test_retired_burst_high.RetiredBurstHighTest.test_each_equipment_capture_releases_the_refused_work_before_follow_exit) (source='life-218/20261029-062121-town-blocked-owner-retired-burst') ... FAIL
+  test_each_equipment_capture_releases_the_refused_work_before_follow_exit (tests.test_retired_burst_high.RetiredBurstHighTest.test_each_equipment_capture_releases_the_refused_work_before_follow_exit) (source='life-225/20261029-083759-town-blocked-owner-retired-burst') ... FAIL
+  test_each_equipment_capture_releases_the_refused_work_before_follow_exit (tests.test_retired_burst_high.RetiredBurstHighTest.test_each_equipment_capture_releases_the_refused_work_before_follow_exit) (source='life-225/20261029-084926-town-blocked-owner-retired-burst') ... FAIL
+
+======================================================================
+FAIL: test_each_equipment_capture_releases_the_refused_work_before_follow_exit (tests.test_retired_burst_high.RetiredBurstHighTest.test_each_equipment_capture_releases_the_refused_work_before_follow_exit) (source='life-218/20261029-062121-town-blocked-owner-retired-burst')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\retired-burst-high-1029\tests\test_retired_burst_high.py", line 119, in test_each_equipment_capture_releases_the_refused_work_before_follow_exit
+    self.assertIsNone(policy._equipment_transaction_session)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <hengbot.equipment_transaction_session.EquipmentTransactionSession object at 0x000001BCB7D11A90> is not None
+
+======================================================================
+FAIL: test_each_equipment_capture_releases_the_refused_work_before_follow_exit (tests.test_retired_burst_high.RetiredBurstHighTest.test_each_equipment_capture_releases_the_refused_work_before_follow_exit) (source='life-225/20261029-083759-town-blocked-owner-retired-burst')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\retired-burst-high-1029\tests\test_retired_burst_high.py", line 119, in test_each_equipment_capture_releases_the_refused_work_before_follow_exit
+    self.assertIsNone(policy._equipment_transaction_session)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <hengbot.equipment_transaction_session.EquipmentTransactionSession object at 0x000001BCB4962AD0> is not None
+
+======================================================================
+FAIL: test_each_equipment_capture_releases_the_refused_work_before_follow_exit (tests.test_retired_burst_high.RetiredBurstHighTest.test_each_equipment_capture_releases_the_refused_work_before_follow_exit) (source='life-225/20261029-084926-town-blocked-owner-retired-burst')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\retired-burst-high-1029\tests\test_retired_burst_high.py", line 119, in test_each_equipment_capture_releases_the_refused_work_before_follow_exit
+    self.assertIsNone(policy._equipment_transaction_session)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <hengbot.equipment_transaction_session.EquipmentTransactionSession object at 0x000001BCB4BA2AD0> is not None
+
+----------------------------------------------------------------------
+Ran 1 test in 1.448s
+
+FAILED (failures=3)
