@@ -74,7 +74,7 @@ class RecordedRangedFireTest(unittest.TestCase):
     def setUpClass(cls):
         o3.MagicEaterO3Test.setUpClass()
 
-    def run_captured(self, charges):
+    def run_captured(self, charges, game_class=PowerGame):
         raw = json.loads((Path(__file__).parent / "fixtures" /
                           "me-q34-ranged-fire-1029.json").read_text(encoding="utf-8"))
         policy = o3.MagicEaterO3Test().policy()
@@ -83,7 +83,7 @@ class RecordedRangedFireTest(unittest.TestCase):
         board = parse_snapshot(raw, policy._monrace_knowledge)
         key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("mBp6", MISSILE_REASON))
-        game = PowerGame(raw, charges)
+        game = game_class(raw, charges)
         client = ControlClient(1, request_budget=2, retries=1, backoff=0,
                                socket_factory=game.socket_factory)
         self.addCleanup(client.close)
@@ -100,13 +100,13 @@ class RecordedRangedFireTest(unittest.TestCase):
         self.assertEqual((game.fired, game.charges), (1, 16))
         self.assertEqual(game.accepted, ["m", "B", "*", "p", "6"])
 
-    def test_empty_and_missing_missile_close_prompt_and_choose_approved_throw(self):
-        for charges in (0, None):
+    def test_missing_missile_closes_prompt_and_chooses_approved_throw(self):
+        for charges in (None,):
             with self.subTest(charges=charges):
                 game, policy, observed, port = self.run_captured(charges)
                 self.assertEqual(game.fired, 0)
                 self.assertEqual(game.accepted, ["m", "B", "*", "\x1b"])
-                self.assertEqual(observed.magic_eater_wand_charges, 0)
+                self.assertEqual(observed.magic_eater_wand_charges, -1)
                 key = policy.choose_key(observed)
                 self.assertEqual(key, "vb6")
                 self.assertEqual(policy.last_reason, "quest-strategy:throw-torch")

@@ -1,0 +1,44 @@
+ISSUE #47: Magic-Eater Q34 休憩による吸収魔力の回復
+
+1. ゲームソースの調査
+基点: fdc41ccc4（me-ranged-fire-1029）。前タスクの LUNA-REPORT-me-ranged-fire.txt を読み、まず C:/hengband/src を確認した。
+world/world-turn-processor.cpp:72-93 は TURNS_PER_TICK=10 ごとに process_player_hp_mp を呼ぶ。hpmp/hp-mp-processor.cpp:357-394 は通常回復係数197を基準に、空腹度、再生能力、構え、遅い回復の呪い等を適用し、ACTION_REST または探索中に2倍として regenmagic に渡す。
+hpmp/hp-mp-regenerator.cpp:119-141 の魔法棒・杖の各習得枠では、countを最大回数、mult=30+adj_mag_mana[知能index]として、内部充填量に floor(regen_amount * mult * (count+13) / (30*8)) を加える。上限は count*65536（EATER_CHARGE）。1回使用可能になる境界は65536であり、一覧の整数残回数を観測して判断する。したがって装備の魔法棒自体の充填ではなく、吸収済み魔力が時間経過で自然回復し、休憩は通常の2倍の速度になる。100回の休憩で必ず1回以上回復するとの仮定は置かない。
+cmd-action/cmd-move.cpp:444-513 の R は、英語では「Rest (0-9999, '*' for HP/SP, '&' as needed): 」、日本語では「休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): 」と質問する。Rを送った後、その質問を観測して100とEnterを送る。100回指定はHP/MP全快時に自動終了する * や & と異なる。core/player-processor.cpp:281-291 が残回数を減らし、0で休憩を終える。回数はプレイヤーの休憩行動数で、JSONLのgame turnとの差は速度と乱数エネルギーに依存する。通常速度では約1000game turnであり、raw turnを100だけ進める意味ではない。
+Rそのものには「視認中の敵がいれば常に入力拒否」という一律条件はない。一方、core/disturbance.cpp:45-55 は disturbance により休憩を解除する。monster/monster-update.cpp:512-547 の disturb_near、敵の視認・消失等と関連設定、攻撃や状態変化、core/player-processor.cpp:161-170 の中断入力が休憩を止め得る。player/digestion-processor.cpp:108-221 の空腹段階変化はメッセージを出し、disturb_state が有効なら中断する。飢餓は回復係数も抑制する。
+Q34の承認済み配置ではクローカーとデスソードはNEVER_MOVEで、投擲地点と対象の距離は2。殺人蜂174は上部小部屋に留まり、固定対象の処理中は最終扉を開けない。これらを利用するが、隣接敵・体調不良や配置に反する移動敵があれば休憩を追加しない。
+
+2. 実装
+q34_recharge.py に承認済み投擲地点・未処理固定目標との非隣接・HP全快・空腹や状態異常なし・移動敵の隔離の確認をまとめた。Q34のクラス16で、実際の一覧にマジック・ミサイルがあり残回数0と観測された場合だけ R100\r を選ぶ。
+魔力未習得や一覧にない場合の観測は-1に分離した。0は一覧にある使い切った魔力だけを表すため、未習得魔力を回復させようと休憩しない。
+休憩の回数質問は既存 observed_input の日英QUANTITYゲートを再利用してexecutor内で100とEnterを回答する。質問が出ずcommandへ戻る拒否では任意の継続を除去し、質問待ちを残さない。
+休憩後は公開 choose_key が再び m/B/* で一覧を調べ、正の残回数を確認した場合だけ既存の魔力・方向選択を続ける。拒否（時間経過なし）、即時の短い中断（20game turn未満）、新しい中断等のメッセージ、体調・安全条件の変化があれば松明経路へ戻す。再確認で残0なら松明を投げる。
+試行回数は同一policyインスタンス内で floor/種族/目標位置ごとに1回。承認済み固定対象3体では合計最大3回で、回復失敗後に投擲や一覧確認が進んでもその目標への休憩予算は復活しない。
+HPと既存の撤退判定を経た投擲地点でのみ追加処理を行う。戦士・他クエストは既存経路のまま。保守性の改善は、安全判定・試行予算・再確認判断を専用の小さなモジュールにまとめ、既存の休憩質問ゲートを重複実装せず再利用した点。行数制限対象ファイルの増加は0。
+観測上の制約: 現行JSONLには休憩完了と中断理由を直接示すイベントがない。無言で20game turn以上経過した中断が安全条件も変えない場合は、完了と区別できず一覧の再確認へ進む。この場合も残回数が正と観測されるまでは発射せず、再休憩もしない。
+
+3. 回帰固定
+公開 choose_key と本番 _ExecutorInputPort / OperationExecutor を使用する、ゲームソースに基づく画面遷移モデルで検証した。実機でのQ34再プレイではない。
+・捕捉盤面の一覧で残0 → ESC → R → 日英の回数質問に100+Enter → 一覧で残1 → p → 6で発射。
+・休憩質問が出ない拒否、および日英の中断・無言の即時中断では、回復した残回数があっても松明に戻る。
+・100回休憩後も残0 → 一覧を閉じて松明 → 以後複数回の公開判断とexecutor実行でもRは合計1回。
+・空腹、負傷、恐怖、移動敵、固定敵の隣接時は追加休憩なし。上部小部屋の蜂を含む配置も固定。
+・未習得の場合の松明、既存の戦士経路、日英・メニュー・失敗処理も維持した。
+既存テストは所有者が承認した休憩動作に期待値を更新した。追加したtest wallは0件（列挙対象なし）。
+
+4. 検証
+関連テスト: tests.test_magic_eater_o3 / tests.test_magic_eater_ranged_fire_recorded / tests.test_magic_eater_recharge / tests.test_magic_eater_acceptance — 41件、OK、終了コード0。
+検証対象HEAD: 1479aa394238a331c298a443b77a6e87803e1c97。
+・関連テスト実行時のPYTHONPATHはsrc;tests、WindowsAppsスタブではないPython 3.13を使用した。
+・preflight . main: PREFLIGHT OK、変更10ファイル、指摘0、終了コード0。構造テストと行数上限検査を含む。先行2回は生成manifestの更新が必要で終了コード1。初回に併記されたsink lintのmanifest不一致も解消し、最終ソースの生成物をコミット後の再実行が成功した。
+・fast_tier . main: 起動したが、先行ブランチのマージゲート全件検査のロックにより待機し、この作業の時間内に検査を開始できなかった。待機プロセスを明示的に停止した。tierのテストは未実施であり、成功を主張しない。停止後の実行終了コードは1で、テスト失敗の終了コードではない。
+・mutation_check . main --record --tests tests.test_magic_eater_o3 tests.test_magic_eater_ranged_fire_recorded tests.test_magic_eater_recharge: 同じ共有ゲートで待機することを確認し、タイムアウトで子プロセスを終了・回収した。hunk反転、mutationのテスト、成功記録は未実施。完了したmutation判定の終了コードは存在しない。
+・git diff --check: 成功。
+未完了の指定検査はfast tierとmutation check --recordの2つ。共有ゲートを迂回して重い検査を実行していない。タスクの「時間内に終わらなければ停止し、未実施検査を列挙する」規定を適用した。全件スイートおよびderived scope/modulesは実行していない。
+開始した関連テスト・preflight・fast tier待機・mutation待機の実行セッションはすべて終了済み。自分が開始した検証用バックグラウンドプロセス、待機・finalizerスクリプトは残していない。共有ゲート本体は変更・停止していない。src/とtests/のgit statusは空。
+
+5. 成果物
+レポートはPythonのPath.write_text(..., encoding="utf-8")で作成した。
+開始時から存在する未追跡のタスクファイルとsolログは変更・コミットしない。
+
+実装コミット: ad28320c7。最終manifestを含む検証対象HEAD: 1479aa394238a331c298a443b77a6e87803e1c97。レポートは別コミットとして追加する。

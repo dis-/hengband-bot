@@ -91,15 +91,17 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(self.choose(policy, board), "mBp8")
         self.assertEqual(policy.last_reason, MISSILE_REASON)
 
-    def test_public_zero_charges_falls_back_to_torch(self):
+    def test_public_zero_charges_tries_one_rest_before_torch(self):
         policy = self.policy()
+        self.assertEqual(self.choose(policy, self.board(charges=0)), "R100\r")
+        self.assertEqual(policy.last_reason, MISSILE_REASON)
         self.assertEqual(self.choose(policy, self.board(charges=0)), "vt6")
         self.assertEqual(policy.last_reason, "quest-strategy:throw-torch")
 
     def test_public_reobserves_charge_regeneration_after_throw_turn(self):
         policy = self.policy()
         board = self.board(charges=0)
-        self.assertEqual(self.choose(policy, board), "vt6")
+        self.assertEqual(self.choose(policy, board), "R100\r")
         self.assertEqual(self.choose(policy, replace(board, magic_eater_wand_charges=None)), "vt6")
         later = replace(board, turn=board.turn + 1, magic_eater_wand_charges=None)
         self.assertEqual(self.choose(policy, later), "mBp6")
@@ -217,14 +219,14 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(status, SendResult.SENT, result.reason)
         self.assertEqual(game.accepted, ["m", "B", "p", "6", "ay"])
 
-    def test_follow_zero_cancels_without_aim_and_public_falls_back(self):
+    def test_follow_zero_cancels_without_aim_and_public_tries_recharge(self):
         game, result, status = self.run_follow("mBp6", MISSILE_REASON, [
             prompt("[A] staff, [B] wand, [C] rod:"), powers(0)])
         self.assertEqual(status, SendResult.SENT, result.reason)
         self.assertEqual(game.accepted, ["m", "B", "\x1b"])
         observed = parse_snapshot(result.board, {}).magic_eater_wand_charges
         self.assertEqual(observed, 0)
-        self.assertEqual(self.choose(self.policy(), self.board(charges=observed)), "vt6")
+        self.assertEqual(self.choose(self.policy(), self.board(charges=observed)), "R100\r")
 
     def test_follow_spell_failure_drops_direction(self):
         failure = input_tests.command_screen(2)
@@ -249,7 +251,7 @@ class MagicEaterO3Test(unittest.TestCase):
             prompt("[A] staff, [B] wand, [C] rod:"), failure])
         self.assertEqual(status, SendResult.SENT, result.reason)
         self.assertEqual(game.accepted, ["m", "B"])
-        self.assertEqual(result.board["_magic_eater_wand_charges"], 0)
+        self.assertEqual(result.board["_magic_eater_wand_charges"], -1)
 
     def test_follow_absorption_is_context_and_identity_bound(self):
         board = replace(self.board(wand=True), visible_monsters=[])
