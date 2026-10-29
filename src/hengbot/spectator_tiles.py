@@ -17,6 +17,7 @@ state panel must agree with that anchor. Ambiguous screens have no tiles.
 Nothing in the decision path imports this module.
 """
 
+import unicodedata
 from collections.abc import Mapping
 
 from hengbot.protocol import PROTOCOL_SCREEN_PARITY, grid_lighting
@@ -78,13 +79,22 @@ def _encode_index(index, width):
     return "".join(reversed(digits))
 
 
+def _screen_cells(line):
+    """Yield (screen column, glyph); wide glyphs take two cells (bot-screen.cpp:67-73)."""
+    col = 0
+    for glyph in line:
+        yield col, glyph
+        col += 2 if unicodedata.east_asian_width(glyph) in {"W", "F"} else 1
+
+
 def _screen_panel(state, screen):
     """Resolve only this frame's anchor, never a previous frame's offset."""
+    # The side panel holds wide glyphs (腕力, 知能, ...), so a string index is not a screen column.
     anchors = [(row, col)
                for row, line in enumerate(screen.get("lines", ())[:screen["height"] - 1])
                if row >= ROW_MAP
-               for col, glyph in enumerate(line[COL_MAP:screen["width"]], COL_MAP)
-               if glyph == "@"]
+               for col, glyph in _screen_cells(line)
+               if COL_MAP <= col < screen["width"] and glyph == "@"]
     if len(anchors) != 1:
         return None, "player_glyph_count"
     player = state.get("player", {})

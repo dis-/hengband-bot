@@ -126,6 +126,21 @@ class SpectatorTilesTest(unittest.TestCase):
         self.assertEqual(spectator_tiles(state, shifted)["rows"][0], "ABCDE..")
         self.assertEqual(counts, {"derived": 1})
 
+    def test_wide_side_panel_glyphs_count_two_screen_columns(self):
+        # Live n1-a 2026-10-29: row 7 read "腕力 : 18/80 #@+..."; the '@' at string index 12 is screen column 14.
+        state = constructed_state()
+        del state["panel"]
+        wide = dict(SCREEN, lines=[" " * 20, "腕力" + " " * 9 + "@" + " " * 6,
+                                   " " * 20, " " * 20])
+        narrow = dict(SCREEN, lines=[" " * 20, " " * 13 + "@" + " " * 6,
+                                     " " * 20, " " * 20])
+        counts = {}
+        self.assertEqual(spectator_tiles(state, wide, panel_counts=counts),
+                         spectator_tiles(state, narrow))
+        self.assertEqual(counts, {"derived": 1})
+        hidden = dict(SCREEN, lines=[" " * 20, "腕力 : 18/80@" + " " * 7, " " * 20, " " * 20])
+        self.assertIsNone(spectator_tiles(state, hidden))
+
     def test_missing_player_position_does_not_invent_an_origin(self):
         state = constructed_state()
         del state["player"]["y"]
