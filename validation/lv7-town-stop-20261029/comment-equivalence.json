@@ -1,0 +1,7 @@
+{
+  "validated_head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+  "file": "tests/test_lv7_town_stop_recorded.py",
+  "change": "Corrected the constructed-reply comment; no executable test changes",
+  "same_ast": true,
+  "ast_sha256": "b80b4c474bcc2181f898cc2d638419c8964a5b24effe4130ec22734580fe8923"
+}

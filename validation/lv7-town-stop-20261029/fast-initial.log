@@ -1,0 +1,6 @@
+[fast] 1808 fast tests (<2.0s in eebc99f0e) + 1 changed modules, 4 shards
+[fast] excluded 53 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-jv686byb)
+Failures: ['tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_captured_r5_raw_board_does_not_return_to_home', 'tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_unreachable_then_open_shop_leaves_without_crashing']
+Errors: none
+Total: 1812 tests, 172.9s

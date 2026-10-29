@@ -1,0 +1,12 @@
+{
+  "head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+  "command": [
+    "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+    "C:\\hengband-backups\\guard-tools\\fast_tier.py",
+    ".",
+    "main"
+  ],
+  "exit_code": 0,
+  "seconds": 1828.421,
+  "finished": "2026-10-29T02:44:19.614137+00:00"
+}

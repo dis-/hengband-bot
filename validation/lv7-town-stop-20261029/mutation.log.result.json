@@ -1,0 +1,18 @@
+{
+  "head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+  "command": [
+    "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+    "C:\\hengband-backups\\guard-tools\\mutation_check.py",
+    ".",
+    "main",
+    "--record",
+    "--full",
+    "--tests",
+    "tests.test_lv7_town_stop_recorded",
+    "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_captured_r5_raw_board_does_not_return_to_home",
+    "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_unreachable_then_open_shop_leaves_without_crashing"
+  ],
+  "exit_code": 4294967295,
+  "seconds": 3768.304,
+  "finished": "2026-10-29T02:43:59.881305+00:00"
+}

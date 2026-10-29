@@ -1,0 +1,16 @@
+{
+  "head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+  "command": [
+    "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+    "-m",
+    "unittest",
+    "tests.test_lv7_town_stop_recorded",
+    "tests.test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_both_actual_stops_equip_a_fuelled_torch_request_and_enter_q1",
+    "tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_sale_does_not_run_when_inscription_cannot_be_bound",
+    "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_captured_r5_raw_board_does_not_return_to_home",
+    "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_unreachable_then_open_shop_leaves_without_crashing"
+  ],
+  "exit_code": 0,
+  "seconds": 153.787,
+  "finished": "2026-10-29T01:33:28.082923+00:00"
+}

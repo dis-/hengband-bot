@@ -1,0 +1,8 @@
+[fast] waiting: the merge gate is running its full suite (gate main-red-fix-261029-0610+me-dump-stuck-1029+pack-headroom-1029+me-q34-entry-1029, since 10:11:50); owner decision 2026-10-25
+[fast] the merge gate's full suite finished; starting after 28 min
+[fast] 1808 fast tests (<2.0s in eebc99f0e) + 1 changed modules, 4 shards
+[fast] excluded 53 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-n_hr_1ox)
+Failures: none
+Errors: none
+Total: 1812 tests, 177.7s

@@ -1,0 +1,59 @@
+[
+  {
+    "incident": "me-a/life-001/20261029-052320-town-blocked-owner-retired-burst",
+    "capture": "me-a\\life-001\\captures\\20261029-052321-town-blocked-owner-retired-burst\\state.jsonl.gz",
+    "sha256": "a5eedacec713db31b5b2788c32de1bc191dc0b1512dc6f8cf9e1b5795b0f0607",
+    "turn": 75424,
+    "equal_fields": {
+      "turn": true,
+      "floor": true,
+      "player": true,
+      "inventory": true,
+      "equipment": true,
+      "progress": true,
+      "visible_monsters": true,
+      "detected_monsters": true,
+      "grid_map": true
+    },
+    "equal_board": true,
+    "different_fields": []
+  },
+  {
+    "incident": "n1-a/life-401/20261029-060726-town-blocked-owner-retired-burst",
+    "capture": "n1-a\\life-401\\captures\\20261029-060728-town-blocked-owner-retired-burst\\state.jsonl.gz",
+    "sha256": "0b80aa1ba2e363bee3bf4291afbe8837e4550b4240111c6c0abb7d41be0284a4",
+    "turn": 80759,
+    "equal_fields": {
+      "turn": true,
+      "floor": true,
+      "player": true,
+      "inventory": true,
+      "equipment": true,
+      "progress": true,
+      "visible_monsters": true,
+      "detected_monsters": true,
+      "grid_map": true
+    },
+    "equal_board": true,
+    "different_fields": []
+  },
+  {
+    "incident": "n1-b/life-227/20261029-085255-town-blocked-owner-retired-burst",
+    "capture": "n1-b\\life-227\\captures\\20261029-085300-town-blocked-owner-retired-burst\\state.jsonl.gz",
+    "sha256": "449b9cbbccb27e3c2f96385283e4df40cc1ace053e7b60b045254629e69e5b89",
+    "turn": 80569,
+    "equal_fields": {
+      "turn": true,
+      "floor": true,
+      "player": true,
+      "inventory": true,
+      "equipment": true,
+      "progress": true,
+      "visible_monsters": true,
+      "detected_monsters": true,
+      "grid_map": true
+    },
+    "equal_board": true,
+    "different_fields": []
+  }
+]

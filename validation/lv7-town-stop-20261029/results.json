@@ -1,0 +1,70 @@
+{
+  "code_head": "8eacbdc30005cf912094b56f0b21298b8e57960b",
+  "validated_head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+  "base": "eebc99f0e",
+  "receipts": {
+    "focused": {
+      "head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "unittest",
+        "tests.test_lv7_town_stop_recorded",
+        "tests.test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_both_actual_stops_equip_a_fuelled_torch_request_and_enter_q1",
+        "tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_sale_does_not_run_when_inscription_cannot_be_bound",
+        "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_captured_r5_raw_board_does_not_return_to_home",
+        "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_unreachable_then_open_shop_leaves_without_crashing"
+      ],
+      "exit_code": 0,
+      "seconds": 153.787,
+      "finished": "2026-10-29T01:33:28.082923+00:00"
+    },
+    "preflight": {
+      "head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "C:\\hengband-backups\\guard-tools\\preflight.py",
+        ".",
+        "main"
+      ],
+      "exit_code": 0,
+      "seconds": 378.822,
+      "finished": "2026-10-29T01:39:09.055347+00:00"
+    },
+    "mutation": {
+      "head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "C:\\hengband-backups\\guard-tools\\mutation_check.py",
+        ".",
+        "main",
+        "--record",
+        "--full",
+        "--tests",
+        "tests.test_lv7_town_stop_recorded",
+        "tests.test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_captured_r5_raw_board_does_not_return_to_home",
+        "tests.test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_home_unreachable_then_open_shop_leaves_without_crashing"
+      ],
+      "exit_code": 4294967295,
+      "seconds": 3768.304,
+      "finished": "2026-10-29T02:43:59.881305+00:00"
+    },
+    "fast": {
+      "head": "0f422735718b7ab7ee9039fd3f6215d49b2e3d6b",
+      "command": [
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "C:\\hengband-backups\\guard-tools\\fast_tier.py",
+        ".",
+        "main"
+      ],
+      "exit_code": 0,
+      "seconds": 1828.421,
+      "finished": "2026-10-29T02:44:19.614137+00:00"
+    }
+  },
+  "required_checks_completed": false,
+  "incomplete": [
+    "mutation_check --record --full"
+  ],
+  "reason": "Task's 150-minute wall limit; merge-gate wait consumed the remaining verification window"
+}

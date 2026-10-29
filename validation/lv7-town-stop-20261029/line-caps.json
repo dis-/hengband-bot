@@ -1,0 +1,47 @@
+{
+  "base": "eebc99f0e",
+  "files": [
+    {
+      "path": "src/hengbot/policy.py",
+      "base_lines": 20444,
+      "head_lines": 20444,
+      "configured_cap": 20444
+    },
+    {
+      "path": "src/hengbot/policy_town.py",
+      "base_lines": 8391,
+      "head_lines": 8391,
+      "configured_cap": 8391
+    },
+    {
+      "path": "src/hengbot/policy_shop.py",
+      "base_lines": 6542,
+      "head_lines": 6534,
+      "configured_cap": 6542
+    },
+    {
+      "path": "src/hengbot/policy_quest.py",
+      "base_lines": 6030,
+      "head_lines": 6030,
+      "configured_cap": 6030
+    },
+    {
+      "path": "src/hengbot/cli.py",
+      "base_lines": 5942,
+      "head_lines": 5942,
+      "configured_cap": 5942
+    },
+    {
+      "path": "src/hengbot/policy_home.py",
+      "base_lines": 5545,
+      "head_lines": 5545,
+      "configured_cap": 5545
+    },
+    {
+      "path": "src/hengbot/policy_combat.py",
+      "base_lines": 4469,
+      "head_lines": 4469,
+      "configured_cap": 4469
+    }
+  ]
+}

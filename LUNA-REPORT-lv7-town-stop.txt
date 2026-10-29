@@ -3,16 +3,20 @@ ISSUE #47 / #110: 新規キャラクターの町停止調査・修正
 最新のローカル main を最初に merge し、Already up to date を確認した。
 
 1. 診断（保存資料の実測）
+停止事象は8件。incident-captures 8件に、同じ事象の captures 原本が3件ある。
+原本3件の最終 player_turn は対応する incident の盤面 JSON 全体と一致した（turn 75424 / 80759 / 80569）。
+照合した原本パスと SHA256 は validation/lv7-town-stop-20261029/paired-capture-boards.json に保存する。
 結論: 戦士 Lv7 と魔道具術師 Lv1 の owner-retired-burst は同じ原因。
 4件とも、未投稿の光源装備取引が店舗移動を拒否する一方、町の優先 owner は
 脱装備済みの復旧債務がある場合にしか取引を実行しなかった。まだ何も脱いでいない
 最初の equip が取り残され、route-refused → shop:approach の 5 → breakout を反復した。
 退役したのは equipment-txn 自身ではなく detectors（breakout）。直前 owner は store-router。
+この退役主体は producer_owner / claim.owner で特定した。arbiter.owner の town-errand は親の目的への帰属であり、両者を区別する。
 同じ遷移の再現が recurrence_count=2 / limit=2 に達し、1回の失敗でも退役している（単純な予算枯渇ではない）。
 3回の無進展退役を CLI が burst として停止した。停止監視や退役予算は緩めていない。
 コード上、未解放 session があると force_visit_departure の equipment_transfer_clear も false となり、一般出発や資金稼ぎへの退避はできない。
 
-no-key-exhausted 4件は同じ停止表示への別経路。life-400 は Q1 準備済みでも隣接猫への
+no-key-exhausted 4件は同じ停止表示への別経路。life-400 は Q1 準備済みでも隣接する醜い浮浪者への
 戦闘を引き継がず quest-entry-unavailable。life-226 の3件は売却対象の松明の @v0=g を
 売却 owner が上書きせず拒否するが、同じ棚の購入 owner に渡さず退店。General の
 入口 (31,119) と隣接セル (32,118) を往復し no-progress:fundraising-digger で空キーになった。
@@ -21,6 +25,7 @@ no-key-exhausted 4件は同じ停止表示への別経路。life-400 は Q1 準�
 me-a/life-001/20261029-052320-town-blocked-owner-retired-burst
   turn=75424, Lv=1, HP=35/35, gold=58, position={'y': 32, 'x': 119}
   claim=21 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  arbiter: owner=town-errand, producer_owner=detectors, retirement_set=['detectors']
   最後のキー（repr により空キーと Escape を区別）:
     seq=44 turn=75377 breakout key='4'
     seq=45 turn=75382 shop:approach key='5'
@@ -28,7 +33,7 @@ me-a/life-001/20261029-052320-town-blocked-owner-retired-burst
     seq=47 turn=75401 shop:approach key='5'
     seq=48 turn=75410 shop:approach key='5'
     seq=49 turn=75424 town:blocked:owner-retired-burst key='5'
-  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+  保存tailの直近3退役（seq / turn / claim / owner / cause / own unsuccessful。no-key では再起動前の履歴を含む）:
     29 / 75231 / 13 / detectors / recurrence 2/2 / 1/2
     39 / 75329 / 17 / detectors / recurrence 2/2 / 1/2
     49 / 75424 / 21 / detectors / recurrence 2/2 / 1/2
@@ -38,6 +43,7 @@ me-a/life-001/20261029-052320-town-blocked-owner-retired-burst
   readiness: quest=34, verdict=False, reason=strategy-force, opening_route_failure=None
   quest_light=None; required_force.failed=['dps', 'speed_potions', 'heal_potions']
   equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:a6e1f2fc19f68e78:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  JSON盤面: in_town=True, store=None, visible_monsters=0
   取引開始時の品物: 松明(3000ターンの寿命) / count=6
   保存画面 input_context={"item_list": null, "kind": "command", "prompt": "", "shopping": false}
   保存画面: 町の地形とキャラクター欄。店舗画面・選択質問は出ていない。
@@ -47,6 +53,7 @@ me-a/life-001/20261029-052320-town-blocked-owner-retired-burst
 n1-a/life-400/20261029-060556-no-key-exhausted
   turn=81070, Lv=7, HP=179/179, gold=3, position={'y': 23, 'x': 148}
   claim=56 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  arbiter: owner=quest-request, producer_owner=quest-request, retirement_set=[]
   最後のキー（repr により空キーと Escape を区別）:
     seq=292 turn=80992 quest:enter:approach key='9'
     seq=293 turn=81003 quest:enter:approach key='9'
@@ -60,12 +67,14 @@ n1-a/life-400/20261029-060556-no-key-exhausted
   readiness: quest=1, verdict=True, reason=ready, opening_route_failure=quest-entry-unavailable
   quest_light={'fuel': 2490, 'required': 2390.0}; required_force.failed=[]
   equipment: next=None, pending=None, result_source=calibration-required-return
-  盤面: 町の屋外、Q1 は受注済み。隣接 (22,147) に race_id=10 の猫がいる。
+  JSON盤面: in_town=True, store=None, visible_monsters=1
+  盤面: 町の屋外、Q1 は受注済み。隣接 (22,147) に race_id=10 の醜い浮浪者がいる。
   この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
 
 n1-a/life-401/20261029-060726-town-blocked-owner-retired-burst
   turn=80759, Lv=7, HP=177/177, gold=144, position={'y': 32, 'x': 114}
   claim=116 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  arbiter: owner=town-errand, producer_owner=detectors, retirement_set=['detectors']
   最後のキー（repr により空キーと Escape を区別）:
     seq=585 turn=80714 breakout key='4'
     seq=586 turn=80723 shop:approach key='5'
@@ -73,7 +82,7 @@ n1-a/life-401/20261029-060726-town-blocked-owner-retired-burst
     seq=588 turn=80739 shop:approach key='5'
     seq=589 turn=80752 shop:approach key='5'
     seq=590 turn=80759 town:blocked:owner-retired-burst key='5'
-  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+  保存tailの直近3退役（seq / turn / claim / owner / cause / own unsuccessful。no-key では再起動前の履歴を含む）:
     570 / 80557 / 108 / detectors / recurrence 2/2 / 1/2
     580 / 80656 / 112 / detectors / recurrence 2/2 / 1/2
     590 / 80759 / 116 / detectors / recurrence 2/2 / 1/2
@@ -83,6 +92,7 @@ n1-a/life-401/20261029-060726-town-blocked-owner-retired-burst
   readiness: quest=1, verdict=True, reason=ready, opening_route_failure=None
   quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
   equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:268da8223b8e5add:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  JSON盤面: in_town=True, store=None, visible_monsters=0
   取引開始時の品物: 松明(2000ターンの寿命) {@v0=g} / count=4
   保存画面 input_context={"kind": "command", "prompt": "", "shopping": false}
   保存画面: 町の地形とキャラクター欄。店舗画面・選択質問は出ていない。
@@ -92,6 +102,7 @@ n1-a/life-401/20261029-060726-town-blocked-owner-retired-burst
 n1-b/life-226/20261029-085113-town-blocked-owner-retired-burst
   turn=79942, Lv=7, HP=177/177, gold=181, position={'y': 32, 'x': 114}
   claim=109 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  arbiter: owner=town-errand, producer_owner=detectors, retirement_set=['detectors']
   最後のキー（repr により空キーと Escape を区別）:
     seq=465 turn=79887 breakout key='4'
     seq=466 turn=79900 shop:approach key='5'
@@ -99,7 +110,7 @@ n1-b/life-226/20261029-085113-town-blocked-owner-retired-burst
     seq=468 turn=79920 shop:approach key='5'
     seq=469 turn=79936 shop:approach key='5'
     seq=470 turn=79942 town:blocked:owner-retired-burst key='5'
-  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+  保存tailの直近3退役（seq / turn / claim / owner / cause / own unsuccessful。no-key では再起動前の履歴を含む）:
     450 / 79737 / 101 / detectors / recurrence 2/2 / 1/2
     460 / 79840 / 105 / detectors / recurrence 2/2 / 1/2
     470 / 79942 / 109 / detectors / recurrence 2/2 / 1/2
@@ -109,12 +120,14 @@ n1-b/life-226/20261029-085113-town-blocked-owner-retired-burst
   readiness: quest=1, verdict=True, reason=ready, opening_route_failure=None
   quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
   equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:6c8d3b2eb897823a:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  JSON盤面: in_town=True, store=None, visible_monsters=0
   取引開始時の品物: 松明(1500ターンの寿命) {@v0=g} / count=3
   この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
 
 n1-b/life-226/20261029-085127-no-key-exhausted
   turn=81089, Lv=7, HP=177/177, gold=265, position={'y': 31, 'x': 119}
   claim=33 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  arbiter: owner=quest-request, producer_owner=quest-request, retirement_set=[]
   最後のキー（repr により空キーと Escape を区別）:
     seq=29 turn=81065 shop:approach key='9'
     seq=30 turn=81065 town-progress-invariant:continue-observed-shop key='\x1b'
@@ -122,7 +135,7 @@ n1-b/life-226/20261029-085127-no-key-exhausted
     seq=32 turn=81078 shop:approach key='9'
     seq=33 turn=81078 town-progress-invariant:continue-observed-shop key='\x1b'
     seq=34 turn=81089 quest:blocked:opening-route key=''
-  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+  保存tailの直近3退役（seq / turn / claim / owner / cause / own unsuccessful。no-key では再起動前の履歴を含む）:
     25 / 81031 / 26 / store-router / recurrence 2/2 / 1/8
     29 / 81065 / 29 / store-router / recurrence 2/2 / 1/8
     33 / 81078 / 32 / detectors / recurrence 2/2 / 1/2
@@ -132,12 +145,14 @@ n1-b/life-226/20261029-085127-no-key-exhausted
   readiness: quest=1, verdict=True, reason=ready, opening_route_failure=no-progress:fundraising-digger
   quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
   equipment: next=None, pending=None, result_source=calibration-required-return
+  JSON盤面: in_town=True, store=None, visible_monsters=0
   盤面: 町の屋外、General 入口 (31,119)、store コンテキストなし。直前の店内では Escape を投稿済み。
   この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
 
 n1-b/life-226/20261029-085139-no-key-exhausted
   turn=82183, Lv=7, HP=177/177, gold=265, position={'y': 31, 'x': 119}
   claim=26 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  arbiter: owner=quest-request, producer_owner=quest-request, retirement_set=[]
   最後のキー（repr により空キーと Escape を区別）:
     seq=22 turn=82151 shop:approach key='9'
     seq=23 turn=82151 town-progress-invariant:continue-observed-shop key='\x1b'
@@ -145,7 +160,7 @@ n1-b/life-226/20261029-085139-no-key-exhausted
     seq=25 turn=82173 shop:approach key='9'
     seq=26 turn=82173 town-progress-invariant:continue-observed-shop key='\x1b'
     seq=27 turn=82183 quest:blocked:opening-route key=''
-  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+  保存tailの直近3退役（seq / turn / claim / owner / cause / own unsuccessful。no-key では再起動前の履歴を含む）:
     18 / 82120 / 19 / store-router / recurrence 2/2 / 1/8
     22 / 82151 / 22 / store-router / recurrence 2/2 / 1/8
     26 / 82173 / 25 / detectors / recurrence 2/2 / 1/2
@@ -155,12 +170,14 @@ n1-b/life-226/20261029-085139-no-key-exhausted
   readiness: quest=1, verdict=True, reason=ready, opening_route_failure=no-progress:fundraising-digger
   quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
   equipment: next=None, pending=None, result_source=calibration-required-return
+  JSON盤面: in_town=True, store=None, visible_monsters=0
   盤面: 町の屋外、General 入口 (31,119)、store コンテキストなし。直前の店内では Escape を投稿済み。
   この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
 
 n1-b/life-226/20261029-085151-no-key-exhausted
   turn=83268, Lv=7, HP=177/177, gold=265, position={'y': 31, 'x': 119}
   claim=26 / owner=quest-request / rung=_fixed_quest_key#2 / state=awaiting
+  arbiter: owner=quest-request, producer_owner=quest-request, retirement_set=[]
   最後のキー（repr により空キーと Escape を区別）:
     seq=22 turn=83239 shop:approach key='9'
     seq=23 turn=83239 town-progress-invariant:continue-observed-shop key='\x1b'
@@ -168,7 +185,7 @@ n1-b/life-226/20261029-085151-no-key-exhausted
     seq=25 turn=83259 shop:approach key='9'
     seq=26 turn=83259 town-progress-invariant:continue-observed-shop key='\x1b'
     seq=27 turn=83268 quest:blocked:opening-route key=''
-  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+  保存tailの直近3退役（seq / turn / claim / owner / cause / own unsuccessful。no-key では再起動前の履歴を含む）:
     18 / 83210 / 19 / store-router / recurrence 2/2 / 1/8
     22 / 83239 / 22 / store-router / recurrence 2/2 / 1/8
     26 / 83259 / 25 / detectors / recurrence 2/2 / 1/2
@@ -178,12 +195,14 @@ n1-b/life-226/20261029-085151-no-key-exhausted
   readiness: quest=1, verdict=True, reason=ready, opening_route_failure=no-progress:fundraising-digger
   quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
   equipment: next=None, pending=None, result_source=calibration-required-return
+  JSON盤面: in_town=True, store=None, visible_monsters=0
   盤面: 町の屋外、General 入口 (31,119)、store コンテキストなし。直前の店内では Escape を投稿済み。
   この incident には control-at-stop の画面/input_context 原本がない。上記は JSON 盤面の観測であり、画面種別を原本確認済みとはしない。
 
 n1-b/life-227/20261029-085255-town-blocked-owner-retired-burst
   turn=80569, Lv=7, HP=175/175, gold=52, position={'y': 32, 'x': 114}
   claim=113 / owner=detectors / rung=_refuse_no_progress_cycle / state=retired
+  arbiter: owner=town-errand, producer_owner=detectors, retirement_set=['detectors']
   最後のキー（repr により空キーと Escape を区別）:
     seq=530 turn=80509 breakout key='4'
     seq=531 turn=80519 shop:approach key='5'
@@ -191,7 +210,7 @@ n1-b/life-227/20261029-085255-town-blocked-owner-retired-burst
     seq=533 turn=80545 shop:approach key='5'
     seq=534 turn=80558 shop:approach key='5'
     seq=535 turn=80569 town:blocked:owner-retired-burst key='5'
-  直近3退役（seq / turn / claim / owner / cause / own unsuccessful）:
+  保存tailの直近3退役（seq / turn / claim / owner / cause / own unsuccessful。no-key では再起動前の履歴を含む）:
     515 / 80366 / 105 / detectors / recurrence 2/2 / 1/2
     525 / 80455 / 109 / detectors / recurrence 2/2 / 1/2
     535 / 80569 / 113 / detectors / recurrence 2/2 / 1/2
@@ -201,20 +220,21 @@ n1-b/life-227/20261029-085255-town-blocked-owner-retired-burst
   readiness: quest=1, verdict=True, reason=ready, opening_route_failure=None
   quest_light={'fuel': 0, 'required': 2390.0}; required_force.failed=[]
   equipment: next={'phase': 'equip', 'kind': 'equip', 'item_id': 'pack:268da8223b8e5add:0', 'target_slot': 'light'}, pending=None, result_source=in-flight-session-return
+  JSON盤面: in_town=True, store=None, visible_monsters=0
   取引開始時の品物: 松明(2500ターンの寿命) {@v0=g} / count=4
   保存画面 input_context={"kind": "command", "prompt": "", "shopping": false}
   保存画面: 町の地形とキャラクター欄。店舗画面・選択質問は出ていない。
   実投稿の末尾3文字: seq=532 '5', seq=533 '5', seq=534 '5'
   burst 決定の最後の '5' は投稿ログにはない。上のキー一覧は決定ログで、実投稿とは区別している。
 
-補足: Magic-Eater は Q34 前で、DPS 3.962/必要6、加速0/1、回復0/2。戦士3件は Q34 後・Q1 前で readiness は true。
+補足: Magic-Eater は Q34 前で、同戦略の reference_ac=40 に対する DPS 3.962/必要6、加速0/1、回復0/2。戦士3件は Q34 後・Q1 前で readiness は true。
 従って同じ装備 owner 欠落が、異なる開幕段階を止めていた。戦士 life-227 では取引選択後に松明が fully_known に変わり、
 旧 move_identity も現在の品物に一致しなくなっている。既存の失敗解放を実行して新しい観測から再開する。
 
 2. 修正
 店舗ルータが装備取引を理由に移動を拒否するとき、その場所で実行すべき装備操作/観測へ所有権を渡す。
 町の先頭で取引を一律優先せず、既存の先行する鑑定処理と Home ルートの順序を維持する。
-見失った equip 対象は理由を equipment-transaction:equip-item-missing と明示し、既存の放棄・再計画へ渡す。
+見失った equip 対象は理由を equipment-transaction:equip-item-missing と明示する。復旧債務のない失敗は同じ引き渡しで既存の放棄処理を実行し、次のルート判定を妨げない。
 Q1 開幕 owner は、買物以外の段階でも隣接脅威を解決する。遠方を追う従来の優先順位は維持する。
 売却の銘を安全に付けられない場合は既存の購入選択・Home確認・予約・投稿判定を通じて同じ棚の購入へ渡す。
 銘の上書き、必要抵抗・光源/燃料条件、ジャンク範囲、荷物余裕、開幕順序、購入予算は変更しない。
@@ -230,4 +250,15 @@ life-226 の Black 棚は64品中の末尾12品しか保存されず、開幕ペ
 欠けた52品や当時の全棚を再現できたとは主張しない。停止監視を弱める方法で pin を通していない。
 
 4. チェック結果
-検証実施中。最終結果はチェック完了後に追記する。
+対象実装: 0f4227357。以後は隣接敵の名称をテストコメントで訂正しただけで、実行 AST と runtime の source tree は同一。
+Python 3.13 / PYTHONPATH=src;tests;scripts。既存テストの期待値は変更していない。
+focused: 8テスト成功、exit 0（新規4テストが8停止事象の再生・原本照合を担当し、既存4テストで優先順位などを確認）。
+preflight: 14変更ファイル、指摘0件、exit 0。構造テスト・item sink・行数制限を含む。
+mutation_check . main --record --full: 未完了。約61分の別マージゲート待機後に開始したが、150分上限内に全7ソース変更の検証を完了できず、自分の検証プロセスと子テストを終了した。最終版の成功recordは未取得。
+fast_tier . main: 1812 テスト成功、exit 0。Failures / Errors / Crashed shards は none。
+fast_tier は同一実装の独立した検証用 worktree で実行し、変異検証の巻き戻しと隔離した。HEAD/tree の照合は fast-worktree.json、コメント訂正の実行コード同一性は comment-equivalence.json に記録。
+初回fast_tier（修正前の7c821b5d8）は1,812件中既存2件で失敗した。鑑定優先/Home到達失敗の順序を保つ引き継ぎ方式へ修正し、この2件は最終focusedで成功した（fast-initial.log）。
+行数: policy_shop.py 6542→6534。他の上限対象ファイルは増加なし（line-caps.json）。
+派生scope / 派生modules / 全体suiteは指定どおり実行していない。実機の新規人生完走も検証範囲には含めない。
+残作業は上記未完了チェック。時間上限規定に従い、開始した自分の検証プロセスを終了し、src/testsをコミット済み状態に保って報告を終える。
+検証ログ・終了コード・対象HEADは validation/lv7-town-stop-20261029/ に保存。
