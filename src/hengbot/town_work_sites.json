@@ -4292,7 +4292,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8d4576dbaa25ead0f9866007b71909bf246d0c17dd3f71f7711af06f235b01dc"
+    "ast_sha256": "6cab9e2069a901079b8596fa737372484f7b75bc286d4fca63e694e00acad80f"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",
@@ -6403,7 +6403,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "033e01a74695b31d84cb4750dd5a548f6ca1ec1d9eae451cffca145134352acf"
+    "ast_sha256": "006ba41a19314e01f708513c88d217f41bbc9382425eebb340cab5d3e24d3ce5"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -6420,6 +6420,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "939f17402e63dd6a480dce8e1ed5817dc4c73f793fd4f154e100da7922173c8a"
+  },
+  "policy_quest.py:QuestMixin._quest_final_target_last_seen_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bdb045f68bbdb42381bf5782ba2ae7715a8f29d5dec87852ea279b96ff2bb9b7"
   },
   "policy_quest.py:QuestMixin._quest_final_target_position": {
     "classification": "data",
@@ -6483,7 +6491,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "98b0c63ab42455d5a54610694b15e543c130411deeeaff8e962b4770a4b10f52"
+    "ast_sha256": "2b218ce9e71f75c159b4f990a7107083813213440361aa0bc4f554599b6fd83d"
   },
   "policy_quest.py:QuestMixin._quest_sweep_pack_space_key": {
     "classification": "dungeon-only",
@@ -8287,13 +8295,29 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "a34c0fdbef6e633d95f3d62afa5425a587be49f4345f2e084adf0e4105b5111b"
   },
+  "quest_final_room.py:avoided_doors": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "6b052f95c733c3f2ba23290ec59e997928a40ef47b9036fa1a4cffe372681480"
+  },
+  "quest_final_room.py:door_gates": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "de85d0641efe4e58545d314cb292d03940f342c265db8b1a06662e0063358963"
+  },
   "quest_navigator.py:QuestFloorNavigator._exit": {
     "classification": "dungeon-only",
     "rows": [
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b72b5ec65788dc3f7db92039209d5c773a730eeccfe5b4dc6ffe3a1f145ddb19"
+    "ast_sha256": "33888455f814783b0bece913338cfa78ce730f2b4cefc03ac8e1084063613a6a"
   },
   "quest_navigator.py:QuestFloorNavigator._static_path": {
     "classification": "data",
