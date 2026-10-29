@@ -11,7 +11,7 @@ from hengbot.model import (
     TVAL_LITE, TVAL_POTION, TVAL_SWORD,
 )
 from hengbot.policy import HengbotPolicy
-from hengbot.quest_strategies import acceptance_hp_floor, load_quest_strategies
+from hengbot.quest_strategies import acceptance_hp_floor, class_throwing_items, load_quest_strategies
 from policy_fixtures import item, player
 
 
@@ -24,7 +24,7 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
         # DECLARED CONSTRUCTED: identical wielded results for each class,
         # isolating the acceptance floor from class/stat damage estimation.
         force = self.profiles[quest_id].required_force
-        hp = acceptance_hp_floor(force["no_healing_tier"], class_id) if no_healing else force["min_hp"]
+        hp = acceptance_hp_floor(force["no_healing_tier"] if no_healing else force, class_id)
         character = replace(
             player(10, 10, class_id=class_id, level=5, hp=hp, max_hp=hp,
                    main_hand_blows=1, main_hand_to_h=0,
@@ -32,7 +32,7 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
             melee_skill=100, race_id=25,  # Zombie, matching the viewing character.
         )
         inventory = [item("t", TVAL_LITE, SV_LITE_TORCH,
-                          count=force["throwing_items"]["lit_torch"])]
+                          count=class_throwing_items(force, class_id)["lit_torch"])]
         if not no_healing:
             inventory += [item("s", TVAL_POTION, SV_POTION_SPEED),
                           item("h", TVAL_POTION, SV_POTION_HEALING, count=2)]
@@ -48,7 +48,8 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
         return ready, policy.fixed_quest_readiness_state()["strategy_force"]
 
     def test_magic_eater_passes_normal_floor_that_warrior_rejects(self):
-        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 18, 28)):
+        # D17 (2026-10-30): the Q1 class-16 floor is the torch rate 4.58.
+        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 4.58, 28)):
             with self.subTest(quest_id=quest_id):
                 board = self.board(quest_id)
                 ready, details = self.readiness(board, quest_id)
@@ -91,7 +92,8 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                 ready, details = self.readiness(board, quest_id)
                 self.assertFalse(ready)
                 self.assertEqual(details["failed"], ["hp"])
-                self.assertEqual(details["hp"]["required"], 10 if quest_id == 34 else 36)
+                # D17: the Q1 class-16 torch plan needs HP 98 in both tiers.
+                self.assertEqual(details["hp"]["required"], 10 if quest_id == 34 else 98)
 
     def test_no_healing_hp_floor_is_unchanged(self):
         for quest_id in (34, 1):
@@ -101,7 +103,9 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                                 hp=board.player.hp - 1, max_hp=board.player.max_hp - 1))
                 ready, details = self.readiness(board, quest_id)
                 self.assertFalse(ready)
-                self.assertEqual(details["failed"], ["speed_potions", "heal_potions"])
+                # D17: Q1 class 16 has one HP floor for both tiers.
+                self.assertEqual(details["failed"], (["speed_potions", "heal_potions"] if quest_id == 34
+                                                     else ["hp", "speed_potions", "heal_potions"]))
 
     def test_other_classes_keep_warrior_floor(self):
         for quest_id, floor in ((34, 8), (1, 28)):

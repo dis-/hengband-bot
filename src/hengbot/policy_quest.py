@@ -6,6 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
+from hengbot import me_q1_torch
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -3540,6 +3541,9 @@ class QuestMixin(OpeningRouteMixin):
                     monster.hp,
                 ),
             )
+            aided = me_q1_torch.attack_key(self, snapshot, profile, ranked[0])
+            if aided is not None:
+                return aided
             self.last_reason = "quest-strategy:melee"
             return self._direction_key(snapshot.player.position, ranked[0].position)
 
@@ -3653,9 +3657,14 @@ class QuestMixin(OpeningRouteMixin):
             ):
                 self.last_reason = "quest:blocked:throw-outside-approved-point"
                 return WAIT_KEY
-            if profile.quest_id != 34 and torch is not None and targets:
+            if profile.quest_id != 34 and targets and (
+                    torch is not None or me_q1_torch.applies(profile, snapshot)):
                 target = self._ranged_target(snapshot, targets)
-                if target is not None:
+                aided = (me_q1_torch.attack_key(self, snapshot, profile, target)
+                         if target is not None else None)
+                if aided is not None:
+                    return aided
+                if target is not None and torch is not None:
                     self.last_reason = "quest-strategy:throw-torch"
                     return (
                         reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, target.position))
@@ -4042,7 +4051,8 @@ class QuestMixin(OpeningRouteMixin):
         # advances toward the object on one turn and this strategy immediately
         # walks back toward the hold on the next.
         required_torches = int(
-            profile.required_force.get("throwing_items", {}).get("lit_torch", 0)
+            self._strategy_force_for_snapshot(snapshot, profile)
+            .get("throwing_items", {}).get("lit_torch", 0)
         )
         needs_supply_recovery = (
             required_torches > 0
