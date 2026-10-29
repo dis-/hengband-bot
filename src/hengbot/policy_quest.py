@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check
 from hengbot.policy_opening import OpeningRouteMixin
+from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
@@ -624,25 +625,7 @@ class QuestMixin(OpeningRouteMixin):
             if self._fixed_quest_readiness is not readiness_before
             else {}
         )
-        failed = readiness.get("strategy_force", {}).get("failed", ())
-        if failed:
-            step = self._shopping_approach_step(
-                snapshot, router_plan_stop=True
-            )
-            if step is not None:
-                self.last_reason = "shop:approach"
-                return self._shopping_approach_key(snapshot, step, "shop:travel")
-            if self._start_fundraising(snapshot):
-                step = self._shopping_approach_step(
-                    snapshot, router_plan_stop=True
-                )
-                if step is not None:
-                    self.last_reason = "shop:approach"
-                    return self._shopping_approach_key(snapshot, step, "shop:travel")
-            self.last_reason = "livelock:exhausted"
-            return WAIT_KEY
-        self.last_reason = "livelock:exhausted" if failed else "opening-q34:wait"
-        return WAIT_KEY
+        return q34_readiness_rejection_key(self, snapshot, hostiles, readiness)
 
     def _opening_q34_torch_shortage(self, snapshot: Snapshot) -> int:
         """Return the mandatory torch shortage for a fresh Outpost warrior."""

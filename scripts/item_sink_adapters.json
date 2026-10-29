@@ -306,9 +306,7 @@
     "self._fixed_quest_key(snapshot, hostiles) @ ": 1,
     "self._equipment_transaction_town_owner_key(snapshot) @ If:body:self._equipment_transaction_owned_items": 1,
     "self._equipment_transaction_town_key(snapshot) @ If:body:self._equipment_transaction_session is not None": 1,
-    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:claims_active / If:body:step is not None": 1,
-    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:failed / If:body:step is not None": 1,
-    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:failed / If:body:self._start_fundraising(snapshot) / If:body:step is not None": 1
+    "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:claims_active / If:body:step is not None": 1
   },
   "policy_quest.py:_prepare_return_1_candidate": {
     "self._prepare_return_candidate(snapshot, quest, 'return-1', (quest.id,), retain_unavailable=self._retain_return_1_unavailable(snapshot)) @ ": 1
@@ -491,5 +489,9 @@
   },
   "equipment_route_handoff.py:equipment_route_key": {
     "policy._equipment_transaction_town_key(snapshot) @ If:body:session is not None and (not session.complete) and (session.required_context != 'home')": 1
+  },
+  "quest_opening_readiness.py:q34_readiness_rejection_key": {
+    "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:step is not None": 1,
+    "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:policy._start_fundraising(snapshot) / If:body:step is not None": 1
   }
 }
