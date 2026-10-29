@@ -4,6 +4,10 @@
   "approved": true,
   "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬、距離2での松明投擲、実測戦力ゲートを使用する。",
   "engagement_plan": {
+    // Magic-Eater (class 16) torch plan: its entry kill-time check uses the
+    // force gate's reference-AC output, which that gate already holds at or
+    // above the torch rate 4.58/action derived in required_force.
+    "force_melee_against_mobile_by_class": [16],
     "max_simultaneous_melee": 1,
     "opening": "[8,1] から西の部屋へ寄らずに [8,3] へ直行し、そこで待つ。接触までの待ち時間は隠密能力に依存する。",
     "hold_position": [8, 3],
@@ -20,9 +24,24 @@
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
     "min_hp": 36, "min_expected_dps": 28, "level_guideline": 5,
-    // 魔道具術師 (class 16): CL5 の職業近接技能比 (48+13*5//10)/(70+30*5//10)
-    // =54/85 で通常・無回復ティアの近接下限を切り上げ補正。魔道具の威力は含めない。
-    "min_expected_dps_by_class": {"16": 18},
+    // 魔道具術師 (class 16) は 2026-10-30 ユーザー決定「数値は下げる。松明を購入して松明で戦う。
+    // 魔法は補助。」により、各盗賊を点火松明の投擲で倒す（隣接後も投げ続け、松明が尽きた時だけ
+    // マジック・ミサイル、その次に近接）。検証機の Lv7 ゾンビ魔道具術師（最大HP107・近接DPS4.62・
+    // 回復薬なし）は近接下限18で止まった。導出（能力値・装備に依存しない値だけを使う）:
+    // skill_tht = ゾンビ r_thb 0 + c_thb 35 + x_thb 11*5/10 (level_guideline 5) + 性格0 = 40、
+    // to_h_b は保守的に0、距離2を引いて chance 38。命中率は 5% + 90%*(1-(AC*3/4)/38) で
+    // r_idx 150 (AC24) 52.37%、r_idx 44 (AC12) 73.68%。点火松明は 1d6 の火炎ブランドで平均8.75。
+    // 必要投擲の期待値は 36/(8.75*0.5237)=7.86 回、20/(8.75*0.7368)=3.10 回で、
+    // 移動する盗賊の松明は回収しない前提で ceil を足し 2*8+2*4=24 本、予備1本で lit_torch=25。
+    // 近接は松明が尽きた後の代替なので、松明と同じ1行動あたり 8.75*0.5237=4.58 を下限とする
+    // （この速さが保たれれば下の被害予算が崩れない）。接敵は最初の1投の後なので露出は
+    // 6.86 / 2.10 行動。AC30 の命中率（HURT 71.43%/65%、EAT_GOLD 26.72%/5%）で、盗み成功は
+    // 盗賊を退場させる（既存の根拠と同じ扱い）として期待被害は r_idx 150 が
+    // 5.0*(1-0.7328^6.86)/0.2672=16.49、r_idx 44 が 3.9*(1-0.95^2.10)/0.05=7.97、
+    // 合計 2*16.49+2*7.97=48.93。退却不能 ONCE の50%予算で min_hp=ceil(48.93/0.50)=98。
+    // この被害は薬を使わない算術なので、両ティアとも同じ値にする（薬は不要）。戦士は不変。
+    "min_expected_dps_by_class": {"16": 4.58},
+    "min_hp_by_class": {"16": 98},
     // reference_ac: DPS実測の基準AC（①案 2026-07-18）。拘束目標の
     // 追い剥ぎ r_idx 150 の実AC。
     "reference_ac": 24,
@@ -30,13 +49,15 @@
     // Q34 -> mining kit -> Q1: accept carried torches and kit weight (2026-10-28).
     "entry_requirements": {"allow_overweight": true, "carried_torch_min_fuel": 100},
     "throwing_items": {"lit_torch": 5},
+    // 魔道具術師の松明投擲計画（上の導出で24投＋予備1本）。
+    "throwing_items_by_class": {"16": {"lit_torch": 25}},
     // 受注条件の2段構造（ユーザー確認 2026-07-17）: 基本ゲート
     // (min_hp/min_expected_dps) で受注する場合は下記の携行品
     // (speed_potions/heal_potions/throwing_items) の所持が受注条件。
     // no_healing_tier を満たす戦力なら全消耗品の携行なしで受注できる
     // （ティアの算術自体が消費ゼロ前提のため一貫する）。
     "no_healing_tier": {
-      "min_hp": 88, "min_expected_dps": 28, "min_expected_dps_by_class": {"16": 18}, "heal_potions": 0, "speed_potions": 0,
+      "min_hp": 88, "min_hp_by_class": {"16": 98}, "min_expected_dps": 28, "min_expected_dps_by_class": {"16": 4.58}, "heal_potions": 0, "speed_potions": 0,
       "note": "戦術維持下の遅い側。隊列を保ち、各敵へ平均8.75点の松明1本を入れ、続く近接1回で倒す。平均HP最大の r_idx 150 は 8d8 平均36なので、必要DPSは 36-8.75=27.25、整数ゲートを min_expected_dps=28 とする。各盗賊の露出は1行動だけであり、遠隔軟化0・命中率100%・最大ダイスでは r_idx 150 二体が各12、r_idx 44 二体が各10、合計 12+12+10+10=44。これを RAW HP の50%に収め min_hp=44/0.50=88。盗みに成功すれば blinked=true で逃走し以後の交戦から除かれるため、この最悪1行動モデルでも実被害は増えず、金貨損失は攻撃者を退場させる許容コストとする。"
     },
     "rationale": "実ロスターは r_idx 150 二体、r_idx 44 二体。[8,1] から西室を掃討せず [8,3] に直行して待つため、接触時期は隠密能力に依存する。EAT_GOLD が命中して財布防御に失敗すると process_eat_gold が blinked=true を設定し、盗賊は逃走・テレポートして以後のラウンドから除かれる。財布防御率は能力値依存なので保守的に0%とする。AC 30 への EAT_GOLD 命中率は power 5 と monster level から、r_idx 150 が5%+90%*(7/29)=26.72%、r_idx 44 が5%。AC 30 への HURT 命中率は r_idx 150 が5%+90%*(62/84)=71.43%、r_idx 44 が5%+90%*(44/66)=65%。BINDING は平均HPを用い、最大の r_idx 150 は8d8平均36。松明平均8.75点+近接1回で倒すため 36-8.75=27.25、整数ゲート min_expected_dps=28 とし、r_idx 44（8d4平均20）も同じ1回で倒せる。各敵の露出は1行動だけなので期待被害は 2*(7*0.7143)+2*(6*0.65)=10.0002+7.8=17.8002。退却不能 ONCE の50%予算に収め min_hp=ceil(17.8002/0.50)=36。期待成功盗難回数は 2*0.2672+2*0.05=0.6344回で、初期所持金Gに対する上限寄りの期待損失は約0.6344*(G/10+13)枚。盗み成功は攻撃者を退場させるため、金貨損失を許容コストとする。投擲は4体へ各1本と余裕1本で lit_torch=5。速度薬は expected_damage_hp_ratio_min=0.5 の場合だけ使う。"

@@ -24,6 +24,12 @@ def acceptance_hp_floor(force: dict[str, Any], class_id: int) -> int:
     return int(overrides.get(str(class_id), force.get("min_hp", 0)) or 0)
 
 
+def class_throwing_items(force: dict[str, Any], class_id: int) -> dict[str, Any]:
+    """Resolve a reviewed class-specific throwing plan (QUEST_1 class 16)."""
+    overrides = force.get("throwing_items_by_class", {}).get(str(class_id))
+    return dict(overrides) if overrides is not None else dict(force.get("throwing_items", {}))
+
+
 @dataclass(frozen=True)
 class StrategyProfile:
     quest_id: int
@@ -85,8 +91,12 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
         "required_scrolls": {"light", "teleport"},
         "utility_tools": {"wall_breach"},
     }
-    for group, allowed in carry_names.items():
-        values = force.get(group, {})
+    by_class = force.get("throwing_items_by_class", {})
+    if not isinstance(by_class, dict) or not all(isinstance(v, dict) for v in by_class.values()):
+        raise ValueError("throwing_items_by_class must map class ids to objects")
+    groups = [(group, force.get(group, {}), allowed) for group, allowed in carry_names.items()]
+    groups += [("throwing_items", values, carry_names["throwing_items"]) for values in by_class.values()]
+    for group, values, allowed in groups:
         if not isinstance(values, dict):
             raise ValueError(f"{group} must be an object")
         if set(values) - allowed:

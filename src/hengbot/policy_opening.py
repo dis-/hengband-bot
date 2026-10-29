@@ -16,6 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
+from hengbot.quest_strategies import acceptance_dps_floor, acceptance_hp_floor
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -59,9 +60,11 @@ class OpeningRouteMixin:
             measured = self._fixed_quest_readiness["strategy_force"]
         finally:
             self._fixed_quest_readiness = previous
+        # The same class-resolved tier floors as readiness (QUEST_1 class 16).
         tier = force.get("no_healing_tier", {})
-        no_heal = bool(tier and snapshot.player.max_hp >= tier["min_hp"]
-                       and measured["dps"]["measured"] >= tier["min_expected_dps"])
+        class_id = snapshot.player.class_id
+        no_heal = bool(tier and snapshot.player.max_hp >= acceptance_hp_floor(tier, class_id)
+                       and measured["dps"]["measured"] >= acceptance_dps_floor(tier, class_id))
         return (
             ("quest-throwing-items", int(force.get("throwing_items", {}).get("lit_torch", 0)),
              self._count_throwing_torches(snapshot), lambda item: item.is_torch),
@@ -241,7 +244,12 @@ class OpeningRouteMixin:
         # Finish the reward pickup transaction before spending its proceeds.
         if self._fixed_quest_reward_pending is not None:
             key = self._fixed_quest_key(snapshot, hostiles)
-            return key if key is not None else self._opening_q1_stop("reward-unavailable")
+            if key is not None:
+                return key
+            # A completed pickup clears the latch and yields no key of its
+            # own; the purchases for Q1 continue on this same board.
+            if self._fixed_quest_reward_pending is not None:
+                return self._opening_q1_stop("reward-unavailable")
         head = self._fixed_quest_head(snapshot)
         if head is not None and head.id != 1:
             return self._opening_q1_stop("competing-quest:" + str(head.id))

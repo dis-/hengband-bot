@@ -17542,7 +17542,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         details = {
             "reference_ac": reference_ac,
             "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id)},
-            "hp": {"measured": snapshot.player.max_hp, "required": int(force.get("min_hp", 0))},
+            "hp": {"measured": snapshot.player.max_hp, "required": acceptance_hp_floor(force, snapshot.player.class_id)},
             "carries": carry_status,
             "speed_potions": {"measured": speed_count, "required": int(force.get("speed_potions", 0))},
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
@@ -17572,14 +17572,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return True
         details["failed"] = [
             name for name, ready in (
-                ("hp", snapshot.player.max_hp >= int(force.get("min_hp", 0))),
+                ("hp", snapshot.player.max_hp >= acceptance_hp_floor(force, snapshot.player.class_id)),
                 ("dps", dps >= acceptance_dps_floor(force, snapshot.player.class_id)),
                 ("speed_potions", speed_count >= int(force.get("speed_potions", 0))),
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),
             ) if not ready
         ]
         return (
-            snapshot.player.max_hp >= int(force.get("min_hp", 0))
+            snapshot.player.max_hp >= acceptance_hp_floor(force, snapshot.player.class_id)
             and dps >= acceptance_dps_floor(force, snapshot.player.class_id)
             and speed_count >= int(force.get("speed_potions", 0))
             and healing >= int(force.get("heal_potions", 0))

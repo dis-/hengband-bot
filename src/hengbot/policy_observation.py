@@ -11,7 +11,7 @@ from hengbot.claim_goal_typing import (
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
-from hengbot.quest_strategies import StrategyProfile
+from hengbot.quest_strategies import StrategyProfile, class_throwing_items
 from hengbot.policy_types import TownVisitLedger
 from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
@@ -1377,6 +1377,8 @@ class ObservationMixin:
         snapshot: Snapshot, profile: StrategyProfile
     ) -> dict[str, object]:
         force: dict[str, object] = dict(profile.required_force)
+        if "throwing_items_by_class" in force:
+            force["throwing_items"] = class_throwing_items(force, snapshot.player.class_id)
         tiers = force.get("defensive_tiers", ())
         if not isinstance(tiers, list):
             return force
