@@ -522,7 +522,7 @@
   "policy_shop.py:ShopMixin._shop": "delegated adapter: Declare the final direct store-page command produced by this page.",
   "policy_shop.py:ShopMixin._shop_candidate_diagnostics": "pure helper: _shop_candidate_diagnostics returns dict[str, object] used as input/observation, not an independently selected game action",
   "policy_shop.py:ShopMixin._shop_core": "town producer to migrate: _shop_core emits legacy action keys; requires explicit ownership migration",
-  "policy_shop.py:ShopMixin._shop_purchase_key": "delegated adapter: shared in-shop purchase producer called only by _shop_core after current-page selection",
+  "policy_shop.py:ShopMixin._shop_purchase_key": "delegated adapter: shared in-shop purchase producer called by _shop_core and its next_purchase_key adapter after current-page selection",
   "policy_shop.py:ShopMixin._shopping_approach_step": "pure helper: _shopping_approach_step returns Position | None used as input/observation, not an independently selected game action",
   "policy_shop.py:ShopMixin._stage_shopping_approach_key": "town producer to migrate: _stage_shopping_approach_key emits legacy action keys; requires explicit ownership migration",
   "policy_shop.py:ShopMixin._store_accepts_sale": "pure helper: Conservative tval gate mirroring Hengband's store_will_buy switch.",
@@ -756,5 +756,6 @@
   "town_pack_budget.py:find_pressure_sale": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
   "town_pack_budget.py:relief_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
   "town_pack_budget.py:_relief_route": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
-  "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer."
+  "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "shop_purchase_dispatch.py:next_purchase_key": "delegated adapter: _shop_core selects the live purchase and delegates to _shop_purchase_key with the same provenance, reservations and admission; no independent owner or effect credit"
 }

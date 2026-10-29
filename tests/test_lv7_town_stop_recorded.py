@@ -21,10 +21,9 @@ from hengbot.cli import (
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
-from hengbot.model import Position, StoreItem, StoreState, _parse_items, parse_snapshot
+from hengbot.model import StoreItem, StoreState, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from tests import test_opening_route_r2_recorded as round2
-from tests import test_opening_route_recorded as round1
 import tests.test_input_executor as executor_harness
 from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 
@@ -45,7 +44,18 @@ def supplier_reply(page):
 
 
 class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
-    shelf_screen = staticmethod(round1.OpeningRouteRecordedTest.shelf_screen)
+    @staticmethod
+    def shelf_screen(raw):
+        # Same height as these live runs; 21/52-row shelves do not fit the
+        # 24-line transport harness's default test screen.
+        screen = command_screen(raw["turn"])
+        screen.update(height=68, width=213, lines=[""] * 68,
+                      cursor=dict(visible=True, y=60, x=0))
+        screen["lines"][60] = " " * 66 + "You may: p) Purchase an item. s) Sell an item."
+        screen["lines"][61] = " " * 66 + " ESC) Exit from Building."
+        for index, item in enumerate(raw["store"]["items"]):
+            screen["lines"][6 + index] = f"{item['letter']}) {item['name']}"
+        return screen
 
     @classmethod
     def setUpClass(cls):
@@ -96,11 +106,50 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
             EquipmentTransactionPlan((transaction,), (), len(case["snapshot"]["inventory"]))
         )
 
+    def test_recorded_population_pins_the_three_failure_paths(self):
+        self.assertEqual([case["snapshot"]["turn"] for case in self.cases],
+                         [75424, 81070, 80759, 79942, 81089, 82183, 83268, 80569])
+        for case in self.cases:
+            last = case["decisions"][-1]
+            if "owner-retired-burst" in case["id"]:
+                retired = [row for row in case["decisions"]
+                           if row.get("arbiter", {}).get("retired")][-3:]
+                self.assertEqual(len(retired), 3)
+                for row in retired:
+                    self.assertEqual(row["arbiter"]["producer_owner"], "detectors")
+                    self.assertEqual(row["town_idle_d0"]["trigger_category"], "recurrence")
+                    self.assertEqual(row["town_idle_d0"]["recurrence_count"], 2)
+                equipment = last["equipment_optimization"]
+                self.assertEqual(equipment["transaction_next"]["target_slot"], "light")
+                self.assertIsNone(equipment["transaction_pending"])
+                self.assertTrue(any(work and work.startswith("route-refused:")
+                                    for row in case["decisions"][-6:]
+                                    for work in row["offered_work_ids"]))
+            else:
+                failure = last["fixedquest_readiness"]["opening_route_failure"]
+                self.assertEqual(failure, "quest-entry-unavailable" if "life-400" in case["id"]
+                                 else "no-progress:fundraising-digger")
+                self.assertEqual(last["key"], "")
+
     def post(self, policy, raw, key, following):
         game = FaithfulHookGame()
         game.state = copy.deepcopy(raw)
+        game.jsonl = [copy.deepcopy(raw)]
         game.screen = self.shelf_screen(raw) if raw.get("store") else command_screen(raw["turn"])
         screens, expected = [], [TRAVEL_MACRO_TRIGGERS.get(key, key)]
+        if policy.last_reason == "shop:one-shot-buy" and key.startswith("p"):
+            body = key.removesuffix("\x1b")
+            expected = [body[:2]]
+            tail = body[2:]
+            quantity = int(tail.strip() or 1)
+            ware = next(item for item in raw["store"]["items"] if item["letter"] == key[1])
+            if tail.endswith("\r\r"):
+                screens.append(prompt_screen(f"いくつですか (1-{ware['count']}): 1"))
+                expected.append(tail[:-1])
+                tail = "\r"
+            screens += [prompt_screen(f"Do you buy for ${ware['price'] * quantity}? [Y/n]"),
+                        self.shelf_screen(raw)]
+            expected += [tail, "\x1b"]
         if key.startswith("w"):
             screens = [prompt_screen("(Inven: a-w, ESC) どれを装備しますか?")]
             expected = ["w", key[1:]]
@@ -166,7 +215,7 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
                     self.post(policy, raw, key, following)
                     raw = following
                     key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-                    self.assertTrue(key)
+                    self.assertNotIn(key, ("", "5"), policy.last_reason)
                     self.assertFalse(policy.last_reason.startswith(("town:blocked:", "quest:blocked:")))
                     continue
                 self.assertEqual(policy.last_reason, "equipment-transaction:equip", key)
@@ -249,15 +298,28 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
                 self.post(policy, general, key, raw)
                 key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
                 self.assertEqual(policy.last_reason, "shop:one-shot-buy", key)
-                self.assertTrue(key.startswith("5p"), repr(key))
+                self.assertEqual(key, "5")
+                self.assertTrue(policy._store_visit.operation_key.startswith("p"))
+                # Entry is posted alone; the purchase tail waits for a fresh
+                # actual store page, as in the production one-shot protocol.
+                opened = copy.deepcopy(raw)
+                opened["store"] = copy.deepcopy(case["pages"]["0"]["store"])
+                opened["turn"] += 1
+                self.post(policy, raw, key, opened)
+                raw = opened
+                key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+                self.assertTrue(key.startswith("p"), (key, policy.last_reason))
                 # DECLARED CONSTRUCTED: purchase succeeds at the observed row.
                 following = copy.deepcopy(raw)
-                ware = next(it for it in case["pages"]["0"]["store"]["items"] if it["letter"] == key[2])
+                ware = next(it for it in case["pages"]["0"]["store"]["items"] if it["letter"] == key[1])
                 self.assertEqual(ware["tval"], 20)
-                item = dict(ware, count=1, slot="z", is_equipment=True)
+                slots = {it["slot"] for it in raw["inventory"]}
+                slot = next(c for c in "abcdefghijklmnopqrstuvw" if c not in slots)
+                item = dict(ware, count=1, slot=slot, is_equipment=True)
                 item.pop("letter", None)
                 item.pop("price", None)
                 following["inventory"].append(item)
                 following["player"]["gold"] -= ware["price"]
+                following["store"] = None
                 following["turn"] += 1
                 self.post(policy, raw, key, following)
