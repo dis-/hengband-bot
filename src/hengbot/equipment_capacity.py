@@ -21,7 +21,8 @@ def release_unaffordable_session(policy, snapshot):
     operations with their existing owner; only debt-free work can yield here.
     """
     session = policy._equipment_transaction_session
-    if (not snapshot.in_town or session is None or session.pending_action is not None
+    if (not snapshot.in_town or session is None or not session.executable
+            or session.pending_action is not None
             or policy._equipment_transaction_owned_items):
         return
     action = session.current_action
