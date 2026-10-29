@@ -756,5 +756,6 @@
   "town_pack_budget.py:find_pressure_sale": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
   "town_pack_budget.py:relief_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
   "town_pack_budget.py:_relief_route": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
-  "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer."
+  "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "equipment_capacity.py:plan_equipment_transactions": "pure helper: returns EquipmentTransactionPlan data with the shared town reserve; no game command or independent work admission"
 }
