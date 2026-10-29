@@ -1,0 +1,8 @@
+[fast] waiting: the merge gate is running its full suite (gate pack-headroom-1029, since 18:16:44); owner decision 2026-10-25
+[fast] the merge gate's full suite finished; starting after 8 min
+[fast] 1627 fast tests (<2.0s in 6658e5c58) + 1 changed modules, 4 shards
+[fast] excluded 54 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-_4sgwiy_)
+Failures: ['tests.test_flight_recorder.FlightRecorderTest.test_budget_stats_unprunable_bulk_only_once_during_deletion_loop', 'tests.test_opening_route_r2_recorded.OpeningRouteR2RecordedTest.test_other_once_quests_keep_the_spare_oil_gate']
+Errors: none
+Total: 1637 tests, 195.7s

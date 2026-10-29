@@ -1,0 +1,8 @@
+[preflight] FAIL manifest: the town work manifest was stale; it has been regenerated - commit it (regenerate after the LAST source edit)
+[preflight] FAIL fakery/sink: FAIL: test_every_pinned_adapter_call_still_exists (tests.test_item_sink_lint.ItemSinkLintTest.test_every_pinned_adapter_call_still_exists) (site='policy_quest.py:_opening_q34_town_key')
+[preflight] FAIL fakery/sink: AssertionError: Count[254 chars]: 1, 'self._equipment_transaction_town_key(sna[443 chars]: 1}) != Count[254 chars]: 1, "self._shopping_approach_key(snapshot, st[332 chars]: 1})
+[preflight] FAIL fakery/sink: FAIL: test_repository_item_sinks (tests.test_item_sink_lint.ItemSinkLintTest.test_repository_item_sinks)
+[preflight] FAIL fakery/sink: AssertionError: Lists differ: ['policy_quest.py: line 572: _opening_q34_[145 chars]red'] != []
+[preflight] FAIL fakery/sink: + []
+[preflight] FAIL fakery/sink: - ['policy_quest.py: line 572: _opening_q34_town_key calls a claims producer '
+[preflight] PREFLIGHT FAIL: 31 changed files, 7 findings ( vs main)

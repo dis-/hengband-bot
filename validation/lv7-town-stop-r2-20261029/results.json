@@ -1,0 +1,43 @@
+{
+  "issue": 47,
+  "validated_head": "51e3f40ad933b4f857dbb4dc65ee2d266cd3faba",
+  "base_name": "main",
+  "base_sha": "6658e5c58bc1fb9f2e18a55f083d91f486ff8371",
+  "python": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
+  "codex_runtime_python": "3.12.14",
+  "source_tree": "d8795b48d0e0ded6e79a73e78a273859246b91f3",
+  "tests_tree": "81fe1deddb68c5eca9517ec4afbd6060236e346c",
+  "checks": {
+    "focused_python313": {
+      "tests": 15,
+      "exit_code": 0
+    },
+    "focused_codex_runtime": {
+      "tests": 6,
+      "exit_code": 0
+    },
+    "preflight": {
+      "findings": 0,
+      "exit_code": 0
+    },
+    "fast_tier": {
+      "tests": 1637,
+      "failures": 0,
+      "errors": 0,
+      "crashed_shards": 0,
+      "exit_code": 0
+    },
+    "mutation_check": {
+      "hunks": 13,
+      "caught": 13,
+      "not_caught": 0,
+      "recorded": true,
+      "exit_code": 0
+    }
+  },
+  "derived_scope_run": false,
+  "derived_modules_run": false,
+  "full_suite_run": false,
+  "walls_added": 0,
+  "capture_originals_unchanged": 8
+}

@@ -1,0 +1,16 @@
+[mutation] 13 source hunks, tests: tests.test_lv7_town_stop_recorded
+[mutation] caught     src/hengbot/equipment_route_handoff.py:1 ("""Return a blocked shop route to the equipment operation that owns it): test_lv7_town_stop_recorded
+[mutation] caught     src/hengbot/policy_equipment.py:2852 (self.last_reason = "equipment-transaction:equip-item-missing"): test_four_bursts_execute_the_unposted_light_action
+[mutation] caught     src/hengbot/policy_opening.py:270 (if store is not None or self._physical_adjacent_hostiles(snapshot):): test_ready_q1_entrance_resolves_its_adjacent_monster_before_entry
+[mutation] caught     src/hengbot/policy_quest.py:1 (from hengbot.quest_entry_requirements import allows_overweight, allows): test_four_bursts_execute_the_unposted_light_action, test_magic_eater_full_q34_gate_keeps_supplies_hp_and_light_requirements, test_ready_q1_entrance_resolves_its
+[mutation] caught     src/hengbot/policy_quest.py:568 (if self._equipment_transaction_session is not None:): test_four_bursts_execute_the_unposted_light_action
+[mutation] caught     src/hengbot/policy_quest.py:5009 (max_damage_ratio = entry_damage_ratio(): test_four_bursts_execute_the_unposted_light_action, test_magic_eater_full_q34_gate_keeps_supplies_hp_and_light_requirements
+[mutation] caught     src/hengbot/policy_quest.py:5047 (entry_output, entry_hp = entry_melee_check(profile, snapshot.player.cl): test_four_bursts_execute_the_unposted_light_action, test_magic_eater_full_q34_gate_keeps_supplies_hp_and_light_requirements
+[mutation] caught     src/hengbot/policy_shop.py:1 (from hengbot.shop_purchase_dispatch import next_purchase_key): test_four_bursts_execute_the_unposted_light_action, test_three_supplier_stops_buy_instead_of_repeating_unbindable_sale
+[mutation] caught     src/hengbot/policy_shop.py:5136 (purchase = next_purchase_key(self, snapshot)): test_three_supplier_stops_buy_instead_of_repeating_unbindable_sale
+[mutation] caught     src/hengbot/policy_shop.py:5904 (# The owner refusing relocation must execute its own local work;): test_four_bursts_execute_the_unposted_light_action
+[mutation] caught     src/hengbot/quest_entry_requirements.py:18 (if getattr(profile, "quest_id", None) == 34:): test_four_bursts_execute_the_unposted_light_action
+[mutation] caught     src/hengbot/quest_entry_requirements.py:33 (def entry_damage_ratio(profile, class_id, default) -> float:): test_lv7_town_stop_recorded
+[mutation] caught     src/hengbot/shop_purchase_dispatch.py:1 ("""Execute the live purchase choice through the shared shop admission ): test_lv7_town_stop_recorded
+[mutation] MUTATION OK: 0 of 13 hunks are not pinned by a test
+[mutation] recorded for 51e3f40a
