@@ -1,0 +1,45 @@
+ISSUE #47: Magic-Eater Q34 ranged-fire 修正報告
+
+1. 原因調査
+対象は main 016a85faa。捕捉盤面はターン76642、地下5階Q34、Lv1ゾンビ魔道具術師、位置(y=7,x=13)、東のクローカー(y=7,x=15)。停止理由は quest-strategy:ranged-fire:magic-eater。同一盤面で3回停止し、イベントには入力種別 spell と魔力選択の質問、ESC後 command が記録されている。
+
+C:/hengband/src/cmd-item/cmd-magiceat.cpp の select_magic_eater を確認した。非メニュー時は m の後、A=杖、B=魔法棒、C=ロッドを選ぶ。魔力選択では * で一覧を表示し、sval に対応する文字で選ぶ。マジック・ミサイルは sv-wand-types.h の sval=15、したがって p。使用可能なら成功判定の後に方向を質問し、6 は東への発射。失敗時は方向質問に進まない。メニュー設定時は種類を2/8で移動してEnter、魔力もカーソルを移動してEnterで選択するため、固定文字列を一括送信する前提にはできない。
+
+選択した種類の魔力を一つも覚えていなければ「その種類の魔法は覚えていない！」でコマンドへ戻る。一部の魔力を覚えていても未習得のスロットを選べばベルを鳴らして選択待ちを継続する。残回数不足なら「その魔法は使用回数が切れている。」を表示・消去し、同じ選択待ちを継続する。
+
+mBp6 は魔法棒のマジック・ミサイルを東へ撃つという方針上の表記。本番executorはこれを観測付きの区間へ分割しているが、魔力質問の入力種別を command_char に限定していた。実際の spell を拒否したため、一覧の確認・魔力選択へ進めず質問を残した。既存テストも command_char を作っており、この不一致を見逃していた。
+
+捕捉スナップショットの8番目（0始まり）には「マジック・ミサイルの魔法棒 (17回分)の魔力を取り込んだ。」と消失メッセージがある。mind/mind-magic-eater.cpp の import_magic_device は初回取り込みで保有数と充填量を設定する。停止前の記録に魔力発射はないため、習得済み・17回分からの発射を試みる根拠がある。ただし停止イベントは魔力一覧そのものを保存していないので、停止時の残回数を一覧で実測したとは言えない。実行時の一覧で存在と正の残回数を確認してから撃つ。魔力が使えなければ、保有していた松明を承認済みQUEST_34計画の同じ立ち位置・方向で投げる。
+
+2. 修正
+magic_eater_input.py に魔力質問の所有判定を小さくまとめ、spell と従来の command_char を正確な質問文と組み合わせて受け入れた。一覧から名前・選択文字・残回数を取得する既存処理を維持した。
+一覧に魔力がない、選択後に使用不能で魔力質問へ戻った、メニュー進行の上限に達した場合は、所有する魔力質問をexecutor内でESCにより閉じる。使用不能の観測値を0として返し、既存のQ34松明投擲へ戻す。異なる質問・不正な入力種別への無条件回答はしない。戦士側の方針と行数制限対象ファイルは変更していない。
+保守性: 入力種別と質問文の判定を共通化し、魔道具術師の小さな入力モジュール内で回復処理を完結させた。関連する生成済みtown-work manifestとASTハッシュも更新した。
+
+3. 回帰固定
+捕捉した最終スナップショットを tests/fixtures/me-q34-ranged-fire-1029.json に保存した。公開 choose_key と本番 _ExecutorInputPort / OperationExecutor を使用する。protocol 3で不足する技能知識と入力画面・残回数は明示した構築データ。画面遷移モデルはゲームソースに基づき、未習得・残回数ゼロの発射選択を拒否する。実機の再プレイではない。
+・捕捉盤面、残17回: m / B / * / p / 6 を受理し、発射1回、残16回、commandへの復帰を確認。
+・残0回、対象魔力なし: m / B / * / ESC で復帰し、公開方針が vb6 を選び、同じexecutorで投擲を完了することを確認。
+・選択後の魔力質問への戻り: 方向キーを送らずESCで閉じる。
+・従来の command_char、および既存の日英・メニュー・失敗・戦士投擲テストを維持。
+既存テストの魔力入力種別を実際の spell に修正した。新しいtest wallは0件。
+
+4. 検証
+検証対象HEAD: d5abacc0d。
+・関連テスト: python -X utf8 -m unittest tests.test_magic_eater_o3 tests.test_magic_eater_ranged_fire_recorded tests.test_magic_eater_acceptance — 36件、OK、終了コード0。
+・preflight . main: PREFLIGHT OK、変更6ファイル、指摘0、終了コード0。構造テスト・行数上限検査を含む。初回はmanifestの自動再生成を通知して終了コード1だったため、生成物をコミットに含めて再実行した。
+・mutation_check . main --record --tests tests.test_magic_eater_o3 tests.test_magic_eater_ranged_fire_recorded: MUTATION OK、3/3 hunk検出、未検出0、終了コード0。HEADとsrc/testsツリー単位の記録を保存。
+・fast_tier . main: 1613件、174.1秒、失敗0、エラー0、クラッシュ0、終了コード0。1609 fast testsに変更2モジュールを組み合わせた指定のtier。60秒超の55モジュールはツールの通常設定で除外。
+・git diff --check: 成功。
+fast tierの初回起動はmutationの作業ツリー反転との競合を避けるため子プロセスも含めて停止し、mutation完了後に上記の再実行を行った。
+指定の検証はすべて完了。全件スイートおよびderived scope/modulesは指示どおり実行していない。開始した検証はすべて終了し、待機スクリプト・検証用のバックグラウンドプロセスは残していない。src/とtests/に未コミット差分はない。
+
+5. 成果物
+実装修正と回帰固定をコミット済み。最終コミットと検証対象HEAD: d5abacc0d。
+・関連テスト: python -X utf8 -m unittest tests.test_magic_eater_o3 tests.test_magic_eater_ranged_fire_recorded tests.test_magic_eater_acceptance — 36件、OK、終了コード0。
+・preflight . main: PREFLIGHT OK、変更6ファイル、指摘0、終了コード0。構造テスト・行数上限検査を含む。初回はmanifestの自動再生成を通知して終了コード1だったため、生成物をコミットに含めて再実行した。
+・mutation_check . main --record --tests tests.test_magic_eater_o3 tests.test_magic_eater_ranged_fire_recorded: MUTATION OK、3/3 hunk検出、未検出0、終了コード0。HEADとsrc/testsツリー単位の記録を保存。
+・fast_tier . main: 1613件、174.1秒、失敗0、エラー0、クラッシュ0、終了コード0。1609 fast testsに変更2モジュールを組み合わせた指定のtier。60秒超の55モジュールはツールの通常設定で除外。
+・git diff --check: 成功。
+fast tierの初回起動はmutationの作業ツリー反転との競合を避けるため子プロセスも含めて停止し、mutation完了後に上記の再実行を行った。
+タスク開始時から存在する未追跡のタスクファイル・solログは変更しない。
