@@ -903,6 +903,8 @@ class Snapshot:
     completed_operation_owner: str | None = None
     completed_operation_receipt: dict[str, object] | None = None
     magic_eater_wand_charges: int | None = None
+    # Viewer-only: the Magic-Eater power list the completed operation displayed.
+    magic_eater_power_list: dict | None = None
     protocol_version: int = PROTOCOL_LEGACY
     # Protocol-3 screen values (None when the emitter predates them).
     dungeon_name: str | None = None
@@ -1461,6 +1463,7 @@ def parse_snapshot(
         detected_monsters=detected_monsters,
         messages=tuple(str(message) for message in data.get("messages", [])),
         magic_eater_wand_charges=data.get("_magic_eater_wand_charges"),
+        magic_eater_power_list=data.get("_magic_eater_power_list"),
         completed_operation_sequence=(
             int(data["_completed_operation_sequence"])
             if data.get("_completed_operation_sequence") is not None else None

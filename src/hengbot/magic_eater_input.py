@@ -69,6 +69,44 @@ def _power_row(lines):
     return None
 
 
+# One list entry as cmd-magiceat.cpp prints it: a letter or menu cursor, the
+# baseitem name, then "cur/max" (staff/wand), "充填:c/n" or "(c/n)" (rod: c of
+# n absorbed rods are charging) and the failure percent. Rows sit in two
+# 40-cell columns, so one screen line may hold two entries.
+_LIST_ENTRY = re.compile(
+    r"(?:(?:[a-z0-9]\)|》|>)\s?)?(?P<name>\S.*?)\s+(?P<rod>充填:\s*|\(\s*)?"
+    r"(?P<first>\d+)\s*/\s*(?P<second>\d+)\)?\s*(?P<fail>\d+)%")
+_ROD_HEADERS = ("状態", "Stat")
+
+
+def observed_power_list(lines):
+    """The power list exactly as displayed, or None when it is not on screen.
+
+    Viewer-only (spectate.json): no decision reads this projection.  The
+    executor only ever answers the wand type (``B`` or the menu's 魔法棒), so
+    a list without the rod header is the wand list.
+    """
+    rows = []
+    for line in lines[2:20]:
+        for match in _LIST_ENTRY.finditer(line):
+            name = match.group("name").strip()
+            if name.startswith(("》", ">")):
+                name = name.lstrip("》> ").strip()
+            first, second = int(match.group("first")), int(match.group("second"))
+            fail = int(match.group("fail"))
+            row = {"name": name, "fail": fail, "success": 100 - fail}
+            if match.group("rod") is not None:
+                row.update(charging=first, max=second)
+            else:
+                row.update(current=first, max=second)
+            rows.append(row)
+    if not rows:
+        return None
+    header = lines[1] if len(lines) > 1 else ""
+    rod = any(text in header for text in _ROD_HEADERS) or "charging" in rows[0]
+    return {"kind": "rod" if rod else "wand", "rows": rows}
+
+
 def _owns_power_prompt(reading):
     return (reading.kind in {"spell", "command_char"}
             and reading.prompt.rstrip() in POWER_PROMPTS)
@@ -112,6 +150,9 @@ def _answer(step, screen, operation):
     if step.stage == "power":
         if not _owns_power_prompt(reading):
             raise ValueError("unowned Magic-Eater power prompt")
+        listed = observed_power_list(lines)
+        if listed is not None:
+            operation.magic_eater_power_list = listed
         row = _power_row(lines)
         if row is None:
             if step.attempts == 0:
@@ -178,6 +219,9 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
         if operation.owner == MISSILE_REASON and _owns_power_prompt(reading):
             # Missing/unusable powers and bounded menu failures must return to
             # command input before the next policy decision can throw a torch.
+            listed = observed_power_list(read_input_view(screen)[1])
+            if listed is not None:
+                operation.magic_eater_power_list = listed
             operation.magic_eater_wand_charges = (
                 -1 if _power_row(read_input_view(screen)[1]) is None else 0)
             operation.continuations[0] = replace(step, stage="done", attempts=0)

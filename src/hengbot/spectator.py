@@ -24,6 +24,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from hengbot.control_client import raw_keys_to_macro_notation
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.spectator_tiles import spectator_player, spectator_tiles
 
 # Owner request 2026-10-23: the last 20 messages,
@@ -185,6 +186,37 @@ def spectator_recall_destination(policy, snapshot) -> dict | None:
     return destination
 
 
+SPECTATE_MAGIC_EATER_KINDS = ("staff", "wand", "rod")
+
+
+def observe_magic_eater_powers(cache: dict, snapshot) -> dict:
+    """Update the per-life cache of power lists the game displayed to the bot.
+
+    Each entry is a list the executor read from the game's own power list
+    screen (``Snapshot.magic_eater_power_list``) plus the game turn of the
+    board that followed it.  Nothing is estimated between observations: the
+    viewer shows the turn so a stale list is visible.  A different class or
+    a game turn going backwards (a new life) clears the cache.
+    """
+    player = snapshot.player
+    turn = getattr(snapshot, "turn", 0)
+    if (cache.get("class_id") != player.class_id
+            or turn < cache.get("turn", turn)):
+        cache.clear()
+    cache["class_id"], cache["turn"] = player.class_id, turn
+    listed = getattr(snapshot, "magic_eater_power_list", None)
+    if isinstance(listed, Mapping) and listed.get("kind") in SPECTATE_MAGIC_EATER_KINDS:
+        cache.setdefault("lists", {})[listed["kind"]] = {
+            "turn": turn, "rows": [dict(row) for row in listed.get("rows", ())]}
+    return cache
+
+
+def spectator_magic_eater_powers(cache: Mapping[str, object]) -> dict:
+    """Viewer field: each type's last observed list, or None (未確認)."""
+    lists = cache.get("lists", {})
+    return {kind: lists.get(kind) for kind in SPECTATE_MAGIC_EATER_KINDS}
+
+
 class SpectatorWriter:
     """Atomic snapshot plus bounded, unthrottled frames; I/O fails open."""
 
@@ -201,6 +233,7 @@ class SpectatorWriter:
         self.last_write: float | None = None
         self.last_error_report: float | None = None
         self.tile_panel_counts: dict[str, int] = {}
+        self.magic_eater_powers: dict[str, object] = {}
 
     def observe(self, snapshot, key: str | None, reason: str | None,
                 decision_sequence: int | None,
@@ -216,6 +249,10 @@ class SpectatorWriter:
         """
         if append_frame:
             self.pending_frame = None
+        try:
+            observe_magic_eater_powers(self.magic_eater_powers, snapshot)
+        except Exception as error:
+            self._report(self.clock(), error)
         self.messages = merge_seen_messages(
             self.messages, getattr(snapshot, "messages", ()) or ()
         )[-SPECTATE_MESSAGE_LINES:]
@@ -250,6 +287,9 @@ class SpectatorWriter:
                 "player": spectator_player({"race_id": player.race_id,
                                              "class_id": player.class_id}),
             }
+            if player.class_id == PLAYER_CLASS_MAGIC_EATER:
+                content["magic_eater_powers"] = spectator_magic_eater_powers(
+                    self.magic_eater_powers)
             if policy is not None:
                 destination = spectator_recall_destination(policy, snapshot)
                 if destination is not None:
