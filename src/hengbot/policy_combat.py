@@ -592,6 +592,9 @@ class CombatMixin:
                 "combat:disengage-wait-recall",
                 "quest-strategy:hold",
                 "quest:blocked:hold",
+                # Final stop (never posted): the bee behind the locked glass
+                # door is visible but cannot reach the player through it.
+                "quest:blocked:q34-final-door-locked",
                 "rest",
                 "recover",
             }

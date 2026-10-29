@@ -289,6 +289,9 @@ DOOR_OPEN_LIMIT = 3
 STUCK_DOOR_MESSAGE_FRAGMENTS = ("がっちりと閉じられている", "appears to be stuck")
 # 2026-10-11 live Lv1 opening: the Q34 lock was picked after about 20 tries.
 Q34_OPENING_DOOR_ATTEMPT_LIMIT = 200
+# The final door [4,14] is LOCKED_GLASS_DOOR_7, the same lock power as the
+# opening door; the 2026-10-29 Lv6 Magic-Eater needed more than 60 picks.
+Q34_FINAL_DOOR_ATTEMPT_LIMIT = Q34_OPENING_DOOR_ATTEMPT_LIMIT
 # Japanese monster-death messages (living, undead/nonliving, destroyed).
 FIXED_TARGET_DEFEAT_VERBS = ("を倒した", "を殺した", "を破壊した")
 RUBBLE_DIG_LIMIT = 30
@@ -313,6 +316,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'dark:locomotion-exhausted',
         'quest:blocked:fixed-target-not-visible',
         'quest:blocked:q34-opening-door-locked',
+        'quest:blocked:q34-final-door-locked',
         'quest:blocked:opening-route',
         'quest:blocked:q34-recovery-no-progress',
         'quest:blocked:q34-throw-point-unreachable',
