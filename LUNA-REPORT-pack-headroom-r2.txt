@@ -1,0 +1,280 @@
+ISSUE #47 / 関連インシデント #119：町の空き枠確保、第2回
+
+対象指示：LUNA-TASK-pack-headroom-r2.txt。ユーザー指定のIssueは#47、タスク本文の関連Issueは#119。
+比較元main：eebc99f0e7dde58f028cf7f980a823ea9e16cc25。
+修正前：dff0039e6。最終の指定項目再実行対象：7a1cbd8dfe3915064326328c1c53b87e1c69d36e。
+最終実装コミット：d64ba687fc5a3300dba1551d526445b5ebe299cf。再実行開始後の差は生成manifestの更新のみ。
+src/hengbotとtestsのgit treeは再実行対象と完全一致することを確認した。
+この報告書はPythonのPath.write_text(..., encoding="utf-8")で作成し、同じ文字コードで読み戻した。
+
+1. 指定された全167項目の分類
+
+結論：(a) 実際の振る舞いの退行167項目、(b) 正当な期待値変更0項目、(c) その他0項目。
+50モジュールを、修正前ブランチと固定mainの別worktreeで実際に再実行した。
+修正前は148 failure・19 errorを再現した。mainは185テスト、失敗0・エラー0。
+入力はsubtestとsetUpClass失敗を含む167行であり、unittestのテストメソッド数とは異なる。
+重複するメソッド名を正規化し、subtestは親メソッドを全条件で実行した。
+setUpClassの4項目はクラス全体を選択し、セットアップとその配下も実行した。
+修正前はセットアップ失敗のため141テスト、mainと最終は185テストとなる。
+派生スコープ／派生モジュールや全スイートの実行ではなく、指定リストから直接選択した再実行である。
+
+A1は早期の整理所有者による処理順変更、A2は広がった候補・購入抑制による既存取引の横取り、
+A3は先行処理の違いから後続の装備比較・junk判定・Home回収状態まで変わった退行。
+記録のキーが変わっただけという理由で(b)にはせず、既存の用事が所有している盤面ではその期待を維持した。
+下表の「修正前」は入力のFAIL/ERROR種別。全群で同じ失敗数・エラー数を再現し、mainと最終は全件成功した。
+
+番号 | 指定された失敗項目（入力の表記を保持） | 分類 | main | 修正前 | 最終 | 根拠
+--- | --- | --- | --- | --- | --- | ---
+1 | tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest.setUpClass | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+2 | tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_sweep_takes_one_ware_at_the_entrance.test_sweep_takes_one_ware_at_the_entrance | (a) | 成功 | ERROR | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+3 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_checkpoint_drops_derived_plain_gear_caches.test_checkpoint_drops_derived_plain_gear_caches | (a) | 成功 | ERROR | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+4 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_home_full_relief_checks_retention_lazily.test_home_full_relief_checks_retention_lazily | (a) | 成功 | ERROR | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+5 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_plain_selected_main_weapon_keeps_every_melee_weapon.test_plain_selected_main_weapon_keeps_every_melee_weapon | (a) | 成功 | ERROR | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+6 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_recorded_controls_stay.test_recorded_controls_stay | (a) | 成功 | ERROR | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+7 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_selected_dominance_implies_plain_gear.test_selected_dominance_implies_plain_gear | (a) | 成功 | ERROR | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+8 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_selected_plain_item_and_its_copy_stay.test_selected_plain_item_and_its_copy_stay | (a) | 成功 | ERROR | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+9 | tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p3_recorded_optional_errand_precedes_ready_departure.test_p3_recorded_optional_errand_precedes_ready_departure | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+10 | tests.test_recall_churn_stockout_recorded.RecallChurnStockoutRecordedTest.test_control_an_offered_recall_without_churn_is_still_bought.test_control_an_offered_recall_without_churn_is_still_bought | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+11 | tests.test_recall_churn_stockout_recorded.RecallChurnStockoutRecordedTest.test_mining_return_ends_the_churn_scope_so_the_retry_buys.test_mining_return_ends_the_churn_scope_so_the_retry_buys | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+12 | tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_future_history_does_not_suppress_surplus.test_future_history_does_not_suppress_surplus | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+13 | tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_home_surplus_incident_real_producer.test_home_surplus_incident_real_producer | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+14 | tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_identify_first_and_no_open_home_unbound_deposit.test_identify_first_and_no_open_home_unbound_deposit | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+15 | tests.test_store_reentry_recorded.StoreReentryRecordedTest.setUpClass | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+16 | tests.test_town_cure_catalogue_continuation.TownCureCatalogueContinuationTest.setUpClass | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+17 | tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest.setUpClass | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+18 | tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_classC2_first_decision_is_the_crossbow_swap.test_classC2_first_decision_is_the_crossbow_swap | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+19 | tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_live27_first_divergence_is_the_crossbow_target.test_live27_first_divergence_is_the_crossbow_target | (a) | 成功 | ERROR | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+20 | tests.test_broke_prevent_recorded.BrokePreventRecordedTest.test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one.test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+21 | tests.test_broke_prevent_recorded.BrokePreventRecordedTest.test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch.test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch (town=0) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+22 | tests.test_broke_prevent_recorded.BrokePreventRecordedTest.test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch.test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch (town=2) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+23 | tests.test_catcycle.CatcycleTest.test_partial_home_requests_catalogue_before_other_errands.test_partial_home_requests_catalogue_before_other_errands (enforced=False, crossarea=False, restored=False) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+24 | tests.test_catcycle.CatcycleTest.test_partial_home_requests_catalogue_before_other_errands.test_partial_home_requests_catalogue_before_other_errands (enforced=False, crossarea=False, restored=True) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+25 | tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_any_remaining_safe_surplus_goes_home_before_guardian_switch.test_any_remaining_safe_surplus_goes_home_before_guardian_switch | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+26 | tests.test_declarations_r14.DeclarationR14Test.test_overweight_home_tail_keeps_its_operation_at_3715.test_overweight_home_tail_keeps_its_operation_at_3715 | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+27 | tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair (enforced=False, restored=False) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+28 | tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair (enforced=False, restored=True) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+29 | tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair (enforced=True, restored=False) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+30 | tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair (enforced=True, restored=True) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+31 | tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_h1_the_observed_ring_swap_releases_the_mutation_gate.test_h1_the_observed_ring_swap_releases_the_mutation_gate | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+32 | tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target.test_production_buys_the_departure_recall_with_the_target | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+33 | tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_replay_decides_as_live_until_the_first_overweight_board.test_replay_decides_as_live_until_the_first_overweight_board | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+34 | tests.test_equipment_in_home_stage1.EquipmentInHomeBehaviorPins.test_supplementary_planner_admits_pack_space_deposit_inside_home.test_supplementary_planner_admits_pack_space_deposit_inside_home | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+35 | tests.test_esp_threat_rest_recorded.EspThreatRestTest.test_e1_lifetime_replays_recorded_before_equipment_choice.test_e1_lifetime_replays_recorded_before_equipment_choice | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+36 | tests.test_fundraise_kit_home_recorded.FundraiseKitHomeRecordedTest.test_control_without_a_home_kit_the_terminal_still_closes_home.test_control_without_a_home_kit_the_terminal_still_closes_home | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+37 | tests.test_fundraise_kit_home_recorded.FundraiseKitHomeRecordedTest.test_home_page_binds_the_fundraising_kit_before_closing.test_home_page_binds_the_fundraising_kit_before_closing | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+38 | tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing.test_g1_fallback_does_not_choose_a_blocked_guardian_landing | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+39 | tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing.test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+40 | tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g2_every_guardian_bounce_is_counted_and_the_valve_fires.test_g2_every_guardian_bounce_is_counted_and_the_valve_fires | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+41 | tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_live_replay_only_changes_the_guardian_safe_fallback.test_live_replay_only_changes_the_guardian_safe_fallback | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+42 | tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_p2_buys_the_departure_recall_with_the_target.test_p2_buys_the_departure_recall_with_the_target | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+43 | tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_r3_no_qualifying_alternate_stops_the_run_visibly.test_r3_no_qualifying_alternate_stops_the_run_visibly | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+44 | tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+45 | tests.test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+46 | tests.test_home_leave_suppressed_recorded.HomeLeaveSuppressedRecordedTest.test_outside_board_releases_the_posted_home_exit.test_outside_board_releases_the_posted_home_exit | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+47 | tests.test_home_light_alternation.HomeLightAlternationPins.test_pin_late_home_response_is_recovered_at_decision_449.test_pin_late_home_response_is_recovered_at_decision_449 | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+48 | tests.test_home_light_alternation.HomeLightAlternationPins.test_pin_s_and_c_incident_trajectory.test_pin_s_and_c_incident_trajectory | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+49 | tests.test_identify_staff_live27_recorded.IdentifyStaffLive27RecordedTest.test_recorded_shortfall_routes_to_magic_before_stockout_mining.test_recorded_shortfall_routes_to_magic_before_stockout_mining | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+50 | tests.test_idstaff_poor_depart_recorded.IdstaffPoorDepartRecordedTest.test_control_unlatched_magic_still_buys_the_staff.test_control_unlatched_magic_still_buys_the_staff | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+51 | tests.test_idstaff_poor_depart_recorded.IdstaffPoorDepartRecordedTest.test_unrouted_remembered_page_starts_the_stockout_mining_run.test_unrouted_remembered_page_starts_the_stockout_mining_run | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+52 | tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_recorded_home_plain_gear_classes.test_recorded_home_plain_gear_classes | (a) | 成功 | FAIL | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+53 | tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_recorded_pack_weight_keeps_every_ware.test_recorded_pack_weight_keeps_every_ware | (a) | 成功 | FAIL | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+54 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_empty_slot_keeps_best_plain_shield.test_empty_slot_keeps_best_plain_shield | (a) | 成功 | FAIL | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+55 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_recorded_home_plain_gear_counts.test_recorded_home_plain_gear_counts | (a) | 成功 | FAIL | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+56 | tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_weapon_sale_offers_no_junk.test_weapon_sale_offers_no_junk | (a) | 成功 | FAIL | 成功 | A3：先行する整理が記録の装備比較・Home操作の準備を変更
+57 | tests.test_live23_home_cycle.Live23HomeCycleTest.test_constructed_r3_catalogue_request_stays_outside_while_inflight.test_constructed_r3_catalogue_request_stays_outside_while_inflight | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+58 | tests.test_live36_weight.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_is_the_weight_batch.test_fewest_charges_staff_above_the_cap_is_the_weight_batch | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+59 | tests.test_morivant_travel_retired_recorded.MorivantTravelRetiredRecordedTest.test_m0_replay_matches_recorded_lifetime_before_the_strip_calibration.test_m0_replay_matches_recorded_lifetime_before_the_strip_calibration | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+60 | tests.test_oneshot_inflight_recorded.OneShotInFlightRecordedTest.test_unposted_sale_watch_outside_is_settled.test_unposted_sale_watch_outside_is_settled | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+61 | tests.test_oneshot_preempt_recorded.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+62 | tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key.test_pre_fix_vector_reproduces_every_live_key | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+63 | tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase.test_temple_entry_composes_and_releases_the_recall_purchase | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+64 | tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys.test_weapon_smith_one_shot_keeps_its_tail_and_buys | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+65 | tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_control_without_the_lamp_the_infravision_torch_is_withdrawn.test_control_without_the_lamp_the_infravision_torch_is_withdrawn | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+66 | tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_recorded_town_board_withdraws_the_home_lamp.test_recorded_town_board_withdraws_the_home_lamp | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+67 | tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_worn_lantern_withdraws_the_home_lamp_before_departure.test_worn_lantern_withdraws_the_home_lamp_before_departure | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+68 | tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_exhausted_home_bound_ends_in_the_named_overweight_stop.test_exhausted_home_bound_ends_in_the_named_overweight_stop (counter='unsatisfied_passes') | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+69 | tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_routed_home_arrival_deposits_the_minimal_overload.test_routed_home_arrival_deposits_the_minimal_overload | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+70 | tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_unposted_home_deposit_routes_home_again.test_unposted_home_deposit_routes_home_again | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+71 | tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary.test_production_loot_route_changes_at_the_recorded_boundary | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+72 | tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_strip.test_replay_reproduces_every_recorded_decision_before_the_strip | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+73 | tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_s2b2_the_bar_table_records_the_hunts_it_would_bar.test_s2b2_the_bar_table_records_the_hunts_it_would_bar | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+74 | tests.test_ownership_s2a1_closure.ClosingPathsTest.test_posted_effect_captures_close_what_they_can.test_posted_effect_captures_close_what_they_can | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+75 | tests.test_policy_home.RecordedErrandShoppingStaleHomeScanInsideRound2Test.test_live_errand_shopping_home_visit_exits_before_scan.test_live_errand_shopping_home_visit_exits_before_scan | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+76 | tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_ammo_top_up_appends_without_replacing_catalogue_shortage.test_ammo_top_up_appends_without_replacing_catalogue_shortage | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+77 | tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_catalogue_shortage_reserve_yields_only_to_departure_blockers.test_catalogue_shortage_reserve_yields_only_to_departure_blockers | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+78 | tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_current_catalogue_queues_and_composes_live_cure_shortage.test_current_catalogue_queues_and_composes_live_cure_shortage | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+79 | tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_one_deferred_cure_stack_does_not_hide_another.test_one_deferred_cure_stack_does_not_hide_another | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+80 | tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_pack_full_deposit_precedes_shortage_queue.test_pack_full_deposit_precedes_shortage_queue | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+81 | tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_recorded_state_composes_home_supply_withdrawal_not_terminal.test_recorded_state_composes_home_supply_withdrawal_not_terminal | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+82 | tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_restored_policy_without_procurement_probe_declines_new_owner.test_restored_policy_without_procurement_probe_declines_new_owner | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+83 | tests.test_policy_home.RecordedHomeProcurementBatchMembershipTest.test_light_ready_recorded_batch_excludes_added_home_torches.test_light_ready_recorded_batch_excludes_added_home_torches | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+84 | tests.test_policy_home.RecordedHomeProcurementBatchMembershipTest.test_treasure_detection_home_first_queues_only_recorded_supply_need.test_treasure_detection_home_first_queues_only_recorded_supply_need | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+85 | tests.test_policy_home.RecordedHomeWithdrawalObserverOrderingTest.test_recorded_cloak_take_is_observed_before_catalogue_acquisition.test_recorded_cloak_take_is_observed_before_catalogue_acquisition | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+86 | tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_august_22_unentered_general_oil_claim_routes_to_supplier.test_august_22_unentered_general_oil_claim_routes_to_supplier | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+87 | tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_full_identify_errand_precedes_unrelated_home_deposit.test_full_identify_errand_precedes_unrelated_home_deposit | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+88 | tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_fundraising_does_not_revisit_home_for_unrelated_deposit.test_fundraising_does_not_revisit_home_for_unrelated_deposit | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+89 | tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_home_star_identify_source_breaks_incomplete_catalog_deadlock.test_home_star_identify_source_breaks_incomplete_catalog_deadlock | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+90 | tests.test_policy_shop.TownErrandPlanTest.test_all_deferred_identification_claim_self_retires.test_all_deferred_identification_claim_self_retires | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+91 | tests.test_policy_shop.TownErrandPlanTest.test_catalogued_identification_withdrawal_is_composed_before_home_entry.test_catalogued_identification_withdrawal_is_composed_before_home_entry | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+92 | tests.test_policy_shop.TownErrandPlanTest.test_deferred_only_identification_claim_self_retires.test_deferred_only_identification_claim_self_retires | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+93 | tests.test_policy_town.FullPackDepositPriorityTest.test_active_identification_and_prior_home_attempt_do_not_hide_shortage.test_active_identification_and_prior_home_attempt_do_not_hide_shortage | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+94 | tests.test_policy_town.FullPackDepositPriorityTest.test_non_shortage_keeps_identification_ahead_of_convenience_deposit.test_non_shortage_keeps_identification_ahead_of_convenience_deposit | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+95 | tests.test_policy_town.FullPackDepositPriorityTest.test_recorded_town0_full_pack_routes_identified_surplus_to_home_first.test_recorded_town0_full_pack_routes_identified_surplus_to_home_first | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+96 | tests.test_policy_town.TownAndFundraisingPolicyTest.test_alchemist_refuses_sleep_and_buys_detect_invisible.test_alchemist_refuses_sleep_and_buys_detect_invisible (tval=75, sval=11) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+97 | tests.test_policy_town.TownKillMobAlternationRecordedTest.test_p4_recorded_monster_free_row_starts_shop_errand.test_p4_recorded_monster_free_row_starts_shop_errand | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+98 | tests.test_policy_town.TownLootSupplierCommitmentRecordedTest.test_a1_recorded_committed_loot_walk_is_not_preempted.test_a1_recorded_committed_loot_walk_is_not_preempted | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+99 | tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p2_exact_target_recording_runs_procurement_not_fallback.test_p2_exact_target_recording_runs_procurement_not_fallback | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+100 | tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p4_attempted_surplus_deposit_does_not_block_departure.test_p4_attempted_surplus_deposit_does_not_block_departure | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+101 | tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p5_recorded_supplier_exhaustion_keeps_existing_shortage_flow.test_p5_recorded_supplier_exhaustion_keeps_existing_shortage_flow | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+102 | tests.test_policy_town.TownPriorityStage3Round2RecordedTest.test_p4_unarmed_recorded_shortage_still_starts_shop_errand.test_p4_unarmed_recorded_shortage_still_starts_shop_errand | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+103 | tests.test_policy_town.TownSeekLootSupplyAlternationRecordedTest.test_p1_recorded_magic_shortage_skips_normal_loot_producer.test_p1_recorded_magic_shortage_skips_normal_loot_producer | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+104 | tests.test_policy_town.TownSeekLootSupplyAlternationRecordedTest.test_p2_recorded_home_shortage_skips_normal_loot_producer.test_p2_recorded_home_shortage_skips_normal_loot_producer | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+105 | tests.test_policy_town.TownSeekLootSupplyAlternationRecordedTest.test_p3_recorded_visible_loot_is_not_suppressed.test_p3_recorded_visible_loot_is_not_suppressed | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+106 | tests.test_policy_town.TownWeightDepartureRecordedTest.test_r1_recorded_public_replay_posts_named_weight_owner.test_r1_recorded_public_replay_posts_named_weight_owner | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+107 | tests.test_policy_town.TownWeightDepartureRecordedTest.test_r2_recorded_weight_work_selects_home_route_and_non_supply.test_r2_recorded_weight_work_selects_home_route_and_non_supply | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+108 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=1) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+109 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=17) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+110 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=19) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+111 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=2) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+112 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=21) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+113 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=23) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+114 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=24) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+115 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=25) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+116 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=26) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+117 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=28) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+118 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=29) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+119 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=3) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+120 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=4) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+121 | tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3.test_p1_lifetime_prefix_matches_the_recording_under_v3 (sequence=8) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+122 | tests.test_protocol3_client.P1SameDecisionTest.test_p1_town_decision_requests_skill_list_then_matches_v2.test_p1_town_decision_requests_skill_list_then_matches_v2 | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+123 | tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_tour_first_town_visit.test_t1_t2_protocol3_tour_first_town_visit | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+124 | tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result.test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+125 | tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t3_capture_fields_equal_the_unscoped_evaluation.test_t3_capture_fields_equal_the_unscoped_evaluation (step=16) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+126 | tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_pre_fix_vector_reproduces_every_live_key.test_pre_fix_vector_reproduces_every_live_key | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+127 | tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_walk_that_does_not_close_the_route_still_retires.test_walk_that_does_not_close_the_route_still_retires | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+128 | tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_walk_to_the_inn_is_progress_and_continues.test_walk_to_the_inn_is_progress_and_continues | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+129 | tests.test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_recorded_public_replay_diverges_to_composed_ten_bolt_buy.test_recorded_public_replay_diverges_to_composed_ten_bolt_buy | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+130 | tests.test_quest_carry_town_block.QuestCarryTownBlockPins.test_recorded_home_and_store_exhaustion_waives_only_town_departure.test_recorded_home_and_store_exhaustion_waives_only_town_departure | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+131 | tests.test_quest_carry_town_block.QuestCarryTownBlockPins.test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop.test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+132 | tests.test_quest_prepare_return_stage2.QuestPrepareReturnStage2Pins.test_q_return_1_recurrence_retires_without_step_off_credit.test_q_return_1_recurrence_retires_without_step_off_credit | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+133 | tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary.test_production_loot_route_changes_at_the_recorded_boundary | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+134 | tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_s0_replay_matches_recorded_lifetime_through_stockout_start.test_s0_replay_matches_recorded_lifetime_through_stockout_start | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+135 | tests.test_shadow3_recorded.Shadow3Test.test_existing_last_deposit_completion_remains_observed.test_existing_last_deposit_completion_remains_observed (enforced=False) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+136 | tests.test_shadow3_recorded.Shadow3Test.test_existing_last_deposit_completion_remains_observed.test_existing_last_deposit_completion_remains_observed (enforced=True) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+137 | tests.test_slow_home_recorded.SlowHomeRecordedTest.test_recorded_suffix_keys_and_reasons_are_identical.test_recorded_suffix_keys_and_reasons_are_identical | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+138 | tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_guardian_valve_is_told_apart_from_the_safe_fallback.test_guardian_valve_is_told_apart_from_the_safe_fallback | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+139 | tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_the_next_observation_reapplies_the_alternate.test_the_next_observation_reapplies_the_alternate | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+140 | tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_unsafe_recall_fallback_names_mountain_and_its_landing.test_unsafe_recall_fallback_names_mountain_and_its_landing | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+141 | tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_blocked_stop_the_plan_moved_past_stays_closed.test_blocked_stop_the_plan_moved_past_stays_closed | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+142 | tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_full_pack_with_only_nonstacking_wares_still_refuses.test_full_pack_with_only_nonstacking_wares_still_refuses | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+143 | tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_identify_staff_swap_returns_to_the_blocked_magic_shop.test_identify_staff_swap_returns_to_the_blocked_magic_shop | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+144 | tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page.test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page | (a) | 成功 | FAIL | 成功 | A2：整理候補・購入待機が既存のHome取得／店舗の用事を横取り
+145 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired.test_a1_walk_whose_claimed_distance_falls_is_not_retired | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+146 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+147 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+148 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_current_missing_item_prefix_ends_with_zero_diagnostics.test_current_missing_item_prefix_ends_with_zero_diagnostics | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+149 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_declared_black_market_reserve_divergence.test_declared_black_market_reserve_divergence | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+150 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_p2_routes_to_the_departure_recall_supplier.test_p2_routes_to_the_departure_recall_supplier | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+151 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop.test_replay_reproduces_every_recorded_decision_before_the_stop | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+152 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+153 | tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s3_new_code_replay_names_remaining_violations.test_s3_new_code_replay_names_remaining_violations | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+154 | tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use.test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use (capture='20260923-224927-town-blocked-owner-retired') | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+155 | tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use.test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use (capture='20260923-235359-town-blocked-owner-retired') | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+156 | tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p1_empty_procurement_stop_returns_to_the_outpost.test_p1_empty_procurement_stop_returns_to_the_outpost | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+157 | tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p2_destruction_procurement_stop_returns_to_the_outpost.test_p2_destruction_procurement_stop_returns_to_the_outpost | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+158 | tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p3_a_live_shop_errand_still_buys_from_the_same_page.test_p3_a_live_shop_errand_still_buys_from_the_same_page | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+159 | tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p7_each_closing_step_of_the_return_is_progress.test_p7_each_closing_step_of_the_return_is_progress | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+160 | tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p8_a_return_that_stops_closing_is_still_retired.test_p8_a_return_that_stops_closing_is_still_retired | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+161 | tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_exhausted_unaffordable_plan_walks_toward_fundraising_entrance.test_exhausted_unaffordable_plan_walks_toward_fundraising_entrance | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+162 | tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_operator_continuation_stops_at_first_key_mismatch.test_operator_continuation_stops_at_first_key_mismatch | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+163 | tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_recorded_low_gold_store_board_leaves_through_store_path.test_recorded_low_gold_store_board_leaves_through_store_path | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+164 | tests.test_tpstockout_restart_recorded.StockedSupplierRestartTest.test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist.test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist (restored=False) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+165 | tests.test_tpstockout_restart_recorded.StockedSupplierRestartTest.test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist.test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist (restored=True) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+166 | tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_tpstockout_first_decision_is_the_crossbow_swap.test_tpstockout_first_decision_is_the_crossbow_swap (restored=False) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+167 | tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_tpstockout_first_decision_is_the_crossbow_swap.test_tpstockout_first_decision_is_the_crossbow_swap (restored=True) | (a) | 成功 | FAIL | 成功 | A1：未開始の整理が既存の町の用事・観測・移動／処理順を変更
+
+2. 根本原因と修正
+
+前回のkey()は、整理可能な余剰品があるかに関係なく、町の早い段階で通常のHome候補、
+鑑定杖上限の売却、Home観測、通常の売却、junk破壊へ進んでいた。terminalも整理の実行可能性を
+確認する代わりに広いeligibleだけで適用され、既存のHome一覧・取引・町の移動の順序を変えた。
+_next_purchaseも整理が可能というだけで購入を抑制していた。
+
+本番コードで「整理を開始できる条件」と「開始済みの整理を続ける条件」を分離した。
+新しい開始条件は、町でHomeの現在の一覧が判明しており、空き4枠で追加1枠の取得が下限を割り、
+安全に保存できる余剰品があり、既存の用事が継続中でないこと。未完了の町の巡回計画、
+選択済みHome取得・バッチ、Home訪問要求、他店での取引、未完了の観測を横取りしない。
+従来の不足時預け入れは元の所有者・claim確認・接近選択を維持した。
+下限未満の終端救済も同じ整理処理へ入り、実際のjunk破壊の既存理由を維持する。
+
+開始後は町の訪問epochと町IDで整理パスを識別する。空きが5枠以上に増えても整理を継続し、
+4枠や5枠を整理完了の目標にしない。予約・購入目的・鑑定・装備の保護、Homeの容量・拒否・
+訪問上限は既存の判定を使う。購入待機と未開始の引き出しの待機は、この開始済みの整理に限定した。
+単なる余剰品候補の存在で通常の購入を止めない。新しい町への訪問には整理状態を引き継がない。
+重い所有権判定より先に枠数・Home観測・既存要求を確認し、無関係な盤面の候補探索も避けた。
+
+捕獲盤面の公開choose_key / followは元の期待値を保った。19スタックから7スタックを預け、
+12スタック・空き11枠へ進む。Homeの鑑定杖を使用可能にした明示的な構成盤面では、整理後の
+引き出しまで実行する。元の捕獲のHomeの杖は0回分なので、実捕獲から使用可能な杖を取れたとは主張しない。
+
+保守性：小さいtown_pack_headroom.pyへ開始・継続と従来不足時ルートを集約した。
+子の移動処理は_town_producer_entryを通し、構造検査上の所有権も保った。
+不要になったtests/recorded_pack_headroom.pyと2箇所の旧挙動パッチを削除した。
+行数制限ファイルはmainから増加させていない。policy.pyは未変更。
+
+3. 期待値とテスト壁
+
+指定167項目の期待値変更：0件。既存記録のキー・ハッシュ・assertは変更していない。
+新しい旧挙動壁：0件。前回追加した壁2箇所を削除した。
+test_home_withdraw_failed_stock_present_recorded.py（7件）と
+test_teleport_items_safe_recorded.py（8件）はmainと同じファイル内容に戻して実行した。
+
+前回追加した整理機能の単体テスト8件は、開始済みパスの前提をbegin()で明示した。
+これは旧挙動を差し込むpatchではなく、本番でも使う整理開始状態の設定である。assertは変えていない。
+各1行の理由：
+・test_beneficial_use_precedes_shelving：通常の町の処理を横取りせず、開始済み整理の有益な使用順を検証する。
+・test_refused_or_bounded_home_allows_sale_fallback：開始済み整理内での拒否・上限後の売却を検証する。
+・test_optional_surplus_can_use_a_visited_outlet_until_it_refuses_sale：整理中だけの再売却候補を検証する。
+・test_junk_is_destroyed_without_home_deposit：開始済み整理の承認済みjunk破壊を検証する。
+・test_queued_nonstacking_withdrawal_yields_to_deposit_before_spending_a_slot：整理開始後の未開始取得の待機を検証する。
+・test_bounty_priority_also_applies_when_home_is_full：整理中でも既存の賞金優先が維持されることを検証する。
+・test_unstarted_purchase_yields_to_headroom_even_above_four_free_slots：整理開始後だけ購入が待つことを検証する。
+・test_headroom_keeps_freeing_stacks_above_the_floor：開始後は枠数増加で打ち切られないことを検証する。
+
+新規5件は、町の巡回、未取得のHome一覧、他店の取引、次の訪問への状態漏れ、
+選択済みHome取得／訪問要求の保護を検証する。公開経路の捕獲2件はbegin()を直接呼んでいない。
+
+4. 最終検証
+
+Python：C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe。
+PYTHONPATH=src;tests;scripts。検証baseはmain（上記eebc99f0）。
+指定167項目の最終再実行：50プロセス群、185テスト、失敗0・エラー0、全プロセス終了0。
+4群ずつ並列で実行し、全群の終了を待った。所要1980.81秒。
+比較結果はvalidation/pack-headroom-r2-20261029/comparison.jsonに保存した。
+
+preflight（構造テスト・行数上限を含む）：終了0、199.54秒。
+fast_tier main：終了0、209.77秒。
+[fast] 1808 fast tests (<2.0s in eebc99f0e) + 1 changed modules, 4 shards
+[fast] excluded 54 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-zmj535im)
+Failures: none
+Errors: none
+Total: 1830 tests, 208.8s
+
+mutation_check main --record --tests tests.test_town_pack_headroom -f：終了0、575.56秒。
+[mutation] 15 source hunks, tests: tests.test_town_pack_headroom -f
+[mutation] incremental: green record at 2e917e84b; hunks unchanged since then are skipped
+[mutation] MUTATION OK: 0 of 15 hunks are not pinned by a test
+[mutation] recorded for d64ba687
+既検出の再利用7差分、今回検出8差分、
+コメントのみ0差分、結合扱い0差分、未検出0差分。
+
+変更した整理テスト22件は単独実行でも全件成功（終了0、260.22秒）し、最終fast tierにも含まれる。
+追加の確認として、元の不足時経路、
+壁を削除した2記録モジュール、枠予算19件も実行した。元の「低レベルoverflowを空き4枠で開始しない」
+期待値も維持した。派生スコープ／派生モジュールと全スイートは実行していない。
+
+途中の修正案用の比較は、条件を修正する際に明示的に停止し、その子プロセスも終了させた。
+中間実行の失敗・中止を最終の成功として扱っていない。実装確定後に指定リストを全件再実行した。
+開始した最終検証に未完了のものはなく、待機・終了処理のスクリプトやバックグラウンド検証を残していない。
+git diff --check、UTF-8読戻し、check_report_privacy.pyも確認した。
