@@ -181,13 +181,13 @@ class OpeningRouteR2RecordedTest(executor_harness.ProductionHarness):
     def test_other_once_quests_keep_the_spare_oil_gate(self):
         policy, raw = self.case("1")
         board = parse_snapshot(raw, policy._monrace_knowledge)
-        # DECLARED CONSTRUCTED: reuse Q1's safe force/roster as another ONCE quest;
+        # DECLARED CONSTRUCTED: reuse Q1's safe force/roster as Q2 (an ONCE quest without Q34's opening lantern);
         # only the identity changes, so no unrelated force gate hides the light gate.
-        policy._quest_knowledge[34] = replace(policy._quest_knowledge[1], id=34)
-        policy._quest_strategies[34] = replace(policy.approved_quest_strategy(1), quest_id=34)
+        policy._quest_knowledge[2] = replace(policy._quest_knowledge[1], id=2)
+        policy._quest_strategies[2] = replace(policy.approved_quest_strategy(1), quest_id=2)
         board = replace(board, equipment=tuple(replace(it, known=True, fuel=7500)
                                                if it.is_light else it for it in board.equipment))
-        self.assertFalse(policy._fixed_quest_ready(board, 34))
+        self.assertFalse(policy._fixed_quest_ready_for_travel(board, 2))
         self.assertEqual(policy.fixed_quest_readiness_state()["reason"], "light-oil")
 
     def test_required_potions_still_use_the_existing_black_market_supplier(self):
