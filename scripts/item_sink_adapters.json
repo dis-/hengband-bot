@@ -305,6 +305,7 @@
     "self._town_restore_weapon_key(snapshot) @ ": 1,
     "self._fixed_quest_key(snapshot, hostiles) @ ": 1,
     "self._equipment_transaction_town_owner_key(snapshot) @ If:body:self._equipment_transaction_owned_items": 1,
+    "self._equipment_transaction_town_key(snapshot) @ If:body:self._equipment_transaction_session is not None": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:claims_active / If:body:step is not None": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:failed / If:body:step is not None": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:failed / If:body:self._start_fundraising(snapshot) / If:body:step is not None": 1
