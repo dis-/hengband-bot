@@ -73,10 +73,10 @@ def pressure_deposit(policy, snapshot, item) -> bool:
 
 def relief_key(policy, snapshot):
     """Terminal overflow delegates to the same proactive town owner."""
-    from hengbot.town_pack_headroom import key
+    from hengbot.town_pack_headroom import begin_key
     if not below_floor(snapshot):
         return None
     disposable = policy._overflow_disposal_item(snapshot)
     if disposable is not None and policy._junk_class(snapshot, disposable) is not None:
         return None  # The existing overflow destroy primitive owns its reason.
-    return key(policy, snapshot)
+    return begin_key(policy, snapshot)

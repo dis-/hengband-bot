@@ -1041,15 +1041,14 @@ def fixed_quest_return_intended_terminal(policy: Any, board: Any) -> TerminalRef
 
 
 def space_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
-    """Admit the early headroom owner under the existing bounty/return order.
-
-    Its selected Home, sale, use or junk child keeps its own terminal gate.
-    """
-    from hengbot.town_pack_headroom import eligible
+    """``_town_space_deposit_key``: the Home deposit that restores the pack
+    reserve.  While stage-2 quest travel owns the town (rung #1) the rung does
+    not apply; the check moved here from the key's body."""
+    from hengbot.town_pack_headroom import organizing
+    if not (organizing(policy, board) or policy._town_space_deposit_actionable(board)):
+        return None
     if policy._fixed_quest_prepare_return_required(board):
         return NOT_APPLICABLE
-    if not eligible(policy, board):
-        return None
     return TerminalRef("home-deposit", ("space-reserve",))
 
 

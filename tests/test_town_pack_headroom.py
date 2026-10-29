@@ -20,8 +20,10 @@ import time
 
 from hengbot.cli import _consume_response_sequence, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import parse_snapshot, TVAL_POTION, SV_POTION_INC_STR
-from hengbot.town_pack_headroom import eligible, preservable, find_sale, find_deposit
+from hengbot.town_pack_headroom import eligible, preservable, find_sale, find_deposit, begin, may_begin, organizing
 from hengbot.town_terminal import rung_terminal, terminal_admission
+from hengbot.policy_types import TownErrandPlan
+from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from tests import test_input_executor as harness
 from tests.support.headroom_home import HeadroomHomeGame
 from tests.test_esp_threat_rest_recorded import _policy
@@ -140,6 +142,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_beneficial_use_precedes_shelving(self):
         policy, board, _ = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         gain = replace(board.inventory[1], tval=TVAL_POTION, sval=SV_POTION_INC_STR,
                        name="Strength", count=1)
         view = replace(board, inventory=[gain, board.inventory[3]])
@@ -180,6 +183,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_refused_or_bounded_home_allows_sale_fallback(self):
         policy, board, _ = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         candidate = next(item for item in board.inventory if item.slot == "b")
         policy._home_rejected_deposits.add(policy._item_signature(candidate))
         self.assertEqual(find_sale(policy, board), candidate)
@@ -191,6 +195,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_optional_surplus_can_use_a_visited_outlet_until_it_refuses_sale(self):
         policy, board, _ = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         view = replace(board, inventory=board.inventory[:14])
         candidate = next(item for item in view.inventory if item.slot == "b")
         policy._home_capacity_observation = (240, 240, policy._effective_town_id(view))
@@ -201,6 +206,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_junk_is_destroyed_without_home_deposit(self):
         policy, board, _ = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         junk = replace(board.inventory[1], name="Junk", tval=3, sval=0, count=1)
         view = replace(board, inventory=[junk])
         self.assertIsNotNone(policy._junk_class(view, junk))
@@ -227,6 +233,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_queued_nonstacking_withdrawal_yields_to_deposit_before_spending_a_slot(self):
         policy, board, _ = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         staff = next(item for item in policy._home_knowledge_items
                      if item.tval == 55 and item.sval == 5)
         staff = replace(staff, name="Identify staff (20 charges)", charges=20, pval=20)
@@ -241,6 +248,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_bounty_priority_also_applies_when_home_is_full(self):
         policy, board, _ = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         policy._home_capacity_observation = (240, 240, policy._effective_town_id(board))
         bounty = replace(board.inventory[1], slot="t", is_bounty=True)
         view = replace(board, inventory=[*board.inventory, bounty])
@@ -250,6 +258,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_unstarted_purchase_yields_to_headroom_even_above_four_free_slots(self):
         policy, board, record = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         page = parse_snapshot(record["home_page"]).store
         ware = replace(page.items[0], letter="a", name="Teleport", tval=70,
                        sval=9, count=99, price=1, known=True, aware=True)
@@ -263,6 +272,7 @@ class TownPackHeadroomTest(harness.ProductionHarness):
 
     def test_headroom_keeps_freeing_stacks_above_the_floor(self):
         policy, board, _ = self.attached()
+        begin(policy, board)  # Exercise the admitted cleanup phase.
         candidate = next(item for item in board.inventory if item.slot == "b")
         for used in (19, 18, 10):
             with self.subTest(used=used):
@@ -290,3 +300,44 @@ class TownPackHeadroomTest(harness.ProductionHarness):
         policy, board, _ = self.attached()
         self.assertTrue(eligible(policy, board))
         self.assertFalse(eligible(policy, replace(board, player=replace(board.player, recalling=True))))
+
+    def test_live_errand_keeps_its_owner_before_cleanup_begins(self):
+        policy, board, _ = self.attached()
+        policy._town_errand_plan = TownErrandPlan([5])
+        self.assertFalse(may_begin(policy, board))
+        self.assertIsNone(policy._town_space_deposit_key(board))
+        self.assertFalse(organizing(policy, board))
+
+    def test_unknown_home_does_not_start_an_optional_scan(self):
+        policy, board, _ = self.attached()
+        policy._home_knowledge_current = False
+        self.assertFalse(may_begin(policy, board))
+        self.assertIsNone(policy._town_space_deposit_key(board))
+        self.assertFalse(organizing(policy, board))
+
+    def test_a_foreign_store_purchase_keeps_its_owner(self):
+        policy, board, record = self.attached()
+        view = replace(board, store=parse_snapshot(record['magic_page']).store)
+        self.assertFalse(may_begin(policy, view))
+        self.assertIsNone(policy._town_space_deposit_key(view))
+        self.assertFalse(organizing(policy, view))
+
+    def test_an_admitted_pass_cannot_leak_into_the_next_town_visit(self):
+        policy, board, _ = self.attached()
+        begin(policy, board)
+        self.assertTrue(organizing(policy, replace(board, inventory=board.inventory[:10])))
+        policy._town_visit_epoch += 1
+        self.assertFalse(organizing(policy, board))
+
+    def test_selected_home_work_keeps_its_owner_before_cleanup(self):
+        policy, board, _ = self.attached()
+        staff = next(item for item in policy._home_knowledge_items if item.tval == 55)
+        signature = policy._item_signature(staff)
+        policy._home_pending_item = signature
+        self.assertFalse(may_begin(policy, board))
+        self.assertIsNone(policy._town_space_deposit_key(board))
+        policy._home_pending_item = None
+        policy._home_visit.request = HomeVisitRequest(HomeVisitKind.WITHDRAW,
+                                                      "home-errand", signature)
+        self.assertFalse(may_begin(policy, board))
+        self.assertIsNone(policy._town_space_deposit_key(board))

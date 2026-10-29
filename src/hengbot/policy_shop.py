@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key
+from hengbot.town_pack_headroom import acquisition_waits
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -2363,7 +2364,6 @@ class ShopMixin(InStoreMixin):
 
     def _next_purchase(self, snapshot: Snapshot, *, commit_churn: bool = False) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
-        from hengbot.town_pack_headroom import acquisition_waits
         if acquisition_waits(self, snapshot):
             return None
         if self._opening_q1_shopping(snapshot):
@@ -5921,7 +5921,7 @@ class ShopMixin(InStoreMixin):
                            or self._can_compose_shop_observation(snapshot) else None)
             if atomic_shop is not None:
                 return atomic_shop
-            atomic_withdrawal = (None if self._town_space_deposit_actionable(snapshot) else
+            atomic_withdrawal = (None if acquisition_waits(self, snapshot) else
                                  self._atomic_home_withdraw_key(snapshot, step))
             if atomic_withdrawal is not None:
                 return atomic_withdrawal

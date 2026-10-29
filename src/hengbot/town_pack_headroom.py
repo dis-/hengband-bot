@@ -53,7 +53,7 @@ def _merging_home_take(policy, snapshot):
 
 def acquisition_waits(policy, snapshot):
     """An unstarted purchase yields to observed, actionable slot recovery."""
-    return bool(eligible(policy, snapshot) and (
+    return bool(organizing(policy, snapshot) and eligible(policy, snapshot) and (
         policy._town_space_deposit_actionable(snapshot)
         or find_sale(policy, snapshot) is not None
         or policy._find_worthless_junk(snapshot) is not None))
@@ -113,7 +113,8 @@ def key(policy, snapshot):
 
 
 def find_deposit(policy, snapshot):
-    if (not eligible(policy, snapshot) or not policy._home_knowledge_current
+    if (not selection_enabled(policy, snapshot) or not eligible(policy, snapshot)
+            or not policy._home_knowledge_current
             or policy._home_is_full(snapshot)):
         return None
     return next((item for item in snapshot.inventory
@@ -126,7 +127,8 @@ def find_deposit(policy, snapshot):
 
 def find_sale(policy, snapshot):
     """File an ordinary organization sale after Home relief is unavailable."""
-    if not eligible(policy, snapshot) or policy._home_knowledge_scan_inflight:
+    if (not selection_enabled(policy, snapshot) or not eligible(policy, snapshot)
+            or policy._home_knowledge_scan_inflight):
         return None
     home_open = (policy._home_available(snapshot) and not policy._home_is_full(snapshot)
                  and not policy._home_deposit_abandoned
@@ -173,3 +175,66 @@ def _relief_route(policy, snapshot, store, item):
         "_shopping_approach_key",
         lambda: policy._shopping_approach_key(snapshot, step, "shop:travel"),
         family=family)
+
+
+def organizing(policy, snapshot):
+    """Continue only the inventory pass admitted after ordinary town errands."""
+    return (snapshot.in_town and getattr(policy, "_pack_headroom_visit", None)
+            == (policy._town_visit_epoch, policy._effective_town_id(snapshot)))
+
+
+def selection_enabled(policy, snapshot):
+    from hengbot.town_pack_budget import below_floor
+    return below_floor(snapshot) or organizing(policy, snapshot) or may_begin(policy, snapshot)
+
+
+def may_begin(policy, snapshot):
+    """Recover blocked acquisition room without seizing a live town errand."""
+    from hengbot.policy_constants import PACK_CAPACITY, MIN_TERMINAL_FREE_PACK_SLOTS
+    plan = policy._town_errand_plan
+    return bool(
+        snapshot.in_town
+        and PACK_CAPACITY - len(snapshot.inventory) == MIN_TERMINAL_FREE_PACK_SLOTS
+        and policy._home_knowledge_current
+        and not policy._home_knowledge_scan_inflight
+        and policy._home_pending_item is None and not policy._home_pending_batch
+        and policy._home_visit.request is None
+        and (snapshot.store is None or snapshot.store.store_type == STORE_HOME)
+        and (plan is None or plan.index >= len(plan.stops))
+        and eligible(policy, snapshot)
+        and any(preservable(policy, snapshot, item) for item in snapshot.inventory))
+
+
+def begin_key(policy, snapshot):
+    """The terminal seam starts a pass; free-slot recovery never ends it early."""
+    if not eligible(policy, snapshot):
+        return None
+    begin(policy, snapshot)
+    return key(policy, snapshot)
+
+
+def begin(policy, snapshot):
+    """Remember the admitted inventory pass across observed transfers."""
+    policy._pack_headroom_visit = (policy._town_visit_epoch, policy._effective_town_id(snapshot))
+
+
+def early_key(policy, snapshot):
+    """Resume admitted cleanup, otherwise preserve the existing shortage owner."""
+    if organizing(policy, snapshot):
+        return key(policy, snapshot)
+    if may_begin(policy, snapshot):
+        return begin_key(policy, snapshot)
+    if not policy._town_space_deposit_actionable(snapshot):
+        return None
+    from hengbot.policy_constants import PACK_CAPACITY
+    if (len(snapshot.inventory) < PACK_CAPACITY
+            and policy._town_order_step4_pending(snapshot)):
+        return None
+    policy._town_claims_active(snapshot)
+    step = policy._shopping_approach_step(snapshot, requester="home-visit")
+    if step is None or policy._shopping_approach_store_type != STORE_HOME:
+        return None
+    policy.last_reason = "shop:approach"
+    return policy._town_producer_entry("_shopping_approach_key",
+        lambda: policy._shopping_approach_key(snapshot, step, "shop:travel"),
+        family="home-visit")

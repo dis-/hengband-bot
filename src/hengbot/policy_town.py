@@ -2354,18 +2354,26 @@ class TownMixin:
         return PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
 
     def _town_space_deposit_actionable(self, snapshot: Snapshot) -> bool:
-        """Whether Home can safely accept observed surplus before acquisition."""
-        from hengbot.town_pack_headroom import eligible
-        return (eligible(self, snapshot) and self._home_available(snapshot)
-                and not self._home_is_full(snapshot)
-                and not self._town_store_blocked_under_applicable_bound(STORE_HOME)
-                and self._find_home_deposit(snapshot) is not None)
+        """Whether an identified surplus can restore the town-work pack reserve."""
+        return (
+            snapshot.in_town
+            and not snapshot.player.recalling
+            and self._equipment_mutation.state.name == "IDLE"
+            and not (
+                self._effective_town_id(snapshot) != 1
+                and self._fixed_quest_prepare_return_required(snapshot)
+            )
+            and (self._town_pack_space_shortage(snapshot)
+                 or town_pack_headroom.organizing(self, snapshot))
+            and self._home_available(snapshot)
+            and self._find_home_deposit(snapshot) is not None
+        )
 
     @claims(ClaimOwner.STORE_ROUTER)
     def _town_space_deposit_key(self, snapshot: Snapshot) -> str | None:
         """Keep the established early rung as the town headroom owner's entry."""
-        from hengbot.town_pack_headroom import key
-        return key(self, snapshot)
+        from hengbot.town_pack_headroom import early_key
+        return early_key(self, snapshot)
 
     @staticmethod
     def _town_order_step4_pending(snapshot: Snapshot) -> bool:
@@ -5096,7 +5104,7 @@ class TownMixin:
                 and (
                     store_type not in self._town_store_attempted
                     or self._town_pack_space_shortage(snapshot)
-                    or town_pack_headroom.preservable(self, snapshot, item)
+                    or town_pack_headroom.organizing(self, snapshot)
                 )
             ):
                 return store_type

@@ -79,7 +79,6 @@ from unittest.mock import patch
 from hengbot.cli import _consume_response_sequence, _parse_items
 from hengbot.equipment_optimizer import Loadout, current_loadout
 from recorded_pack_budget import pre_pack_budget_rule
-from recorded_pack_headroom import pre_pack_headroom_replay
 from recorded_loadout import (
     pre_light_radius_replay, pre_ratio_optimizer_replay, recorded_loadout_replay,
 )
@@ -204,7 +203,6 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
 
     @classmethod
     @recorded_loadout_replay
-    @pre_pack_headroom_replay  # declared wall: decision-15 surplus order, not address handling
     def _replay(cls):
         """Independent Home attachment at 4..33, then fresh-scan continuation."""
         if cls.replay is not None:
