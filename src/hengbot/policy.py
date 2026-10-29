@@ -507,7 +507,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
-from hengbot.quest_strategies import StrategyProfile, acceptance_dps_floor
+from hengbot.quest_strategies import StrategyProfile, acceptance_dps_floor, acceptance_hp_floor
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -17563,7 +17563,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         no_heal = force.get("no_healing_tier")
         if isinstance(no_heal, dict) and (
-            snapshot.player.max_hp >= int(no_heal.get("min_hp", 0))
+            snapshot.player.max_hp >= acceptance_hp_floor(no_heal, snapshot.player.class_id)
             and dps >= acceptance_dps_floor(no_heal, snapshot.player.class_id)
         ):
             details["failed"] = []

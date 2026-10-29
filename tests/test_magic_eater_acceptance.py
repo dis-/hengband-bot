@@ -11,7 +11,7 @@ from hengbot.model import (
     TVAL_LITE, TVAL_POTION, TVAL_SWORD,
 )
 from hengbot.policy import HengbotPolicy
-from hengbot.quest_strategies import load_quest_strategies
+from hengbot.quest_strategies import acceptance_hp_floor, load_quest_strategies
 from policy_fixtures import item, player
 
 
@@ -24,7 +24,7 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
         # DECLARED CONSTRUCTED: identical wielded results for each class,
         # isolating the acceptance floor from class/stat damage estimation.
         force = self.profiles[quest_id].required_force
-        hp = force["no_healing_tier"]["min_hp"] if no_healing else force["min_hp"]
+        hp = acceptance_hp_floor(force["no_healing_tier"], class_id) if no_healing else force["min_hp"]
         character = replace(
             player(10, 10, class_id=class_id, level=5, hp=hp, max_hp=hp,
                    main_hand_blows=1, main_hand_to_h=0,
@@ -48,7 +48,7 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
         return ready, policy.fixed_quest_readiness_state()["strategy_force"]
 
     def test_magic_eater_passes_normal_floor_that_warrior_rejects(self):
-        for quest_id, floor, warrior_floor in ((34, 6, 8), (1, 18, 28)):
+        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 18, 28)):
             with self.subTest(quest_id=quest_id):
                 board = self.board(quest_id)
                 ready, details = self.readiness(board, quest_id)
@@ -110,6 +110,18 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                     ready, details = self.readiness(self.board(quest_id, class_id=class_id), quest_id)
                     self.assertFalse(ready)
                     self.assertEqual(details["dps"]["required"], floor)
+
+    def test_level_one_magic_eater_enters_q34_without_potions(self):
+        # Owner 2026-10-29: the verification Lv1 zombie Magic-Eater (max HP 35, melee DPS 3.96, 58 gold)
+        # met neither Q34 tier and stopped in town; its class floors were lowered (HP 30, DPS 3.5).
+        board = self.board(34, no_healing=True)
+        board = replace(board, player=replace(board.player, level=1, hp=35, max_hp=35, main_hand_to_d=5))
+        ready, details = self.readiness(board, 34)
+        self.assertTrue(ready, details)
+        self.assertEqual(details["failed"], [])
+        self.assertLess(details["dps"]["measured"], 6)
+        warrior = replace(board, player=replace(board.player, class_id=0))
+        self.assertFalse(self.readiness(warrior, 34)[0])
 
     def test_warrior_still_passes_with_sufficient_melee_damage(self):
         for quest_id in (34, 1):
