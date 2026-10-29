@@ -66,8 +66,8 @@
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
     // The opening route recovers its lantern before any combat. A known
-    // fuelled torch is sufficient to reach it; other classes retain their gate.
-    "entry_requirements": {"carried_torch_min_fuel_by_class": {"16": 100}},
+    // fuelled torch is sufficient for every class to reach it (100 turns).
+    "entry_requirements": {"carried_torch_min_fuel": 100},
     "min_hp": 10, "min_expected_dps": 8, "level_guideline": 5,
     // 魔道具術師 (class 16): CL5 の職業近接技能比 (48+13*5//10)/(70+30*5//10)
     // =54/85 で通常・無回復ティアの近接下限を切り上げ補正。魔道具の威力は含めない。

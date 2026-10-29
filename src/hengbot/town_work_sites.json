@@ -6256,7 +6256,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ad96965a9037e81c7d8cc8983748590b6b3f98c19cba7b214ce20bccda1f90e8"
+    "ast_sha256": "0a7cbaff4d9310723d61e5d392b63230ae8eb89f6e62251c79e4b41a9da7dbfb"
   },
   "policy_quest.py:QuestMixin._prepare_return_1_candidate": {
     "classification": "adapter",
@@ -8360,6 +8360,17 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2bebccbb9df8eeae7630baacf9edfddb8072a63d16433021ce9c77cb80c40d62"
+  },
+  "quest_opening_readiness.py:q34_readiness_rejection_key": {
+    "classification": "adapter",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach"
+    ],
+    "delegation": "The parent owns admission; selected child operations retain their existing effect observers.",
+    "ast_sha256": "096ccfde6d149e8ff89c247d3fc4f82530275742e8eb507dba8f187713dc9159"
   },
   "shop_purchase_dispatch.py:next_purchase_key": {
     "classification": "operation",
