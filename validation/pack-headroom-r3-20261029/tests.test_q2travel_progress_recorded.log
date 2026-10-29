@@ -1,0 +1,8 @@
+test_pre_fix_vector_reproduces_every_live_key (tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_pre_fix_vector_reproduces_every_live_key) ... ok
+test_walk_that_does_not_close_the_route_still_retires (tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_walk_that_does_not_close_the_route_still_retires) ... ok
+test_walk_to_the_inn_is_progress_and_continues (tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_walk_to_the_inn_is_progress_and_continues) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 45.067s
+
+OK

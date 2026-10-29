@@ -1,0 +1,8 @@
+test_production_loot_route_changes_at_the_recorded_boundary (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary) ... ok
+test_replay_reproduces_every_recorded_decision_before_the_strip (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_strip) ... ok
+test_s2b2_the_bar_table_records_the_hunts_it_would_bar (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_s2b2_the_bar_table_records_the_hunts_it_would_bar) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 509.863s
+
+OK

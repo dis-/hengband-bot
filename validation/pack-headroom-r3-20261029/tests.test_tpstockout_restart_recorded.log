@@ -1,0 +1,8 @@
+test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist (tests.test_tpstockout_restart_recorded.StockedSupplierRestartTest.test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 13.147s
+
+OK
+TPSTOCKOUT FIRST DIVERGENCE live '5' town:blocked:no-actionable-claim-owner new '\x1b`n%.' shop:travel
+TPSTOCKOUT FIRST DIVERGENCE live '5' town:blocked:no-actionable-claim-owner new '\x1b`n%.' shop:travel

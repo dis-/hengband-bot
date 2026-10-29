@@ -1,0 +1,16 @@
+test_live_errand_shopping_home_visit_exits_before_scan (tests.test_policy_home.RecordedErrandShoppingStaleHomeScanInsideRound2Test.test_live_errand_shopping_home_visit_exits_before_scan) ... ok
+test_ammo_top_up_appends_without_replacing_catalogue_shortage (tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_ammo_top_up_appends_without_replacing_catalogue_shortage) ... ok
+test_catalogue_shortage_reserve_yields_only_to_departure_blockers (tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_catalogue_shortage_reserve_yields_only_to_departure_blockers) ... ok
+test_current_catalogue_queues_and_composes_live_cure_shortage (tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_current_catalogue_queues_and_composes_live_cure_shortage) ... ok
+test_one_deferred_cure_stack_does_not_hide_another (tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_one_deferred_cure_stack_does_not_hide_another) ... ok
+test_pack_full_deposit_precedes_shortage_queue (tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_pack_full_deposit_precedes_shortage_queue) ... ok
+test_recorded_state_composes_home_supply_withdrawal_not_terminal (tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_recorded_state_composes_home_supply_withdrawal_not_terminal) ... ok
+test_restored_policy_without_procurement_probe_declines_new_owner (tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_restored_policy_without_procurement_probe_declines_new_owner) ... ok
+test_light_ready_recorded_batch_excludes_added_home_torches (tests.test_policy_home.RecordedHomeProcurementBatchMembershipTest.test_light_ready_recorded_batch_excludes_added_home_torches) ... ok
+test_treasure_detection_home_first_queues_only_recorded_supply_need (tests.test_policy_home.RecordedHomeProcurementBatchMembershipTest.test_treasure_detection_home_first_queues_only_recorded_supply_need) ... ok
+test_recorded_cloak_take_is_observed_before_catalogue_acquisition (tests.test_policy_home.RecordedHomeWithdrawalObserverOrderingTest.test_recorded_cloak_take_is_observed_before_catalogue_acquisition) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 31.567s
+
+OK

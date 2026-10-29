@@ -1,0 +1,10 @@
+test_single_segment_ack_gets_post_ack_observation_grace (tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace) ... ok
+test_single_segment_ack_gets_post_ack_observation_grace (tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace) ... ok
+test_single_segment_ack_gets_post_ack_observation_grace (tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace) ... ok
+test_single_segment_ack_gets_post_ack_observation_grace (tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace) ... ok
+test_single_segment_ack_gets_post_ack_observation_grace (tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.192s
+
+OK

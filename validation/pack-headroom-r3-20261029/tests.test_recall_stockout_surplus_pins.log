@@ -1,0 +1,11 @@
+test_future_history_does_not_suppress_surplus (tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_future_history_does_not_suppress_surplus)
+A future deposit record is history, not a surplus-selection veto. ... ok
+test_home_surplus_incident_real_producer (tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_home_surplus_incident_real_producer)
+Public rows 1-24 produce and consume the bound deposit on one policy. ... ok
+test_identify_first_and_no_open_home_unbound_deposit (tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_identify_first_and_no_open_home_unbound_deposit)
+The captured pre-Home producer acts before the later bound deposit. ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 87.572s
+
+OK

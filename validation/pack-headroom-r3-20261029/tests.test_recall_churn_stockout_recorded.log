@@ -1,0 +1,7 @@
+test_control_an_offered_recall_without_churn_is_still_bought (tests.test_recall_churn_stockout_recorded.RecallChurnStockoutRecordedTest.test_control_an_offered_recall_without_churn_is_still_bought) ... ok
+test_mining_return_ends_the_churn_scope_so_the_retry_buys (tests.test_recall_churn_stockout_recorded.RecallChurnStockoutRecordedTest.test_mining_return_ends_the_churn_scope_so_the_retry_buys) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 22.532s
+
+OK

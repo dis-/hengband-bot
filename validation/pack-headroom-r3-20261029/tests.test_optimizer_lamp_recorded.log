@@ -1,0 +1,8 @@
+test_control_without_the_lamp_the_infravision_torch_is_withdrawn (tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_control_without_the_lamp_the_infravision_torch_is_withdrawn) ... ok
+test_recorded_town_board_withdraws_the_home_lamp (tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_recorded_town_board_withdraws_the_home_lamp) ... ok
+test_worn_lantern_withdraws_the_home_lamp_before_departure (tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_worn_lantern_withdraws_the_home_lamp_before_departure) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 37.689s
+
+OK

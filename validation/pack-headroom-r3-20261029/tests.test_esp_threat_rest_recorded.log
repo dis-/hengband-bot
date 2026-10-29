@@ -1,0 +1,6 @@
+test_e1_lifetime_replays_recorded_before_equipment_choice (tests.test_esp_threat_rest_recorded.EspThreatRestTest.test_e1_lifetime_replays_recorded_before_equipment_choice) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 77.401s
+
+OK

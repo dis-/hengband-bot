@@ -1,0 +1,103 @@
+ISSUE #47 / 関連Issue #119：町の空き枠確保、第3回（リベースのみ）
+
+対象指示：LUNA-TASK-pack-headroom-r3.txt。
+ユーザー指定Issueは#47、タスク本文の関連Issueは#119。
+リベース前HEAD：e54b7b1a7。
+比較元main：016a85faa5ece41dfd1b784ab7e779f2b9a2e388。
+リベース後の検証対象HEAD：12f39043eaae6d3254550175d48e31d0f939d422。
+この報告書はPythonのPath.write_text(..., encoding="utf-8")で作成し、同じ文字コードで読み戻した。
+
+1. リベースと競合解消
+
+既存7コミットを指定mainへリベースした。リベース以外の挙動変更は加えていない。
+実際に競合したファイルは次の5つ。
+
+・src/hengbot/policy_shop.py
+  acquisition_waitsへのimport置換とmainの2ヘルパー追加が競合した。
+  next_purchase_key、equipment_route_key、acquisition_waitsをすべて残した。
+  mainのQ34装備処理の引き継ぎ、共通購入処理、売却不能時の購入継続と、
+  ブランチの整理中の購入・未開始Home引き出し待機を維持した。
+・scripts/town_work_manifest.json.gz
+  バイナリを手動統合せず、各競合時にscripts/town_work_manifest.py --writeで再生成した。
+・src/hengbot/town_work_sites.json
+  同じ生成スクリプトから再生成し、統合後のASTハッシュと分類を反映した。
+・scripts/town_producer_baseline.json
+  既存の3方向JSON統合スクリプトで両側の登録理由・追加・削除を反映した。
+  最終的にリポジトリのtown_structure_lint.producer_censusとladder_producersから
+  未登録producer集合を算出して再構成した。既存のレビュー理由を保持し、
+  763項目の完全一致を確認した。新しい例外は追加していない。
+  このbaselineには専用の--writeコマンドがなく、censusの既存APIを使った。
+・scripts/town_work_review.json
+  追加で発生した競合。3方向JSON統合でmainの共通購入・装備処理の登録と
+  headroom側の登録を両方残し、削除された旧budget関数の登録を除いた。
+
+最終manifest：926 candidates、25186 call sites、unmapped 0。
+src/testsの変更対象33パスを検査し、変更が重ならないファイルは元の側とバイト単位で一致した。
+重なったpolicy_home.py、policy_shop.py、town_terminal.pyは差分を確認した。
+残るtown_work_sites.jsonは統合済みコードから生成した。
+証跡：validation/pack-headroom-r3-20261029/rebase-audit.json。
+
+2. 検証結果
+
+Python：C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe。
+比較元は全チェックでmain（上記016a85faa）。
+・tests.test_town_pack_headroom：22件成功、終了0。
+・tests.test_lv7_town_stop_recorded：5件成功、終了0。
+・指定167項目：50モジュール群、185テスト、失敗0・エラー0、全群終了0。
+  重複したメソッド名とsubtest表記を正規化し、subtestは親メソッドの全条件を実行した。
+  setUpClass失敗4項目はクラス全体を選択したため、167行と実行テスト数は異なる。
+  入力に指定されたidentityだけを選択し、派生スコープ／派生モジュールは実行していない。
+  重点2群を含む52群は4並列で実行し、全プロセスの終了を待った。
+  全群の所要時間：1558.84秒。
+・preflight . main：終了0。構造テスト・行数上限を含め指摘0件。
+・fast_tier . main：最終実行は終了0。
+[fast] 1609 fast tests (<2.0s in 016a85faa) + 1 changed modules, 4 shards
+[fast] excluded 55 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-k3grt3_m)
+Failures: none
+Errors: none
+Total: 1631 tests, 265.3s
+
+初回fast tierは1631件中1件失敗、エラー0、終了1（307.4秒）。
+対象：tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace。
+10msの実時間予算を使い、期待よりscreen観測が1回多くなったassert失敗だった。
+当該テストと本番入力処理はmainと同一で、今回の変更対象ではない。
+コード・期待値を変えず単独5回は全件成功し、fast tier全体を再実行した。
+初回の失敗を削除せず、fast_tier-initial.logとfast_tier-initial-failure.logへ保存した。
+時間に依存する失敗の可能性は残るため、初回失敗を成功扱いしていない。
+
+・mutation_check . main --record --tests tests.test_town_pack_headroom -f：終了0。
+  通常の検証と干渉しないよう同じHEADの一時worktreeで実行した。
+[mutation] 15 source hunks, tests: tests.test_town_pack_headroom -f
+[mutation] caught     src/hengbot/policy_home.py:8 (from hengbot.town_pack_headroom import find_deposit): test_town_pack_headroom
+[mutation] caught     src/hengbot/policy_home.py:4454 (return find_deposit(self, snapshot) if organization is None else None): test_a_foreign_store_purchase_keeps_its_owner
+[mutation] caught     src/hengbot/policy_shop.py:2 (from hengbot.town_pack_headroom import acquisition_waits): test_captured_stop_frees_room_through_public_follow
+[mutation] caught     src/hengbot/policy_shop.py:2364 (if acquisition_waits(self, snapshot):): test_unstarted_purchase_yields_to_headroom_even_above_four_free_slots
+[mutation] TEXT ONLY  src/hengbot/policy_shop.py:2424 (# Skip this nonstacking ware; a later stacking supply can still fit.): docstring/comment change, nothing to pin
+[mutation] TEXT ONLY  src/hengbot/policy_shop.py:5875 (# Record the route named by travel_reason, regardless of last_reason.): docstring/comment change, nothing to pin
+[mutation] caught     src/hengbot/policy_shop.py:5921 (atomic_withdrawal = (None if acquisition_waits(self, snapshot) else): test_queued_nonstacking_withdrawal_yields_to_deposit_before_spending_a_slot
+[mutation] caught     src/hengbot/policy_town.py:1 (from hengbot.town_pack_budget import native_travel_fits): test_town_pack_headroom
+[mutation] caught     src/hengbot/policy_town.py:2363 (and (self._town_pack_space_shortage(snapshot)): test_beneficial_use_precedes_shelving
+[mutation] caught     src/hengbot/policy_town.py:5056 () or town_pack_headroom.find_sale(self, snapshot)): test_a_foreign_store_purchase_keeps_its_owner
+[mutation] caught     src/hengbot/policy_town.py:5104 (or town_pack_headroom.organizing(self, snapshot)): test_optional_surplus_can_use_a_visited_outlet_until_it_refuses_sale
+[mutation] caught     src/hengbot/town_pack_budget.py:14 (def below_floor(snapshot) -> bool:): test_a_foreign_store_purchase_keeps_its_owner
+[mutation] caught     src/hengbot/town_pack_budget.py:66 (from hengbot.town_pack_headroom import preservable): test_terminal_relief_shares_the_early_owners_beneficial_use_priority
+[mutation] caught     src/hengbot/town_pack_headroom.py:1 ("""Free every safely releasable town stack before acquiring more inven): test_town_pack_headroom
+[mutation] caught     src/hengbot/town_terminal.py:1044 (from hengbot.town_pack_headroom import organizing): test_bounty_priority_also_applies_when_home_is_full
+[mutation] MUTATION OK: 0 of 15 hunks are not pinned by a test
+[mutation] recorded for 12f39043
+
+全検証ログ、選択identity、各群の終了コード・所要時間は
+validation/pack-headroom-r3-20261029/以下に保存した。
+全スイートは指示どおり実行していない。
+
+3. 保守性・終了時の状態
+
+リベースのみのため追加リファクタリングは行わず、小さいtown_pack_headroom.pyへの既存の集約と、
+mainのshop_purchase_dispatch.py・equipment_route_handoff.pyの責務分離を維持した。
+生成物の競合は手作業のハッシュ編集を避け、ソース由来の生成とcensus検査で解消した。
+既存テストの期待値変更0件、新しい旧挙動テスト壁0件。行数制限ファイルは上限内。
+検証後のsrc/とtests/に未コミット変更はない。
+開始したチェックはすべて終了済み。未実行の必須チェックはない。
+一時mutation worktreeと実行用スクリプトを片付け、検証プロセスや待機処理は残していない。
+git diff --check、UTF-8読戻し、check_report_privacy.pyを確認した。

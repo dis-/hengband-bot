@@ -1,0 +1,8 @@
+test_sweep_takes_one_ware_at_the_entrance (tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_sweep_takes_one_ware_at_the_entrance) ... ok
+test_recorded_home_plain_gear_classes (tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_recorded_home_plain_gear_classes) ... ok
+test_recorded_pack_weight_keeps_every_ware (tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_recorded_pack_weight_keeps_every_ware) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 47.294s
+
+OK

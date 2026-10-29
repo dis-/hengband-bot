@@ -751,12 +751,15 @@
   "magic_eater.py:q34_missile_key": "dungeon-only: called only by planned_throw_key on an approved quest floor; explicitly requires profile.quest_id == 34 and class 16.",
   "magic_eater_devices.py:is_absorption_device": "pure helper: shared O5 class/identification/device predicate; returns eligibility, never an input command.",
   "policy_town.py:TownMixin._town_organization_sale_store": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
-  "town_pack_budget.py:pressure_deposit": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
-  "town_pack_budget.py:find_pressure_deposit": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
-  "town_pack_budget.py:find_pressure_sale": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
   "town_pack_budget.py:relief_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
-  "town_pack_budget.py:_relief_route": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
-  "town_pack_budget.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
   "shop_purchase_dispatch.py:next_purchase_key": "delegated adapter: _shop_core selects the live purchase and delegates to _shop_purchase_key with the same provenance, reservations and admission; no independent owner or effect credit",
-  "equipment_route_handoff.py:equipment_route_key": "delegated adapter: the existing shop route refusal returns local equipment work to _equipment_transaction_town_key; Home dispatch and earlier identification retain their existing order"
+  "equipment_route_handoff.py:equipment_route_key": "delegated adapter: the existing shop route refusal returns local equipment work to _equipment_transaction_town_key; Home dispatch and earlier identification retain their existing order",
+  "town_pack_headroom.py:preservable": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_headroom.py:find_deposit": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_headroom.py:find_sale": "pure helper: observed slot-pressure/retention/outlet selector; returns data, never an independent command or success credit.",
+  "town_pack_headroom.py:_relief_route": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "town_pack_headroom.py:_use_key": "delegated adapter: preserve the existing town-plan overflow owner and delegate to existing literal scan/route/Home/sale/use entries; no independent progress or item command serializer.",
+  "town_pack_headroom.py:key": "delegated adapter: shared child of registered _town_space_deposit_key and _town_overflow_destroy_key; all scan/route/Home/sale/use/junk commands delegate through existing admitted literal entries, without independent effect credit.",
+  "town_pack_headroom.py:begin_key": "delegated adapter: existing shortage route or admitted headroom pass; literal child entries retain terminal admission and effect ownership.",
+  "town_pack_headroom.py:early_key": "delegated adapter: existing shortage route or admitted headroom pass; literal child entries retain terminal admission and effect ownership."
 }

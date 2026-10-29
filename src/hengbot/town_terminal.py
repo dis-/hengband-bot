@@ -1044,7 +1044,8 @@ def space_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef | No
     """``_town_space_deposit_key``: the Home deposit that restores the pack
     reserve.  While stage-2 quest travel owns the town (rung #1) the rung does
     not apply; the check moved here from the key's body."""
-    if not policy._town_space_deposit_actionable(board):
+    from hengbot.town_pack_headroom import organizing
+    if not (organizing(policy, board) or policy._town_space_deposit_actionable(board)):
         return None
     if policy._fixed_quest_prepare_return_required(board):
         return NOT_APPLICABLE

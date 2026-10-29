@@ -1,0 +1,7 @@
+test_posted_effect_captures_close_what_they_can (tests.test_ownership_s2a1_closure.ClosingPathsTest.test_posted_effect_captures_close_what_they_can)
+The captures are effects that never arrived; their closings. ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 6.891s
+
+OK

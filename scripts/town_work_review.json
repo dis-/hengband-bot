@@ -11690,28 +11690,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selector input; no independent command or success"
   },
-  "town_pack_budget.py:pressure_deposit": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
-    "delegation": "Selected child owns admission and observed effects; no independent success."
-  },
-  "town_pack_budget.py:find_pressure_deposit": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
-    "delegation": "Selected child owns admission and observed effects; no independent success."
-  },
   "policy_town.py:TownMixin._town_organization_sale_store": {
     "classification": "data",
     "rows": [
@@ -11732,43 +11710,7 @@
       "store-approach"
     ],
     "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Choose existing Home relief, sale, or useful consumption before the existing destruction producer. Every child keeps its own entry and refusal bounds.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
-    "delegation": "Selected child owns admission and observed effects; no independent success."
-  },
-  "town_pack_budget.py:_relief_route": {
-    "classification": "adapter",
-    "rows": [
-      "home-deposit",
-      "sale",
-      "sale-address",
-      "store-approach"
-    ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Bind one existing relief route or store operation; delegate to its existing terminal entry without independent completion credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
-    "delegation": "Selected child owns admission and observed effects; no independent success."
-  },
-  "town_pack_budget.py:_use_key": {
-    "classification": "adapter",
-    "rows": [
-      "stat-recovery"
-    ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Try existing useful consumption producers through their own literal terminal entries, with the actual physical hostile set.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
-    "delegation": "Selected child owns admission and observed effects; no independent success."
-  },
-  "town_pack_budget.py:find_pressure_sale": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Town pack budget and terminal overflow recovery (#47 / #119).",
-    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
+    "evidence": "Keep the terminal four-slot threshold and existing junk destroy reason, then delegate preserving remedies to the same proactive headroom owner.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
@@ -11795,5 +11737,105 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_pack_headroom.py:preservable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_headroom.py:find_deposit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_headroom.py:find_sale": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Pure selector/predicate over observed inventory and existing retention/visit facts; no command or independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_headroom.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Delegate beneficial use first, the approved Identify cap release, preservation at Home, sale fallback and approved junk destruction to their existing admitted executors; no independent completion credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_headroom.py:_use_key": {
+    "classification": "adapter",
+    "rows": [
+      "stat-recovery"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Try existing useful consumption producers through their own literal terminal entries, with the actual physical hostile set.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_headroom.py:_relief_route": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "sale-address",
+      "store-approach"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Bind one existing relief route or store operation; delegate to its existing terminal entry without independent completion credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_headroom.py:begin_key": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Preserve the original shortage route or continue an admitted inventory pass through existing child terminal entries; no independent completion credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_headroom.py:early_key": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Preserve the original shortage route or continue an admitted inventory pass through existing child terminal entries; no independent completion credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
   }
 }

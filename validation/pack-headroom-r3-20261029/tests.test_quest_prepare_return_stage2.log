@@ -1,0 +1,6 @@
+test_q_return_1_recurrence_retires_without_step_off_credit (tests.test_quest_prepare_return_stage2.QuestPrepareReturnStage2Pins.test_q_return_1_recurrence_retires_without_step_off_credit) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 38.145s
+
+OK

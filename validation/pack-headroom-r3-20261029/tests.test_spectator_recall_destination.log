@@ -1,0 +1,8 @@
+test_guardian_valve_is_told_apart_from_the_safe_fallback (tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_guardian_valve_is_told_apart_from_the_safe_fallback) ... ok
+test_the_next_observation_reapplies_the_alternate (tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_the_next_observation_reapplies_the_alternate) ... ok
+test_unsafe_recall_fallback_names_mountain_and_its_landing (tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_unsafe_recall_fallback_names_mountain_and_its_landing) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 53.165s
+
+OK

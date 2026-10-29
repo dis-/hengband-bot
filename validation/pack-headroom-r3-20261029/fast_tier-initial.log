@@ -1,0 +1,6 @@
+[fast] 1609 fast tests (<2.0s in 016a85faa) + 1 changed modules, 4 shards
+[fast] excluded 55 modules measured over 60s (cache C:\hengband-backups\fast-tier-module-seconds.json)
+Crashed shards: none (logs C:\Users\user\AppData\Local\Temp\fast-tier-wswmpgsa)
+Failures: ['tests.test_input_executor.AcceptedObservationRetryPins.test_single_segment_ack_gets_post_ack_observation_grace']
+Errors: none
+Total: 1631 tests, 307.4s

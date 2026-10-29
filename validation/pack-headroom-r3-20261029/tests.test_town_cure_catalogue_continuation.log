@@ -1,0 +1,8 @@
+test_genuinely_incomplete_rendered_home_page_still_exits (tests.test_town_cure_catalogue_continuation.TownCureCatalogueContinuationTest.test_genuinely_incomplete_rendered_home_page_still_exits) ... ok
+test_own_keys_from_58_request_await_adopt_and_take_shovel (tests.test_town_cure_catalogue_continuation.TownCureCatalogueContinuationTest.test_own_keys_from_58_request_await_adopt_and_take_shovel) ... ok
+test_wall_60_is_rendered_but_not_a_complete_catalogue (tests.test_town_cure_catalogue_continuation.TownCureCatalogueContinuationTest.test_wall_60_is_rendered_but_not_a_complete_catalogue) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 95.525s
+
+OK

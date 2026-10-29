@@ -1,0 +1,11 @@
+test_equal_charge_sale_is_still_churn (tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest.test_equal_charge_sale_is_still_churn)
+Counterfactual: had this visit sold a 12-charge staff, no rebuy. ... ok
+test_home_staff_the_swap_would_release_is_not_withdrawn (tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest.test_home_staff_the_swap_would_release_is_not_withdrawn) ... ok
+test_recorded_stay_is_the_incident (tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest.test_recorded_stay_is_the_incident) ... ok
+test_swap_buys_the_fuller_staff (tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest.test_swap_buys_the_fuller_staff) ... ok
+test_walled_replay_reproduces_the_recorded_keys (tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest.test_walled_replay_reproduces_the_recorded_keys) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 55.560s
+
+OK

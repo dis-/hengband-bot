@@ -1,0 +1,18 @@
+[mutation] 15 source hunks, tests: tests.test_town_pack_headroom -f
+[mutation] caught     src/hengbot/policy_home.py:8 (from hengbot.town_pack_headroom import find_deposit): test_town_pack_headroom
+[mutation] caught     src/hengbot/policy_home.py:4454 (return find_deposit(self, snapshot) if organization is None else None): test_a_foreign_store_purchase_keeps_its_owner
+[mutation] caught     src/hengbot/policy_shop.py:2 (from hengbot.town_pack_headroom import acquisition_waits): test_captured_stop_frees_room_through_public_follow
+[mutation] caught     src/hengbot/policy_shop.py:2364 (if acquisition_waits(self, snapshot):): test_unstarted_purchase_yields_to_headroom_even_above_four_free_slots
+[mutation] TEXT ONLY  src/hengbot/policy_shop.py:2424 (# Skip this nonstacking ware; a later stacking supply can still fit.): docstring/comment change, nothing to pin
+[mutation] TEXT ONLY  src/hengbot/policy_shop.py:5875 (# Record the route named by travel_reason, regardless of last_reason.): docstring/comment change, nothing to pin
+[mutation] caught     src/hengbot/policy_shop.py:5921 (atomic_withdrawal = (None if acquisition_waits(self, snapshot) else): test_queued_nonstacking_withdrawal_yields_to_deposit_before_spending_a_slot
+[mutation] caught     src/hengbot/policy_town.py:1 (from hengbot.town_pack_budget import native_travel_fits): test_town_pack_headroom
+[mutation] caught     src/hengbot/policy_town.py:2363 (and (self._town_pack_space_shortage(snapshot)): test_beneficial_use_precedes_shelving
+[mutation] caught     src/hengbot/policy_town.py:5056 () or town_pack_headroom.find_sale(self, snapshot)): test_a_foreign_store_purchase_keeps_its_owner
+[mutation] caught     src/hengbot/policy_town.py:5104 (or town_pack_headroom.organizing(self, snapshot)): test_optional_surplus_can_use_a_visited_outlet_until_it_refuses_sale
+[mutation] caught     src/hengbot/town_pack_budget.py:14 (def below_floor(snapshot) -> bool:): test_a_foreign_store_purchase_keeps_its_owner
+[mutation] caught     src/hengbot/town_pack_budget.py:66 (from hengbot.town_pack_headroom import preservable): test_terminal_relief_shares_the_early_owners_beneficial_use_priority
+[mutation] caught     src/hengbot/town_pack_headroom.py:1 ("""Free every safely releasable town stack before acquiring more inven): test_town_pack_headroom
+[mutation] caught     src/hengbot/town_terminal.py:1044 (from hengbot.town_pack_headroom import organizing): test_bounty_priority_also_applies_when_home_is_full
+[mutation] MUTATION OK: 0 of 15 hunks are not pinned by a test
+[mutation] recorded for 12f39043

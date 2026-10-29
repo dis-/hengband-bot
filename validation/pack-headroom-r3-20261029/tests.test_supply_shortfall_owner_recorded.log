@@ -1,0 +1,9 @@
+test_blocked_stop_the_plan_moved_past_stays_closed (tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_blocked_stop_the_plan_moved_past_stays_closed) ... ok
+test_full_pack_with_only_nonstacking_wares_still_refuses (tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_full_pack_with_only_nonstacking_wares_still_refuses) ... ok
+test_identify_staff_swap_returns_to_the_blocked_magic_shop (tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_identify_staff_swap_returns_to_the_blocked_magic_shop) ... ok
+test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page (tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 173.292s
+
+OK

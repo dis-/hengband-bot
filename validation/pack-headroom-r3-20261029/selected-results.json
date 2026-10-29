@@ -1,0 +1,516 @@
+{
+  "results": [
+    {
+      "name": "tests.test_junk_home_sweep_recorded",
+      "selectors": [
+        "tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_sweep_takes_one_ware_at_the_entrance",
+        "tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_recorded_home_plain_gear_classes",
+        "tests.test_junk_home_sweep_recorded.JunkHomeSweepRecordedTest.test_recorded_pack_weight_keeps_every_ware"
+      ],
+      "exit_code": 0,
+      "seconds": 50.36
+    },
+    {
+      "name": "tests.test_identify_staff_swap_churn_recorded",
+      "selectors": [
+        "tests.test_identify_staff_swap_churn_recorded.IdentifyStaffSwapChurnRecordedTest"
+      ],
+      "exit_code": 0,
+      "seconds": 58.74
+    },
+    {
+      "name": "tests.test_junk_plain_gear_recorded",
+      "selectors": [
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_checkpoint_drops_derived_plain_gear_caches",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_home_full_relief_checks_retention_lazily",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_plain_selected_main_weapon_keeps_every_melee_weapon",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_recorded_controls_stay",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_selected_dominance_implies_plain_gear",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_selected_plain_item_and_its_copy_stay",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_empty_slot_keeps_best_plain_shield",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_recorded_home_plain_gear_counts",
+        "tests.test_junk_plain_gear_recorded.JunkPlainGearRecordedTest.test_weapon_sale_offers_no_junk"
+      ],
+      "exit_code": 0,
+      "seconds": 70.13
+    },
+    {
+      "name": "tests.test_recall_churn_stockout_recorded",
+      "selectors": [
+        "tests.test_recall_churn_stockout_recorded.RecallChurnStockoutRecordedTest.test_control_an_offered_recall_without_churn_is_still_bought",
+        "tests.test_recall_churn_stockout_recorded.RecallChurnStockoutRecordedTest.test_mining_return_ends_the_churn_scope_so_the_retry_buys"
+      ],
+      "exit_code": 0,
+      "seconds": 26.19
+    },
+    {
+      "name": "tests.test_recall_stockout_surplus_pins",
+      "selectors": [
+        "tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_future_history_does_not_suppress_surplus",
+        "tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_home_surplus_incident_real_producer",
+        "tests.test_recall_stockout_surplus_pins.RecallStockoutSurplusPins.test_identify_first_and_no_open_home_unbound_deposit"
+      ],
+      "exit_code": 0,
+      "seconds": 90.36
+    },
+    {
+      "name": "tests.test_town_cure_catalogue_continuation",
+      "selectors": [
+        "tests.test_town_cure_catalogue_continuation.TownCureCatalogueContinuationTest"
+      ],
+      "exit_code": 0,
+      "seconds": 98.6
+    },
+    {
+      "name": "tests.test_xbow_pref_recorded_divergence",
+      "selectors": [
+        "tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_classC2_first_decision_is_the_crossbow_swap",
+        "tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_live27_first_divergence_is_the_crossbow_target",
+        "tests.test_xbow_pref_recorded_divergence.XbowPrefRecordedDivergenceTest.test_tpstockout_first_decision_is_the_crossbow_swap"
+      ],
+      "exit_code": 0,
+      "seconds": 66.95
+    },
+    {
+      "name": "tests.test_broke_prevent_recorded",
+      "selectors": [
+        "tests.test_broke_prevent_recorded.BrokePreventRecordedTest.test_public_buy_caps_two_identifies_at_the_return_fare_and_follow_posts_one",
+        "tests.test_broke_prevent_recorded.BrokePreventRecordedTest.test_public_paid_rumor_preserves_town_reserve_and_follow_posts_batch"
+      ],
+      "exit_code": 0,
+      "seconds": 30.08
+    },
+    {
+      "name": "tests.test_store_reentry_recorded",
+      "selectors": [
+        "tests.test_store_reentry_recorded.StoreReentryRecordedTest"
+      ],
+      "exit_code": 0,
+      "seconds": 223.14
+    },
+    {
+      "name": "tests.test_catcycle",
+      "selectors": [
+        "tests.test_catcycle.CatcycleTest.test_partial_home_requests_catalogue_before_other_errands"
+      ],
+      "exit_code": 0,
+      "seconds": 32.23
+    },
+    {
+      "name": "tests.test_classC2_departure_recorded",
+      "selectors": [
+        "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_any_remaining_safe_surplus_goes_home_before_guardian_switch"
+      ],
+      "exit_code": 0,
+      "seconds": 26.25
+    },
+    {
+      "name": "tests.test_departure_unsatisfiable_weight_recorded",
+      "selectors": [
+        "tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_h1_the_observed_ring_swap_releases_the_mutation_gate",
+        "tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target",
+        "tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_replay_decides_as_live_until_the_first_overweight_board"
+      ],
+      "exit_code": 0,
+      "seconds": 98.6
+    },
+    {
+      "name": "tests.test_equipment_in_home_stage1",
+      "selectors": [
+        "tests.test_equipment_in_home_stage1.EquipmentInHomeBehaviorPins.test_supplementary_planner_admits_pack_space_deposit_inside_home"
+      ],
+      "exit_code": 0,
+      "seconds": 8.74
+    },
+    {
+      "name": "tests.test_policy_town",
+      "selectors": [
+        "tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p3_recorded_optional_errand_precedes_ready_departure",
+        "tests.test_policy_town.FullPackDepositPriorityTest.test_active_identification_and_prior_home_attempt_do_not_hide_shortage",
+        "tests.test_policy_town.FullPackDepositPriorityTest.test_non_shortage_keeps_identification_ahead_of_convenience_deposit",
+        "tests.test_policy_town.FullPackDepositPriorityTest.test_recorded_town0_full_pack_routes_identified_surplus_to_home_first",
+        "tests.test_policy_town.TownAndFundraisingPolicyTest.test_alchemist_refuses_sleep_and_buys_detect_invisible",
+        "tests.test_policy_town.TownKillMobAlternationRecordedTest.test_p4_recorded_monster_free_row_starts_shop_errand",
+        "tests.test_policy_town.TownLootSupplierCommitmentRecordedTest.test_a1_recorded_committed_loot_walk_is_not_preempted",
+        "tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p2_exact_target_recording_runs_procurement_not_fallback",
+        "tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p4_attempted_surplus_deposit_does_not_block_departure",
+        "tests.test_policy_town.TownPriorityStage3Round1RecordedTest.test_p5_recorded_supplier_exhaustion_keeps_existing_shortage_flow",
+        "tests.test_policy_town.TownPriorityStage3Round2RecordedTest.test_p4_unarmed_recorded_shortage_still_starts_shop_errand",
+        "tests.test_policy_town.TownSeekLootSupplyAlternationRecordedTest.test_p1_recorded_magic_shortage_skips_normal_loot_producer",
+        "tests.test_policy_town.TownSeekLootSupplyAlternationRecordedTest.test_p2_recorded_home_shortage_skips_normal_loot_producer",
+        "tests.test_policy_town.TownSeekLootSupplyAlternationRecordedTest.test_p3_recorded_visible_loot_is_not_suppressed",
+        "tests.test_policy_town.TownWeightDepartureRecordedTest.test_r1_recorded_public_replay_posts_named_weight_owner",
+        "tests.test_policy_town.TownWeightDepartureRecordedTest.test_r2_recorded_weight_work_selects_home_route_and_non_supply"
+      ],
+      "exit_code": 0,
+      "seconds": 485.56
+    },
+    {
+      "name": "tests.test_esp_threat_rest_recorded",
+      "selectors": [
+        "tests.test_esp_threat_rest_recorded.EspThreatRestTest.test_e1_lifetime_replays_recorded_before_equipment_choice"
+      ],
+      "exit_code": 0,
+      "seconds": 81.32
+    },
+    {
+      "name": "tests.test_fundraise_kit_home_recorded",
+      "selectors": [
+        "tests.test_fundraise_kit_home_recorded.FundraiseKitHomeRecordedTest.test_control_without_a_home_kit_the_terminal_still_closes_home",
+        "tests.test_fundraise_kit_home_recorded.FundraiseKitHomeRecordedTest.test_home_page_binds_the_fundraising_kit_before_closing"
+      ],
+      "exit_code": 0,
+      "seconds": 23.75
+    },
+    {
+      "name": "tests.test_home_entry_capture",
+      "selectors": [
+        "tests.test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key"
+      ],
+      "exit_code": 0,
+      "seconds": 8.06
+    },
+    {
+      "name": "tests.test_town_cure_supplier_recorded",
+      "selectors": [
+        "tests.test_town_cure_supplier_recorded.TownCureSupplierRecordedTest"
+      ],
+      "exit_code": 0,
+      "seconds": 383.28
+    },
+    {
+      "name": "tests.test_home_leave_suppressed_recorded",
+      "selectors": [
+        "tests.test_home_leave_suppressed_recorded.HomeLeaveSuppressedRecordedTest.test_outside_board_releases_the_posted_home_exit"
+      ],
+      "exit_code": 0,
+      "seconds": 21.26
+    },
+    {
+      "name": "tests.test_identify_staff_live27_recorded",
+      "selectors": [
+        "tests.test_identify_staff_live27_recorded.IdentifyStaffLive27RecordedTest.test_recorded_shortfall_routes_to_magic_before_stockout_mining"
+      ],
+      "exit_code": 0,
+      "seconds": 25.65
+    },
+    {
+      "name": "tests.test_idstaff_poor_depart_recorded",
+      "selectors": [
+        "tests.test_idstaff_poor_depart_recorded.IdstaffPoorDepartRecordedTest.test_control_unlatched_magic_still_buys_the_staff",
+        "tests.test_idstaff_poor_depart_recorded.IdstaffPoorDepartRecordedTest.test_unrouted_remembered_page_starts_the_stockout_mining_run"
+      ],
+      "exit_code": 0,
+      "seconds": 17.56
+    },
+    {
+      "name": "tests.test_live23_home_cycle",
+      "selectors": [
+        "tests.test_live23_home_cycle.Live23HomeCycleTest.test_constructed_r3_catalogue_request_stays_outside_while_inflight"
+      ],
+      "exit_code": 0,
+      "seconds": 6.6
+    },
+    {
+      "name": "tests.test_live36_weight",
+      "selectors": [
+        "tests.test_live36_weight.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_is_the_weight_batch"
+      ],
+      "exit_code": 0,
+      "seconds": 10.01
+    },
+    {
+      "name": "tests.test_morivant_travel_retired_recorded",
+      "selectors": [
+        "tests.test_morivant_travel_retired_recorded.MorivantTravelRetiredRecordedTest.test_m0_replay_matches_recorded_lifetime_before_the_strip_calibration"
+      ],
+      "exit_code": 0,
+      "seconds": 33.1
+    },
+    {
+      "name": "tests.test_home_light_alternation",
+      "selectors": [
+        "tests.test_home_light_alternation.HomeLightAlternationPins.test_pin_late_home_response_is_recovered_at_decision_449",
+        "tests.test_home_light_alternation.HomeLightAlternationPins.test_pin_s_and_c_incident_trajectory"
+      ],
+      "exit_code": 0,
+      "seconds": 117.43
+    },
+    {
+      "name": "tests.test_oneshot_inflight_recorded",
+      "selectors": [
+        "tests.test_oneshot_inflight_recorded.OneShotInFlightRecordedTest.test_unposted_sale_watch_outside_is_settled"
+      ],
+      "exit_code": 0,
+      "seconds": 90.52
+    },
+    {
+      "name": "tests.test_guardian_recall_pingpong_recorded",
+      "selectors": [
+        "tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing",
+        "tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing",
+        "tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g2_every_guardian_bounce_is_counted_and_the_valve_fires",
+        "tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_live_replay_only_changes_the_guardian_safe_fallback",
+        "tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_p2_buys_the_departure_recall_with_the_target",
+        "tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_r3_no_qualifying_alternate_stops_the_run_visibly",
+        "tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off"
+      ],
+      "exit_code": 0,
+      "seconds": 220.59
+    },
+    {
+      "name": "tests.test_oneshot_preempt_recorded",
+      "selectors": [
+        "tests.test_oneshot_preempt_recorded.IdentifyStaffCapDivergenceTest.test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop",
+        "tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key",
+        "tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase",
+        "tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys"
+      ],
+      "exit_code": 0,
+      "seconds": 114.31
+    },
+    {
+      "name": "tests.test_optimizer_lamp_recorded",
+      "selectors": [
+        "tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_control_without_the_lamp_the_infravision_torch_is_withdrawn",
+        "tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_recorded_town_board_withdraws_the_home_lamp",
+        "tests.test_optimizer_lamp_recorded.OptimizerLampRecordedTest.test_worn_lantern_withdraws_the_home_lamp_before_departure"
+      ],
+      "exit_code": 0,
+      "seconds": 42.09
+    },
+    {
+      "name": "tests.test_overweight_home_hold_recorded",
+      "selectors": [
+        "tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_exhausted_home_bound_ends_in_the_named_overweight_stop",
+        "tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_routed_home_arrival_deposits_the_minimal_overload",
+        "tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_unposted_home_deposit_routes_home_again"
+      ],
+      "exit_code": 0,
+      "seconds": 45.8
+    },
+    {
+      "name": "tests.test_ownership_s2a1_closure",
+      "selectors": [
+        "tests.test_ownership_s2a1_closure.ClosingPathsTest.test_posted_effect_captures_close_what_they_can"
+      ],
+      "exit_code": 0,
+      "seconds": 11.65
+    },
+    {
+      "name": "tests.test_policy_shop",
+      "selectors": [
+        "tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_august_22_unentered_general_oil_claim_routes_to_supplier",
+        "tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_full_identify_errand_precedes_unrelated_home_deposit",
+        "tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_fundraising_does_not_revisit_home_for_unrelated_deposit",
+        "tests.test_policy_shop.ShopPurchaseSellPolicyTest.test_home_star_identify_source_breaks_incomplete_catalog_deadlock",
+        "tests.test_policy_shop.TownErrandPlanTest.test_all_deferred_identification_claim_self_retires",
+        "tests.test_policy_shop.TownErrandPlanTest.test_catalogued_identification_withdrawal_is_composed_before_home_entry",
+        "tests.test_policy_shop.TownErrandPlanTest.test_deferred_only_identification_claim_self_retires"
+      ],
+      "exit_code": 0,
+      "seconds": 7.05
+    },
+    {
+      "name": "tests.test_policy_home",
+      "selectors": [
+        "tests.test_policy_home.RecordedErrandShoppingStaleHomeScanInsideRound2Test.test_live_errand_shopping_home_visit_exits_before_scan",
+        "tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_ammo_top_up_appends_without_replacing_catalogue_shortage",
+        "tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_catalogue_shortage_reserve_yields_only_to_departure_blockers",
+        "tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_current_catalogue_queues_and_composes_live_cure_shortage",
+        "tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_one_deferred_cure_stack_does_not_hide_another",
+        "tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_pack_full_deposit_precedes_shortage_queue",
+        "tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_recorded_state_composes_home_supply_withdrawal_not_terminal",
+        "tests.test_policy_home.RecordedHomeCatalogueShortageOwnerTest.test_restored_policy_without_procurement_probe_declines_new_owner",
+        "tests.test_policy_home.RecordedHomeProcurementBatchMembershipTest.test_light_ready_recorded_batch_excludes_added_home_torches",
+        "tests.test_policy_home.RecordedHomeProcurementBatchMembershipTest.test_treasure_detection_home_first_queues_only_recorded_supply_need",
+        "tests.test_policy_home.RecordedHomeWithdrawalObserverOrderingTest.test_recorded_cloak_take_is_observed_before_catalogue_acquisition"
+      ],
+      "exit_code": 0,
+      "seconds": 35.24
+    },
+    {
+      "name": "tests.test_protocol3_client",
+      "selectors": [
+        "tests.test_protocol3_client.P1LifetimeTest.test_p1_lifetime_prefix_matches_the_recording_under_v3",
+        "tests.test_protocol3_client.P1SameDecisionTest.test_p1_town_decision_requests_skill_list_then_matches_v2"
+      ],
+      "exit_code": 0,
+      "seconds": 96.22
+    },
+    {
+      "name": "tests.test_q2travel_progress_recorded",
+      "selectors": [
+        "tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_pre_fix_vector_reproduces_every_live_key",
+        "tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_walk_that_does_not_close_the_route_still_retires",
+        "tests.test_q2travel_progress_recorded.Q2TravelProgressRecordedTest.test_walk_to_the_inn_is_progress_and_continues"
+      ],
+      "exit_code": 0,
+      "seconds": 47.9
+    },
+    {
+      "name": "tests.test_quest_ammo_not_bought",
+      "selectors": [
+        "tests.test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_recorded_public_replay_diverges_to_composed_ten_bolt_buy"
+      ],
+      "exit_code": 0,
+      "seconds": 10.89
+    },
+    {
+      "name": "tests.test_quest_carry_town_block",
+      "selectors": [
+        "tests.test_quest_carry_town_block.QuestCarryTownBlockPins.test_recorded_home_and_store_exhaustion_waives_only_town_departure",
+        "tests.test_quest_carry_town_block.QuestCarryTownBlockPins.test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop"
+      ],
+      "exit_code": 0,
+      "seconds": 23.98
+    },
+    {
+      "name": "tests.test_declarations_r14",
+      "selectors": [
+        "tests.test_declarations_r14.DeclarationR14Test.test_overweight_home_tail_keeps_its_operation_at_3715",
+        "tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair"
+      ],
+      "exit_code": 0,
+      "seconds": 660.24
+    },
+    {
+      "name": "tests.test_quest_prepare_return_stage2",
+      "selectors": [
+        "tests.test_quest_prepare_return_stage2.QuestPrepareReturnStage2Pins.test_q_return_1_recurrence_retires_without_step_off_credit"
+      ],
+      "exit_code": 0,
+      "seconds": 41.73
+    },
+    {
+      "name": "tests.test_shadow3_recorded",
+      "selectors": [
+        "tests.test_shadow3_recorded.Shadow3Test.test_existing_last_deposit_completion_remains_observed"
+      ],
+      "exit_code": 0,
+      "seconds": 6.5
+    },
+    {
+      "name": "tests.test_slow_home_recorded",
+      "selectors": [
+        "tests.test_slow_home_recorded.SlowHomeRecordedTest.test_recorded_suffix_keys_and_reasons_are_identical"
+      ],
+      "exit_code": 0,
+      "seconds": 23.04
+    },
+    {
+      "name": "tests.test_spectator_recall_destination",
+      "selectors": [
+        "tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_guardian_valve_is_told_apart_from_the_safe_fallback",
+        "tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_the_next_observation_reapplies_the_alternate",
+        "tests.test_spectator_recall_destination.RecordedRecallDestinationTest.test_unsafe_recall_fallback_names_mountain_and_its_landing"
+      ],
+      "exit_code": 0,
+      "seconds": 58.11
+    },
+    {
+      "name": "tests.test_supply_shortfall_owner_recorded",
+      "selectors": [
+        "tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_blocked_stop_the_plan_moved_past_stays_closed",
+        "tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_full_pack_with_only_nonstacking_wares_still_refuses",
+        "tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_identify_staff_swap_returns_to_the_blocked_magic_shop",
+        "tests.test_supply_shortfall_owner_recorded.SupplyShortfallOwnerRecordedTest.test_teleport_shortfall_is_bought_on_the_full_pack_alchemist_page"
+      ],
+      "exit_code": 0,
+      "seconds": 175.77
+    },
+    {
+      "name": "tests.test_overweight_home_unreachable_recorded",
+      "selectors": [
+        "tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary",
+        "tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_strip",
+        "tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreachableRecordedTest.test_s2b2_the_bar_table_records_the_hunts_it_would_bar"
+      ],
+      "exit_code": 0,
+      "seconds": 514.55
+    },
+    {
+      "name": "tests.test_recall_stockout_set_end_recorded",
+      "selectors": [
+        "tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary",
+        "tests.test_recall_stockout_set_end_recorded.RecallStockoutSetEndRecordedTest.test_s0_replay_matches_recorded_lifetime_through_stockout_start"
+      ],
+      "exit_code": 0,
+      "seconds": 412.32
+    },
+    {
+      "name": "tests.test_town_unaffordable_supplies",
+      "selectors": [
+        "tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_exhausted_unaffordable_plan_walks_toward_fundraising_entrance",
+        "tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_operator_continuation_stops_at_first_key_mismatch",
+        "tests.test_town_unaffordable_supplies.TownUnaffordableSuppliesReplay.test_recorded_low_gold_store_board_leaves_through_store_path"
+      ],
+      "exit_code": 0,
+      "seconds": 22.8
+    },
+    {
+      "name": "tests.test_pure_decision_telemetry",
+      "selectors": [
+        "tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_tour_first_town_visit",
+        "tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result",
+        "tests.test_pure_decision_telemetry.PureDecisionTelemetryTest.test_t3_capture_fields_equal_the_unscoped_evaluation"
+      ],
+      "exit_code": 0,
+      "seconds": 600.85
+    },
+    {
+      "name": "tests.test_tpstockout_restart_recorded",
+      "selectors": [
+        "tests.test_tpstockout_restart_recorded.StockedSupplierRestartTest.test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist"
+      ],
+      "exit_code": 0,
+      "seconds": 15.6
+    },
+    {
+      "name": "tests.test_town_approach_retired_recorded",
+      "selectors": [
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_current_missing_item_prefix_ends_with_zero_diagnostics",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_declared_black_market_reserve_divergence",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_p2_routes_to_the_departure_recall_supplier",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off",
+        "tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s3_new_code_replay_names_remaining_violations"
+      ],
+      "exit_code": 0,
+      "seconds": 180.36
+    },
+    {
+      "name": "focused-lv7",
+      "selectors": [
+        "tests.test_lv7_town_stop_recorded"
+      ],
+      "exit_code": 0,
+      "seconds": 76.75
+    },
+    {
+      "name": "focused-headroom",
+      "selectors": [
+        "tests.test_town_pack_headroom"
+      ],
+      "exit_code": 0,
+      "seconds": 123.8
+    },
+    {
+      "name": "tests.test_town_plan_exhausted_wander",
+      "selectors": [
+        "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p0_the_stop_town_has_no_entrance_the_mining_walk_can_use",
+        "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p1_empty_procurement_stop_returns_to_the_outpost",
+        "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p2_destruction_procurement_stop_returns_to_the_outpost",
+        "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p3_a_live_shop_errand_still_buys_from_the_same_page",
+        "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p7_each_closing_step_of_the_return_is_progress",
+        "tests.test_town_plan_exhausted_wander.TownPlanExhaustedWanderTest.test_p8_a_return_that_stops_closing_is_still_retired"
+      ],
+      "exit_code": 0,
+      "seconds": 280.17
+    }
+  ],
+  "seconds": 1558.84
+}

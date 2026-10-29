@@ -1,0 +1,10 @@
+test_exhausted_home_bound_ends_in_the_named_overweight_stop (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_exhausted_home_bound_ends_in_the_named_overweight_stop)
+Counterfactual bound on the same board: the genuine-failure stop. ... ok
+test_routed_home_arrival_deposits_the_minimal_overload (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_routed_home_arrival_deposits_the_minimal_overload) ... ok
+test_unposted_home_deposit_routes_home_again (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_unposted_home_deposit_routes_home_again)
+Deferred, never-posted Home work within its bound: travel Home. ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 42.157s
+
+OK

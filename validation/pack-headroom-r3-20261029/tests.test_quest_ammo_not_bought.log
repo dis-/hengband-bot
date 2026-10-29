@@ -1,0 +1,7 @@
+test_recorded_public_replay_diverges_to_composed_ten_bolt_buy (tests.test_quest_ammo_not_bought.QuestAmmoNotBoughtPins.test_recorded_public_replay_diverges_to_composed_ten_bolt_buy) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 8.118s
+
+OK
+turn=3025849 replay=('5', 'shop:one-shot-buy') live=("\x1b`n'.", 'shop:travel') operation='po10\r\r\x1b'

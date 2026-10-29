@@ -1,0 +1,7 @@
+test_control_without_a_home_kit_the_terminal_still_closes_home (tests.test_fundraise_kit_home_recorded.FundraiseKitHomeRecordedTest.test_control_without_a_home_kit_the_terminal_still_closes_home) ... ok
+test_home_page_binds_the_fundraising_kit_before_closing (tests.test_fundraise_kit_home_recorded.FundraiseKitHomeRecordedTest.test_home_page_binds_the_fundraising_kit_before_closing) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 20.580s
+
+OK
