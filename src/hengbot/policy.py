@@ -1333,6 +1333,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ] = {}
         self._quest_strategy_pending_recovery: dict[int, dict[str, object]] = {}
         self._q34_opening_door_attempts = 0
+        self._q34_final_door_attempts = 0
+        self._quest_final_target_last_seen: dict[int, Position] = {}
         self._quest_strategy_visible_target_names: dict[int, dict[tuple[int, int, int], str]] = {}
         self._quest_strategy_throw_exp: dict[int, tuple[tuple[int, int, int], int]] = {}
         self._quest_strategy_recovery_claims: dict[

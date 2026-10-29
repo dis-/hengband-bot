@@ -213,6 +213,7 @@ from hengbot.policy_constants import (
     VISIT_PENALTY,
     BACKTRACK_PENALTY,
     DOOR_OPEN_LIMIT,
+    Q34_FINAL_DOOR_ATTEMPT_LIMIT,
     Q34_OPENING_DOOR_ATTEMPT_LIMIT,
     FIXED_TARGET_DEFEAT_VERBS,
     RUBBLE_DIG_LIMIT,
@@ -283,6 +284,11 @@ from hengbot.quest_knowledge import (
 )
 from hengbot.quest_strategies import StrategyProfile
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
+from hengbot.quest_final_room import (
+    door_gates,
+    final_door_open,
+    final_search_area,
+)
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
@@ -2719,6 +2725,39 @@ class QuestMixin(OpeningRouteMixin):
         self.last_reason = "quest-strategy:q2-final-patrol-round-complete"
         return WAIT_KEY
 
+    def _quest_final_target_last_seen_cell(
+        self,
+        snapshot: Snapshot,
+        profile: StrategyProfile,
+        hostiles: list[MonsterState],
+        never_move_races: set[int],
+    ) -> Position | None:
+        """Remember where the mobile final target was last seen.
+
+        A plan with a final door may show the target through transparent
+        jammed glass from outside its room.  Walking the approved route
+        around to the final door loses sight of it; without this memory the
+        placement sweep immediately turns back and the two owners alternate.
+        The memory ends when its cell is seen empty.
+        """
+        if profile.engagement_plan.get("final_door") is None:
+            return None
+        memory = self._quest_final_target_last_seen
+        mobile = [
+            monster for monster in hostiles
+            if monster.race_id not in never_move_races
+        ]
+        if mobile:
+            memory[profile.quest_id] = mobile[0].position
+            return mobile[0].position
+        remembered = memory.get(profile.quest_id)
+        if remembered is not None and self._quest_cell_confirmed_empty(
+            snapshot, remembered
+        ):
+            memory.pop(profile.quest_id, None)
+            return None
+        return remembered
+
     def _quest_strategy_route_step(
         self,
         snapshot: Snapshot,
@@ -2727,10 +2766,7 @@ class QuestMixin(OpeningRouteMixin):
     ) -> Position | None:
         info = self._quest_knowledge.get(profile.quest_id)
         battlefield = info.battlefield if info is not None else None
-        blocked = {
-            Position(*raw)
-            for raw in profile.engagement_plan.get("avoid_door_positions", ())
-        }
+        blocked = door_gates(snapshot, profile.engagement_plan)
         cleared_targets = self._quest_strategy_cleared_targets.get(
             profile.quest_id, set()
         )
@@ -2757,16 +2793,6 @@ class QuestMixin(OpeningRouteMixin):
                 # recovery lane is then the only safe escape from its own halo.
                 blocked.difference_update(recovery_cells)
         blocked.discard(snapshot.player.position)
-        final_door_value = profile.engagement_plan.get("final_door")
-        if final_door_value is not None:
-            final_door = Position(*final_door_value)
-            final_door_grid = snapshot.grid_at(final_door)
-            if (
-                final_door_grid is not None
-                and final_door_grid.known
-                and not final_door_grid.is_closed_door
-            ):
-                blocked.discard(final_door)
         blocked.discard(goal)
         if battlefield is not None:
             navigator = self._quest_navigators.setdefault(
@@ -3811,10 +3837,18 @@ class QuestMixin(OpeningRouteMixin):
                 if phase_action is not None:
                     return phase_action
 
+        last_seen_final = (
+            self._quest_final_target_last_seen_cell(
+                snapshot, profile, hostiles, never_move_races
+            )
+            if final_target_phase
+            else None
+        )
         if (
             may_leave_hold
             and battlefield is not None
             and not mobile_visible
+            and last_seen_final is None
             and (
                 profile.quest_id != 34
                 or self._quest_final_target_position(
@@ -3845,6 +3879,13 @@ class QuestMixin(OpeningRouteMixin):
                 if sweep_scope == "battlefield"
                 else placements
             )
+            search_area = final_search_area(
+                battlefield.terrain, profile.engagement_plan
+            )
+            if sweep_scope == "battlefield" and search_area is not None:
+                # The mobile final target cannot open doors: search only the
+                # rooms it can occupy, never the outer corridor.
+                sweep_targets &= search_area
             for position in sweep_targets:
                 candidate = snapshot.grid_at(position)
                 if (
@@ -3924,6 +3965,8 @@ class QuestMixin(OpeningRouteMixin):
             target_position = (
                 mobile_targets[0].position
                 if mobile_targets
+                else last_seen_final
+                if last_seen_final is not None
                 else None
                 if profile.quest_id == 31
                 else self._quest_final_target_position(profile, never_move_races)
@@ -3950,14 +3993,19 @@ class QuestMixin(OpeningRouteMixin):
                 if final_door_value is not None and final_approach_value is not None:
                     final_door = Position(*final_door_value)
                     final_approach = Position(*final_approach_value)
-                    final_door_grid = snapshot.grid_at(final_door)
-                    final_door_open = (
-                        final_door_grid is not None
-                        and final_door_grid.known
-                        and not final_door_grid.is_closed_door
-                    )
-                    if not final_door_open:
+                    if final_door_open(snapshot, profile.engagement_plan):
+                        self._q34_final_door_attempts = 0
+                    else:
                         if snapshot.player.position == final_approach:
+                            # Lock-pick attempts are exempt from the driver's
+                            # cell-loop guard; bound them here instead.
+                            attempts = self._q34_final_door_attempts
+                            if attempts >= Q34_FINAL_DOOR_ATTEMPT_LIMIT:
+                                self.last_reason = (
+                                    "quest:blocked:q34-final-door-locked"
+                                )
+                                return WAIT_KEY
+                            self._q34_final_door_attempts = attempts + 1
                             self.last_reason = "quest-strategy:open-final-door"
                             return OPEN_KEY + self._direction_key(
                                 final_approach, final_door

@@ -222,6 +222,8 @@ def normalize_policy_state(restored, *, restart=False):
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
     restored.__dict__.setdefault("_remembered_grid_sources", {})
     restored.__dict__.setdefault("_q34_opening_door_attempts", 0)
+    restored.__dict__.setdefault("_q34_final_door_attempts", 0)
+    restored.__dict__.setdefault("_quest_final_target_last_seen", {})
     restored.__dict__.setdefault("_quest_strategy_visible_target_names", {})
     restored.__dict__.setdefault("_quest_strategy_throw_exp", {})
     restored.__dict__.setdefault("_remembered_grid_signatures", {})

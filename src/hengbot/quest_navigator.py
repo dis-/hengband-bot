@@ -10,6 +10,7 @@ from typing import Any
 from hengbot.model import Position, Snapshot, TVAL_CHEST
 from hengbot.policy_constants import QUEST_STATUS_TAKEN, WAIT_KEY
 from hengbot.policy_types import DecisionCandidate, QuestTravelDeclaration
+from hengbot.quest_final_room import avoided_doors, door_gates
 from hengbot.quest_knowledge import QuestBattlefield
 
 
@@ -302,12 +303,7 @@ class QuestFloorNavigator:
             return "<"
         profile = owner.approved_quest_strategy(self.quest_id)
         plan = profile.engagement_plan if profile is not None else {}
-        blocked = {
-            Position(*raw) for raw in plan.get("avoid_door_positions", ())
-        }
-        final_door_value = plan.get("final_door")
-        if final_door_value is not None:
-            blocked.discard(Position(*final_door_value))
+        blocked = avoided_doors(plan)
         path = self._static_path(
             snapshot.player.position, {target}, blocked=blocked
         )
@@ -340,15 +336,9 @@ class QuestFloorNavigator:
         owner: Any, snapshot: Snapshot, plan: dict[str, Any]
     ) -> set[Position]:
         """Keep placement routes and their exploration fallback behind door gates."""
-        blocked = {Position(*raw) for raw in plan.get("avoid_door_positions", ())}
         # Q34's final door is opened by the approved engagement phase. Only
         # reuse that crossing after observing it open; the sweep cannot open it.
-        final = plan.get("final_door")
-        if final is not None:
-            position = Position(*final)
-            grid = snapshot.grid_at(position)
-            if grid is not None and grid.enterable:
-                blocked.discard(position)
+        blocked = door_gates(snapshot, plan)
         # Static terrain regards every door as walkable. Honour the ordinary
         # movement owner's bounded open failures instead of retrying forever.
         blocked.update(Position(*yx) for yx in owner._blocked_doors)

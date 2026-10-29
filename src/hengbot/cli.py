@@ -389,6 +389,9 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # even while the player stays at the approved approach cell. Counting
         # them as a position loop stops the quest before the lock is picked.
         "quest-strategy:open-opening-door",
+        # The approved final door is a locked glass door picked the same way;
+        # its attempts are bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT.
+        "quest-strategy:open-final-door",
         # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
         "summoner:hold-choke",
         "quest-strategy:hold",
@@ -718,6 +721,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
         "quest:blocked:opening-route": "the Q34 -> mining kit -> Q1 route cannot continue; inspect _opening_q1_failure in the policy checkpoint",
         "quest:blocked:q34-opening-door-locked": "the Q34 opening door stayed locked after the bounded lock-pick attempts",
+        "quest:blocked:q34-final-door-locked": "the Q34 final door stayed locked after the bounded lock-pick attempts",
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
