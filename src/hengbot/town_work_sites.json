@@ -1095,7 +1095,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "cd55d15caf42de0a961a7317259648a650b0c533b7b8901337be83fddb85e966"
+    "ast_sha256": "65e3c4355830e53912e8ff7c5045c4fb9435ad0135d9b3fefa890a999f418cc1"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
@@ -1670,7 +1670,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d26c4a1af48de16cdb5e8874be5b7a57e37840df07fbe370938cfdfdf8e2ac4c"
+    "ast_sha256": "4c812f92891bdfe06d7d803b6ade4e3d792702e64ea8efa69e79282f9d7ecf4c"
   },
   "me_q1_torch.py:attack_key": {
     "classification": "dungeon-only",

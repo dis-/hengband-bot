@@ -450,6 +450,8 @@ class Operation:
     timing: dict[str, object] = field(default_factory=dict)
     work_record: dict | None = None
     magic_eater_wand_charges: int | None = None
+    # Viewer-only copy of the Magic-Eater list this operation displayed.
+    magic_eater_power_list: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -1677,6 +1679,8 @@ class OperationExecutor:
         board["_completed_operation_sequence"] = operation.sequence
         if operation.magic_eater_wand_charges is not None:
             board["_magic_eater_wand_charges"] = operation.magic_eater_wand_charges
+        if operation.magic_eater_power_list is not None:
+            board["_magic_eater_power_list"] = operation.magic_eater_power_list
         board["_completed_operation_owner"] = operation.owner
         assert operation.operation_reference is not None
         receipt = OperationReceipt(
