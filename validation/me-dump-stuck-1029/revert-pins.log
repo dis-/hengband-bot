@@ -1,0 +1,140 @@
+PIN_RESULTS={"tests": 5, "failures": ["tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages (literal='-\u7d9a\u304f-', context=None)", "tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages (literal='-\u7d9a\u304f-', context={'kind': 'more', 'prompt': '-\u7d9a\u304f-'})", "tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages (literal='-more-', context=None)", "tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages (literal='-more-', context={'kind': 'more', 'prompt': '-more-'})", "tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_first_dump_without_existing_file_still_owns_success_more", "tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_public_choose_and_follow_replay_both_linux_stops_to_map (stop_time='\u52a0\u901f                 (+0)   \u30d7\u30ec\u30a4\u6642\u9593   00:00:13   \u8d64\u5916\u7dda\u8996\u529b:20 feet')", "tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_public_choose_and_follow_replay_both_linux_stops_to_map (stop_time='\u52a0\u901f                 (+0)   \u30d7\u30ec\u30a4\u6642\u9593   00:00:30   \u8d64\u5916\u7dda\u8996\u529b:20 feet')"], "errors": []}
+test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) ...
+  test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-続く-', context=None) ... FAIL
+  test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-続く-', context={'kind': 'more', 'prompt': '-続く-'}) ... FAIL
+  test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-more-', context=None) ... FAIL
+  test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-more-', context={'kind': 'more', 'prompt': '-more-'}) ... FAIL
+test_first_dump_without_existing_file_still_owns_success_more (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_first_dump_without_existing_file_still_owns_success_more) ... <stuck-prompt> owner=periodic:character-dump phase=continuation transport=accepted request_id=12 ctx=null ctx_prompt="" reason=unowned character: ['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]
+FAIL
+test_more_text_without_character_footer_is_not_a_centered_prompt (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_more_text_without_character_footer_is_not_a_centered_prompt) ... ok
+test_original_warrior_control_keeps_its_five_segments (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_original_warrior_control_keeps_its_five_segments) ... ok
+test_public_choose_and_follow_replay_both_linux_stops_to_map (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_public_choose_and_follow_replay_both_linux_stops_to_map) ... <stuck-prompt> owner=periodic:character-dump phase=continuation transport=accepted request_id=15 ctx=null ctx_prompt="" reason=unowned character: ['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]
+
+  test_public_choose_and_follow_replay_both_linux_stops_to_map (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_public_choose_and_follow_replay_both_linux_stops_to_map) (stop_time='加速                 (+0)   プレイ時間   00:00:13   赤外線視力:20 feet') ... FAIL
+<stuck-prompt> owner=periodic:character-dump phase=continuation transport=accepted request_id=15 ctx=null ctx_prompt="" reason=unowned character: ['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]
+  test_public_choose_and_follow_replay_both_linux_stops_to_map (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_public_choose_and_follow_replay_both_linux_stops_to_map) (stop_time='加速                 (+0)   プレイ時間   00:00:30   赤外線視力:20 feet') ... FAIL
+
+======================================================================
+FAIL: test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-続く-', context=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 134, in test_centered_more_uses_same_rendered_origin_in_both_languages
+    self.assertEqual((match.kind, match.feature, match.row, match.column),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (ScreenKind.MORE, literal, 22, 82))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (<ScreenKind.CHARACTER: 'character'>, "['c'で名前変更, 'f'で[32 chars], 68) != (<ScreenKind.MORE: 'more'>, '-続く-', 22, 82)
+
+First differing element 0:
+<ScreenKind.CHARACTER: 'character'>
+<ScreenKind.MORE: 'more'>
+
++ (<ScreenKind.MORE: 'more'>, '-続く-', 22, 82)
+- (<ScreenKind.CHARACTER: 'character'>,
+-  "['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]",
+-  45,
+-  68)
+
+======================================================================
+FAIL: test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-続く-', context={'kind': 'more', 'prompt': '-続く-'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 134, in test_centered_more_uses_same_rendered_origin_in_both_languages
+    self.assertEqual((match.kind, match.feature, match.row, match.column),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (ScreenKind.MORE, literal, 22, 82))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (<ScreenKind.CHARACTER: 'character'>, "['c'で名前変更, 'f'で[32 chars], 68) != (<ScreenKind.MORE: 'more'>, '-続く-', 22, 82)
+
+First differing element 0:
+<ScreenKind.CHARACTER: 'character'>
+<ScreenKind.MORE: 'more'>
+
++ (<ScreenKind.MORE: 'more'>, '-続く-', 22, 82)
+- (<ScreenKind.CHARACTER: 'character'>,
+-  "['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]",
+-  45,
+-  68)
+
+======================================================================
+FAIL: test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-more-', context=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 134, in test_centered_more_uses_same_rendered_origin_in_both_languages
+    self.assertEqual((match.kind, match.feature, match.row, match.column),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (ScreenKind.MORE, literal, 22, 82))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (<ScreenKind.CHARACTER: 'character'>, "['c'で名前変更, 'f'で[32 chars], 68) != (<ScreenKind.MORE: 'more'>, '-more-', 22, 82)
+
+First differing element 0:
+<ScreenKind.CHARACTER: 'character'>
+<ScreenKind.MORE: 'more'>
+
++ (<ScreenKind.MORE: 'more'>, '-more-', 22, 82)
+- (<ScreenKind.CHARACTER: 'character'>,
+-  "['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]",
+-  45,
+-  68)
+
+======================================================================
+FAIL: test_centered_more_uses_same_rendered_origin_in_both_languages (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_centered_more_uses_same_rendered_origin_in_both_languages) (literal='-more-', context={'kind': 'more', 'prompt': '-more-'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 134, in test_centered_more_uses_same_rendered_origin_in_both_languages
+    self.assertEqual((match.kind, match.feature, match.row, match.column),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (ScreenKind.MORE, literal, 22, 82))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (<ScreenKind.CHARACTER: 'character'>, "['c'で名前変更, 'f'で[32 chars], 68) != (<ScreenKind.MORE: 'more'>, '-more-', 22, 82)
+
+First differing element 0:
+<ScreenKind.CHARACTER: 'character'>
+<ScreenKind.MORE: 'more'>
+
++ (<ScreenKind.MORE: 'more'>, '-more-', 22, 82)
+- (<ScreenKind.CHARACTER: 'character'>,
+-  "['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]",
+-  45,
+-  68)
+
+======================================================================
+FAIL: test_first_dump_without_existing_file_still_owns_success_more (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_first_dump_without_existing_file_still_owns_success_more)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 122, in test_first_dump_without_existing_file_still_owns_success_more
+    self.send_dump(peer, "Cf\ry\x1b\x1b")
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 88, in send_dump
+    self.assertEqual(sent, SendResult.SENT, port.last_result.reason)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <SendResult.TERMINAL: 'terminal'> != <SendResult.SENT: 'sent'> : <stuck-prompt> owner=periodic:character-dump phase=continuation transport=accepted request_id=12 reason=unowned character: ['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]
+
+======================================================================
+FAIL: test_public_choose_and_follow_replay_both_linux_stops_to_map (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_public_choose_and_follow_replay_both_linux_stops_to_map) (stop_time='加速                 (+0)   プレイ時間   00:00:13   赤外線視力:20 feet')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 112, in test_public_choose_and_follow_replay_both_linux_stops_to_map
+    self.send_dump(peer, key, policy, boards[-1])
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 88, in send_dump
+    self.assertEqual(sent, SendResult.SENT, port.last_result.reason)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <SendResult.TERMINAL: 'terminal'> != <SendResult.SENT: 'sent'> : <stuck-prompt> owner=periodic:character-dump phase=continuation transport=accepted request_id=15 reason=unowned character: ['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]
+
+======================================================================
+FAIL: test_public_choose_and_follow_replay_both_linux_stops_to_map (tests.test_character_dump_more_recorded.CharacterDumpMoreRecordedTest.test_public_choose_and_follow_replay_both_linux_stops_to_map) (stop_time='加速                 (+0)   プレイ時間   00:00:30   赤外線視力:20 feet')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 112, in test_public_choose_and_follow_replay_both_linux_stops_to_map
+    self.send_dump(peer, key, policy, boards[-1])
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client\.worktrees\me-dump-stuck-1029\tests\test_character_dump_more_recorded.py", line 88, in send_dump
+    self.assertEqual(sent, SendResult.SENT, port.last_result.reason)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <SendResult.TERMINAL: 'terminal'> != <SendResult.SENT: 'sent'> : <stuck-prompt> owner=periodic:character-dump phase=continuation transport=accepted request_id=15 reason=unowned character: ['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]
+
+----------------------------------------------------------------------
+Ran 5 tests in 5.904s
+
+FAILED (failures=7)
