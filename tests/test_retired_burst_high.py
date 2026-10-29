@@ -1,14 +1,15 @@
 """#47 high-level retirement pins through choose_key and the follow executor.
 
 ATTACH BOUNDARY: these captures have diagnostic JSON, not Python checkpoints.
-The immutable Home board/catalogue and skill reply are recorded. A one-action
-session reconstructs exactly the recorded transaction_next takeoff; earlier
-transaction actions, calibration and driver retirement counters are not replayed.
+The immutable Home board/catalogue and skill reply are recorded. The session
+plan is restored from the recorded Observe claim, at transaction_next's index;
+earlier effects, calibration and driver retirement counters are not replayed.
 Executor replies after the first divergent action are explicitly constructed.
 """
 import tests  # noqa: F401 -- runtime isolation
 
 import copy
+import ast
 import gzip
 import io
 import json
@@ -51,12 +52,21 @@ class RetiredBurstHighTest(executor_harness.ProductionHarness):
         action = facts['transaction_next']
         worn = next(item for item in board.equipment if item.slot == action['target_slot'])
         self.assertEqual(action['item_id'].split(':')[1], equipment_identity(worn))
-        takeoff = EquipmentTransaction(
-            action['phase'], action['kind'], action['item_id'],
-            action['target_slot'], equipment_identity(worn))
-        policy._equipment_transaction_session = EquipmentTransactionSession(
-            EquipmentTransactionPlan((takeoff,), (), len(board.inventory) + 1),
+        encoded_actions = ast.literal_eval(case['transaction_claim']['goal']['expectation'][0])
+        actions = []
+        for encoded in encoded_actions:
+            node = ast.parse(encoded, mode='eval').body
+            self.assertIsInstance(node, ast.Call)
+            self.assertEqual(node.func.id, 'EquipmentTransaction')
+            actions.append(EquipmentTransaction(**{
+                keyword.arg: ast.literal_eval(keyword.value) for keyword in node.keywords}))
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan(tuple(actions), (), len(board.inventory) + 1),
             physical_context='home')
+        session.index = next(index for index, item in enumerate(actions)
+                             if item.item_id == action['item_id'] and item.kind == action['kind'])
+        self.assertEqual(session.target_loadout_id, facts['transaction_target_loadout_id'])
+        policy._equipment_transaction_session = session
         return policy, board, raw
 
     def post_exit(self, policy, board, raw, key):

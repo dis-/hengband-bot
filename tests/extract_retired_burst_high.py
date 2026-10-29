@@ -68,6 +68,10 @@ def extract():
                 'policy_state': dump,
                 'sha256': {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
                            for path in (tail, ring, source / 'policy-state.json')}}
+        if fixed:
+            case['transaction_claim'] = next(r['claim'] for r in reversed(window)
+                if (r.get('claim') or {}).get('owner') == 'equipment-txn'
+                and r['claim']['goal'].get('source') == 'transaction')
         cases.append(case)
         print(case['source'], 'level', inputs[-1]['board']['player']['level'], flush=True)
     output = ROOT / 'tests/fixtures/retired-burst-high-20261029.json.gz'

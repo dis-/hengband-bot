@@ -1,8 +1,7 @@
 """Keep equipment plan admission consistent with the town mutation budget."""
 
 from hengbot.equipment_transaction_planner import plan_equipment_transactions as _plan
-from hengbot.town_pack_budget import incoming_slots, permits
-from hengbot.policy_constants import MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY
+from hengbot import town_pack_budget as budget
 
 
 def plan_equipment_transactions(*args, **kwargs):
@@ -11,7 +10,7 @@ def plan_equipment_transactions(*args, **kwargs):
     if not any(action.kind in {'takeoff', 'withdraw'} for action in plan.actions):
         # Empty plans and capacity relief remain legal above the budget.
         return plan
-    return _plan(*args, pack_capacity=PACK_CAPACITY - MIN_TERMINAL_FREE_PACK_SLOTS,
+    return _plan(*args, pack_capacity=budget.PACK_CAPACITY - budget.MIN_TERMINAL_FREE_PACK_SLOTS,
                  **kwargs)
 
 
@@ -30,7 +29,7 @@ def release_unaffordable_session(policy, snapshot):
         return
     item = next((item for item in snapshot.equipment
                  if item.slot == action.target_slot), None)
-    if item is None or permits(snapshot, incoming_slots(snapshot, item, item.count)):
+    if item is None or budget.permits(snapshot, budget.incoming_slots(snapshot, item, item.count)):
         return
     policy._release_claim_goal('equipment-capacity-replan', owners=('equipment-txn',))
     if (policy._store_visit is not None
