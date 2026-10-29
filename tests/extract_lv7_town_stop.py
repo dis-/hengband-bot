@@ -8,6 +8,7 @@ from pathlib import Path
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.model import _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge, find_monrace_definitions
+from hengbot.quest_knowledge import load_quest_knowledge, find_quest_definitions
 
 ROOT = Path(r"C:\hengband-backups\viewing-captures-1029\lv7-stop")
 TARGET = Path(__file__).with_name("fixtures") / "lv7-town-stop-20261029.json.gz"
@@ -21,7 +22,9 @@ def rows(path):
 
 def main():
     captures = []
-    races = load_monrace_knowledge(find_monrace_definitions(Path.cwd(), None))
+    race_path = find_monrace_definitions(Path.cwd(), None)
+    races = load_monrace_knowledge(race_path)
+    q34 = load_quest_knowledge(find_quest_definitions(Path.cwd()))[34]
     for path in sorted(ROOT.rglob("decision-tail.jsonl")):
         decisions = rows(path)
         snapshots = path.parent / "snapshots" / "snapshots-current.jsonl.gz"
@@ -54,10 +57,13 @@ def main():
                 pages[row["store"]["store_type"]] = row
         race_ids = {row["race_id"] for field in ("visible_monsters", "detected_monsters")
                     for row in snapshot.get(field, [])}
+        # The lowered Magic-Eater gate now evaluates Q34's entire roster.
+        race_ids.update(race for race, _ in q34.threat_roster)
         captures.append(dict(
             id="/".join((parts[0], parts[1], path.parent.name)),
             sources={str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                      for p in (path, snapshots, state_path)},
+            monrace_source_sha256=hashlib.sha256(race_path.read_bytes()).hexdigest(),
             snapshot=snapshot,
             pages=pages,
             monraces={key: asdict(races[key]) for key in race_ids},

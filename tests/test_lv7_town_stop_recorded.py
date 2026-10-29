@@ -21,8 +21,9 @@ from hengbot.cli import (
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
-from hengbot.model import StoreItem, StoreState, _parse_items, parse_snapshot
+from hengbot.model import StoreItem, StoreState, _GRID_TERRAIN_NAMES, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
+from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from tests import test_opening_route_r2_recorded as round2
 import tests.test_input_executor as executor_harness
 from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
@@ -153,6 +154,9 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
         if key.startswith("w"):
             screens = [prompt_screen("(Inven: a-w, ESC) どれを装備しますか?")]
             expected = ["w", key[1:]]
+        if policy.last_reason == "quest:enter":
+            screens = [prompt_screen("Do you enter? [y/n]")]
+            expected = [key, "y"]
         game.screens = screens + [self.shelf_screen(following) if following.get("store")
                                   else command_screen(following["turn"])]
         game.states = [copy.deepcopy(raw) for _ in screens] + [copy.deepcopy(following)]
@@ -223,6 +227,110 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
                                  (next_key, policy.last_reason))
                 session = policy._equipment_transaction_session
                 self.assertTrue(session is None or session.complete)
+                if case["id"].startswith("me-a/"):
+                    self.continue_q34(policy, following, case, next_key)
+
+    def continue_q34(self, policy, raw, case, key):
+        """Construct replies to the observed shelf, then request and enter Q34."""
+        self.assertEqual(policy.last_reason, "shop:approach")
+        page = copy.deepcopy(case["pages"]["0"]["store"])
+        purchased = False
+        for _ in range(12):
+            reason = policy.last_reason
+            following = copy.deepcopy(raw)
+            following["turn"] += 1
+            if reason == "shop:approach":
+                goal = policy._town_map.store_position(0)
+                following["player"].update(y=goal.y, x=goal.x)
+                following["store"] = page
+            elif key == "\x1b":
+                following["store"] = None
+            elif reason == "shop:one-shot-buy" and key == "5":
+                following["store"] = page
+            elif key.startswith("p"):
+                ware = next(it for it in page["items"] if it["letter"] == key[1])
+                self.assertEqual(ware["tval"], 39)
+                # One replacement for the throwing torch now worn as light.
+                slots = {it["slot"] for it in raw["inventory"]}
+                item = dict(ware, count=1, slot=next(c for c in "abcdefghijklmnopqrstuvw"
+                                                   if c not in slots))
+                item.pop("letter", None)
+                item.pop("price", None)
+                following["inventory"].append(item)
+                following["player"]["gold"] -= ware["price"]
+                following["store"] = None
+                purchased = True
+            elif reason == "fixedquest:request:approach":
+                self.assertTrue(purchased)
+                board = parse_snapshot(raw, policy._monrace_knowledge)
+                goal = min(policy._fixed_quest_building_positions(board, 34))
+                following["player"].update(y=goal.y + 1, x=goal.x)
+            elif reason == "fixedquest:request":
+                self.assertEqual(key, "8q\x1b")
+                following["progress"]["quests"].append(
+                    dict(id=34, status=QUEST_STATUS_TAKEN, fixed=True, level=5, type=6, name="Q34"))
+                following["player"]["y"] -= 1
+                # DECLARED CONSTRUCTED: acceptance exposes the public entrance.
+                goal = min(policy._fixed_quest_building_positions(
+                    parse_snapshot(raw, policy._monrace_knowledge), 34))
+                palette = following["grid_map"]["palette"]
+                base = next(run[3] for run in following["grid_map"]["runs"]
+                            if run[0] == goal.y and run[1] <= goal.x < run[1] + run[2])
+                terrain = list(palette[base])
+                terrain[2] |= 1 << _GRID_TERRAIN_NAMES.index("quest_enter")
+                palette.append(terrain)
+                following["grid_map"]["runs"].append([goal.y, goal.x, 1, len(palette) - 1])
+                following["grid_map"]["cells"].append(dict(y=goal.y, x=goal.x, q=34))
+            elif reason == "quest:enter:approach":
+                board = parse_snapshot(raw, policy._monrace_knowledge)
+                goal = min(policy._fixed_quest_entrance_positions(board, 34))
+                following["player"].update(y=goal.y, x=goal.x)
+            elif reason == "quest:enter":
+                self.assertEqual(key, ">")
+                self.assertTrue(purchased)
+                self.assertTrue(policy._fixed_quest_ready(
+                    parse_snapshot(raw, policy._monrace_knowledge), 34),
+                    policy.fixed_quest_readiness_state())
+                following["floor"].update(in_town=False, quest_id=34, level=5)
+                self.post(policy, raw, key, following)
+                return
+            else:
+                self.fail((key, reason, policy.fixed_quest_readiness_state()))
+            self.post(policy, raw, key, following)
+            raw = following
+            key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+        self.fail((key, policy.last_reason))
+
+    def test_magic_eater_full_q34_gate_keeps_supplies_hp_and_light_requirements(self):
+        case = self.cases[0]
+        self.assertTrue(case["id"].startswith("me-a/"))
+        for change, expected in (("ready", "ready"), ("hp", "strategy-force"),
+                                 ("torches", "strategy-force"), ("fuel", "light-torch-only")):
+            with self.subTest(change=change):
+                policy, raw = self.boundary(case)
+                if change == "hp":
+                    raw["player"].update(hp=29, max_hp=29)
+                if change == "torches":
+                    torch = next(it for it in raw["inventory"] if it.get("tval") == 39)
+                    torch["count"] -= 1
+                if change == "fuel":
+                    raw = self.equip_reply(raw, "wb")
+                    # Replace the worn torch's consumed throwing reserve,
+                    # but leave every torch below the opening's fuel floor.
+                    torch = next(it for it in raw["inventory"] if it.get("tval") == 39)
+                    torch["count"] += 1
+                    for it in raw["inventory"] + raw["equipment"]:
+                        if it.get("tval") == 39:
+                            it["light_turns"] = 99
+                ready = policy._fixed_quest_ready(parse_snapshot(raw, policy._monrace_knowledge), 34)
+                details = policy.fixed_quest_readiness_state()
+                self.assertEqual(details["reason"], expected, details)
+                self.assertEqual(ready, change == "ready")
+                if ready:
+                    self.assertEqual(details["max_damage_ratio"], 1.0)
+                    self.assertGreater(details["entry_melee_hp"], 0)
+                    self.assertLessEqual(details["entry_melee_hp"], 8)
+                    self.assertGreaterEqual(details["entry_melee_output"], 3.5)
 
     def test_ready_q1_entrance_resolves_its_adjacent_monster_before_entry(self):
         case = self.cases[1]

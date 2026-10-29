@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready
+from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check
 from hengbot.policy_opening import OpeningRouteMixin
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -568,6 +568,8 @@ class QuestMixin(OpeningRouteMixin):
             self._abandon_blocked_equipment_transaction(snapshot)
         if self._equipment_transaction_owned_items:
             return self._equipment_transaction_town_owner_key(snapshot) or WAIT_KEY
+        if self._equipment_transaction_session is not None:
+            return self._equipment_transaction_town_key(snapshot) or WAIT_KEY
 
         if not any(item.slot == "main_hand" for item in snapshot.equipment):
             weapon = self._first_item(
@@ -5007,13 +5009,8 @@ class QuestMixin(OpeningRouteMixin):
             )[:FIXED_QUEST_THREAT_TURNS]
         )
         telemetry["hp_healing_budget"] = snapshot.player.max_hp + healing_budget
-        max_damage_ratio = FIXED_QUEST_MAX_DAMAGE_RATIO
-        if profile is not None:
-            max_damage_ratio = float(
-                profile.engagement_plan.get(
-                    "max_damage_ratio", FIXED_QUEST_MAX_DAMAGE_RATIO
-                )
-            )
+        max_damage_ratio = entry_damage_ratio(
+            profile, snapshot.player.class_id, FIXED_QUEST_MAX_DAMAGE_RATIO)
         telemetry["max_damage_ratio"] = max_damage_ratio
         if worst_adjacent >= telemetry["hp_healing_budget"] * max_damage_ratio:
             return reject("three-turn-threat")
@@ -5050,7 +5047,9 @@ class QuestMixin(OpeningRouteMixin):
         telemetry["main_hand_melee_output"] = main_hand_output
         telemetry["sub_hand_melee_output"] = sub_hand_output
         telemetry["melee_output"] = melee_output
-        if melee_output * FIXED_QUEST_TOUGHEST_KILL_TURNS < toughest.max_hp:
+        entry_output, entry_hp = entry_melee_check(profile, snapshot.player.class_id, telemetry, candidates, strategy_controlled_stationary)
+        telemetry["entry_melee_output"], telemetry["entry_melee_hp"] = entry_output, entry_hp
+        if entry_output * FIXED_QUEST_TOUGHEST_KILL_TURNS < entry_hp:
             return reject("toughest-kill-time")
         telemetry["verdict"] = True
         telemetry["reason"] = "ready"
