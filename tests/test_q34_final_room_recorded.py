@@ -110,9 +110,13 @@ class Q34FinalRoomRecordedTest(ProductionHarness):
 
         raw = self.board(79296)
         policy = self.policy(raw, surveyed=[(3, 13)])
-        self.assertEqual(self.post(policy, raw, self.board(79296) | {"turn": 79308}), "4")
-        self.assertEqual(policy.last_reason, "quest-strategy:placement-sweep")
+        # Owner decision 2026-10-30: right after [4,14] opens, the next work
+        # is opening [4,15] from [5,15] (tests/test_q34_doors_gold.py), not
+        # the placement sweep; it is a moving step, not a lock pick.
+        self.assertEqual(self.post(policy, raw, self.board(79296) | {"turn": 79308}), "6")
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-sequence-door")
         goal = Position(*policy.decision_claim["goal"]["cell"])
+        self.assertEqual(goal, Position(5, 15))
         plan = policy.approved_quest_strategy(34).engagement_plan
         area = final_search_area(policy._quest_knowledge[34].battlefield.terrain, plan)
         self.assertIn(goal, area)
@@ -151,9 +155,10 @@ class Q34FinalRoomRecordedTest(ProductionHarness):
         area = final_search_area(policy._quest_knowledge[34].battlefield.terrain, plan)
         self.assertIn(Position(*policy.decision_claim["goal"]["cell"]), area)
         self.assertNotIn(Position(1, 15), area)
-        # The approved final door is the only avoided-list exception.
-        self.assertNotIn(Position(4, 14), avoided_doors(plan))
-        self.assertTrue({Position(4, x) for x in (15, 16, 17)} <= avoided_doors(plan))
+        # The approved final door and its sequence (2026-10-30) are the only
+        # avoided-list exceptions; [4,17] stays avoided.
+        self.assertTrue({Position(4, x) for x in (14, 15, 16)}.isdisjoint(avoided_doors(plan)))
+        self.assertIn(Position(4, 17), avoided_doors(plan))
 
 
 if __name__ == "__main__":

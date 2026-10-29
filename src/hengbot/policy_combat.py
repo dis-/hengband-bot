@@ -595,6 +595,7 @@ class CombatMixin:
                 # Final stop (never posted): the bee behind the locked glass
                 # door is visible but cannot reach the player through it.
                 "quest:blocked:q34-final-door-locked",
+                "quest:blocked:q34-sequence-door-locked",
                 "rest",
                 "recover",
             }

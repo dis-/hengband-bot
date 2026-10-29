@@ -292,6 +292,10 @@ Q34_OPENING_DOOR_ATTEMPT_LIMIT = 200
 # The final door [4,14] is LOCKED_GLASS_DOOR_7, the same lock power as the
 # opening door; the 2026-10-29 Lv6 Magic-Eater needed more than 60 picks.
 Q34_FINAL_DOOR_ATTEMPT_LIMIT = Q34_OPENING_DOOR_ATTEMPT_LIMIT
+# The sequence doors [4,15]/[4,16] are the same LOCKED_GLASS_DOOR_7.
+Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT = Q34_FINAL_DOOR_ATTEMPT_LIMIT
+# Gold is collected by walking onto it; 'g' is only a bounded fallback.
+POST_CLEAR_PICKUP_ATTEMPT_LIMIT = 3
 # Japanese monster-death messages (living, undead/nonliving, destroyed).
 FIXED_TARGET_DEFEAT_VERBS = ("を倒した", "を殺した", "を破壊した")
 RUBBLE_DIG_LIMIT = 30
@@ -317,6 +321,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'quest:blocked:fixed-target-not-visible',
         'quest:blocked:q34-opening-door-locked',
         'quest:blocked:q34-final-door-locked',
+        'quest:blocked:q34-sequence-door-locked',
         'quest:blocked:opening-route',
         'quest:blocked:q34-recovery-no-progress',
         'quest:blocked:q34-throw-point-unreachable',

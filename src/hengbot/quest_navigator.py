@@ -7,10 +7,14 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
-from hengbot.model import Position, Snapshot, TVAL_CHEST
-from hengbot.policy_constants import QUEST_STATUS_TAKEN, WAIT_KEY
+from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
+from hengbot.policy_constants import (
+    POST_CLEAR_PICKUP_ATTEMPT_LIMIT,
+    QUEST_STATUS_TAKEN,
+    WAIT_KEY,
+)
 from hengbot.policy_types import DecisionCandidate, QuestTravelDeclaration
-from hengbot.quest_final_room import avoided_doors, door_gates
+from hengbot.quest_final_room import avoided_doors, door_gates, post_clear_pickup
 from hengbot.quest_knowledge import QuestBattlefield
 
 
@@ -49,6 +53,7 @@ class QuestFloorNavigator:
         self.door_searches: Counter[tuple[int, int]] = Counter()
         self.hold_turns = 0
         self.sweep_turns = 0
+        self.post_clear_pickups = 0
         self.floor_key: tuple[int, int, int] | None = None
         self.opened: set[Position] = set()
 
@@ -60,6 +65,7 @@ class QuestFloorNavigator:
         self.door_searches.clear()
         self.hold_turns = 0
         self.sweep_turns = 0
+        self.post_clear_pickups = 0
         self.opened.clear()
 
     @staticmethod
@@ -212,6 +218,10 @@ class QuestFloorNavigator:
                 return action
             self.phase = QuestPhase.EXIT
 
+        if completed:
+            pickup = self._post_clear_pickup(owner, snapshot)
+            if pickup is not None:
+                return pickup
         return self._exit(owner, snapshot)
 
     def _hold_budget(self, owner: Any) -> int:
@@ -291,6 +301,37 @@ class QuestFloorNavigator:
                 owner._declare_reach(owner._loot_target)
                 return owner._step_toward(snapshot, path[1])
         return None
+
+    def _post_clear_pickup(self, owner: Any, snapshot: Snapshot) -> str | None:
+        """Collect the plan's ``post_clear_pickup`` gold before the exit.
+
+        Runs after the loot sweep, so its route budget cannot drop the gold.
+        The cell is done once the board shows it without gold or the bounded
+        pickup fallback is used up; walking onto gold normally collects it.
+        """
+        profile = owner.approved_quest_strategy(self.quest_id)
+        plan = profile.engagement_plan if profile is not None else {}
+        cell = post_clear_pickup(plan)
+        if cell is None:
+            return None
+        grid = snapshot.grid_at(cell)
+        if grid is not None and grid.known and TVAL_GOLD not in grid.object_tvals:
+            return None
+        if snapshot.player.position == cell:
+            attempts = getattr(self, "post_clear_pickups", 0)
+            if attempts >= POST_CLEAR_PICKUP_ATTEMPT_LIMIT:
+                return None
+            self.post_clear_pickups = attempts + 1
+            owner.last_reason = "quest:post-clear:pickup-gold"
+            return PICKUP_KEY
+        path = self._static_path(
+            snapshot.player.position, {cell}, blocked=door_gates(snapshot, plan)
+        )
+        if len(path) < 2:
+            return None
+        owner.last_reason = "quest:post-clear:seek-gold"
+        owner._declare_reach(cell)
+        return owner._step_toward(snapshot, path[1])
 
     def _exit(self, owner: Any, snapshot: Snapshot) -> str:
         target_t = self.battlefield.exit or self.battlefield.entrance

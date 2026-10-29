@@ -21,7 +21,7 @@
     "opening_corner": [1, 1],
     "opening_approach": [11, 1],
     "opening_route": "First descend the safe outer-right corridor through [9,20] to recover the oil flask, then continue to [10,20] to recover and equip the brass lantern. Return along the outer corridor, cross the top edge, descend to [11,1], and open the ordinary locked door at [11,2] before combat or other item recovery.",
-    "avoid_doors": "Do not route through the hard-locked or locked glass doors on the outer wall; they are deliberately difficult to open.",
+    "avoid_doors": "Do not route through the hard-locked or locked glass doors on the outer wall; they are deliberately difficult to open. The approved exceptions are final_door and final_door_sequence, opened only by their door phase and crossed only once observed open.",
     "avoid_door_positions": [
       [2,13], [2,14], [2,15], [2,16], [2,17], [2,18],
       [4,6], [4,7], [4,8], [4,9], [4,14], [4,15], [4,16], [4,17],
@@ -48,6 +48,18 @@
     "opening": "[1,20] から右外周を南下し、[9,20] の油つぼを回収してから [10,20] の真鍮ランタンを回収・装備する。油つぼがなければランタンへ進む。その後、右外周を北へ戻り、上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を開ける。外周のガラス扉は開けない。",
     "final_door": [4, 14],
     "final_door_approach": [5, 14],
+    // ユーザー指示（2026-10-30）「[4,14]の扉を開けた後、[4,15][4,16]まで順に開けさせる。
+    // 途中で蜂と接触したらそのまま戦闘に移行。掃討後に右下の金塊を拾う。」
+    // final_door と同じく avoid_door_positions の明示の例外で、開くまでは経路の関門。
+    // 扉の作業は大部屋（supply_recovery_bounds）から [5,15]・[5,16] で行う。蜂に隣接したら近接、
+    // 蜂が大部屋に出てきたら既存の接近・交戦が扉の作業より先で、いなくなったら作業に戻る。
+    // [4,17] は avoid のまま開けない。
+    "final_door_sequence": [
+      {"door": [4, 15], "approach": [5, 15]},
+      {"door": [4, 16], "approach": [5, 16]}
+    ],
+    // 右下の '7' [11,20] は金塊（object 488）。クエスト達成後、出口へ向かう前に拾う。
+    "post_clear_pickup": [11, 20],
     "chest_position": [10, 9],
     "placement_sweep": true,
     "placement_sweep_scope": "battlefield",
