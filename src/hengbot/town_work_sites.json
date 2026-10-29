@@ -4300,7 +4300,7 @@
       "loot-exploration"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3fdf1bb1cd01b455177a67eb03ef5eb28b576a4000446377576dce9e9a8ca422"
+    "ast_sha256": "3bae4e73167d6654649d2b03525a3d19038f0e3930d82e6631b88d21af2a1f9c"
   },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
@@ -5439,7 +5439,7 @@
       "overweight-surplus"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "55d4383dac5bce74672fbde0ed572f477151723dadec98196e4879c1e64b824b"
+    "ast_sha256": "1e593ba944aa574d5517fbb8951ec86805348f2c28ebadfa6d5e108ceba657af"
   },
   "policy_home.py:HomeMixin._prepare_home_visit_operation": {
     "classification": "data",
@@ -5555,7 +5555,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "efe4f90bd38158329593c1547dc14e5520509f6445a1e08f6e8ec110b5728985"
+    "ast_sha256": "123b0ebd238c159ea48dce768f716b8e64e9c4f62aad703978411c07d231caa2"
   },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {
     "classification": "producer",
@@ -6013,7 +6013,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b2208983ca7d9dc08a7982c7e807c21245142b2553a1383d8a62e22c0f7da8f1"
+    "ast_sha256": "296486449053e90b50987a826787563e27ca0b67bcacb359f4f89de32227d494"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_store_key": {
     "classification": "producer",
@@ -6024,7 +6024,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "79b143f2819e63ed7d9057402d365c7ea4c455f1ba9691cea1066385e525baeb"
+    "ast_sha256": "9e2d47a0ebdc27d2b2bb5a629614aeeb312749db2778f7954ed2f8677498cc8a"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": {
     "classification": "producer",
@@ -6035,7 +6035,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b2f049bd9ee8cc623554694fe51c5d72f308067b5b60a9d41e84d8e7b1657e63"
+    "ast_sha256": "c46b500a734e09ffe547c0c786294ff7a5847f0fd1dadd6c7aa2366125e3c687"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -8503,7 +8503,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "01667e8c9f5135c16b6c0c3ad9e9321c5ebf22053cb211d495d47b60cee1228e"
+    "ast_sha256": "8e00417e4fc9bf12a630b466eba38f4431c787759b43bc5ea94ec76f773190a5"
   },
   "town_arbiter.py:TownTurnArbiter.ownership_family": {
     "classification": "data",

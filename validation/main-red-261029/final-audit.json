@@ -1,0 +1,21 @@
+{
+  "source_head": "330dad7a16ddd53162eae4591c9ef4e156b38f23",
+  "current_head": "330dad7a16ddd53162eae4591c9ef4e156b38f23",
+  "source_test_trees": [
+    "094bd760eca615c1962cd4af4536e5e804bb24b0",
+    "955fef41fb0e97d7bce2adeecc2db34599c486ee"
+  ],
+  "changed_tests": [
+    "tests/test_census_owner_declaration.py"
+  ],
+  "source_and_tests_clean": true,
+  "mutation_record": "[mutation] MUTATION OK: 0 of 20 hunks are not pinned by a test\nbase main\ntests tests.test_exploration_commitment_observation.ExplorationPathInventoryTest.test_every_path_writer_and_clear_outcome_is_inventoried tests.test_ownership_s2a_classification.ExceptionsFileTest.test_no_uncovered_site_is_unexcused tests.test_ownership_s2a_classification.CensusSeparationTest.test_the_arbitration_table_is_the_one_that_existed_before_s2a tests.test_ownership_s2a_classification.ExceptionsFileTest.test_the_lint_still_reports_rather_than_failing tests.test_reward_pack_full_handoff.RewardPackFullHandoffTest.test_captured_board_releases_reward_to_existing_overflow_owner tests.test_town_terminal_disposal_round14.DisposalAdmissionTest.test_overweight_dispatch_cannot_bypass_the_selected_command_admission tests.test_town_terminal_no_refusal_round11.NoRefusalDeclarationTest.test_the_13_classified_rungs_have_reasons_and_no_shadow tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_control_unobserved_home_capacity_keeps_the_relief tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_generic_departure_block_is_named_when_only_retained_weight_remains tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_retained_only_weight_is_named_with_numbers tests.test_census_owner_declaration tests.test_immobile_summoner_recorded.ImmobileSummonerRecordedTest.test_first_capture_avoids_and_posts tests.test_immobile_summoner_recorded.ImmobileSummonerRecordedTest.test_recorded_board_collects_safe_loot_and_vetoes_loot_in_summoner_view\n",
+  "checks": {
+    "focused-head": 1,
+    "related-head": 0,
+    "preflight-clean": 0,
+    "fast-tier-head": 0,
+    "mutation": 0
+  },
+  "report_utf8": true
+}

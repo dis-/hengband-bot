@@ -1,0 +1,92 @@
+{
+  "tests.test_exploration_commitment_observation.ExplorationPathInventoryTest.test_every_path_writer_and_clear_outcome_is_inventoried": {
+    "ran": 1,
+    "seconds": 3.93,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.ExceptionsFileTest.test_no_uncovered_site_is_unexcused": {
+    "ran": 1,
+    "seconds": 1.67,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_ownership_s2a_classification.py\", line 305, in test_no_uncovered_site_is_unexcused\n    self.assertEqual(\n    ~~~~~~~~~~~~~~~~^\n        self.summary[\"unexcused\"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n         for site in self.summary[\"unexcused_sites\"][:20]],\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: 7 != 0 : ['policy_opening.py:_opening_q1_store_key:121', 'policy_opening.py:_opening_q1_stop:220', 'policy_opening.py:_opening_q1_town_key:277', 'policy_opening.py:_opening_q1_town_key:284', 'policy_opening.py:_opening_q1_town_key:301', 'policy_opening.py:_opening_q1_town_key:313', 'policy_opening.py:_opening_q1_town_key:316']\n"
+    ],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.CensusSeparationTest.test_the_arbitration_table_is_the_one_that_existed_before_s2a": {
+    "ran": 1,
+    "seconds": 0.0,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_ownership_s2a_classification.py\", line 238, in test_the_arbitration_table_is_the_one_that_existed_before_s2a\n    self.assertEqual(\n    ~~~~~~~~~~~~~~~~^\n        hashlib.sha256(table.encode(\"utf-8\")).hexdigest(),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        ARBITRATION_TABLE_SHA256,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: '566921f85a149572d04f1306f878c5083edcf756690500134743d5bd1d332f6d' != 'e2dd0182f7dbafd9a23eeb9714d05a739a6a0df346a2433cd74686c400a50ccd'\n- 566921f85a149572d04f1306f878c5083edcf756690500134743d5bd1d332f6d\n+ e2dd0182f7dbafd9a23eeb9714d05a739a6a0df346a2433cd74686c400a50ccd\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.ExceptionsFileTest.test_the_lint_still_reports_rather_than_failing": {
+    "ran": 1,
+    "seconds": 3.31,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_ownership_s2a_classification.py\", line 335, in test_the_lint_still_reports_rather_than_failing\n    self.assertEqual(payload[\"unexcused\"], 0)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 7 != 0\n"
+    ],
+    "errors": []
+  },
+  "tests.test_reward_pack_full_handoff.RewardPackFullHandoffTest.test_captured_board_releases_reward_to_existing_overflow_owner": {
+    "ran": 1,
+    "seconds": 0.19,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_reward_pack_full_handoff.py\", line 55, in test_captured_board_releases_reward_to_existing_overflow_owner\n    self.assertEqual(key, \"01ka\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\nAssertionError: '01ke' != '01ka'\n- 01ke\n?    ^\n+ 01ka\n?    ^\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_town_terminal_disposal_round14.DisposalAdmissionTest.test_overweight_dispatch_cannot_bypass_the_selected_command_admission": {
+    "ran": 1,
+    "seconds": 0.09,
+    "failures": [],
+    "errors": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_town_terminal_disposal_round14.py\", line 96, in test_overweight_dispatch_cannot_bypass_the_selected_command_admission\n    key = policy._overweight_surplus_sale_key(snap)\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\src\\hengbot\\policy_home.py\", line 176, in _overweight_surplus_sale_key\n    if (relief.route == \"deposit\"\n        ^^^^^^^^^^^^\nAttributeError: 'types.SimpleNamespace' object has no attribute 'route'\n"
+    ]
+  },
+  "tests.test_town_terminal_no_refusal_round11.NoRefusalDeclarationTest.test_the_13_classified_rungs_have_reasons_and_no_shadow": {
+    "ran": 1,
+    "seconds": 0.01,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_town_terminal_no_refusal_round11.py\", line 45, in test_the_13_classified_rungs_have_reasons_and_no_shadow\n    self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12 | round13 | round14 | round15)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'_dig_to_known_downstairs_key', '_direct[1645 chars]key'} != frozenset({'_dig_to_known_downstairs_key'[1609 chars]#1'})\n"
+    ],
+    "errors": []
+  },
+  "tests.test_two_cell_oscillation_recorded.SummonerRetreatVetoRecordedTest.test_replay_reproduces_the_retreat": {
+    "ran": 1,
+    "seconds": 4.34,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_two_cell_oscillation_recorded.SummonerRetreatVetoRecordedTest.test_seek_loot_does_not_walk_back_into_the_abandoned_square": {
+    "ran": 1,
+    "seconds": 4.48,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_control_unobserved_home_capacity_keeps_the_relief": {
+    "ran": 1,
+    "seconds": 4.28,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_weight_relief_root_recorded.py\", line 160, in test_control_unobserved_home_capacity_keeps_the_relief\n    self.assertEqual((relief.route, relief.home_room), (\"sell-or-destroy\", False))\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: ('home-relief', False) != ('sell-or-destroy', False)\n\nFirst differing element 0:\n'home-relief'\n'sell-or-destroy'\n\n- ('home-relief', False)\n+ ('sell-or-destroy', False)\n"
+    ],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_generic_departure_block_is_named_when_only_retained_weight_remains": {
+    "ran": 1,
+    "seconds": 4.61,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_weight_relief_root_recorded.py\", line 219, in test_generic_departure_block_is_named_when_only_retained_weight_remains\n    self.assertEqual(policy.last_reason, \"town:blocked:overweight-retained-only\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'town:blocked:departure-unsatisfiable' != 'town:blocked:overweight-retained-only'\n- town:blocked:departure-unsatisfiable\n+ town:blocked:overweight-retained-only\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_retained_only_weight_is_named_with_numbers": {
+    "ran": 1,
+    "seconds": 4.46,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_weight_relief_root_recorded.py\", line 199, in test_retained_only_weight_is_named_with_numbers\n    self.assertEqual((relief.route, relief.weight, relief.limit, relief.excess),\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                     (\"retained-only\", 1908, LIMIT, 158))\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: ('home-relief', 1908, 1750, 158) != ('retained-only', 1908, 1750, 158)\n\nFirst differing element 0:\n'home-relief'\n'retained-only'\n\n- ('home-relief', 1908, 1750, 158)\n+ ('retained-only', 1908, 1750, 158)\n"
+    ],
+    "errors": []
+  }
+}

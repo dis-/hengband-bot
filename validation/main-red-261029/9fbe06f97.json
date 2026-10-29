@@ -1,0 +1,78 @@
+{
+  "tests.test_exploration_commitment_observation.ExplorationPathInventoryTest.test_every_path_writer_and_clear_outcome_is_inventoried": {
+    "ran": 1,
+    "seconds": 3.73,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.ExceptionsFileTest.test_no_uncovered_site_is_unexcused": {
+    "ran": 1,
+    "seconds": 1.78,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.CensusSeparationTest.test_the_arbitration_table_is_the_one_that_existed_before_s2a": {
+    "ran": 1,
+    "seconds": 0.0,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_ownership_s2a_classification.ExceptionsFileTest.test_the_lint_still_reports_rather_than_failing": {
+    "ran": 1,
+    "seconds": 3.25,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_reward_pack_full_handoff.RewardPackFullHandoffTest.test_captured_board_releases_reward_to_existing_overflow_owner": {
+    "ran": 1,
+    "seconds": 0.18,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_reward_pack_full_handoff.py\", line 55, in test_captured_board_releases_reward_to_existing_overflow_owner\n    self.assertEqual(key, \"01ka\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\nAssertionError: '01ke' != '01ka'\n- 01ke\n?    ^\n+ 01ka\n?    ^\n\n"
+    ],
+    "errors": []
+  },
+  "tests.test_town_terminal_disposal_round14.DisposalAdmissionTest.test_overweight_dispatch_cannot_bypass_the_selected_command_admission": {
+    "ran": 1,
+    "seconds": 0.09,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_town_terminal_no_refusal_round11.NoRefusalDeclarationTest.test_the_13_classified_rungs_have_reasons_and_no_shadow": {
+    "ran": 1,
+    "seconds": 0.0,
+    "failures": [
+      "Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client\\.worktrees\\main-red-history-261029\\tests\\test_town_terminal_no_refusal_round11.py\", line 45, in test_the_13_classified_rungs_have_reasons_and_no_shadow\n    self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12 | round13 | round14 | round15)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'home-knowledge-after-exit', '_fruitless[1645 chars]key'} != frozenset({'_chest_processing_key#2', '_s[1609 chars]ey'})\n"
+    ],
+    "errors": []
+  },
+  "tests.test_two_cell_oscillation_recorded.SummonerRetreatVetoRecordedTest.test_replay_reproduces_the_retreat": {
+    "ran": 1,
+    "seconds": 4.75,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_two_cell_oscillation_recorded.SummonerRetreatVetoRecordedTest.test_seek_loot_does_not_walk_back_into_the_abandoned_square": {
+    "ran": 1,
+    "seconds": 5.72,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_control_unobserved_home_capacity_keeps_the_relief": {
+    "ran": 1,
+    "seconds": 5.74,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_generic_departure_block_is_named_when_only_retained_weight_remains": {
+    "ran": 1,
+    "seconds": 5.27,
+    "failures": [],
+    "errors": []
+  },
+  "tests.test_weight_relief_root_recorded.WeightReliefRootRecordedTest.test_retained_only_weight_is_named_with_numbers": {
+    "ran": 1,
+    "seconds": 6.0,
+    "failures": [],
+    "errors": []
+  }
+}

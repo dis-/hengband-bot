@@ -1651,6 +1651,17 @@ def rung_terminal(policy: Any, rung_name: str, board: Any) -> TerminalRef | None
     return decl.intended_terminal(policy, board)
 
 
+def delegated_command_intended_terminal(policy: Any, board: Any) -> TerminalRef:
+    """Admit selection/settlement; the selected command owns its admission.
+
+    Like item-command-dispatch, this is an enforced dispatcher, not another
+    permanently non-refusable leaf. Batch sales validate their observed item
+    and inscription; shopping admits teleport travel; dungeon selectors hand
+    movement and attacks to their existing command producers.
+    """
+    return TerminalRef(NO_REFUSAL, ("delegated-command-dispatch",))
+
+
 # S2 exit: every production rung has an explicit final mode.
 SHADOW_RUNGS: frozenset[str] = frozenset()
 # Producers ``_decide`` still calls outside the entry (S1->S2 list, design
@@ -1674,12 +1685,6 @@ EXEMPT_RUNGS = frozenset({
 
 # Non-refusable selectors and named closes (round-10 classification b).
 NO_REFUSAL_REASONS = {
-    "_cross_town_shopping_key": "Select or settle the shopping expedition; the teleport body admits its route and fare before travel.",
-    "_batch_sell_key": "Confirm the posted batch or compose its inscription-bound sale after checking item availability, retention and store acceptance.",
-    '_immobile_summoner_key': 'dungeon-only: avoid or leave a summoner known unable to approach, or fight when retreat is unavailable; src/hengbot/policy_combat.py',
-    '_ranged_attack_key': 'tactical survival/combat: delegated attack against a cornered summoner; src/hengbot/policy_combat.py',
-    '_normal_loot_key': 'dungeon-only: collect safe loot while avoiding a stationary summoner; src/hengbot/policy_combat.py',
-    '_explore_step': 'Select a safe exploration coordinate away from a stationary summoner; the separate movement entry owns the game command.',
     '_chest_processing_key#1': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
     '_chest_processing_key#2': 'not a town errand: drop, approach, search, disarm, open and collect a chest; src/hengbot/policy_identification.py:82',
     '_normal_loot_key#1': 'not a town errand: defend, pick up or walk to visible floor loot; src/hengbot/policy_identification.py:1322',
@@ -1752,6 +1757,9 @@ NO_REFUSAL_REASONS = {
 
 # Every ``_town_producer_entry`` rung (checked against the source by AST).
 TERMINALS: dict[str, TerminalDecl] = {
+    **{name: TerminalDecl(delegated_command_intended_terminal, ENFORCE) for name in (
+        "_cross_town_shopping_key", "_batch_sell_key", "_immobile_summoner_key",
+        "_ranged_attack_key", "_normal_loot_key", "_explore_step")},
     "_finish_mining_floor": TerminalDecl(floor_exit_intended_terminal, ENFORCE),
     "_victory_loot_key": TerminalDecl(floor_exit_intended_terminal, ENFORCE),
     "_town_blocked_key": TerminalDecl(blocked_intended_terminal, ENFORCE),

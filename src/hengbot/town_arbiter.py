@@ -129,15 +129,15 @@ class TownTurnArbiter:
             registration("home-visit", ("home:", "home-visit:", "home-disposal:"), "addressed Home state delta"),
             registration("shop-sell", ("town:overweight-surplus-", "shop:sale", "shop:sell-", "shop:batch-sale", "shop:batch-sell", "shop:batch-inscribe", "shop:one-shot-sale", "shop:one-shot-sell", "shop:in-store-sell", "shop:in-store-inscribe", "shop:unsellable-", "shop:defective-target-leave", "shop:leave", "shop:stuck-leave", "shop:invalid", "shop:retain-standing-digging-tool", "town:destroy-overflow", "equipment:sale"), "gold up and inventory delta",
                 census=("shop:outpost-fare-earned-leave", "shop:outpost-fare-seek-sale-leave", "shop:outpost-fare-sale-approach",)),
-            registration("shop-buy", ("shop:one-shot-buy", "shop:in-store-buy", "shop:in-store-done", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:opening-route-page", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta",
-                ("shop:purchase-deferred",)),
+            registration("shop-buy", ("shop:one-shot-buy", "shop:in-store-buy", "shop:in-store-done", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta",
+                ("shop:purchase-deferred", "shop:opening-route-page")),
             registration("store-router", ("shop:approach", "shop:travel", "store:", "town:travel", "town-travel:", "town:teleport", "wilderness:enter-town", "wilderness:global-travel", "wilderness:enter-global"), "distance to store goal"),
             registration("equipment-opt", ("equipment-optimization:", "equipment:opt", "optimizer:"), "optimization signature delta"),
-            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light", "opening-q1:equip-light"), "equipment session or slot delta",
+            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light"), "equipment session or slot delta",
                 # S2a census: the replacement half of the same producer
                 # (policy_equipment.py ``_town_restore_weapon_key``) was never
                 # registered, so it alone fell through to ``unregistered``.
-                ("town:replace-no-teleport-weapon",)),
+                ("town:replace-no-teleport-weapon", "opening-q1:equip-light")),
             registration("identification", ("identify:", "identification:", "item-processing:", "inventory:"), "known item or failure-set delta"),
             registration("fundraising", ("fundraise:", "fundraising:", "mining:", "town:recall-stockout-mining", "town:identify-staff-stockout-mining"), "gold or vein delta"),
             registration("curse-enchant", ("town:remove-curse", "town:enchant-launcher-", "curse:", "remove-curse:", "enchant:"), "curse or enchantment delta"),
@@ -151,7 +151,8 @@ class TownTurnArbiter:
                  "town:ascend", "town:descend")),
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness", "town:repetition-required-shopping"), "completed plan or claim delta"),
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
-            registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:", "magic-eater:absorb"), "quest request or phase advance"),
+            registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:"), "quest request or phase advance",
+                census=("magic-eater:absorb",)),
             registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:", "ownership:"), "block release or visible stop"),
             # -- S2a: the families behind the two catch-alls -----------------
             #
@@ -287,6 +288,8 @@ class TownTurnArbiter:
         # Declaration continuations added after the frozen S2a registration
         # table still spend their producing family's arbitration budget.
         explicit = {
+            "shop:opening-route-page": "shop-buy",
+            "opening-q1:equip-light": "equipment-txn",
             "shop:purchase-deferred": "shop-buy",
             "shop:outpost-fare-earned-leave": "shop-sell",
             "shop:outpost-fare-seek-sale-leave": "shop-sell",
@@ -297,6 +300,8 @@ class TownTurnArbiter:
         }
         if normalized in {"no-wait:escape-scroll", "no-wait:flee"}:
             return "survival"
+        if normalized.startswith("magic-eater:absorb"):
+            return "quest-request"
         if normalized in explicit:
             return explicit[normalized]
         for entry in self._ordered:

@@ -1007,17 +1007,20 @@ class ClaimScope:
         self.claim = self._register.release()
 
 
-def claims(owner: str | ClaimOwner):
+def claims(owner: str | ClaimOwner, *, census_only: bool = False):
     """Mark a producer as belonging to one owner family (design 5.1).
 
     S1 records the owner on the function and returns the *same* function
     object, so marking a producer changes no bytecode and costs no runtime.
     The lint reads the decorator lexically; S2 turns it into a declaration.
+    Composite dispatchers may declare census ownership without adding an
+    operational ladder rung: their selected children retain their own entry.
     """
     declared = owner_of(owner)
 
     def mark(producer):
-        setattr(producer, CLAIM_OWNER_ATTRIBUTE, declared)
+        attribute = "__hengbot_census_owner__" if census_only else CLAIM_OWNER_ATTRIBUTE
+        setattr(producer, attribute, declared)
         return producer
 
     return mark

@@ -15056,7 +15056,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if cursed is not None:
             return cursed
-        disposable = self._find_disposable_item(snapshot)
+        disposable = self._find_worthless_junk(snapshot) or self._find_disposable_item(snapshot)
         if disposable is not None:
             return disposable
         return self._first_item(

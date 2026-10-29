@@ -1,0 +1,13 @@
+{
+  "head": "330dad7a16ddd53162eae4591c9ef4e156b38f23",
+  "command": [
+    "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+    "C:\\hengband-backups\\guard-tools\\preflight.py",
+    ".",
+    "main"
+  ],
+  "code": 0,
+  "seconds": 189.379,
+  "python": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
+  "finished": "2026-10-29T06:39:12.797779+09:00"
+}

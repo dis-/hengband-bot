@@ -36,8 +36,8 @@ class WeightRelief(NamedTuple):
 
     Junk goes first through the town junk step (#95).  Then the carried
     retention surplus: a Home deposit while the Home has a free slot, else a
-    sale, else a destruction (owner 2026-10-10). Only the absence of both
-    deposit and surplus candidates means that retained weight alone remains.
+    sale, else a destruction (owner 2026-10-10). Without a deposit route,
+    insufficient surplus leaves retained weight above the departure limit.
     """
     weight: int
     limit: int | None
@@ -148,7 +148,7 @@ class HomeMixin:
 
     @claims(ClaimOwner.SHOP_SELL)
     def _overweight_surplus_sale_key(self, snapshot: Snapshot) -> str | None:
-        """Last-resort, recorded disposal after Home relief proves impossible."""
+        """Dispose surplus; only observed Home room can preempt selection."""
         state = self._overweight_surplus_disposal
         if state is None or not snapshot.in_town or self._equipment_transaction_owned_items:
             return None
@@ -172,9 +172,9 @@ class HomeMixin:
                 or snapshot.player.food_state not in {"normal", "full", "gorged"}
                 or self._physical_hostiles(snapshot)):
             return None
-        relief = self._weight_relief_selection(snapshot)
-        if (relief.route == "deposit"
+        if ((self._home_capacity_observation is not None or snapshot.store is not None)
                 and not state.get("pending", {}).get("posted")
+                and self._weight_relief_selection(snapshot).route == "deposit"
                 and self._find_home_deposit(snapshot) is not None):
             self._overweight_surplus_disposal = None
             return None
@@ -2815,13 +2815,13 @@ class HomeMixin:
         surplus = tuple(self._overweight_surplus_candidates(snapshot))
         if deposits and home_room:
             route = "deposit"
-        elif deposits and home and not home_capacity_known:
-            # Unknown capacity is not a full Home. Observe the available
-            # route before retiring its deposits into carried disposal.
+        elif deposits and home and not home_capacity_known and self._home_full_relief is None:
+            # Observe unknown capacity before opening another route. A pending
+            # full-Home relief already owns that observation and stays intact.
             route = "home-relief"
         elif sum(item.weight * count for _, _, item, count, _ in surplus) >= excess:
             route = "sell-or-destroy"
-        elif deposits or surplus:
+        elif deposits:
             # Exhausting Home's route does not turn its remaining deposit
             # candidates into retained items. Keep the unreachable terminal
             # when legal shedding cannot clear the excess on this board.
