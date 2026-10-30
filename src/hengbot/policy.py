@@ -2274,6 +2274,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._fundraising_affordable_food_seen = False
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
+        # The income floor a mining run was ended on by a ruled-out unique
+        # (_mining_unbeatable_unique_abort_key); that run is not counted.
+        self._mining_abort_floor: tuple[int, int, int] | None = None
         self._identify_staff_mining_plan = False
         # Marks the one-run D1 recall-stockout time-pass (not a funding set):
         # the gold set-end leaves it running while the stockout persists.
@@ -11159,6 +11162,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._escape_state.stable_decisions += 1
             if self._escape_state.stable_decisions >= 2:
                 self._escape_state.release()
+
+        # Owner 2026-10-31: a mining run that meets the unique the owner
+        # rules out ends here, before any mining or ordinary combat rung can
+        # attack it.
+        mining_abort = self._town_producer_entry("_mining_unbeatable_unique_abort_key", lambda: self._mining_unbeatable_unique_abort_key(
+            snapshot, strategic_hostiles, strategic_adjacent
+        ), family="fundraising")
+        if mining_abort is not None:
+            return mining_abort
 
         # A harmless but extremely durable unique can otherwise fall through
         # the consumable projection and into ordinary melee forever.  Arm a

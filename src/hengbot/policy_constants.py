@@ -394,6 +394,11 @@ MINING_NAVIGATION_REVISIT_LIMIT = 8
 
 MINING_OSCILLATION_RETARGET_LIMIT = 3
 
+# Owner 2026-10-31: 「採掘中に『グレーター・ヘル=ビースト』に出会ったら採掘を
+# 切り上げて地上に戻る。序盤の攻撃力では倒せないし非効率。」  Race ids
+# (lib/edit/MonraceDefinitions.jsonc) whose sighting ends a mining run.
+MINING_ABORT_UNIQUE_RACE_IDS = frozenset({39})
+
 RECALL_MIN_DEPTH = 5
 
 FUNDRAISING_DIGGER_BASE_PRICE = 20

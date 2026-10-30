@@ -761,12 +761,19 @@ class ObservationMixin:
             and previous_floor[1] == 1
             and self._fundraising_mode in {"mine", "scavenge"}
         )
+        # A run ended by a ruled-out unique (owner 2026-10-31) is not a
+        # completed or short run: the planned run is made again on a fresh
+        # floor instead of advancing the run and stockout-cycle limits.
+        aborted_run = getattr(self, "_mining_abort_floor", None) == previous_floor
+        if snapshot.in_town:
+            self._mining_abort_floor = None
         if returned_from_fundraising:
-            if getattr(self, "_supply_stockout_gold_target", None) is not None:
+            if (getattr(self, "_supply_stockout_gold_target", None) is not None
+                    and not aborted_run):
                 self._supply_stockout_cycles = getattr(self, "_supply_stockout_cycles", 0) + 1
             if (self._fundraising_mode == "mine"
                     or getattr(self, "_supply_stockout_gold_target", None) is not None
-                    or getattr(self, "_no_safe_destination_set", False)):
+                    or getattr(self, "_no_safe_destination_set", False)) and not aborted_run:
                 self._mining_runs_completed += 1
             if self._fundraising_mode == "scavenge":
                 self._sell_scavenged_consumables = True
