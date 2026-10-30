@@ -170,10 +170,14 @@ RECALL_DESTINATION_UNCHOSEN = "failed:recall-destination-unchosen"
 
 
 def recall_destination_listed(lines: Sequence[object], letter: str) -> bool:
-    """Whether choose_dungeon lists ``letter`` ("      a) ..." rows)."""
+    """Whether choose_dungeon lists ``letter`` ("      a) ..." rows).
+
+    recall_player prints the rows with prt(row, 2 + i, 14): the side panel
+    (race, title, level...) stays in cells 0-13 left of each row (D26).
+    """
     return re.fullmatch(r"[a-z]", letter) is not None and any(
-        re.match(r"\s*" + re.escape(letter) + r"\) ", str(row))
-        for row in list(lines)[1:])
+        _text_at_cell(str(row), 14).startswith(f"      {letter}) ")
+        for row in list(lines)[2:])
 
 
 def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | None = None) -> ScreenMatch:
