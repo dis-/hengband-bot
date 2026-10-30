@@ -2118,6 +2118,14 @@ class HomeMixin:
         from hengbot.me_staff_sequence import retains as staff_sequence_retains
         if staff_sequence_retains(self, snapshot, item):
             return item.count, "me-staff:absorb"
+        from hengbot.magic_eater_devices import WONDER_HOLD_LIMIT, is_staple_food, staple_food
+        staple = staple_food(snapshot)
+        if staple is not None and is_staple_food(item):
+            # Owner 2026-10-30: the Wand of Wonder is the staple food, charged
+            # or drained (the Tower recharges it): never sold, shelved or
+            # destroyed -- up to the two that are enough (a wand picked up
+            # unseen stacks into it; the third is surplus).
+            return min(item.count, WONDER_HOLD_LIMIT), "mana-food:staple"
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (
@@ -2350,7 +2358,10 @@ class HomeMixin:
                 if item.slot in keep_slots
                 else (0, None)
             )
-        elif snapshot.player.food_type == FOOD_TYPE_MANA and item.is_wand_staff:
+        elif (snapshot.player.food_type == FOOD_TYPE_MANA and item.is_wand_staff
+              # With the staple carried other devices are no food (owner
+              # 2026-10-30); they keep only their ordinary authorities below.
+              and staple is None):
             # Charged devices are MANA food; Identify charges below the casting
             # floor are reserved for identification rather than edible surplus.
             if (

@@ -37,7 +37,9 @@ import json
 
 from hengbot.baseitem_knowledge import find_baseitem_definitions
 from hengbot.magic_eater import ABSORB_REASON
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.magic_eater_devices import (
+    PLAYER_CLASS_MAGIC_EATER, staple_food, staple_needs_recharge,
+)
 from hengbot.model import (
     STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_ROD, TVAL_STAFF, TVAL_WAND,
 )
@@ -75,6 +77,7 @@ IDENTIFY_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_IDENTIFY]
 DETECT_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_DETECT_GOLD]
 DETECT_REASON = "fundraise:me-detect-treasure"
 BUY_RUNG = "me-staff:buy"
+STAPLE = "staple"  # the Wand of Wonder's key in attempts / pending
 
 
 @dataclass
@@ -84,6 +87,8 @@ class MeStaffSequence:
     bought: frozenset = frozenset()
     fundraise_runs: int = 0
     fundraise_target: int | None = None
+    target_reached: bool = False                   # the current run met its target
+    reached_runs: int = 0                          # runs that met their target
     shelf_after_turn: int = -1
     rumor_batches: int = 0
     attempts: dict = field(default_factory=dict)   # (step, sval) -> count
@@ -326,19 +331,26 @@ def _page_purchase(policy, snapshot):
 # -- the town owner --------------------------------------------------------
 
 def _phase(policy, snapshot) -> str:
+    town = policy._effective_town_id(snapshot)
+    visited = snapshot.visited_town_ids
     if complete(policy):
-        return "return" if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID else "done"
+        # 「減ったら塔でチャージする」: the staple Wand of Wonder goes back to
+        # the Tower through the same travel and recharge steps.
+        if (staple_needs_recharge(snapshot) and visited is not None
+                and MORIVANT_TOWN_ID in visited):
+            return "recharge" if town == MORIVANT_TOWN_ID else "travel"
+        return "return" if town != OUTPOST_TOWN_ID else "done"
     carried = carried_staffs(snapshot)
     missing = [sval for sval in SEQUENCE_SVALS
                if not absorbed(policy, sval) and sval not in carried]
     if missing:
         return "buy"
-    visited = snapshot.visited_town_ids
     if visited is None or MORIVANT_TOWN_ID not in visited:
         return "rumor"
-    if policy._effective_town_id(snapshot) != MORIVANT_TOWN_ID:
+    if town != MORIVANT_TOWN_ID:
         return "travel"
-    if any(item.charges < max_charges(sval) for sval, item in carried.items()):
+    if (any(item.charges < max_charges(sval) for sval, item in carried.items())
+            or staple_needs_recharge(snapshot)):
         return "recharge"
     return "absorb"
 
@@ -349,11 +361,36 @@ def _stop(policy, detail: str) -> str:
     return ""
 
 
+def supply_cost(policy, snapshot) -> int:
+    """Gold the departure plan's still-unmet survival supplies cost.
+
+    Supervisor 2026-10-30 (owner: 「生存処理を優先しなければキャラクタは死亡
+    する。」): recall, teleport, cure and the rest are bought first, so every
+    explicit target carries them on top of the sequence's own cost.  With the
+    staple carried its food shortage is the Tower's recharge, already in
+    ``recharge_cost``, so food is not priced twice.  A quest's carry list is
+    the quest strategy's own procurement, not this run's.  An unknown price
+    adds nothing here (the ordinary reserve refuses optional spending for it).
+    """
+    excluded = frozenset({"food"}) if staple_food(snapshot) is not None else frozenset()
+    reserve = policy._required_departure_supply_reserve(
+        snapshot, excluded_kinds=excluded, quest_carry=False)
+    return reserve or 0
+
+
 def _fundraise(policy, snapshot, target: int, why: str) -> str:
-    """One existing fundraising run whose objective is ``target`` gold."""
+    """One existing fundraising run whose objective is ``target`` gold.
+
+    The limit counts runs that came back short of their target; a run that
+    met it and whose gold then went to survival supplies is no failure
+    (D25 life-036).  Met runs keep their own limit, so a target that keeps
+    drifting still ends in a named stop.
+    """
     record = state(policy)
-    if record.fundraise_runs >= FUNDRAISE_RUN_LIMIT:
+    if record.fundraise_runs - record.reached_runs >= FUNDRAISE_RUN_LIMIT:
         return _stop(policy, f"fundraise-limit:{why}:{target}")
+    if record.reached_runs >= FUNDRAISE_RUN_LIMIT:
+        return _stop(policy, f"fundraise-target-drift:{why}:{target}")
     record.fundraise_runs += 1
     record.fundraise_target = target
     record.shelf_after_turn = snapshot.turn
@@ -395,7 +432,8 @@ def _settle_pending(policy, snapshot) -> None:
     step, before = record.pending
     record.pending = None
     for sval, charges in before:
-        item = carried_staffs(snapshot).get(sval)
+        item = (staple_food(snapshot) if sval == STAPLE
+                else carried_staffs(snapshot).get(sval))
         if step == "absorb" and item is None:
             record.absorbed = {**record.absorbed, sval: charges}
         if step == "recharge" and item is not None and item.charges > charges:
@@ -461,6 +499,8 @@ def _recharge_key(policy, snapshot) -> str:
         return policy._step_toward(snapshot, step)
     before = [(sval, item.charges) for sval, item in sorted(carried_staffs(snapshot).items())
               if item.charges < max_charges(sval)]
+    if staple_needs_recharge(snapshot):
+        before.append((STAPLE, staple_food(snapshot).charges))
     for sval, _charges in before:
         if not _attempt(policy, "recharge", sval):
             return _stop(policy, f"recharge-no-progress:{sval}")
@@ -507,16 +547,21 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     phase = _phase(policy, snapshot)
     if phase == "done":
         return None
+    gold = snapshot.player.gold
     if _fundraising_owns(policy):
         # The existing fundraising owners carry out the run.
+        record.target_reached = record.target_reached or gold >= record.fundraise_target
         return None
     if record.fundraise_target is not None:
+        if record.target_reached or gold >= record.fundraise_target:
+            record.reached_runs += 1
         record.fundraise_target = None
+        record.target_reached = False
     if policy._physical_adjacent_hostiles(snapshot):
         return None
     if _no_progress(policy, snapshot, phase):
         return _stop(policy, f"no-progress:{phase}")
-    gold = snapshot.player.gold
+    supplies = supply_cost(policy, snapshot)
     if phase == "buy":
         if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID:
             return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-to-shop")
@@ -534,9 +579,10 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             # restock time; its gold target is the staffs' base estimate.
             estimate = sum(_base_definitions()[sval][1] * 2 for sval in SEQUENCE_SVALS
                            if sval not in carried_staffs(snapshot))
-            return _fundraise(policy, snapshot, max(gold + 1, estimate), "staff-stockout")
-        if gold < target:
-            return _fundraise(policy, snapshot, target, "staffs")
+            return _fundraise(policy, snapshot, max(gold + 1, estimate + supplies),
+                              "staff-stockout")
+        if gold < target + supplies:
+            return _fundraise(policy, snapshot, target + supplies, "staffs")
         offer = next(offer for sval, offer in sorted(offers(policy, snapshot).items()))
         step = policy._shopping_approach_step(snapshot, store_type=offer[0], requester="quest-request")
         if step is None:
@@ -545,7 +591,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         key = policy._shopping_approach_key(snapshot, step, "shop:travel")
         return key if key is not None else _stop(policy, "shop-operation-unavailable")
     record.bought = record.bought | frozenset(carried_staffs(snapshot))
-    expedition = 2 * TOWN_TELEPORT_COST + recharge_cost(snapshot)
+    expedition = 2 * TOWN_TELEPORT_COST + recharge_cost(snapshot) + supplies
     if phase == "rumor":
         needed = expedition + RUMOR_GOLD_RESERVE + RUMOR_COST * RUMOR_READS_PER_VISIT
         if gold < needed:

@@ -1561,7 +1561,7 @@
     "classification": "data",
     "context": "Possible town/store context: food purchase, supplier and Home-stock predicates use this ware filter.",
     "delegation": "selected child; no independent success",
-    "evidence": "Returns bool only. A wand or staff that is not identified Magic-Eater absorption stock; does not emit commands or claim progress.",
+    "evidence": "Returns bool only. A wand or staff the food count credits (owner 2026-10-30: any device but the Magic-Eater's pending absorptions, only the Wand of Wonder once carried); does not emit commands or claim progress.",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "rows": [
       "data/no-independent-credit"
@@ -1572,7 +1572,7 @@
     "classification": "data",
     "context": "Possible town/store context: food counts and selectors use this inventory filter.",
     "delegation": "selected child; no independent success",
-    "evidence": "Returns list[InventoryItem] only. Excludes identified Magic-Eater absorption stock; does not emit commands or claim progress.",
+    "evidence": "Returns list[InventoryItem] only. Known charged devices that is_mana_food_ware credits; does not emit commands or claim progress.",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "rows": [
       "data/no-independent-credit"
@@ -12300,6 +12300,39 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "magic_eater_devices.py:is_staple_food": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: the food ware, retention and purchase-order predicates use this item test.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns bool only. An identified Wand of Wonder (owner 2026-10-30 staple food); does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "magic_eater_devices.py:staple_food": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: food counts, retention, eat selection and the device-food reserve slot read the carried staple.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns InventoryItem | None only. The zombie Magic-Eater's carried Wand of Wonder; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "policy_supply.py:SupplyMixin._mana_food_device_target": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: the food ledger, purchase quantity and identify-staff release compare against this device count.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns int only. One device with the staple carried, else MANA_FOOD_DEVICE_TARGET; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
   "me_staff_sequence.py:_device_definitions": {
     "classification": "data",
     "rows": [
@@ -12321,5 +12354,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "magic_eater_devices.py:wonder_held": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: the Wand of Wonder purchase cap reads pack and Home knowledge.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns int only. Wands of Wonder in the pack and Home (owner 2026-10-30 cap of two); does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "magic_eater_devices.py:wonder_purchase_room": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: the food ware predicate and the purchase quantity cap Wands of Wonder.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns int only. Two minus the Wands of Wonder held, never below zero; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "me_staff_sequence.py:supply_cost": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: the staff sequence's explicit fundraising targets add this.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns int only. The known price of still-unmet departure ledger supplies (survival first, supervisor 2026-10-30); does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "policy_shop.py:ShopMixin._required_departure_supply_reserve": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: optional Black Market spending and the staff sequence's targets read this reserve.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns int | None only. Known cost of unmet required stock, optionally without some ledger kinds or the quest carry list; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
   }
 }

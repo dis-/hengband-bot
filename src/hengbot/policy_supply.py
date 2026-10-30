@@ -1,6 +1,9 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.magic_eater_devices import is_mana_food_ware, mana_food_devices
+from hengbot.magic_eater_devices import (
+    PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
+    staple_charges, staple_food,
+)
 
 from collections import deque
 from contextlib import contextmanager
@@ -282,7 +285,7 @@ class SupplyMixin:
         )
         return any(
             (
-                is_mana_food_ware(snapshot.player.class_id, item) and item.pval > 0
+                is_mana_food_ware(self, snapshot, item) and item.pval > 0
                 if mana_food
                 else self._store_item_is_supply(item, kind)
             )
@@ -313,7 +316,8 @@ class SupplyMixin:
                 min(
                     self._count_mana_food_uses(snapshot),
                     MANA_FOOD_CHARGE_TARGET
-                    if self._count_mana_food_devices(snapshot) >= MANA_FOOD_DEVICE_TARGET
+                    if self._count_mana_food_devices(snapshot)
+                    >= self._mana_food_device_target(snapshot)
                     else MANA_FOOD_CHARGE_TARGET - 1,
                 )
                 if mana_food
@@ -348,7 +352,7 @@ class SupplyMixin:
                 self._home_knowledge_current
                 and any(
                     (
-                        is_mana_food_ware(snapshot.player.class_id, item) and item.pval > 0
+                        is_mana_food_ware(self, snapshot, item) and item.pval > 0
                         if kind == "food" and mana_food
                         else self._store_item_is_supply(item, kind)
                     )
@@ -423,7 +427,11 @@ class SupplyMixin:
         return statuses
 
     def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
-        devices = mana_food_devices(snapshot)
+        if staple_food(snapshot) is not None:
+            # Owner 2026-10-30: the Wand of Wonder is the staple; its charges
+            # alone are the food (a wand stack's pval is already its total).
+            return staple_charges(snapshot)
+        devices = mana_food_devices(self, snapshot)
         carried_charges = sum(self._stack_charges(it) for it in devices)
         # Home stock is a supplier, never food carried into the dungeon.
         if snapshot.player.food_state in {"weak", "fainting"}:
@@ -436,7 +444,16 @@ class SupplyMixin:
         return carried_charges - min(IDENTIFY_CHARGE_FLOOR, identify_charges)
 
     def _count_mana_food_devices(self, snapshot: Snapshot) -> int:
-        return sum(it.count for it in mana_food_devices(snapshot))
+        return sum(it.count for it in mana_food_devices(self, snapshot))
+
+    @staticmethod
+    def _mana_food_device_target(snapshot: Snapshot) -> int:
+        """Devices the food ledger wants: the staple ignores the elements.
+
+        The second device guards food against elemental inventory damage; the
+        Wand of Wonder (IGNORE_ACID/ELEC/FIRE/COLD) needs no such spare.
+        """
+        return 1 if staple_food(snapshot) is not None else MANA_FOOD_DEVICE_TARGET
 
     def _light_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() >= 2 and not self._owns_lantern(snapshot):
@@ -948,7 +965,8 @@ class SupplyMixin:
                 return (
                     identify_charges >= STAFF_IDENTIFY_MIN_CHARGES
                     and edible_charges >= required_food
-                    and total_devices - item.count >= MANA_FOOD_DEVICE_TARGET
+                    and total_devices - item.count
+                    >= self._mana_food_device_target(snapshot)
                 )
 
             candidates = [item for item in candidates if remains_restocked(item)]
@@ -1020,7 +1038,7 @@ class SupplyMixin:
             return None
         candidates = [
             it for it in store.items
-            if is_mana_food_ware(snapshot.player.class_id, it)
+            if is_mana_food_ware(self, snapshot, it)
             and it.price <= snapshot.player.gold
             and ((it.tval, it.sval) not in excluded_classes
                  or self._identify_staff_swap_purchase(it))
@@ -1079,9 +1097,13 @@ class SupplyMixin:
         # policy can actually use when slot-equivalent, and compare price last.
         # Ordinary-store JSON used to omit charges; a name without a parseable
         # count remains visible and purchasable with a conservative estimate.
+        # Owner 2026-10-30: the Wand of Wonder becomes the staple once
+        # secured, so the Magic shop's one is the food bought first.
         return min(
             candidates,
             key=lambda it: (
+                not (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+                     and is_staple_food(it)),
                 (shortage + charge_count(it) - 1) // charge_count(it),
                 utility_rank(it),
                 -charge_count(it),
@@ -1303,9 +1325,13 @@ class SupplyMixin:
             or snapshot.player.food_type != FOOD_TYPE_MANA
             or len(snapshot.inventory) >= PACK_CAPACITY
             or (
-                self._count_mana_food_devices(snapshot) >= MANA_FOOD_DEVICE_TARGET
+                self._count_mana_food_devices(snapshot)
+                >= self._mana_food_device_target(snapshot)
                 and self._count_mana_food_uses(snapshot) >= MANA_FOOD_CHARGE_TARGET
             )
+            # A floor device other than the staple never moves the staple's
+            # food count; its shortage is the Tower's recharge.
+            or staple_food(snapshot) is not None
             or self._loot_block_reason(snapshot, hostiles) is not None
         ):
             return None
@@ -1347,7 +1373,19 @@ class SupplyMixin:
         # empty one is skipped, an unknown one is worth the attempt) — but prefer
         # a device we know still has charges.
         if snapshot.player.food_type == FOOD_TYPE_MANA:
-            charged = mana_food_devices(snapshot)
+            staple = staple_food(snapshot)
+            if staple is not None:
+                # Owner 2026-10-30: the staple is what is eaten.  Drained, it
+                # leaves the rest of the pack to starvation alone (survival
+                # outranks the rule, 2026-10-30).
+                if staple.charges > 0:
+                    return staple
+                if snapshot.player.food_state not in {"weak", "fainting"}:
+                    return None
+            charged = [it for it in snapshot.inventory
+                       if it.known and it.is_wand_staff and it.charges > 0
+                       and not is_staple_food(it)] if staple is not None else (
+                mana_food_devices(self, snapshot))
             non_utility = [it for it in charged if not self._is_useful_device(it)]
             if non_utility:
                 return min(non_utility, key=lambda it: (-it.count, -it.charges, it.slot))

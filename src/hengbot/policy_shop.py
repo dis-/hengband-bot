@@ -63,7 +63,10 @@ class _SignatureScopedStoreVerdict(str):
 
 
 class ShopMixin(InStoreMixin):
-    def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
+    def _required_departure_supply_reserve(
+        self, snapshot: Snapshot, *, excluded_kinds: frozenset = frozenset(),
+        quest_carry: bool = True,
+    ) -> int | None:
         """Return the known cost of unmet required stock, or unknown.
 
         Prices come from emitter-observed shelves retained by
@@ -121,6 +124,8 @@ class ShopMixin(InStoreMixin):
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         price_category = {"cure": "cure-critical"}
         for status in ledger.values():
+            if status.kind in excluded_kinds:
+                continue
             missing = max(0, status.required_departure - status.count)
             if missing and not add(price_category.get(status.kind, status.kind), missing):
                 return None
@@ -137,7 +142,7 @@ class ShopMixin(InStoreMixin):
             if not add("identify-staff", missing):
                 return None
 
-        strategy = self._carry_procurement_strategy(snapshot)
+        strategy = self._carry_procurement_strategy(snapshot) if quest_carry else None
         if strategy is not None:
             for name, status in self._quest_carry_status(
                 snapshot, strategy.required_force
@@ -2461,7 +2466,7 @@ class ShopMixin(InStoreMixin):
                 and self._fundraising_mode in {"mine", "scavenge"}
                 and self._find_edible(snapshot) is None
                 and snapshot.player.food_type == FOOD_TYPE_MANA
-                and is_mana_food_ware(snapshot.player.class_id, item)):
+                and is_mana_food_ware(self, snapshot, item)):
             return item
         if (
             self._opening_q34_torch_shortage(snapshot) > 0
@@ -2892,7 +2897,7 @@ class ShopMixin(InStoreMixin):
             add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: int(force.get("speed_potions", 0))))
             add(rung("quest:healing", "healing", lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING) < int(force.get("heal_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING, current=lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING), target=lambda: int(force.get("heal_potions", 0))))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
-        add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and (not self._food_ready(snapshot) or (getattr(self, "_crossarea_fundraising_enforced", False) and self._fundraising_mode in {"mine", "scavenge"} and self._find_edible(snapshot) is None)), lambda i: is_mana_food_ware(snapshot.player.class_id, i)))
+        add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and (not self._food_ready(snapshot) or (getattr(self, "_crossarea_fundraising_enforced", False) and self._fundraising_mode in {"mine", "scavenge"} and self._find_edible(snapshot) is None)), lambda i: is_mana_food_ware(self, snapshot, i)))
         add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
@@ -3330,7 +3335,7 @@ class ShopMixin(InStoreMixin):
                 and snapshot.player.food_type == FOOD_TYPE_MANA
                 and self._find_edible(snapshot) is None
                 and store.store_type == STORE_MAGIC):
-            if any(is_mana_food_ware(snapshot.player.class_id, ware)
+            if any(is_mana_food_ware(self, snapshot, ware)
                    and ware.price <= snapshot.player.gold
                    for ware in store.items):
                 self._fundraising_affordable_food_seen = True
@@ -3834,12 +3839,19 @@ class ShopMixin(InStoreMixin):
         ):
             charge_needed = max(0, ledger["food"].required_departure - ledger["food"].count)
             device_needed = max(
-                0, MANA_FOOD_DEVICE_TARGET - self._count_mana_food_devices(snapshot)
+                0, self._mana_food_device_target(snapshot)
+                - self._count_mana_food_devices(snapshot)
             )
             per_device = max(1, item.pval)
             needed = max(
                 device_needed, (charge_needed + per_device - 1) // per_device
             )
+            from hengbot.magic_eater_devices import (
+                PLAYER_CLASS_MAGIC_EATER, is_staple_food, wonder_purchase_room,
+            )
+            if (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+                    and is_staple_food(item)):
+                needed = min(needed, wonder_purchase_room(self, snapshot))
         elif item.is_oil:
             needed = ledger["oil"].required_departure - ledger["oil"].count
         elif item.is_teleport_scroll:
