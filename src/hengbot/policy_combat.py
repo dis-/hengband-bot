@@ -3078,10 +3078,25 @@ class CombatMixin:
                 knowledge is not None and "NEVER_MOVE" in knowledge.flags
             )
             cannot_approach = not self._monster_can_approach(snapshot, monster)
+            # Beyond get_max_range() (cdis over 18) a monster casts nothing,
+            # not even a blink, unless it holds a counter-attack target
+            # (mspell-attack.cpp:318-321).  A NEVER_MOVE monster cannot close
+            # that distance by walking, so in this window it neither teleports
+            # the player to it nor reaches the player with a spell.
+            spell_reach = in_line_of_fire and not (
+                not contact
+                and never_moves
+                and self._monster_cast_distance(
+                    monster.position, snapshot.player.position
+                ) > MONSTER_SPELL_MAX_RANGE
+                and (snapshot.floor_key, monster.index) not in getattr(
+                    self, "_summoner_counter_targets", frozenset()
+                )
+            )
             can_teleport_player_to = bool(
                 knowledge is not None
                 and "TELE_TO" in knowledge.abilities
-                and in_line_of_fire
+                and spell_reach
             )
             teleport_to_probability = 0.0
             if can_teleport_player_to and knowledge is not None:
@@ -3156,7 +3171,7 @@ class CombatMixin:
             expected_ranged = 0.0
             cause_predictions = []
             aggregate_ranged = None
-            if monster.max_ranged_damage > 0 and in_line_of_fire:
+            if monster.max_ranged_damage > 0 and spell_reach:
                 if knowledge is not None and knowledge.abilities:
                     flags = frozenset(
                         flag
