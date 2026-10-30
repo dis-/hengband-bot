@@ -26,6 +26,8 @@ bot waited at [7,47] on quest:blocked:q2-breach-tool until loop-detected.
 Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」: charges count one wall each;
 a qualifying digger still breaches the whole corridor.  The blocked reason is
 now a named final stop.
+A short wand is then recharged at Morivant's Tower (owner 2026-10-31
+「モリバントの塔で充填」, tests/test_q2_tower_recharge_recorded.py).
 
 Boards, their order and the recorded decisions are from
 tests/fixtures/quest-stops-20261030.json.gz (tests/extract_quest_stops_1031_fixture.py).
@@ -42,6 +44,7 @@ import json
 from pathlib import Path
 import unittest
 
+from hengbot import q2_tower_recharge
 from hengbot.cli import _policy_final_stop_required
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -290,11 +293,14 @@ class Q2BreachChargesRecordedTest(ProductionHarness):
             "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
         })
         self.post(policy, raw, self.data["following"])
-        # The existing owner of an unready Q2 head in Telmora returns to the
-        # Outpost to procure (this policy has no remembered Telmora inn route,
-        # hence its route-unavailable variant); the recorded run requested Q2.
-        self.assertTrue(policy.last_reason.startswith("fixedquest:prepare-return"),
-                        policy.last_reason)
+        # The recorded run requested Q2.  Owner 2026-10-31 「モリバントの塔で
+        # 充填」: the short wand now belongs to the Q2 Tower recharge owner,
+        # whose inn teleport to Morivant this map-less policy cannot route
+        # (hence its named stop); the production construction travels
+        # (tests.test_q2_tower_recharge_recorded).
+        self.assertEqual(policy.last_reason, q2_tower_recharge.STOP_REASON)
+        self.assertTrue(q2_tower_recharge.state(policy).failure.startswith(
+            "travel-morivant-unavailable"), q2_tower_recharge.state(policy).failure)
         # DECLARED CONSTRUCTED: the same wand with one charge per wall.
         charged = replace(board, inventory=[
             replace(item, charges=Q2_BREACH_WALL_COUNT) if item is wand else item

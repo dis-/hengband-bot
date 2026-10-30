@@ -13,6 +13,7 @@ from dataclasses import replace
 from collections.abc import Mapping
 
 from hengbot.input_executor import Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind
+from hengbot.morivant_tower import RECHARGE_ALL_REASONS
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO, STORE_HOME,
@@ -152,7 +153,7 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             *confirmations, _answer(ScreenKind.BUILDING, "\x1b"),
             *continuations,
         ]
-    if owner == "me-staff:recharge-all" and re.fullmatch(r"[1-9]ay\x1b", key):
+    if owner in RECHARGE_ALL_REASONS and re.fullmatch(r"[1-9]ay\x1b", key):
         # market/building-recharger.cpp building_recharge_all: one
         # input_check after 'a'; no question when nothing needs a recharge
         # or the gold is short (msg_print only).  'y' answers only that

@@ -765,6 +765,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
         "quest:blocked:q2-breach-tool": "the Q2 breach corridor still has walls and no Stone to Mud charge or qualifying digger is carried",
+        "quest:blocked:q2-tower-recharge": "the Q2 Stone to Mud recharge trip to Morivant's Tower cannot continue; inspect _q2_tower_recharge.failure in the policy checkpoint",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
     }
