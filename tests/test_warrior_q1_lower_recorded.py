@@ -67,6 +67,8 @@ class WarriorQ1LowerRecordedTest(executor_harness.ProductionHarness):
         force = policy.fixed_quest_readiness_state()["strategy_force"]
         self.assertEqual(force["failed"], [])
         self.assertEqual(force["dps"], {"measured": 24.9, "required": 13.23})
+        # Bad-luck HP floor 88 (2026-10-30 「運が悪い時の余裕を大きく取りたい」) still admits HP 177.
+        self.assertEqual(force["hp"], {"measured": 177, "required": 88})
         self.assertEqual([row[1] for row in policy._opening_q1_requirements(board)], [5, 0, 0])
         key = str(policy.choose_key(board))
         self.assertEqual((key[0], policy.last_reason), ("w", "opening-q1:equip-light"))
@@ -99,6 +101,10 @@ class WarriorQ1LowerRecordedTest(executor_harness.ProductionHarness):
 TORCH_HIT = sum(roll * 25 // 10 * 4 - 2 for roll in range(1, 7)) / 6
 
 
+# The largest damage of one thief action: r_idx 150 HIT 2d6, r_idx 44 HIT 1d5 x2.
+MAX_BLOW = {150: 12, 44: 10}
+
+
 def hit_chance(chance, ac):
     return 0.05 + 0.90 * (1 - (ac * 3 // 4) / chance)
 
@@ -119,8 +125,21 @@ class TorchQuestFloorsTest(unittest.TestCase):
         for gate in (force, tier):
             self.assertEqual(acceptance_dps_floor(gate, 0), 13.23)
             self.assertGreaterEqual(acceptance_dps_floor(gate, 0) + torch, 36)
-        # One exposed action each, as before: the default HP floors stay.
-        self.assertEqual((acceptance_hp_floor(force, 0), acceptance_hp_floor(tier, 0)), (36, 88))
+        # 2026-10-30 「運が悪い時の余裕を大きく取りたい」: both tiers take the
+        # bad-luck side (thief blows hit 100% at max dice, 2d6=12 / 2*1d5=10,
+        # one exposed action each) in the 50% budget instead of the expected 36.
+        bad_luck = (2 * 1 * MAX_BLOW[150] + 2 * 1 * MAX_BLOW[44]) / 0.50
+        self.assertEqual(bad_luck, 88)
+        # Every torch missing (melee alone: 3 and 2 actions) would exclude the
+        # recorded HP 177 board, so the largest met floor 88 (> expected x2 72) is kept.
+        all_miss = (2 * math.ceil(36 / 13.23) * MAX_BLOW[150]
+                    + 2 * math.ceil(20 / 13.23) * MAX_BLOW[44]) / 0.50
+        self.assertEqual(all_miss, 224)
+        self.assertGreater(all_miss, 177)
+        self.assertEqual((acceptance_hp_floor(force, 0), acceptance_hp_floor(tier, 0)),
+                         (max(bad_luck, 36 * 2), 88))
+        # The warrior keeps the 2026-10-26 opening carry of 5 (one per thief plus one).
+        self.assertEqual(class_throwing_items(force, 0), {"lit_torch": 5})
         self.assertEqual(force["throwing_items"], {"lit_torch": 5})
         self.assertEqual((acceptance_dps_floor(force, 3), acceptance_hp_floor(tier, 3)), (28.0, 88))
 
@@ -128,13 +147,30 @@ class TorchQuestFloorsTest(unittest.TestCase):
         force = load_quest_strategies(STRATEGIES)[1].required_force
         chance = 0 + 35 + 11 * 5 // 10 + 0 - 2
         throws = {hp: hp / (TORCH_HIT * hit_chance(chance, ac)) for hp, ac in ((36, 24), (20, 12))}
-        self.assertEqual(2 * math.ceil(throws[36]) + 2 * math.ceil(throws[20]) + 1,
-                         class_throwing_items(force, 16)["lit_torch"])
+        need = 2 * math.ceil(throws[36]) + 2 * math.ceil(throws[20]) + 1
+        self.assertEqual(need, 9)
+        # The owner's fixed carry 20 also covers every first throw missing (8+4).
+        self.assertLessEqual(need - 1 + 4, 20)
+        self.assertEqual(class_throwing_items(force, 16), {"lit_torch": 20})
         steal_out = 1 - 0.7328
         damage = 2 * 5.0 * (1 - (1 - steal_out) ** max(0, throws[36] - 1)) / steal_out
         self.assertEqual(throws[20] < 1, True)
-        self.assertEqual(math.ceil(damage / 0.50), acceptance_hp_floor(force, 16))
-        self.assertEqual(acceptance_hp_floor(force["no_healing_tier"], 16), 23)
+        expected = math.ceil(damage / 0.50)
+        self.assertEqual(expected, 23)
+        # Bad luck: 100% hit, max dice, exposure ceil(expected throws) - 1 = 2 / 0.
+        exposure = {hp: math.ceil(n) - 1 for hp, n in throws.items()}
+        self.assertEqual(exposure, {36: 2, 20: 0})
+        bad_luck = (2 * exposure[36] * MAX_BLOW[150] + 2 * exposure[20] * MAX_BLOW[44]) / 0.50
+        self.assertEqual(bad_luck, 96)
+        # Stricter candidates exclude the recorded HP 107 board: a contact action
+        # at r_idx 44 (136) or every first throw missing (3/1 actions, 184).
+        contact = (2 * 2 * MAX_BLOW[150] + 2 * 1 * MAX_BLOW[44]) / 0.50
+        first_miss = (2 * 3 * MAX_BLOW[150] + 2 * 1 * MAX_BLOW[44]) / 0.50
+        self.assertEqual((contact, first_miss), (136, 184))
+        self.assertGreater(min(contact, first_miss), 107)
+        floor = max(bad_luck, expected * 2)
+        self.assertEqual(acceptance_hp_floor(force, 16), floor)
+        self.assertEqual(acceptance_hp_floor(force["no_healing_tier"], 16), floor)
         self.assertEqual(acceptance_dps_floor(force, 16), 4.58)
 
     def test_q34_torch_count(self):
@@ -142,8 +178,12 @@ class TorchQuestFloorsTest(unittest.TestCase):
         rate = hit_chance(68, 40)
         throws = 2 * math.ceil(36 / (12.0 * rate)) + math.ceil(49 / (TORCH_HIT * rate))
         self.assertEqual(throws, 15)
-        lost = math.ceil(throws * rate * 0.50 + rate * 0.50)
-        self.assertEqual(force["throwing_items"], {"lit_torch": lost + 6})
+        expected_need = math.ceil(throws * rate * 0.50 + rate * 0.50) + 6
+        # Bad luck: every hit torch breaks (2*3 + 2 hits, plus the bee's throw).
+        bad_luck_need = 2 * math.ceil(36 / 12.0) + math.ceil(49 / TORCH_HIT) + 1 + 6
+        self.assertEqual((expected_need, bad_luck_need), (11, 15))
+        # The owner's fixed carry 20 holds both derived needs.
+        self.assertEqual(force["throwing_items"], {"lit_torch": 20})
 
 
 class WarriorQ1ThrowPremiseTest(unittest.TestCase):

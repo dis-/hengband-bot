@@ -61,8 +61,8 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                 warrior = replace(board, player=replace(board.player, class_id=0))
                 ready, unchanged = self.readiness(warrior, quest_id)
                 self.assertFalse(ready)
-                # Real torch values: the Q1 class-16 HP floor 23 is now below the warrior's 36.
-                self.assertEqual(unchanged["failed"], ["dps"] if quest_id == 34 else ["hp", "dps"])
+                # Bad-luck HP floors (2026-10-30): the Q1 class-16 floor 96 is above the warrior's 88.
+                self.assertEqual(unchanged["failed"], ["dps"])
                 self.assertEqual(unchanged["dps"]["required"], warrior_floor)
                 self.assertEqual(unchanged["dps"]["measured"], details["dps"]["measured"])
 
@@ -95,8 +95,8 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                 self.assertFalse(ready)
                 self.assertEqual(details["failed"], ["hp"])
                 # D17: the Q1 class-16 torch plan has one HP floor for both tiers
-                # (98, recounted to 23 with the real torch damage).
-                self.assertEqual(details["hp"]["required"], 10 if quest_id == 34 else 23)
+                # (98, then 23 with the real torch damage, now the bad-luck 96).
+                self.assertEqual(details["hp"]["required"], 10 if quest_id == 34 else 96)
 
     def test_no_healing_hp_floor_is_unchanged(self):
         for quest_id in (34, 1):

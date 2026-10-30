@@ -3785,9 +3785,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(filtered, [target])
 
     def test_acceptance_errand_reserves_and_routes_q34_torches(self):
-        # 2026-10-30 「実際の値で数え直す」: Q34 needs 11 torches (was 20).
+        # 2026-10-30 「松明20本はキープして。」: Q34 carries the fixed 20 torches (the recount 11 is reverted).
         policy = self._policy()
-        torches = item("t", TVAL_LITE, SV_LITE_TORCH, count=11, fuel=5000)
+        torches = item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
         quest = QuestState(id=34, status=0, fixed=True, level=5)
         snap = Snapshot(player(10, 10, class_id=PLAYER_CLASS_WARRIOR), {Position(10, 10): grid(10, 10, building_special=34)}, [],
                         floor_key=(0, 0, 0), town_flag=True, quests={34: quest},
@@ -3795,8 +3795,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                             "main_hand", TVAL_SWORD, 1,
                             name="short sword", is_equipment=True,
                         )])
-        self.assertEqual(policy._retention_reservation(snap, torches), 11)
-        short = replace(snap, inventory=[replace(torches, count=10)])
+        self.assertEqual(policy._retention_reservation(snap, torches), 20)
+        short = replace(snap, inventory=[replace(torches, count=19)])
         needs = policy._enumerate_town_needs(short)
         self.assertTrue(any(
             need.store_type == STORE_GENERAL and need.category == "quest-throwing-items"
@@ -3873,7 +3873,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_measured_q34_opening_routes_and_buys_torches_exactly(self):
-        # 2026-10-30 「実際の値で数え直す」: Q34 needs 11 torches (was 20).
+        # 2026-10-30 「松明20本はキープして。」: Q34 carries the fixed 20 torches (the recount 11 is reverted).
         policy = self._policy()
         torch = store_item(
             "a", TVAL_LITE, SV_LITE_TORCH,
@@ -3895,7 +3895,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(opening), STORE_GENERAL)
         policy._home_knowledge_current = True
         policy._home_knowledge_items = []
-        self.assertEqual(_public_shop_inner(self, policy, opening), "pa11\r\r")
+        self.assertEqual(_public_shop_inner(self, policy, opening), "pa20\r\r")
         self.assertNotEqual(policy.last_reason, "home:atomic-deposit")
         self.assertFalse(policy.last_reason.startswith("calibration:"))
         self.assertNotEqual(policy.last_reason, "equipment-transaction:takeoff")
@@ -4572,7 +4572,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIsNone(policy._town_blocked_reason)
 
     def test_fresh_q34_torch_shortage_blocks_fundraising_start(self):
-        # 2026-10-30 「実際の値で数え直す」: Q34 needs 11 torches (was 20).
+        # 2026-10-30 「松明20本はキープして。」: Q34 carries the fixed 20 torches (the recount 11 is reverted).
         policy = self._policy()
         quest = QuestState(id=34, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5)
         snapshot = Snapshot(
@@ -4586,7 +4586,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             town_flag=True,
             town_id=0,
             quests={34: quest},
-            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=10, fuel=5000)],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=19, fuel=5000)],
         )
 
         self.assertFalse(policy._start_fundraising(snapshot))
@@ -8133,9 +8133,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIsNotNone(policy._next_required_store_type(snapshot))
 
     def test_force_ready_q34_retention_does_not_recurse_through_departure(self):
-        # 2026-10-30 「実際の値で数え直す」: Q34 needs 11 torches (was 20).
+        # 2026-10-30 「松明20本はキープして。」: Q34 carries the fixed 20 torches (the recount 11 is reverted).
         policy = self._policy()
-        snap = self._force_snapshot(34, hp=605, torches=11, speed=1, healing=10)
+        snap = self._force_snapshot(34, hp=605, torches=20, speed=1, healing=10)
         snap = replace(
             snap,
             floor_key=(0, 0, 0),
@@ -8156,11 +8156,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "_fixed_quest_ready",
             side_effect=lambda current, _quest_id: policy._find_home_deposit(current) is None,
         ):
-            self.assertEqual(policy._retention_reservation(snap, torches), 11)
+            self.assertEqual(policy._retention_reservation(snap, torches), 20)
             self.assertIsNone(policy._find_home_deposit(snap))
 
     def test_q34_carry_purchase_stops_at_existing_gold_reserve(self):
-        # 2026-10-30 「実際の値で数え直す」: Q34 needs 11 torches (was 20).
+        # 2026-10-30 「松明20本はキープして。」: Q34 carries the fixed 20 torches (the recount 11 is reverted).
         policy = self._policy()
         torch = StoreItem(
             letter="a", name="Torch", count=20, tval=TVAL_LITE,
@@ -8176,7 +8176,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 ),
                 34: quest,
             },
-            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=3, fuel=5000)],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=12, fuel=5000)],
             store=StoreState(STORE_GENERAL, [torch]),
         )
         reserve = policy._fundraising_kit_reserve(base)
@@ -8191,7 +8191,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._next_purchase(affordable), torch)
 
     def test_fresh_q34_torches_spend_the_fundraising_reserve(self):
-        # 2026-10-30 「実際の値で数え直す」: Q34 needs 11 torches (was 20).
+        # 2026-10-30 「松明20本はキープして。」: Q34 carries the fixed 20 torches (the recount 11 is reverted).
         policy = self._policy()
         torch = StoreItem(
             letter="a", name="Torch", count=99, tval=TVAL_LITE,
@@ -8219,7 +8219,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertEqual(policy._fundraising_kit_reserve(snapshot), 100)
         self.assertEqual(policy._next_purchase(snapshot), torch)
-        self.assertEqual(policy._purchase_quantity(snapshot, torch), 9)
+        self.assertEqual(policy._purchase_quantity(snapshot, torch), 18)
 
     def test_q34_rejects_unapproved_throw_positions_and_keeps_bee_last(self):
         policy = self._policy()

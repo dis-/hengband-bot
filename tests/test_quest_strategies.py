@@ -85,8 +85,8 @@ class QuestStrategiesTest(unittest.TestCase):
         # Approval state is pinned against strategy/approved.json by
         # test_shipped_drafts_match_real_quest_data — no hardcoded duplicate
         # here (Q34 was user-approved via the Phase 4 pipeline on 2026-07-17).
-        # 2026-10-30 「実際の値で数え直す」: real torch damage (TR_THROW x4) recounts 20 -> 11.
-        self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 11)
+        # 2026-10-30 「松明20本はキープして。」: the fixed carry 20 (the recounted need 11 is a floor inside it).
+        self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 20)
         self.assertNotIn("hold_position", profiles[34].engagement_plan)
         self.assertIn("殺人蜂には投擲せず", profiles[34].engagement_plan["ranged_softening"])
         self.assertEqual(
