@@ -177,6 +177,45 @@ class DungeonLoopsRecordedTest(harness.ProductionHarness):
         self.assertIn(target, policy._mining_dropped_veins)
         self.assertNotEqual(policy._treasure_target, target)
 
+    def drive_loot(self, name, limit=12):
+        policy, raw = self.policy(name)
+        # DECLARED CONSTRUCTED (module docstring): the conquest loot owner.
+        policy._victory_loot_dungeon = raw["floor"]["dungeon_id"]
+        cells, reasons = [], []
+        for _ in range(limit):
+            key = self.choose(policy, raw)
+            reasons.append(policy.last_reason)
+            if policy.last_reason == "loot:look-floor-items":
+                policy.consume_look(copy.deepcopy(self.cases[name]["look"]))
+                continue
+            if not policy.last_reason.startswith("loot:seek-"):
+                return policy, raw, key, cells, reasons
+            following = self.walked(raw, key)
+            self.post(policy, raw, key, following)
+            raw = following
+            cells.append((raw["player"]["y"], raw["player"]["x"]))
+        self.fail(("triage never ended", cells, reasons))
+
+    def assert_no_alternation(self, cells):
+        for first, second, third in zip(cells, cells[1:], cells[2:]):
+            self.assertFalse(first == third and first != second, cells)
+
+    def test_full_pack_triage_does_not_seek_unidentifiable_piles_249(self):
+        policy, _raw, key, cells, reasons = self.drive_loot("loot-piles-249")
+        self.assert_no_alternation(cells)
+        # Nothing on the floor can be identified there: the pack-full return.
+        self.assertEqual(cells, [])
+        self.assertEqual(policy.last_reason, "return:recall")
+        self.assertTrue(key.startswith("r"))
+
+    def test_full_pack_triage_identifies_a_single_item_instead_273(self):
+        policy, raw, key, cells, reasons = self.drive_loot("loot-piles-273")
+        self.assert_no_alternation(cells)
+        here = Position(raw["player"]["y"], raw["player"]["x"])
+        self.assertEqual(parse_snapshot(raw, {}).grids[here].object_count, 1)
+        self.assertEqual(policy.last_reason, "loot:identify-floor-item")
+        self.assertTrue(key.endswith("-"), key)
+
 
 if __name__ == "__main__":
     unittest.main()

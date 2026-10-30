@@ -654,7 +654,11 @@ class IdentificationMixin:
             key=lambda candidate: snapshot.player.position.distance_to(candidate),
         ):
             for floor_item in self._look_floor_items.get(position, ()):
-                if item_base_cost(floor_item, self._baseitem_costs) is None:
+                if item_base_cost(
+                    floor_item, self._baseitem_costs
+                ) is None and self._floor_item_identifiable_at(
+                    snapshot, position, floor_item
+                ):
                     if position == snapshot.player.position:
                         identify = self._floor_item_identify_key(snapshot, floor_item)
                         if identify is not None:

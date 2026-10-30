@@ -13245,19 +13245,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return True
         return self._item_matches_purchase_rung(snapshot, item)
 
+    def _floor_item_identifiable_at(
+        self, snapshot: Snapshot, position: Position, item: InventoryItem
+    ) -> bool:
+        """Whether _floor_item_identify_key can act on ``item`` standing on ``position``.
+
+        The floor choice '-' names the object only on a single-object grid, and
+        the identification source is the carried one.  D31 (n1-b life-249/273):
+        the full-pack triage walked between two piles whose unknown items it
+        could identify on neither, until the loop detector stopped the run.
+        """
+        if item.aware and item.sval >= 0:
+            return False
+        grid = snapshot.grids.get(position)
+        if grid is None or grid.object_count != 1:
+            return False
+        return self._find_identification_source(snapshot, full=False) is not None
+
     @claims(ClaimOwner.FLOOR_LOOT)
     def _floor_item_identify_key(
         self, snapshot: Snapshot, item: InventoryItem
     ) -> str | None:
-        if item.aware and item.sval >= 0:
+        if not self._floor_item_identifiable_at(
+            snapshot, snapshot.player.position, item
+        ):
             return None
-        floor_grid = snapshot.grids.get(snapshot.player.position)
-        if floor_grid is None or floor_grid.object_count != 1:
-            return None
-        source = self._find_identification_source(snapshot, full=False)
-        if source is None:
-            return None
-        command, src = source
+        command, src = self._find_identification_source(snapshot, full=False)
         self._look_floor_items.clear()
         self._look_floor_object_counts.clear()
         self.last_reason = "loot:identify-floor-item"
