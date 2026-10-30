@@ -6786,7 +6786,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0859bb76a0be6004a7163c1aeec2ab70039616b17951f426d93521e2ef091c43"
+    "ast_sha256": "9b0b25c7595c55b5ec3669112d688478375c16020149d29e074161c98fc0e5e7"
   },
   "policy_quest.py:QuestMixin._quest_never_move_races": {
     "classification": "data",

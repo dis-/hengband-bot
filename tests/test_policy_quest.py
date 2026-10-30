@@ -4800,7 +4800,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 ),
                 item("l", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6),
                 item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2),
-                item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=3),
+                # One Stone to Mud charge per corridor wall (owner 2026-10-31).
+                item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=5),
                 item("s", TVAL_POTION, SV_POTION_SPEED, count=2),
                 item("h", TVAL_POTION, SV_POTION_HEALING, count=2),
             ],
@@ -4857,6 +4858,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 "utility_tools.wall_breach": replace(
                     base, inventory=[*base.inventory[:3], *base.inventory[4:]]
                 ),
+                # D33 (n1-a life-422): a wand short of the five corridor walls.
+                "utility_tools.wall_breach#short-wand": replace(
+                    base, inventory=[*base.inventory[:3],
+                                     replace(base.inventory[3], charges=4),
+                                     *base.inventory[4:]]
+                ),
             }
             for missing, snapshot in variants.items():
                 with self.subTest(missing=missing):
@@ -4864,7 +4871,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                         policy._approved_strategy_force_ready(snapshot, profile)
                     )
                     self.assertIn(
-                        missing,
+                        missing.partition("#")[0],
                         policy.fixed_quest_readiness_state()["strategy_force"]["failed"],
                     )
 

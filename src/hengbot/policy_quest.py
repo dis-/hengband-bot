@@ -256,6 +256,7 @@ from hengbot.policy_constants import (
     Q2_BREACH_ATTEMPT_LIMIT,
     Q2_BREACH_CORRIDOR,
     Q2_BREACH_MIN_DIGGING,
+    Q2_BREACH_WALL_COUNT,
     Q2_BREACH_POSITION,
     Q2_BREACH_STANDING,
     Q2_BREEDER_RACES,
@@ -776,11 +777,21 @@ class QuestMixin(OpeningRouteMixin):
                 if it.tval == TVAL_SCROLL and it.sval == sval and it.aware
             )
         if category == "utility_tools" and name == "wall_breach":
-            return sum(
-                it.count
-                for it in (*snapshot.inventory, *snapshot.equipment)
-            if self._is_quest_wall_breach_item(it)
+            # Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」: a qualifying
+            # digger breaches the whole corridor; Stone to Mud charges count
+            # one wall each (D33 n1-a life-422 entered with one charge for
+            # the five walls and waited at [7,47]).
+            items = (*snapshot.inventory, *snapshot.equipment)
+            diggers = sum(
+                it.count for it in items
+                if it.is_digging_tool and self._is_quest_wall_breach_item(it)
             )
+            charges = sum(
+                it.charges for it in items
+                if it.tval == TVAL_WAND and it.sval == SV_WAND_STONE_TO_MUD
+                and self._is_quest_wall_breach_item(it)
+            )
+            return diggers + charges // Q2_BREACH_WALL_COUNT
         return 0
 
     def _quest_carry_status(

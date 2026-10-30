@@ -19,6 +19,14 @@ opening-q34:wait.  _fixed_quest_key declines while a monster stands beside the
 player, so no entry verdict was evaluated, and the town kill-mob rung below the
 opening owner never ran while Merry and a beggar touched the player.
 
+Q2 wall breach (n1-a life-422): the Telmora entry gate counted the
+utility_tools.wall_breach carry as one item, so a Stone to Mud wand with one
+charge passed for the five-wall corridor [7..11,47].  After the first cast the
+bot waited at [7,47] on quest:blocked:q2-breach-tool until loop-detected.
+Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」: charges count one wall each;
+a qualifying digger still breaches the whole corridor.  The blocked reason is
+now a named final stop.
+
 Boards, their order and the recorded decisions are from
 tests/fixtures/quest-stops-20261030.json.gz (tests/extract_quest_stops_1031_fixture.py).
 Restored state: the cleared fixed targets (Q34: all three, reconstructed from
@@ -34,11 +42,15 @@ import json
 from pathlib import Path
 import unittest
 
-from hengbot.model import Position, parse_snapshot
+from hengbot.cli import _policy_final_stop_required
+from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT
+from hengbot.policy_constants import (
+    Q2_BREACH_CORRIDOR, Q2_BREACH_WALL_COUNT, Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT, WAIT_KEY,
+)
 from hengbot.quest_knowledge import load_quest_knowledge
+from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.quest_strategies import load_quest_strategies
 from tests import test_opening_route_r2_recorded as round2
 from tests import test_q34_bee_sweep_recorded as bee
@@ -234,6 +246,74 @@ class Q34OpeningAdjacentMonsterRecordedTest(ProductionHarness):
         self.assertEqual(policy.last_reason, "melee")
         self.assertIn(key, {policy._direction_key(board.player.position, monster.position)
                             for monster in adjacent})
+
+
+class Q2BreachChargesRecordedTest(ProductionHarness):
+    post = bee.Q34BeeSweepRecordedTest.post
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = load_fixture()["q2"]
+        cls.monraces = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        cls.quests = load_quest_knowledge(EDIT / "quests")
+        cls.profiles = load_quest_strategies(ROOT / "strategy/quests")
+
+    def policy(self, raw, quests):
+        policy = HengbotPolicy(quest_knowledge=quests,
+                               quest_strategies=self.profiles,
+                               monrace_knowledge=self.monraces)
+        policy.prime(parse_snapshot(raw, self.monraces))
+        # DECLARED RECONSTRUCTED: the capture keeps no Home page; an empty
+        # scan lets the town owners decide instead of requesting one.
+        policy.consume_home_knowledge([])
+        return policy
+
+    def test_corridor_is_five_walls_of_the_quest_map(self):
+        terrain = self.quests[2].battlefield.terrain
+        self.assertEqual([terrain[(cell.y, cell.x)] for cell in Q2_BREACH_CORRIDOR],
+                         ["wall"] * Q2_BREACH_WALL_COUNT)
+        self.assertEqual(Q2_BREACH_WALL_COUNT, 5)
+
+    def test_recorded_one_charge_wand_does_not_admit_the_q2_request(self):
+        raw = self.data["board"]
+        self.assertEqual(self.data["decisions"][0]["reason"], "fixedquest:request:approach")
+        policy = self.policy(raw, self.quests)
+        board = parse_snapshot(raw, self.monraces)
+        (wand,) = [item for item in board.inventory if item.tval == TVAL_WAND
+                   and item.sval == SV_WAND_STONE_TO_MUD]
+        self.assertEqual(wand.charges, 1)
+        status = policy._quest_carry_status(
+            board, self.profiles[2].required_force)["utility_tools.wall_breach"]
+        self.assertEqual((status["measured"], status["ready"]), (0, False))
+        policy.consume_skill_knowledge({
+            "player": {"level": board.player.level},
+            "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
+        })
+        self.post(policy, raw, self.data["following"])
+        # The existing owner of an unready Q2 head in Telmora returns to the
+        # Outpost to procure (this policy has no remembered Telmora inn route,
+        # hence its route-unavailable variant); the recorded run requested Q2.
+        self.assertTrue(policy.last_reason.startswith("fixedquest:prepare-return"),
+                        policy.last_reason)
+        # DECLARED CONSTRUCTED: the same wand with one charge per wall.
+        charged = replace(board, inventory=[
+            replace(item, charges=Q2_BREACH_WALL_COUNT) if item is wand else item
+            for item in board.inventory])
+        status = policy._quest_carry_status(
+            charged, self.profiles[2].required_force)["utility_tools.wall_breach"]
+        self.assertEqual((status["measured"], status["ready"]), (1, True))
+
+    def test_recorded_empty_wand_breach_is_a_named_final_stop(self):
+        # The recorded stop board, through the breach owner itself: the Q2
+        # phase latches that select it live only in the stopped process.
+        raw = self.data["stop_board"]
+        self.assertEqual(self.data["decisions"][1]["reason"], "loop-detected")
+        policy = self.policy(raw, {2: self.quests[2]})
+        board = parse_snapshot(raw, self.monraces)
+        navigator = QuestFloorNavigator(2, self.quests[2].battlefield)
+        self.assertEqual(policy._q2_breach_key(board, navigator), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "quest:blocked:q2-breach-tool")
+        self.assertTrue(_policy_final_stop_required(policy))
 
 
 if __name__ == "__main__":

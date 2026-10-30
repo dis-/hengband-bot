@@ -338,6 +338,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'quest:blocked:opening-route',
         'quest:blocked:q34-recovery-no-progress',
         'quest:blocked:q34-throw-point-unreachable',
+        'quest:blocked:q2-breach-tool',
         'town:blocked:departure-unsatisfiable',
         'town:blocked:guardian-bounce-no-alternate',
         'town:blocked:home-known-empty-withdrawal',
@@ -648,6 +649,9 @@ Q2_POST_BLUE_SEQUENCE = (
 )
 
 Q2_BREACH_MIN_DIGGING = 3
+# Stone to Mud dissolves one wall per cast (the first wall in the direction),
+# so a wand breaches the route only with one charge per corridor wall.
+Q2_BREACH_WALL_COUNT = len(Q2_BREACH_CORRIDOR)
 
 Q2_BREACH_ATTEMPT_LIMIT = 20
 
