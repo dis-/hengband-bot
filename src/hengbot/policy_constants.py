@@ -292,7 +292,15 @@ DOOR_OPEN_LIMIT = 3
 # exe_open's answer for a door terrain without the OPEN flag ("%sはがっちりと
 # 閉じられているようだ。"): unlike a lock, no later 'o' can open it.
 STUCK_DOOR_MESSAGE_FRAGMENTS = ("がっちりと閉じられている", "appears to be stuck")
+# exe_open's answer to a failed pick of a door that has the OPEN flag and a
+# lock (open-close-execution.cpp exe_open).  Its chance is floored at 2%
+# ("if (j < 2) j = 2"), so every pick answered this way is progress.
+LOCK_PICK_FAILED_MESSAGE_FRAGMENTS = ("鍵をはずせなかった", "failed to pick the lock")
 # 2026-10-11 live Lv1 opening: the Q34 lock was picked after about 20 tries.
+# The Q34 bounds count only picks the game did not answer with
+# LOCK_PICK_FAILED_MESSAGE_FRAGMENTS: at the 2% floor (a Zombie Magic-Eater's
+# disarm skill) 200 answered picks still fail 1.8% of the time per door
+# (D33, 2026-10-30 n1-c lives 030 and 039).
 Q34_OPENING_DOOR_ATTEMPT_LIMIT = 200
 # The final door [4,14] is LOCKED_GLASS_DOOR_7, the same lock power as the
 # opening door; the 2026-10-29 Lv6 Magic-Eater needed more than 60 picks.

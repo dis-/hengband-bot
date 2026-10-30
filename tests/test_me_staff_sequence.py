@@ -325,7 +325,12 @@ class MeStaffSequenceTest(unittest.TestCase):
             Position(10, 12): replace(board.grids[Position(10, 12)], building_type=4)})
         key, _ = self.decide(policy, board)
         self.assertEqual(policy._me_staff_sequence.absorbed, {SV_STAFF_IDENTIFY: 21, DETECT: 19})
-        self.assertEqual(policy.last_reason, "me-staff:return-outpost")
+        # Owner 2026-10-31: stage 1 is complete (decided once) and stage 2's
+        # staffs are bought at the Outpost next.
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "me-staff:stage1-complete"))
+        board = replace(board, turn=1500)
+        key, _ = self.decide(policy, board)
+        self.assertEqual(policy.last_reason, "me-staff:return-to-shop")
 
     def test_d_short_recharge_gold_returns_to_the_outpost_with_the_fare(self):
         staffs = [staff("a", SV_STAFF_IDENTIFY, 8), staff("b", DETECT, 7)]

@@ -198,8 +198,10 @@ class WonderHoldLimitTest(executor_harness.ProductionHarness):
 class StapleTowerRechargeTest(executor_harness.ProductionHarness):
     """「減ったら塔でチャージする」 on the recorded D24 Morivant approach board.
 
-    DECLARED CONSTRUCTED: the sequence is complete (both powers absorbed, the
-    two staffs gone) and a 5-charge Wand of Wonder is in the pack.
+    DECLARED CONSTRUCTED: stage 1 is complete (both powers absorbed), no
+    sequence staff is carried and a 5-charge Wand of Wonder is in the pack.
+    Owner 2026-10-31: stage 2 follows, so the trip home is the inn teleport
+    back to the Outpost's Magic shop (me-staff:return-to-shop).
     """
     policy = d24.MeTowerRechargeRecordedTest.policy
     decide = d24.MeTowerRechargeRecordedTest.decide
@@ -239,12 +241,12 @@ class StapleTowerRechargeTest(executor_harness.ProductionHarness):
         self.assertEqual(game.accepted, ["1", "a", "y", " ", ""])
         self.assertEqual(next(it["charges"] for it in following["inventory"] if it["slot"] == self.slot), 24)
         self.decide(policy, following)
-        self.assertEqual(policy.last_reason, "me-staff:return-outpost")
+        self.assertEqual(policy.last_reason, "me-staff:return-to-shop")
 
     def test_full_staple_goes_home_without_the_tower(self):
         policy, raw = self.board(MANA_FOOD_CHARGE_TARGET)
         self.decide(policy, raw)
-        self.assertEqual(policy.last_reason, "me-staff:return-outpost")
+        self.assertEqual(policy.last_reason, "me-staff:return-to-shop")
 
 
 if __name__ == "__main__":

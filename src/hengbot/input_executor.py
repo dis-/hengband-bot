@@ -206,6 +206,11 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
         for literal in terminal:
             if literal in line:
                 return ScreenMatch(ScreenKind.DEATH, literal, y, _cell_width(line[:line.index(literal)]))
+    # player/player-damage.cpp:456: after death_save() the death chain asks
+    # input_check_strict("Dump the screen? ") at row zero (asking-player.cpp
+    # prt(buf, 0, 0)) before "You die."; the prompt is printed nowhere else.
+    if row0 in ("画面を保存しますか？[y/n]", "Dump the screen? [y/n]"):
+        return ScreenMatch(ScreenKind.DEATH, row0, 0, 0)
 
     # cmd-visual/cmd-draw.cpp:146 keeps an 80x24
     # TermCenteredOffsetSetter active around input_status_command().  Its
@@ -1407,6 +1412,10 @@ class OperationExecutor:
         magic_result = advance_magic_eater(self, screen_value, match, deadline, outcome)
         if magic_result is not None:
             return magic_result
+        from hengbot.me_device_attacks_input import advance_device
+        device_result = advance_device(self, screen_value, match, deadline, outcome)
+        if device_result is not None:
+            return device_result
         from hengbot.me_powers_refresh_input import advance_refresh
         refresh_result = advance_refresh(self, screen_value, match, deadline, outcome)
         if refresh_result is not None:

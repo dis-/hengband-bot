@@ -2918,6 +2918,12 @@ class TownMixin:
                 snapshot.player.gold < FUNDRAISING_GOLD_TARGET
                 # The D1 time-pass still needs its D3 kit above the target.
                 or self._recall_stockout_run_outstanding(snapshot)
+                # So does the Identify-staff stockout time-pass, which the
+                # gold set-end keeps while the staff is short.
+                or (
+                    self._identify_staff_mining_plan
+                    and not self._identify_staff_ready(snapshot)
+                )
                 or getattr(self, "_supply_stockout_gold_target", None) is not None
                 # The no-safe-destination set has no gold objective.
                 or getattr(self, "_no_safe_destination_set", False)
@@ -5195,6 +5201,33 @@ class TownMixin:
         """Compatibility hook for travel callers; town combat is global now."""
         return self._town_kill_mob_key(snapshot)
 
+    def _town_friendly_unbeatable(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Whether ``monster`` is of a friendly race this character cannot defeat.
+
+        Judged from the race lore the player can recall (its average HP,
+        FORCE_MAXHP included, and its blows) through the unique fight
+        projection on a duel at the current HP.  Covers a friendly already
+        angered (no longer ``friendly`` on the board).
+        """
+        knowledge = self._monrace_knowledge.get(monster.race_id)
+        if monster.pet or not (
+            monster.friendly or (knowledge is not None and knowledge.friendly)
+        ):
+            return False
+        opponent = monster
+        if knowledge is not None:
+            hp = knowledge.average_hp or knowledge.max_hp
+            opponent = replace(
+                monster, hp=hp, max_hp=hp, speed=knowledge.speed,
+                max_melee_damage=max(monster.max_melee_damage,
+                                     knowledge.max_melee_damage),
+            )
+        return not self._duel_fight_viable(
+            snapshot, replace(opponent, friendly=False), snapshot.player.hp
+        )
+
     @claims(ClaimOwner.SURVIVAL)
     def _town_kill_mob_key(self, snapshot: Snapshot) -> str | None:
         """Approach and kill every visible town monster except the player's pets.
@@ -5228,6 +5261,12 @@ class TownMixin:
         # adjacent to never catches it while the errands starve (#71).  An
         # adjacent one is still fought; nothing remembers its cell, so the
         # last-known walk below never follows it either.
+        # USER DECISION 2026-10-31 (D32): 「勝てない時は攻撃しない」 -- a
+        # friendly the character cannot defeat is neither attacked nor
+        # approached (Farmer Maggot killed n1-c life 34 and n1-b life 268 in
+        # town after this hunt angered him and then re-approached him between
+        # flee steps).  An angered one is still answered by the survival
+        # rungs when it attacks; this hunt only stops chasing it.
         targets = sorted(
             (
                 monster for monster in snapshot.visible_monsters
@@ -5238,9 +5277,23 @@ class TownMixin:
                         self._monrace_knowledge.get(monster.race_id), "flags", ()
                     )
                 )
+                and not self._town_friendly_unbeatable(snapshot, monster)
             ),
             key=lambda monster: monster.distance,
         )
+        if any(
+            monster.hostile
+            and player.position.distance_to(monster.position) <= 1
+            and self._town_friendly_unbeatable(snapshot, monster)
+            for monster in snapshot.visible_monsters
+        ):
+            # An angered one beside the player is attacking: the survival
+            # rungs answer it, not a hunt for another monster.
+            self._offer_execution_no_step(
+                producer="survival", work_id="town-kill-mob",
+                cause="unbeatable-attacker-delegated",
+            )
+            return None
         # Record-only (S2b.1b): the last-known cell this producer may be
         # walking to, before the loop below overwrites it.
         last_known = self._town_hunt_target

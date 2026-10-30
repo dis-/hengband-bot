@@ -4232,8 +4232,15 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                         policy, "_inventory_overweight", return_value=overweight
                     ),
                 ):
+                    policy.last_reason = None
                     key = policy._opening_q34_town_key(opening, [])
 
+                if adjacent:
+                    # D33 (2026-10-30 n1-a life-426): the monster beside the
+                    # player is the town combat rungs' work, not a wait.
+                    self.assertIsNone(key)
+                    self.assertNotEqual(policy.last_reason, "opening-q34:wait")
+                    continue
                 self.assertEqual(key, WAIT_KEY)
                 self.assertEqual(policy.last_reason, "opening-q34:wait")
 

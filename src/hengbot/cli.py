@@ -64,6 +64,7 @@ from hengbot.policy_constants import (
     HOME_KNOWLEDGE_MACRO,
     IN_STORE_BREAKER_REASON_PREFIX,
     IN_STORE_BUY_REASON,
+    IN_STORE_DONE_REASON,
     IN_STORE_OPERATION_REASONS,
     LEAVE_STORE_KEY,
     POLICY_FINAL_STOP_REASONS,
@@ -406,6 +407,10 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # Picking the closed door that leads back to a known up staircase;
         # bounded per door by FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT (D19).
         "fundraise:open-upstairs-door",
+        # Picking a locked door on the mining closure's route to a detected
+        # vein; bounded per target by MINING_STALL_LIMIT and per floor by
+        # MINING_SWEEP_HARD_LIMIT (D31).
+        "fundraise:seek-treasure:open-door",
         "unseen:choke-wait",
         # Repeated opens against the reviewed Q34 ordinary locked door are
         # productive game actions: each lock-pick attempt advances the game
@@ -413,9 +418,9 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # them as a position loop stops the quest before the lock is picked.
         "quest-strategy:open-opening-door",
         # The approved final door is a locked glass door picked the same way;
-        # its attempts are bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT.
+        # its unanswered picks are bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT.
         "quest-strategy:open-final-door",
-        # The doors opened in order after it; bounded by
+        # The doors opened in order after it; unanswered picks bounded by
         # Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT per door.
         "quest-strategy:open-sequence-door",
         # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
@@ -615,7 +620,15 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
         if allowed:
             policy._owner_retired_forgiven_sequence = sequence
             if snapshot.store is not None:
-                key = LEAVE_STORE_KEY
+                if policy.last_reason in IN_STORE_OPERATION_REASONS:
+                    # The retired in-store operation ends with its own exit:
+                    # ESC under the operation's reason is an in-store buy
+                    # without prompt gates, which the executor refuses and
+                    # the in-store breaker turns into a stop (D28, 2026-10-30
+                    # n1-c life-045 and four more captures).
+                    key = policy._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+                else:
+                    key = LEAVE_STORE_KEY
                 from hengbot.town_work import bind_driver_override
                 bind_driver_override(policy, key, site='cli.py:_handle_owner_retirement')
             return key

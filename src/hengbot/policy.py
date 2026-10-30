@@ -2678,6 +2678,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if active_arbiter is not None:
             active_arbiter._retirement_diagnostic = None
         self._observe_cross_town_shopping_arrival(snapshot)
+        # Class 16: remember each absorbed-device list the game displayed.
+        from hengbot.me_device_attacks import observe_lists
+        observe_lists(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
@@ -9399,10 +9402,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
                 self._offer_home_scan_leave()
             elif (
-                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and self._home_knowledge_current and (not self._home_knowledge_invalidated) and (pending_withdrawals := {*((self._home_pending_item,) if self._home_pending_item is not None else ()), *self._home_pending_batch, *((self._home_atomic_withdraw_pending[0],) if self._home_atomic_withdraw_pending is not None else ())}) and pending_withdrawals.intersection({self._item_signature(item) for item in (snapshot.store.items if self._open_home_page_is_complete(snapshot) else (*snapshot.store.items, *self._home_knowledge_items))})
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and self._home_knowledge_current and (not self._home_knowledge_invalidated) and (pending_withdrawals := {*((self._home_pending_item,) if self._home_pending_item is not None else ()), *self._home_pending_batch, *((self._home_atomic_withdraw_pending[0],) if self._home_atomic_withdraw_pending is not None else ())}) and self._keep_home_takes_within_pack_budget(snapshot, snapshot.store.items if self._open_home_page_is_complete(snapshot) else (*snapshot.store.items, *self._home_knowledge_items))
             ):
                 # Ordinary withdrawals are composed only from the adjacent
                 # outside snapshot.  This hand-off is not a failed stop pass.
+                # A take the town pack budget refuses there is released, not
+                # handed off: the composer would refuse it and re-enter Home.
                 self._request_store_trip(STORE_HOME, "home-visit")
                 self.last_reason = "home:leave-for-pending-withdraw"
                 key = LEAVE_STORE_KEY
@@ -11102,9 +11107,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if snapshot.on_open_wilderness:
             return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
 
-        # Town is cleared before errands resume.  Unlike dungeon hunting this is
-        # deliberately unconditional: every visible non-pet monster is a target,
-        # regardless of friendliness, strength, range, or the hostile-count cap.
+        # Town is cleared before errands resume.  Unlike dungeon hunting every
+        # visible non-pet monster is a target regardless of range or the
+        # hostile-count cap; a friendly race the character cannot defeat is
+        # the one exception (USER DECISION 2026-10-31, _town_kill_mob_key).
         town_kill = self._town_producer_entry("_town_kill_mob_key", lambda: self._town_kill_mob_key(snapshot))
         if town_kill is not None:
             return town_kill
@@ -13264,19 +13270,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return True
         return self._item_matches_purchase_rung(snapshot, item)
 
+    def _floor_item_identifiable_at(
+        self, snapshot: Snapshot, position: Position, item: InventoryItem
+    ) -> bool:
+        """Whether _floor_item_identify_key can act on ``item`` standing on ``position``.
+
+        The floor choice '-' names the object only on a single-object grid, and
+        the identification source is the carried one.  D31 (n1-b life-249/273):
+        the full-pack triage walked between two piles whose unknown items it
+        could identify on neither, until the loop detector stopped the run.
+        """
+        if item.aware and item.sval >= 0:
+            return False
+        grid = snapshot.grids.get(position)
+        if grid is None or grid.object_count != 1:
+            return False
+        return self._find_identification_source(snapshot, full=False) is not None
+
     @claims(ClaimOwner.FLOOR_LOOT)
     def _floor_item_identify_key(
         self, snapshot: Snapshot, item: InventoryItem
     ) -> str | None:
-        if item.aware and item.sval >= 0:
+        if not self._floor_item_identifiable_at(
+            snapshot, snapshot.player.position, item
+        ):
             return None
-        floor_grid = snapshot.grids.get(snapshot.player.position)
-        if floor_grid is None or floor_grid.object_count != 1:
-            return None
-        source = self._find_identification_source(snapshot, full=False)
-        if source is None:
-            return None
-        command, src = source
+        command, src = self._find_identification_source(snapshot, full=False)
         self._look_floor_items.clear()
         self._look_floor_object_counts.clear()
         self.last_reason = "loot:identify-floor-item"
@@ -18677,8 +18696,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return self._find_edible(snapshot) is not None
 
     def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
-        # Reading needs sight; a full teleport is preferred over a short phase.
-        if snapshot.player.blind or not self._can_read_scrolls(snapshot):
+        # Reading needs sight and a clear head (cmd-read.cpp: cmd_limit_blind,
+        # cmd_limit_confused refuse the read without using a turn; D31 n1-a
+        # life-418 re-posted the refused read until the stalled-command stop).
+        # A full teleport is preferred over a short phase.
+        player = snapshot.player
+        if player.blind or player.confused or not self._can_read_scrolls(snapshot):
             return None
         return self._find_teleport_scroll(snapshot) or self._find_phase_scroll(snapshot)
 

@@ -52,6 +52,7 @@ from hengbot.policy_constants import (
     MINING_SWEEP_NO_PROGRESS_LIMIT,
     MINING_THREAT_FREE_LIMIT,
     NEIGHBOR_OFFSETS,
+    OPEN_KEY,
     PACK_CAPACITY,
     RECALL_MIN_DEPTH,
     REFILL_KEY,
@@ -150,6 +151,17 @@ class FundraisingMixin:
         target = getattr(self, "_supply_stockout_gold_target", None)
         return FUNDRAISING_GOLD_TARGET if target is None else target
 
+    def _fundraising_gold_return_applies(self) -> bool:
+        """Whether reaching the gold target is a return trigger for this run.
+
+        A no-safe-destination set has no gold objective (2026-10-19), and the
+        staff sequence's stockout run mines its floor out (D35, 2026-10-31).
+        """
+        if getattr(self, "_no_safe_destination_set", False):
+            return False
+        from hengbot.me_staff_sequence import mines_floor_out
+        return not mines_floor_out(self)
+
     def _post_fundraising_transport(
         self, snapshot: Snapshot, direction: str
     ) -> None:
@@ -237,9 +249,8 @@ class FundraisingMixin:
             hungry=snapshot.player.hungry,
             light_ready=self._fundraising_light_ready(snapshot),
             pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
-            # A no-safe-destination set has no gold objective (2026-10-19).
             objective_achieved=(snapshot.player.gold >= self._fundraising_gold_target()
-                                and not getattr(self, "_no_safe_destination_set", False)),
+                                and self._fundraising_gold_return_applies()),
             procurement_exhausted=exhausted,
             first_run=(first_departure_proven if snapshot.in_town
                        else runs_started == 1),
@@ -1157,8 +1168,16 @@ class FundraisingMixin:
                 continue
             self.last_reason = "fundraise:seek-treasure"
             self._declare_reach(target)
+            key = self._step_toward(snapshot, step)
+            if key is not None and key.startswith(OPEN_KEY):
+                # D31 (n1-c life-007/009, n1-a life-441/446): the route crosses
+                # a locked door, and each pick holds the cell.  The picks are
+                # bounded by this target's MINING_STALL_LIMIT leash above (a
+                # pick moves no closer) and by MINING_SWEEP_HARD_LIMIT; the
+                # CLI cell guard exempts this label, as for the D19 door.
+                self.last_reason = "fundraise:seek-treasure:open-door"
             return self._fundraising_return_route_key(
-                self._step_toward(snapshot, step),
+                key,
                 step="fundraising.seek-treasure",
                 work_id=f"fundraise:treasure:{target.y},{target.x}",
                 expected_effect="treasure-reached",
@@ -1399,7 +1418,7 @@ class FundraisingMixin:
             return self._leave_fundraising_floor(snapshot)
         if (
             snapshot.player.gold >= self._fundraising_gold_target()
-            and not getattr(self, "_no_safe_destination_set", False)
+            and self._fundraising_gold_return_applies()
             and (
                 getattr(self, "_supply_stockout_gold_target", None) is not None
                 or self._fundraising_mode == "scavenge"
