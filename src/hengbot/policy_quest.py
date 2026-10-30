@@ -5628,20 +5628,10 @@ class QuestMixin(OpeningRouteMixin):
         if knowledge.can_multiply:
             return False
 
-        player_position = Position(10, 10)
-        target_position = Position(10, 11)
-        grids = {
-            player_position: GridState(
-                player_position, True, True, False, False, False, False, False
-            ),
-            target_position: GridState(
-                target_position, True, True, False, True, False, False, False
-            ),
-        }
         guardian_hp = knowledge.average_hp or knowledge.max_hp
         guardian = MonsterState(
             index=-info.guardian_id,
-            position=target_position,
+            position=Position(10, 11),
             hp=guardian_hp,
             max_hp=guardian_hp,
             distance=1,
@@ -5656,22 +5646,44 @@ class QuestMixin(OpeningRouteMixin):
             max_ranged_damage=knowledge.max_ranged_damage,
             can_multiply=knowledge.can_multiply,
         )
+        return self._duel_fight_viable(snapshot, guardian, snapshot.player.max_hp)
+
+    def _duel_fight_viable(
+        self, snapshot: Snapshot, opponent: MonsterState, player_hp: int
+    ) -> bool:
+        """Whether ``_unique_fight_projection`` clears ``opponent`` in a duel.
+
+        The duel is a two-cell board: the player at ``player_hp`` and the
+        opponent adjacent, so its melee counts from the first turn.  A held
+        Speed potion is credited as in the unique fight rung.
+        """
+        player_position = Position(10, 10)
+        target_position = Position(10, 11)
+        grids = {
+            player_position: GridState(
+                player_position, True, True, False, False, False, False, False
+            ),
+            target_position: GridState(
+                target_position, True, True, False, True, False, False, False
+            ),
+        }
+        opponent = replace(opponent, position=target_position, distance=1)
         fight_snapshot = replace(
             snapshot,
             player=replace(
                 snapshot.player,
                 position=player_position,
-                hp=snapshot.player.max_hp,
+                hp=player_hp,
             ),
             grids=grids,
-            visible_monsters=[guardian],
+            visible_monsters=[opponent],
             store=None,
         )
         if (
             self._unique_fight_projection(
                 fight_snapshot,
-                [guardian],
-                guardian,
+                [opponent],
+                opponent,
                 player_speed=fight_snapshot.player.speed,
             )
             is not None
@@ -5682,8 +5694,8 @@ class QuestMixin(OpeningRouteMixin):
         return (
             self._unique_fight_projection(
                 fight_snapshot,
-                [guardian],
-                guardian,
+                [opponent],
+                opponent,
                 player_speed=fight_snapshot.player.speed + SPEED_POTION_BONUS,
                 extra_turns=1,
             )

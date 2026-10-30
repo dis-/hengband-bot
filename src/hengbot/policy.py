@@ -11086,9 +11086,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if snapshot.on_open_wilderness:
             return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
 
-        # Town is cleared before errands resume.  Unlike dungeon hunting this is
-        # deliberately unconditional: every visible non-pet monster is a target,
-        # regardless of friendliness, strength, range, or the hostile-count cap.
+        # Town is cleared before errands resume.  Unlike dungeon hunting every
+        # visible non-pet monster is a target regardless of range or the
+        # hostile-count cap; a friendly race the character cannot defeat is
+        # the one exception (USER DECISION 2026-10-31, _town_kill_mob_key).
         town_kill = self._town_producer_entry("_town_kill_mob_key", lambda: self._town_kill_mob_key(snapshot))
         if town_kill is not None:
             return town_kill
