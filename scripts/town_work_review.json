@@ -12222,5 +12222,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town and quest-floor predicates; see evidence.",
+    "evidence": "D21 class-16 ranged answer (absorbed Magic Missile, known attack wand, spare lit torch) to an adjacent attacker, called only from the dungeon melee/cornered/choke rungs before their melee key; None outside the dungeon, on quest floors and for other classes.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_throwable_torch": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pack torch selector keeping one replacement for a burning torch; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

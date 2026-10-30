@@ -1688,6 +1688,22 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "5144ad471c29317921dacaae3ff224138e2d0ea19cd757376211a61586953ab4"
   },
+  "me_ranged_first.py:_throwable_torch": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "6a58242a51eb90052af33acfae54352ce8dcb027be557bfacec0eddeca5df228"
+  },
+  "me_ranged_first.py:attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "a4e01f36f96ab64917724847fc7f1a8e6b14c0568343c0bdd5f72fe1dad56b25"
+  },
   "me_staff_sequence.py:_absorb_key": {
     "classification": "producer",
     "rows": [
@@ -2393,7 +2409,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "821ba81b921f382e02ea71cf696c11821bb542d41e744cd43a73fc16e1a22202"
+    "ast_sha256": "0ec2d63acb9cfcf3fe48b357d724f19365e05796f5e3d6c48cb2f3e425999210"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -2933,7 +2949,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "cbe11d074ea1064ffdf7d6e2dba1b818354df9ab41bbbf5886828590b178f159"
+    "ast_sha256": "d4240cd15e5a3bb3f8a28db4fc8195b0786f965ad46fac25f3278684cec46b79"
   },
   "policy.py:HengbotPolicy._matching_ammo": {
     "classification": "data",
@@ -3974,7 +3990,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "950084155d373e169db3b1a2b414ea65983a54a3461b5eef181ec3214dc92edc"
+    "ast_sha256": "3ecd8f84d2dc3d0ae21b09624e0c0ffd8d0a5f898a14cb2fb2d0321b2c17005f"
   },
   "policy.py:HengbotPolicy._town_release_declared_holder": {
     "classification": "adapter",
@@ -4385,7 +4401,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6283e80420a070ba44b2e47c69c98f311850f78ea5d51196ef5d9b16e22a0c66"
+    "ast_sha256": "85d15c3c4f1885034f3a46d02ebfda86b8b4a3545e8bf2a2c434920064ad2ee0"
   },
   "policy_combat.py:CombatMixin._choke_predicted_damage": {
     "classification": "data",
@@ -4409,7 +4425,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e3e8fe43e8e7103c1befbeff65bac999d348f30f89332c050e974929071fe4e7"
+    "ast_sha256": "ae4e77651496f05997714e31df35a4e3955c9df55de0aef3d2b843911805a174"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -4515,7 +4531,7 @@
       "loot-exploration"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3bae4e73167d6654649d2b03525a3d19038f0e3930d82e6631b88d21af2a1f9c"
+    "ast_sha256": "0209a564725c95e06dc5703ed13210fb533414be10b5ccfb494e62db020fc4f1"
   },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
@@ -4563,7 +4579,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8035a12562593e76f6b46459d58c25d4776a993cbd928eb403feade66803aa4f"
+    "ast_sha256": "67605034787761ed65a046789fd764af00c3ebda3298bf301401bdf05d993cac"
   },
   "policy_combat.py:CombatMixin._offset_fire_aim": {
     "classification": "data",

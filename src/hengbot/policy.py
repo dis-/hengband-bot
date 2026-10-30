@@ -7,6 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
+from hengbot import me_ranged_first, survival_preemption
 
 from collections import Counter, deque
 import random
@@ -5958,6 +5959,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (board is not None
                 and not (getattr(board, "in_town", False)
                          or getattr(board, "store", None) is not None)):
+            # D21: an attacked player answers with the survival/combat rungs.
+            if survival_preemption.preempts(self, rung_name, board):
+                return None
             return call()
         rung = (claim_rung_named(rung_name) if family is None
                 else claim_rung_of(family, None))
@@ -10487,6 +10491,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not player.afraid
             and self._can_fight_in_dungeon(snapshot.floor_key[0])
         ):
+            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
+            if ranged is not None:
+                return ranged
             self.last_reason = "melee"
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
@@ -11164,7 +11171,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if combat_equip is not None:
                 return combat_equip
             key = self._town_producer_entry("_finish_mining_floor", lambda: self._finish_mining_floor(snapshot), family="fundraising")
-            if (
+            if key is not None and (
                 key != WAIT_KEY
                 or self.last_reason != "fundraise:upstairs-not-found"
             ):
@@ -11339,6 +11346,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "flee:scroll"
                 return self._read_key(snapshot, scroll)
             if strategic_adjacent and not player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
+                ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(strategic_adjacent))  # D21
+                if ranged is not None:
+                    return ranged
                 self.last_reason = "flee:cornered-attack"
                 return self._town_producer_entry("_direction_key#1", lambda: self._direction_key(
                     player.position, self._weakest(strategic_adjacent).position
@@ -11436,6 +11446,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     (monster.index, monster.race_id) for monster in combat_adjacent
                 },
             )
+            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(combat_adjacent))  # D21
+            if ranged is not None:
+                return ranged
             self.last_reason = "melee"
             return self._town_producer_entry("_direction_key#2", lambda: self._direction_key(
                 player.position, self._weakest(combat_adjacent).position
