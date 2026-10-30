@@ -11756,6 +11756,72 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "me_device_attacks.py:Power.letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Absorbed power list letter (cmd-magiceat.cpp I2A(sval), then '0'+sval-26); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town predicate; see evidence.",
+    "evidence": "Class-16 absorbed attack power (m + A/B/C + I2A(sval) + direction) scored by success x min(source damage after the race's known resistance, target hp); returns None in town, when blind/confused/hallucinating or when Magic Missile is at least as good; called only from me_ranged_first.attack_key in the dungeon combat rungs.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_device_attacks_input.py:advance_device": {
+    "classification": "driver",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Executor-owned answers of an absorbed attack power (kind letter or menu, power letter or menu cursor from the observed list, get_aim_dir direction; ESC when the observed row is empty or charging); no independent policy decision.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "magic_eater_devices.py:is_absorption_device": {
     "classification": "data",
     "rows": [
@@ -12262,7 +12328,7 @@
       "quest-service"
     ],
     "context": "Excluded by in-town and quest-floor predicates; see evidence.",
-    "evidence": "D21 class-16 ranged answer (absorbed Magic Missile, known attack wand, spare lit torch) to an adjacent attacker, called only from the dungeon melee/cornered/choke rungs before their melee key; None outside the dungeon, on quest floors and for other classes.",
+    "evidence": "D21 class-16 ranged answer to an adjacent attacker, called only from the dungeon melee/cornered/choke rungs before their melee key: first the stronger absorbed attack power (me_device_attacks, also on quest floors except quest 1), then the absorbed Magic Missile, a known attack wand and a spare lit torch (non-quest floors only); None in town and for other classes.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

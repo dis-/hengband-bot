@@ -110,6 +110,11 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     if magic_plan is not None:
         prefix, steps = magic_plan
         return prefix, [*steps, *continuations]
+    from hengbot.me_device_attacks_input import compile_device
+    device_plan = compile_device(key, owner)
+    if device_plan is not None:
+        prefix, steps = device_plan
+        return prefix, [*steps, *continuations]
     from hengbot.me_powers_refresh_input import compile_refresh
     refresh_plan = compile_refresh(key, owner)
     if refresh_plan is not None:

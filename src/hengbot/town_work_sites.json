@@ -1103,7 +1103,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "1b7edf8deaab7d2df2fb3da7baae886182934008151a4fb9a4b745a9d8e01eec"
+    "ast_sha256": "173b09ade1af8615a0193f6c7e5d7db0af06fe726f3f766cb4f5c969f495ee01"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
@@ -1720,6 +1720,63 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "005d0eab5e18d6f04fd51714a18d1e6ac89d2eddea58414cb7bfd4ffad4a1037"
   },
+  "me_device_attacks.py:Power.letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "d12bb08cd566e56cc81ce45dd62a57d526df6e94fcf831b46bc1c611f384dfa6"
+  },
+  "me_device_attacks.py:attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "5b6bd1cfa66e0832c07edce923307b475799db7fb49624cf5b17ba0c5f0febf4"
+  },
+  "me_device_attacks_input.py:advance_device": {
+    "classification": "driver",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "28a4034f13ca6e23997d598b65a6cab10bce72ce0593475002506b46f8ca8c7c"
+  },
   "me_powers_refresh.py:periodic_magic_eater_powers_key": {
     "classification": "producer",
     "rows": [
@@ -1791,7 +1848,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a4e01f36f96ab64917724847fc7f1a8e6b14c0568343c0bdd5f72fe1dad56b25"
+    "ast_sha256": "902b8beb6c51064983660bfb643216ad5c37a22a1d1e667e02a1ae32db8b302b"
   },
   "me_staff_sequence.py:_absorb_key": {
     "classification": "producer",
@@ -4337,7 +4394,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "a2448a845468d7c5efa01f1c02f468fee403507790dccbbe211b4e0d41ccbe89"
+    "ast_sha256": "b5722bfac4a0c3f9bf892b5833766eb96584317adf1f630e637b30c795b3cac6"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
