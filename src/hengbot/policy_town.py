@@ -2918,6 +2918,12 @@ class TownMixin:
                 snapshot.player.gold < FUNDRAISING_GOLD_TARGET
                 # The D1 time-pass still needs its D3 kit above the target.
                 or self._recall_stockout_run_outstanding(snapshot)
+                # So does the Identify-staff stockout time-pass, which the
+                # gold set-end keeps while the staff is short.
+                or (
+                    self._identify_staff_mining_plan
+                    and not self._identify_staff_ready(snapshot)
+                )
                 or getattr(self, "_supply_stockout_gold_target", None) is not None
                 # The no-safe-destination set has no gold objective.
                 or getattr(self, "_no_safe_destination_set", False)
