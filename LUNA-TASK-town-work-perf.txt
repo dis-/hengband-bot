@@ -1,0 +1,44 @@
+ISSUE: #47
+PDCA defect D39 (C:\hengband-backups\pdca\defects.md). Branch town-work-perf-1031 at main b6d47db93, worktree
+C:\hengband\bot-client\.worktrees\town-work-perf-1031.
+
+Owner (2026-10-31): 「街で処理が遅い場面が散見される。調査して。」, then chose 「ボットの計測用の処理を軽くする」:
+stop the profiler that runs during every town decision and take the producer record in a light way; decisions, keys and
+reasons must not change.
+
+Measured by the supervisor on the viewing bots (build b6d47db93):
+- choose_key in town: median ~200 ms, p90 ~1 s, max 4 s; in the dungeon: median 2-7 ms.
+- The bot's own sampler (--slow-decision-sample 0.3, 108 town decisions over 0.3 s, n1-c, mostly quest:enter:approach and
+  fixedquest:claim:approach) puts 56.7 % of all samples' SELF time in src/hengbot/town_work.py `profile` (the
+  sys.setprofile hook installed by `town_work_decision`, around town_work.py:129-180), plus ~24 % in <string> __hash__ /
+  __eq__ / __init__ (probably frame_site / manifest lookups from that hook). Cumulative: _walkable_neighbors 66 %,
+  policy_supply._nearest_goal_route 58 % - call-heavy code is slow because the hook runs on every call/return.
+- Raw samples (read only): ssh -o BatchMode=yes -o IdentitiesOnly=yes -i C:\Users\user\.ssh\xserver_adminops dis@hengband.net
+  ~/hengbot-soak/n1-c/life-055/jsonlog/slow-decisions.jsonl (and n1-a's newest life); aggregator /tmp/slow_aggregate.py.
+
+What the hook is for: `town_work_decision` wraps HengbotPolicy.choose_key (policy.py:2671) on town boards and records
+which reviewed producer site returned the posted key (work records, receipts with mode 'shadow', the town work manifest
+scripts/town_work_manifest.json.gz / town_work_sites.json, current_record / driver_record / validate_emit used by cli.py and
+input_executor.py). Read it fully first, and every consumer of its records.
+
+Do:
+1. LUNA-DIAG-town-work-perf.txt first: what the records are used for (which consumers change behaviour and which only log),
+   the measured cost (profile a few recorded town boards with cProfile with and without the hook; give numbers), and
+   your design for a light replacement (e.g. explicit recording at the reviewed producer return sites / the producer
+   entry wrapper that already exists (_town_producer_entry) instead of a global profile hook; or recording only the
+   frames the manifest names). The records the consumers need must stay identical for the same boards.
+2. Implement it. Keys, reasons and every record a consumer reads must be identical on recorded town boards before and
+   after: add a check that replays recorded town boards (e.g. the fixtures used by tests/test_town_work*.py and a few
+   viewing-bot town boards; extract a small fixture) through the public choose_key and compares key, reason and the
+   work record with the old hook path. Add a timing check that the same boards are at least several times faster
+   (measure, report the numbers; do not make a flaky wall-clock assertion - compare call counts or a generous ratio).
+3. If keeping identical records is impossible without the hook, STOP and describe the trade-off in the report.
+4. Add the check ids to C:\hengband-backups\pdca\checks.json under D39. Report LUNA-REPORT-town-work-perf.txt (Japanese),
+   commit.
+
+Rules: C:\hengband-backups\pdca\TASK-COMMON-1031.txt applies except its base commit and family list. Two other
+implementers work in parallel: calib-recall-1031 (character_sheet.py, policy_calibration.py, the C-screen dump path) and
+q2-tower-recharge-1031 (q2_tower_recharge.py, morivant_tower.py, me_staff_sequence.py). Stay out of their files; if your
+change must touch policy.py, keep it minimal. NEVER git stash. Write text files with Python, encoding='utf-8',
+newline='\n'. No background processes left. Checks: the import check, checks.json tests, your tests (and the existing
+tests/test_town_work*.py modules, which guard the records). No full suite, preflight, mutation_check, fast_tier.
