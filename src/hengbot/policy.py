@@ -3325,6 +3325,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "ownership:declaration-missing:store-router"
                 key = None
                 break
+        self._release_observed_store_exit(snapshot)
         key = self._enforce_town_claim_result(snapshot, key)
         self._record_decision_claim(snapshot, key)
         return key
@@ -7485,6 +7486,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_visit_ledger.pending_store_transaction = None
         self._town_visit_ledger.pending_store_context_waits = 0
         self._close_store_visit("posting-rewritten")
+
+    def _release_observed_store_exit(self, snapshot: Snapshot) -> None:
+        """End a posted store exit that this outside board has observed.
+
+        Leaving a store spends the player's turn (cmd-store.cpp
+        ``do_cmd_store``), so an outside board with a later turn than the
+        posted exit is that exit's effect.  The inflight-leave branch of
+        ``_choose_key`` releases the derived LEAVING view on such a board, but
+        any producer ahead of it (the Home errand's knowledge exit, cross-town
+        travel, ...) can return first and keep the view alive.  The driver
+        then suppresses every key as an "unconfirmed" leave and the run stops
+        (D34 store-leave-key-suppressed; issue #77 was one such producer).
+        Release it at the public boundary once every producer has decided.
+        """
+        leave = self._store_leave_inflight
+        if (leave is not None and snapshot.store is None
+                and getattr(snapshot, "turn", 0) > leave[1]):
+            self._store_leave_inflight = None
 
     @staticmethod
     def _route_unavailable_terminal_candidate(rejected_candidate, key) -> bool:
@@ -17936,6 +17955,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 expected_effect="bounty-removed", budget_ref="quest-request",
             )
             return key
+
+        if self._effective_town_id(snapshot) not in {OUTPOST_TOWN_ID, -1}:
+            # Building numbers are per town (lib/edit/towns): only the Outpost
+            # has the Hunter's office as building 13; Morivant's 13 is the
+            # Trump Tower, whose menu has no 'c' (D34 bounty:cashout).  The
+            # remains keep, like an unreachable office.
+            self._offer_execution_no_step(
+                producer="quest-request", work_id="normal-step4-bounty",
+                cause="bounty-office-not-in-town",
+            )
+            return None
 
         office_pos = (
             self._town_map.building_position(HUNTER_OFFICE_BUILDING_TYPE)

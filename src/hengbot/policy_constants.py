@@ -215,6 +215,11 @@ CHEST_COLLECT_BUDGET = 32
 USE_STAFF_KEY = "u"
 ZAP_ROD_KEY = "z"
 FULL_IDENTIFY_DISMISS_SUFFIX = LEAVE_STORE_KEY * 8
+# Inside a building an Escape leaves it (cmd-building.cpp), so a batch of
+# Library *Identify* operations dismisses screen_object's pages and the
+# message -more- with spaces: the building loop ignores a key that is not one
+# of its action letters (D34 morivant-full-identify:library).
+BUILDING_IDENTIFY_DISMISS_SUFFIX = " " * 8
 LOOT_THREAT_DAMAGE_RATIO = 0.25
 LOOT_DEFER_BLOCKERS = frozenset(
     {"summoner-visible", "multiplier-visible", "material-threat", "paralyzer-ring"}

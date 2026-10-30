@@ -2254,7 +2254,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "75d3a78896dbc60f2e991e61bb31cd62d65371dad4f27f42fffabd981be0c42f"
+    "ast_sha256": "25164298d4c13f64ff084bca9c90c63d55f06a9600838e84dbba866c303e55f5"
   },
   "policy.py:HengbotPolicy._bounty_cashout_key.offer": {
     "classification": "adapter",
@@ -4418,7 +4418,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b5722bfac4a0c3f9bf892b5833766eb96584317adf1f630e637b30c795b3cac6"
+    "ast_sha256": "e96a6a62b626230527e488c800c75a4beb8b3ea8ffb05c6febec6b9a09d3e734"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -6693,7 +6693,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9f9f74bf84c9bfa84fd363d06c8bc801edb53c0ce942d41bd6445943591b782c"
+    "ast_sha256": "bc2061d13d8f51af77ba945b30f628a320b3e9424eddb1c4194a58bf632872ba"
   },
   "policy_quest.py:QuestMixin._morivant_home_item_key": {
     "classification": "producer",

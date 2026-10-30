@@ -147,6 +147,7 @@ from hengbot.policy_constants import (
     TELEPORT_REQUIRED_DEPTH,
     TORCH_REFILL_FUEL,
     BUY_KEY,
+    BUILDING_IDENTIFY_DISMISS_SUFFIX,
     CARDINAL_OFFSETS,
     CHARACTER_DUMP_MACRO,
     CHEST_COLLECT_BUDGET,
@@ -169,7 +170,6 @@ from hengbot.policy_constants import (
     LOW_VALUE_POTION_SVALS,
     DISPOSABLE_POTION_SVALS,
     DISPOSABLE_SCROLL_SVALS,
-    FULL_IDENTIFY_DISMISS_SUFFIX,
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_DETECTION_BASE_PRICE,
     FUNDRAISING_DIGGER_BASE_PRICE,
@@ -1463,7 +1463,7 @@ class QuestMixin(OpeningRouteMixin):
                             if item in snapshot.inventory
                             else "/" + EQUIPMENT_SLOT_KEY[item.slot]
                         )
-                        + FULL_IDENTIFY_DISMISS_SUFFIX
+                        + BUILDING_IDENTIFY_DISMISS_SUFFIX
                         for item in chosen
                     )
                     key = self._step_toward(
