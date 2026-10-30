@@ -9,12 +9,15 @@ import tests  # noqa: F401
 import copy
 import gzip
 import json
+import math
 from dataclasses import replace
 from pathlib import Path
 import unittest
 
 from hengbot.model import Position, parse_snapshot
-from hengbot.quest_strategies import acceptance_dps_floor, acceptance_hp_floor, load_quest_strategies
+from hengbot.quest_strategies import (
+    acceptance_dps_floor, acceptance_hp_floor, class_throwing_items, load_quest_strategies,
+)
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_input_executor as executor_harness
 
@@ -63,7 +66,7 @@ class WarriorQ1LowerRecordedTest(executor_harness.ProductionHarness):
         self.assertTrue(policy._fixed_quest_ready(board, 1), policy.fixed_quest_readiness_state())
         force = policy.fixed_quest_readiness_state()["strategy_force"]
         self.assertEqual(force["failed"], [])
-        self.assertEqual(force["dps"], {"measured": 24.9, "required": 14.89})
+        self.assertEqual(force["dps"], {"measured": 24.9, "required": 13.23})
         self.assertEqual([row[1] for row in policy._opening_q1_requirements(board)], [5, 0, 0])
         key = str(policy.choose_key(board))
         self.assertEqual((key[0], policy.last_reason), ("w", "opening-q1:equip-light"))
@@ -91,26 +94,56 @@ class WarriorQ1LowerRecordedTest(executor_harness.ProductionHarness):
         self.post(policy, raw, key, following)
 
 
-class WarriorQ1FloorsTest(unittest.TestCase):
-    """The class-0 floors derived in QUEST_1.jsonc from the game formulas."""
+# A lit torch hit: Dice(1,6), fire brand x2.5 truncated, TR_THROW x(3+1),
+# then the lowest to_d_m (-2, STR 3); the critical bonus is left out.
+TORCH_HIT = sum(roll * 25 // 10 * 4 - 2 for roll in range(1, 7)) / 6
 
-    def test_derived_floors(self):
+
+def hit_chance(chance, ac):
+    return 0.05 + 0.90 * (1 - (ac * 3 // 4) / chance)
+
+
+class TorchQuestFloorsTest(unittest.TestCase):
+    """The torch floors derived in QUEST_1/QUEST_34.jsonc from the game formulas."""
+
+    def test_torch_hit_average(self):
+        self.assertEqual(TORCH_HIT, 32.0)
+        self.assertEqual(sum(roll * 4 - 2 for roll in range(1, 7)) / 6, 12.0)  # IM_FIRE
+
+    def test_warrior_q1_floors(self):
         force = load_quest_strategies(STRATEGIES)[1].required_force
         tier = force["no_healing_tier"]
         # skill_tht 0 + 55 + 30*5//10 + 0 = 70, minus distance 2.
-        chance = 0 + 55 + 30 * 5 // 10 + 0 - 2
-        hit = {ac: 0.05 + 0.90 * (1 - (ac * 3 // 4) / chance) for ac in (24, 12)}
-        torch = {ac: 8.75 * rate for ac, rate in hit.items()}
-        self.assertAlmostEqual((36 - torch[24]) / 2, 14.886, places=3)
-        self.assertLessEqual((20 - torch[12]) / 14.89, 1)
-        self.assertEqual(acceptance_dps_floor(force, 0), 14.89)
-        self.assertEqual(acceptance_dps_floor(tier, 0), 14.89)
-        self.assertEqual(acceptance_hp_floor(tier, 0), (2 * 2 * 12 + 2 * 1 * 10) * 2)
-        self.assertEqual(acceptance_hp_floor(force, 0), 56)
+        torch = TORCH_HIT * hit_chance(0 + 55 + 30 * 5 // 10 + 0 - 2, 24)
+        self.assertAlmostEqual(36 - torch, 13.2235, places=4)
+        for gate in (force, tier):
+            self.assertEqual(acceptance_dps_floor(gate, 0), 13.23)
+            self.assertGreaterEqual(acceptance_dps_floor(gate, 0) + torch, 36)
+        # One exposed action each, as before: the default HP floors stay.
+        self.assertEqual((acceptance_hp_floor(force, 0), acceptance_hp_floor(tier, 0)), (36, 88))
         self.assertEqual(force["throwing_items"], {"lit_torch": 5})
-        # Class 16 and the default floors are unchanged.
-        self.assertEqual((acceptance_dps_floor(force, 16), acceptance_hp_floor(tier, 16)), (4.58, 98))
         self.assertEqual((acceptance_dps_floor(force, 3), acceptance_hp_floor(tier, 3)), (28.0, 88))
+
+    def test_magic_eater_q1_floors(self):
+        force = load_quest_strategies(STRATEGIES)[1].required_force
+        chance = 0 + 35 + 11 * 5 // 10 + 0 - 2
+        throws = {hp: hp / (TORCH_HIT * hit_chance(chance, ac)) for hp, ac in ((36, 24), (20, 12))}
+        self.assertEqual(2 * math.ceil(throws[36]) + 2 * math.ceil(throws[20]) + 1,
+                         class_throwing_items(force, 16)["lit_torch"])
+        steal_out = 1 - 0.7328
+        damage = 2 * 5.0 * (1 - (1 - steal_out) ** max(0, throws[36] - 1)) / steal_out
+        self.assertEqual(throws[20] < 1, True)
+        self.assertEqual(math.ceil(damage / 0.50), acceptance_hp_floor(force, 16))
+        self.assertEqual(acceptance_hp_floor(force["no_healing_tier"], 16), 23)
+        self.assertEqual(acceptance_dps_floor(force, 16), 4.58)
+
+    def test_q34_torch_count(self):
+        force = load_quest_strategies(STRATEGIES)[34].required_force
+        rate = hit_chance(68, 40)
+        throws = 2 * math.ceil(36 / (12.0 * rate)) + math.ceil(49 / (TORCH_HIT * rate))
+        self.assertEqual(throws, 15)
+        lost = math.ceil(throws * rate * 0.50 + rate * 0.50)
+        self.assertEqual(force["throwing_items"], {"lit_torch": lost + 6})
 
 
 class WarriorQ1ThrowPremiseTest(unittest.TestCase):
