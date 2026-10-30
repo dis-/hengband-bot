@@ -8,6 +8,7 @@ from hengbot.item_reservation import (
 
 from hengbot.claim_register import ClaimOwner, claims, terminal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
+from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
@@ -1526,6 +1527,20 @@ class HomeMixin:
             self._offer_execution_no_step(
                 producer="home-errand", work_id=f"home-request:{filing_identity}",
                 cause="file-deferred-by-holder",
+            )
+            return False
+        stocked = next((item for item in self._home_knowledge_items
+                        if self._item_signature(item) == request.signature), None)
+        if stocked is not None and not home_take_fits(snapshot, stocked, request.quantity):
+            # The outside composer refuses this take (store_item_key); a filed
+            # errand would hold Home and re-enter it without an operation.
+            self._offer_execution_no_step(
+                producer="home-errand", work_id=f"home-request:{filing_identity}",
+                cause="town-pack-budget",
+            )
+            self._end_execution_delegation(
+                "home-errand", filing_identity,
+                completed=False, cause="town-pack-budget",
             )
             return False
         filed = self._home_errand.file(
@@ -3885,6 +3900,45 @@ class HomeMixin:
         self._home_withdrawal_queued = True
         self._star_remove_curse_reserve_withdraw_pending = True
 
+    def _keep_home_takes_within_pack_budget(self, snapshot, stocked_items) -> bool:
+        """Release bound Home takes the town pack budget refuses.
+
+        The outside composer admits a take only through store_item_key's
+        pack budget.  A take bound while the pack had room (or by an owner
+        that did not ask) would otherwise be handed off, refused outside and
+        bound again on re-entry; releasing it also lets the pack-headroom
+        owner, which never starts beside bound work, make the room.  Returns
+        whether a bound take is still stocked here.
+        """
+        stocked = {self._item_signature(item): item for item in stocked_items}
+
+        def refused(signature):
+            item = stocked.get(signature)
+            quantity = self._home_pending_quantities.get(
+                signature, self._home_pending_quantity or 1)
+            return item is not None and not home_take_fits(snapshot, item, quantity)
+
+        for signature in [entry for entry in self._home_pending_batch if refused(entry)]:
+            self._home_pending_batch.remove(signature)
+            self._home_pending_quantities.pop(signature, None)
+        if self._home_pending_item is not None and refused(self._home_pending_item):
+            self._home_pending_quantities.pop(self._home_pending_item, None)
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_procurement_probe = None
+            self._home_digger_withdraw_pending = False
+        if self._home_pending_item is None and not self._home_pending_batch:
+            self._home_withdrawal_queued = False
+            self._home_procurement_batch_active = False
+        remaining = {
+            *((self._home_pending_item,) if self._home_pending_item is not None else ()),
+            *self._home_pending_batch,
+            *((self._home_atomic_withdraw_pending[0],)
+              if self._home_atomic_withdraw_pending is not None else ()),
+        }
+        return bool(remaining.intersection(stocked))
+
     def _requeue_home_withdrawal(self, signature: tuple[str, int, int]) -> None:
         """A new request queues ``signature`` for withdrawal again.
 
@@ -5327,7 +5381,12 @@ class HomeMixin:
         if not candidates:
             return False
 
-        physical_free_slots = max(0, PACK_CAPACITY - len(snapshot.inventory))
+        # A departure-blocking take may spend every slot the town pack budget
+        # admits (store_item_key refuses the rest at the outside composer).
+        admitted_free_slots = max(
+            0,
+            PACK_CAPACITY - len(snapshot.inventory) - MIN_TERMINAL_FREE_PACK_SLOTS,
+        )
         reserved_free_slots = max(
             0,
             PACK_CAPACITY
@@ -5351,7 +5410,7 @@ class HomeMixin:
             )
             if needs_slot:
                 slot_limit = (
-                    physical_free_slots
+                    admitted_free_slots
                     if departure_blocking_shortage(candidate)
                     else reserved_free_slots
                 )

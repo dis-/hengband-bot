@@ -2343,7 +2343,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "eafe684f396f3b4eac6795835b222f8f15b27c77042fbcfddcfecc1158a26109"
+    "ast_sha256": "0cd02511199a83d7459574b834bf2539eb006bba9bcc3c0c47cf28984cc0a501"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -5166,7 +5166,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f2c4b5e82a1fd1b83f65e40bd307707021ba37f51f2ce94a0eeb548c4a159358"
+    "ast_sha256": "c846f0ed5e1ae0cd9b3be133e4a578b1d0aa80ec1a2f8dd61f244af581fbbb42"
   },
   "policy_equipment.py:EquipmentMixin._ready_equipment_transaction_target": {
     "classification": "data",
@@ -5610,7 +5610,7 @@
       "home-executor"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "4aa31bb71c2741130a32c1ed4aa42c4373d80dbde321d6593a2fcdbc8ff46863"
+    "ast_sha256": "eccffdf2a3eaf778a8d54a64a7b9df3d778a80a2320334e025d84ec02ebc8301"
   },
   "policy_home.py:HomeMixin._find_home_deposit": {
     "classification": "data",

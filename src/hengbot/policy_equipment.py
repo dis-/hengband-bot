@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
+from hengbot.town_pack_budget import home_take_fits
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
@@ -673,7 +674,9 @@ class EquipmentMixin:
             key=lambda item: item.sval,
             default=None,
         )
-        if digger is None:
+        # The outside composer takes it only through the town pack budget
+        # (store_item_key); a take it refuses re-enters Home forever.
+        if digger is None or not home_take_fits(snapshot, digger, digger.count):
             return None
         self._home_digger_seen_pages.clear()
         self._home_pending_item = self._item_signature(digger)
