@@ -216,6 +216,19 @@ class DungeonLoopsRecordedTest(harness.ProductionHarness):
         self.assertEqual(policy.last_reason, "loot:identify-floor-item")
         self.assertTrue(key.endswith("-"), key)
 
+    def test_confused_player_does_not_post_a_refused_read(self):
+        policy, raw = self.policy("confused-read")
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertTrue(board.player.confused)
+        key = self.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, "no-wait:escape-scroll")
+        self.assertFalse(key.startswith("r"), key)
+        # A turn-consuming answer: the attack on the adjacent hostile.
+        self.assertEqual((policy.last_reason, key), ("no-wait:melee", "6"))
+        target = Position(board.player.position.y, board.player.position.x + 1)
+        self.assertTrue(any(monster.position == target for monster in board.visible_monsters))
+        self.post(policy, raw, key, dict(copy.deepcopy(raw), turn=raw["turn"] + 10))
+
 
 if __name__ == "__main__":
     unittest.main()

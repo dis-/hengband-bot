@@ -18660,8 +18660,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return self._find_edible(snapshot) is not None
 
     def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
-        # Reading needs sight; a full teleport is preferred over a short phase.
-        if snapshot.player.blind or not self._can_read_scrolls(snapshot):
+        # Reading needs sight and a clear head (cmd-read.cpp: cmd_limit_blind,
+        # cmd_limit_confused refuse the read without using a turn; D31 n1-a
+        # life-418 re-posted the refused read until the stalled-command stop).
+        # A full teleport is preferred over a short phase.
+        player = snapshot.player
+        if player.blind or player.confused or not self._can_read_scrolls(snapshot):
             return None
         return self._find_teleport_scroll(snapshot) or self._find_phase_scroll(snapshot)
 
