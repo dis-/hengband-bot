@@ -14,6 +14,15 @@ def permits(snapshot, slots: int) -> bool:
             >= MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
+def home_take_fits(snapshot, item, quantity: int) -> bool:
+    """The Home take admission the outside composer applies (store_item_key).
+
+    Owners that bind or hand off a Home withdrawal ask the same question, so a
+    take the composer will refuse is never left pending across a Home exit.
+    """
+    return permits(snapshot, incoming_slots(snapshot, item, quantity))
+
+
 def below_floor(snapshot) -> bool:
     """Distinguish an actual reserve deficit from a refused additional slot."""
     return (snapshot.in_town
