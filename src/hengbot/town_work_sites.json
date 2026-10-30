@@ -684,7 +684,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5036e69795acdc1bd0968668324c3b497b5980d56353695ed279181e94562c9a"
+    "ast_sha256": "d05958ddf45f6a57b9c25a21f10a7a117e54e93a9891c0bf3854e33d30b9f126"
   },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
@@ -6728,7 +6728,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6cd563bb63c3a0b57885d1e876d44db68b1ae81c34387ffbe2d546fa830bdee2"
+    "ast_sha256": "5147bf4ee289629b5abf4e7aeadbf175a2cfa04a168ad99c3d9ef191cc8dfc53"
   },
   "policy_quest.py:QuestMixin._prepare_return_1_candidate": {
     "classification": "adapter",
@@ -8782,6 +8782,77 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "a34c0fdbef6e633d95f3d62afa5425a587be49f4345f2e084adf0e4105b5111b"
+  },
+  "q2_tower_recharge.py:_fundraise": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "ba69b0c779cb09902b674b38ad395d9b70a94b898454310e2d87612efaa7fbf7"
+  },
+  "q2_tower_recharge.py:_recharge_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "f81c2abaafefaffb8934ec74b0e378152b36474cf2798817edae5605896d813f"
+  },
+  "q2_tower_recharge.py:_stop": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "084ff399b7bfd247c30217c6a337314aaae7a71d360e6bef9d46b6baa4c71696"
+  },
+  "q2_tower_recharge.py:_supplies": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "77088346b0e63f29bc56a450a252df5bf6a7ee7bd31b9b0aa4c7e3fdbdf5ee0e"
+  },
+  "q2_tower_recharge.py:_travel": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "9229a984541730a2505808f3fa1f46538860ac73c0c55312558a35f78c1a4299"
+  },
+  "q2_tower_recharge.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "086165878c5d3fd5b38a396d67f7d1398d4b63efd2e53d92293caf29a94eb6e9"
+  },
+  "q2_tower_recharge.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "38f6078f3a0b391e368ec52e83ddc210f578108f641c688946ccf71b0aef05c1"
   },
   "quest_final_room.py:avoided_doors": {
     "classification": "data",

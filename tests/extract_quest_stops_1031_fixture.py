@@ -13,7 +13,8 @@ of both, and the quest latches of the policy checkpoint written at the stop
 
 Q2 wall breach (n1-a life-422): the Telmora board approaching the Q2 request
 with a one-charge Stone to Mud wand, its following board, and the last in-quest
-board (quest:blocked:q2-breach-tool at [7,47]).
+board (quest:blocked:q2-breach-tool at [7,47]); and the last Outpost board
+before its inn trip to Telmora.
 
 Q34 opening wait (n1-a life-426, Lv1 in the Outpost): the last two recorded
 boards of the first stall capture and the decision row of every recorded board.
@@ -159,6 +160,9 @@ def q2_case(capture, turn):
         "board": boards[index],
         "following": boards[index + 1],
         "stop_board": boards[-1],
+        # The last Outpost board before the inn trip to Telmora (q2-travel).
+        "outpost_board": next(row for row in reversed(boards[:index])
+                              if row["floor"].get("town_id") == 0 and row["floor"].get("in_town")),
         "decisions": [by_turn[boards[i]["turn"]] for i in (index, -1)],
     }
 

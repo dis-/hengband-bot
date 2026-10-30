@@ -12563,5 +12563,97 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "q2_tower_recharge.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport back to the Outpost, delegated by the existing _opening_q34_town_key owner. Sole non-emergency town owner while the trip is unfinished; yields to adjacent monsters and to the fundraising owners of its own run.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "q2_tower_recharge.py:_fundraise": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport back to the Outpost, delegated by the existing _opening_q34_town_key owner. Starts one existing fundraising run (morivant_tower.start_fundraising_run) whose gold target is the expedition total; bounded runs, then the named stop.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "q2_tower_recharge.py:_stop": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport back to the Outpost, delegated by the existing _opening_q34_town_key owner. Named final stop quest:blocked:q2-tower-recharge (WAIT key, detail in the record).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "q2_tower_recharge.py:_travel": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport back to the Outpost, delegated by the existing _opening_q34_town_key owner. Delegates _town_teleport_key (quest-request) to Morivant or the Outpost; no route ends in the named stop.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "q2_tower_recharge.py:_recharge_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport back to the Outpost, delegated by the existing _opening_q34_town_key owner. Walks to Morivant's Tower of Sorcery (building 8) and posts 'a' + 'y' + ESC (observed_input answers 'y' only at the observed question); short gold returns to the Outpost with the reserved fare.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "q2_tower_recharge.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns the trip record (policy._q2_tower_recharge); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "q2_tower_recharge.py:_supplies": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: the Q2 Tower recharge's explicit fundraising targets add this.",
+    "evidence": "Returns int only: the known price of still-unmet departure ledger supplies (survival first); does not emit commands.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

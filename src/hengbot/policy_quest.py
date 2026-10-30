@@ -589,6 +589,10 @@ class QuestMixin(OpeningRouteMixin):
         staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
         if staff_sequence is not None:
             return staff_sequence
+        from hengbot import q2_tower_recharge
+        tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
+        if tower_recharge is not None:
+            return tower_recharge
         if not self._opening_q34_active(snapshot):
             return None
 

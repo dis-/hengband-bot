@@ -1,7 +1,7 @@
 """Morivant's Tower of Sorcery: the steps every Tower trip shares.
 
-Shared by every Tower trip (first the Magic-Eater staff sequence,
-``me_staff_sequence``):
+Shared by the Magic-Eater staff sequence (``me_staff_sequence``) and the Q2
+breach recharge (``q2_tower_recharge``):
 
  rumor    -- the inn rumor flow until Morivant (town 2) is listed in the
              exported ``visited_town_ids`` (what the inn teleport lists).
@@ -35,7 +35,7 @@ TOWER_OF_SORCERY = 8  # 03_Morivant.jsonc building 8: 'a' Recharge all items
 RECHARGE_ALL_ACTION_KEY = "a"
 RECHARGE_ALL_TAIL = RECHARGE_ALL_ACTION_KEY + "y" + LEAVE_STORE_KEY
 # The owners' reasons of a posted 'a' + 'y' + ESC (observed_input composes it).
-RECHARGE_ALL_REASONS = frozenset({"me-staff:recharge-all"})
+RECHARGE_ALL_REASONS = frozenset({"me-staff:recharge-all", "fixedquest:q2-recharge:recharge-all"})
 
 
 @lru_cache(maxsize=1)

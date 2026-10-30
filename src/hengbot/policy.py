@@ -12923,6 +12923,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ).items():
             if bool(status["ready"]) or name in self._abandoned_quest_carry_requirements:
                 continue
+            if name == "utility_tools.wall_breach":
+                from hengbot import q2_tower_recharge
+                if (strategy.quest_id == q2_tower_recharge.Q2_QUEST_ID
+                        and q2_tower_recharge.applies(self, snapshot)
+                        and q2_tower_recharge.recharge_meets_breach(self, snapshot)):
+                    # Owner 2026-10-31 「モリバントの塔で充填」: the Tower
+                    # supplies a short wand's charges.
+                    continue
             supply = self._quest_carry_obtainability(
                 snapshot, strategy, name, status
             )
