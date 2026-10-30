@@ -346,7 +346,15 @@ def _dual_wield_penalty(
 
 
 def warrior_melee_signature(loadout: Loadout) -> tuple[object, ...]:
-    """Return every loadout-dependent input consumed by melee evaluation."""
+    """Return every loadout-dependent input consumed by melee evaluation.
+
+    The item id is the player-visible catalog identity, which deliberately
+    omits the weapon proficiency (it grows while the same weapon is used).
+    The proficiency is a melee input (to-hit, player-status.cpp calc_to_hit),
+    so it is part of the key: otherwise a cached result computed before the
+    weapon gained experience survives under the same id while the same weapon
+    seen under another origin (Home) is evaluated fresh (D40).
+    """
     main = loadout.item_at(SLOT_MAIN_HAND)
     sub = loadout.item_at(SLOT_SUB_HAND)
     return (
@@ -361,6 +369,8 @@ def warrior_melee_signature(loadout: Loadout) -> tuple[object, ...]:
         _distributed_bonus(loadout, SLOT_SUB_HAND, "to_d"),
         _extra_blows(loadout, SLOT_MAIN_HAND),
         _extra_blows(loadout, SLOT_SUB_HAND),
+        main.item.weapon_proficiency if main is not None else None,
+        sub.item.weapon_proficiency if sub is not None else None,
     )
 
 
