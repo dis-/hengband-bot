@@ -28,7 +28,7 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
         character = replace(
             player(10, 10, class_id=class_id, level=5, hp=hp, max_hp=hp,
                    main_hand_blows=1, main_hand_to_h=0,
-                   main_hand_to_d=9 if quest_id == 34 else 25),
+                   main_hand_to_d=9 if quest_id == 34 else 12),
             melee_skill=100, race_id=25,  # Zombie, matching the viewing character.
         )
         inventory = [item("t", TVAL_LITE, SV_LITE_TORCH,
@@ -49,7 +49,8 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
 
     def test_magic_eater_passes_normal_floor_that_warrior_rejects(self):
         # D17 (2026-10-30): the Q1 class-16 floor is the torch rate 4.58.
-        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 4.58, 28)):
+        # D20 (2026-10-30): the Q1 warrior floor is 14.89 on the torch premise.
+        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 4.58, 14.89)):
             with self.subTest(quest_id=quest_id):
                 board = self.board(quest_id)
                 ready, details = self.readiness(board, quest_id)
