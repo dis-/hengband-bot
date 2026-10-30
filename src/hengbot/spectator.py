@@ -189,14 +189,15 @@ def spectator_recall_destination(policy, snapshot) -> dict | None:
 SPECTATE_MAGIC_EATER_KINDS = ("staff", "wand", "rod")
 
 
-def observe_magic_eater_powers(cache: dict, snapshot) -> dict:
+def observe_magic_eater_powers(cache: dict, snapshot, now: float | None = None) -> dict:
     """Update the per-life cache of power lists the game displayed to the bot.
 
     Each entry is a list the executor read from the game's own power list
     screen (``Snapshot.magic_eater_power_list``) plus the game turn of the
     board that followed it.  Nothing is estimated between observations: the
     viewer shows the turn so a stale list is visible.  A different class or
-    a game turn going backwards (a new life) clears the cache.
+    a game turn going backwards (a new life) clears the cache.  ``now`` (wall
+    clock) records when each list was read, the refresh cadence's clock.
     """
     player = snapshot.player
     turn = getattr(snapshot, "turn", 0)
@@ -208,7 +209,45 @@ def observe_magic_eater_powers(cache: dict, snapshot) -> dict:
     if isinstance(listed, Mapping) and listed.get("kind") in SPECTATE_MAGIC_EATER_KINDS:
         cache.setdefault("lists", {})[listed["kind"]] = {
             "turn": turn, "rows": [dict(row) for row in listed.get("rows", ())]}
+        if now is not None:
+            cache.setdefault("observed_at", {})[listed["kind"]] = now
     return cache
+
+
+def resume_magic_eater_powers(content: Mapping[str, object]) -> dict:
+    """The cache a previous bot process of this viewer wrote to spectate.json.
+
+    The soak runner restarts a stopped bot within seconds; without this each
+    restart forgot the lists (未確認) and their age.  A new life is still
+    told apart by observe_magic_eater_powers (class or game turn backwards).
+    """
+    # Only a class-16 frame carries the field (SpectatorWriter.observe).
+    powers = content.get("magic_eater_powers")
+    if not isinstance(powers, Mapping):
+        return {}
+    lists = {kind: value for kind, value in powers.items()
+             if kind in SPECTATE_MAGIC_EATER_KINDS and isinstance(value, Mapping)
+             and isinstance(value.get("turn"), int) and isinstance(value.get("rows"), list)}
+    if not lists:
+        return {}
+    observed = content.get("magic_eater_powers_observed_at")
+    observed_at = {kind: value for kind, value in (
+        observed.items() if isinstance(observed, Mapping) else ())
+        if kind in lists and type(value) in (int, float) and math.isfinite(value)}
+    return {"class_id": PLAYER_CLASS_MAGIC_EATER,
+            "turn": max(value["turn"] for value in lists.values()),
+            "lists": {kind: dict(value) for kind, value in lists.items()},
+            "observed_at": observed_at}
+
+
+def magic_eater_refresh_due(cache: Mapping[str, object], now: float,
+                            interval_seconds: float) -> bool:
+    """A class-16 cache with a kind unread, or read longer ago than the interval."""
+    if cache.get("class_id") != PLAYER_CLASS_MAGIC_EATER:
+        return False
+    observed = cache.get("observed_at", {})
+    return any(kind not in observed or now - observed[kind] >= interval_seconds
+               for kind in SPECTATE_MAGIC_EATER_KINDS)
 
 
 def spectator_magic_eater_powers(cache: Mapping[str, object]) -> dict:
@@ -233,7 +272,7 @@ class SpectatorWriter:
         self.last_write: float | None = None
         self.last_error_report: float | None = None
         self.tile_panel_counts: dict[str, int] = {}
-        self.magic_eater_powers: dict[str, object] = {}
+        self.magic_eater_powers: dict[str, object] = self._resume_magic_eater_powers()
 
     def observe(self, snapshot, key: str | None, reason: str | None,
                 decision_sequence: int | None,
@@ -250,7 +289,7 @@ class SpectatorWriter:
         if append_frame:
             self.pending_frame = None
         try:
-            observe_magic_eater_powers(self.magic_eater_powers, snapshot)
+            observe_magic_eater_powers(self.magic_eater_powers, snapshot, self.clock())
         except Exception as error:
             self._report(self.clock(), error)
         self.messages = merge_seen_messages(
@@ -290,6 +329,8 @@ class SpectatorWriter:
             if player.class_id == PLAYER_CLASS_MAGIC_EATER:
                 content["magic_eater_powers"] = spectator_magic_eater_powers(
                     self.magic_eater_powers)
+                content["magic_eater_powers_observed_at"] = dict(
+                    self.magic_eater_powers.get("observed_at", {}))
             if policy is not None:
                 destination = spectator_recall_destination(policy, snapshot)
                 if destination is not None:
@@ -337,6 +378,16 @@ class SpectatorWriter:
             self._report(now, error)
             return False
         return snapshot_due
+
+    def magic_eater_refresh_due(self, interval_seconds: float) -> bool:
+        return magic_eater_refresh_due(self.magic_eater_powers, self.clock(), interval_seconds)
+
+    def _resume_magic_eater_powers(self) -> dict:
+        try:
+            content = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return resume_magic_eater_powers(content) if isinstance(content, Mapping) else {}
 
     def commit_frame(self) -> None:
         """Publish the pre-action screen only after the action was posted."""
