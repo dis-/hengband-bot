@@ -1,0 +1,69 @@
+D38 報告: 較正が帰還で捨てられ、書き出しの後も作り直されないように見える件（#47）
+ブランチ calib-recall-1031（基点 main b6d47db93）。push・取り込みはしていない。
+診断の詳細は LUNA-DIAG-calib-recall.txt。
+
+■ 結論
+1. 原因1（帰還）: 状態の欄の「帰還」(recall) を character_sheet.py の temporary_bonuses
+   （b6d47db93 の 205-210 行）が未知の一時効果として拒み、policy_calibration.py 214-218 行で
+   較正を捨てていた。町でも迷宮でも帰還を読むたびに起きる。直した。
+2. 原因2（書き出しで作り直されない）: 作り直しは失敗していなかった。迷宮では
+   policy_equipment.py 840-848 行で最適化が早く戻り、result_source は最後に町で出した
+   "calibration-required-return" の再掲（freshness "stale-republished"）になる。さらに
+   policy.py 14075-14078 行の較正の記録は理由しか出さず、較正があっても無くても None になりえた。
+   監視はこの再掲の行を「止まり」と数えていた。較正の記録に「持っているか」(present) と、
+   無い時の状態の名前を足した。
+   新しい決まりは要らなかった（振る舞い・キーは変えていない）。所有者への質問は無い。
+
+■ 証拠（抜粋）
+- 観戦サーバ n1-b life-276: 18574（町、帰還を読む直前）signature-cache-hit → 18575（状態の欄に
+  recall）calibration-required-return・unknown-timed-effect:recall。
+- 手元の写しの町の行で calibration-required-return は 70 件、理由は全部 recall（None は 0 件）。
+  n1-a life-447 も町では recall 147・level 9 で None は 0 件。
+- 書き出しの直後に理由が recall → None（成功の印）、次に町へ戻ると signature-cache-hit。
+  較正ファイルの observed_turn は書き出しの turn と一致（手元 720016＝判断 15911、サーバ 758093＝判断 20170）。
+- ゲームの根拠: BAR_RECALL は word_recall だけで表示（main-window-stat-poster.cpp:583）。
+  recall_player・execute_recall は TIMED_EFFECT の再描画しか要求せず、能力値・AC・HP の計算は
+  word_recall を読まない。
+
+■ 状態の欄のキー（観戦の全ライフの記録）
+  recall 4541、afraid 666、blindness 101、confused 40。足したのは recall だけ。
+  afraid・blindness・confused は推測で許さない指示のため足していない（出れば今までどおり捨てて作り直す）。
+
+■ 変更とコミット
+  60449e7c9 Diagnose D38 ...（LUNA-DIAG-calib-recall.txt）
+  facb6c28a Keep the calibration while Word of Recall is active
+            src/hengbot/character_sheet.py の known に "recall"（ゲームの根拠をコメントに）、
+            tests/extract_calib_recall_fixture.py、tests/fixtures/calib-recall-20261031.json.gz・
+            .bot-test.txt.gz、tests/test_calib_recall_recorded.py の (a)
+  aba202cd2 Report whether the calibration is present in decision telemetry
+            src/hengbot/policy.py calibration_entry_state に "present" と、較正が無いのに理由が None の
+            時の状態名（dump-pending／dump-requested／record-not-loaded／no-equipped-observation）、テスト (b)
+  （この報告のコミットが最後に付く）
+
+■ 欠陥の検査（tests/test_calib_recall_recorded.py、材料は tests/extract_calib_recall_fixture.py）
+  (a) test_recall_on_the_status_bar_keeps_the_calibration
+      記録の町の盤面 744608・744615（recall）・744624 を choose_key に通し、較正が残り理由が None、
+      最適化が calibration-required-return にならないこと。
+      直す前（character_sheet.py の変更を戻す）: 失敗（turn 744615 で較正が None）。直した後: 成功。
+  (b) test_dungeon_dump_rebuilds_and_the_telemetry_says_so
+      新しいプロセスで記録の迷宮の書き出し（判断 20170 の盤面・C の応答・ダンプ・次の盤面）を流し、
+      書き出しの前は present False と理由あり、待ちの間は dump-pending、choose_key の後は較正が
+      記録のファイルと同じ値で作り直され present True・理由 None になること。
+      直す前（policy.py の変更を戻す）: 失敗（present が無い）。直した後: 成功。
+  checks.json に {"id": "D38", "tests": ["tests.test_calib_recall_recorded"]} を足した。
+
+■ 実行した検査
+  - 読み込みの検査（import hengbot.cli, hengbot.policy）: 成功
+  - checks.json の全テスト（D38 を含む 33 モジュール）: Ran 174 tests in 779.767s、OK
+  - 自分のテスト: tests.test_calib_recall_recorded 2件 OK（最後のコミットの後にも再実行して OK）
+  - 戻して失敗することの確認:
+    (a) character_sheet.py を戻す → FAIL（turn 744615: 較正が None）→ 戻して OK
+    (b) policy.py を戻す → FAIL（present が None）→ 戻して OK
+  全体テスト・preflight・mutation_check・fast_tier は流していない。裏のプロセスは残していない。
+  材料は観戦サーバから読んだだけ（書き込み・停止なし）。
+
+■ 本件の外
+  - サーバ 18525: 町で較正が無い時の periodic:character-dump が town-progress-invariant に
+    approach へ書き換えられ、作り直しが買い物の後（18566）まで遅れた。町の進行（D30/D34）の話で
+    直していない。原因1を直したので帰還で捨てることは無くなり、影響は小さくなる。
+  - 測る時は迷宮の行の result_source ではなく、町の行か equipment_optimization.calibration.present を使う。

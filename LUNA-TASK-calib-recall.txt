@@ -1,0 +1,57 @@
+ISSUE: #47
+PDCA defect D38 (C:\hengband-backups\pdca\defects.md). Branch calib-recall-1031 at main b6d47db93, worktree
+C:\hengband\bot-client\.worktrees\calib-recall-1031.
+
+Owner (2026-10-31): 「n1-bの較正が止まる原因も調べて」, then chose 「Opusに出す」 for the fix of both causes below.
+
+Symptom (measured by the supervisor on the viewing bots, build b6d47db93): the equipment optimizer returns
+result_source "calibration-required-return" on 70-80 % of decisions of n1-b (latest log: 8,575 decisions stopped,
+1,534 ran) and on a large share of n1-a's. While stopped, the equipment is never re-optimised.
+
+Cause 1 (confirmed in code): when the status bar shows the Word of Recall timer ("recall"),
+src/hengbot/character_sheet.py temporary_bonuses() raises CharacterSheetUnavailable("unknown-timed-effect:recall"):
+recall is not in its `known` set. src/hengbot/policy_calibration.py _validated_character_calibration() then drops the
+calibration (self._character_calibration = None) and requests a new dump. The bot reads recall on every trip between
+town and dungeon. Recall changes no stat, AC or HP (check the game: C:\hengband\src, the timed effect and how the
+character sheet / status bar shows it), so it must not invalidate or block a calibration. Do NOT whitelist other unknown
+effects by guess: list in the report every status-bar key the viewing logs show and, for each one you add, cite the
+game source that proves it has no effect on stats / AC / HP.
+
+Cause 2 (not yet found - diagnose first): after a calibration is dropped, the periodic C-screen dump
+('Cf\ry\x1b\x1b', reason periodic:character-dump) often does NOT rebuild it and leaves no reason:
+the next decisions still show calibration {pending: False, unavailable_reason: None} and
+result_source calibration-required-return. Measured: n1-b life-276 10 of the last 11 dumps, 3 of 12 in the log before;
+n1-a 10 of 16. A dump that does rebuild it sets result_source back to signature-cache-hit etc.
+Trace the whole path with file:line: policy.py _periodic_character_dump_key (~10070) -> _prepare_character_sheet_dump
+-> confirm_key_posted sets _calibration_dump_pending (policy.py ~14606) -> policy_observation.py ~85
+_consume_equipped_character_sheet (needs the C response envelope) -> policy.py ~2690 _complete_character_dump ->
+policy_calibration.py _publish_character_dump (every rejection there sets a reason, so a silent failure means one of the
+earlier steps did not happen: pending never set, no C response observed, pending reset by a checkpoint restore
+(policy_state.py ~214), the response consumed for an older pending, the stale-dump-file / uncorrelated checks, the
+spectator backlog wait (--spectate-max-backlog 240) or the CLI's ordering). Find which, with the recorded rows.
+Also make every silent outcome leave a reason in calibration telemetry (no more None while the calibration is missing).
+
+Evidence (local copy, read-only; 234 MB):
+  C:\hengband-backups\pdca\captures\calib-1031\n1-b-life-276\jsonlog\bot-decisions.jsonl(.1)  - decisions with
+    equipment_optimization.calibration; find reason "periodic:character-dump" and the rows after it
+  ...\jsonlog\bot-posted-characters.jsonl - the C (character) responses the bot received
+  ...\jsonlog\character-calibration.json, ...\user\bot-test.txt (the dump, EUC-JP), ...\state.jsonl (game output, UTF-8)
+More can be read (read only, never write, never kill) on the viewing server:
+  ssh -o BatchMode=yes -o IdentitiesOnly=yes -i C:\Users\user\.ssh\xserver_adminops dis@hengband.net
+  ~/hengbot-soak/n1-a/life-447/ and ~/hengbot-soak/n1-b/life-276/ (live; n1-c life-054 works since 07:18 - a control).
+Note D37 (same morning): n1-c read an empty dump because its character is named bot_test2; that is fixed in the runner
+(--dump-name) and is NOT this task.
+
+Do:
+1. LUNA-DIAG-calib-recall.txt first: cause 2 found with file:line and the recorded rows that show it.
+2. Fix both causes (cause 2 under existing decisions; if it needs a new rule, STOP and ask in the report).
+3. Defect checks through the public choose_key on recorded boards: (a) a board with "recall" on the status bar keeps a
+   valid calibration, (b) a recorded dump sequence that left the calibration missing now rebuilds it. Each must fail on
+   the unfixed code (revert the src hunk, run, restore; record per test). Add the test ids to
+   C:\hengband-backups\pdca\checks.json as the PDCA rules say, with id D38.
+4. Report LUNA-REPORT-calib-recall.txt (Japanese) and commit.
+
+Rules: C:\hengband-backups\pdca\TASK-COMMON-1031.txt applies in full EXCEPT its base commit and family list (this task is
+alone; base is main b6d47db93; other worktrees may exist - never touch them). In particular: NEVER git stash; checks are
+only the import check, the tests in checks.json and your own tests; no full suite, preflight, mutation_check or fast_tier.
+Write every text file with Python, encoding='utf-8', newline='\n' (never through PowerShell pipes or here-strings).

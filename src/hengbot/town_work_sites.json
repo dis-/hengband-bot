@@ -4377,7 +4377,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8f257aa9df62dcfa35d9b2ca9801bb474658aa21988a2314c5f35841a5c15974"
+    "ast_sha256": "82989d9e58c614d92f390a63476e1d92ac17f6f22580c2cef53ca04b00dabe0f"
   },
   "policy.py:HengbotPolicy.choose_key": {
     "classification": "adapter",
