@@ -1,0 +1,90 @@
+LUNA-REPORT q2-tower-recharge-1031（2026-10-31）
+
+ISSUE #47。持ち主の決定: 「Q2の岩石溶解 - 回数を数える」（main 99e81cb20 で取り込み済み）と
+「モリバントの塔で充填」（魔道具術師でないキャラは、宿の噂でモリバントを解禁し、賢者の塔の
+「全てのアイテムを再充填」で岩石溶解の魔法棒を満たす）。
+
+1. 引き継いだ状態
+- b392a3e25「WIP q2 tower recharge (to be squashed)」: 新しいモジュール q2_tower_recharge.py と
+  morivant_tower.py（塔の手順を me_staff_sequence.py と共用）、policy.py / policy_quest.py / cli.py /
+  observed_input.py / flight_recorder.py / policy_constants.py の小さな差し込み、
+  tests/test_q2_tower_recharge_recorded.py と記録盤面（quest-stops-20261030.json.gz に outpost_board を追加）。
+- main 5b1695b6f の取り込みが scripts/town_work_manifest.json.gz（生成物）の衝突で止まっていた。
+
+2. 取り込みのやり方
+- 途中の取り込みは git merge --abort で捨て、WIP に main b6d47db93 を直接取り込んだ。衝突は生成物の
+  manifest だけで、scripts/town_work_manifest.py --write で作り直した（zero unmapped）。
+- 検査が済んだ後、ブランチを b6d47db93 の上に直線に並べ直した（中身の木は検査した木と同一。
+  git stash は使っていない）。最終の HEAD は main b6d47db93 を含む。
+  コミット:
+  db16ffae5 Move the Morivant Tower steps into a shared module
+  164b37911 Recharge a short Q2 Stone to Mud wand at Morivant's Tower
+  （このレポートのコミットがその上に乗る）
+
+3. 振る舞い（今の形）
+- 魔道具術師でなく、次の固定クエストが未受諾の承認済み Q2 で、wall_breach の持ち物が足りず、
+  塔の再充填（building_recharge_all: 魔法棒の束は 個数×基本 pval まで。岩石溶解は基本 pval 12）で
+  足りるようになる時だけ、町の持ち主になる。
+  噂（モリバント未解禁なら）→ 宿のテレポートでモリバントへ → 塔（建物8）で 'a' + 'y' で全部再充填 →
+  宿でアウトポストへ戻り、あとは通常の Q2 の移動と依頼に任せる。
+- 所持金が足りない時は既存の資金稼ぎを1回（目標は塔の全品の合計＋往復の運賃＋未充足の必需品、
+  噂の段階はその上に噂の分）。最大6回。進めない時は名前付きの停止 quest:blocked:q2-tower-recharge
+  （詳細は _q2_tower_recharge.failure）。隣に敵がいる時は譲る（生存優先）。
+- 塔で満たせる間は wall_breach の持ち物を「入手不能」として捨てない。
+- 魔道具術師は今までどおり me_staff_sequence の塔の手順（振る舞いは変えていない）。
+
+4. 今回変えたこと
+- q2_tower_recharge.recharge_meets_breach: 塔の後の数え方を _quest_named_item_count と揃えた。
+  これまでは「見えている（aware かつ known）魔法棒の回数」だけを引いて足していたため、回数の見えない
+  岩石溶解の魔法棒があると切り捨ての位置がずれた。今は 掘る道具の数 ＋（数えた回数 − 見えている回数
+  ＋ 見えている魔法棒の再充填後の回数）÷ 5。
+- tests/test_quest_stops_1031_recorded.py（D33）の1か所の期待値を新しい振る舞いへ更新した:
+  1回分の魔法棒の Telmora 盤面は、以前は既存の prepare-return（地図なしの方策なので route-unavailable）
+  だったが、今は Q2 の塔の持ち主が受け持つ。この試験の方策は町の地図を持たず宿へ道を引けないので、
+  名前付きの停止 travel-morivant-unavailable になる（本番と同じ組み立てでは Morivant へ移動する:
+  test_q2_tower_recharge_recorded）。壁ではなく期待値の更新。
+- WIP を2つのコミットに分けた（共用モジュールへの移動／Q2 の再充填）。1つ目は me_staff_sequence の
+  振る舞いを変えない移動だけで、その時点の manifest も作り直してある（zero unmapped）。
+
+5. 検査
+- import 検査: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK。
+- checks.json の全テスト＋ブランチのテスト（test_q2_tower_recharge_recorded, test_me_staff_sequence,
+  test_zombie_me_food）: 198件、197件 OK。1件 ERROR は tests.test_calib_recall_recorded（D38）で、
+  別の実装役のブランチ calib-recall-1031 のテストがこのブランチにまだ無いための import エラー。
+- 1つ目のコミット単体: test_me_tower_recharge_recorded, test_me_staff_sequence, test_zombie_me_food,
+  test_me_stockout_run_recorded, test_me_town_stops_recorded 32件 OK。
+- 取り込み直後（変更前）: test_quest_stops_1031_recorded の
+  test_recorded_one_charge_wand_does_not_admit_the_q2_request が FAIL（上の期待値の件）。更新後 OK。
+- manifest: scripts/town_work_manifest.py → 0 violation、--write は zero unmapped。
+
+6. 欠陥の検査が src の変更なしで落ちること（差し戻しの証明）
+- policy_quest.py（町の持ち主の差し込み）と policy.py（持ち物を捨てない差し込み）を b6d47db93 に戻して実行:
+  tests.test_q2_tower_recharge_recorded: 6件中5件 FAIL
+   - test_recorded_short_wand_boards_travel_to_morivant（board: fixedquest:prepare-return、
+     outpost_board: shop:travel。期待は fixedquest:q2-recharge:travel-morivant）
+   - test_short_purse_outside_the_outpost_returns_for_funds（fixedquest:prepare-return）
+   - test_tower_recharges_the_whole_pack_then_returns_to_the_outpost（town:kill-mob-approach）
+   - test_full_wand_in_the_outpost_takes_the_ordinary_q2_travel（持ち主が動かず active が残る）
+   - test_short_wand_breach_is_not_abandoned_while_the_tower_can_fill_it（wall_breach が捨てられる）
+   test_magic_eater_keeps_its_own_owners は OK（魔道具術師を除外する確認なので戻しても通るのが正しい）。
+  tests.test_quest_stops_1031_recorded.Q2BreachChargesRecordedTest: 1件 FAIL
+   （fixedquest:prepare-return:route-unavailable）。
+- 戻した2ファイルを元に戻し、差分が同一であることを確かめた。
+- checks.json に追加: id "Q2-TOWER"、owner 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」、
+  tests: tests.test_q2_tower_recharge_recorded, tests.test_quest_stops_1031_recorded。
+
+7. 持ち主への問い（実装していない）
+- 問1: 再充填の後はアウトポストへ戻ってから Telmora へ行く（WIP の設計）。モリバントから Telmora へ
+  直接行けば運賃1回分（宿のテレポート）安いが、既存の Q2 の移動に任せる形を変えることになる。直接行くか。
+- 問2: 宿への道が引けない時は名前付きの停止にしている（me_staff_sequence と同じ）。以前の既存の持ち主は
+  待つ（route-unavailable）だった。停止のままでよいか。
+- 問3: 回数の見えない（未鑑定の）岩石溶解の魔法棒は、塔で満たせても数えない（公平さのため）。
+  塔は未鑑定品も鑑定して満たすが、その魔法棒を当てにして旅に出るかは決まっていない。
+
+8. 注意
+- 全体テストは流していない（PDCA の決まり）。この持ち主は _opening_q34_town_key の中で ME の後に呼ばれ、
+  属性は getattr で遅延生成なので復元チェックポイントで AttributeError は出ないが、Q2 が次の固定クエストで
+  魔法棒が足りない記録盤面を使う復元系のテストは判断が変わりうる。
+- 1つ目のコミットは me_staff_sequence.py を触る（共用への移動のみ）。D35 を同じファイルで直している
+  別の実装役の変更とは取り込み時に衝突しうる（main b6d47db93 時点の D35 のテストは通っている）。
+- バックグラウンドのプロセスは残していない。
