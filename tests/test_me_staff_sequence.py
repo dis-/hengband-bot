@@ -25,6 +25,7 @@ from policy_fixtures import grid, item, player, store_item
 import test_policy_quest as quest_tests
 import test_input_executor as input_tests
 from test_magic_eater_o3 import prompt
+from test_me_tower_recharge_recorded import recharge_all_screens
 from hengbot.cli import (
     PostingContract, SendResult, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
 )
@@ -298,11 +299,13 @@ class MeStaffSequenceTest(unittest.TestCase):
         policy = self.primed(board, shelf=False)
         self.assertEqual(sequence.max_charges(SV_STAFF_IDENTIFY), 21)
         self.assertEqual(sequence.max_charges(DETECT), 19)
-        # D24: cmd-building.cpp keeps the Tower menu open after each 'r', so
-        # both staffs are recharged before ESC leaves the building.
-        key, _ = self.decide(policy, board)
-        self.assertEqual((key, policy.last_reason),
-                         ("6ra13\rrb12\r\x1b", "me-staff:recharge:5,10"))
+        # The Tower's 'a' recharges the whole pack; the executor answers 'y'
+        # at the observed question and ESC leaves the building.
+        total = 13 * 40 + 12 * 20
+        self.assertEqual(sequence.recharge_cost(board), total)
+        key, game = self.decide(policy, board, *recharge_all_screens(total), inventory=staffs)
+        self.assertEqual((key, policy.last_reason), ("6ay" + chr(27), "me-staff:recharge-all"))
+        self.assertEqual(game.accepted, ["6", "a", "y", " ", chr(27)])
         full = [staff("a", SV_STAFF_IDENTIFY, 21), staff("b", DETECT, 19)]
         board = replace(board, turn=1200, inventory=full,
                         player=replace(board.player, gold=2000 - 13 * 40 - 12 * 20))
