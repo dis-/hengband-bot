@@ -1,0 +1,41 @@
+ISSUE: #47
+PDCA defect D40 (C:\hengband-backups\pdca\defects.md). Branch equip-tie-loop-1031 at main b6d47db93, worktree
+C:\hengband\bot-client\.worktrees\equip-tie-loop-1031.
+
+Owner (2026-10-31 07:4x): 「n1-cが同じ装備を付け外ししてループしている。さっき入れた変更の影響と思われる」.
+Context: until 07:18 the equipment optimizer of n1-c (Magic-Eater, class 16) never ran (D37: its character dump file name
+did not match, so calibration was always missing). At 07:18 the runner was fixed (--dump-name bot_test2.txt); at 07:21 the
+optimizer improved life-054's gear correctly. On the new character life-055 (Lv7) it then looped at Home for minutes:
+  '5pb\x1b' equipment-transaction:atomic-withdraw -> '5' travel-home:await-entry -> '\x1b'/'ta' equipment-transaction:takeoff
+  -> 'wh'/'wi' equipment-transaction:equip -> 'dh' equipment-transaction:deposit -> '\x1b' home:leave-after-one-operation
+  -> again (400 of 400 decisions, every second). The two weapons swapped are a Short Sword (1d7) (+0,+0) and a Cutlass
+  (1d7) (+0,+0) (equal dice and bonuses; different weight/base item). Each pass the optimizer prefers the weapon that is
+  NOT wielded. The supervisor removed --dump-name again at 07:42 (the loop stopped; the optimizer is off for n1-c until
+  this fix lands).
+Also seen on the same boards: the light is a burnt-out Wooden Torch (0 turns) while a Brass Lantern {average} is carried
+and not wielded - check whether this is the same root (selection) or a separate one; report it either way.
+
+Evidence (local copy, read only, 99 MB): C:\hengband-backups\pdca\captures\n1c-equip-loop-1031\bot-decisions.jsonl
+(decisions with equipment_optimization telemetry) and state-tail.jsonl (game state, UTF-8). The live bots are on the
+viewing server (read only): ssh -o BatchMode=yes -o IdentitiesOnly=yes -i C:\Users\user\.ssh\xserver_adminops
+dis@hengband.net ~/hengbot-soak/n1-c/life-055.
+
+Do:
+1. LUNA-DIAG-equip-tie-loop.txt first: why the choice flips every pass (file:line; e.g. an asymmetric value for worn vs
+   carried vs Home items, weight, proficiency, a tie broken by position or identity, a margin that is not required for a
+   swap). Check whether this can also happen for the warriors (n1-a/n1-b) or only for class 16
+   (src/hengbot/equipment_class_profile.py, the Magic-Eater profile).
+2. Fix the root so a swap needs a real improvement and an equal alternative never displaces the worn item (use existing
+   rules/constants; if a new threshold or rule is needed, STOP and ask in the report).
+3. Defect check from the recorded boards through the public choose_key and the production executor: on b6d47db93 the
+   recorded board starts the swap again; after the fix it does not (and a strictly better weapon still gets equipped -
+   control). Must fail on the unfixed code (revert, run, restore). Add the ids to C:\hengband-backups\pdca\checks.json
+   under D40.
+4. Report LUNA-REPORT-equip-tie-loop.txt (Japanese) and commit.
+
+Rules: C:\hengband-backups\pdca\TASK-COMMON-1031.txt applies except its base commit and family list. Three other
+implementers work in parallel: calib-recall-1031 (character_sheet.py, policy_calibration.py, the C-screen dump path),
+q2-tower-recharge-1031 (q2_tower_recharge.py, morivant_tower.py, me_staff_sequence.py), town-work-perf-1031 (town_work.py
+and its hook in policy.py). Stay out of their files. NEVER git stash. Write text files with Python, encoding='utf-8',
+newline='\n'. Checks: the import check, checks.json tests, your tests, and the existing equipment tests you touch. No full
+suite, preflight, mutation_check, fast_tier. No background processes left.
