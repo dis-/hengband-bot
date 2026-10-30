@@ -291,19 +291,18 @@ class MeStaffSequenceTest(unittest.TestCase):
         self.assertEqual(policy._me_staff_sequence.failure, "morivant-rumor-exhausted")
 
     # -- (d) / (e) ---------------------------------------------------------
-    def test_d_e_morivant_recharges_each_staff_to_max_then_absorbs_both(self):
+    def test_d_e_morivant_recharges_both_staffs_to_max_in_one_visit_then_absorbs_both(self):
         staffs = [staff("a", SV_STAFF_IDENTIFY, 8), staff("b", DETECT, 7)]
         board = self.board(gold=2000, inventory=staffs, town=2, visited=(0, 2),
                            position=(10, 11), building=sequence.TOWER_OF_SORCERY)
         policy = self.primed(board, shelf=False)
         self.assertEqual(sequence.max_charges(SV_STAFF_IDENTIFY), 21)
         self.assertEqual(sequence.max_charges(DETECT), 19)
+        # D24: cmd-building.cpp keeps the Tower menu open after each 'r', so
+        # both staffs are recharged before ESC leaves the building.
         key, _ = self.decide(policy, board)
-        self.assertEqual((key, policy.last_reason), ("6ra13\r\x1b", "me-staff:recharge:5"))
-        board = replace(board, turn=1100, inventory=[staff("a", SV_STAFF_IDENTIFY, 21), staffs[1]],
-                        player=replace(board.player, gold=2000 - 13 * 40))
-        key, _ = self.decide(policy, board)
-        self.assertEqual((key, policy.last_reason), ("6rb12\r\x1b", "me-staff:recharge:10"))
+        self.assertEqual((key, policy.last_reason),
+                         ("6ra13\rrb12\r\x1b", "me-staff:recharge:5,10"))
         full = [staff("a", SV_STAFF_IDENTIFY, 21), staff("b", DETECT, 19)]
         board = replace(board, turn=1200, inventory=full,
                         player=replace(board.player, gold=2000 - 13 * 40 - 12 * 20))
