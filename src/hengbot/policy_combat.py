@@ -2340,6 +2340,7 @@ class CombatMixin:
                     # the floor entirely, so it is the escape of last resort.)
                     if (
                         not player.recalling
+                        and self._emergency_recall_leaves_danger(snapshot)
                         and not self._quest_floor_exit_locked(snapshot)
                         and self._can_read_scrolls(snapshot)
                     ):
@@ -2984,6 +2985,7 @@ class CombatMixin:
                 )
         if (
             not player.recalling
+            and self._emergency_recall_leaves_danger(snapshot)
             and not self._quest_floor_exit_locked(snapshot)
             and self._can_read_scrolls(snapshot)
         ):
