@@ -27,6 +27,20 @@ identify-staff readiness and treasure-detection stock count them, and the
 identify / detect commands use ``m`` ``A`` and the power (cmd-magiceat.cpp
 letters are I2A(sval)).  Any step that cannot proceed starts one bounded
 fundraising run or ends with a named ``quest:blocked:me-staff:`` stop.
+
+Stages (owner 2026-10-31: 「財宝感知と鑑定の取り込みは1本でいい。1本取り込めたら
+次の段階に進む。次の段階は店売りの有用な魔法道具を揃えること。トラップ感知の杖
+ドア/階段感知の杖 邪悪感知の杖 周辺感知の杖 まずはこれらを1本ずつ取り込むのが目標。
+取り込み手順は以前と同じ。」「魔道具術師の第二段階に光の杖を追加」): ``STAGES``
+lists each stage's staffs; one absorption of each completes a stage whatever
+its charges, and the next stage runs the same steps (Morivant stays
+unlocked).  Stage 2's five staffs
+(all Magic-shop stock, store/articles-on-sale.cpp) are bought as the shelf
+offers them, one each, and every carried staff of the stage is recharged
+and absorbed on whichever Tower visit comes first: a trip's fares are paid
+per visit and the Tower's 'a' recharges the whole pack at once.  Completing
+a stage is decided once as ``me-staff:stage<N>-complete`` (WAIT; owner
+2026-10-31 「次の目標は3キャラ連続で第二段階のクリアとする」).
 """
 
 from __future__ import annotations
@@ -52,15 +66,46 @@ from hengbot.policy_constants import (
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
 
-SV_STAFF_DETECT_GOLD = 10  # sv-definition/sv-staff-types.h
-SEQUENCE_SVALS = (SV_STAFF_IDENTIFY, SV_STAFF_DETECT_GOLD)
+# sv-definition/sv-staff-types.h
+SV_STAFF_LITE = 8
+SV_STAFF_MAPPING = 9
+SV_STAFF_DETECT_GOLD = 10
+SV_STAFF_DETECT_TRAP = 12
+SV_STAFF_DETECT_DOOR = 13
+SV_STAFF_DETECT_EVIL = 15
+
+
+@dataclass(frozen=True)
+class Stage:
+    number: int
+    svals: tuple
+    # Stage 1 buys both staffs on one visit (owner 2026-10-30); stage 2 buys
+    # whatever its shelf offers and funds the rest (owner 2026-10-31).
+    partial_buy: bool
+
+
+STAGES = (
+    Stage(1, (SV_STAFF_IDENTIFY, SV_STAFF_DETECT_GOLD), False),
+    Stage(2, (SV_STAFF_DETECT_TRAP, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL,
+              SV_STAFF_MAPPING, SV_STAFF_LITE), True),
+)
+SEQUENCE_SVALS = tuple(sval for stage in STAGES for sval in stage.svals)
 # cmd-magiceat.cpp prints and accepts I2A(sval) for every power.
-POWER_LETTER = {SV_STAFF_IDENTIFY: "f", SV_STAFF_DETECT_GOLD: "k"}
-# The power list prints the baseitem name (BaseitemDefinitions ids 326, 301).
+POWER_LETTER = {sval: chr(ord("a") + sval) for sval in SEQUENCE_SVALS}
+# The power list prints the baseitem name (BaseitemDefinitions ids 326, 301,
+# 300, 316, 318, 328, 306).
 POWER_NAMES = {SV_STAFF_IDENTIFY: ("鑑定", "Perception"),
-               SV_STAFF_DETECT_GOLD: ("財宝感知", "Treasure Location")}
-# Base pval and cost when the definitions cannot be read (ids 326 and 301).
-_FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200)}
+               SV_STAFF_DETECT_GOLD: ("財宝感知", "Treasure Location"),
+               SV_STAFF_DETECT_TRAP: ("トラップ感知", "Trap Location"),
+               SV_STAFF_DETECT_DOOR: ("ドア/階段感知", "Door/Stair Location"),
+               SV_STAFF_DETECT_EVIL: ("邪悪存在感知", "Detect Evil"),
+               SV_STAFF_MAPPING: ("周辺感知", "Enlightenment"),
+               SV_STAFF_LITE: ("光", "Light")}
+# Base pval and cost when the definitions cannot be read (the ids above).
+_FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200),
+                  SV_STAFF_DETECT_TRAP: (12, 350), SV_STAFF_DETECT_DOOR: (15, 350),
+                  SV_STAFF_DETECT_EVIL: (14, 350), SV_STAFF_MAPPING: (11, 750),
+                  SV_STAFF_LITE: (19, 250)}
 # ItemEntity::can_recharge (baseitem-key.cpp): what 'a' recharges.
 RECHARGEABLE_TVALS = (TVAL_STAFF, TVAL_WAND, TVAL_ROD)
 UNKNOWN_ITEM_RECHARGE_FEE = 50  # building_recharge_all: +50 per unknown item
@@ -99,6 +144,12 @@ class MeStaffSequence:
     progress: tuple | None = None
     positions: dict = field(default_factory=dict)
     failure: str | None = None
+    # Observable progress (flight recorder, decision log): the stage being
+    # worked (len(STAGES) + 1 when all are done), its staffs not yet
+    # absorbed, and stage number -> turn it was completed.
+    stage: int = 1
+    remaining: tuple = ()
+    completed_stages: dict = field(default_factory=dict)
 
 
 @lru_cache(maxsize=1)
@@ -185,25 +236,56 @@ def applies(policy, snapshot) -> bool:
     return q1 is not None and q1.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
 
 
-def is_sequence_staff(item) -> bool:
-    return item.tval == TVAL_STAFF and item.sval in SEQUENCE_SVALS and item.aware
-
-
-def carried_staffs(snapshot) -> dict:
-    staffs = {}
-    for item in snapshot.inventory:
-        if is_sequence_staff(item) and item.known and item.sval not in staffs:
-            staffs[item.sval] = item
-    return staffs
-
-
 def absorbed(policy, sval: int) -> bool:
     record = getattr(policy, "_me_staff_sequence", None)
     return record is not None and sval in record.absorbed
 
 
+def stage_complete(policy, stage: Stage) -> bool:
+    """「1本取り込めたら次の段階に進む」: one absorption of each, any charges."""
+    return all(absorbed(policy, sval) for sval in stage.svals)
+
+
+def current_stage(policy) -> Stage | None:
+    return next((stage for stage in STAGES if not stage_complete(policy, stage)), None)
+
+
 def complete(policy) -> bool:
-    return all(absorbed(policy, sval) for sval in SEQUENCE_SVALS)
+    return current_stage(policy) is None
+
+
+def active_svals(policy) -> tuple:
+    """The staffs of every stage reached so far (later stages stay ordinary)."""
+    stage = current_stage(policy)
+    last = stage.number if stage is not None else STAGES[-1].number
+    return tuple(sval for each in STAGES if each.number <= last for sval in each.svals)
+
+
+def remaining_svals(policy) -> tuple:
+    stage = current_stage(policy)
+    return () if stage is None else tuple(
+        sval for sval in stage.svals if not absorbed(policy, sval))
+
+
+def is_sequence_staff(item, policy) -> bool:
+    return item.tval == TVAL_STAFF and item.sval in active_svals(policy) and item.aware
+
+
+def carried_staffs(policy, snapshot) -> dict:
+    """sval -> carried known staff of the current stage, not yet absorbed."""
+    needed = remaining_svals(policy)
+    staffs = {}
+    for item in snapshot.inventory:
+        if (item.tval == TVAL_STAFF and item.sval in needed and item.aware
+                and item.known and item.sval not in staffs):
+            staffs[item.sval] = item
+    return staffs
+
+
+def _needed(policy, snapshot) -> list:
+    """The current stage's staffs neither absorbed nor carried."""
+    carried = carried_staffs(policy, snapshot)
+    return [sval for sval in remaining_svals(policy) if sval not in carried]
 
 
 def absorbed_charges(policy, snapshot, sval: int) -> int:
@@ -249,12 +331,12 @@ def identify_power_command(policy, snapshot, target, *, full: bool) -> str | Non
 
 def purchase_excluded(policy, snapshot, item) -> bool:
     """「2本目は買わない」: class 16 never buys these staffs after Q1 itself."""
-    return is_sequence_staff(item) and applies(policy, snapshot)
+    return is_sequence_staff(item, policy) and applies(policy, snapshot)
 
 
 def retains(policy, snapshot, item) -> bool:
     """A bought staff stays carried until it is recharged and absorbed."""
-    return (is_sequence_staff(item) and applies(policy, snapshot)
+    return (is_sequence_staff(item, policy) and applies(policy, snapshot)
             and not absorbed(policy, item.sval))
 
 
@@ -277,8 +359,7 @@ def _fresh_pages(policy, snapshot) -> dict:
 
 def offers(policy, snapshot) -> dict:
     """sval -> (store, cheapest observed offer) for each staff still needed."""
-    needed = [sval for sval in SEQUENCE_SVALS
-              if not absorbed(policy, sval) and sval not in carried_staffs(snapshot)]
+    needed = _needed(policy, snapshot)
     found = {}
     for store, page in _fresh_pages(policy, snapshot).items():
         for item in page.items:
@@ -289,13 +370,18 @@ def offers(policy, snapshot) -> dict:
 
 
 def buy_target(policy, snapshot) -> int | None:
-    """The explicit gold target: one of each still-needed staff, as priced."""
-    needed = [sval for sval in SEQUENCE_SVALS
-              if not absorbed(policy, sval) and sval not in carried_staffs(snapshot)]
+    """The explicit gold target: one of each still-needed staff, as priced.
+
+    A partial-buy stage prices the needed staffs its shelves offer; stage 1
+    needs both on offer.
+    """
+    stage = current_stage(policy)
+    needed = _needed(policy, snapshot)
     found = offers(policy, snapshot)
-    if not needed or any(sval not in found for sval in needed):
+    if stage is None or not found or (
+            not stage.partial_buy and any(sval not in found for sval in needed)):
         return None
-    return sum(found[sval][1].price for sval in needed)
+    return sum(offer[1].price for offer in found.values())
 
 
 def shopping(policy, snapshot) -> bool:
@@ -323,7 +409,7 @@ def _page_purchase(policy, snapshot):
     target = buy_target(policy, snapshot)
     if target is None or snapshot.player.gold < target:
         return None
-    for sval in SEQUENCE_SVALS:
+    for sval in remaining_svals(policy):
         offer = offers(policy, snapshot).get(sval)
         if offer is not None and offer[0] == snapshot.store.store_type:
             return next((item for item in snapshot.store.items if item == offer[1]), None)
@@ -335,26 +421,28 @@ def _page_purchase(policy, snapshot):
 def _phase(policy, snapshot) -> str:
     town = policy._effective_town_id(snapshot)
     visited = snapshot.visited_town_ids
-    if complete(policy):
-        # 「減ったら塔でチャージする」: the staple Wand of Wonder goes back to
-        # the Tower through the same travel and recharge steps.
-        if (staple_needs_recharge(snapshot) and visited is not None
-                and MORIVANT_TOWN_ID in visited):
-            return "recharge" if town == MORIVANT_TOWN_ID else "travel"
-        return "return" if town != OUTPOST_TOWN_ID else "done"
-    carried = carried_staffs(snapshot)
-    missing = [sval for sval in SEQUENCE_SVALS
-               if not absorbed(policy, sval) and sval not in carried]
-    if missing:
+    unlocked = visited is not None and MORIVANT_TOWN_ID in visited
+    stage = current_stage(policy)
+    carried = carried_staffs(policy, snapshot)
+    missing = _needed(policy, snapshot)
+    if (stage is not None and not missing) or (
+            unlocked and town == MORIVANT_TOWN_ID and carried):
+        # Every staff of the stage in hand, or some already at Morivant.
+        if not unlocked:
+            return "rumor"
+        if town != MORIVANT_TOWN_ID:
+            return "travel"
+        if (any(item.charges < max_charges(sval) for sval, item in carried.items())
+                or staple_needs_recharge(snapshot)):
+            return "recharge"
+        return "absorb"
+    # 「減ったら塔でチャージする」 (from stage 1's completion on): the staple
+    # Wand of Wonder goes back to the Tower through the same steps.
+    if stage_complete(policy, STAGES[0]) and staple_needs_recharge(snapshot) and unlocked:
+        return "recharge" if town == MORIVANT_TOWN_ID else "travel"
+    if stage is not None:
         return "buy"
-    if visited is None or MORIVANT_TOWN_ID not in visited:
-        return "rumor"
-    if town != MORIVANT_TOWN_ID:
-        return "travel"
-    if (any(item.charges < max_charges(sval) for sval, item in carried.items())
-            or staple_needs_recharge(snapshot)):
-        return "recharge"
-    return "absorb"
+    return "return" if town != OUTPOST_TOWN_ID else "done"
 
 
 def _stop(policy, detail: str) -> str:
@@ -461,11 +549,17 @@ def _settle_pending(policy, snapshot) -> None:
     record.pending = None
     for sval, charges in before:
         item = (staple_food(snapshot) if sval == STAPLE
-                else carried_staffs(snapshot).get(sval))
-        if step == "absorb" and item is None:
-            record.absorbed = {**record.absorbed, sval: charges}
+                else carried_staffs(policy, snapshot).get(sval))
         if step == "recharge" and item is not None and item.charges > charges:
             record.attempts.pop(("recharge", sval), None)
+        if step == "absorb" and item is None:
+            stage = current_stage(policy)
+            record.absorbed = {**record.absorbed, sval: charges}
+            if stage is not None and stage_complete(policy, stage):
+                # The next stage gets its own fundraising run budget.
+                record.completed_stages = {**record.completed_stages,
+                                           stage.number: snapshot.turn}
+                record.fundraise_runs = record.reached_runs = 0
 
 
 def _travel(policy, snapshot, destination: int, step: str) -> str:
@@ -525,7 +619,7 @@ def _recharge_key(policy, snapshot) -> str:
     if not enters:
         policy.last_reason = f"{REASON}approach-tower"
         return policy._step_toward(snapshot, step)
-    before = [(sval, item.charges) for sval, item in sorted(carried_staffs(snapshot).items())
+    before = [(sval, item.charges) for sval, item in sorted(carried_staffs(policy, snapshot).items())
               if item.charges < max_charges(sval)]
     if staple_needs_recharge(snapshot):
         before.append((STAPLE, staple_food(snapshot).charges))
@@ -544,7 +638,7 @@ def _absorb_key(policy, snapshot) -> str:
             or player.poisoned or player.cut or player.stunned or player.hallucinated):
         policy.last_reason = f"{REASON}recover"
         return REST_MACRO
-    sval, item = sorted(carried_staffs(snapshot).items())[0]
+    sval, item = sorted(carried_staffs(policy, snapshot).items())[0]
     if not _attempt(policy, "absorb", sval):
         return _stop(policy, f"absorb-no-progress:{sval}")
     state(policy).pending = ("absorb", ((sval, item.charges),))
@@ -569,7 +663,16 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if not snapshot.in_town or snapshot.store is not None or not applies(policy, snapshot):
         return None
     record = state(policy)
+    announced = set(record.completed_stages)
     _settle_pending(policy, snapshot)
+    stage = current_stage(policy)
+    record.stage = stage.number if stage is not None else len(STAGES) + 1
+    record.remaining = remaining_svals(policy)
+    finished = sorted(set(record.completed_stages) - announced)
+    if finished:
+        # One observable decision per completed stage.
+        policy.last_reason = f"{REASON}stage{finished[-1]}-complete"
+        return WAIT_KEY
     if record.failure:
         return _stop(policy, record.failure)
     phase = _phase(policy, snapshot)
@@ -590,6 +693,13 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if _no_progress(policy, snapshot, phase):
         return _stop(policy, f"no-progress:{phase}")
     supplies = supply_cost(policy, snapshot)
+    carried = frozenset(carried_staffs(policy, snapshot))
+    if stage is not None and stage.partial_buy and carried - record.bought:
+        # Each staff bought is progress: the run budget starts again.
+        record.fundraise_runs = record.reached_runs = 0
+    record.bought = record.bought | carried
+    visited = snapshot.visited_town_ids
+    unlocked = visited is not None and MORIVANT_TOWN_ID in visited
     if phase == "buy":
         if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID:
             return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-to-shop")
@@ -607,11 +717,11 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             # run passes the restock time (mines_floor_out).  Its target is
             # what the sequence still needs anyway: the staffs' base estimate
             # and the rumor/travel/recharge expedition (D35: never gold + 1).
-            estimate = sum(_base_definitions()[sval][1] * 2 for sval in SEQUENCE_SVALS
-                           if sval not in carried_staffs(snapshot))
-            return _fundraise(policy, snapshot,
-                              estimate + _rumor_expedition_cost(snapshot, supplies),
-                              STOCKOUT_WHY)
+            estimate = sum(_base_definitions()[sval][1] * 2
+                           for sval in _needed(policy, snapshot))
+            expedition = (_expedition_cost(snapshot, supplies) if unlocked
+                          else _rumor_expedition_cost(snapshot, supplies))
+            return _fundraise(policy, snapshot, estimate + expedition, STOCKOUT_WHY)
         if gold < target + supplies:
             return _fundraise(policy, snapshot, target + supplies, "staffs")
         offer = next(offer for sval, offer in sorted(offers(policy, snapshot).items()))
@@ -621,7 +731,6 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         policy.last_reason = "shop:approach"
         key = policy._shopping_approach_key(snapshot, step, "shop:travel")
         return key if key is not None else _stop(policy, "shop-operation-unavailable")
-    record.bought = record.bought | frozenset(carried_staffs(snapshot))
     expedition = _expedition_cost(snapshot, supplies)
     if phase == "rumor":
         needed = _rumor_expedition_cost(snapshot, supplies)

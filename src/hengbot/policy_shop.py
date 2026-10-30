@@ -3321,7 +3321,7 @@ class ShopMixin(InStoreMixin):
         )
         if me_staff_sequence.applies(self, snapshot):
             excluded_classes.update(
-                (TVAL_STAFF, sval) for sval in me_staff_sequence.SEQUENCE_SVALS)
+                (TVAL_STAFF, sval) for sval in me_staff_sequence.active_svals(self))
         items = tuple(
             item for item in store.items
             if ((item.tval, item.sval) not in excluded_classes

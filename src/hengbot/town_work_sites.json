@@ -684,7 +684,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "33d332f3f412010029bf67ef50326ebabc6d7138364969774fed713c724c7b78"
+    "ast_sha256": "5036e69795acdc1bd0968668324c3b497b5980d56353695ed279181e94562c9a"
   },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
@@ -1804,7 +1804,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "47c78ff491185fb28c83c50ea12a833e7ef3f4bb6d5d0c46c60b08fd8ac3bfbc"
+    "ast_sha256": "b023a754a6a8c83e297467eb35a0adc4d5fefd7e04f163f0732c3119f6c04060"
   },
   "me_staff_sequence.py:_base_definitions": {
     "classification": "data",
@@ -1843,13 +1843,21 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "180fcc795756d99cde34d28b352aa4c67cc6248a59ce6db69e0be262a6ee8824"
   },
+  "me_staff_sequence.py:_needed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "f7d2a884a2d1cfdf95f2cddb181af4daf65a05b8ed84811251f2f5a51778ec71"
+  },
   "me_staff_sequence.py:_page_purchase": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "127551bb438ed88870b39fa5a1608bb53a91061a5b3925a3e9909de5a386a731"
+    "ast_sha256": "92bc77bf4e306ab04b0ce88988516e9fde88b0e231eddb1015f7de87ebeb2e16"
   },
   "me_staff_sequence.py:_phase": {
     "classification": "data",
@@ -1857,7 +1865,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "edeb9e787d205cd6a0fec371f49070b59d0c6c032c35133dfdda861f110e368b"
+    "ast_sha256": "060dcf9aefdd8a25fcca6dd7e67eb1f94027b05f88965b516f54e102a3fd4828"
   },
   "me_staff_sequence.py:_recharge_all_price": {
     "classification": "data",
@@ -1878,7 +1886,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1e2e3b6e4f25529488152b43c871dbce893e5f18818534833d3aa46ebe45fc5e"
+    "ast_sha256": "c7f0bdc41b476460bdc32bb0eab21de30ce1d9eb02060d9ef3bd8ce3c2d424f5"
   },
   "me_staff_sequence.py:_rumor_expedition_cost": {
     "classification": "data",
@@ -1928,7 +1936,15 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3cdff38ad1925e3ca0111dc9e0009a63ef4d82a89e24e067273c5106faa32c29"
+    "ast_sha256": "8589bd764e8590b47b02f6a41dd4bb2dda6f454d887a67c83fa5e4be029995b0"
+  },
+  "me_staff_sequence.py:current_stage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e7f8e78e0a4973afe62d7a2e8341f8c15eb5cb46aec94cc9c39d0eec378e01c5"
   },
   "me_staff_sequence.py:identify_power_command": {
     "classification": "data",
@@ -1944,7 +1960,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6451b1eadc1719712a07a8a1680b63c07076396f07eb0ec0b8ae51916ce599b0"
+    "ast_sha256": "d350dc740176013dc76bc24d53ae6e7225d58342508dfc6dacf425c2bdc36da3"
   },
   "me_staff_sequence.py:power_key": {
     "classification": "data",
@@ -1969,6 +1985,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "37d6419b6c59632df1a6c77517e630697af63fe42ba05bc740ff849a10d1311b"
+  },
+  "me_staff_sequence.py:remaining_svals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "70671c2383c03d279a2b7dca4872a60cd4647afc9a3d3c46404b5776836d2df3"
   },
   "me_staff_sequence.py:state": {
     "classification": "data",
@@ -1997,7 +2021,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f27ea9b41a5119a0bdee52f4aee6b037fddf6bb5e7902f7795377b8c5ecec388"
+    "ast_sha256": "ad10b9b0f0b6d13483d6603d92bc20972be8ff980888c013fb0e514f6ddc28cc"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -7178,7 +7202,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b7726b9ff3e8eb1c7d942f6e1fce27217c8b6fb888bfcd46b6285295e7ea00a8"
+    "ast_sha256": "5ce1f3baf6f21a0e4e34715d741dd6ce714ce0a635aa565800930ecdfb02db28"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
     "classification": "data",

@@ -53,6 +53,8 @@ ABSORB_PROMPT = "どのアイテムの魔力を取り込みますか? "
 #          n (20-10)*10=100
 APPROACH_TOTAL = 450 + 200 + 0 + 480 + 120 + 60 + 100 + 20 + 80 + 35 + 105 + 100
 RECHARGE_ALL_KEYS = "ay\x1b"
+STAGE1 = (sequence.SV_STAFF_IDENTIFY, DETECT)
+EVIL = 15  # sv-staff-types.h SV_STAFF_DETECT_EVIL: slot l, a stage-2 staff
 
 
 def tower_screen(prompt=""):
@@ -178,7 +180,7 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
     def absorb_both(self, policy, raw):
         absorb = prompt(ABSORB_PROMPT, "item", area="inventory", areas=["inventory", "floor"],
                         menu=False, first_label="a", last_label="s")
-        for sval in sequence.SEQUENCE_SVALS:
+        for sval in STAGE1:
             slot = self.staff(raw, sval)["slot"]
             self.assertEqual((raw["player"]["y"], raw["player"]["x"]), TOWER)
             key = self.decide(policy, raw)
@@ -186,12 +188,27 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
             game = self.post(policy, raw, key, self.absorb_reply(raw, slot), [absorb])
             self.assertEqual(game.accepted, ["G", slot])
             raw = self.absorb_reply(raw, slot)
-        # Both powers absorbed at full charge; the inn teleport home follows.
+        # Both powers absorbed at full charge: stage 1 is complete (owner
+        # 2026-10-31 「1本取り込めたら次の段階に進む」), decided once.
         key = self.decide(policy, raw)
         self.assertEqual(sequence.state(policy).absorbed,
                          {sequence.SV_STAFF_IDENTIFY: 21, DETECT: 19})
-        self.assertTrue(sequence.complete(policy))
-        self.assertEqual(policy.last_reason, "me-staff:return-outpost")
+        # On the Tower's entrance grid the WAIT becomes the entrance step-off.
+        self.assertEqual(policy.last_reason, "town:entrance-step-off:me-staff:stage1-complete")
+        self.assertIn(key, DIRECTIONS)
+        following = self.move_reply(raw, key)
+        self.post(policy, raw, key, following)
+        raw = following
+        # Stage 2: the carried (recorded) Detect Evil staff is absorbed on
+        # this Tower visit; the other three are bought at the Outpost next.
+        slot = self.staff(raw, EVIL)["slot"]
+        key = self.decide(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("G" + slot, ABSORB_REASON))
+        self.post(policy, raw, key, self.absorb_reply(raw, slot), [absorb])
+        raw = self.absorb_reply(raw, slot)
+        self.decide(policy, raw)
+        self.assertEqual(sequence.state(policy).absorbed[EVIL], 14)
+        self.assertEqual(policy.last_reason, "me-staff:return-to-shop")
 
     def test_capture_pins_the_recorded_boards(self):
         approach, recharged = self.case["approach"], self.case["recharged"]
@@ -200,10 +217,10 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((recharged["turn"], recharged["player"]["y"], recharged["player"]["x"]),
                          (649330, 20, 55))
         self.assertEqual(recharged["floor"]["town_id"], 2)
-        self.assertEqual([(it["slot"], it["charges"]) for sval in sequence.SEQUENCE_SVALS
-                          for it in [self.staff(approach, sval)]], [("f", 9), ("g", 13)])
-        self.assertEqual([(it["slot"], it["charges"]) for sval in sequence.SEQUENCE_SVALS
-                          for it in [self.staff(recharged, sval)]], [("f", 21), ("g", 13)])
+        self.assertEqual([(it["slot"], it["charges"]) for sval in (*STAGE1, EVIL)
+                          for it in [self.staff(approach, sval)]], [("f", 9), ("g", 13), ("l", 13)])
+        self.assertEqual([(it["slot"], it["charges"]) for sval in (*STAGE1, EVIL)
+                          for it in [self.staff(recharged, sval)]], [("f", 21), ("g", 13), ("l", 13)])
         self.assertEqual((approach["player"]["gold"], recharged["player"]["gold"]), (14711, 14231))
         self.assertEqual(len(recharged["messages"]), 1)
         self.assertIn("＄480 で再充填しました。", recharged["messages"][0])

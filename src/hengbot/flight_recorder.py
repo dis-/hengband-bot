@@ -197,6 +197,9 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_home_knowledge_current",
         "_home_knowledge_valid_before",
         "_home_page_size",
+        # The class-16 staff sequence: its stage, remaining staffs and the
+        # completed stages' turns (owner 2026-10-31).
+        "_me_staff_sequence",
     )
     # Include every simple mode/latch/counter as cheap insurance against a field
     # omitted from a hand-maintained diagnostic list.

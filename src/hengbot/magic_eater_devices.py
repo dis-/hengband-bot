@@ -88,7 +88,7 @@ def _awaiting_absorption(policy, item: InventoryItem | StoreItem) -> bool:
 
     if item.tval == TVAL_WAND and item.sval == SV_WAND_MAGIC_MISSILE:
         return True
-    return (me_staff_sequence.is_sequence_staff(item)
+    return (me_staff_sequence.is_sequence_staff(item, policy)
             and not me_staff_sequence.absorbed(policy, item.sval))
 
 
