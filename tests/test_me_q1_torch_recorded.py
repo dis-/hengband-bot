@@ -49,8 +49,9 @@ class MagicEaterQ1TorchRecordedTest(executor_harness.ProductionHarness):
                          (16, 7, 107, 184))
 
     def test_census_board_requests_q1_with_its_carried_torches(self):
-        # Real torch damage (2026-10-30 「実際の値で数え直す」): the class-16 Q1
-        # plan needs 9 torches, so the recorded 21 suffice and nothing is bought.
+        # 2026-10-30 「松明20本はキープして。」: the class-16 Q1 carry is the
+        # fixed 20 torches (the derived need 9 is a floor inside it), so the
+        # recorded 21 still suffice and nothing is bought.
         # Unfixed, this board travelled to the black market for the two
         # Healing and one Speed potions of the class-16 force gate, then
         # stopped on their stock (recorded above).
@@ -68,9 +69,9 @@ class MagicEaterQ1TorchRecordedTest(executor_harness.ProductionHarness):
         self.assertTrue(policy._fixed_quest_ready(board, 1), policy.fixed_quest_readiness_state())
         details = policy.fixed_quest_readiness_state()
         self.assertEqual(details["strategy_force"]["failed"], [])
-        self.assertEqual(details["strategy_force"]["lit_torch"], {"measured": 21, "required": 9})
+        self.assertEqual(details["strategy_force"]["lit_torch"], {"measured": 21, "required": 20})
         self.assertEqual([row[1:3] for row in policy._opening_q1_requirements(board)],
-                         [(9, 21), (0, 0), (0, 0)])
+                         [(20, 21), (0, 0), (0, 0)])
         key = str(policy.choose_key(board))
         if not kit_bought:
             self.assertEqual((key, policy.last_reason), ("\x1b`n!.", "shop:travel"))
