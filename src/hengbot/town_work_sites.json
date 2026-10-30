@@ -173,7 +173,7 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "66af3202a951887704441a0dfc7c1b838f5067c3925f2f8e3aecd6ce10abf6b2"
+    "ast_sha256": "65295cfa9e9c85f69d4ac3b456637f47608cc878aede87726d9e242e469dfc7d"
   },
   "cli.py:_release_prompt_gated_tail": {
     "classification": "driver",

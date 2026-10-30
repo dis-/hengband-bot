@@ -64,6 +64,7 @@ from hengbot.policy_constants import (
     HOME_KNOWLEDGE_MACRO,
     IN_STORE_BREAKER_REASON_PREFIX,
     IN_STORE_BUY_REASON,
+    IN_STORE_DONE_REASON,
     IN_STORE_OPERATION_REASONS,
     LEAVE_STORE_KEY,
     POLICY_FINAL_STOP_REASONS,
@@ -615,7 +616,15 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
         if allowed:
             policy._owner_retired_forgiven_sequence = sequence
             if snapshot.store is not None:
-                key = LEAVE_STORE_KEY
+                if policy.last_reason in IN_STORE_OPERATION_REASONS:
+                    # The retired in-store operation ends with its own exit:
+                    # ESC under the operation's reason is an in-store buy
+                    # without prompt gates, which the executor refuses and
+                    # the in-store breaker turns into a stop (D28, 2026-10-30
+                    # n1-c life-045 and four more captures).
+                    key = policy._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+                else:
+                    key = LEAVE_STORE_KEY
                 from hengbot.town_work import bind_driver_override
                 bind_driver_override(policy, key, site='cli.py:_handle_owner_retirement')
             return key
