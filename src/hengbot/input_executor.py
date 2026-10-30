@@ -206,6 +206,11 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
         for literal in terminal:
             if literal in line:
                 return ScreenMatch(ScreenKind.DEATH, literal, y, _cell_width(line[:line.index(literal)]))
+    # player/player-damage.cpp:456: after death_save() the death chain asks
+    # input_check_strict("Dump the screen? ") at row zero (asking-player.cpp
+    # prt(buf, 0, 0)) before "You die."; the prompt is printed nowhere else.
+    if row0 in ("画面を保存しますか？[y/n]", "Dump the screen? [y/n]"):
+        return ScreenMatch(ScreenKind.DEATH, row0, 0, 0)
 
     # cmd-visual/cmd-draw.cpp:146 keeps an 80x24
     # TermCenteredOffsetSetter active around input_status_command().  Its
