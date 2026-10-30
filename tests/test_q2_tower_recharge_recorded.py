@@ -8,7 +8,9 @@ Sorcery (building 8) meets it.  Recorded boards (tests/fixtures/
 quest-stops-20261030.json.gz, q2 section): the Telmora board approaching the
 Q2 request and the last Outpost board before the inn trip to Telmora.  Both
 now take the inn teleport to Morivant (Morivant is already listed, the purse
-holds the Tower's whole-pack total and both fares).
+holds the Tower's whole-pack total, the fares to Morivant and on to Telmora
+and the way back from Telmora).  After the recharge the inn goes from
+Morivant straight to Telmora (owner 2026-10-31 「モリバントからテルモラへ直行」).
 
 The Tower leg reuses the recorded Morivant board beside the Tower of the D24
 capture (tests/fixtures/me-tower-recharge-20261030.json.gz): DECLARED
@@ -35,7 +37,9 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import STORE_BLACK, STORE_GENERAL, TOWN_TELEPORT_COST
+from hengbot.policy_constants import (
+    OUTPOST_TOWN_ID, STORE_BLACK, STORE_GENERAL, TOWN_TELEPORT_COST,
+)
 from hengbot.policy_types import SupplyStatus
 from unittest.mock import patch
 from hengbot.quest_knowledge import load_quest_knowledge
@@ -155,7 +159,8 @@ class Q2TowerRechargeRecordedTest(executor_pins.ProductionHarness):
                 policy = self.policy(raw)
                 board = parse_snapshot(copy.deepcopy(raw), self.monraces)
                 self.assertTrue(morivant_tower.morivant_unlocked(board))
-                self.assertGreaterEqual(board.player.gold, morivant_tower.expedition_cost(board, 0))
+                self.assertGreaterEqual(board.player.gold,
+                                        q2_tower_recharge.trip_cost(board, 0, rumors=False))
                 key = self.decide(policy, raw)
                 self.assertEqual(policy.last_reason.removesuffix("-step-off"),
                                  REASON + "travel-morivant")
@@ -173,13 +178,20 @@ class Q2TowerRechargeRecordedTest(executor_pins.ProductionHarness):
         # expedition total (whole-pack Tower price and both fares).
         raw = copy.deepcopy(self.q2["board"])
         board = parse_snapshot(copy.deepcopy(raw), self.monraces)
-        raw["player"]["gold"] = morivant_tower.expedition_cost(board, 0) - 1
+        raw["player"]["gold"] = q2_tower_recharge.trip_cost(board, 0, rumors=False) - 1
         policy = self.policy(raw)
         self.decide(policy, raw)
         self.assertEqual(policy.last_reason.removesuffix("-step-off"),
                          REASON + "return-for-funds")
 
-    def test_tower_recharges_the_whole_pack_then_returns_to_the_outpost(self):
+    def destination(self, policy, raw):
+        """The inn destination of one decision (the teleport producer's argument)."""
+        with patch.object(policy, "_town_teleport_key",
+                          wraps=policy._town_teleport_key) as teleport:
+            key = self.decide(policy, raw)
+        return key, [call.args[1] for call in teleport.call_args_list]
+
+    def test_tower_recharges_the_whole_pack_then_travels_to_telmora(self):
         raw = self.tower_board()
         policy = self.policy(raw)
         board = parse_snapshot(copy.deepcopy(raw), self.monraces)
@@ -192,10 +204,25 @@ class Q2TowerRechargeRecordedTest(executor_pins.ProductionHarness):
         game = self.post(policy, raw, key, following, recharge_all_screens(paid))
         self.assertEqual(game.accepted, ["1", "a", "y", " ", "\x1b"])
         self.assertEqual(self.wand(following)["charges"], 12)
-        key = self.decide(policy, following)
-        self.assertEqual(policy.last_reason.removesuffix("-step-off"), REASON + "return-outpost")
-        self.assertGreaterEqual(following["player"]["gold"], TOWN_TELEPORT_COST)
+        # Owner 2026-10-31 「モリバントからテルモラへ直行」: the next leg is the
+        # inn from Morivant to Telmora (town 1), with the Q2 errand latch.
+        key, destinations = self.destination(policy, following)
+        self.assertEqual(policy.last_reason.removesuffix("-step-off"), REASON + "travel-telmora")
+        self.assertEqual(destinations, [q2_tower_recharge.TELMORA_TOWN_ID])
+        self.assertTrue(policy._telmora_q2_errand)
+        self.assertGreaterEqual(following["player"]["gold"], 2 * TOWN_TELEPORT_COST)
         self.post(policy, following, key, self.moved(following, key))
+
+    def test_short_purse_at_the_tower_returns_to_the_outpost_for_funds(self):
+        # DECLARED CONSTRUCTED: the Tower board one gold below the recharge
+        # and the Telmora leg (two fares in hand).
+        raw = self.tower_board()
+        board = parse_snapshot(copy.deepcopy(raw), self.monraces)
+        raw["player"]["gold"] = q2_tower_recharge.onward_cost(board) - 1
+        policy = self.policy(raw)
+        _, destinations = self.destination(policy, raw)
+        self.assertEqual(policy.last_reason.removesuffix("-step-off"), REASON + "return-for-funds")
+        self.assertEqual(destinations, [OUTPOST_TOWN_ID])
 
     def test_full_wand_in_the_outpost_takes_the_ordinary_q2_travel(self):
         # DECLARED CONSTRUCTED: the recorded Outpost board with the wand as

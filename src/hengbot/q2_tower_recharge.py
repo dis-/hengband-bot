@@ -10,14 +10,18 @@ charges that the Tower's recharge-all supplies:
  rumor    -- unlock Morivant through the inn rumors if it is not listed;
  travel   -- the inn teleport to Morivant;
  recharge -- the Tower's 'a' recharge-all (the whole pack, its game price);
- return   -- the inn teleport back to the Outpost, where the ordinary Q2
-             travel and request take over.
+ onward   -- the inn teleport from Morivant straight to Telmora (owner
+             2026-10-31 「モリバントからテルモラへ直行」), where the ordinary Q2
+             request takes over.
 
-The gold target of each leg is the Tower total over the whole pack, both
-fares, the rumor reads when Morivant is still locked, and the unmet
+The gold target of each leg is the Tower total over the whole pack, the
+fares to Morivant and on to Telmora plus the return fare that
+``_town_teleport_key`` keeps in hand when leaving for a town other than the
+Outpost, the rumor reads when Morivant is still locked, and the unmet
 departure supplies; a short purse starts one run of the existing
-fundraising owners.  Every step that cannot proceed ends in the named final
-stop ``quest:blocked:q2-tower-recharge`` (detail in the record).
+fundraising owners (a purse short at the Tower returns to the Outpost).
+Every step that cannot proceed ends in the named final stop
+``quest:blocked:q2-tower-recharge`` (detail in the record).
 """
 
 from __future__ import annotations
@@ -28,8 +32,8 @@ from hengbot import morivant_tower
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND
 from hengbot.policy_constants import (
-    MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, Q2_BREACH_WALL_COUNT, QUEST_STATUS_UNTAKEN,
-    STORE_STUCK_LIMIT, TOWN_TELEPORT_COST, WAIT_KEY,
+    FIXED_QUEST_TOWNS, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, Q2_BREACH_WALL_COUNT,
+    QUEST_STATUS_UNTAKEN, STORE_STUCK_LIMIT, TOWN_TELEPORT_COST, WAIT_KEY,
 )
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -37,6 +41,7 @@ REASON = "fixedquest:q2-recharge:"
 RECHARGE_ALL_REASON = REASON + "recharge-all"
 STOP_REASON = "quest:blocked:q2-tower-recharge"
 Q2_QUEST_ID = 2
+TELMORA_TOWN_ID = FIXED_QUEST_TOWNS[Q2_QUEST_ID]
 FUNDRAISE_RUN_LIMIT = 6
 RUMOR_BATCH_LIMIT = 10
 ATTEMPT_LIMIT = 3
@@ -45,7 +50,7 @@ ATTEMPT_LIMIT = 3
 @dataclass
 class Q2TowerRecharge:
     """The trip's own facts; the board supplies everything else."""
-    active: bool = False            # the trip started: finish it in the Outpost
+    active: bool = False            # the trip started: finish it in Telmora
     fundraise_runs: int = 0
     fundraise_target: int | None = None
     rumor_batches: int = 0
@@ -118,6 +123,24 @@ def _supplies(policy, snapshot) -> int:
     return policy._required_departure_supply_reserve(snapshot, quest_carry=False) or 0
 
 
+def onward_cost(snapshot) -> int:
+    """Gold at the Tower: the recharge and the Telmora leg.
+
+    _town_teleport_dispatch_key sends the inn to a town other than the
+    Outpost only with two fares in hand (the leg and the way back).
+    """
+    return morivant_tower.recharge_cost(snapshot) + 2 * TOWN_TELEPORT_COST
+
+
+def trip_cost(snapshot, supplies: int, rumors: bool) -> int:
+    """The whole trip: the fare to Morivant, the Tower and the Telmora leg."""
+    expedition = (morivant_tower.rumor_expedition_cost(snapshot, supplies) if rumors
+                  else morivant_tower.expedition_cost(snapshot, supplies))
+    # expedition_cost carries two fares (to Morivant, on to Telmora); the
+    # third is the way back that the Telmora leg needs in hand.
+    return expedition + TOWN_TELEPORT_COST
+
+
 def _fundraising_owns(policy) -> bool:
     record = state(policy)
     return (policy._fundraising_mode in {"prepare", "mine", "scavenge"}
@@ -166,7 +189,7 @@ def _no_progress(policy, snapshot, phase: str) -> bool:
 
 
 def _recharge_key(policy, snapshot) -> str:
-    if snapshot.player.gold < morivant_tower.recharge_cost(snapshot) + TOWN_TELEPORT_COST:
+    if snapshot.player.gold < onward_cost(snapshot):
         # Return with the reserved fare; the Outpost leg funds the recharge.
         return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
     step, enters = morivant_tower.building_step(
@@ -195,8 +218,8 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         return _stop(policy, record.failure)
     town = policy._effective_town_id(snapshot)
     short = recharge_meets_breach(policy, snapshot)
-    if not short and not (record.active and town != OUTPOST_TOWN_ID):
-        # Nothing to recharge, or the trip ended back in the Outpost.
+    if not short and not (record.active and town == MORIVANT_TOWN_ID):
+        # Nothing to recharge, or the trip left Morivant.
         record.active = False
         return None
     gold = snapshot.player.gold
@@ -206,7 +229,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if policy._physical_adjacent_hostiles(snapshot):
         return None
     if not short:
-        phase = "return"
+        phase = "onward"
     elif not morivant_tower.morivant_unlocked(snapshot):
         phase = "rumor"
     elif town != MORIVANT_TOWN_ID:
@@ -217,7 +240,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         return _stop(policy, f"no-progress:{phase}")
     supplies = _supplies(policy, snapshot)
     if phase == "rumor":
-        needed = morivant_tower.rumor_expedition_cost(snapshot, supplies)
+        needed = trip_cost(snapshot, supplies, rumors=True)
         if gold < needed:
             return _fundraise(policy, snapshot, needed, "rumor-travel-recharge")
         if record.rumor_batches >= RUMOR_BATCH_LIMIT:
@@ -228,7 +251,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             record.rumor_batches += 1
         return key
     if phase == "travel":
-        needed = morivant_tower.expedition_cost(snapshot, supplies)
+        needed = trip_cost(snapshot, supplies, rumors=False)
         if gold < needed:
             if town != OUTPOST_TOWN_ID:
                 return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
@@ -238,4 +261,9 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if phase == "recharge":
         record.active = True
         return _recharge_key(policy, snapshot)
-    return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-outpost")
+    # Owner 2026-10-31 「モリバントからテルモラへ直行」: the same errand latch
+    # as the ordinary Q2 inn travel, so the Telmora owners bring it home.
+    key = _travel(policy, snapshot, TELMORA_TOWN_ID, "travel-telmora")
+    if policy.last_reason != STOP_REASON:
+        policy._telmora_q2_errand = True
+    return key

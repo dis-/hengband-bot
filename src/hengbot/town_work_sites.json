@@ -8803,7 +8803,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f81c2abaafefaffb8934ec74b0e378152b36474cf2798817edae5605896d813f"
+    "ast_sha256": "0e97589a6cc28ed6d7b713f11d558c5648b62fe563d4e84f900a31239b4fcc6b"
   },
   "q2_tower_recharge.py:_stop": {
     "classification": "producer",
@@ -8852,7 +8852,15 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "38f6078f3a0b391e368ec52e83ddc210f578108f641c688946ccf71b0aef05c1"
+    "ast_sha256": "94429694df103b5f99a9f5633985c6f436d293e338165f255b18854273fe896c"
+  },
+  "q2_tower_recharge.py:trip_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "9ba86f237a9293a508f65ad40a76b358046a6937441da37dcd29688fad930eda"
   },
   "quest_final_room.py:avoided_doors": {
     "classification": "data",
