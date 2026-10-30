@@ -20,6 +20,16 @@ def is_absorption_device(class_id: int, item: InventoryItem | StoreItem) -> bool
     )
 
 
+def is_mana_food_ware(class_id: int, item: InventoryItem | StoreItem) -> bool:
+    """A wand or staff whose charges the food count may credit.
+
+    The purchase, supplier and Home-stock predicates share this with
+    ``mana_food_devices``: a Magic-Eater's identified device is absorption
+    stock, so buying one as food never closes the food requirement (D25).
+    """
+    return item.tval in {TVAL_WAND, TVAL_STAFF} and not is_absorption_device(class_id, item)
+
+
 def mana_food_devices(snapshot: Snapshot) -> list[InventoryItem]:
     """Known charged food stock, excluding devices reserved for absorption."""
     return [

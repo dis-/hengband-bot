@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.magic_eater_devices import mana_food_devices
+from hengbot.magic_eater_devices import is_mana_food_ware, mana_food_devices
 
 from collections import deque
 from contextlib import contextmanager
@@ -282,7 +282,7 @@ class SupplyMixin:
         )
         return any(
             (
-                item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+                is_mana_food_ware(snapshot.player.class_id, item) and item.pval > 0
                 if mana_food
                 else self._store_item_is_supply(item, kind)
             )
@@ -348,7 +348,7 @@ class SupplyMixin:
                 self._home_knowledge_current
                 and any(
                     (
-                        item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+                        is_mana_food_ware(snapshot.player.class_id, item) and item.pval > 0
                         if kind == "food" and mana_food
                         else self._store_item_is_supply(item, kind)
                     )
@@ -1020,7 +1020,7 @@ class SupplyMixin:
             return None
         candidates = [
             it for it in store.items
-            if it.tval in {TVAL_WAND, TVAL_STAFF}
+            if is_mana_food_ware(snapshot.player.class_id, it)
             and it.price <= snapshot.player.gold
             and ((it.tval, it.sval) not in excluded_classes
                  or self._identify_staff_swap_purchase(it))

@@ -1631,6 +1631,14 @@
     "delegation": "selector input; no independent command or success",
     "ast_sha256": "daf24040cb8711f47ad01c0b2c93aa277ab179876f27b7c3110182f8b2c1043f"
   },
+  "magic_eater_devices.py:is_mana_food_ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "41fd2325f4fe364ce78af347cc1b2ca1c757086159d4fa19f447daaff90a019e"
+  },
   "magic_eater_devices.py:mana_food_devices": {
     "classification": "data",
     "rows": [
@@ -7073,7 +7081,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "007478404b24652bd2a7bdc6898b2490b53d4fa81d54c71d0fc5b25cb8ffdfa5"
+    "ast_sha256": "1443cc1497db4b6cbfb9b198e4591f037b14319bd0099c87cafba475268e31e9"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
     "classification": "data",
@@ -7105,7 +7113,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "873a384ab495b94862a329e821215eafc6495239363080fa57568ab38c0d5bd6"
+    "ast_sha256": "c02b08a05354ab512df08894e546ef37ece987bcde3616cd4b8e09838816bedc"
   },
   "policy_shop.py:ShopMixin._next_purchase_unreserved": {
     "classification": "data",
@@ -7163,7 +7171,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5c6dfeae82afad33d8be936ee352b08a061a2930dc4e1e221c5eec5c79dbbde6"
+    "ast_sha256": "230189e4a98ec4f689e85457fe2cc2280b2d95e9f11763b1877c718bbae9e759"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.match": {
     "classification": "data",
@@ -7477,7 +7485,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "addd32a16c4596543768d7c63f84b59eee8009f90d22dd288a3c8512481ce587"
+    "ast_sha256": "3800d0d71807eb013beaf809c08d0f3d45a012f040ebd52db9df87c1005d0698"
   },
   "policy_supply.py:SupplyMixin._count_mana_food_devices": {
     "classification": "data",
@@ -7614,7 +7622,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6467601197686439ef0d3b85657d81321408bd7c5bed434d6ee33df88c8c27e7"
+    "ast_sha256": "5f94df69e987dd5225ffbf98ff6d8dd567b4c0ef49e10c3493a354c676faa9be"
   },
   "policy_supply.py:SupplyMixin._mana_food_purchase.charge_count": {
     "classification": "data",
@@ -7719,7 +7727,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "dd08bbacd906402349919d07b1c6fa789f8f04ed7f8fc2958a2adffa1d2bf649"
+    "ast_sha256": "71f08693a39bdafbe9abee6e203282971bf546eec0398d9f1ab480d99ce83271"
   },
   "policy_supply.py:SupplyMixin._survival_gate_key": {
     "classification": "producer",
