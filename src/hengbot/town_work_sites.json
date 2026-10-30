@@ -1723,7 +1723,15 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "7234da9c4e55f66ec9505650e47dc137833ba201c77b0535e6add2eb899b7437"
+    "ast_sha256": "cfa0698d39fd76d3c931302a1249a87f850de9ab99521a44b96db8c0be091bad"
+  },
+  "me_staff_sequence.py:_device_definitions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5cf60de22f2908f894a30667ab1d2b44c12383fa54b9e49b0ed6692c53733d6d"
   },
   "me_staff_sequence.py:_fundraise": {
     "classification": "producer",
@@ -1754,6 +1762,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "aca4529c6c27d99612f969ed31d724ca2a61c8b8404a5bdce5d6c8ceaf5dda78"
   },
+  "me_staff_sequence.py:_recharge_all_price": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "a461ba752be7f03f5bdfb4deaa0f98c0a69737d0edf16c2c0c0ed78590314d99"
+  },
   "me_staff_sequence.py:_recharge_key": {
     "classification": "producer",
     "rows": [
@@ -1765,7 +1781,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "63d0c656e03924ef175b81e5ef061c20dce3e6269743139247e0fe99b979d2fb"
+    "ast_sha256": "b6e34ac4f08cfe5878c086a057546f5ece663b59828af2d15d805fcffaed7341"
   },
   "me_staff_sequence.py:_stop": {
     "classification": "producer",
@@ -1809,14 +1825,6 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "3cdff38ad1925e3ca0111dc9e0009a63ef4d82a89e24e067273c5106faa32c29"
   },
-  "me_staff_sequence.py:carried_staffs": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "b2e862035ce68f1bc8bab1b0d6d1e36bb4dab2986f9acbd0dbb37a7f3d755bc3"
-  },
   "me_staff_sequence.py:identify_power_command": {
     "classification": "data",
     "rows": [
@@ -1824,14 +1832,6 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "29d1bc7d722c1a36e824075b6ea6117697a54344696620d22e7548c334075cf4"
-  },
-  "me_staff_sequence.py:max_charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "20f363532e9652e6b5c6acc877ca5e3dbc664029c385aec892de17b93019340b"
   },
   "me_staff_sequence.py:offers": {
     "classification": "data",
@@ -1863,15 +1863,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "bd28305d663cba2028f29c317c78b45e0bffe97c86e7f38de41684fd2e587da1"
-  },
-  "me_staff_sequence.py:recharge_price_per_charge": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "6d35d4bf1e1b8045f20b19bde513e09dc7b344b4b073e52c733da14c6af0306d"
+    "ast_sha256": "37d6419b6c59632df1a6c77517e630697af63fe42ba05bc740ff849a10d1311b"
   },
   "me_staff_sequence.py:state": {
     "classification": "data",
