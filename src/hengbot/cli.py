@@ -407,6 +407,10 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # Picking the closed door that leads back to a known up staircase;
         # bounded per door by FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT (D19).
         "fundraise:open-upstairs-door",
+        # Picking a locked door on the mining closure's route to a detected
+        # vein; bounded per target by MINING_STALL_LIMIT and per floor by
+        # MINING_SWEEP_HARD_LIMIT (D31).
+        "fundraise:seek-treasure:open-door",
         "unseen:choke-wait",
         # Repeated opens against the reviewed Q34 ordinary locked door are
         # productive game actions: each lock-pick attempt advances the game

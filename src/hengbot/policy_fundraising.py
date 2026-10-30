@@ -52,6 +52,7 @@ from hengbot.policy_constants import (
     MINING_SWEEP_NO_PROGRESS_LIMIT,
     MINING_THREAT_FREE_LIMIT,
     NEIGHBOR_OFFSETS,
+    OPEN_KEY,
     PACK_CAPACITY,
     RECALL_MIN_DEPTH,
     REFILL_KEY,
@@ -1167,8 +1168,16 @@ class FundraisingMixin:
                 continue
             self.last_reason = "fundraise:seek-treasure"
             self._declare_reach(target)
+            key = self._step_toward(snapshot, step)
+            if key is not None and key.startswith(OPEN_KEY):
+                # D31 (n1-c life-007/009, n1-a life-441/446): the route crosses
+                # a locked door, and each pick holds the cell.  The picks are
+                # bounded by this target's MINING_STALL_LIMIT leash above (a
+                # pick moves no closer) and by MINING_SWEEP_HARD_LIMIT; the
+                # CLI cell guard exempts this label, as for the D19 door.
+                self.last_reason = "fundraise:seek-treasure:open-door"
             return self._fundraising_return_route_key(
-                self._step_toward(snapshot, step),
+                key,
                 step="fundraising.seek-treasure",
                 work_id=f"fundraise:treasure:{target.y},{target.x}",
                 expected_effect="treasure-reached",
