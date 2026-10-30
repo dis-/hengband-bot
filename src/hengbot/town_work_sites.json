@@ -1738,6 +1738,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "e980311096ce63623eba98f65f2970b64cd1da51d272e4436634c8771c71d4c7"
   },
+  "me_staff_sequence.py:_page_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "127551bb438ed88870b39fa5a1608bb53a91061a5b3925a3e9909de5a386a731"
+  },
   "me_staff_sequence.py:_phase": {
     "classification": "data",
     "rows": [
@@ -1847,7 +1855,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "29382178f82da380e8fe3e1961e56770cdc1319ab7bdad336beac6475940e0a5"
+    "ast_sha256": "c50a905d3bed72d78025ad2a0dbd90d10ba055f29f666814b9f47ffe08a30c6b"
   },
   "me_staff_sequence.py:recharge_cost": {
     "classification": "data",
