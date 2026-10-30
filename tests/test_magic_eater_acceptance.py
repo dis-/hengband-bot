@@ -28,7 +28,7 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
         character = replace(
             player(10, 10, class_id=class_id, level=5, hp=hp, max_hp=hp,
                    main_hand_blows=1, main_hand_to_h=0,
-                   main_hand_to_d=9 if quest_id == 34 else 25),
+                   main_hand_to_d=9 if quest_id == 34 else 12),
             melee_skill=100, race_id=25,  # Zombie, matching the viewing character.
         )
         inventory = [item("t", TVAL_LITE, SV_LITE_TORCH,
@@ -49,7 +49,8 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
 
     def test_magic_eater_passes_normal_floor_that_warrior_rejects(self):
         # D17 (2026-10-30): the Q1 class-16 floor is the torch rate 4.58.
-        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 4.58, 28)):
+        # D20 (2026-10-30): the Q1 warrior floor is 13.23 on the torch premise (real torch damage).
+        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 4.58, 13.23)):
             with self.subTest(quest_id=quest_id):
                 board = self.board(quest_id)
                 ready, details = self.readiness(board, quest_id)
@@ -60,7 +61,8 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                 warrior = replace(board, player=replace(board.player, class_id=0))
                 ready, unchanged = self.readiness(warrior, quest_id)
                 self.assertFalse(ready)
-                self.assertEqual(unchanged["failed"], ["dps"])
+                # Real torch values: the Q1 class-16 HP floor 23 is now below the warrior's 36.
+                self.assertEqual(unchanged["failed"], ["dps"] if quest_id == 34 else ["hp", "dps"])
                 self.assertEqual(unchanged["dps"]["required"], warrior_floor)
                 self.assertEqual(unchanged["dps"]["measured"], details["dps"]["measured"])
 
@@ -92,8 +94,9 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                 ready, details = self.readiness(board, quest_id)
                 self.assertFalse(ready)
                 self.assertEqual(details["failed"], ["hp"])
-                # D17: the Q1 class-16 torch plan needs HP 98 in both tiers.
-                self.assertEqual(details["hp"]["required"], 10 if quest_id == 34 else 98)
+                # D17: the Q1 class-16 torch plan has one HP floor for both tiers
+                # (98, recounted to 23 with the real torch damage).
+                self.assertEqual(details["hp"]["required"], 10 if quest_id == 34 else 23)
 
     def test_no_healing_hp_floor_is_unchanged(self):
         for quest_id in (34, 1):

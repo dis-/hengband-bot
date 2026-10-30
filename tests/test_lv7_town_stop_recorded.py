@@ -232,7 +232,14 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
 
     def continue_q34(self, policy, raw, case, key):
         """Construct replies to the observed shelf, then request and enter Q34."""
-        self.assertEqual(policy.last_reason, "shop:approach")
+        # With the real torch damage Q34 needs 11 torches; the torch now worn
+        # as light leaves enough, so no replacement purchase is needed.
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        required = policy._strategy_force_for_snapshot(
+            board, policy.approved_quest_strategy(34))["throwing_items"]["lit_torch"]
+        needs_purchase = policy._count_throwing_torches(board) < required
+        self.assertEqual(policy.last_reason,
+                         "shop:approach" if needs_purchase else "fixedquest:request:approach")
         page = copy.deepcopy(case["pages"]["0"]["store"])
         purchased = False
         for _ in range(12):
@@ -261,7 +268,7 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
                 following["store"] = None
                 purchased = True
             elif reason == "fixedquest:request:approach":
-                self.assertTrue(purchased)
+                self.assertEqual(purchased, needs_purchase)
                 board = parse_snapshot(raw, policy._monrace_knowledge)
                 goal = min(policy._fixed_quest_building_positions(board, 34))
                 following["player"].update(y=goal.y + 1, x=goal.x)
@@ -287,7 +294,7 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
                 following["player"].update(y=goal.y, x=goal.x)
             elif reason == "quest:enter":
                 self.assertEqual(key, ">")
-                self.assertTrue(purchased)
+                self.assertEqual(purchased, needs_purchase)
                 self.assertTrue(policy._fixed_quest_ready(
                     parse_snapshot(raw, policy._monrace_knowledge), 34),
                     policy.fixed_quest_readiness_state())
@@ -311,8 +318,12 @@ class Lv7TownStopRecordedTest(executor_harness.ProductionHarness):
                 if change == "hp":
                     raw["player"].update(hp=29, max_hp=29)
                 if change == "torches":
+                    # One below the Q34 requirement (11 with the real torch damage).
+                    board = parse_snapshot(raw, policy._monrace_knowledge)
+                    surplus = policy._count_throwing_torches(board) - policy._strategy_force_for_snapshot(
+                        board, policy.approved_quest_strategy(34))["throwing_items"]["lit_torch"]
                     torch = next(it for it in raw["inventory"] if it.get("tval") == 39)
-                    torch["count"] -= 1
+                    torch["count"] -= surplus + 1
                 if change == "fuel":
                     raw = self.equip_reply(raw, "wb")
                     # Replace the worn torch's consumed throwing reserve,

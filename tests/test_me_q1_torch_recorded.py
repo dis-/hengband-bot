@@ -1,4 +1,4 @@
-"""D17: the recorded Lv7 Magic-Eater buys torches and takes quest 1.
+"""D17: the recorded Lv7 Magic-Eater takes quest 1 with its carried torches.
 
 The boundaries are the 2026-10-29 verification-machine stops after Q34
 (cleared at Lv7, 184 gold, 21 torches, no potions).  Only replies to newly
@@ -37,21 +37,6 @@ class MagicEaterQ1TorchRecordedTest(executor_harness.ProductionHarness):
     def board(self, policy, raw):
         return parse_snapshot(raw, policy._monrace_knowledge)
 
-    def buy_reply(self, raw, key, page):
-        # DECLARED CONSTRUCTED: the engine sells exactly the posted quantity.
-        ware = next(it for it in page["items"] if it["letter"] == key[1])
-        quantity = int(key[2:].strip("\r\x1b") or 1)
-        following = copy.deepcopy(raw)
-        following["turn"] += 1
-        slots = {it["slot"] for it in raw["inventory"]}
-        item = dict(ware, count=quantity,
-                    slot=next(c for c in "abcdefghijklmnopqrstuvw" if c not in slots))
-        item.pop("letter", None)
-        item.pop("price", None)
-        following["inventory"].append(item)
-        following["player"]["gold"] -= ware["price"] * quantity
-        return following, ware, quantity
-
     def test_recorded_stops_are_the_force_gate_and_the_reward_latch(self):
         readiness = self.case["recorded_readiness"]
         self.assertEqual((self.case["recorded_key"], self.case["recorded_reason"]),
@@ -63,7 +48,12 @@ class MagicEaterQ1TorchRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual((player["class_id"], player["level"], player["max_hp"], player["gold"]),
                          (16, 7, 107, 184))
 
-    def test_census_board_buys_torches_and_requests_q1(self):
+    def test_census_board_requests_q1_with_its_carried_torches(self):
+        # Real torch damage (2026-10-30 「実際の値で数え直す」): the class-16 Q1
+        # plan needs 9 torches, so the recorded 21 suffice and nothing is bought.
+        # Unfixed, this board travelled to the black market for the two
+        # Healing and one Speed potions of the class-16 force gate, then
+        # stopped on their stock (recorded above).
         for kit_bought in (False, True):
             with self.subTest(kit_bought=kit_bought):
                 self.census_drive(kit_bought)
@@ -71,21 +61,34 @@ class MagicEaterQ1TorchRecordedTest(executor_harness.ProductionHarness):
     def census_drive(self, kit_bought):
         # DECLARED CONSTRUCTED (kit_bought=True): the optional mining-kit
         # survey of shelves this capture never observed is marked done, so
-        # the drive reaches the Q1 request.  Without it the route must still
-        # buy the torches and then continue to that survey, not block.
+        # the drive reaches the Q1 request.  Without it the route continues
+        # to that bounded survey, not a block.
         policy, raw = self.boundary(kit_bought=kit_bought)
         board = self.board(policy, raw)
-        # Unfixed, this board travelled to the black market for the two
-        # Healing and one Speed potions of the class-16 force gate, then
-        # stopped on their stock (recorded above).  Now only torches are short.
-        self.assertFalse(policy._fixed_quest_ready(board, 1))
+        self.assertTrue(policy._fixed_quest_ready(board, 1), policy.fixed_quest_readiness_state())
         details = policy.fixed_quest_readiness_state()
+        self.assertEqual(details["strategy_force"]["failed"], [])
+        self.assertEqual(details["strategy_force"]["lit_torch"], {"measured": 21, "required": 9})
+        self.assertEqual([row[1:3] for row in policy._opening_q1_requirements(board)],
+                         [(9, 21), (0, 0), (0, 0)])
         key = str(policy.choose_key(board))
-        self.assertEqual((key, policy.last_reason), ("\x1b`n!.", "shop:travel"), details)
-        self.assertEqual(details["strategy_force"]["failed"], ["throwing_items.lit_torch"])
-        self.assertEqual(details["strategy_force"]["lit_torch"], {"measured": 21, "required": 25})
-        self.assertEqual(policy._opening_q1_plan(board)[:2], ("observe:quest-throwing-items", 0))
-        self.drive_to_request(policy, raw, key, kit_bought)
+        if not kit_bought:
+            self.assertEqual((key, policy.last_reason), ("\x1b`n!.", "shop:travel"))
+            stage, store = policy._opening_q1_plan(board)[:2]
+            self.assertTrue(stage.startswith("observe:fundraising-"), stage)
+            following = copy.deepcopy(raw)
+            following["turn"] += 1
+            self.post(policy, raw, key, following)
+            return
+        self.assertEqual((key[0], policy.last_reason), ("w", "opening-q1:equip-light"))
+        following = lv7.Lv7TownStopRecordedTest.equip_reply(raw, key)
+        self.post(policy, raw, key, following)
+        raw = following
+        key = str(policy.choose_key(self.board(policy, raw)))
+        self.assertEqual(policy.last_reason, "fixedquest:request:approach", key)
+        following = copy.deepcopy(raw)
+        following["turn"] += 1
+        self.post(policy, raw, key, following)
 
     def test_completed_reward_pickup_continues_to_the_torch_purchase(self):
         policy, _ = self.boundary()
@@ -100,48 +103,6 @@ class MagicEaterQ1TorchRecordedTest(executor_harness.ProductionHarness):
         following = copy.deepcopy(raw)
         following["turn"] += 1
         self.post(policy, raw, key, following)
-
-    def drive_to_request(self, policy, raw, key, kit_bought):
-        # DECLARED REUSED: the Outpost general store page recorded earlier in
-        # the same capture (turn 75108) answers the arrival at that store.
-        page = copy.deepcopy(self.case["general_page"])
-        bought = 0
-        for _ in range(16):
-            reason = policy.last_reason
-            following = copy.deepcopy(raw)
-            following["turn"] += 1
-            if bought and not kit_bought and reason in ("shop:travel", "shop:approach"):
-                stage, store = policy._opening_q1_plan(self.board(policy, raw))[:2]
-                self.assertTrue(stage.startswith("observe:fundraising-"), stage)
-                self.assertNotEqual(store, 0)
-                self.post(policy, raw, key, following)
-                return
-            if reason in ("shop:travel", "shop:approach"):
-                goal = policy._town_map.store_position(0)
-                following["player"].update(y=goal.y, x=goal.x)
-                following["store"] = page
-            elif reason == "shop:one-shot-buy" and key == "5":
-                following["store"] = page
-            elif key.startswith("p") and raw.get("store"):
-                following, ware, quantity = self.buy_reply(raw, key, page)
-                following["store"] = None  # The composed purchase leaves the shop.
-                self.assertEqual(ware["tval"], 39)
-                bought += quantity
-            elif key == "\x1b" or reason.startswith("shop:"):
-                following["store"] = None
-            elif reason == "fixedquest:request:approach":
-                self.assertEqual(bought, 4)
-                board = self.board(policy, raw)
-                self.assertTrue(policy._fixed_quest_ready(board, 1), policy.fixed_quest_readiness_state())
-                self.assertEqual(policy._opening_q1_requirements(board)[1][1:3], (0, 0))
-                self.post(policy, raw, key, following)
-                return
-            else:
-                self.fail((key, reason, policy.fixed_quest_readiness_state()))
-            self.post(policy, raw, key, following)
-            raw = following
-            key = str(policy.choose_key(self.board(policy, raw)))
-        self.fail((key, policy.last_reason))
 
 
 class MagicEaterQ1ThrowPlanTest(unittest.TestCase):
