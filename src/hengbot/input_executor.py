@@ -1407,6 +1407,10 @@ class OperationExecutor:
         magic_result = advance_magic_eater(self, screen_value, match, deadline, outcome)
         if magic_result is not None:
             return magic_result
+        from hengbot.me_powers_refresh_input import advance_refresh
+        refresh_result = advance_refresh(self, screen_value, match, deadline, outcome)
+        if refresh_result is not None:
+            return refresh_result
         if match.kind is ScreenKind.MORE:
             return self._post_and_barrier(" ", deadline, role="auxiliary-request")
         if match.kind is ScreenKind.LEVEL_UP_STAT:

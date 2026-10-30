@@ -110,6 +110,11 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     if magic_plan is not None:
         prefix, steps = magic_plan
         return prefix, [*steps, *continuations]
+    from hengbot.me_powers_refresh_input import compile_refresh
+    refresh_plan = compile_refresh(key, owner)
+    if refresh_plan is not None:
+        prefix, steps = refresh_plan
+        return prefix, [*steps, *continuations]
     if owner == "shop:one-shot-buy":
         continuations = [
             replace(step, feature=_QUANTITY if ScreenKind.QUANTITY in step.kinds else _PRICE,

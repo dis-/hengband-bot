@@ -1103,7 +1103,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3019f6cc51151e310773b99817f8dde8cc343307f9736aebadb203b66d00db24"
+    "ast_sha256": "1b7edf8deaab7d2df2fb3da7baae886182934008151a4fb9a4b745a9d8e01eec"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
@@ -1688,6 +1688,55 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "005d0eab5e18d6f04fd51714a18d1e6ac89d2eddea58414cb7bfd4ffad4a1037"
   },
+  "me_powers_refresh.py:periodic_magic_eater_powers_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "1209122df647ad8e15bc120e744f31bcf60900496370e3bae137092088b26620"
+  },
+  "me_powers_refresh_input.py:advance_refresh": {
+    "classification": "driver",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "d570922b4a441c17e46925636fbfc16382dc47a376eff95354b3be5c40724966"
+  },
   "me_q1_torch.py:attack_key": {
     "classification": "dungeon-only",
     "rows": [
@@ -2165,7 +2214,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c097536f1e837301299eba0aa58bc0f45c674e04b9fb4d633033fdd2a588ffe5"
+    "ast_sha256": "eafe684f396f3b4eac6795835b222f8f15b27c77042fbcfddcfecc1158a26109"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
