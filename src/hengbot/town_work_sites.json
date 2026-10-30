@@ -2701,7 +2701,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ae5a6586cc2569f9445ef24b61517013c57cb7bcc4af05e28d4250441976dc9f"
+    "ast_sha256": "46030093aaa1c17b723df50906360e06706f94fda006afa0c39eae3045aaf39b"
   },
   "policy.py:HengbotPolicy._find_cure_critical_potion": {
     "classification": "data",
@@ -2781,7 +2781,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "31b7ce8ddedf925037ac45b3544a06e97ebc705f156127d9ec9c11ff0b75f714"
+    "ast_sha256": "01a7ca9c0a96fb7bd09f05ea1a4fa59b3a0d178d6ed943fa34c7b1caf34c7f04"
   },
   "policy.py:HengbotPolicy._food_ready": {
     "classification": "data",
@@ -5224,7 +5224,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "6699c4be2b6748d9d23355a9d1a0d3d84f8e777cdd53ff191f3efeca6f25d828"
+    "ast_sha256": "f246c9d72b4ba43ed557796d131fae651e46200d7aab6771c98d405ae741db18"
   },
   "policy_fundraising.py:FundraisingMixin._mining_detection_scroll_target": {
     "classification": "data",
@@ -5982,7 +5982,7 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e09a7e74b3a5d616509087a8aed4a1f3db88869ae0ed0271ca18a6385395dfb9"
+    "ast_sha256": "af532bbf6157b82981f7ec4639a95d31fbbf999da923fbf211d36acc655a66b2"
   },
   "policy_identification.py:IdentificationMixin._identification_flow_candidate": {
     "classification": "data",
