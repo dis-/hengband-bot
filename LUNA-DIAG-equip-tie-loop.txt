@@ -1,0 +1,74 @@
+D40 診断: n1-c life-055 の装備の付け外しのループ（ショート・ソード (1d7) とカットラス (1d7)）
+
+結論
+- 2本は「同じ」ではない。ゲームの値ではカットラスが明確に上（重さ11.0ポンド > 9.9 なので両手持ちの命中補正 +4 が付く。
+  画面の打撃欄でも ショート・ソード 命中+33/損傷+3、カットラス 命中+35/損傷+4。state-tail.jsonl の player.melee）。
+- 入れ替わり続けたのは、近接の評価のキャッシュのキーに武器の熟練度が入っていないため。
+  同じカットラスでも「装備中」「持ち物」の id では熟練度 3192 の時の古い値（命中+4）が使われ続け、
+  「自宅」の id では今の熟練度 3992 の新しい値（命中+8）で評価される。
+  そのため、毎回「自宅にある方」が良く見える:
+    カットラス装備中: 装備中カットラス(古い値) 4.088 < 自宅ショート・ソード 4.163 -> ショート・ソードへ
+    ショート・ソード装備中: 自宅カットラス(新しい値) 5.471 > 装備中ショート・ソード 4.163 -> カットラスへ
+- 同点の崩し方・位置・余裕（margin）の問題ではない。選び方の規則は変えない。
+
+根拠
+1. 評価の数字（viewing server life-055 jsonlog/loadout-report.jsonl の写し、
+   C:\hengband-backups\pdca\captures\n1c-equip-loop-1031-server\loadout-report.jsonl）
+   - 07:38:43 の報告 82: pack:585fcf732179423a:0（カットラス）命中 4、1ターンの与ダメージ 4.088
+   - ループ中: home:585fcf732179423a:0 命中 8 / 5.471、equipped:585fcf732179423a:0 命中 4 / 4.088（同じ品）
+   - ショート・ソードはどこにあっても 命中 6 / 4.163
+2. 熟練度の変化: カットラスの weapon_proficiency は 3192（server の state.jsonl 先頭、turn 204781。
+   07:42 の再起動で読み直した、07:38 の較正と同じ turn のセーブ）-> ループ中 3992（capture の state-tail.jsonl、turn 208595 以降）。
+   trunc((3192-4000)/200) = -4、trunc((3992-4000)/200) = 0。差の 4 が命中の差 4 と一致する。
+   ショート・ソードは 4426 -> 4535 で、どちらも +2（値が変わらないので古い値でも差が出ない）。
+3. 決定の記録（bot-decisions.jsonl）: 4993（turn 208664、自宅）'\x1b' home:leave-after-one-operation で
+   fresh-search がショート・ソード（home:50ce9bf46f5cc7d9:0）へ、4994 '5pb\x1b' atomic-withdraw。
+   5001（turn 208696）は逆向きにカットラス（home:585fcf732179423a:0）へ、5002 '5pb\x1b'。
+4. 再現: 記録の盤面（state-tail.jsonl の 35 行目、turn 208664、カットラス装備・自宅にショート・ソード）を新しい方針で
+   choose_key に通すと入れ替えない。熟練度 3192 の盤面で温めた評価キャッシュを持たせると、
+   記録どおりショート・ソードを取りに行く（withdraw -> takeoff -> equip -> deposit）。
+
+コードの位置
+- src/hengbot/warrior_equipment_evaluator.py:348-364 warrior_melee_signature
+  キーは item の id（hand_mode、main.id、sub.id、能力値・補正の合計など）だけで、熟練度を含まない。
+- src/hengbot/warrior_loadout_evaluator.py:228-254 CachedWarriorLoadoutEvaluator.__call__
+  このキーで近接の結果（WarriorMeleeResult）を self._melee に保持する。
+- src/hengbot/warrior_optimization.py:551-571 WarriorEvaluatorCache.get
+  文脈（能力値・レベル・技能・遭遇の集合）が同じ間、評価器を判断をまたいで使い回す。
+  熟練度は文脈にも入らないので、レベルが変わらない間ずっと古い値が残る。
+- src/hengbot/equipment_optimizer.py:443-484 _catalog_signature / equipment_identity
+  id の元は見た目の識別で、熟練度を含まない（意図どおり。熟練度が上がるたびに品物の id が変わると
+  取引の照合が壊れる）。id の接頭辞（equipped/pack/home）が違うと別のキャッシュ項目になる。
+- src/hengbot/warrior_equipment_evaluator.py:406 命中に熟練度を足す式
+  （ゲーム側 src/player/player-status.cpp:2233 calc_to_hit の weapon_exp の項）。
+- 検索の重複除去のキー（warrior_loadout_search.py の 85-100 行・200-215 行・309-312 行）は
+  熟練度と重さを含んでいて正しい。完了した検索の記憶（equipment_optimizer.py:493 optimizer_item_projection）
+  も熟練度を含む。抜けているのは近接の評価キャッシュのキーだけ。
+
+戦士（n1-a / n1-b）でも起きるか
+- 起きうる。評価器とキャッシュは職業に関係なく共通（prepare_warrior_optimization、
+  EQUIPMENT_CLASS_PROFILES の 0 と 16 が同じ経路）。条件は、評価の文脈（レベル・技能・能力値など）が
+  変わらない間に、武器の熟練度が 200 の段を越え、同じ武器が別の場所（自宅など）で新しく評価されること。
+  熟練度の段の差がほかの候補との差より大きいと、入れ替えが往復する。
+- 魔道具術師は Lv1 から始まる新しいキャラで、戦闘のたびに熟練度が速く上がるので出やすい。
+  レベルが上がると文脈が変わってキャッシュは作り直されるが、その間の戦闘で段を越えれば起きる。
+- 観戦中の戦士の直近の報告（n1-a life-447 の 509 件、n1-b life-274〜276 の 2,388 件）では、
+  同じ品の組が違う命中で並ぶ例は見つからなかった（報告は上位3候補しか残さないので弱い否定）。
+
+直し方（新しい規則・閾値なし）
+- warrior_melee_signature のキーに主手・副手の武器の熟練度を足す。
+  キーは「近接の評価が読む入力をすべて含む」という関数の約束（docstring）どおりにする。
+  選び方（帯・同点の崩し方・入れ替えの条件）は変えない。
+
+燃え尽きた松明と鑑定前の真鍮のランタン {並}
+- 別の原因。入れ替えの選び方とは関係しない。
+- 松明はループの中で燃え尽きた。決定の light_radius は 07:40:54（turn 207690、決定 4741）に 1 -> 0。
+  ループは 07:38:53（決定 4002）から続いていて、1回の入れ替えに turn の値で約 30 を使い、
+  自宅の出入りを繰り返す間に寿命が尽きた。
+- ランタンは鑑定前（known=false、擬似鑑定 {並}）なので、equipment_optimizer.py:226-230 evaluable が
+  False、248 exploration_legal も False になり、光源の候補に入らない（決定の
+  search_slot_candidate_counts の light が 0）。233-237 のコメントにあるとおり
+  「{並} は鑑定の対象にせず、探索には使わない（売却・破壊の経路で扱う）」という既存の決まり。
+  燃え尽きた松明は operational_equipment_candidate（259-276）で候補から外れる。
+- 光源の燃料切れは出発前の確認・光源の補給の担当が扱う（ループに判断を取られていた）。
+  {並} のランタンを鑑定せずに使うかどうかは新しい振る舞いなので、所有者に問う（報告に書く）。
