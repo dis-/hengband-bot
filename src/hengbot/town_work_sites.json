@@ -1871,21 +1871,13 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "cfa0698d39fd76d3c931302a1249a87f850de9ab99521a44b96db8c0be091bad"
   },
-  "me_staff_sequence.py:_device_definitions": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "5cf60de22f2908f894a30667ab1d2b44c12383fa54b9e49b0ed6692c53733d6d"
-  },
   "me_staff_sequence.py:_expedition_cost": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fe3edd3b6057cb0ed1a360365c5b1c0db687b08fba9ab46039e97d85b7f1ee49"
+    "ast_sha256": "ab56a570f9963eec3d43551c1ae9e4bc970d034b8e481441dd49060675dde0f7"
   },
   "me_staff_sequence.py:_fundraise": {
     "classification": "producer",
@@ -1898,7 +1890,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "180fcc795756d99cde34d28b352aa4c67cc6248a59ce6db69e0be262a6ee8824"
+    "ast_sha256": "07d343b445e75ce969ab82344bfe1274dc0d285983d0c2372e18da3caa544e7c"
   },
   "me_staff_sequence.py:_needed": {
     "classification": "data",
@@ -1924,14 +1916,6 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "060dcf9aefdd8a25fcca6dd7e67eb1f94027b05f88965b516f54e102a3fd4828"
   },
-  "me_staff_sequence.py:_recharge_all_price": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "a461ba752be7f03f5bdfb4deaa0f98c0a69737d0edf16c2c0c0ed78590314d99"
-  },
   "me_staff_sequence.py:_recharge_key": {
     "classification": "producer",
     "rows": [
@@ -1943,7 +1927,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c7f0bdc41b476460bdc32bb0eab21de30ce1d9eb02060d9ef3bd8ce3c2d424f5"
+    "ast_sha256": "380d346bd4fce87488cde605d975159082fb0633f4fb81bd85c8518190938157"
   },
   "me_staff_sequence.py:_rumor_expedition_cost": {
     "classification": "data",
@@ -1951,7 +1935,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b0778d38e77c85cadfbab433a3926d64af6811e80a7414f542dbbf1dbf285e26"
+    "ast_sha256": "31e8f6a25c223ce91e224a5a9656a1f74d86cc9abaa93ec7f2238977bd1bef92"
   },
   "me_staff_sequence.py:_stop": {
     "classification": "producer",
@@ -2035,14 +2019,6 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "c50a905d3bed72d78025ad2a0dbd90d10ba055f29f666814b9f47ffe08a30c6b"
   },
-  "me_staff_sequence.py:recharge_cost": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "37d6419b6c59632df1a6c77517e630697af63fe42ba05bc740ff849a10d1311b"
-  },
   "me_staff_sequence.py:remaining_svals": {
     "classification": "data",
     "rows": [
@@ -2078,7 +2054,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ad10b9b0f0b6d13483d6603d92bc20972be8ff980888c013fb0e514f6ddc28cc"
+    "ast_sha256": "66e3126e5da85a1021e3b9f3c362ad016ffc6fa90a0df2fe45e0b3ef47a8ce4e"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -2191,6 +2167,46 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "d5f7c765844be4214360d6bc6149ca4295becc9c0506bf079c42de47bfb285c9"
+  },
+  "morivant_tower.py:device_definitions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "f69dac9e79b369c8ad9fd7ed1d2d0e23c13d1e11605e907af914731910287eb7"
+  },
+  "morivant_tower.py:expedition_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "8f91bdbdfc349f328fabd6117b10001eded09d8a0b4d51ec9753a838251cef00"
+  },
+  "morivant_tower.py:recharge_all_price": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "767fedb356df977c2a008e8e0ef676bc2dd6758b16b22a81fbae0aa65628d63e"
+  },
+  "morivant_tower.py:recharge_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "180ccf4ed675dc3a5a87d2b763cc38827e91e520de91279583077c227163bc5c"
+  },
+  "morivant_tower.py:rumor_expedition_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "f692e2e2a037717c77029e0af15c6fe9b5bd82140326aff9fbb3872ecc010327"
   },
   "navigation.py:NavigationLedger.observe": {
     "classification": "data",

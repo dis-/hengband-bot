@@ -46,22 +46,18 @@ a stage is decided once as ``me-staff:stage<N>-complete`` (WAIT; owner
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from functools import lru_cache
-import json
 
-from hengbot.baseitem_knowledge import find_baseitem_definitions
+from hengbot import morivant_tower
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, staple_food, staple_needs_recharge,
 )
-from hengbot.model import (
-    STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_ROD, TVAL_STAFF, TVAL_WAND,
-)
-from hengbot.monrace_knowledge import _strip_jsonc
+from hengbot.model import STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF
+from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
-    LEAVE_STORE_KEY, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
-    QUEST_STATUS_REWARDED, REST_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE,
-    RUMOR_READS_PER_VISIT, STORE_STUCK_LIMIT, TOWN_TELEPORT_COST, WAIT_KEY,
+    MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
+    QUEST_STATUS_REWARDED, REST_MACRO, STORE_STUCK_LIMIT, TOWN_TELEPORT_COST,
+    WAIT_KEY,
 )
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -106,11 +102,8 @@ _FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200),
                   SV_STAFF_DETECT_TRAP: (12, 350), SV_STAFF_DETECT_DOOR: (15, 350),
                   SV_STAFF_DETECT_EVIL: (14, 350), SV_STAFF_MAPPING: (11, 750),
                   SV_STAFF_LITE: (19, 250)}
-# ItemEntity::can_recharge (baseitem-key.cpp): what 'a' recharges.
-RECHARGEABLE_TVALS = (TVAL_STAFF, TVAL_WAND, TVAL_ROD)
-UNKNOWN_ITEM_RECHARGE_FEE = 50  # building_recharge_all: +50 per unknown item
-TOWER_OF_SORCERY = 8  # 03_Morivant.jsonc building 8: 'a' Recharge all items
-RECHARGE_ALL_ACTION_KEY = "a"
+# The Tower facts (rechargeable kinds, prices, building 8, the 'a' tail) live
+# in hengbot.morivant_tower, shared with the Q2 breach recharge.
 RECHARGE_ALL_REASON = "me-staff:recharge-all"
 RUMOR_BATCH_LIMIT = 10  # 400 rumors: a visible stop instead of an endless inn
 FUNDRAISE_RUN_LIMIT = 6
@@ -152,22 +145,10 @@ class MeStaffSequence:
     completed_stages: dict = field(default_factory=dict)
 
 
-@lru_cache(maxsize=1)
-def _device_definitions() -> dict:
-    """(tval, sval) -> (base pval, level, cost) of every rechargeable kind."""
-    path = find_baseitem_definitions()
-    found = {}
-    if path is not None:
-        try:
-            data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
-            for entry in data.get("baseitems", data.get("items", [])):
-                kind = entry.get("itemkind", entry)
-                if int(kind["type_value"]) in RECHARGEABLE_TVALS:
-                    found[(int(kind["type_value"]), int(kind["subtype_value"]))] = (
-                        int(entry["parameter_value"]), int(entry["level"]), int(entry["cost"]))
-        except (OSError, ValueError, KeyError, TypeError):
-            found = {}
-    return found
+_device_definitions = morivant_tower.device_definitions
+# Base pval and cost of the sequence's staffs when the definitions lack them.
+_FALLBACK_KINDS = {(TVAL_STAFF, sval): (pval, 0, cost)
+                   for sval, (pval, cost) in _FALLBACK_BASE.items()}
 
 
 def _base_definitions() -> dict:
@@ -187,36 +168,13 @@ def recharge_price_per_charge(item) -> int:
 
 
 def _recharge_all_price(item, definitions: dict) -> int:
-    """building_recharge_all's price of one pack item (an upper bound).
-
-    An unaware kind is priced as the dearest kind of its tval and an unknown
-    staff/wand as empty; a charging rod as fully charging (timeout is not
-    exported, and a stack's timeout never exceeds number * base pval).
-    """
-    kinds = ([definitions[(item.tval, item.sval)]] if item.aware and (item.tval, item.sval) in definitions
-             else [value for (tval, _sval), value in definitions.items() if tval == item.tval])
-    if not kinds and item.tval == TVAL_STAFF and item.sval in SEQUENCE_SVALS:
-        pval, cost = _FALLBACK_BASE[item.sval]
-        kinds = [(pval, 0, cost)]
-    number = max(1, item.count)
-    charges = item.charges if item.known else 0
-    prices = []
-    for base_pval, level, base_cost in kinds:
-        if item.tval == TVAL_ROD:
-            prices.append(level * 50 * number if item.charging else 0)
-        elif item.tval == TVAL_STAFF:
-            prices.append((base_pval - charges) * max(10, base_cost // 10 * number))
-        else:
-            prices.append((number * base_pval - charges) * max(10, base_cost // 10))
-    price = max([0, *prices])
-    return price + (0 if item.known else UNKNOWN_ITEM_RECHARGE_FEE)
+    """building_recharge_all's price of one pack item (an upper bound)."""
+    return morivant_tower.recharge_all_price(item, definitions, _FALLBACK_KINDS)
 
 
 def recharge_cost(snapshot) -> int:
     """The Tower's 'a' total over every rechargeable pack item."""
-    definitions = _device_definitions()
-    return sum(_recharge_all_price(item, definitions) for item in snapshot.inventory
-               if item.tval in RECHARGEABLE_TVALS and not item.is_equipment)
+    return morivant_tower.recharge_cost(snapshot, _FALLBACK_KINDS)
 
 
 def state(policy) -> MeStaffSequence:
@@ -485,18 +443,7 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
     record.fundraise_target = target
     record.fundraise_why = why
     record.shelf_after_turn = snapshot.turn
-    policy._supply_stockout_gold_target = target
-    policy._planned_mining_runs = 1
-    policy._mining_runs_completed = 0
-    policy._identify_staff_mining_plan = False
-    policy._recall_stockout_mining_plan = False
-    policy._fundraising_mode = "prepare"
-    policy._town_restock_suppressed = False
-    policy._town_restock_waiting_for = ()
-    policy._town_restock_wait_until = None
-    policy._town_store_attempted.clear()
-    policy._cross_town_shopping = None
-    policy._retire_town_errand_plan_for_rebuild()
+    morivant_tower.start_fundraising_run(policy, snapshot, target)
     policy.last_reason = f"{REASON}fundraise:{why}:{target}"
     return WAIT_KEY
 
@@ -524,13 +471,12 @@ def mines_floor_out(policy) -> bool:
 
 def _expedition_cost(snapshot, supplies: int) -> int:
     """Fares to Morivant and back, the Tower's recharge and the supplies."""
-    return 2 * TOWN_TELEPORT_COST + recharge_cost(snapshot) + supplies
+    return morivant_tower.expedition_cost(snapshot, supplies, _FALLBACK_KINDS)
 
 
 def _rumor_expedition_cost(snapshot, supplies: int) -> int:
     """The rumor phase's total: the expedition plus the inn's reads."""
-    return (_expedition_cost(snapshot, supplies)
-            + RUMOR_GOLD_RESERVE + RUMOR_COST * RUMOR_READS_PER_VISIT)
+    return morivant_tower.rumor_expedition_cost(snapshot, supplies, _FALLBACK_KINDS)
 
 
 def _attempt(policy, step: str, sval: int) -> bool:
@@ -570,34 +516,7 @@ def _travel(policy, snapshot, destination: int, step: str) -> str:
     return key
 
 
-def _building_step(policy, snapshot, building: int):
-    """(first step, whether that step enters the building)."""
-    here = snapshot.grid_at(snapshot.player.position)
-    if here is not None and here.building_type == building:
-        # player-move.cpp enters a building only by moving onto it: step off
-        # onto a plain grid, and the next board walks back in (D24).
-        off = next((cell for cell in policy._walkable_neighbors(snapshot, snapshot.player.position)
-                    if (grid := snapshot.grid_at(cell)) is not None and grid.building_type < 0
-                    and grid.store_number < 0 and grid.building_special < 0
-                    and not grid.has_entrance and not grid.has_quest_enter), None)
-        return off, False
-    position = (policy._town_map.building_position(building)
-                if policy._town_map_active(snapshot) else None)
-    policy._claim_target_capture = []
-    try:
-        step = policy._nearest_goal_step(
-            snapshot, lambda grid: grid.building_type == building)
-    finally:
-        target = policy._take_claim_target()
-    if step is None and position is not None:
-        step = policy._town_map_goal_step(snapshot, position)
-    if step is None:
-        return None, False
-    policy._declare_reach(position if position is not None else target)
-    enters = step == position or (
-        snapshot.grid_at(step) is not None
-        and snapshot.grid_at(step).building_type == building)
-    return step, enters
+_building_step = morivant_tower.building_step
 
 
 def _recharge_key(policy, snapshot) -> str:
@@ -628,8 +547,7 @@ def _recharge_key(policy, snapshot) -> str:
             return _stop(policy, f"recharge-no-progress:{sval}")
     state(policy).pending = ("recharge", tuple(before))
     policy.last_reason = RECHARGE_ALL_REASON
-    return policy._step_toward(
-        snapshot, step, tail=RECHARGE_ALL_ACTION_KEY + "y" + LEAVE_STORE_KEY)
+    return policy._step_toward(snapshot, step, tail=RECHARGE_ALL_TAIL)
 
 
 def _absorb_key(policy, snapshot) -> str:
@@ -738,9 +656,8 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             return _fundraise(policy, snapshot, needed, "rumor-travel-recharge")
         if record.rumor_batches >= RUMOR_BATCH_LIMIT:
             return _stop(policy, "morivant-rumor-exhausted")
-        policy._town_travel_rumor_pending = MORIVANT_TOWN_ID
-        key = policy._town_special_key(snapshot)
-        if policy.last_reason == "town:rumor-batch":
+        key, batched = morivant_tower.rumor_key(policy, snapshot)
+        if batched:
             record.rumor_batches += 1
         return key
     if phase == "travel":
