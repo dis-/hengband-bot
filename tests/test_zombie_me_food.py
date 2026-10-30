@@ -31,7 +31,7 @@ class ZombieMagicEaterFoodTest(executor_harness.ProductionHarness):
         d25.MagicEaterTownStops2RecordedTest.setUpClass()
         cls.recorded = d25.MagicEaterTownStops2RecordedTest
 
-    def board(self, life, *, wonder=None, food_state="hungry"):
+    def board(self, life, *, wonder=None, wonder_count=1, food_state="hungry"):
         policy, raw = self.recorded.boundary(self.recorded(), life)
         raw = copy.deepcopy(raw)
         raw["store"] = None
@@ -40,7 +40,7 @@ class ZombieMagicEaterFoodTest(executor_harness.ProductionHarness):
             wand = dict(next(it for it in raw["inventory"] if it["tval"] == 65))
             slots = {it["slot"] for it in raw["inventory"]}
             wand.update(slot=next(c for c in "abcdefghijklmnopqrstuvw" if c not in slots),
-                        sval=24, charges=wonder, pval=wonder, count=1,
+                        sval=24, charges=wonder, pval=wonder, count=wonder_count,
                         name=f"謎の魔法棒 ({wonder}回分)")
             raw["inventory"].append(wand)
         return policy, raw
@@ -92,6 +92,12 @@ class ZombieMagicEaterFoodTest(executor_harness.ProductionHarness):
         policy, raw = self.board("life-036", wonder=10)
         eaten = self.eat(policy, raw)
         self.assertEqual((eaten["tval"], eaten["sval"]), (65, 24))
+        board, food = self.ledger(policy, raw)
+        self.assertEqual(food.count, 10)
+        self.assertTrue(staple_needs_recharge(board))
+        # A wand stack's pval is the stack's total (building-recharger.cpp
+        # refills a stack to number * 24), so two wands of 10 are 10 charges.
+        policy, raw = self.board("life-036", wonder=10, wonder_count=2)
         board, food = self.ledger(policy, raw)
         self.assertEqual(food.count, 10)
         self.assertTrue(staple_needs_recharge(board))
