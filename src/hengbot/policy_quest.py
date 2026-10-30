@@ -217,6 +217,7 @@ from hengbot.policy_constants import (
     Q34_FINAL_DOOR_ATTEMPT_LIMIT,
     Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT,
     Q34_OPENING_DOOR_ATTEMPT_LIMIT,
+    LOCK_PICK_FAILED_MESSAGE_FRAGMENTS,
     FIXED_TARGET_DEFEAT_VERBS,
     RUBBLE_DIG_LIMIT,
     RUBBLE_REJECT_LIMIT,
@@ -433,6 +434,21 @@ QUEST_LAUNCHER_AMMO_CARRIES = frozenset({
     "throwing_items.launcher_ammo",
 })
 
+
+
+def _unanswered_pick(snapshot: Snapshot) -> int:
+    """1 unless the game answered the previous pick "failed to pick the lock".
+
+    Snapshot messages are the lines new since the previous board.  That answer
+    proves the door is a lock with at least the 2% floor chance per pick
+    (open-close-execution.cpp exe_open), so it is progress; the Q34 door
+    bounds count only picks without it.
+    """
+    return 0 if any(
+        fragment in message
+        for message in snapshot.messages
+        for fragment in LOCK_PICK_FAILED_MESSAGE_FRAGMENTS
+    ) else 1
 
 class QuestMixin(OpeningRouteMixin):
     def _derived_home_visit_request(
@@ -2805,7 +2821,7 @@ class QuestMixin(OpeningRouteMixin):
             if count >= Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT:
                 self.last_reason = "quest:blocked:q34-sequence-door-locked"
                 return WAIT_KEY
-            attempts[door] = count + 1
+            attempts[door] = count + _unanswered_pick(snapshot)
             self.last_reason = "quest-strategy:open-sequence-door"
             return OPEN_KEY + self._direction_key(approach, door)
         step = self._quest_strategy_route_step(snapshot, profile, approach)
@@ -3153,7 +3169,9 @@ class QuestMixin(OpeningRouteMixin):
                 if attempts >= Q34_OPENING_DOOR_ATTEMPT_LIMIT:
                     self.last_reason = "quest:blocked:q34-opening-door-locked"
                     return WAIT_KEY
-                self._q34_opening_door_attempts = attempts + 1
+                self._q34_opening_door_attempts = attempts + _unanswered_pick(
+                    snapshot
+                )
                 self.last_reason = "quest-strategy:open-opening-door"
                 return self._step_toward(snapshot, door)
 
@@ -4077,7 +4095,9 @@ class QuestMixin(OpeningRouteMixin):
                                     "quest:blocked:q34-final-door-locked"
                                 )
                                 return WAIT_KEY
-                            self._q34_final_door_attempts = attempts + 1
+                            self._q34_final_door_attempts = (
+                                attempts + _unanswered_pick(snapshot)
+                            )
                             self.last_reason = "quest-strategy:open-final-door"
                             return OPEN_KEY + self._direction_key(
                                 final_approach, final_door
