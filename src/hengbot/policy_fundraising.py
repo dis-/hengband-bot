@@ -1699,10 +1699,15 @@ class FundraisingMixin:
 
         needs_initial_detection = self._mining_scroll_used_floor != snapshot.floor_key
         if needs_initial_detection:
+            from hengbot.me_staff_sequence import (
+                DETECT_REASON, SV_STAFF_DETECT_GOLD, power_key,
+            )
+            # Class 16 detects with the absorbed power before any scroll.
+            power = power_key(self, snapshot, SV_STAFF_DETECT_GOLD)
             scroll = self._first_item(
                 snapshot, lambda it: it.is_treasure_detection_scroll
             )
-            if scroll is None:
+            if scroll is None and power is None:
                 # Out of treasure-detection scrolls: return to town to restock
                 # rather than WAIT on the mining floor forever (the loop detector
                 # then stops the bot). Leaving clears any town block on the floor
@@ -1724,6 +1729,9 @@ class FundraisingMixin:
                 self._mining_dropped_veins.clear()
                 self._mining_mark_bumps.clear()
                 self._mining_unmarkable_grids.clear()
+                if power is not None:
+                    self.last_reason = DETECT_REASON
+                    return power
                 self.last_reason = "fundraise:detect-treasure"
                 key = self._read_key(snapshot, scroll)
                 self._offer_execution(

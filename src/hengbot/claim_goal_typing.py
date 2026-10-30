@@ -498,6 +498,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("quest:regen:ascend", O, FLOOR_CHANGE),
         ("quest:regen:descend", O, FLOOR_CHANGE),
         ("opening-q34:", T, EFFECT),
+        ("me-staff:", T, EFFECT),
         ("magic-eater:absorb", O, EFFECT),
         ("bounty:", T, EFFECT),
         ("bounty:cashout", T, EFFECT),

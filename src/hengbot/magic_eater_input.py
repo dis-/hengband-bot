@@ -20,12 +20,21 @@ POWER_PROMPTS = ("('*'で一覧, ESCで中断) どの魔力を使いますか？
 FAILURES = ("呪文をうまく唱えられなかった！", "You failed to get the magic off!",
             "その種類の魔法は覚えていない！", "You don't have that type of magic!")
 EMPTY = ("その魔法は使用回数が切れている。", "The magic has no charges left.")
+IDENTIFY_PROMPTS = ("どのアイテムを鑑定しますか?", "Identify which item?")
 
 
 @dataclass(frozen=True)
 class MagicEaterStep(Continuation):
     stage: str = "kind"
     attempts: int = 0
+    kind: str = "wand"   # "staff" for the absorbed staff powers
+    sval: int = 15       # the power (I2A(sval) is its list letter)
+    target: str = ""     # the Identify power's item address
+
+
+# The class-16 staff sequence (me_staff_sequence): ``mA`` + I2A(sval), with
+# the Identify power's inventory target.  Only that module composes ``mA``.
+_STAFF_POWER_KEY = re.compile(r"mA(?P<letter>[fk])(?P<target>[a-w]?)")
 
 
 def compile_magic_eater(key, owner):
@@ -40,12 +49,19 @@ def compile_magic_eater(key, owner):
         return "G", [MagicEaterStep(frozenset(), key[1], stage="absorb")]
     if owner == MISSILE_REASON and re.fullmatch(r"mBp[1-9]", key):
         return "m", [MagicEaterStep(frozenset(), key[-1])]
+    staff = _STAFF_POWER_KEY.fullmatch(key)
+    if staff is not None:
+        sval = ord(staff["letter"]) - ord("a")
+        if (sval == 5) != bool(staff["target"]):
+            raise ValueError("invalid Magic-Eater staff operation")
+        return "m", [MagicEaterStep(frozenset(), "", kind="staff", sval=sval,
+                                    target=staff["target"])]
     if owner in {ABSORB_REASON, MISSILE_REASON}:
         raise ValueError("invalid Magic-Eater operation")
     return None
 
 
-def _wand_menu_answer(lines):
+def _wand_menu_answer(lines, wanted=1):
     choices = [line.strip() for line in lines[2:5]]
     if len(choices) != 3 or not all(
             choice.endswith(names) for choice, names in zip(
@@ -55,13 +71,21 @@ def _wand_menu_answer(lines):
                 if choice.startswith(("》", ">"))]
     if len(selected) != 1:
         raise ValueError("missing Magic-Eater menu cursor")
-    return "\r" if selected[0] == 1 else "2"
+    if selected[0] == wanted:
+        return "\r"
+    return "2" if selected[0] < wanted else "8"
 
 
-def _power_row(lines):
+_POWER_NAMES = {("wand", 15): ("マジック・ミサイル", "Magic Missile"),
+                ("staff", 5): ("鑑定", "Perception"),
+                ("staff", 10): ("財宝感知", "Treasure Location")}
+
+
+def _power_row(lines, kind="wand", sval=15):
     # Two 40-cell columns. The source prints an ASCII letter or a menu
     # cursor before the baseitem name, then current/max and failure percent.
-    pattern = r"(?P<label>[a-z0-9]\)|》|> |  )\s*(?:マジック・ミサイル|Magic Missile)\s+(\d+)\s*/\s*(\d+)\s+\d+%"
+    names = "|".join(re.escape(name) for name in _POWER_NAMES[(kind, sval)])
+    pattern = r"(?P<label>[a-z0-9]\)|》|> |  )\s*(?:" + names + r")\s+(\d+)\s*/\s*(\d+)\s+\d+%"
     for line in lines[2:20]:
         match = re.search(pattern, line)
         if match:
@@ -79,7 +103,7 @@ _LIST_ENTRY = re.compile(
 _ROD_HEADERS = ("状態", "Stat")
 
 
-def observed_power_list(lines):
+def observed_power_list(lines, kind=None):
     """The power list exactly as displayed, or None when it is not on screen.
 
     Viewer-only (spectate.json): no decision reads this projection.  The
@@ -104,7 +128,7 @@ def observed_power_list(lines):
         return None
     header = lines[1] if len(lines) > 1 else ""
     rod = any(text in header for text in _ROD_HEADERS) or "charging" in rows[0]
-    return {"kind": "rod" if rod else "wand", "rows": rows}
+    return {"kind": kind or ("rod" if rod else "wand"), "rows": rows}
 
 
 def _owns_power_prompt(reading):
@@ -140,34 +164,48 @@ def _answer(step, screen, operation):
         return step.keys, "done"
     if step.stage == "kind":
         if reading.kind == "command_char" and prompt in TYPE_PROMPTS:
-            return "B", "power"
+            return ("A" if step.kind == "staff" else "B"), "power"
         # This loop uses raw inkey(), so the server explicitly reports null.
         # Require its complete source-derived menu as well as the null context.
         if reading.source == "null" and row0 in MENU_PROMPTS:
-            answer = _wand_menu_answer(lines)
+            answer = _wand_menu_answer(lines, 0 if step.kind == "staff" else 1)
             return answer, "power" if answer == "\r" else "kind"
         raise ValueError("unowned Magic-Eater type prompt")
     if step.stage == "power":
         if not _owns_power_prompt(reading):
             raise ValueError("unowned Magic-Eater power prompt")
-        listed = observed_power_list(lines)
+        staff = step.kind == "staff"
+        listed = observed_power_list(lines, "staff" if staff else None)
         if listed is not None:
             operation.magic_eater_power_list = listed
-        row = _power_row(lines)
+        row = _power_row(lines, step.kind, step.sval)
         if row is None:
             if step.attempts == 0:
                 return "*", "power"
-            raise ValueError("Magic Missile missing from observed list")
+            raise ValueError("power missing from observed list")
         label, charges = row
-        operation.magic_eater_wand_charges = charges
+        if not staff:
+            operation.magic_eater_wand_charges = charges
         if charges == 0 or any(text in row0 for text in EMPTY):
-            operation.magic_eater_wand_charges = 0
+            if not staff:
+                operation.magic_eater_wand_charges = 0
             return "\x1b", "done"
+        following = ("target" if step.target else "done") if staff else "aim"
         if label.endswith(")"):
-            return label[0], "aim"
+            return label[0], following
         if label in {"》", "> "}:
-            return "\r", "aim"
+            return "\r", following
         return "2", "power"
+    if step.stage == "target":
+        # staff_effect's identify asks for the item (IDENTIFY_ITEM_PROMPT).
+        if reading.kind != "item" or not prompt.endswith(IDENTIFY_PROMPTS):
+            raise ValueError("unowned Magic-Eater identify prompt")
+        if reading.details.get("area") != "inventory" or reading.details.get("menu"):
+            raise ValueError("unowned Magic-Eater identify item area")
+        first, last = reading.details.get("first_label", ""), reading.details.get("last_label", "")
+        if not first <= step.target <= last:
+            raise ValueError("identify target outside observed labels")
+        return step.target, "done"
     if step.stage == "aim":
         if reading.kind != "direction" or reading.details.get("can_choose_target") is not True:
             raise ValueError("unowned Magic-Eater aim prompt")
@@ -216,14 +254,18 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
         return executor._post_and_barrier(answer, deadline, role="answer")
     except ValueError as error:
         reading, _ = read_input_view(screen)
-        if operation.owner == MISSILE_REASON and _owns_power_prompt(reading):
+        if ((operation.owner == MISSILE_REASON or step.kind == "staff")
+                and _owns_power_prompt(reading)):
             # Missing/unusable powers and bounded menu failures must return to
             # command input before the next policy decision can throw a torch.
-            listed = observed_power_list(read_input_view(screen)[1])
+            staff = step.kind == "staff"
+            listed = observed_power_list(read_input_view(screen)[1],
+                                         "staff" if staff else None)
             if listed is not None:
                 operation.magic_eater_power_list = listed
-            operation.magic_eater_wand_charges = (
-                -1 if _power_row(read_input_view(screen)[1]) is None else 0)
+            if not staff:
+                operation.magic_eater_wand_charges = (
+                    -1 if _power_row(read_input_view(screen)[1]) is None else 0)
             operation.continuations[0] = replace(step, stage="done", attempts=0)
             executor._bound_screen_value = screen
             return executor._post_and_barrier("\x1b", deadline, role="answer")

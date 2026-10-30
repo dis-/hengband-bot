@@ -519,6 +519,13 @@ class SupplyMixin:
             and bool(strategy.engagement_plan.get("carry_identify_staff"))
         )
         charges = self._total_identify_staff_charges(snapshot)
+        from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+        from hengbot.me_staff_sequence import absorbed as staff_absorbed
+        if (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+                and staff_absorbed(self, SV_STAFF_IDENTIFY)):
+            # 「以降、鑑定と財宝感知は取り込みで賄う」: the absorbed power is
+            # the Magic-Eater's Identify staff (it regenerates and refills).
+            return True
         if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
             if not quest_requires_identify:
                 return True

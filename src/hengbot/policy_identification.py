@@ -457,6 +457,17 @@ class IdentificationMixin:
                 cause="prompt-gated-posting-unavailable",
             )
             return None
+        power_target = self._first_item(snapshot, target_predicate)
+        absorbed = self._absorbed_identify_key(snapshot, power_target, full=False)
+        if absorbed is not None:
+            self.last_reason = reason
+            self._offer_execution(
+                absorbed, producer="identification",
+                work_id=f"identify:carried:{self._item_signature(power_target)}",
+                next_step="identification.use-absorbed-power",
+                expected_effect="carried-item-identified",
+            )
+            return absorbed
         source = self._find_identification_source(snapshot, full=False)
         if source is None:
             self._offer_execution_no_step(
@@ -548,7 +559,10 @@ class IdentificationMixin:
                 cause="dungeon-identification-context-unavailable",
             )
             return None
+        from hengbot.me_staff_sequence import identify_power_available
         source = self._find_identification_source(snapshot, full=False)
+        if identify_power_available(self, snapshot):
+            source = ("absorbed-power", None)
         if source is None or (source[0] == READ_KEY and self._is_dark(snapshot)):
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:dungeon-equipment",
@@ -1011,6 +1025,37 @@ class IdentificationMixin:
             else "unavailable"
         )
 
+    def _absorbed_identify_key(
+        self, snapshot: Snapshot, target: InventoryItem | None, *, full: bool,
+    ) -> str | None:
+        """Class 16's absorbed Identify power serves what a staff would.
+
+        Owner 2026-10-30: 「以降、鑑定と財宝感知は取り込みで賄う」.  The same
+        unknown-count watch as a staff abandons a target whose use never lands.
+        """
+        from hengbot.me_staff_sequence import identify_power_command
+
+        if target is None:
+            return None
+        key = identify_power_command(self, snapshot, target, full=full)
+        if key is None:
+            return None
+        unknown_count = sum(
+            1 for it in snapshot.inventory if not it.known and not it.is_food
+        )
+        watch = (self._item_signature(target), unknown_count)
+        if watch == self._identify_watch:
+            self._identify_fail_streak += 1
+            if self._identify_fail_streak >= IDENTIFY_FAIL_LIMIT:
+                self._unidentifiable_sigs.add(self._item_signature(target))
+                self._identify_watch = None
+                self._identify_fail_streak = 0
+                return None
+        else:
+            self._identify_watch = watch
+            self._identify_fail_streak = 0
+        return key
+
     def _carried_identify_command(
         self,
         snapshot: Snapshot,
@@ -1029,6 +1074,9 @@ class IdentificationMixin:
         that repeatedly fails to land (unknown count unchanged) is abandoned via
         _unidentifiable_sigs so it cannot loop.
         """
+        absorbed = self._absorbed_identify_key(snapshot, target, full=full)
+        if absorbed is not None:
+            return absorbed
         reliable_only = (
             self._identify_staff_success_rate(snapshot) < STAFF_IDENTIFY_MIN_SUCCESS
         )

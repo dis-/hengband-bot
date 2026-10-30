@@ -2115,6 +2115,9 @@ class HomeMixin:
         """Return the existing reservation together with its observed branch."""
         if self._opening_q1_active(snapshot) and (item.is_digging_tool or item.is_treasure_detection_scroll):
             return item.count, "opening-q1:kit"
+        from hengbot.me_staff_sequence import retains as staff_sequence_retains
+        if staff_sequence_retains(self, snapshot, item):
+            return item.count, "me-staff:absorb"
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (

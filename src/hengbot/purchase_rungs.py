@@ -72,6 +72,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "curse:star-reserve": "remove-curse:reserve",
     # Read at once (_observe_launcher_enchant).
     "tail:launcher-enchant": CONSUMED_ON_USE,
+    # The class-16 staff sequence keeps it until absorbed (me_staff_sequence).
+    "me-staff:buy": "me-staff:absorb",
 }
 
 
