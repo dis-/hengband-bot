@@ -1466,7 +1466,9 @@ class EntranceTravelTest(unittest.TestCase):
                 self.assertEqual(pol.choose_key(snap), "\x1b`n>.")
                 self.assertEqual(pol.last_reason, "town:travel-entrance")
 
-    def test_non_mining_walk_in_respects_prior_floor_descent_cooldown(self):
+    def test_non_mining_walk_in_clears_prior_floor_descent_cooldown_in_town(self):
+        # Owner rule (2026-10-31): the cooldown only keeps the bot off the
+        # floor it fled; arriving back in town ends it for every walk-in.
         snap = replace(
             self._surface_snap(),
             player=replace(self._surface_snap().player, level=7),
@@ -1476,14 +1478,19 @@ class EntranceTravelTest(unittest.TestCase):
             },
             entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
         )
+        fresh = HengbotPolicy()
+        fresh._floor_key = (DUNGEON_YEEK_CAVE, 1, 0)
+        fresh._target_dungeon_id = DUNGEON_YEEK_CAVE
+        expected = (fresh.choose_key(snap), fresh.last_reason)
         pol = HengbotPolicy()
-        pol._floor_key = snap.floor_key
+        pol._floor_key = (DUNGEON_YEEK_CAVE, 1, 0)  # The floor it escaped.
         pol._target_dungeon_id = DUNGEON_YEEK_CAVE
         pol._descent_blocked = True
         pol._descent_block_countdown = 64
 
-        self.assertNotEqual(pol.choose_key(snap), "\x1b`n>.")
-        self.assertNotEqual(pol.last_reason, "town:travel-entrance")
+        self.assertEqual((pol.choose_key(snap), pol.last_reason), expected)
+        self.assertFalse(pol._descent_blocked)
+        self.assertEqual(pol._descent_block_countdown, 0)
 
     def test_zero_recall_ordinary_surface_goal_does_not_enter(self):
         pol = HengbotPolicy()

@@ -5,6 +5,7 @@ identification, Home and store executors, including their refusal bounds.
 """
 
 from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD
+from hengbot.policy_constants import FOOD_TYPE_MANA
 
 
 def preservable(policy, snapshot, item):
@@ -28,7 +29,11 @@ def eligible(policy, snapshot):
     """Never interrupt a survival departure, equipment mutation or quest return."""
     return bool(
         snapshot.in_town and not snapshot.player.recalling
-        and not (snapshot.player.hungry and policy._find_edible(snapshot) is None)
+        and not (snapshot.player.hungry and policy._find_edible(snapshot) is None
+                 # A mana eater's Home device is its food: making room for
+                 # that take is the survival work (owner rule 2026-10-31).
+                 and not (snapshot.player.food_type == FOOD_TYPE_MANA
+                          and policy._home_mana_food_candidate() is not None))
         and policy._equipment_mutation.state.name == "IDLE"
         and policy._equipment_transaction_session is None
         and policy._home_atomic_deposit_pending is None
@@ -211,6 +216,18 @@ def begin_key(policy, snapshot):
         return None
     begin(policy, snapshot)
     return key(policy, snapshot)
+
+
+def make_room_for_home_take(policy, snapshot):
+    """Shelve unneeded stacks first when a Home take does not fit the budget.
+
+    Owner rule (2026-10-31): 「自宅にいるなら先に不要物を仕舞う」.  The admitted
+    pass is the same one may_begin starts; it is only started here, beside
+    the refused take, because may_begin never seizes bound work.
+    """
+    if (not organizing(policy, snapshot) and eligible(policy, snapshot)
+            and any(preservable(policy, snapshot, item) for item in snapshot.inventory)):
+        begin(policy, snapshot)
 
 
 def begin(policy, snapshot):

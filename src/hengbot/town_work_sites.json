@@ -2343,7 +2343,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0cd02511199a83d7459574b834bf2539eb006bba9bcc3c0c47cf28984cc0a501"
+    "ast_sha256": "eb4781f27b9f276d0ffa106da587a07a9ba163263a8c8d91f33afdb0633b6e69"
   },
   "policy.py:HengbotPolicy._choose_key.fallback": {
     "classification": "adapter",
@@ -2603,7 +2603,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fb4665733be1a639a1425933f4a4ffd8233ac07c67d9b73e8cf3e244a30b2418"
+    "ast_sha256": "2774b307b5866dbbbb7e17d229e12a3966bc37ce537297348732255e6bef1a42"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5530,7 +5530,7 @@
       "home-withdraw"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "08f15c38de62b0256fd78c5c8041e2d74fb8eff97025dea17c1ee3bb3ad226fa"
+    "ast_sha256": "d3341a90336e684aa2061c91ce8d26003e4c3fee8cab669912db2c804d728147"
   },
   "policy_home.py:HomeMixin._atomic_home_withdraw_key": {
     "classification": "adapter",
