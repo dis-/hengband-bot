@@ -88,3 +88,40 @@ ISSUE #47。持ち主の決定: 「Q2の岩石溶解 - 回数を数える」（m
 - 1つ目のコミットは me_staff_sequence.py を触る（共用への移動のみ）。D35 を同じファイルで直している
   別の実装役の変更とは取り込み時に衝突しうる（main b6d47db93 時点の D35 のテストは通っている）。
 - バックグラウンドのプロセスは残していない。
+
+9. 追記（2026-10-31、持ち主の回答の後）
+持ち主の回答: 問1「モリバントからテルモラへ直行」、問2「名前付きで止める」（変更なし）、問3「数えない」（変更なし）。
+
+- main ba0d425a9（calib-recall-1031 を取り込み済み）をこのブランチに取り込んだ（6573fd919）。衝突は生成物の
+  manifest だけで、scripts/town_work_manifest.py --write で作り直した（zero unmapped）。
+- 4c1f010e4 Take the inn from Morivant straight to Telmora after the Q2 recharge
+  - 塔で再充填した後の行き先を、アウトポストではなくモリバントからテルモラ（Q2 の依頼の町）への宿の
+    テレポートにした。通常の Q2 の宿の移動と同じく _telmora_q2_errand を立てるので、クエスト後の帰りは
+    今までの Telmora の持ち主が受け持つ。盤面がモリバントを出たら旅は終わり、通常の Q2 の依頼に任せる。
+  - 所持金の目標を新しい道に合わせた。ボットの宿の移動（_town_teleport_dispatch_key）は、アウトポスト
+    以外の町へ行く時は運賃2回分（行きと帰り）を持っていないと出ない。
+    ・塔で: 再充填の合計＋運賃2回分（onward_cost）。足りなければ今までどおりアウトポストへ戻って資金稼ぎ。
+      （以前は 再充填＋運賃1回分）
+    ・アウトポストまたはテルモラから出る時: 塔の合計＋運賃3回分（モリバントへ・テルモラへ・テルモラからの
+      帰りの分）＋未充足の必需品、噂の段階は噂の分も（trip_cost）。運賃は1回 500。
+      以前の道は モリバントへ・アウトポストへ・テルモラへ の3回を払い、さらにテルモラからの帰りの分が
+      要ったので、運賃1回分（500）少ない。
+  - 町の仕事の台帳: q2_tower_recharge.py の説明文を新しい道に直し、trip_cost の項目を足した（zero unmapped）。
+- 検査
+  - import 検査 OK。
+  - checks.json の全テスト＋ test_me_staff_sequence, test_zombie_me_food: 201件、200件 OK。1件 ERROR は
+    tests.test_equip_tie_loop_recorded（D40）で、まだ取り込まれていない別ブランチのテストのため import できない。
+  - このブランチのテスト（明示して実行）: test_q2_tower_recharge_recorded, test_quest_stops_1031_recorded,
+    test_me_tower_recharge_recorded 19件 OK（test_q2_tower_recharge_recorded は 7件）。
+  - 変更前（main 取り込み直後のこのブランチ）の q2_tower_recharge.py に戻して test_q2_tower_recharge_recorded を
+    実行: 7件中 1件 FAIL・4件 ERROR。
+    ・test_tower_recharges_the_whole_pack_then_travels_to_telmora: FAIL
+      （'fixedquest:q2-recharge:return-outpost' != 'fixedquest:q2-recharge:travel-telmora'）。再充填の後の行き先の検査。
+    ・test_recorded_short_wand_boards_travel_to_morivant（2盤面）、test_short_purse_outside_the_outpost_returns_for_funds、
+      test_short_purse_at_the_tower_returns_to_the_outpost_for_funds: ERROR（新しい目標の関数 trip_cost /
+      onward_cost が無い）。
+    元に戻し、差分が同一であることを確かめた。
+  - checks.json の "Q2-TOWER" の項目は、監督役が checks-pending-q2-tower.json に移した（未取り込みのブランチの
+    テストが他のブランチの取り込み検査を壊すため）。取り込みの時に監督役が戻す。自分では戻していない。
+- 注意: 直行でテルモラに着くと、アウトポストからの通常の Q2 の移動が求める所持金の下限
+  （噂の予備＋1000、fixedquest:q2-travel-needs-funds）を通らない。旅の目標は上の通りで、新しい下限は足していない。
