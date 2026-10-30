@@ -1822,6 +1822,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "5cf60de22f2908f894a30667ab1d2b44c12383fa54b9e49b0ed6692c53733d6d"
   },
+  "me_staff_sequence.py:_expedition_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "fe3edd3b6057cb0ed1a360365c5b1c0db687b08fba9ab46039e97d85b7f1ee49"
+  },
   "me_staff_sequence.py:_fundraise": {
     "classification": "producer",
     "rows": [
@@ -1833,7 +1841,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c89814e3461bf117cf533d912d0e44b560a9a3da685a82334b5a4d50669f500d"
+    "ast_sha256": "180fcc795756d99cde34d28b352aa4c67cc6248a59ce6db69e0be262a6ee8824"
   },
   "me_staff_sequence.py:_page_purchase": {
     "classification": "data",
@@ -1871,6 +1879,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "1e2e3b6e4f25529488152b43c871dbce893e5f18818534833d3aa46ebe45fc5e"
+  },
+  "me_staff_sequence.py:_rumor_expedition_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "b0778d38e77c85cadfbab433a3926d64af6811e80a7414f542dbbf1dbf285e26"
   },
   "me_staff_sequence.py:_stop": {
     "classification": "producer",
@@ -1981,7 +1997,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "dcdd1710470ab70f7533afbde53c3a60ac146d28229339c52c1057f279aaac56"
+    "ast_sha256": "f27ea9b41a5119a0bdee52f4aee6b037fddf6bb5e7902f7795377b8c5ecec388"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -5174,7 +5190,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ef358eeb02178c8340e05dffdc467fa4bca32f871ddd7f68ffdf05b6f0180ebd"
+    "ast_sha256": "07e19cb33aecec784a67b3d6efb0c6f0ae5d37aaa1fbec3a8cbac5d6c18f6865"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": {
     "classification": "producer",

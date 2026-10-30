@@ -150,6 +150,17 @@ class FundraisingMixin:
         target = getattr(self, "_supply_stockout_gold_target", None)
         return FUNDRAISING_GOLD_TARGET if target is None else target
 
+    def _fundraising_gold_return_applies(self) -> bool:
+        """Whether reaching the gold target is a return trigger for this run.
+
+        A no-safe-destination set has no gold objective (2026-10-19), and the
+        staff sequence's stockout run mines its floor out (D35, 2026-10-31).
+        """
+        if getattr(self, "_no_safe_destination_set", False):
+            return False
+        from hengbot.me_staff_sequence import mines_floor_out
+        return not mines_floor_out(self)
+
     def _post_fundraising_transport(
         self, snapshot: Snapshot, direction: str
     ) -> None:
@@ -237,9 +248,8 @@ class FundraisingMixin:
             hungry=snapshot.player.hungry,
             light_ready=self._fundraising_light_ready(snapshot),
             pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
-            # A no-safe-destination set has no gold objective (2026-10-19).
             objective_achieved=(snapshot.player.gold >= self._fundraising_gold_target()
-                                and not getattr(self, "_no_safe_destination_set", False)),
+                                and self._fundraising_gold_return_applies()),
             procurement_exhausted=exhausted,
             first_run=(first_departure_proven if snapshot.in_town
                        else runs_started == 1),
@@ -1399,7 +1409,7 @@ class FundraisingMixin:
             return self._leave_fundraising_floor(snapshot)
         if (
             snapshot.player.gold >= self._fundraising_gold_target()
-            and not getattr(self, "_no_safe_destination_set", False)
+            and self._fundraising_gold_return_applies()
             and (
                 getattr(self, "_supply_stockout_gold_target", None) is not None
                 or self._fundraising_mode == "scavenge"

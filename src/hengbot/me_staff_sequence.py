@@ -78,6 +78,7 @@ DETECT_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_DETECT_GOLD]
 DETECT_REASON = "fundraise:me-detect-treasure"
 BUY_RUNG = "me-staff:buy"
 STAPLE = "staple"  # the Wand of Wonder's key in attempts / pending
+STOCKOUT_WHY = "staff-stockout"
 
 
 @dataclass
@@ -87,6 +88,7 @@ class MeStaffSequence:
     bought: frozenset = frozenset()
     fundraise_runs: int = 0
     fundraise_target: int | None = None
+    fundraise_why: str | None = None               # the current run's objective
     target_reached: bool = False                   # the current run met its target
     reached_runs: int = 0                          # runs that met their target
     shelf_after_turn: int = -1
@@ -393,6 +395,7 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
         return _stop(policy, f"fundraise-target-drift:{why}:{target}")
     record.fundraise_runs += 1
     record.fundraise_target = target
+    record.fundraise_why = why
     record.shelf_after_turn = snapshot.turn
     policy._supply_stockout_gold_target = target
     policy._planned_mining_runs = 1
@@ -415,6 +418,31 @@ def _fundraising_owns(policy) -> bool:
     return (policy._fundraising_mode in {"prepare", "mine", "scavenge"}
             and record.fundraise_target is not None
             and getattr(policy, "_supply_stockout_gold_target", None) == record.fundraise_target)
+
+
+def mines_floor_out(policy) -> bool:
+    """Whether the current explicit-target run ignores its gold target.
+
+    A staff-stockout run exists to pass the Magic shop's restock time, so it
+    is one ordinary mining run: like the warrior's run it returns when the
+    floor is mined out (or on the survival, pack and light triggers), never
+    on the first nugget that crosses its target (D35 life-045, 2026-10-31:
+    target gold + 1, one vein of 146 dug, then fundraise:ascend).
+    """
+    record = getattr(policy, "_me_staff_sequence", None)
+    return (record is not None and record.fundraise_why == STOCKOUT_WHY
+            and _fundraising_owns(policy))
+
+
+def _expedition_cost(snapshot, supplies: int) -> int:
+    """Fares to Morivant and back, the Tower's recharge and the supplies."""
+    return 2 * TOWN_TELEPORT_COST + recharge_cost(snapshot) + supplies
+
+
+def _rumor_expedition_cost(snapshot, supplies: int) -> int:
+    """The rumor phase's total: the expedition plus the inn's reads."""
+    return (_expedition_cost(snapshot, supplies)
+            + RUMOR_GOLD_RESERVE + RUMOR_COST * RUMOR_READS_PER_VISIT)
 
 
 def _attempt(policy, step: str, sval: int) -> bool:
@@ -575,12 +603,15 @@ def town_key(policy, snapshot, hostiles) -> str | None:
                 policy.last_reason = "shop:approach"
                 key = policy._shopping_approach_key(snapshot, step, "shop:travel")
                 return key if key is not None else _stop(policy, "magic-shop-operation-unavailable")
-            # Observed shelf without one of the staffs: one run passes the
-            # restock time; its gold target is the staffs' base estimate.
+            # Observed shelf without one of the staffs: one ordinary mining
+            # run passes the restock time (mines_floor_out).  Its target is
+            # what the sequence still needs anyway: the staffs' base estimate
+            # and the rumor/travel/recharge expedition (D35: never gold + 1).
             estimate = sum(_base_definitions()[sval][1] * 2 for sval in SEQUENCE_SVALS
                            if sval not in carried_staffs(snapshot))
-            return _fundraise(policy, snapshot, max(gold + 1, estimate + supplies),
-                              "staff-stockout")
+            return _fundraise(policy, snapshot,
+                              estimate + _rumor_expedition_cost(snapshot, supplies),
+                              STOCKOUT_WHY)
         if gold < target + supplies:
             return _fundraise(policy, snapshot, target + supplies, "staffs")
         offer = next(offer for sval, offer in sorted(offers(policy, snapshot).items()))
@@ -591,9 +622,9 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         key = policy._shopping_approach_key(snapshot, step, "shop:travel")
         return key if key is not None else _stop(policy, "shop-operation-unavailable")
     record.bought = record.bought | frozenset(carried_staffs(snapshot))
-    expedition = 2 * TOWN_TELEPORT_COST + recharge_cost(snapshot) + supplies
+    expedition = _expedition_cost(snapshot, supplies)
     if phase == "rumor":
-        needed = expedition + RUMOR_GOLD_RESERVE + RUMOR_COST * RUMOR_READS_PER_VISIT
+        needed = _rumor_expedition_cost(snapshot, supplies)
         if gold < needed:
             return _fundraise(policy, snapshot, needed, "rumor-travel-recharge")
         if record.rumor_batches >= RUMOR_BATCH_LIMIT:
