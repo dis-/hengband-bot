@@ -144,12 +144,28 @@ def _request_due_dump(
     if now >= next_dump_at:
         policy.request_character_dump()
         policy.request_game_save()
-        # Class 16 only (checked at decision time): re-read the absorbed
-        # device lists for the spectator on the same turn-free cadence.
-        from hengbot.me_powers_refresh import request_refresh
-        request_refresh(policy)
         return now + dump_interval_seconds
     return next_dump_at
+
+
+def _request_due_me_powers_refresh(
+    policy, spectator, now: float, next_refresh_at: float,
+    interval_seconds: float = DUMP_INTERVAL_SECONDS,
+) -> float:
+    """Latch one turn-free Magic-Eater list refresh for the spectator.
+
+    Viewer-only, so it needs a spectator.  Its cadence is the age of the
+    lists the spectator holds, which survive a bot restart (the soak runner
+    restarts a stopped bot within seconds; a timer due at process start
+    refreshed on every restart).  At most one cycle per interval per process.
+    """
+    if (spectator is None or interval_seconds == 0 or now < next_refresh_at
+            or getattr(policy, "_me_power_refresh_pending", ())
+            or not spectator.magic_eater_refresh_due(interval_seconds)):
+        return next_refresh_at
+    from hengbot.me_powers_refresh import request_refresh
+    request_refresh(policy)
+    return now + interval_seconds
 
 
 def _arm_decision_watchdog() -> None:
@@ -4442,6 +4458,7 @@ def _run_follow(
         # due at once; waiting the interval left every short-lived restarted
         # process without an equipment optimization (live 2026-10-02 17:00).
         next_dump_at = time.monotonic()
+        next_me_refresh_at = next_dump_at
         poll_wait_started_at = time.perf_counter()
         barrier_board_seen = None
         while True:
@@ -4709,6 +4726,10 @@ def _run_follow(
                     last_decision_at = now
                     next_dump_at = _request_due_dump(
                         policy, now, next_dump_at, args.dump_interval_seconds
+                    )
+                    next_me_refresh_at = _request_due_me_powers_refresh(
+                        policy, spectator, now, next_me_refresh_at,
+                        args.dump_interval_seconds,
                     )
                     recorder.before_floor_change(policy, snapshot.floor_key)
                     store_leave_was_inflight = (
