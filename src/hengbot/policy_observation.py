@@ -761,12 +761,19 @@ class ObservationMixin:
             and previous_floor[1] == 1
             and self._fundraising_mode in {"mine", "scavenge"}
         )
+        # A run ended by a ruled-out unique (owner 2026-10-31) is not a
+        # completed or short run: the planned run is made again on a fresh
+        # floor instead of advancing the run and stockout-cycle limits.
+        aborted_run = getattr(self, "_mining_abort_floor", None) == previous_floor
+        if snapshot.in_town:
+            self._mining_abort_floor = None
         if returned_from_fundraising:
-            if getattr(self, "_supply_stockout_gold_target", None) is not None:
+            if (getattr(self, "_supply_stockout_gold_target", None) is not None
+                    and not aborted_run):
                 self._supply_stockout_cycles = getattr(self, "_supply_stockout_cycles", 0) + 1
             if (self._fundraising_mode == "mine"
                     or getattr(self, "_supply_stockout_gold_target", None) is not None
-                    or getattr(self, "_no_safe_destination_set", False)):
+                    or getattr(self, "_no_safe_destination_set", False)) and not aborted_run:
                 self._mining_runs_completed += 1
             if self._fundraising_mode == "scavenge":
                 self._sell_scavenged_consumables = True
@@ -993,6 +1000,12 @@ class ObservationMixin:
             self._breeder_kills = 0
             self._breeder_previous_exp = None
             self._breeder_previous_indices.clear()
+            if snapshot.in_town:
+                # Owner rule (2026-10-31): the escape descent cooldown keeps the
+                # bot off the floor it fled; back in town every walk-in
+                # generates a fresh level, so the cooldown ends here.
+                self._descent_blocked = False
+                self._descent_block_countdown = 0
             # A blocked-town/fundraising reason latches a permanent WAIT (which
             # then trips the loop-detector and stops the bot). Several of those
             # conditions are transient (a shop temporarily out of food, the inn

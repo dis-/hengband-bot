@@ -42,6 +42,7 @@ from hengbot.policy_constants import (
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_KIT_MARGIN,
     FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT,
+    MINING_ABORT_UNIQUE_RACE_IDS,
     MINING_COMBAT_CONTACT_LIMIT,
     MINING_DETECTION_RADIUS,
     MINING_NAVIGATION_REVISIT_LIMIT,
@@ -530,6 +531,44 @@ class FundraisingMixin:
         if restore is not None:
             return restore
         return None
+
+    @claims(ClaimOwner.FUNDRAISING)
+    def _mining_unbeatable_unique_abort_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        """End a mining run on sighting a unique the owner rules out.
+
+        Owner 2026-10-31: 「採掘中に『グレーター・ヘル=ビースト』に出会ったら
+        採掘を切り上げて地上に戻る。序盤の攻撃力では倒せないし非効率。」
+        (n1-c life-045 threw torches, fired devices and meleed one for
+        thousands of turns on Yeek cave 1F.)  Seen or detected, it latches
+        the ordinary fundraising return and takes that run's exit; ordinary
+        flight still owns the turn when it applies (survival first).
+        """
+        if (
+            self._fundraising_mode not in {"mine", "scavenge"}
+            or snapshot.floor_key[0] != DUNGEON_YEEK_CAVE
+            or snapshot.dungeon_level != 1
+            or not any(
+                monster.hostile
+                and monster.race_id in MINING_ABORT_UNIQUE_RACE_IDS
+                for monster in (*snapshot.visible_monsters,
+                                *snapshot.detected_monsters)
+            )
+        ):
+            return None
+        self._mining_abort_floor = snapshot.floor_key
+        self._note_return_start(None)
+        self._returning_to_town = True
+        if self._should_flee(snapshot, hostiles, adjacent):
+            return None
+        key = self._leave_fundraising_floor(snapshot)
+        exit_reason = self.last_reason.removeprefix("fundraise:")
+        self.last_reason = f"fundraise:abort-unbeatable-unique:{exit_reason}"
+        return key
 
     def _update_mining_combat_streaks(
         self,

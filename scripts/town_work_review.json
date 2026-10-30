@@ -5482,6 +5482,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "_leave_fundraising_floor; no independent progress"
   },
+  "policy_fundraising.py:FundraisingMixin._mining_unbeatable_unique_abort_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Dungeon-only: a mining run on the Yeek cave 1F income floor that sees a ruled-out unique (owner 2026-10-31); never in town.",
+    "evidence": "Latches the ordinary fundraising return and delegates the command to _leave_fundraising_floor; yields to ordinary flight.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "_leave_fundraising_floor; no independent progress"
+  },
   "policy_fundraising.py:FundraisingMixin._fundraising_key": {
     "classification": "producer",
     "rows": [

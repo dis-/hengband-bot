@@ -6,6 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
+from hengbot import town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import me_ranged_first, survival_preemption
 
@@ -2274,6 +2275,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._fundraising_affordable_food_seen = False
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
+        # The income floor a mining run was ended on by a ruled-out unique
+        # (_mining_unbeatable_unique_abort_key); that run is not counted.
+        self._mining_abort_floor: tuple[int, int, int] | None = None
         self._identify_staff_mining_plan = False
         # Marks the one-run D1 recall-stockout time-pass (not a funding set):
         # the gold set-end leaves it running while the stockout persists.
@@ -9302,7 +9306,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (snapshot.player.food_type == FOOD_TYPE_MANA
                     and snapshot.player.hungry and self._find_edible(snapshot) is None
                     and self._home_atomic_deposit_pending is None
-                    and self._home_atomic_withdraw_pending is None):
+                    and self._home_atomic_withdraw_pending is None
+                    # The food take refused for room shelves surplus first
+                    # (owner rule 2026-10-31); that pass is not optional.
+                    and not town_pack_headroom.organizing(self, snapshot)):
                 # Recovery pages must return to the survival owner before any
                 # optional Home deposit, errand, or equipment work is selected.
                 self.last_reason = "survival:mana-leave-wrong-store"
@@ -10546,7 +10553,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._evaluate_cross_decision_latches(snapshot)
         # A0 hands this visit to repetition. Pre-empt optional enchants and
         # required-purchase/release branches before they can reopen its work.
-        if snapshot.in_town and self._visit_departure_committed:
+        if (snapshot.in_town and self._visit_departure_committed
+                and not self._release_lost_visit_departure(snapshot)):
             cancel_unsafe_recall = self._town_producer_entry("_town_cancel_unsafe_recall_key", lambda: self._town_cancel_unsafe_recall_key(snapshot), family="survival")
             if cancel_unsafe_recall is not None:
                 return cancel_unsafe_recall
@@ -11178,6 +11186,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._escape_state.stable_decisions += 1
             if self._escape_state.stable_decisions >= 2:
                 self._escape_state.release()
+
+        # Owner 2026-10-31: a mining run that meets the unique the owner
+        # rules out ends here, before any mining or ordinary combat rung can
+        # attack it.
+        mining_abort = self._town_producer_entry("_mining_unbeatable_unique_abort_key", lambda: self._mining_unbeatable_unique_abort_key(
+            snapshot, strategic_hostiles, strategic_adjacent
+        ), family="fundraising")
+        if mining_abort is not None:
+            return mining_abort
 
         # A harmless but extremely durable unique can otherwise fall through
         # the consumable projection and into ordinary melee forever.  Arm a

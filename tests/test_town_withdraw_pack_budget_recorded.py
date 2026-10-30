@@ -210,11 +210,15 @@ class TownWithdrawPackBudgetRecordedTest(harness.ProductionHarness):
         self.assertIn("home:atomic-withdraw", reasons)
         self.assertTrue(any(item["tval"] == 20 for item in game.pack))  # TV_DIGGING
 
-    def test_life_252_does_not_bind_the_detection_scrolls_it_cannot_carry(self):
+    def test_life_252_shelves_surplus_before_taking_the_detection_scrolls(self):
+        # Owner rule (2026-10-31): at Home, shelve unneeded stacks first,
+        # then take what did not fit.
         reasons, entry_states, game = self.drive("n1-b/life-252")
         self.assert_no_unchanged_reentry(reasons, entry_states)
-        self.assertNotIn("home:queue-catalogue-shortage", reasons)
-        self.assertNotIn("home:leave-for-pending-withdraw", reasons)
+        self.assertLess(reasons.index("home:atomic-deposit"),
+                        reasons.index("home:queue-catalogue-shortage"), reasons)
+        self.assertIn("home:atomic-withdraw", reasons)
+        self.assertTrue(any((item["tval"], item["sval"]) == (70, 26) for item in game.pack))
         self.assertIsNotNone(game.left_for, reasons)
 
     def test_life_445_does_not_bind_the_digger_it_cannot_carry(self):
