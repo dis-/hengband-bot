@@ -14073,9 +14073,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def calibration_entry_state(self, snapshot: Snapshot) -> dict[str, object]:
+        present = self._character_calibration is not None
+        reason = self._calibration_unavailable_reason
+        if not present and reason is None:
+            # D38: a missing calibration always names where its dump is.
+            # Outside town the optimizer republishes its last town
+            # result_source, so ``present`` is the calibration itself.
+            reason = (
+                "dump-pending" if self._calibration_dump_pending is not None
+                else "dump-requested"
+                if getattr(self, "_periodic_dump_requested", False)
+                else "record-not-loaded"
+                if not self._character_calibration_loaded
+                else "no-equipped-observation"
+            )
         return {"source": "equipped-c-screen", "schema_version": 2,
+                "present": present,
                 "pending": self._calibration_dump_pending is not None,
-                "unavailable_reason": self._calibration_unavailable_reason}
+                "unavailable_reason": reason}
 
     def equipment_transaction_entry_state(
         self, snapshot: Snapshot

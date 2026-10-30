@@ -1,0 +1,85 @@
+D38 診断: 較正が帰還で捨てられ、書き出しの後も作り直されないように見える件（#47）
+基点 main b6d47db93、ブランチ calib-recall-1031。行番号は b6d47db93 のもの。
+
+■ 原因1（帰還）— 確定
+- src/hengbot/character_sheet.py:205-210 temporary_bonuses の known に "recall" が無く、
+  CharacterSheetUnavailable("unknown-timed-effect:recall") を投げる。
+- src/hengbot/policy_calibration.py:189-196 _validated_character_calibration がこれを受け、
+  :214-218 で self._character_calibration = None、理由を記録、request_character_dump()。
+  町でも迷宮でも同じ（呼び出し元は policy_equipment.py:895 の最適化のほか、迷宮でも動く
+  policy.py:13216・15685・17594、policy_equipment.py:3344）。
+- 記録（観戦サーバ n1-b life-276、bot-decisions.jsonl）:
+  - 18574 町 turn 744608 town:recall-to-alt-dungeon 'rec' → signature-cache-hit、理由 None（較正あり）
+  - 18575 町 turn 744615（状態の欄に recall）town:wait-recall-step-off → calibration-required-return、
+    unknown-timed-effect:recall
+  - 18486-18487 迷宮 turn 742312/742321 return:recall → 迷宮で帰還を読んだ時点で同じ理由で捨てる。
+    そのため町に着いた 18518 以降、町の買い物の間ずっと最適化が止まり（18518-18565）、
+    18525 では periodic:character-dump が town-progress-invariant の書き換えで出ず、
+    18566 town:character-dump でやっと作り直された（直後に最適化が動き装備を替えた 18567-18572）。
+- ゲームの根拠（C:\hengband\src）:
+  - window/main-window-stat-poster.cpp:583 BAR_RECALL は player_ptr->word_recall が 0 でない時だけ。
+  - spell-kind/spells-world.cpp:452-470 recall_player は word_recall を設定し、
+    MainWindowRedrawingFlag::TIMED_EFFECT の再描画だけを要求する（能力値・AC・HP の再計算の要求なし）。
+  - world/world-movement-processor.cpp:67-77 execute_recall も word_recall を減らして TIMED_EFFECT を再描画するだけ。
+  - word_recall を読むのは上記のほか cmd-move.cpp・player-move.cpp・floor-leaver.cpp・buff-setter.cpp（0 に戻す）、
+    self-info.cpp・body-improvement-info.cpp（説明文）、player-type-definition.cpp:89（is_fully_healthy）、
+    セーブ・ロードだけ。src/player の能力値・AC・HP の計算（player-status.cpp ほか）は読まない。
+  → recall は能力値・AC・HP に効かない。
+
+■ 観戦の記録に出た状態の欄のキー（全部）
+  観戦サーバの全ライフの state.jsonl（265 ライフ、8.0GB）を数えた: recall 4541、afraid 666、
+  blindness 101、confused 40。手元の captures の state.jsonl.gz も同じ4種（recall 774・afraid 244・
+  confused 152・blindness 2）。
+  足したのは recall だけ。afraid・blindness・confused は今回は足さない（推測で許さない指示のため。
+  町でこれらが出るのはまれで、出れば今までどおり較正を捨てて書き出しで作り直す）。
+
+■ 原因2（書き出しで作り直されない）— 作り直しは失敗していない。記録の読み方の問題
+経路（すべて動いていた）:
+  policy.py:9650 → :10070 _periodic_character_dump_key → policy_calibration.py:65
+  _prepare_character_sheet_dump → policy.py:14608 confirm_key_posted が _calibration_dump_pending を設定
+  → policy_observation.py:85 _consume_equipped_character_sheet（C の応答を保持）→ policy.py:2690
+  _complete_character_dump → policy_calibration.py:110 _publish_character_dump。
+  成功すると policy_calibration.py:160 で理由を None にし、較正ファイルを保存する。
+  失敗の分岐は :150-157 で必ず理由を残す。理由が None に戻るのは成功（:160）と起動時（policy.py:2457）だけ。
+
+本当の原因:
+  (1) src/hengbot/policy_equipment.py:840-848 _prepare_equipment_optimization は町の外では
+      早く戻り、search_telemetry_freshness を "stale-republished" にするだけで result_source を
+      書き換えない。迷宮の判断の行の result_source "calibration-required-return" は、最後に町で
+      出した結果（帰還で捨てた時のもの）の再掲で、較正の有無を表していない。
+  (2) src/hengbot/policy.py:14075-14078 calibration_entry_state は理由しか出さず、較正が
+      ある時もない時も（起動直後・別のセッションの記録・書き出し待ち）理由が None になりうる。
+      そのため「較正が無いのに理由が None」と「較正があり再掲の result_source」が区別できなかった。
+
+記録の証拠:
+  - n1-b life-276（手元の写し）: 迷宮の行 11,528 件はすべて stale-republished。町の行で
+    calibration-required-return は 70 件で、理由は 70 件とも unknown-timed-effect:recall（None は 0 件）。
+  - 書き出しの直後に理由が recall → None に変わる（成功の印）: 7076→7077、9451→9452、9641→9642
+    （サーバ 18607→18608、n1-a 27521→27522・31406→31407・32194→32195）。
+  - その後に町へ戻った最初の行は signature-cache-hit（n1-b 9350・9601、n1-a 27673・29114）＝較正は有効だった。
+  - 較正ファイル: 手元の character-calibration.json は observed_turn 720016・07:22:18 ＝ 判断 15911
+    （periodic:character-dump、turn 720016）の書き出しが成功して保存したもの。サーバの 07:31:18 の
+    ファイルは observed_turn 758093 ＝ 判断 20170 の書き出し。直後の 20171 は
+    calibration-required-return・stale-republished・理由 None と記録されている。
+  - n1-a life-447: 町で calibration-required-return は 156 件、理由は recall 147・level 9（None は 0 件）。
+    level は 28430 の町の書き出しで次の行 28431 に作り直されている。
+  - 監視の数え方（n1-b 10/11、n1-a 10/16）は迷宮の再掲の行を数えていた。
+疑った経路の否定:
+  - pending 未設定・C の応答なし・古い pending への消費・stale-dump-file・uncorrelated: いずれも
+    起きれば :150-157 で理由が残るか、成功の印（理由 None・ファイル保存）が出ない。記録では出ている。
+  - チェックポイントの復元（policy_state.py:212-216）: このライフの判断の記録の範囲では
+    decision_sequence は 5570→17269 の 11,700 行で切れ目が無く、再起動は無い。
+  - 観戦の待ち（--spectate-max-backlog 240）・CLI の順序: 書き出しは成功しているので無関係。
+
+■ 直し方（既存の決定の範囲。新しい決まりは不要）
+  1. character_sheet.py: known に "recall" を足す（上のゲームの根拠をコメントに書く）。
+  2. policy.py calibration_entry_state: "present"（較正を持っているか）を足し、較正が無いのに理由が
+     None の時は状態を名前で出す（dump-pending／dump-requested／record-not-loaded／
+     no-equipped-observation）。振る舞い（判断・キー）は変えない。
+  result_source の再掲そのものは変えない（freshness で示されている既存の仕様）。測る時は町の行か
+  calibration.present を使う。
+
+■ 本件の外（別の系統、直していない）
+  - サーバ 18525: 町で periodic:character-dump が town-progress-invariant:defect として approach に
+    書き換えられ、作り直しが買い物の後（18566）まで遅れた。原因1を直せば帰還では捨てなくなるので
+    影響は小さいが、町で較正が無い時の書き出しの順序は D30/D34（町の進行）の話。
