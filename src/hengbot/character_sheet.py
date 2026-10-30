@@ -202,9 +202,14 @@ CHR_RESET_MUTATIONS = frozenset({74})
 
 def temporary_bonuses(effects: frozenset[str]) -> tuple[int, int]:
     """Subtract visible timed bonuses after the game's HP floor and AC sum."""
+    # "recall" (BAR_RECALL) is only the Word of Recall counter
+    # (main-window-stat-poster.cpp: ``if (player_ptr->word_recall)``).
+    # recall_player / execute_recall change it and redraw TIMED_EFFECT only;
+    # nothing under src/player computes stats, AC or HP from it (D38).
     known = {"ultimate_resistance", "ult_res", "musou", "tsubureru", "shield",
              "magicdef", "magic_armour", "stone_skin", "blessed", "bless",
-             "heroism", "hero", "berserk", "tsuyoshi", "extra_might", "build_up"}
+             "heroism", "hero", "berserk", "tsuyoshi", "extra_might", "build_up",
+             "recall"}
     unknown = effects - known
     if unknown:
         raise CharacterSheetUnavailable("unknown-timed-effect:" + ",".join(sorted(unknown)))
