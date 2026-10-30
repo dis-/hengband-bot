@@ -1556,6 +1556,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "magic_eater_devices.py:is_mana_food_ware": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: food purchase, supplier and Home-stock predicates use this ware filter.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns bool only. A wand or staff that is not identified Magic-Eater absorption stock; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
   "magic_eater_devices.py:mana_food_devices": {
     "admission": "_town_producer_entry / town_work.validate_emit",
     "classification": "data",
