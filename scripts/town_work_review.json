@@ -11701,6 +11701,61 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "me_powers_refresh.py:periodic_magic_eater_powers_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Class-16 periodic bookkeeping: replaces a safe filler with the turn-free browse command b+kind (cmd-magiceat.cpp only_browse) under _periodic_filler_is_safe with no visible hostile; viewer-only effect.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_powers_refresh_input.py:advance_refresh": {
+    "classification": "driver",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "store-exit",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "survival",
+      "quest-service",
+      "departure",
+      "cross-town",
+      "plan-routing",
+      "loot-exploration",
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Executor-owned answers of the turn-free Magic-Eater browse refresh (b, kind letter, '*', ESC); viewer-only list, no independent policy decision.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "magic_eater_devices.py:is_absorption_device": {
     "classification": "data",
     "rows": [

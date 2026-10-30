@@ -144,6 +144,10 @@ def _request_due_dump(
     if now >= next_dump_at:
         policy.request_character_dump()
         policy.request_game_save()
+        # Class 16 only (checked at decision time): re-read the absorbed
+        # device lists for the spectator on the same turn-free cadence.
+        from hengbot.me_powers_refresh import request_refresh
+        request_refresh(policy)
         return now + dump_interval_seconds
     return next_dump_at
 

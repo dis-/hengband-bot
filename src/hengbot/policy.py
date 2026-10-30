@@ -9617,6 +9617,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # detector excludes their family from town errand judgement.
         key = self._periodic_game_save_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
+        from hengbot.me_powers_refresh import periodic_magic_eater_powers_key
+        key = periodic_magic_eater_powers_key(self, snapshot, key)
         if key is None:
             if (getattr(self, "_town_claim_bar_enforced", False)
                     and (snapshot.in_town or snapshot.store is not None)
