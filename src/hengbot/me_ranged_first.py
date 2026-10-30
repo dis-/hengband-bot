@@ -6,13 +6,17 @@ kobolds to death with dual-wielded blades or diggers, missing most blows,
 while it carried an absorbed Magic Missile, attack wands and lit torches.  A
 bolt or a thrown torch needs no melee to-hit roll against the target's AC.
 
-Order: the absorbed Magic Missile (``mBp``; the power list reports an empty
-or unlearned power and the next decision falls through), a known attack wand
-from the pack, a spare lit torch, then the caller's melee.  Only the generic
-dungeon combat rungs call this; quest floors keep their reviewed strategies
-(me_q1_torch, q34 missiles) and every other class keeps melee.
+Order: the strongest other absorbed attack power when it beats Magic Missile
+(me_device_attacks, 2026-10-31; also on quest floors except quest 1), the
+absorbed Magic Missile (``mBp``; the power list reports an empty or unlearned
+power and the next decision falls through), a known attack wand from the
+pack, a spare lit torch, then the caller's melee.  Only the generic dungeon
+combat rungs call this; apart from the absorbed attack powers, quest floors
+keep their reviewed strategies (me_q1_torch, q34 missiles) and every other
+class keeps melee.
 """
 
+from hengbot import me_device_attacks
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -54,11 +58,17 @@ def _throwable_torch(policy, snapshot):
 
 def attack_key(policy, snapshot, target) -> str | None:
     """The ranged answer to ``target`` (adjacent or ray-aligned), else None."""
-    if not applies(snapshot):
-        return None
     origin, cell = snapshot.player.position, target.position
     direction = DIRECTION_KEYS[(max(-1, min(1, cell.y - origin.y)),
                                 max(-1, min(1, cell.x - origin.x)))]
+    # 2026-10-31: an absorbed attack power stronger than Magic Missile, on
+    # quest floors too, except quest 1 where D17 throws torches first.
+    if snapshot.floor_key[2] != 1:
+        device = me_device_attacks.attack_key(policy, snapshot, target, direction)
+        if device is not None:
+            return device
+    if not applies(snapshot):
+        return None
     observed = snapshot.magic_eater_wand_charges
     if observed == -1:
         # The wand type is not learned; absorbing happens only in town.

@@ -1407,6 +1407,10 @@ class OperationExecutor:
         magic_result = advance_magic_eater(self, screen_value, match, deadline, outcome)
         if magic_result is not None:
             return magic_result
+        from hengbot.me_device_attacks_input import advance_device
+        device_result = advance_device(self, screen_value, match, deadline, outcome)
+        if device_result is not None:
+            return device_result
         from hengbot.me_powers_refresh_input import advance_refresh
         refresh_result = advance_refresh(self, screen_value, match, deadline, outcome)
         if refresh_result is not None:

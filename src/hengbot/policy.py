@@ -2678,6 +2678,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if active_arbiter is not None:
             active_arbiter._retirement_diagnostic = None
         self._observe_cross_town_shopping_arrival(snapshot)
+        # Class 16: remember each absorbed-device list the game displayed.
+        from hengbot.me_device_attacks import observe_lists
+        observe_lists(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
