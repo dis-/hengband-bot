@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
+from hengbot import me_ranged_first
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -362,6 +363,9 @@ class CombatMixin:
                 return ranged
             if not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 if adjacent:
+                    ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
+                    if ranged is not None:
+                        return ranged
                     self.last_reason = "melee"
                     return self._step_toward(snapshot, self._weakest(adjacent).position)
                 target = min(targets, key=lambda monster: monster.distance)
@@ -385,6 +389,9 @@ class CombatMixin:
             adjacent and not snapshot.player.afraid
             and self._can_fight_in_dungeon(snapshot.floor_key[0])
         ):
+            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
+            if ranged is not None:
+                return ranged
             self.last_reason = "melee"
             return self._step_toward(snapshot, self._weakest(adjacent).position)
         if snapshot.player.position not in cells:
@@ -2395,6 +2402,9 @@ class CombatMixin:
                     # No stair, relocation, recall, or open retreat cell remains.
                     # Waiting donates every turn to the surrounding monsters;
                     # attack the weakest adjacent blocker to create an exit.
+                    ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
+                    if ranged is not None:
+                        return ranged
                     self.last_reason = "emergency:cornered-attack"
                     return self._direction_key(
                         player.position, self._weakest(adjacent).position
@@ -3615,6 +3625,9 @@ class CombatMixin:
                     snapshot, self._choke_engagement_plan
                 )
             if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
+                ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
+                if ranged is not None:
+                    return ranged
                 self.last_reason = "melee:choke"
                 return self._direction_key(
                     snapshot.player.position, self._weakest(adjacent).position
@@ -3811,6 +3824,9 @@ class CombatMixin:
             if restore is not None:
                 return restore
         if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
+            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
+            if ranged is not None:
+                return ranged
             self.last_reason = "melee:choke"
             return self._direction_key(
                 snapshot.player.position, self._weakest(adjacent).position

@@ -763,5 +763,7 @@
   "town_pack_headroom.py:begin_key": "delegated adapter: existing shortage route or admitted headroom pass; literal child entries retain terminal admission and effect ownership.",
   "town_pack_headroom.py:early_key": "delegated adapter: existing shortage route or admitted headroom pass; literal child entries retain terminal admission and effect ownership.",
   "equipment_capacity.py:plan_equipment_transactions": "pure helper: returns EquipmentTransactionPlan data with the shared town reserve; no game command or independent work admission",
-  "quest_opening_readiness.py:q34_readiness_rejection_key": "delegated adapter: Q34 readiness fallback extracted from _opening_q34_town_key; the parent retains admission and selected-child ownership."
+  "quest_opening_readiness.py:q34_readiness_rejection_key": "delegated adapter: Q34 readiness fallback extracted from _opening_q34_town_key; the parent retains admission and selected-child ownership.",
+  "me_ranged_first.py:attack_key": "dungeon-only: D21 class-16 ranged answer to an adjacent attacker (absorbed missile, attack wand, spare torch) before the dungeon melee rungs' key; no town work.",
+  "me_ranged_first.py:_throwable_torch": "pure helper: pack torch selector keeping one replacement light; no command or independent progress."
 }
