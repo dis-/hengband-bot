@@ -17914,6 +17914,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             return key
 
+        if self._effective_town_id(snapshot) not in {OUTPOST_TOWN_ID, -1}:
+            # Building numbers are per town (lib/edit/towns): only the Outpost
+            # has the Hunter's office as building 13; Morivant's 13 is the
+            # Trump Tower, whose menu has no 'c' (D34 bounty:cashout).  The
+            # remains keep, like an unreachable office.
+            self._offer_execution_no_step(
+                producer="quest-request", work_id="normal-step4-bounty",
+                cause="bounty-office-not-in-town",
+            )
+            return None
+
         office_pos = (
             self._town_map.building_position(HUNTER_OFFICE_BUILDING_TYPE)
             if self._town_map_active(snapshot)

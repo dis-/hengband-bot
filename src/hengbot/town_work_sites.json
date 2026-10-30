@@ -2157,7 +2157,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "75d3a78896dbc60f2e991e61bb31cd62d65371dad4f27f42fffabd981be0c42f"
+    "ast_sha256": "25164298d4c13f64ff084bca9c90c63d55f06a9600838e84dbba866c303e55f5"
   },
   "policy.py:HengbotPolicy._bounty_cashout_key.offer": {
     "classification": "adapter",
