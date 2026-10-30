@@ -5626,7 +5626,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "14c8bbd17b13c5942d6312890a175e480f9c92c0d02439e0b5745838ecedfa25"
+    "ast_sha256": "499d36ac38dbb3576627adb44e0ce5f18bde36dae992f263697f61c9f740ca9c"
   },
   "policy_home.py:HomeMixin._home_available": {
     "classification": "data",
@@ -5833,6 +5833,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "a5b3505b58bef52537bbcea3e53376f8ec6f9b57a1485f25c1c331adcd8b9591"
+  },
+  "policy_home.py:HomeMixin._identification_waiting_deposit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "72cf445f56ad6a17e28a5170db515e5356b8fc7b2e0dbe6290643af50e07c683"
   },
   "policy_home.py:HomeMixin._inventory_weight_limit": {
     "classification": "data",

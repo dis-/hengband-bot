@@ -2942,6 +2942,32 @@ class HomeMixin:
             return min(item.count, 1)
         return min(item.count, self._retention_surplus(snapshot, item))
 
+    def _identification_waiting_deposit(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> bool:
+        """Carried equipment whose identification cannot happen this visit.
+
+        Owner 2026-10-31: 「鑑定待ちの装備は預ける　極力持ち歩かない」.  An
+        identification-flow candidate whose source (Identify for an unknown
+        item, *Identify* for a full-identification one, as the town item
+        processor chooses) is neither carried nor on this visit's observed
+        Alchemist shelf within gold is shelved at Home; the Home candidate
+        scan withdraws it once a source can identify it.  Work that already
+        owns the item (a Home errand, an equipment transaction) keeps it.
+        """
+        if not (snapshot.in_town and item.is_equipment
+                and self._identification_flow_candidate(item)):
+            return False
+        signature = self._item_signature(item)
+        if (signature == self._home_pending_item
+                or signature in self._home_pending_batch
+                or self._equipment_transaction_session is not None
+                or (self._home_atomic_withdraw_pending is not None
+                    and signature == self._home_atomic_withdraw_pending[0])):
+            return False
+        return self._identification_source_obtainability(
+            snapshot, full=item.known) == "unavailable"
+
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
     ) -> bool:
@@ -3806,8 +3832,19 @@ class HomeMixin:
         if self._defer_town_errand(
                 "home-errand", "bind-identification-catalog", preserve_home_hold=False):
             return
-        if (
+        # Owner 2026-10-31: 「当然だが、預けた装備を取り出して鑑定する処理が
+        # 別途必要」.  Equipment shelved while its identification waited
+        # (_identification_waiting_deposit) is taken back once a carried
+        # source can identify it on this visit, one item per take within
+        # the pack reserve; without a source nothing is withdrawn.
+        from hengbot.town_pack_budget import permits
+        deposited_identification = (
             not self._home_candidate_waiting
+            and snapshot.in_town
+            and permits(snapshot, 1)
+        )
+        if (
+            not (self._home_candidate_waiting or deposited_identification)
             or self._home_errand.active
             or self._home_pending_batch
         ):
@@ -3844,6 +3881,10 @@ class HomeMixin:
                 ),
                 knowledge_current=self._home_knowledge_current,
             )
+            # The filed take is this visit's Home identification work.
+            self._home_candidate_waiting = True
+            return
+        if deposited_identification:
             return
         if (
             self._identification_candidate is not None
@@ -4479,6 +4520,14 @@ class HomeMixin:
         overweight = self._overweight_home_deposit(snapshot)
         if overweight is not None:
             return overweight
+        waiting = self._first_item(
+            snapshot,
+            lambda item: self._identification_waiting_deposit(snapshot, item)
+            and self._item_signature(item) not in self._home_rejected_deposits
+            and self._home_deposit_quantity(snapshot, item) > 0,
+        )
+        if waiting is not None:
+            return waiting
         # Inferior weapons may be sold by the sale path, but enhanced weapons stay
         # carried until the complete loadout optimizer has compared them.
         high_grade = self._equipped_weapon_high_grade(snapshot)

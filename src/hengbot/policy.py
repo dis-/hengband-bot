@@ -15841,6 +15841,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._home_batch_review_items
             and self._home_atomic_withdraw_pending is None
             and self._identification_need is None
+            # A filed Home identification take is the latch's owner.
+            and not (
+                self._home_errand.active
+                and self._home_errand.request is not None
+                and self._home_errand.request.purpose == "identification-catalog"
+            )
             and (
                 self._equipment_catalog.home_scan_complete
                 or (

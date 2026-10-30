@@ -5968,6 +5968,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy_home.py:HomeMixin._identification_waiting_deposit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: _find_home_deposit consults it (owner 2026-10-31: equipment waiting for identification is shelved at Home).",
+    "evidence": "Pure helper: returns bool from the identification-flow candidate test, Home/equipment work ownership and _identification_source_obtainability; emits no command and claims no progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_home.py:HomeMixin._home_disposal_home_key": {
     "classification": "producer",
     "rows": [
