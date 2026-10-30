@@ -1561,7 +1561,7 @@
     "classification": "data",
     "context": "Possible town/store context: food purchase, supplier and Home-stock predicates use this ware filter.",
     "delegation": "selected child; no independent success",
-    "evidence": "Returns bool only. A wand or staff that is not identified Magic-Eater absorption stock; does not emit commands or claim progress.",
+    "evidence": "Returns bool only. A wand or staff the food count credits (owner 2026-10-30: any device but the Magic-Eater's pending absorptions, only the Wand of Wonder once carried); does not emit commands or claim progress.",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "rows": [
       "data/no-independent-credit"
@@ -1572,7 +1572,7 @@
     "classification": "data",
     "context": "Possible town/store context: food counts and selectors use this inventory filter.",
     "delegation": "selected child; no independent success",
-    "evidence": "Returns list[InventoryItem] only. Excludes identified Magic-Eater absorption stock; does not emit commands or claim progress.",
+    "evidence": "Returns list[InventoryItem] only. Known charged devices that is_mana_food_ware credits; does not emit commands or claim progress.",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "rows": [
       "data/no-independent-credit"
@@ -12277,5 +12277,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "magic_eater_devices.py:is_staple_food": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: the food ware, retention and purchase-order predicates use this item test.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns bool only. An identified Wand of Wonder (owner 2026-10-30 staple food); does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "magic_eater_devices.py:staple_food": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: food counts, retention, eat selection and the device-food reserve slot read the carried staple.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns InventoryItem | None only. The zombie Magic-Eater's carried Wand of Wonder; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
+  },
+  "policy_supply.py:SupplyMixin._mana_food_device_target": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: the food ledger, purchase quantity and identify-staff release compare against this device count.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns int only. One device with the staple carried, else MANA_FOOD_DEVICE_TARGET; does not emit commands or claim progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
   }
 }

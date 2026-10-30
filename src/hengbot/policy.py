@@ -15357,6 +15357,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _device_food_reserve_slot(self, snapshot: Snapshot) -> str | None:
         if snapshot.player.food_type != FOOD_TYPE_MANA:
             return None
+        from hengbot.magic_eater_devices import staple_food
+        staple = staple_food(snapshot)
+        if staple is not None:
+            return staple.slot
         wands = [item for item in snapshot.inventory if item.tval == TVAL_WAND and item.known]
         if wands:
             return max(wands, key=self._stack_charges).slot
