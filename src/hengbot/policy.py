@@ -6,6 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
+from hengbot import town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import me_ranged_first, survival_preemption
 
@@ -9280,7 +9281,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (snapshot.player.food_type == FOOD_TYPE_MANA
                     and snapshot.player.hungry and self._find_edible(snapshot) is None
                     and self._home_atomic_deposit_pending is None
-                    and self._home_atomic_withdraw_pending is None):
+                    and self._home_atomic_withdraw_pending is None
+                    # The food take refused for room shelves surplus first
+                    # (owner rule 2026-10-31); that pass is not optional.
+                    and not town_pack_headroom.organizing(self, snapshot)):
                 # Recovery pages must return to the survival owner before any
                 # optional Home deposit, errand, or equipment work is selected.
                 self.last_reason = "survival:mana-leave-wrong-store"

@@ -35,6 +35,7 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy_constants import TOWN_CYCLE_BREAK_LIMIT
 from tests import test_input_executor as harness
 from tests.test_esp_threat_rest_recorded import _policy
+from tests.test_town_withdraw_pack_budget_recorded import HomeEntranceGame
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "town-followups-20261031.json.gz"
@@ -150,6 +151,65 @@ class TownFollowupsRecordedTest(harness.ProductionHarness):
         self.assertIsNone(policy._visit_departure_committed)
         self.assertIn(cause, policy._visit_departure_recorded)
         self.post(policy, rows["board"], key)
+
+    # Rule 3 ---------------------------------------------------------------
+    def test_mana_food_take_shelves_surplus_first(self):
+        case = self.cases["mana-home"]
+        rows = case["rows"]
+        page = copy.deepcopy(rows["page"])
+        outside = copy.deepcopy(rows["outside"])
+        # DECLARED CONSTRUCTED: hungry, with every carried device spent, so
+        # the Home device is the only food (19 of 23 slots stay used).
+        for raw in (page, outside):
+            raw["player"]["food_state"] = "hungry"
+            for item in raw["inventory"]:
+                if item["tval"] in (55, 65):  # TV_STAFF, TV_WAND
+                    item["charges"] = item["pval"] = 0
+        policy = self.policy(case)
+        self.answer(policy, rows["home"])
+        board = parse_snapshot(copy.deepcopy(page), policy._monrace_knowledge)
+        policy.prime(board)
+        self.assertEqual(len(board.inventory), 19)
+        self.assertIsNone(policy._find_edible(board))
+        self.assertIsNotNone(policy._home_mana_food_candidate())
+        shelf = [dict(item) for item in rows["home"]["knowledge"]["items"]]
+        game = HomeEntranceGame(
+            pack=page["inventory"], equipment={item["slot"]: item for item in page["equipment"]},
+            pages=[shelf], inside=True, state_template=outside,
+            home_limit=page["store"]["capacity"])
+        game.entrance = game.position = (page["player"]["y"], page["player"]["x"])
+        game.turn = page["turn"]
+        _, _, executor = self.make(game)
+        executor.drain = lambda: [game._state()]
+        result = executor.observe_boundary(deadline=time.monotonic() + 5)
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                  request_budget=2, policy=policy)
+        reasons = []
+        for _ in range(12):
+            current = parse_snapshot(result.board, policy._monrace_knowledge)
+            policy._skill_exp_cache = (0, 0, current.player.level, policy._town_visit_epoch)
+            key = policy.choose_key(current)
+            reasons.append(policy.last_reason)
+            self.assertTrue(key, reasons)
+            _send_new_decision_key(
+                port, json.dumps(result.board), key, None, set(),
+                in_store=current.store is not None, snapshot=current,
+                decision={"sequence": policy._decision_sequence,
+                          "reason": policy.last_reason, "key": key})
+            result = port.last_result
+            self.assertEqual(result.outcome, "completed", (reasons, result.reason))
+            policy.confirm_key_posted(key)
+            if policy.last_reason == "survival:mana-home-withdraw" or game.left_for:
+                break
+            if "request-knowledge-scan" in policy.last_reason or policy.last_reason.endswith("home-scan"):
+                row = copy.deepcopy(outside)
+                row.update(game._state(), type="knowledge",
+                           knowledge={"category": "home", "menu_key": "9",
+                                      "items": copy.deepcopy(game._items())})
+                self.answer(policy, row)
+        self.assertIn("home:atomic-deposit", reasons)
+        self.assertEqual(reasons[-1], "survival:mana-home-withdraw", reasons)
+        self.assertLess(reasons.index("home:atomic-deposit"), len(reasons) - 1)
 
 
 if __name__ == "__main__":
