@@ -17,10 +17,13 @@ import io
 import time
 
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
-from hengbot.magic_eater_devices import staple_needs_recharge
+from hengbot import me_staff_sequence as sequence
+from hengbot.magic_eater_devices import staple_food, staple_needs_recharge
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import MANA_FOOD_CHARGE_TARGET
+from tests import test_me_tower_recharge_recorded as d24
 from tests import test_n1c_town_stops2_recorded as d25
+from tests.test_me_tower_recharge_recorded import DETECT, RECHARGE_ALL_KEYS, recharge_all_screens
 import tests.test_input_executor as executor_harness
 from tests.test_input_executor import FaithfulHookGame, command_screen
 
@@ -138,6 +141,110 @@ class ZombieMagicEaterFoodTest(executor_harness.ProductionHarness):
                                          if k not in {"letter", "price"}}, slot="w", count=1))
         _, food = self.ledger(policy, bought)
         self.assertEqual(food.count, MANA_FOOD_CHARGE_TARGET)
+
+
+class WonderHoldLimitTest(executor_harness.ProductionHarness):
+    """Owner 2026-10-30: 「謎の魔法棒は2本あれば十分なので無制限に買い足さないこと」.
+
+    DECLARED CONSTRUCTED on the recorded life-036 Magic-shop visit: the pack
+    keeps the sequence staffs but its other devices become a 5-charge Wand of
+    Wonder stack of ``held``, and the recorded Sleep Monster wand row (and its
+    page) sells two 4-charge Wands of Wonder at 300 gold (one buy cannot close
+    the food count, so the quantity is the cap's).
+    """
+    shelf_screen = staticmethod(d25.lv7.Lv7TownStopRecordedTest.shelf_screen)
+    post = d25.MagicEaterTownStops2RecordedTest.post
+    reply = d25.MagicEaterTownStops2RecordedTest.reply
+    drive = d25.MagicEaterTownStops2RecordedTest.drive
+
+    @classmethod
+    def setUpClass(cls):
+        d25.MagicEaterTownStops2RecordedTest.setUpClass()
+        cls.cases = copy.deepcopy(d25.MagicEaterTownStops2RecordedTest.cases)
+        for page in (cls.cases["life-036"]["board"]["store"], cls.cases["life-036"]["pages"]["5"]):
+            ware = next(it for it in page["items"] if (it["tval"], it["sval"]) == (65, 8))
+            ware.update(sval=24, charges=4, pval=4, price=300, count=2,
+                        name="謎の魔法棒 (4回分)")
+
+    def boundary(self, life, *, kit_bought=False, held=1, home=0):
+        policy, raw = d25.MagicEaterTownStops2RecordedTest.boundary(self, life, kit_bought=kit_bought)
+        wand = next(it for it in raw["inventory"] if it["tval"] == 65)
+        raw["inventory"] = [it for it in raw["inventory"] if it["tval"] != 65
+                            and not (it["tval"] == 55 and it["sval"] not in (5, 10))]
+        raw["inventory"].append(dict(wand, slot="d", sval=24, charges=5, pval=5, count=held,
+                                     name="謎の魔法棒 (5回分)"))
+        if home:
+            # DECLARED CONSTRUCTED: one more Wand of Wonder on the Home shelf.
+            policy._home_knowledge_items = (parse_snapshot(raw, policy._monrace_knowledge).inventory[-1],)
+        return policy, raw
+
+    def wonders_bought(self, held, home=0):
+        self.boundary = lambda life, kit_bought=False: WonderHoldLimitTest.boundary(
+            self, life, kit_bought=kit_bought, held=held, home=home)
+        _, _, reasons = self.drive("life-036", limit=60, done=lambda policy, raw, key: (
+            bool(self.bought) or policy.last_reason.startswith(("me-staff:", "town:rumor"))
+            or key.startswith(">")))
+        return sum(quantity for name, quantity in self.bought if "謎" in name)
+
+    def test_one_held_buys_only_one_more(self):
+        self.assertEqual(self.wonders_bought(1), 1)
+
+    def test_two_held_never_buys_a_third(self):
+        for held, home in ((2, 0), (1, 1)):
+            with self.subTest(held=held, home=home):
+                self.assertEqual(self.wonders_bought(held, home), 0)
+
+
+class StapleTowerRechargeTest(executor_harness.ProductionHarness):
+    """「減ったら塔でチャージする」 on the recorded D24 Morivant approach board.
+
+    DECLARED CONSTRUCTED: the sequence is complete (both powers absorbed, the
+    two staffs gone) and a 5-charge Wand of Wonder is in the pack.
+    """
+    policy = d24.MeTowerRechargeRecordedTest.policy
+    decide = d24.MeTowerRechargeRecordedTest.decide
+    post = d24.MeTowerRechargeRecordedTest.post
+    recharge_reply = d24.MeTowerRechargeRecordedTest.recharge_reply
+
+    @classmethod
+    def setUpClass(cls):
+        d24.MeTowerRechargeRecordedTest.setUpClass()
+        cls.case = d24.MeTowerRechargeRecordedTest.case
+
+    def board(self, wonder):
+        raw = copy.deepcopy(self.case["approach"])
+        raw["inventory"] = [it for it in raw["inventory"]
+                            if not (it["tval"] == 55 and it["sval"] in sequence.SEQUENCE_SVALS)]
+        wand = next(it for it in raw["inventory"] if it["tval"] == 65)
+        self.slot = next(c for c in "abcdefghijklmnopqrstuvw"
+                         if c not in {it["slot"] for it in raw["inventory"]})
+        raw["inventory"].append(dict(wand, slot=self.slot, sval=24, charges=wonder, pval=wonder,
+                                     count=1, name=f"謎の魔法棒 ({wonder}回分)"))
+        policy = self.policy(raw)
+        sequence.state(policy).absorbed = {sequence.SV_STAFF_IDENTIFY: 21, DETECT: 19}
+        return policy, raw
+
+    def test_low_staple_takes_the_tower_recharge_all_before_going_home(self):
+        policy, raw = self.board(5)
+        board = parse_snapshot(copy.deepcopy(raw), self.knowledge)
+        self.assertTrue(staple_needs_recharge(board))
+        total = sequence.recharge_cost(board)
+        # building_recharge_all: the wand's (24 - 5) charges at max(10, 250 / 10).
+        self.assertEqual(sequence._recharge_all_price(
+            staple_food(board), sequence._device_definitions()), 19 * 25)
+        key = self.decide(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("1" + RECHARGE_ALL_KEYS, "me-staff:recharge-all"))
+        following = self.recharge_reply(raw)
+        game = self.post(policy, raw, key, following, recharge_all_screens(total))
+        self.assertEqual(game.accepted, ["1", "a", "y", " ", ""])
+        self.assertEqual(next(it["charges"] for it in following["inventory"] if it["slot"] == self.slot), 24)
+        self.decide(policy, following)
+        self.assertEqual(policy.last_reason, "me-staff:return-outpost")
+
+    def test_full_staple_goes_home_without_the_tower(self):
+        policy, raw = self.board(MANA_FOOD_CHARGE_TARGET)
+        self.decide(policy, raw)
+        self.assertEqual(policy.last_reason, "me-staff:return-outpost")
 
 
 if __name__ == "__main__":

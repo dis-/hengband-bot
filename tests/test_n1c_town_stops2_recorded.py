@@ -23,6 +23,9 @@ from pathlib import Path
 from hengbot import me_staff_sequence
 from hengbot.magic_eater_devices import is_absorption_device
 from hengbot.model import TVAL_STAFF, TVAL_WAND, parse_snapshot
+from hengbot.policy_constants import (
+    RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READS_PER_VISIT, TOWN_TELEPORT_COST,
+)
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_town_stops_recorded as me
 import tests.test_input_executor as executor_harness
@@ -96,19 +99,32 @@ class MagicEaterTownStops2RecordedTest(executor_harness.ProductionHarness):
         self.assertTrue(policy.last_reason.startswith("me-staff:fundraise:staff-stockout"),
                         reasons[-6:])
 
-    def test_life_036_keeps_the_rumor_gold_and_leaves_town(self):
+    def test_life_036_buys_survival_supplies_and_funds_the_sequence_on(self):
         # Phase rumor, the sixth run back: the recorded visit spent 2279 of
         # 2623 gold on two Sleep Monster wands and the sequence stopped on
-        # its run limit.  Keeping the gold, the bot leaves town without a
-        # stop (the ordinary recall-shortage run below FUNDRAISING_START_GOLD,
-        # or the inn rumors).
+        # its run limit.  Owner 2026-10-30 counts the carried Sleep Monster
+        # wand, Detect Objects staff and Staff of Nothing as food (15 of 15),
+        # so no device is bought.  The departure plan's Word of Recall is a
+        # survival supply and is bought first (supervisor 2026-10-30,
+        # 「生存処理を優先しなければキャラクタは死亡する。」); the run that met
+        # its 2220 target is no failure, and the sequence starts its next run
+        # with a target covering the still-unmet supplies and its own cost.
         policy, raw, reasons = self.drive("life-036", limit=80, done=lambda policy, raw, key: (
-            key.startswith(">") or policy.last_reason.startswith("town:rumor")))
+            policy.last_reason.startswith("me-staff:fundraise:")))
         self.assertEqual(self.devices_bought(), [])
-        self.assertEqual(raw["player"]["gold"], 2623)
-        self.assertEqual(me_staff_sequence._phase(policy, parse_snapshot(
-            raw, policy._monrace_knowledge)), "rumor")
+        self.assertEqual([quantity for name, quantity in self.bought], [3])
+        self.assertTrue(all("帰還" in name for name, _ in self.bought), self.bought)
+        self.assertEqual(raw["player"]["gold"], 2623 - 3 * 237)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual(me_staff_sequence._phase(policy, board), "rumor")
         self.assertIsNone(me_staff_sequence.state(policy).failure)
+        supplies = me_staff_sequence.supply_cost(policy, board)
+        # Four Teleportation (63) and four Cure Critical Wounds (158) remain.
+        self.assertEqual(supplies, 4 * 63 + 4 * 158)
+        target = (2 * TOWN_TELEPORT_COST + me_staff_sequence.recharge_cost(board) + supplies
+                  + RUMOR_GOLD_RESERVE + RUMOR_COST * RUMOR_READS_PER_VISIT)
+        self.assertEqual(policy.last_reason, f"me-staff:fundraise:rumor-travel-recharge:{target}")
+        self.assertEqual(policy._supply_stockout_gold_target, target)
 
 if __name__ == "__main__":
     import unittest

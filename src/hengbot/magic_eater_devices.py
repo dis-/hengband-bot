@@ -19,6 +19,8 @@ PLAYER_CLASS_MAGIC_EATER = 16
 SV_STAFF_NOTHING = 32
 SV_WAND_MAGIC_MISSILE = 15  # sv-definition/sv-wand-types.h
 SV_WAND_WONDER = 24         # sv-definition/sv-wand-types.h; lib/edit id 292
+# Owner 2026-10-30: 「謎の魔法棒は2本あれば十分なので無制限に買い足さないこと」.
+WONDER_HOLD_LIMIT = 2
 
 
 def is_absorption_device(class_id: int, item: InventoryItem | StoreItem) -> bool:
@@ -39,6 +41,18 @@ def is_absorption_device(class_id: int, item: InventoryItem | StoreItem) -> bool
 def is_staple_food(item: InventoryItem | StoreItem) -> bool:
     """An identified Wand of Wonder (謎の魔法棒)."""
     return item.tval == TVAL_WAND and item.sval == SV_WAND_WONDER and item.known
+
+
+def wonder_held(policy, snapshot: Snapshot) -> int:
+    """Wands of Wonder held: the pack (staple stack included) and Home."""
+    home = getattr(policy, "_home_knowledge_items", ()) or ()
+    return sum(max(1, item.count) for item in (*snapshot.inventory, *home)
+               if item.tval == TVAL_WAND and item.sval == SV_WAND_WONDER and item.aware)
+
+
+def wonder_purchase_room(policy, snapshot: Snapshot) -> int:
+    """How many more Wands of Wonder may be bought (never past two held)."""
+    return max(0, WONDER_HOLD_LIMIT - wonder_held(policy, snapshot))
 
 
 def staple_food(snapshot: Snapshot) -> InventoryItem | None:
@@ -89,6 +103,10 @@ def is_mana_food_ware(policy, snapshot: Snapshot, item: InventoryItem | StoreIte
         return False
     if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
         return True
+    if (isinstance(item, StoreItem) and is_staple_food(item)
+            and wonder_purchase_room(policy, snapshot) <= 0):
+        # A shelf Wand of Wonder past the two held is never food to buy.
+        return False
     if staple_food(snapshot) is not None:
         return is_staple_food(item)
     return not _awaiting_absorption(policy, item)

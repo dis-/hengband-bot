@@ -63,7 +63,10 @@ class _SignatureScopedStoreVerdict(str):
 
 
 class ShopMixin(InStoreMixin):
-    def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
+    def _required_departure_supply_reserve(
+        self, snapshot: Snapshot, *, excluded_kinds: frozenset = frozenset(),
+        quest_carry: bool = True,
+    ) -> int | None:
         """Return the known cost of unmet required stock, or unknown.
 
         Prices come from emitter-observed shelves retained by
@@ -121,6 +124,8 @@ class ShopMixin(InStoreMixin):
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         price_category = {"cure": "cure-critical"}
         for status in ledger.values():
+            if status.kind in excluded_kinds:
+                continue
             missing = max(0, status.required_departure - status.count)
             if missing and not add(price_category.get(status.kind, status.kind), missing):
                 return None
@@ -137,7 +142,7 @@ class ShopMixin(InStoreMixin):
             if not add("identify-staff", missing):
                 return None
 
-        strategy = self._carry_procurement_strategy(snapshot)
+        strategy = self._carry_procurement_strategy(snapshot) if quest_carry else None
         if strategy is not None:
             for name, status in self._quest_carry_status(
                 snapshot, strategy.required_force
@@ -3841,6 +3846,12 @@ class ShopMixin(InStoreMixin):
             needed = max(
                 device_needed, (charge_needed + per_device - 1) // per_device
             )
+            from hengbot.magic_eater_devices import (
+                PLAYER_CLASS_MAGIC_EATER, is_staple_food, wonder_purchase_room,
+            )
+            if (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+                    and is_staple_food(item)):
+                needed = min(needed, wonder_purchase_room(self, snapshot))
         elif item.is_oil:
             needed = ledger["oil"].required_departure - ledger["oil"].count
         elif item.is_teleport_scroll:

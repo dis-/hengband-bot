@@ -1637,7 +1637,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9607d571c954a8c7902223ab9eae5305ef18ab491bc491be7743922637d9585a"
+    "ast_sha256": "b1d8e6d76b6b6cdfd45a82bb9ae36d88713edbf35a91e4dba38caa86c822df98"
   },
   "magic_eater_devices.py:is_staple_food": {
     "classification": "data",
@@ -1662,6 +1662,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "ebcb33dc6761202e47e48e61d2f4e690db95d4f2c7ef658ba7c14ce501b5ba05"
+  },
+  "magic_eater_devices.py:wonder_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "3bed10de2a6aa08882f6b71d45cd5ace59bd9e1ef43b27b964912ff8540b2b9d"
+  },
+  "magic_eater_devices.py:wonder_purchase_room": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e7f07a7b62e3f7097ea07b296ad18d9d04549ccd059f9f304a3da452dbb7b031"
   },
   "magic_eater_input.py:advance_magic_eater": {
     "classification": "driver",
@@ -1768,7 +1784,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e980311096ce63623eba98f65f2970b64cd1da51d272e4436634c8771c71d4c7"
+    "ast_sha256": "c89814e3461bf117cf533d912d0e44b560a9a3da685a82334b5a4d50669f500d"
   },
   "me_staff_sequence.py:_page_purchase": {
     "classification": "data",
@@ -1784,7 +1800,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "aca4529c6c27d99612f969ed31d724ca2a61c8b8404a5bdce5d6c8ceaf5dda78"
+    "ast_sha256": "edeb9e787d205cd6a0fec371f49070b59d0c6c032c35133dfdda861f110e368b"
   },
   "me_staff_sequence.py:_recharge_all_price": {
     "classification": "data",
@@ -1805,7 +1821,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b6e34ac4f08cfe5878c086a057546f5ece663b59828af2d15d805fcffaed7341"
+    "ast_sha256": "1e2e3b6e4f25529488152b43c871dbce893e5f18818534833d3aa46ebe45fc5e"
   },
   "me_staff_sequence.py:_stop": {
     "classification": "producer",
@@ -1897,6 +1913,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "38dbef2632d0810bbc8e2dbf50e677596f985fdaacf234106c0f95305d33f94d"
   },
+  "me_staff_sequence.py:supply_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "6c5642db87cec12e6c9e447c5dabb2f33cc810bc34347aad160529e360047d89"
+  },
   "me_staff_sequence.py:town_key": {
     "classification": "producer",
     "rows": [
@@ -1908,7 +1932,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1923100e25923956d4577a72467ac3bfb8a107e798205fe1bb17baf9fcd23e9f"
+    "ast_sha256": "dcdd1710470ab70f7533afbde53c3a60ac146d28229339c52c1057f279aaac56"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -5753,7 +5777,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6e85241069cc89572bbc7074320fce9df57d9a33bc60927429502391c9f84d70"
+    "ast_sha256": "2ed81b1edcdbead8d60ff0ff665bd27af0b1f1cae8841b1fbfbf10488123db0f"
   },
   "policy_home.py:HomeMixin._retention_reservation_detail": {
     "classification": "data",
@@ -7171,7 +7195,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "27ead66bce41b7406e99b09932d478860e4bd13f31489491ae62cf76365cb5ae"
+    "ast_sha256": "7bd389188bd2c5123eff91eefaeefe242fea66aba9567561c47ccf28e37c331b"
   },
   "policy_shop.py:ShopMixin._purchase_rungs": {
     "classification": "data",
@@ -7218,6 +7242,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "542673ec539617b5144d4773d531ff149e69010fd3b06dec0e8b4962d6c3e80e"
+  },
+  "policy_shop.py:ShopMixin._required_departure_supply_reserve": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e95da6f87911f7aa70c805477a97d63cb9e7bbf901757f2b5e6d70d38a8094fb"
   },
   "policy_shop.py:ShopMixin._required_remove_curse_purchase": {
     "classification": "data",
