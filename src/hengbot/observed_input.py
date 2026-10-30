@@ -142,6 +142,19 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             *confirmations, _answer(ScreenKind.BUILDING, "\x1b"),
             *continuations,
         ]
+    if owner == "me-staff:recharge-all" and re.fullmatch(r"[1-9]ay\x1b", key):
+        # market/building-recharger.cpp building_recharge_all: one
+        # input_check after 'a'; no question when nothing needs a recharge
+        # or the gold is short (msg_print only).  'y' answers only that
+        # observed question, then ESC leaves the Tower.
+        return key[0], [
+            _answer(ScreenKind.BUILDING, "a"),
+            _answer(ScreenKind.CONFIRM, "y", (
+                r"(?:Recharge all items for \d+ gold\? |すべてのアイテムを ＄\d+ で再充填しますか？)\s*\[[Yy]/n\]",
+            ), exact_feature=True, feature_pattern=True, optional=True),
+            _answer(ScreenKind.BUILDING, "\x1b"),
+            *continuations,
+        ]
     command, tail = key[0], key[1:]
     # The once-mode sender also enters this common port. Reuse the same
     # established plans as the ordinary decision router instead of bypassing
