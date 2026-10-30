@@ -1715,7 +1715,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e28400cb75b0f53ee6180ab0e9fc537bea5d6bf0966a281217590e547c3c4cac"
+    "ast_sha256": "47c78ff491185fb28c83c50ea12a833e7ef3f4bb6d5d0c46c60b08fd8ac3bfbc"
   },
   "me_staff_sequence.py:_base_definitions": {
     "classification": "data",
@@ -1765,7 +1765,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "946dedcceee7a3d46d7a00894e218334352bfe01a892a3e159beae1acd6d5830"
+    "ast_sha256": "63d0c656e03924ef175b81e5ef061c20dce3e6269743139247e0fe99b979d2fb"
   },
   "me_staff_sequence.py:_stop": {
     "classification": "producer",
