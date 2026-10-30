@@ -13,6 +13,16 @@ decision 18575 (turn 744615, ``recall`` on the bar) reported
 ``player_ptr->word_recall`` only (main-window-stat-poster.cpp) and no stat,
 AC or HP computation reads it.
 
+Cause 2 (the "dump that does not rebuild").  Outside town the optimizer
+returns early and republishes its last town ``result_source``
+(``search_telemetry_freshness`` ``stale-republished``), and the calibration
+telemetry printed ``unavailable_reason`` None both when the calibration was
+present and when it was missing.  Recorded: the periodic dump of decision
+20170 (turn 758093) rebuilt the calibration (it wrote the frozen record),
+while decision 20171 still read ``calibration-required-return`` with
+reason None.  The telemetry now says whether the calibration is present and
+names the state of a missing one.
+
 Fixture: tests/extract_calib_recall_fixture.py.
 """
 
@@ -28,7 +38,8 @@ from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy_constants import SKILL_KNOWLEDGE_MACRO
+from hengbot.policy_constants import CHARACTER_DUMP_MACRO, SKILL_KNOWLEDGE_MACRO
+from hengbot.warrior_optimization import load_character_calibration
 
 from extraction_calibration import install_extraction_calibration
 from test_esp_threat_rest_recorded import EDIT, _policy
@@ -92,6 +103,50 @@ class CalibRecallRecordedTest(unittest.TestCase):
                 self.assertIsNone(state["calibration"]["unavailable_reason"], board.turn)
                 self.assertNotEqual(state["result_source"], "calibration-required-return",
                                     board.turn)
+
+    def test_dungeon_dump_rebuilds_and_the_telemetry_says_so(self):
+        recorded = self.decisions
+        self.assertEqual((recorded[20170]["reason"], recorded[20170]["key"]),
+                         ("periodic:character-dump", CHARACTER_DUMP_MACRO))
+        # Recorded after the dump: the stale town result and no reason.
+        self.assertEqual((recorded[20171]["result_source"],
+                          recorded[20171]["search_telemetry_freshness"],
+                          recorded[20171]["calibration"]["unavailable_reason"]),
+                         ("calibration-required-return", "stale-republished", None))
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            # A fresh process: the calibration file holds another session's record.
+            policy = _policy(directory, self.monrace)
+            policy._character_dump_path = directory / "bot-test.txt"
+            self.read_skill_list(policy, directory)
+            (board,) = self.boards(policy, directory, self.case["dump"][:1])
+            missing = policy.equipment_optimization_state(board)["calibration"]
+            self.assertIs(missing.get("present"), False)
+            self.assertIsNotNone(missing["unavailable_reason"])
+            # Decision 20170 posted the recorded dump macro on this board (a
+            # fresh policy lacks the live floor memory that made it a filler).
+            policy._prepare_character_sheet_dump()
+            # The game writes the dump while the posted macro runs.
+            policy._character_dump_path.write_bytes(self.dump)
+            policy.confirm_key_posted(CHARACTER_DUMP_MACRO)
+            pending = policy.equipment_optimization_state(board)["calibration"]
+            self.assertEqual((pending.get("present"), pending["pending"],
+                              pending["unavailable_reason"]),
+                             (False, True, "dump-pending"))
+            (after,) = self.boards(policy, directory, self.case["dump"][1:])
+            policy.choose_key(after)
+            state = policy.equipment_optimization_state(after)
+            calibration = policy._character_calibration
+            self.assertIsNotNone(calibration, policy._calibration_unavailable_reason)
+            self.assertIs(state["calibration"].get("present"), True)
+            self.assertIsNone(state["calibration"]["unavailable_reason"])
+            frozen = load_character_calibration(policy._character_calibration_path)
+            record = self.case["record"]
+            self.assertEqual(frozen.observed_turn, record["observed_turn"])
+            for name in ("natural_stats", "intrinsic_adjustments", "visible_stat_key"):
+                self.assertEqual(list(getattr(calibration, name)), record[name], name)
+            self.assertEqual((calibration.base_hp, calibration.base_ac_bonus, calibration.level),
+                             (record["base_hp"], record["base_ac_bonus"], record["level"]))
 
 
 if __name__ == "__main__":
