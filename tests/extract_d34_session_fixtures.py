@@ -5,8 +5,8 @@ stop) is kept whole: its raw state.jsonl lines (from its first board), the
 metadata of its decision rows, the recorded final row and the last stdout and
 stderr lines.  Raw lines are stored unchanged (UTF-8 strings).
 
-  store-exit  n1-b life-254 20261030-091901-store-leave-key-suppressed
-              (decision rows 0-31, state rows from 58)
+  store-exit  n1-b life-256 20261030-122556-store-leave-key-suppressed
+              (one session tail, decision rows 3597-3624, all state rows)
   bounty      n1-a life-420 20261030-034617-stuck-prompt-bounty-cashout
               (decision rows 0-4, state rows from 45)
   library     n1-a life-433 20261030-144719-stuck-prompt-town-morivant-full-identify-library
@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(r"C:\hengband-backups\pdca\captures\unfixed-24h-1031")
 CASES = {
-    "store-exit": ("n1-b/life-254/captures/20261030-091901-store-leave-key-suppressed", 58, None),
+    "store-exit": ("n1-b/life-256/captures/20261030-122556-store-leave-key-suppressed", 0, None),
     "bounty": ("n1-a/life-420/captures/20261030-034617-stuck-prompt-bounty-cashout", 45, None),
     "library": ("n1-a/life-433/captures/"
                 "20261030-144719-stuck-prompt-town-morivant-full-identify-library", 0, 72),
