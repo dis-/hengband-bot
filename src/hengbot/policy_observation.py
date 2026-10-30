@@ -993,6 +993,12 @@ class ObservationMixin:
             self._breeder_kills = 0
             self._breeder_previous_exp = None
             self._breeder_previous_indices.clear()
+            if snapshot.in_town:
+                # Owner rule (2026-10-31): the escape descent cooldown keeps the
+                # bot off the floor it fled; back in town every walk-in
+                # generates a fresh level, so the cooldown ends here.
+                self._descent_blocked = False
+                self._descent_block_countdown = 0
             # A blocked-town/fundraising reason latches a permanent WAIT (which
             # then trips the loop-detector and stops the bot). Several of those
             # conditions are transient (a shop temporarily out of food, the inn
