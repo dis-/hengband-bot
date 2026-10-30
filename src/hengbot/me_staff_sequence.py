@@ -15,8 +15,10 @@ Steps (each observed on the board, never assumed):
              the exported ``visited_town_ids`` (what the inn teleport lists).
  travel   -- the inn teleport to Morivant.
  recharge -- Morivant's Tower of Sorcery (lib/edit/towns/03_Morivant.jsonc
-             building 8, action 'r' = BACT_RECHARGE) up to the base pval,
-             which market/building-recharger.cpp treats as the maximum.
+             building 8, action 'a' = BACT_RECHARGE_ALL): one confirmed
+             recharge of every staff, wand and rod in the pack up to the
+             base pval, which market/building-recharger.cpp treats as the
+             maximum.
  absorb   -- 'G' (mind-magic-eater.cpp import_magic_device); a staff's first
              absorption sets the power's count to its charges.
  return   -- the inn teleport back to the Outpost.
@@ -37,7 +39,7 @@ from hengbot.baseitem_knowledge import find_baseitem_definitions
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
-    STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF,
+    STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_ROD, TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.monrace_knowledge import _strip_jsonc
 from hengbot.policy_constants import (
@@ -57,8 +59,12 @@ POWER_NAMES = {SV_STAFF_IDENTIFY: ("鑑定", "Perception"),
                SV_STAFF_DETECT_GOLD: ("財宝感知", "Treasure Location")}
 # Base pval and cost when the definitions cannot be read (ids 326 and 301).
 _FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200)}
-TOWER_OF_SORCERY = 8  # 03_Morivant.jsonc building 8: 'r' Recharge item
-RECHARGE_ACTION_KEY = "r"
+# ItemEntity::can_recharge (baseitem-key.cpp): what 'a' recharges.
+RECHARGEABLE_TVALS = (TVAL_STAFF, TVAL_WAND, TVAL_ROD)
+UNKNOWN_ITEM_RECHARGE_FEE = 50  # building_recharge_all: +50 per unknown item
+TOWER_OF_SORCERY = 8  # 03_Morivant.jsonc building 8: 'a' Recharge all items
+RECHARGE_ALL_ACTION_KEY = "a"
+RECHARGE_ALL_REASON = "me-staff:recharge-all"
 RUMOR_BATCH_LIMIT = 10  # 400 rumors: a visible stop instead of an endless inn
 FUNDRAISE_RUN_LIMIT = 6
 ATTEMPT_LIMIT = 3
@@ -89,7 +95,8 @@ class MeStaffSequence:
 
 
 @lru_cache(maxsize=1)
-def _base_definitions() -> dict:
+def _device_definitions() -> dict:
+    """(tval, sval) -> (base pval, level, cost) of every rechargeable kind."""
     path = find_baseitem_definitions()
     found = {}
     if path is not None:
@@ -97,13 +104,18 @@ def _base_definitions() -> dict:
             data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
             for entry in data.get("baseitems", data.get("items", [])):
                 kind = entry.get("itemkind", entry)
-                if (int(kind["type_value"]) == TVAL_STAFF
-                        and int(kind["subtype_value"]) in SEQUENCE_SVALS):
-                    found[int(kind["subtype_value"])] = (
-                        int(entry["parameter_value"]), int(entry["cost"]))
+                if int(kind["type_value"]) in RECHARGEABLE_TVALS:
+                    found[(int(kind["type_value"]), int(kind["subtype_value"]))] = (
+                        int(entry["parameter_value"]), int(entry["level"]), int(entry["cost"]))
         except (OSError, ValueError, KeyError, TypeError):
             found = {}
-    return {sval: found.get(sval, _FALLBACK_BASE[sval]) for sval in SEQUENCE_SVALS}
+    return found
+
+
+def _base_definitions() -> dict:
+    found = _device_definitions()
+    return {sval: found[(TVAL_STAFF, sval)][::2] if (TVAL_STAFF, sval) in found
+            else _FALLBACK_BASE[sval] for sval in SEQUENCE_SVALS}
 
 
 def max_charges(sval: int) -> int:
@@ -116,9 +128,37 @@ def recharge_price_per_charge(item) -> int:
     return max(10, _base_definitions()[item.sval][1] // 10 * max(1, item.count))
 
 
+def _recharge_all_price(item, definitions: dict) -> int:
+    """building_recharge_all's price of one pack item (an upper bound).
+
+    An unaware kind is priced as the dearest kind of its tval and an unknown
+    staff/wand as empty; a charging rod as fully charging (timeout is not
+    exported, and a stack's timeout never exceeds number * base pval).
+    """
+    kinds = ([definitions[(item.tval, item.sval)]] if item.aware and (item.tval, item.sval) in definitions
+             else [value for (tval, _sval), value in definitions.items() if tval == item.tval])
+    if not kinds and item.tval == TVAL_STAFF and item.sval in SEQUENCE_SVALS:
+        pval, cost = _FALLBACK_BASE[item.sval]
+        kinds = [(pval, 0, cost)]
+    number = max(1, item.count)
+    charges = item.charges if item.known else 0
+    prices = []
+    for base_pval, level, base_cost in kinds:
+        if item.tval == TVAL_ROD:
+            prices.append(level * 50 * number if item.charging else 0)
+        elif item.tval == TVAL_STAFF:
+            prices.append((base_pval - charges) * max(10, base_cost // 10 * number))
+        else:
+            prices.append((number * base_pval - charges) * max(10, base_cost // 10))
+    price = max([0, *prices])
+    return price + (0 if item.known else UNKNOWN_ITEM_RECHARGE_FEE)
+
+
 def recharge_cost(snapshot) -> int:
-    return sum(max(0, max_charges(item.sval) - item.charges) * recharge_price_per_charge(item)
-               for item in carried_staffs(snapshot).values())
+    """The Tower's 'a' total over every rechargeable pack item."""
+    definitions = _device_definitions()
+    return sum(_recharge_all_price(item, definitions) for item in snapshot.inventory
+               if item.tval in RECHARGEABLE_TVALS and not item.is_equipment)
 
 
 def state(policy) -> MeStaffSequence:
@@ -401,27 +441,15 @@ def _building_step(policy, snapshot, building: int):
 
 
 def _recharge_key(policy, snapshot) -> str:
-    """Recharge every affordable carried staff in one Tower visit.
+    """Recharge every rechargeable pack item with the Tower's 'a' command.
 
-    cmd-building.cpp keeps the building menu open after each 'r' (only ESC
-    leaves), so one visit recharges both staffs.  Leaving after the first
-    left the player on the entrance grid with the second staff still short
-    (D24, n1-c life-036: tower-of-sorcery-route-unavailable).
+    market/building-recharger.cpp building_recharge_all totals the price over
+    the whole pack, asks input_check once and fills every staff and wand to
+    its base pval (rod timeouts reset).  The bot needs that total plus the
+    reserved fare home; the executor answers 'y' only at the observed
+    question and leaves the Tower with ESC (observed_input).
     """
-    budget = snapshot.player.gold - TOWN_TELEPORT_COST
-    commands, before = "", []
-    for sval, item in sorted(carried_staffs(snapshot).items()):
-        missing = max_charges(sval) - item.charges
-        if missing <= 0:
-            continue
-        price = missing * recharge_price_per_charge(item)
-        if budget < price:
-            break
-        budget -= price
-        # 'r' item, then the charge count (input_quantity).
-        commands += RECHARGE_ACTION_KEY + item.slot + f"{missing}\r"
-        before.append((sval, item.charges))
-    if not before:
+    if snapshot.player.gold < recharge_cost(snapshot) + TOWN_TELEPORT_COST:
         # Return with the reserved fare; the Outpost travel gate funds
         # the recharge with one explicit-target run.
         return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
@@ -431,12 +459,15 @@ def _recharge_key(policy, snapshot) -> str:
     if not enters:
         policy.last_reason = f"{REASON}approach-tower"
         return policy._step_toward(snapshot, step)
+    before = [(sval, item.charges) for sval, item in sorted(carried_staffs(snapshot).items())
+              if item.charges < max_charges(sval)]
     for sval, _charges in before:
         if not _attempt(policy, "recharge", sval):
             return _stop(policy, f"recharge-no-progress:{sval}")
     state(policy).pending = ("recharge", tuple(before))
-    policy.last_reason = f"{REASON}recharge:" + ",".join(str(sval) for sval, _ in before)
-    return policy._step_toward(snapshot, step, tail=commands + LEAVE_STORE_KEY)
+    policy.last_reason = RECHARGE_ALL_REASON
+    return policy._step_toward(
+        snapshot, step, tail=RECHARGE_ALL_ACTION_KEY + "y" + LEAVE_STORE_KEY)
 
 
 def _absorb_key(policy, snapshot) -> str:

@@ -10,9 +10,13 @@ quest:blocked:me-staff (tower-of-sorcery-route-unavailable) and the
 character retired after no-key-exhausted x3.
 
 Pinned through the public ``choose_key`` and the production executor port:
-one Tower visit recharges both staffs (cmd-building.cpp keeps the menu open
-after each 'r' until ESC), the absorption follows on the entrance grid, and
-the recorded stop board itself steps off the entrance and walks back in.
+one Tower visit recharges the whole pack with the Tower's 'a' (BACT_RECHARGE_ALL,
+market/building-recharger.cpp building_recharge_all), whose single input_check
+the executor answers 'y' only once the question is observed, then ESC leaves.
+The bot's gold check is the game's total over every rechargeable pack item
+(this pack also holds three wand stacks and seven other staffs) plus the fare
+home.  The absorption follows on the entrance grid, and the recorded stop
+board itself steps off the entrance and walks back in.
 Fixture: tests/extract_me_tower_recharge_fixture.py.
 """
 
@@ -42,6 +46,33 @@ DIRECTIONS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
 TOWER = (20, 55)
 DETECT = sequence.SV_STAFF_DETECT_GOLD
 ABSORB_PROMPT = "どのアイテムの魔力を取り込みますか? "
+# building_recharge_all on the recorded approach pack (slot: price):
+#   wands  c (3*16-39)*50=450  d (2*17-30)*50=200  e (15-15)*50=0
+#   staffs f (21-9)*40=480  g (19-13)*20=120  h (15-12)*20=60  i (16-11)*20=100
+#          j (16-15)*20=20  k (16-12)*20=80  l (14-13)*35=35  m (12-9)*35=105
+#          n (20-10)*10=100
+APPROACH_TOTAL = 450 + 200 + 0 + 480 + 120 + 60 + 100 + 20 + 80 + 35 + 105 + 100
+RECHARGE_ALL_KEYS = "ay\x1b"
+
+
+def tower_screen(prompt=""):
+    """CONSTRUCTED: cmd-building.cpp's logical 80x24 building menu (the
+    Tower's two actions, 03_Morivant.jsonc building 8) with ``prompt`` on
+    the message row (input_check / msg_erase)."""
+    lines = [""] * 24
+    lines[0] = prompt
+    lines[2] = " 賢者の塔"
+    lines[19] = " r) 再充填"
+    lines[20] = " a) 全てのアイテムを再充填"
+    lines[23] = " ESC) 建物を出る"
+    return {"width": 80, "height": 24, "lines": lines,
+            "cursor": {"visible": True, "x": 0, "y": 0}}
+
+
+def recharge_all_screens(total):
+    """The building menu, the question, the result MORE, the menu again."""
+    return [tower_screen(), tower_screen(f"すべてのアイテムを ＄{total} で再充填しますか？[y/n]"),
+            tower_screen(f"＄{total} で再充填しました。 -続く-"), tower_screen()]
 
 
 class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
@@ -52,6 +83,7 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
 
     def policy(self, board):
         policy = ConservativePolicy()
+        self.knowledge = policy._monrace_knowledge
         for key, facts in self.case["monraces"].items():
             facts = copy.deepcopy(facts)
             for name in ("flags", "abilities"):
@@ -96,31 +128,27 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
     def staff(raw, sval):
         return next(it for it in raw["inventory"] if it["tval"] == 55 and it["sval"] == sval)
 
-    def recharge_reply(self, raw, svals):
-        """DECLARED CONSTRUCTED from the recorded reply (turn 649330).
+    def recharge_reply(self, raw):
+        """DECLARED CONSTRUCTED from building_recharge_all (building-recharger.cpp).
 
-        The recorded board is the game's answer to the Identify half: the
-        player on the Tower entrance, the staff at 21 charges, 480 gold paid
-        and the message.  Each further staff is recharged the same way
-        (building-recharger.cpp: pval += charges, au -= price).
+        Every staff is filled to its base pval and every wand stack to
+        number * base pval; the total is paid once with one message.  The
+        recorded board (turn 649330) supplies the Tower entrance position.
         """
         following = copy.deepcopy(self.case["recharged"])
         following["turn"] = raw["turn"] + 10
-        following["player"]["gold"] = raw["player"]["gold"]
-        following["messages"] = []
-        for sval in sequence.SEQUENCE_SVALS:
-            item, before = self.staff(following, sval), self.staff(raw, sval)
-            item.update(charges=before["charges"], pval=before["pval"], name=before["name"])
-        for sval in svals:
-            item = self.staff(following, sval)
-            price = ((sequence.max_charges(sval) - item["charges"])
-                     * sequence.recharge_price_per_charge(
-                         parse_snapshot(following, {}).inventory[ord(item["slot"]) - ord("a")]))
-            item["name"] = item["name"].replace(f"({item['charges']}回分)",
-                                                f"({sequence.max_charges(sval)}回分)")
-            item["charges"] = item["pval"] = sequence.max_charges(sval)
-            following["player"]["gold"] -= price
-            following["messages"].append(f"{item['name']}を＄{price} で再充填しました。")
+        following["inventory"] = copy.deepcopy(raw["inventory"])
+        total = sequence.recharge_cost(parse_snapshot(copy.deepcopy(raw), self.knowledge))
+        definitions = sequence._device_definitions()
+        for item in following["inventory"]:
+            if item["tval"] not in (55, 65):
+                continue
+            full = definitions[(item["tval"], item["sval"])][0] * (
+                item["count"] if item["tval"] == 65 else 1)
+            item["name"] = item["name"].replace(f"({item['charges']}回分)", f"({full}回分)")
+            item["charges"] = item["pval"] = full
+        following["player"]["gold"] = raw["player"]["gold"] - total
+        following["messages"] = [f"＄{total} で再充填しました。"]
         return following
 
     @staticmethod
@@ -180,18 +208,35 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(len(recharged["messages"]), 1)
         self.assertIn("＄480 で再充填しました。", recharged["messages"][0])
 
-    def test_one_tower_visit_recharges_both_staffs_then_absorbs_both(self):
+    def test_one_tower_visit_recharges_the_whole_pack_then_absorbs_both(self):
         raw = self.case["approach"]
         policy = self.policy(raw)
+        self.assertEqual(sequence.recharge_cost(parse_snapshot(copy.deepcopy(raw), self.knowledge)),
+                         APPROACH_TOTAL)
+        self.assertEqual(APPROACH_TOTAL, 1750)
         key = self.decide(policy, raw)
-        # 'r' + item + charge count for each staff, then ESC leaves the Tower.
+        # Step onto the Tower, 'a' recharges all, 'y' at the question, ESC.
         self.assertEqual((key, policy.last_reason),
-                         ("1rf12\rrg6\r\x1b", "me-staff:recharge:5,10"))
-        following = self.recharge_reply(raw, sequence.SEQUENCE_SVALS)
-        self.assertEqual(following["player"]["gold"], 14711 - 480 - 6 * 20)
-        game = self.post(policy, raw, key, following)
-        self.assertEqual(game.accepted, [key])
+                         ("1" + RECHARGE_ALL_KEYS, "me-staff:recharge-all"))
+        following = self.recharge_reply(raw)
+        self.assertEqual(following["player"]["gold"], 14711 - APPROACH_TOTAL)
+        self.assertEqual([(it["slot"], it["charges"]) for it in following["inventory"]
+                          if it["tval"] in (55, 65)],
+                         [("c", 48), ("d", 34), ("e", 15), ("f", 21), ("g", 19), ("h", 15),
+                          ("i", 16), ("j", 16), ("k", 16), ("l", 14), ("m", 12), ("n", 20)])
+        game = self.post(policy, raw, key, following, recharge_all_screens(APPROACH_TOTAL))
+        # The executor releases each key only at its observed screen.
+        self.assertEqual(game.accepted, ["1", "a", "y", " ", "\x1b"])
         self.absorb_both(policy, following)
+
+    def test_short_gold_for_the_whole_pack_returns_for_funds(self):
+        # Enough for both sequence staffs (480 + 120) and the fare, short of
+        # the Tower's whole-pack total: no 'a' is posted.
+        raw = copy.deepcopy(self.case["approach"])
+        raw["player"]["gold"] = APPROACH_TOTAL + sequence.TOWN_TELEPORT_COST - 1
+        policy = self.policy(raw)
+        policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        self.assertEqual(policy.last_reason, "me-staff:return-for-funds")
 
     def test_recorded_stop_board_reenters_the_tower_from_its_entrance(self):
         # The recorded stop: on the entrance grid with Treasure Location short.
@@ -205,13 +250,16 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         self.post(policy, raw, key, following)
         raw = following
         key = self.decide(policy, raw)
-        self.assertEqual(policy.last_reason, "me-staff:recharge:10")
+        self.assertEqual(policy.last_reason, "me-staff:recharge-all")
         step = DIRECTIONS[key[0]]
         self.assertEqual((raw["player"]["y"] + step[0], raw["player"]["x"] + step[1]), TOWER)
-        self.assertEqual(key[1:], "rg6\r\x1b")
-        following = self.recharge_reply(raw, (DETECT,))
+        self.assertEqual(key[1:], RECHARGE_ALL_KEYS)
+        following = self.recharge_reply(raw)
+        # The Identify staff is already full: 1750 - 480.
+        self.assertEqual(following["player"]["gold"], 14231 - (APPROACH_TOTAL - 480))
         following["player"]["y"], following["player"]["x"] = TOWER
-        self.post(policy, raw, key, following)
+        game = self.post(policy, raw, key, following, recharge_all_screens(APPROACH_TOTAL - 480))
+        self.assertEqual(game.accepted, [key[0], "a", "y", " ", "\x1b"])
         self.absorb_both(policy, following)
 
 
