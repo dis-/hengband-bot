@@ -1292,6 +1292,19 @@ class TownMixin:
                 ).distance_to(goal)
                 if after < before:
                     return True
+                if decision_reason.startswith("shop:") and snapshot.store is None:
+                    # A walled detour keeps the straight-line distance while
+                    # closing the walk's BFS distance (the Outpost's Home
+                    # from the General store).  Judging it by distance alone
+                    # let another supplier's approach replace every other
+                    # step, so neither walk arrived (2026-10-30 n1-c, after
+                    # the staff sequence released the kit purchases).
+                    route = self._town_map_goal_route(snapshot, goal)
+                    if route is not None and route.first_step == Position(
+                        snapshot.player.position.y + direction[0],
+                        snapshot.player.position.x + direction[1],
+                    ):
+                        return True
             fingerprint = self._town_progress_fingerprint(snapshot)
             if fingerprint in self._town_progress_history():
                 # Movement without a closer claim goal revisits the same town

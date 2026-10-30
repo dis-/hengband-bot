@@ -252,13 +252,26 @@ def buy_target(policy, snapshot) -> int | None:
 
 
 def shopping(policy, snapshot) -> bool:
-    return (snapshot.store is not None and applies(policy, snapshot)
-            and _phase(policy, snapshot) == "buy")
+    """Whether the sequence owns this shelf: it has a staff to buy here.
+
+    Only a page that sells one of the still-needed staffs at an affordable
+    one-of-each total is the sequence's own.  Every other page keeps the
+    ordinary buy order (the staffs themselves stay excluded by
+    ``purchase_excluded``), so the explicit-target fundraising run can buy
+    its light, oil, digger and detection kit (D9, 2026-10-30: owning every
+    page refused the kit and the run never left town).
+    """
+    return _page_purchase(policy, snapshot) is not None
 
 
 def purchase(policy, snapshot):
     """The shelf row to buy on this page (quantity one), or None."""
-    if not shopping(policy, snapshot):
+    return _page_purchase(policy, snapshot)
+
+
+def _page_purchase(policy, snapshot):
+    if (snapshot.store is None or not applies(policy, snapshot)
+            or _phase(policy, snapshot) != "buy"):
         return None
     target = buy_target(policy, snapshot)
     if target is None or snapshot.player.gold < target:
