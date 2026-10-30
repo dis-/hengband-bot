@@ -11,6 +11,10 @@ the following board (the reply to the posted key), the recorded decision rows
 of both, and the quest latches of the policy checkpoint written at the stop
 (cleared fixed targets and surveyed cells).
 
+Q2 wall breach (n1-a life-422): the Telmora board approaching the Q2 request
+with a one-charge Stone to Mud wand, its following board, and the last in-quest
+board (quest:blocked:q2-breach-tool at [7,47]).
+
 Q34 opening wait (n1-a life-426, Lv1 in the Outpost): the last two recorded
 boards of the first stall capture and the decision row of every recorded board.
 """
@@ -40,6 +44,11 @@ SWEEPS = {
 # The Q34 opening owner's stall (n1-a life-426): the last two recorded boards.
 OPENING = (ROOT / "unfixed-24h-1031/n1-a/life-426/captures"
            / "20261030-080840-stall-opening-q-wait")
+# Q2 wall breach (n1-a life-422, Telmora): the board on which the Q2 request
+# was approached with a one-charge Stone to Mud wand, its following board, and
+# the in-quest board waiting at [7,47] with the wand empty.
+Q2 = (ROOT / "unfixed-24h-1031/n1-a/life-422/incident-captures"
+      / "20261030-060855-loop-detected", 760788)
 DECISION_FIELDS = ("decision_sequence", "turn", "reason", "key", "position")
 
 
@@ -141,8 +150,22 @@ def opening_case(capture):
     }
 
 
+def q2_case(capture, turn):
+    boards = snapshots(capture)
+    index = next(i for i, row in enumerate(boards) if row["turn"] == turn)
+    by_turn = {row["turn"]: row for row in decisions(capture)}
+    return {
+        "sources": sources(capture),
+        "board": boards[index],
+        "following": boards[index + 1],
+        "stop_board": boards[-1],
+        "decisions": [by_turn[boards[i]["turn"]] for i in (index, -1)],
+    }
+
+
 def main():
     fixture = {
+        "q2": q2_case(*Q2),
         "opening": opening_case(OPENING),
         "doors": {name: door_case(path) for name, path in DOORS.items()},
         "sweeps": {name: sweep_case(path, turn) for name, (path, turn) in SWEEPS.items()},
