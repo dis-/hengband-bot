@@ -145,7 +145,10 @@ class Q34DoorsGoldTest(ProductionHarness):
         policy = self.door_policy(raw)
         following = dict(raw, turn=raw["turn"] + 10)
         self.assertEqual(self.post(policy, raw, following), "o8")
-        self.assertEqual(policy._q34_sequence_door_attempts, {Position(4, 15): 1})
+        # The board (from the recorded final-door picks) carries the game's
+        # answer "鍵をはずせなかった。": an answered pick is not counted (D33).
+        self.assertIn("鍵をはずせなかった", raw["messages"][-1])
+        self.assertEqual(policy._q34_sequence_door_attempts, {Position(4, 15): 0})
         # DECLARED CONSTRUCTED: the lock never yields; jump to the bound.
         policy._q34_sequence_door_attempts[Position(4, 15)] = Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT
         key = policy.choose_key(parse_snapshot(following, policy._monrace_knowledge))

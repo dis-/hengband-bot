@@ -91,7 +91,11 @@ class Q34FinalRoomRecordedTest(ProductionHarness):
         following = dict(raw, turn=raw["turn"] + 10)
         self.assertEqual(self.post(policy, raw, following), "o8")
         self.assertEqual(policy.last_reason, "quest-strategy:open-final-door")
-        self.assertEqual(policy._q34_final_door_attempts, 1)
+        # The recorded board carries the game's answer to the previous pick
+        # ("鍵をはずせなかった。 <x34>"): an answered pick is progress and is
+        # not counted toward the bound (D33).
+        self.assertIn("鍵をはずせなかった", raw["messages"][-1])
+        self.assertEqual(policy._q34_final_door_attempts, 0)
         # DECLARED CONSTRUCTED: the lock never yields; jump to the bound.
         policy._q34_final_door_attempts = Q34_FINAL_DOOR_ATTEMPT_LIMIT
         key = policy.choose_key(parse_snapshot(following, policy._monrace_knowledge))

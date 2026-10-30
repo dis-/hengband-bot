@@ -413,9 +413,9 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # them as a position loop stops the quest before the lock is picked.
         "quest-strategy:open-opening-door",
         # The approved final door is a locked glass door picked the same way;
-        # its attempts are bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT.
+        # its unanswered picks are bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT.
         "quest-strategy:open-final-door",
-        # The doors opened in order after it; bounded by
+        # The doors opened in order after it; unanswered picks bounded by
         # Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT per door.
         "quest-strategy:open-sequence-door",
         # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).

@@ -6738,7 +6738,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1312dea992287a2dd01054aaa1a661264cc2cbc01e3530253a255199e711d743"
+    "ast_sha256": "26c0e24afaebcf4bbeee46a0d2bd7ce0d811ba7f0b0795c5ee70c6eaa727cdf0"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -6810,7 +6810,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a55745da385ddb341d0f332d298dd9cc8564325acc5717be56ff386555526af2"
+    "ast_sha256": "50bdefc578c026bea6a0a833c1acf3e593e65074cecbc1787299d8306f923e77"
   },
   "policy_quest.py:QuestMixin._quest_strategy_emergency_hostiles": {
     "classification": "data",
