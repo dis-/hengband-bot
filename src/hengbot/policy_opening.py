@@ -16,6 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import acceptance_dps_floor, acceptance_hp_floor
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
@@ -201,6 +202,10 @@ class OpeningRouteMixin:
                 if not owned or self._digging_tool_sale_quality(item) > max(
                         self._digging_tool_sale_quality(it) for it in owned):
                     return "fundraising-digger", store, item, 1, 0
+            second = self._opening_q1_second_digger(snapshot, diggers, owned, offers)
+            if second is not None:
+                store, item = second
+                return "fundraising-digger", store, item, 1, 0
             detection = sorted(((store, item) for store, item in offers
                                 if item.is_treasure_detection_scroll
                                 and item.price <= snapshot.player.gold),
@@ -210,6 +215,36 @@ class OpeningRouteMixin:
                 quantity = (snapshot.player.gold // item.price if item.price > 0 else item.count)
                 return "fundraising-detection", store, item, min(item.count, quantity), 0
         return "quest", None, None, 0, 0
+
+    def _opening_q1_second_digger(self, snapshot, diggers, owned, offers):
+        """A Magic-Eater's second kit digger, or None.
+
+        Digging power counts each wielded TR_TUNNEL pval*20 and each hand's
+        non-heavy weapon weight/10 (calc_skill_dig), so mining wields a
+        digger in both hands (fundraise:wield-digger).  The Q1 reserves are
+        already met before the kit is considered; the second digger keeps
+        the price of one Treasure Detection scroll for the minimum kit.  An
+        unaffordable second digger is left to the next town visit (the
+        fundraising two-digger target).  Owner 2026-10-30: one shovel made
+        the Magic-Eater's first mining run slow.
+        """
+        if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
+            return None
+        carried = sum(max(1, item.count) for item in owned)
+        if carried != 1:
+            return None
+        reserve = 0
+        if self._count_treasure_detection_scrolls(snapshot) <= 0:
+            prices = [item.price for _, item in offers if item.is_treasure_detection_scroll]
+            if not prices:
+                return None
+            reserve = min(prices)
+        affordable = [(store, item) for store, item in diggers
+                      if item.price + reserve <= snapshot.player.gold]
+        if not affordable:
+            return None
+        return max(affordable, key=lambda row: (self._digging_tool_sale_quality(row[1]),
+                                                -row[1].price))
 
     def _opening_q1_purchase(self, snapshot):
         if snapshot.store is None:
