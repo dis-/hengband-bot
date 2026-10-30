@@ -48,9 +48,9 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
         return ready, policy.fixed_quest_readiness_state()["strategy_force"]
 
     def test_magic_eater_passes_normal_floor_that_warrior_rejects(self):
-        # D17 (2026-10-30): the Q1 class-16 floor is the torch rate 4.58.
+        # D17/n1-c Lv7 (2026-10-30): the Q1 class-16 fallback melee floor is the kill-time 36/10=3.6.
         # D20 (2026-10-30): the Q1 warrior floor is 13.23 on the torch premise (real torch damage).
-        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 4.58, 13.23)):
+        for quest_id, floor, warrior_floor in ((34, 3.5, 8), (1, 3.6, 13.23)):
             with self.subTest(quest_id=quest_id):
                 board = self.board(quest_id)
                 ready, details = self.readiness(board, quest_id)

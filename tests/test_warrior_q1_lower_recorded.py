@@ -171,7 +171,7 @@ class TorchQuestFloorsTest(unittest.TestCase):
         floor = max(bad_luck, expected * 2)
         self.assertEqual(acceptance_hp_floor(force, 16), floor)
         self.assertEqual(acceptance_hp_floor(force["no_healing_tier"], 16), floor)
-        self.assertEqual(acceptance_dps_floor(force, 16), 4.58)
+        self.assertEqual(acceptance_dps_floor(force, 16), 3.6)
 
     def test_q34_torch_count(self):
         force = load_quest_strategies(STRATEGIES)[34].required_force
