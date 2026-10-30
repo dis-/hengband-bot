@@ -1734,6 +1734,7 @@ NO_REFUSAL_REASONS = {
     '_conquest_loot_key': 'dungeon-only: not a town errand; src/hengbot/policy_quest.py:1578',
     '_esp_threat_hunt_key': 'dungeon-only: not a town errand; src/hengbot/policy_combat.py:942',
     '_fundraising_combat_equipment_key': 'dungeon-only: not a town errand; src/hengbot/policy_fundraising.py:496',
+    '_mining_unbeatable_unique_abort_key': 'dungeon-only: not a town errand; src/hengbot/policy_fundraising.py:536',
     '_pack_pressure_identify_key': 'dungeon-only: not a town errand; src/hengbot/policy_identification.py:378',
     '_return_to_town_key#1': 'dungeon-only: not a town errand; src/hengbot/policy_town.py:7451',
     '_return_to_town_key#2': 'dungeon-only: not a town errand; src/hengbot/policy_combat.py:3702',

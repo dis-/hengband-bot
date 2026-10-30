@@ -2579,7 +2579,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0ec2d63acb9cfcf3fe48b357d724f19365e05796f5e3d6c48cb2f3e425999210"
+    "ast_sha256": "fb4665733be1a639a1425933f4a4ffd8233ac07c67d9b73e8cf3e244a30b2418"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5322,6 +5322,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "07c6687877c8cab9caf0e073e347582c189cd7d53945546c25f178e7cb0a6ecc"
+  },
+  "policy_fundraising.py:FundraisingMixin._mining_unbeatable_unique_abort_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "_leave_fundraising_floor; no independent progress",
+    "ast_sha256": "8802bf016005750c2d07849d265e794629b2a026de7d006ff8d12159f332c137"
   },
   "policy_fundraising.py:FundraisingMixin._secret_wall_search_step": {
     "classification": "data",
