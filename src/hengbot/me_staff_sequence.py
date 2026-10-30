@@ -81,7 +81,7 @@ class MeStaffSequence:
     shelf_after_turn: int = -1
     rumor_batches: int = 0
     attempts: dict = field(default_factory=dict)   # (step, sval) -> count
-    pending: tuple | None = None                   # (step, sval, charges)
+    pending: tuple | None = None                   # (step, ((sval, charges), ...))
     empty_turn: dict = field(default_factory=dict)  # sval -> turn seen empty
     progress: tuple | None = None
     positions: dict = field(default_factory=dict)
@@ -352,13 +352,14 @@ def _settle_pending(policy, snapshot) -> None:
     record = state(policy)
     if record.pending is None:
         return
-    step, sval, charges = record.pending
+    step, before = record.pending
     record.pending = None
-    item = carried_staffs(snapshot).get(sval)
-    if step == "absorb" and item is None:
-        record.absorbed = {**record.absorbed, sval: charges}
-    if step == "recharge" and item is not None and item.charges > charges:
-        record.attempts.pop(("recharge", sval), None)
+    for sval, charges in before:
+        item = carried_staffs(snapshot).get(sval)
+        if step == "absorb" and item is None:
+            record.absorbed = {**record.absorbed, sval: charges}
+        if step == "recharge" and item is not None and item.charges > charges:
+            record.attempts.pop(("recharge", sval), None)
 
 
 def _travel(policy, snapshot, destination: int, step: str) -> str:
@@ -371,6 +372,15 @@ def _travel(policy, snapshot, destination: int, step: str) -> str:
 
 def _building_step(policy, snapshot, building: int):
     """(first step, whether that step enters the building)."""
+    here = snapshot.grid_at(snapshot.player.position)
+    if here is not None and here.building_type == building:
+        # player-move.cpp enters a building only by moving onto it: step off
+        # onto a plain grid, and the next board walks back in (D24).
+        off = next((cell for cell in policy._walkable_neighbors(snapshot, snapshot.player.position)
+                    if (grid := snapshot.grid_at(cell)) is not None and grid.building_type < 0
+                    and grid.store_number < 0 and grid.building_special < 0
+                    and not grid.has_entrance and not grid.has_quest_enter), None)
+        return off, False
     position = (policy._town_map.building_position(building)
                 if policy._town_map_active(snapshot) else None)
     policy._claim_target_capture = []
@@ -391,30 +401,42 @@ def _building_step(policy, snapshot, building: int):
 
 
 def _recharge_key(policy, snapshot) -> str:
-    """Recharge one staff per Tower visit; the next board reads its charges."""
+    """Recharge every affordable carried staff in one Tower visit.
+
+    cmd-building.cpp keeps the building menu open after each 'r' (only ESC
+    leaves), so one visit recharges both staffs.  Leaving after the first
+    left the player on the entrance grid with the second staff still short
+    (D24, n1-c life-036: tower-of-sorcery-route-unavailable).
+    """
+    budget = snapshot.player.gold - TOWN_TELEPORT_COST
+    commands, before = "", []
     for sval, item in sorted(carried_staffs(snapshot).items()):
         missing = max_charges(sval) - item.charges
         if missing <= 0:
             continue
-        if snapshot.player.gold < missing * recharge_price_per_charge(item) + TOWN_TELEPORT_COST:
-            # Return with the reserved fare; the Outpost travel gate funds
-            # the recharge with one explicit-target run.
-            return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
-        step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY)
-        if step is None:
-            return _stop(policy, "tower-of-sorcery-route-unavailable")
-        if not enters:
-            policy.last_reason = f"{REASON}approach-tower"
-            return policy._step_toward(snapshot, step)
+        price = missing * recharge_price_per_charge(item)
+        if budget < price:
+            break
+        budget -= price
+        # 'r' item, then the charge count (input_quantity).
+        commands += RECHARGE_ACTION_KEY + item.slot + f"{missing}\r"
+        before.append((sval, item.charges))
+    if not before:
+        # Return with the reserved fare; the Outpost travel gate funds
+        # the recharge with one explicit-target run.
+        return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
+    step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY)
+    if step is None:
+        return _stop(policy, "tower-of-sorcery-route-unavailable")
+    if not enters:
+        policy.last_reason = f"{REASON}approach-tower"
+        return policy._step_toward(snapshot, step)
+    for sval, _charges in before:
         if not _attempt(policy, "recharge", sval):
             return _stop(policy, f"recharge-no-progress:{sval}")
-        state(policy).pending = ("recharge", sval, item.charges)
-        policy.last_reason = f"{REASON}recharge:{sval}"
-        # 'r' item, the charge count (input_quantity), then leave the Tower.
-        return policy._step_toward(
-            snapshot, step,
-            tail=RECHARGE_ACTION_KEY + item.slot + f"{missing}\r" + LEAVE_STORE_KEY)
-    return _stop(policy, "recharge-nothing-to-do")
+    state(policy).pending = ("recharge", tuple(before))
+    policy.last_reason = f"{REASON}recharge:" + ",".join(str(sval) for sval, _ in before)
+    return policy._step_toward(snapshot, step, tail=commands + LEAVE_STORE_KEY)
 
 
 def _absorb_key(policy, snapshot) -> str:
@@ -426,7 +448,7 @@ def _absorb_key(policy, snapshot) -> str:
     sval, item = sorted(carried_staffs(snapshot).items())[0]
     if not _attempt(policy, "absorb", sval):
         return _stop(policy, f"absorb-no-progress:{sval}")
-    state(policy).pending = ("absorb", sval, item.charges)
+    state(policy).pending = ("absorb", ((sval, item.charges),))
     policy.last_reason = ABSORB_REASON
     return "G" + item.slot
 
