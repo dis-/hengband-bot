@@ -5873,6 +5873,29 @@ class TownMixin:
             stream.flush()
         print(f"<keep-running> {outcome} cause={cause} free={free} method={method}", flush=True)
 
+    def _release_lost_visit_departure(self, snapshot: Snapshot) -> bool:
+        """Hand a committed departure whose minimum no longer holds back.
+
+        Owner rule (2026-10-31): a departure condition that fails after the
+        commit (HP lost in a town fight, a flask broken) must be satisfied
+        again by the ordinary owners instead of waiting under the repetition
+        latch.  The same minimum force_visit_departure committed on is
+        re-evaluated; the cause stays recorded, so the visit cannot force the
+        same departure twice and still ends visibly if nothing can satisfy it.
+        """
+        if not (snapshot.in_town and self._visit_departure_committed
+                and not snapshot.player.recalling):
+            return False
+        destination, dungeon = self._town_recall_destination(
+            snapshot, guardian_gate=False, safety_gate=False)
+        depth = self._dungeon_entry_depth(snapshot, dungeon, via_recall=destination is not None)
+        if self._departure_minimum(snapshot, depth)["holds"]:
+            return False
+        self._visit_departure_committed = None
+        if self._town_blocked_reason == "repetition":
+            self._town_blocked_reason = None
+        return True
+
     def force_visit_departure(self, snapshot: Snapshot, cause: str) -> str | None:
         """Close exhausted visit work only at the two existing stop boundaries."""
         if self._visit_departure_committed:

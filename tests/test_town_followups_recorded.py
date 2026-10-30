@@ -32,6 +32,7 @@ from hengbot.cli import (
 )
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
+from hengbot.policy_constants import TOWN_CYCLE_BREAK_LIMIT
 from tests import test_input_executor as harness
 from tests.test_esp_threat_rest_recorded import _policy
 
@@ -119,6 +120,36 @@ class TownFollowupsRecordedTest(harness.ProductionHarness):
                          and policy._descent_refusal_reason == "descent-cooldown")
         self.assertNotEqual(policy.last_reason, "stuck:wander")
         self.post(policy, rows["arrival"], key)
+
+    # Rule 2 ---------------------------------------------------------------
+    def test_lost_departure_minimum_is_satisfied_instead_of_waited(self):
+        case = self.cases["lost-departure"]
+        rows = case["rows"]
+        self.assertEqual([(row["reason"], row["key"]) for row in case["recorded"]["9204"]],
+                         [("town:blocked:repetition", "5")])
+        policy = self.policy(case)
+        fight = parse_snapshot(copy.deepcopy(rows["fight"]), policy._monrace_knowledge)
+        policy.prime(fight)
+        # DECLARED RECONSTRUCTED: the commitment force_visit_departure made
+        # earlier in this visit (stdout "<keep-running> forced_departure
+        # cause=departure-unsatisfiable"); the capture omits these fields.
+        cause = "departure-unsatisfiable"
+        policy._visit_departure_recorded.add(cause)
+        policy._break_town_cycle(fight)
+        policy._town_blocked_reason = "repetition"
+        policy._town_cycle_breaks = TOWN_CYCLE_BREAK_LIMIT
+        policy._visit_departure_committed = cause
+        # The fight board's decision (a Home census request) precedes it.
+        _, key = self.decide(policy, rows["fight"])
+        policy.confirm_key_posted(key)
+        board = parse_snapshot(copy.deepcopy(rows["board"]), policy._monrace_knowledge)
+        self.assertLess(board.player.hp, board.player.max_hp)
+        _, key = self.decide(policy, rows["board"])
+        self.assertNotEqual((key, policy.last_reason), ("5", "town:blocked:repetition"))
+        self.assertEqual(policy.last_reason, "town:recover")
+        self.assertIsNone(policy._visit_departure_committed)
+        self.assertIn(cause, policy._visit_departure_recorded)
+        self.post(policy, rows["board"], key)
 
 
 if __name__ == "__main__":
