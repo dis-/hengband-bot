@@ -1103,7 +1103,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "65e3c4355830e53912e8ff7c5045c4fb9435ad0135d9b3fefa890a999f418cc1"
+    "ast_sha256": "3019f6cc51151e310773b99817f8dde8cc343307f9736aebadb203b66d00db24"
   },
   "input_executor.py:OperationExecutor._answer_observed_level_up": {
     "classification": "driver",
@@ -2949,7 +2949,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d4240cd15e5a3bb3f8a28db4fc8195b0786f965ad46fac25f3278684cec46b79"
+    "ast_sha256": "493d1136588f4b58bdccc43f53f66b783b9f0be603a63f9cc767661cb8e9aeda"
   },
   "policy.py:HengbotPolicy._matching_ammo": {
     "classification": "data",
@@ -3322,7 +3322,7 @@
       "survival"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f8b250de59b5c1b54f6bfd35693eabcb8110f1aead09f9ecf29c5f6157357f2d"
+    "ast_sha256": "60908da33d137fd18a130a63ca369c5482c338f75dbd2980577a9947195f31d7"
   },
   "policy.py:HengbotPolicy._recall_departure_ready": {
     "classification": "data",
@@ -3525,6 +3525,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2fe500c19f51c4446537ff5784afc22ef5bc609c8e495607ee57ce7e8409a12a"
+  },
+  "policy.py:HengbotPolicy._surface_recall_selection": {
+    "classification": "adapter",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "2fb3804c6a9861045e6935e36f836993429244be2fb3a0e3bfcbcc7f446ba3ab"
   },
   "policy.py:HengbotPolicy._taken_kill_quest_requires_walk_in": {
     "classification": "data",
@@ -4425,7 +4433,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ae4e77651496f05997714e31df35a4e3955c9df55de0aef3d2b843911805a174"
+    "ast_sha256": "755b6b4bf9c99203955af19e2cd672b9b83523e9077e5fffe0fc2c37c1b6adb7"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -4547,7 +4555,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "dd087e63bf1bcdfcd48759ea4d1268c2085bfd4eadb7b301c1f665de6daf832e"
+    "ast_sha256": "4e942d7c92b9cf2f7ac56e9b822e1998e31a8bf2262f4484d68c44fa38a6693e"
   },
   "policy_combat.py:CombatMixin._low_hp_heal_first_potion": {
     "classification": "data",

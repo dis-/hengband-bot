@@ -111,7 +111,7 @@ _COMPATIBLE_KINDS: dict[str, frozenset[ScreenKind]] = {
     "direction": frozenset({ScreenKind.DIRECTION}),
     "target": frozenset({ScreenKind.LOOK}),
     "command_char": frozenset({ScreenKind.LEVEL_UP_STAT, ScreenKind.ITEM_SOURCE,
-                               ScreenKind.UNKNOWN}),
+                               ScreenKind.DUNGEON_CHOICE, ScreenKind.UNKNOWN}),
     "string": frozenset({ScreenKind.FILE_NAME, ScreenKind.QUANTITY, ScreenKind.UNKNOWN}),
     "any_key": frozenset({ScreenKind.IDENTIFY_VIEWER_PAGE,
                           ScreenKind.IDENTIFY_VIEWER_FINAL, ScreenKind.UNKNOWN}),

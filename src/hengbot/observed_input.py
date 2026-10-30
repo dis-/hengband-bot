@@ -12,7 +12,7 @@ import re
 from dataclasses import replace
 from collections.abc import Mapping
 
-from hengbot.input_executor import Continuation, ScreenKind
+from hengbot.input_executor import Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO, STORE_HOME,
@@ -33,6 +33,31 @@ _PRICE = (r"\s*買値 \$\d+ で買いますか？\[Y/n\]",)
 
 def _answer(kind, keys, feature=None, **options):
     return Continuation(frozenset({kind}), keys, feature, **options)
+
+
+def _surface_recall_read(command, slot, board):
+    """Whether ``r<slot>`` reads Word of Recall where it asks a destination.
+
+    spell-kind/spells-world.cpp recall_player: off the dungeon floors (town
+    and wilderness) and with no recall active, choose_dungeon asks which
+    dungeon to recall to.  Underground, or cancelling an active recall, it
+    does not ask.
+    """
+    from hengbot.model import SV_SCROLL_WORD_OF_RECALL, TVAL_SCROLL
+
+    if command != "r" or not isinstance(board, Mapping):
+        return False
+    floor = board.get("floor")
+    player = board.get("player")
+    if not isinstance(floor, Mapping) or floor.get("level") != 0:
+        return False
+    if isinstance(player, Mapping) and player.get("recalling"):
+        return False
+    return any(
+        isinstance(item, Mapping) and item.get("slot") == slot
+        and item.get("tval") == TVAL_SCROLL
+        and item.get("sval") == SV_SCROLL_WORD_OF_RECALL
+        for item in board.get("inventory", ()) or ())
 
 
 def _split_page_switches(continuations):
@@ -170,6 +195,16 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
         source = SOURCE_PROMPT[command] if command in SOURCE_PROMPT else _QUAFF
         steps = [_answer(ScreenKind.ITEM_SOURCE, tail[0], source)]
         suffix = tail[1:]
+        if _surface_recall_read(command, tail[0], board):
+            # D22: the destination letter is released only at the observed
+            # choose_dungeon prompt listing it.  Without one the executor
+            # cancels the chooser under a named stop.
+            if suffix:
+                if not re.fullmatch(r"[a-z]", suffix):
+                    raise ValueError("invalid recall destination address")
+                steps.append(_answer(ScreenKind.DUNGEON_CHOICE, suffix,
+                                     RECALL_DUNGEON_PROMPTS))
+            return command, [*steps, *continuations]
         if suffix:
             if not (owner.startswith("identify:") or owner == "loot:identify-floor-item"):
                 return key, continuations

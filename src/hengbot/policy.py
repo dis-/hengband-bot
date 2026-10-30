@@ -10473,6 +10473,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
             if (
                 not player.recalling
+                and self._emergency_recall_leaves_danger(snapshot)
                 and not self._quest_floor_exit_locked(snapshot)
                 and self._can_read_scrolls(snapshot)
             ):
@@ -15109,6 +15110,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, item: InventoryItem, suffix: str = ""
     ) -> str:
         """Compose a read while retaining the selected scroll's identity."""
+        if not suffix and item.is_recall_scroll and snapshot.dungeon_level == 0 \
+                and not snapshot.player.recalling:
+            # D22: a surface recall read asks which dungeon (choose_dungeon).
+            # Every reader carries the established destination's letter; with
+            # none the executor cancels the chooser under a named stop.
+            suffix = self._surface_recall_selection(snapshot) or ""
         composed_item = next(
             (candidate for candidate in snapshot.inventory if candidate.slot == item.slot),
             None,
@@ -18214,6 +18221,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    def _surface_recall_selection(self, snapshot: Snapshot) -> str | None:
+        """The choose_dungeon letter of the established recall destination."""
+        dungeon_id = self._pending_recall_dungeon_id
+        if dungeon_id is None:
+            destination, dungeon_id = self._town_recall_destination(snapshot)
+            if destination is None:
+                return None
+        return self._recall_selection_key(snapshot, dungeon_id)
+
     @staticmethod
     def _recall_selection_key(snapshot: Snapshot, dungeon_id: int) -> str | None:
         if snapshot.entered_dungeon_ids:
@@ -18752,6 +18768,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot, hostiles, turns=1, expected=True
         )
         return self._find_heal_potion(snapshot, expected_damage=expected_damage)
+
+    @staticmethod
+    def _emergency_recall_leaves_danger(snapshot: Snapshot) -> bool:
+        """Whether an emergency Word of Recall read escapes to the town.
+
+        Only underground does recall return to the town.  On the surface
+        (town or wilderness) spells-world.cpp recall_player asks which
+        dungeon to recall *to* and, 15-35 turns later, lands the low-HP
+        player on that dungeon's deepest floor: never an escape (D22,
+        n1-c life-010 2026-10-30 08:28 read it beside a town monster at
+        HP 14/129).
+        """
+        return snapshot.dungeon_level >= 1
 
     def _issue_emergency_consumable(
         self, snapshot: Snapshot, item: InventoryItem, reason: str

@@ -34,6 +34,7 @@ class ScreenKind(str, Enum):
     CHARACTER = "character"
     FILE_NAME = "file-name"
     LEVEL_UP_STAT = "level-up-stat"
+    DUNGEON_CHOICE = "dungeon-choice"
     DEATH = "death"
     UNKNOWN = "unknown"
 
@@ -160,6 +161,21 @@ FLOOR_PICKUP_PROMPT_PATTERN = (
 )
 
 
+# spell-kind/spells-world.cpp choose_dungeon(_("に帰還", "recall")): the
+# format "どのダンジョン{}しますか:" / "Which dungeon do you {}?: ".
+RECALL_DUNGEON_PROMPTS = ("どのダンジョンに帰還しますか:", "Which dungeon do you recall?:")
+# A recall read whose destination chooser had no owned, listed answer: the
+# executor cancels the chooser with ESC and stops under this name (D22).
+RECALL_DESTINATION_UNCHOSEN = "failed:recall-destination-unchosen"
+
+
+def recall_destination_listed(lines: Sequence[object], letter: str) -> bool:
+    """Whether choose_dungeon lists ``letter`` ("      a) ..." rows)."""
+    return re.fullmatch(r"[a-z]", letter) is not None and any(
+        re.match(r"\s*" + re.escape(letter) + r"\) ", str(row))
+        for row in list(lines)[1:])
+
+
 def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | None = None) -> ScreenMatch:
     """Pure, conservative classifier for source-derived main-term templates."""
     raw = screen.get("lines")
@@ -280,6 +296,11 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
                       "どれを装備からはずしますか?", "どのアイテムを置きますか?")
     if any(row0.endswith(prompt) for prompt in source_prompts):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+    # spell-kind/spells-world.cpp choose_dungeon (recall_player on the
+    # surface): the prompt is prt() at row zero above the entered-dungeon
+    # rows "      a) ...".  input_kind command_char.
+    if row0.startswith(RECALL_DUNGEON_PROMPTS):
+        return ScreenMatch(ScreenKind.DUNGEON_CHOICE, row0, 0, 0)
     # cap-16/57/59: choosing a ring opens a separate hand chooser.
     if row0.endswith("どちらの手に装備しますか?"):
         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
@@ -1536,6 +1557,10 @@ class OperationExecutor:
                         ScreenKind.ITEM_SOURCE, ScreenKind.ITEM_TARGET) \
                         and "'/'" not in match.feature:
                     break
+                if match.kind is ScreenKind.DUNGEON_CHOICE and not recall_destination_listed(
+                        screen_value.get("lines", ()), continuation.keys):
+                    # Never answer a destination the chooser does not list.
+                    break
                 prompt_state = self._request("state", deadline, map=True)
                 if prompt_state is None:
                     return self._terminal(self.active, "state", "prompt binding failed", match, outcome)
@@ -1563,6 +1588,16 @@ class OperationExecutor:
             )
         ):
             return self._post_and_barrier("n", deadline, role="answer")
+        if match.kind is ScreenKind.DUNGEON_CHOICE and self.active.keys[:1] == "r" \
+                and self.active.business_outcome != RECALL_DESTINATION_UNCHOSEN:
+            # D22: a surface recall read with no owned, listed destination.
+            # Cancel the chooser (recall_player returns false and keeps the
+            # scroll) and stop under a name at the following barrier.
+            self.active.business_outcome = RECALL_DESTINATION_UNCHOSEN
+            self.active.dropped_continuations.extend(
+                item.keys for item in self.active.continuations)
+            self.active.continuations.clear()
+            return self._post_and_barrier("\x1b", deadline, role="exit")
         if (
             self.active.owner == _IN_STORE_BUY_OWNER
             and match.kind is ScreenKind.CONFIRM
@@ -1613,6 +1648,10 @@ class OperationExecutor:
         match = self._classify(screen_value, state)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(self.active, "classification", match.feature, match, outcome)
+        if self.active.business_outcome == RECALL_DESTINATION_UNCHOSEN:
+            return self._terminal(
+                self.active, "recall-destination", "recall-destination-unchosen",
+                match, outcome)
         board = self._finish_board(state, screen_value, match)
         if board is None:
             return self._terminal(
