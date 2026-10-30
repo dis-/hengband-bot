@@ -8777,7 +8777,7 @@
       "store-approach"
     ],
     "delegation": "The parent owns admission; selected child operations retain their existing effect observers.",
-    "ast_sha256": "096ccfde6d149e8ff89c247d3fc4f82530275742e8eb507dba8f187713dc9159"
+    "ast_sha256": "15d271afda63385d9df457fba7815d60bf446e4fbbf27cc2c0cf37c8283930cb"
   },
   "quest_strategies.py:class_throwing_items": {
     "classification": "data",

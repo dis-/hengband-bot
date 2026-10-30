@@ -5,6 +5,12 @@ from hengbot.policy_constants import REST_MACRO, WAIT_KEY
 def q34_readiness_rejection_key(policy, snapshot, hostiles, readiness):
     # No verdict this decision: an earlier owner still controls readiness.
     if readiness.get("verdict") is not False:
+        if policy._physical_adjacent_hostiles(snapshot):
+            # _fixed_quest_key declines while a monster stands beside the
+            # player; waiting here kept the town kill-mob rung below from
+            # ever answering it (D33 2026-10-30 n1-a life-426: a Lv1 stood
+            # for 377 decisions while Merry and a beggar touched it).
+            return None
         policy.last_reason = "opening-q34:wait"
         return WAIT_KEY
     if (readiness.get("reason") in {"not-full-hp", "temporary-status"}

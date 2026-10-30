@@ -10,6 +10,9 @@ the board on which the off-plan Huorn was visible and the bot retook the hold,
 the following board (the reply to the posted key), the recorded decision rows
 of both, and the quest latches of the policy checkpoint written at the stop
 (cleared fixed targets and surveyed cells).
+
+Q34 opening wait (n1-a life-426, Lv1 in the Outpost): the last two recorded
+boards of the first stall capture and the decision row of every recorded board.
 """
 import gzip
 import hashlib
@@ -34,6 +37,9 @@ SWEEPS = {
     "n1-a/life-423/072744": (ROOT / "unfixed-24h-1031/n1-a/life-423/incident-captures"
                              / "20261030-072744-loop-detected", 625334),
 }
+# The Q34 opening owner's stall (n1-a life-426): the last two recorded boards.
+OPENING = (ROOT / "unfixed-24h-1031/n1-a/life-426/captures"
+           / "20261030-080840-stall-opening-q-wait")
 DECISION_FIELDS = ("decision_sequence", "turn", "reason", "key", "position")
 
 
@@ -117,8 +123,27 @@ def sweep_case(capture, turn):
     }
 
 
+def opening_case(capture):
+    with gzip.open(capture / "state.jsonl.gz", "rt", encoding="utf-8") as stream:
+        boards = [row for row in map(json.loads, filter(str.strip, stream))
+                  if "player" in row]
+    with gzip.open(capture / "bot-decisions.jsonl.gz", "rt", encoding="utf-8") as stream:
+        rows = [json.loads(line) for line in stream if line.startswith("{")]
+    by_turn = {row["turn"]: {field: row.get(field) for field in DECISION_FIELDS}
+               for row in rows if "reason" in row}
+    return {
+        "sources": {name: hashlib.sha256((capture / name).read_bytes()).hexdigest()
+                    for name in ("state.jsonl.gz", "bot-decisions.jsonl.gz")},
+        "board": boards[-2],
+        "following": boards[-1],
+        "decisions": [by_turn[board["turn"]] for board in boards
+                      if board["turn"] in by_turn],
+    }
+
+
 def main():
     fixture = {
+        "opening": opening_case(OPENING),
         "doors": {name: door_case(path) for name, path in DOORS.items()},
         "sweeps": {name: sweep_case(path, turn) for name, (path, turn) in SWEEPS.items()},
     }

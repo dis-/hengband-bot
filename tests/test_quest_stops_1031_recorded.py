@@ -13,6 +13,12 @@ retake-hold south, forever.  Beyond get_max_range() (cdis over 18) a monster
 casts nothing without a counter-attack target (mspell-attack.cpp:318-321),
 and a NEVER_MOVE monster cannot walk into range.
 
+Q34 opening wait (n1-a life-426, Lv1 in the Outpost, three stall captures):
+for all 124 decisions of the first capture the opening owner answered
+opening-q34:wait.  _fixed_quest_key declines while a monster stands beside the
+player, so no entry verdict was evaluated, and the town kill-mob rung below the
+opening owner never ran while Merry and a beggar touched the player.
+
 Boards, their order and the recorded decisions are from
 tests/fixtures/quest-stops-20261030.json.gz (tests/extract_quest_stops_1031_fixture.py).
 Restored state: the cleared fixed targets (Q34: all three, reconstructed from
@@ -34,6 +40,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT
 from hengbot.quest_knowledge import load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
+from tests import test_opening_route_r2_recorded as round2
 from tests import test_q34_bee_sweep_recorded as bee
 from tests.test_input_executor import ProductionHarness
 from tests.test_q34_collect_recorded import captured, make_policy
@@ -189,6 +196,44 @@ class Q31DistantHuornRecordedTest(ProductionHarness):
         })
         self.assertEqual(policy.choose_key(board), "2")
         self.assertEqual(policy.last_reason, "quest-strategy:retake-hold")
+
+
+class Q34OpeningAdjacentMonsterRecordedTest(ProductionHarness):
+    post = bee.Q34BeeSweepRecordedTest.post
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = load_fixture()["opening"]
+        round2.OpeningRouteR2RecordedTest.setUpClass()
+        cls.monraces = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def policy(self):
+        # The Outpost map and Q34 facts of the recorded opening-route policy.
+        policy, _ = round2.OpeningRouteR2RecordedTest().case("1")
+        for race_id in {monster["race_id"] for monster in self.data["board"]["visible_monsters"]}:
+            policy._monrace_knowledge[race_id] = self.monraces[race_id]
+        policy.prime(parse_snapshot(self.data["board"], policy._monrace_knowledge))
+        # DECLARED RECONSTRUCTED: the capture has no checkpoint.  The recorded
+        # rows show no live town route claim (claim owner quest-request; the
+        # bot ran with enforce_town_claims=False) and a scanned Home.
+        policy.consume_home_knowledge([])
+        policy._town_claims_active = lambda snapshot: False
+        return policy
+
+    def test_recorded_adjacent_town_monster_is_answered_not_waited_on(self):
+        raw = self.data["board"]
+        self.assertEqual({row["reason"] for row in self.data["decisions"]},
+                         {"opening-q34:wait"})
+        self.assertEqual(len(self.data["decisions"]), 124)
+        policy = self.policy()
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        adjacent = policy._physical_adjacent_hostiles(board)
+        self.assertTrue(adjacent)
+        key = self.post(policy, raw, self.data["following"])
+        # The town melee rung attacks a monster beside the player.
+        self.assertEqual(policy.last_reason, "melee")
+        self.assertIn(key, {policy._direction_key(board.player.position, monster.position)
+                            for monster in adjacent})
 
 
 if __name__ == "__main__":

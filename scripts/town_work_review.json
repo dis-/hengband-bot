@@ -11935,7 +11935,7 @@
       "store-approach"
     ],
     "context": "Q34 town opening readiness rejection only.",
-    "evidence": "Extracted supplier/fundraising fallback; safe HP/status recovery or existing CLI terminal when no route advances.",
+    "evidence": "Extracted supplier/fundraising fallback; safe HP/status recovery or existing CLI terminal when no route advances. With no fresh verdict and a monster beside the player it returns None (no key), so the town combat rungs below answer the monster (D33, n1-a life-426).",
     "admission": "Parent _opening_q34_town_key through _town_producer_entry / town_work.validate_emit",
     "observer": "Existing supplier, fundraising and recovery observations.",
     "delegation": "The parent owns admission; selected child operations retain their existing effect observers."
