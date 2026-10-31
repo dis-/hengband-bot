@@ -48,7 +48,7 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
-    SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges,
+    SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges, extra_charges,
 )
 from hengbot.model import Position
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
@@ -319,18 +319,33 @@ REQUIREMENTS = {
 
 # -- charges, gates and the producer ------------------------------------------
 
+def observed_row(policy, power: Power) -> dict | None:
+    """The power's row in the last list the game displayed for its kind."""
+    lists = getattr(policy, "_me_device_lists", None) or {}
+    if power.kind not in lists:
+        return None
+    return next((row for row in lists[power.kind][1] if row.get("name") in power.names), None)
+
+
+def recorded_charges(policy, snapshot, power: Power) -> int:
+    """Charges of an absorption the bot observed itself (me_staff_sequence:
+    the sequence's staffs and its extras)."""
+    if power.kind == "staff":
+        return absorbed_charges(policy, snapshot, power.sval)
+    return extra_charges(policy, power.kind, power.sval)
+
+
 def charges(policy, snapshot, power: Power) -> int:
     """The power's charges in the last list the game displayed for its kind.
 
-    Before any list of that kind was displayed in this life, the absorption
-    record (me_staff_sequence.absorbed_charges) serves a staff.
+    A list without the power's row predates its absorption (an absorbed
+    power stays listed, mind-magic-eater.cpp only adds to its count), so
+    then, as before any list of that kind was displayed in this life, the
+    absorption record serves (``recorded_charges``).
     """
-    lists = getattr(policy, "_me_device_lists", None) or {}
-    if power.kind not in lists:
-        return absorbed_charges(policy, snapshot, power.sval) if power.kind == "staff" else 0
-    row = next((row for row in lists[power.kind][1] if row.get("name") in power.names), None)
+    row = observed_row(policy, power)
     if row is None:
-        return 0
+        return recorded_charges(policy, snapshot, power)
     if power.kind == "rod":
         charging, count = row.get("charging"), row.get("max")
         return count - charging if isinstance(charging, int) and isinstance(count, int) else 0
