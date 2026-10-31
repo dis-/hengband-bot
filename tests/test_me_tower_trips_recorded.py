@@ -117,7 +117,7 @@ class TownTravelTest(nokey.PostedKey):
         self.assert_travel_beside(policy, key, building_cells(policy, raw, TOWER_OF_SORCERY))
         self.post(policy, raw, key)
 
-    def test_interrupted_travel_is_issued_again_not_relabelled(self):
+    def test_interrupted_travel_is_issued_again(self):
         # travel-execution.cpp stops beside a visible monster; the next board
         # can repeat the position.  DECLARED CONSTRUCTED: that board (turn +10).
         # The same route is issued again under _town_travel_key's progress
@@ -130,6 +130,7 @@ class TownTravelTest(nokey.PostedKey):
         policy.confirm_key_posted(key)
         again = dict(copy.deepcopy(raw), turn=raw["turn"] + 10)
         second = loops.decide(policy, again)
+        self.assertTrue(is_travel_macro(second), second)
         self.assertEqual((second, policy.last_reason), (key, "me-staff:approach-tower"))
 
     def test_inn_leg_travels_beside_the_inn(self):
