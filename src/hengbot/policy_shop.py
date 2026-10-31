@@ -33,6 +33,7 @@ import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
 from hengbot import me_staff_sequence
+from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
     PurchaseContext,
@@ -6473,28 +6474,12 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot, reason: str
     ) -> str | None:
         """Restore each combat hand displaced by the temporary mining loadout."""
-        main_hand = next(
-            (item for item in snapshot.equipment if item.slot == "main_hand"),
-            None,
-        )
+        main_hand = mining_loadout.worn_in_slot(snapshot, "main_hand")
         for target_slot, remembered_name, remembered_identity, optimal_known in (
-            (
-                "main_hand",
-                self._normal_weapon_name,
-                self._normal_weapon_identity,
-                self._normal_weapon_is_optimal,
-            ),
-            (
-                "sub_hand",
-                self._normal_sub_hand_name,
-                self._normal_sub_hand_identity,
-                self._normal_sub_hand_is_optimal,
-            ),
+            mining_loadout.remembered_hands(self)
         ):
-            equipped = next(
-                (item for item in snapshot.equipment if item.slot == target_slot),
-                None,
-            )
+            equipped = mining_loadout.worn_in_slot(snapshot, target_slot)
+            # An empty hand is re-armed by mining_loadout.rollback_key.
             if equipped is None or not equipped.is_digging_tool:
                 continue
             if target_slot == "sub_hand" and optimal_known and remembered_name is None:
@@ -6515,24 +6500,8 @@ class ShopMixin(InStoreMixin):
                                 continuation="equipment.restore-observe")
                     return key
                 continue
-            replacement = self._first_item(
-                snapshot,
-                lambda item: item.is_equipment
-                and not item.is_digging_tool
-                and not self._equip_blocked_by_identification(item)
-                and not item.is_broken
-                and not self._blocks_teleport(item)
-                and (
-                    equipment_identity(item) == remembered_identity
-                    if remembered_identity is not None
-                    else item.name == remembered_name
-                    if remembered_name is not None
-                    else (
-                        item.is_melee_weapon
-                        if target_slot == "main_hand"
-                        else item.tval == 34 or item.is_melee_weapon
-                    )
-                ),
+            replacement = mining_loadout.restorable_item(
+                self, snapshot, target_slot, remembered_name, remembered_identity
             )
             if replacement is None:
                 if (

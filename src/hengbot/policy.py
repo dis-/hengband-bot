@@ -11095,6 +11095,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self, snapshot, strategic_hostiles, strategic_adjacent
             ))
 
+        # D45: a combat hand the digger swap left empty goes back before any
+        # fight rung below takes the turn (mining_loadout.py).  An approved
+        # quest floor's navigator above owns its own combat.
+        rearm = self._town_producer_entry("_mining_loadout_rollback_key", lambda: self._mining_loadout_rollback_key(snapshot), family="equipment-txn")
+        if rearm is not None:
+            return rearm
+
         # A reviewed one-shot quest is entered on the assumption that its carried
         # Speed dose is part of the action-economy budget.  Spend it on first
         # contact, once for this floor entry (a rejected command is not looped).

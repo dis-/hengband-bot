@@ -12688,5 +12688,60 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._mining_loadout_rollback_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "context": "Dungeon-only: returns None in town and in a store (mining_loadout.rollback_key's first test); the town re-arm stays _town_restore_weapon_key.",
+    "evidence": "D45 (2026-10-31): delegates to mining_loadout.rollback_key; re-arms a combat hand the digger swap left empty while a hostile is in view, yielding to flight.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "mining_loadout.rollback_key -> _equipment_wield; no independent progress"
+  },
+  "mining_loadout.py:rollback_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "context": "Dungeon-only: returns None in town and in a store (mining_loadout.rollback_key's first test); the town re-arm stays _town_restore_weapon_key.",
+    "evidence": "D45: one wield of the displaced combat weapon (remembered identity/name, cached optimizer winner, else the first usable melee weapon) through _equipment_wield with goal mining-loadout-rollback.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "_equipment_wield; no independent progress"
+  },
+  "mining_loadout.py:restorable_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Selects the carried item a re-arm wields (never a digger); shared by _restore_mining_combat_hand_key and rollback_key; pure selection.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "mining_loadout.py:restorable_item.matches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Remembered identity/name match used by restorable_item; pure predicate.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "mining_loadout.py:worn_in_slot": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The worn item in one equipment slot; pure lookup.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
