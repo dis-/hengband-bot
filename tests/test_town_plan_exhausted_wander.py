@@ -117,6 +117,7 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_arbiter import reason_owner_family
 from hengbot.town_maps import find_town_map, parse_town_map
+from hengbot.town_travel import is_travel_macro
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 
 
@@ -416,9 +417,10 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
         # The trip is owned and bounded by the existing cross-town family.
         self.assertEqual(reason_owner_family(RETURN_REASON), "cross-town")
         for key, reason in emitted[1:]:
-            # Every step of the return is a walk (optionally carrying the Inn's
-            # own destination selection); the mine phase never spends a scroll.
-            self.assertTrue(key[:1] in set("12346789"), (key, reason))
+            # Every step of the return is the game's travel toward the Inn
+            # (town_travel) or a walk (optionally carrying the Inn's own
+            # destination selection); the mine phase never spends a scroll.
+            self.assertTrue(is_travel_macro(key) or key[:1] in set("12346789"), (key, reason))
             self.assertFalse(key.startswith(READ_KEY), key)
 
     def test_p1_empty_procurement_stop_returns_to_the_outpost(self):

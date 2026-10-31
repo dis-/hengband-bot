@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import town_pack_headroom
+from hengbot import town_travel
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
@@ -1365,6 +1366,11 @@ class TownMixin:
             and 0 <= store_type < len(TOWN_TRAVEL_STORE_SYMBOLS)
             and key == f"\x1b`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}."
         ):
+            return True
+        if town_travel.is_travel_macro(key) and any(
+                offer[0] == key and str(offer[2]).startswith("route:") and offer[8] == "acting"
+                for offer in self._execution_offers_for()):
+            # A cell route, bounded by _town_travel_key's progress record.
             return True
         if key in {DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO}:
             return True
@@ -6791,6 +6797,9 @@ class TownMixin:
                             cause="inn-entry-step-unavailable",
                         )
                     return key
+                travel = town_travel.building_key(self, snapshot, step_target, "town:rumor")
+                if travel is not None:
+                    return travel
                 key = self._step_toward(snapshot, step)
                 if key is not None:
                     self._offer_execution(
@@ -7613,6 +7622,9 @@ class TownMixin:
             self.last_reason = "town:teleport-refused-fare"
             return None
         result = self._town_teleport_route(snapshot, destination_town_id)
+        travel = self._town_teleport_travel_key(snapshot, result, reason)
+        if travel is not None:
+            return travel
         if result.key is not None:
             self.last_reason = reason if result.route is not None else reason + "-step-off"
             if result.route is not None:
@@ -7657,6 +7669,22 @@ class TownMixin:
             route=route,
             key=self._step_toward(snapshot, route.first_step, tail=suffix),
         )
+
+    def _town_teleport_travel_key(
+        self, snapshot: Snapshot, result: TownTeleportRoute, reason: str
+    ) -> str | None:
+        """The game's travel to the inn's side while the route has not reached it.
+
+        Owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」
+        (``town_travel``); the step onto the inn keeps its 'm' + destination
+        tail, and where travel cannot serve this board the caller walks
+        ``result.key``.
+        """
+        route = result.route
+        if route is None or route.first_step in (
+                self._town_teleport_building_positions(snapshot) or ()):
+            return None
+        return town_travel.building_key(self, snapshot, route.target, reason)
 
     def _town_teleport_building_positions(
         self, snapshot: Snapshot

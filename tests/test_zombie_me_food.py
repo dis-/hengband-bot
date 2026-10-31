@@ -200,8 +200,8 @@ class StapleTowerRechargeTest(executor_harness.ProductionHarness):
 
     DECLARED CONSTRUCTED: stage 1 is complete (both powers absorbed), no
     sequence staff is carried and a 5-charge Wand of Wonder is in the pack.
-    Owner 2026-10-31: stage 2 follows, so the trip home is the inn teleport
-    back to the Outpost's Magic shop (me-staff:return-to-shop).
+    Owner 2026-10-31: stage 2 follows; its buy round looks at Morivant's own
+    Magic shelf first (#47 D52), then the Outpost's.
     """
     policy = d24.MeTowerRechargeRecordedTest.policy
     decide = d24.MeTowerRechargeRecordedTest.decide
@@ -241,12 +241,19 @@ class StapleTowerRechargeTest(executor_harness.ProductionHarness):
         self.assertEqual(game.accepted, ["1", "a", "y", " ", ""])
         self.assertEqual(next(it["charges"] for it in following["inventory"] if it["slot"] == self.slot), 24)
         self.decide(policy, following)
-        self.assertEqual(policy.last_reason, "me-staff:return-to-shop")
+        # Stage 2's buy round looks at Morivant's own Magic shelf first (#47 D52).
+        self.assertEqual((policy.last_reason, policy._shopping_approach_store_type),
+                         ("shop:travel", sequence.STORE_MAGIC))
 
     def test_full_staple_goes_home_without_the_tower(self):
         policy, raw = self.board(MANA_FOOD_CHARGE_TARGET)
         self.decide(policy, raw)
-        self.assertEqual(policy.last_reason, "me-staff:return-to-shop")
+        # Stage 2's buy round looks at Morivant's own Magic shelf first
+        # (#47 D52); the full staple needs no Tower.
+        self.assertFalse(policy.last_reason.startswith("me-staff:recharge"), policy.last_reason)
+        board = parse_snapshot(copy.deepcopy(raw), self.knowledge)
+        self.assertEqual(sequence._phase(policy, board), "buy")
+        self.assertEqual(policy._shopping_approach_store_type, sequence.STORE_MAGIC)
 
 
 if __name__ == "__main__":

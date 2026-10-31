@@ -119,7 +119,8 @@ class Stage2ShopTest(executor_harness.ProductionHarness):
             raw["inventory"].append(dict(staff, slot=chr(ord("a") + len(raw["inventory"]))))
         self.setup = setup
         policy, raw, reasons = self.drive("life-036", limit=60, done=lambda policy, raw, key: (
-            self.owned(policy, raw, key) or policy.last_reason == "me-staff:travel-morivant"))
+            self.owned(policy, raw, key) or policy.last_reason in {
+                "me-staff:travel-morivant", "me-staff:search-staff"}))
         # One of each in the stage's order; the second Enlightenment row (i)
         # stays on the shelf.
         self.assertEqual(staffs_bought(self.bought),
@@ -127,11 +128,14 @@ class Stage2ShopTest(executor_harness.ProductionHarness):
         self.assertEqual([quantity for name, quantity in self.bought if "杖" in name], [1, 1])
         board = parse_snapshot(raw, policy._monrace_knowledge)
         self.assertEqual(sorted(sequence.carried_staffs(policy, board)), [MAPPING, TRAP, EVIL])
-        # Door/Stair and Light are still missing and off the shelf: the
-        # carried three go to the Tower first (owner 2026-10-31 「持っている分を
-        # 先に取り込む」); the missing two are bought when they are stocked.
-        self.assertEqual(policy.last_reason, "me-staff:travel-morivant", reasons[-6:])
-        self.assertEqual(sequence._phase(policy, board), "travel")
+        # Door/Stair and Light are still missing and off this shelf: the buy
+        # round looks at Morivant's Magic shelf (the one other visited town,
+        # where it ends at the Tower) before the carried three go to the Tower
+        # (#47 D52; owner 2026-10-31 「持っている分を先に取り込む」 only once no
+        # shelf of the round sells them).
+        self.assertEqual(policy.last_reason, "me-staff:search-staff", reasons[-6:])
+        self.assertEqual(sequence._phase(policy, board), "buy")
+        self.assertEqual(sequence._next_shelf(policy, board, 0, True), 2)
 
 
 class Stage2TowerTest(executor_harness.ProductionHarness):

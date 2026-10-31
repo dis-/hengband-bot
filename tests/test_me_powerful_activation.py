@@ -55,8 +55,13 @@ def staff_list(effects=(powerful.IDENTIFY, powerful.UNCURSE), current=5):
 
 
 def racial_screen(level, *, listed=True):
-    """cmd-racial.cpp racial_power_display_list at x=11 (class powers first)."""
-    screen = prompt(RACIAL_PROMPT)
+    """cmd-racial.cpp racial_power_display_list at x=11 (class powers first).
+
+    racial_power_process_input asks with input_spell_choice: kind spell,
+    labels a..c, ``list`` while the rows are drawn (#47 n1-c life-074).
+    """
+    screen = prompt(RACIAL_PROMPT, "spell", first_label="a", last_label="c", list=listed,
+                    browse=False, menu=False)
     if listed:
         screen["lines"][1] = " " * 11 + " " * 35 + "Lv   MP 失率 効果"
         rows = (("a", "魔力の取り込み", 1, 0), ("b", "強力発動", 10, powerful.cost(level)),

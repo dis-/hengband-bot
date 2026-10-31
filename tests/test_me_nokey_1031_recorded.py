@@ -133,6 +133,9 @@ class PostedKey(harness.ProductionHarness):
         following["turn"] += 10
         following["messages"] = []
         game = FaithfulHookGame()
+        # A travel macro names its cell by cursor moves (town_travel): the
+        # game's smallest key queue (main-gcu.cpp, 256), not the harness's 32.
+        game.capacity = 256
         game.state = copy.deepcopy(raw)
         game.screen = command_screen(raw["turn"])
         game.screens = [command_screen(following["turn"])]
@@ -229,7 +232,13 @@ class StaffStockoutTest(PostedKey):
     def test_carried_staffs_go_to_the_tower_while_the_fifth_is_out_of_stock(self):
         # The recorded record (six reached stock-out runs); unfixed, the board
         # after the Magic shop stopped with fundraise-target-drift.
+        # DECLARED CONSTRUCTED: the other towns' shelves were seen without
+        # Detect Evil in this restock wait, so no shelf of the buy round sells
+        # it (#47 D52, test_me_tower_trips_recorded): the carried four go to
+        # the Tower first.
         policy = staff_policy(staff_board(0))
+        sequence.state(policy).searched_towns.update(
+            {town: staff_board(0)["turn"] for town in (1, 2, 3)})
         key = drive_staff_boards(policy, 4)
         self.assertIsNone(sequence.state(policy).failure)
         self.assertEqual(policy.last_reason, "me-staff:travel-morivant", key)
@@ -323,11 +332,11 @@ class RestartForgetsAbsorptionsTest(PostedKey):
                                            sequence.SV_STAFF_DETECT_GOLD: 19})
         self.assertEqual(record.stage, 2)
         self.assertEqual((sold, bought), ([], []))
-        # The observed Magic shelf sells a Staff of Remove Curse (1192 gold),
-        # a buy_first row of the device policy table (owner 2026-10-31): the
-        # spare 60,981 gold buys it before the Tower trip.
-        self.assertTrue(policy.last_reason.endswith("shop:approach"), (key, policy.last_reason))
-        self.assertEqual(policy._shopping_approach_store_type, 5)
+        # #47 D52: the buy round goes on to Telmora's shelf by the travel
+        # command (the walk it replaces was relabelled by the town progress
+        # invariant as town-progress-invariant:defect:...=>shop:approach).
+        self.assertEqual(policy.last_reason, "me-staff:search-staff", key)
+        self.assertTrue(key.startswith("\x1b`n"), key)
         self.post(policy, staff_board(10), key)
 
     def test_unread_list_keeps_every_sequence_staff(self):
