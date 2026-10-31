@@ -6867,7 +6867,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "26c0e24afaebcf4bbeee46a0d2bd7ce0d811ba7f0b0795c5ee70c6eaa727cdf0"
+    "ast_sha256": "0c4e7f3d2c9829ef9c4fd1de700b48488ac2f1ff3d1dfd9baa9c9890dbbaa6d9"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -8994,6 +8994,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "dff2687dcb18cd6b923d723a67f6f0f92bf95f57a86a051b7b6c66dc1f14c40b"
+  },
+  "quest_sweep_target.py:committed_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "06ee4884535c526a6e99af5c06597d60316da5c3b812e409d7cbf0599b0a7cda"
+  },
+  "quest_sweep_target.py:engage_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e754efc144da58e5927e2775e5d42d713ded90f7d854c250a814e7c99209745a"
   },
   "shop_purchase_dispatch.py:next_purchase_key": {
     "classification": "operation",

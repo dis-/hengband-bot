@@ -37,6 +37,7 @@ import json
 from pathlib import Path
 import unittest
 
+from hengbot import quest_sweep_target
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -156,6 +157,56 @@ class DeathReturnRecordedTest(RecordedHarness):
         following = self.later(raw)
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(QUAFF_PROMPT)],
                                    following), ["q", cure.slot])
+
+
+class Q22SweepRecordedTest(RecordedHarness):
+    def policy(self, raw):
+        policy = build_policy()
+        policy.prime(parse_snapshot(raw, policy._monrace_knowledge))
+        # DECLARED RECONSTRUCTED (module docstring): the sweep phase.
+        policy._quest_strategy_opening_phase[22] = 3
+        policy._quest_strategy_post_wave_light_attempted.add(22)
+        policy._quest_strategy_initial_hold_turns[22] = 80
+        return policy
+
+    def test_recorded_rows_alternate(self):
+        rows = self.cases["q22-sweep"]["decisions"]
+        sweep = [(row["position"]["x"], row["key"]) for row in rows
+                 if row["reason"] == "quest-strategy:sweep-engage-mobile"]
+        self.assertEqual(sweep[1:], [(14, "4"), (13, "6")] * 6)
+
+    def test_the_chosen_sweep_target_is_kept_across_the_view_swap(self):
+        boards = self.boards("q22-sweep")
+        policy = self.policy(boards[0])
+        keys = []
+        for raw in boards:
+            key = decide(policy, raw)
+            if policy.last_reason == "quest-strategy:sweep-engage-mobile":
+                keys.append((raw["player"]["x"], key))
+        # From [11,13] the sweep steps east toward the black orc it chose;
+        # back on [11,14] it no longer turns west toward the captain that
+        # only that cell's view shows.
+        self.assertTrue(keys)
+        self.assertNotIn((14, "4"), keys)
+        raw, following = boards[-2], boards[-1]
+        key = decide(policy, raw)
+        self.assertEqual(policy.last_reason, "quest-strategy:sweep-engage-mobile")
+        self.assertEqual(self.post(policy, raw, key, [], following), [key])
+
+    def test_a_confirmed_empty_last_seen_cell_releases_the_target(self):
+        boards = self.boards("q22-sweep")
+        policy = self.policy(boards[0])
+        decide(policy, boards[0])
+        floor_key, race_id, _ = policy._quest_sweep_engage_commit
+        here = parse_snapshot(boards[0], policy._monrace_knowledge).player.position
+        # DECLARED CONSTRUCTED: the target was last seen on the player's own
+        # cell, which is confirmed empty, and no monster of its race is seen.
+        policy._quest_sweep_engage_commit = (floor_key, race_id, here)
+        board = parse_snapshot(boards[0], policy._monrace_knowledge)
+        self.assertIsNone(quest_sweep_target.committed_step(
+            policy, board, policy._quest_strategies[22],
+            [monster for monster in board.visible_monsters if monster.race_id != race_id]))
+        self.assertIsNone(policy._quest_sweep_engage_commit)
 
 
 if __name__ == "__main__":
