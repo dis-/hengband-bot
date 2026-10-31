@@ -403,6 +403,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("experience:", T, EFFECT),
         ("wilderness:escape-scroll", T, EFFECT),
         ("wilderness:flee", T, EFFECT),
+        # Loop 6 (owner 2026-10-31): a refused global map reads Recall and waits.
+        ("wilderness:recall", O, FLOOR_CHANGE),
+        ("wilderness:wait-recall", O, FLOOR_CHANGE),
         # Slice 1 (2026-10-06): the no-wait escapes are survival interrupts.
         ("no-wait:escape-scroll", T, EFFECT),
         ("no-wait:flee", T, EFFECT),

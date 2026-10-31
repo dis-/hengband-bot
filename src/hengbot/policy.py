@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import me_ranged_first, survival_preemption
+from hengbot import me_ranged_first, survival_preemption, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -12667,39 +12667,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # -------------------------------------------------------------- observers
 
 
-    def _up_stairs_exit_to_wilderness(self) -> bool:
-        """Whether '<' on this floor leaves the dungeon for the open wilderness.
-
-        Going up from a floor whose ``dun_level - 1`` is below the dungeon's
-        ``mindepth`` lands on the surface (src/floor/floor-leaver.cpp:335-338)
-        at the dungeon's entrance tile (``exit_to_wilderness``).  That tile is
-        a town only for a dungeon entered from a town (Yeek cave, Outpost);
-        for every other dungeon the top floor's '<' puts the player in the
-        wilderness, which the bot must never enter -- it returns to town by
-        recall (live 2026-10-02 11:50: Castle 20F, ``status-threat:stairs``).
-        Unknown floor, dungeon or map answers False (the previous behaviour).
-        """
-        floor_key = self._floor_key
-        if floor_key is None:
-            return False
-        dungeon_id, level, _quest = floor_key
-        if dungeon_id <= 0 or level <= 0:
-            return False
-        info = self._dungeon_knowledge.get(dungeon_id)
-        wilderness = self._wilderness_map
-        if info is None or wilderness is None:
-            return False
-        if level - 1 >= info.min_depth:
-            return False
-        y, x = getattr(info, "wild_y", None), getattr(info, "wild_x", None)
-        if y is None or x is None:
-            return False
-        rows = wilderness.rows
-        cell = rows[y][x] if 0 <= y < len(rows) and 0 <= x < len(rows[y]) else ""
-        return not (cell.isdigit() and cell != "0")
+    def _up_stairs_exit_to_wilderness(self, grid: GridState | None = None) -> bool:
+        """Whether '<' here leaves the dungeon for the wilderness (wilderness_exit)."""
+        return wilderness_exit.up_stairs_exit_to_wilderness(
+            self._floor_key, self._dungeon_knowledge, self._wilderness_map, grid
+        )
 
     def _is_upstairs_target(self, grid: GridState) -> bool:
-        return grid.has_up_stairs and not self._up_stairs_exit_to_wilderness() and (
+        return grid.has_up_stairs and not self._up_stairs_exit_to_wilderness(grid) and (
             (
                 grid.in_view
                 and self._stair_rejection_strikes[(UP_STAIRS_KEY, grid.position)] < 2
