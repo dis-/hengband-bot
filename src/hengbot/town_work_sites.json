@@ -692,7 +692,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3cbb6775319c43085348ec3949ff7f6b047d759f307742f22e6039956f2e47c7"
+    "ast_sha256": "65f910d026db2a950cd58f0c88c831981414cf5fbb1103269492dccbf029968c"
   },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
@@ -6564,7 +6564,15 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "30e5e057c2a89707f3f62cfe06d4807ab3f748d7032af7b9a407ec53a2f61108"
+    "ast_sha256": "7741590f6796314173013af6403bf1376c2964078f0031d5b8b528c0cd05485c"
+  },
+  "policy_observation.py:ObservationMixin._strategy_force_unlowered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "2acc246ebbcf09906250e7005a056bc6f72a7098b2351a17494cf8dedf06b0e7"
   },
   "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
     "classification": "data",
@@ -9092,6 +9100,14 @@
     "delegation": "The parent owns admission; selected child operations retain their existing effect observers.",
     "ast_sha256": "15d271afda63385d9df457fba7815d60bf446e4fbbf27cc2c0cf37c8283930cb"
   },
+  "quest_strategies.py:carry_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "7b571a0452c01dc3ce178eda512dbfdc0b46aef3ec343e1fc5481c2391c5feec"
+  },
   "quest_strategies.py:class_throwing_items": {
     "classification": "data",
     "rows": [
@@ -9099,6 +9115,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "dff2687dcb18cd6b923d723a67f6f0f92bf95f57a86a051b7b6c66dc1f14c40b"
+  },
+  "quest_strategies.py:lower_carries": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "04390f371b7831d8a9bab3eba3fa6e325a62905babedfa61b74898682c722a14"
   },
   "quest_sweep_target.py:committed_step": {
     "classification": "data",

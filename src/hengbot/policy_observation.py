@@ -12,7 +12,7 @@ from hengbot.claim_goal_typing import (
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
-from hengbot.quest_strategies import StrategyProfile, class_throwing_items
+from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
 from hengbot.policy_types import TownVisitLedger
 from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
@@ -1388,8 +1388,24 @@ class ObservationMixin:
         self.last_reason = "shop:observed-operation-uncomposable"
         return True
 
-    @staticmethod
     def _strategy_force_for_snapshot(
+        self, snapshot: Snapshot, profile: StrategyProfile, *, lowered: bool = True,
+    ) -> dict[str, object]:
+        """The profile's force for this character.
+
+        ``lowered``: the carries the quest's own kit owner lowered to what the
+        gold buys (``_quest_carry_lowered``, policy_opening for Q1, owner
+        2026-10-31 「Q1の要求値を下げ、受注可能にする」); False reads the full
+        requirement the owner lowers from.
+        """
+        force = self._strategy_force_unlowered(snapshot, profile)
+        carry = getattr(self, "_quest_carry_lowered", None) if lowered else None
+        if carry is not None and carry[0] == profile.quest_id:
+            force = lower_carries(force, carry[1])
+        return force
+
+    @staticmethod
+    def _strategy_force_unlowered(
         snapshot: Snapshot, profile: StrategyProfile
     ) -> dict[str, object]:
         force: dict[str, object] = dict(profile.required_force)

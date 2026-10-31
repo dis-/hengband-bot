@@ -12890,5 +12890,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing Home inventory, sale, consumption and route effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "policy_observation.py:ObservationMixin._strategy_force_unlowered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the fixed-quest force before the kit owner's lowering.",
+    "evidence": "Returns dict only: the profile's required_force resolved for the class and the defensive tier (the former body of _strategy_force_for_snapshot); does not emit commands or claim progress."
+  },
+  "quest_strategies.py:carry_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the Q1 route's lower carry counts.",
+    "evidence": "Returns dict only: the strategy's carry_floor with its class row (QUEST_1, owner 2026-10-31 「Q1の要求値を下げ、受注可能にする」); does not emit commands or claim progress."
+  },
+  "quest_strategies.py:lower_carries": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the fixed-quest force with the lowered carries.",
+    "evidence": "Returns dict only: a copy of the force whose lit_torch / heal / speed counts are at most the lowered ones; does not emit commands or claim progress."
   }
 }
