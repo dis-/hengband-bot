@@ -632,7 +632,8 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if not snapshot.in_town or snapshot.store is not None or not applies(policy, snapshot):
         return None
     session = policy._equipment_transaction_session
-    if session is not None and not session.complete and session.required_context == "home":
+    equipping = session is not None and not session.complete
+    if equipping and session.required_context == "home":
         # The Home equipment session owns the route to Home and refuses
         # every other shop's (policy_shop _shopping_approach_key ->
         # equipment_route_handoff WAIT): the sequence waits for it (#47 n1-c
@@ -642,8 +643,9 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if not read_powers(policy, snapshot):
         # Read what the game has absorbed before buying, selling or
         # absorbing anything (``read_powers``); browsing takes no game time.
-        # A hostile in view keeps the board for fight/flee (survival first).
-        if policy._physical_hostiles(snapshot):
+        # A hostile in view keeps the board for fight/flee (survival first),
+        # an equipment session in flight for its own next action.
+        if equipping or policy._physical_hostiles(snapshot):
             return None
         if not _attempt(policy, "read-powers", 0):
             return _stop(policy, "power-list-unavailable")
