@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import wilderness_exit
+from hengbot import lamp_fuel, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -188,22 +188,24 @@ class SupplyMixin:
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
         if equipped is None:
             return None
-        # Fuel is only reported for identified lights.  For an unidentified
-        # lantern, use actual illumination of the player's square as the empty
-        # signal: this avoids wasting oil while it still burns, but recovers
-        # once the redacted-fuel lantern really goes dark.
+        # Fuel is only reported for identified lights.  An unidentified
+        # lantern is refilled once the player sees it no longer lights them
+        # and has not been told it is still full (lamp_fuel): this avoids
+        # wasting oil while it still burns, but recovers once it goes dark.
         if not equipped.known:
-            here = snapshot.grid_at(snapshot.player.position)
             if (
                 not equipped.is_lantern
                 or snapshot.dungeon_level < 1
                 or snapshot.player.blind
+                or lamp_fuel.refill_known_unneeded(self, snapshot)
             ):
                 return None
-            if here is None:
-                if not snapshot.grids_observed:
-                    return None
-            elif here.lit:
+            out = lamp_fuel.unidentified_lantern_out(snapshot)
+            if out is None:
+                # Older boards export neither light fact: the own grid's lighting.
+                here = snapshot.grid_at(snapshot.player.position)
+                out = snapshot.grids_observed if here is None else not here.lit
+            if not out:
                 return None
             return self._first_item(snapshot, lambda it: it.is_oil and it.fuel > 0)
         if equipped.is_lantern:

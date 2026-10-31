@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import mining_loadout, town_pack_headroom
+from hengbot import lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
 
@@ -13687,6 +13687,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             not snapshot.in_town
             or self._unknown_lantern_departure_refilled
             or self._oil_below_departure_target(snapshot)
+            or lamp_fuel.refill_known_unneeded(self, snapshot)
         ):
             return None
         equipped = next((item for item in snapshot.equipment if item.is_light), None)
