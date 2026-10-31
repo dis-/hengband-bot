@@ -1752,6 +1752,22 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "005d0eab5e18d6f04fd51714a18d1e6ac89d2eddea58414cb7bfd4ffad4a1037"
   },
+  "me_absorbed_substitutes.py:cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "8a76c59e08a857e156a3436e2975a5df9472f3e11204fcff79a1cd73983bac08"
+  },
+  "me_absorbed_substitutes.py:light_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "fa5285259394902b8721cb80ae7741742ce89bcede86293d5c24375f908a04e9"
+  },
   "me_device_attacks.py:Power.letter": {
     "classification": "data",
     "rows": [
@@ -2123,7 +2139,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "7aca7f2765820fb64d68e355b33b5e9abd5ac0eb9c13132dc16decbd558cfbd4"
+    "ast_sha256": "0994b22b3554ddce2483b5c2d843f8a6f54eb6ace2fa0249d313fcc49de9f865"
   },
   "me_staff_sequence.py:purchase": {
     "classification": "data",
@@ -6958,7 +6974,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "92a47e7da754b5faf00bba6c8c89106a863cc0745adefd29021fd4d0a8743b12"
+    "ast_sha256": "398c97d2512c361203d29c88c0395ceeb2cc2ad3f623234315d35c77522745bb"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.light_after_opening": {
     "classification": "dungeon-only",
@@ -6966,7 +6982,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "adfe546cc8cf876dcba24c41f557ec9a543cbacb7937cf8bd79ad2cc6d734c37"
+    "ast_sha256": "09fd2f10a4c83ed809ded0b23769c59592f7811a6e03e2052e56b945a3bcda42"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.recover_dry_ammo": {
     "classification": "dungeon-only",
@@ -6982,7 +6998,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "dc9eebe89b67e915e406f093773b385258175c8440a8717b30c52e4046cd7439"
+    "ast_sha256": "ad5448f8884170c68e0e895fbeb146a651c5783c0bcd097ef7e6ad0634edadeb"
   },
   "policy_quest.py:QuestMixin._q2_phase_key.route_phase_placements.phase_step": {
     "classification": "dungeon-only",
@@ -6998,7 +7014,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a2cf6b1f6a68d69edb323614306e642087082be5587228d93d13eb1f1d60b1a1"
+    "ast_sha256": "849a3f36831d1922735615f89835f0baa07c7b594491543cade624cf45ccb9a7"
   },
   "policy_quest.py:QuestMixin._q31_opening_heal_before_escape": {
     "classification": "data",
@@ -7022,7 +7038,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "4bbeb3269eead30681cd2331ca495acc902f59d37526e7d806a759a74244df40"
+    "ast_sha256": "213015858ac4d5845d43b86ba9e51fd7cbbf071346cbf53c901dbf4f1df45b74"
   },
   "policy_quest.py:QuestMixin._quest_carry_target_for_item": {
     "classification": "data",
@@ -7030,7 +7046,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6146829d42840e820b479ad46842f8b5c355532238ccfa5ea707d6b1df9ea0e4"
+    "ast_sha256": "d9fb89d8d390151109695d191c718770504f71bc83e32f0921ddf28becea553f"
   },
   "policy_quest.py:QuestMixin._quest_equipment_entry_allowed": {
     "classification": "producer",
@@ -7046,7 +7062,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0c4e7f3d2c9829ef9c4fd1de700b48488ac2f1ff3d1dfd9baa9c9890dbbaa6d9"
+    "ast_sha256": "6d1c9865d52a722daa2b0c0132a1c202fb3601bfcf959e6922cf6af8543b76a1"
   },
   "policy_quest.py:QuestMixin._quest_execute_key.defeated_by_message": {
     "classification": "data",
@@ -7087,6 +7103,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "a0b04a2216cbfc90ca43bfff0fa5e8a3640a4820f4e9c03266ea03f05bab822a"
+  },
+  "policy_quest.py:QuestMixin._quest_light_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5edb5c41240c9ae73faf33dd473e57eceea718ac4c2c5f55e6b504accbb84f2a"
   },
   "policy_quest.py:QuestMixin._quest_named_item_count": {
     "classification": "data",

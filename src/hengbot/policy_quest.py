@@ -7,6 +7,9 @@ from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
 from hengbot import me_q1_torch, quest_sweep_target
+from hengbot.me_absorbed_substitutes import (
+    CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_waived, light_key as absorbed_light_key,
+)
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -798,6 +801,37 @@ class QuestMixin(OpeningRouteMixin):
             return diggers + charges // Q2_BREACH_WALL_COUNT
         return 0
 
+    def _quest_carry_count(
+        self, snapshot: Snapshot, category: str, name: str, required: int
+    ) -> int:
+        """The carried count, or ``required`` when an absorbed power waives
+        the carry (class 16, me_absorbed_substitutes: owner 2026-10-31)."""
+        if carry_waived(self, snapshot, category, name):
+            return required
+        return self._quest_named_item_count(snapshot, category, name)
+
+    def _quest_light_key(self, snapshot: Snapshot, reason: str) -> str | None:
+        """Cast class 16's absorbed Light, else read a carried Scroll of Light.
+
+        Owner 2026-10-31 「クエスト内部で巻物要求のとき、代わりに杖で照らす」:
+        where the quest reads a scroll, a charged absorbed Light lights the
+        area instead (me_absorbed_substitutes).  Sets ``last_reason``.
+        """
+        key = absorbed_light_key(self, snapshot)
+        if key is not None:
+            self.last_reason = reason + ABSORBED_CAST_SUFFIX
+            return key
+        light = self._first_item(
+            snapshot,
+            lambda item: item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_LIGHT
+            and item.aware,
+        )
+        if light is None:
+            return None
+        self.last_reason = reason
+        return self._read_key(snapshot, light)
+
     def _quest_carry_status(
         self, snapshot: Snapshot, force: dict
     ) -> dict[str, dict[str, int | bool]]:
@@ -840,8 +874,8 @@ class QuestMixin(OpeningRouteMixin):
                         snapshot, self._equipped_launcher(snapshot), required
                     ).carried_count
                 else:
-                    current = self._quest_named_item_count(
-                        snapshot, category, str(name)
+                    current = self._quest_carry_count(
+                        snapshot, category, str(name), required
                     )
                 status[f"{category}.{name}"] = {
                     "measured": current,
@@ -1028,6 +1062,10 @@ class QuestMixin(OpeningRouteMixin):
                 if item.tval == TVAL_SCROLL and item.sval == QUEST_SCROLL_SVALS.get(
                     str(name)
                 ):
+                    if carry_waived(self, snapshot, "required_scrolls", str(name)):
+                        # 「光の巻物→購入を抑制」: a waived carry claims no
+                        # scroll (no purchase, Home withdrawal or reservation).
+                        return None
                     return str(name), self._quest_named_item_count(
                         snapshot, "required_scrolls", str(name)
                     ), int(value)
@@ -1813,26 +1851,21 @@ class QuestMixin(OpeningRouteMixin):
         if target is None:
             return None
         target_grid = snapshot.grid_at(target.position)
-        light = self._first_item(
-            snapshot,
-            lambda item: item.tval == TVAL_SCROLL
-            and item.sval == SV_SCROLL_LIGHT
-            and item.aware,
-        )
         light_key = (snapshot.floor_key, target.position)
         if (
             target_grid is not None
             and not target_grid.lit
-            and light is not None
             and light_key not in self._quest_light_attempted
         ):
-            self._quest_light_attempted.add(light_key)
-            self.last_reason = (
+            light = self._quest_light_key(
+                snapshot,
                 "quest-strategy:q2-light-area"
                 if profile.quest_id == 2
-                else "quest-strategy:ranged-light-area"
+                else "quest-strategy:ranged-light-area",
             )
-            return self._read_key(snapshot, light)
+            if light is not None:
+                self._quest_light_attempted.add(light_key)
+                return light
         self.last_reason = (
             "quest-strategy:q2-fire"
             if profile.quest_id == 2
@@ -2329,17 +2362,12 @@ class QuestMixin(OpeningRouteMixin):
                 or light_phase in self._q2_phase_light_attempted
             ):
                 return None
-            light = self._first_item(
-                snapshot,
-                lambda item: item.tval == TVAL_SCROLL
-                and item.sval == SV_SCROLL_LIGHT
-                and item.aware,
+            light = self._quest_light_key(
+                snapshot, "quest-strategy:q2-light-after-opening"
             )
             if light is not None:
                 self._q2_phase_light_attempted.add(light_phase)
-                self.last_reason = "quest-strategy:q2-light-after-opening"
-                return self._read_key(snapshot, light)
-            return None
+            return light
 
         opening_light = light_after_opening()
         if opening_light is not None:
@@ -2418,19 +2446,16 @@ class QuestMixin(OpeningRouteMixin):
                     and (placement_grid is None or not placement_grid.in_view)
                 ):
                     light_phase = (snapshot.floor_key, race_id, placement)
-                    light = self._first_item(
-                        snapshot,
-                        lambda item: item.tval == TVAL_SCROLL
-                        and item.sval == SV_SCROLL_LIGHT
-                        and item.aware,
+                    light = (
+                        self._quest_light_key(
+                            snapshot, f"quest-strategy:q2-light-phase-{race_id}"
+                        )
+                        if light_phase not in self._q2_phase_light_attempted
+                        else None
                     )
-                    if (
-                        light is not None
-                        and light_phase not in self._q2_phase_light_attempted
-                    ):
+                    if light is not None:
                         self._q2_phase_light_attempted.add(light_phase)
-                        self.last_reason = f"quest-strategy:q2-light-phase-{race_id}"
-                        return self._read_key(snapshot, light)
+                        return light
 
             goals: set[Position] = set()
             for placement in unsurveyed:
@@ -3259,15 +3284,9 @@ class QuestMixin(OpeningRouteMixin):
             # because it was read before the restart; latch the phase even when
             # there is no remaining scroll instead of restarting wave one.
             self._quest_strategy_post_wave_light_attempted.add(profile.quest_id)
-            light = self._first_item(
-                snapshot,
-                lambda item: item.tval == TVAL_SCROLL
-                and item.sval == SV_SCROLL_LIGHT
-                and item.aware,
-            )
+            light = self._quest_light_key(snapshot, "quest-strategy:post-wave-light")
             if light is not None:
-                self.last_reason = "quest-strategy:post-wave-light"
-                return self._read_key(snapshot, light)
+                return light
         current_never_move = {
             monster.index for monster in hostiles
             if monster.race_id in never_move_races

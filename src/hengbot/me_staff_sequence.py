@@ -304,11 +304,16 @@ def absorbed_charges(policy, snapshot, sval: int) -> int:
     return record.absorbed[sval]
 
 
+def cast_blocked(snapshot) -> bool:
+    """Whether no absorbed power may be cast on this board."""
+    player = snapshot.player
+    return (snapshot.store is not None or player.blind or player.confused
+            or player.hallucinated or player.paralyzed)
+
+
 def power_key(policy, snapshot, sval: int) -> str | None:
     """``m A <letter>`` for an absorbed power that may serve this board."""
-    player = snapshot.player
-    if (absorbed_charges(policy, snapshot, sval) <= 0 or snapshot.store is not None
-            or player.blind or player.confused or player.hallucinated or player.paralyzed):
+    if absorbed_charges(policy, snapshot, sval) <= 0 or cast_blocked(snapshot):
         return None
     return "mA" + POWER_LETTER[sval]
 

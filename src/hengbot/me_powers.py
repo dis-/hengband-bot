@@ -319,18 +319,30 @@ REQUIREMENTS = {
 
 # -- charges, gates and the producer ------------------------------------------
 
+def observed_row(policy, power: Power) -> dict | None:
+    """The power's row in the last list the game displayed for its kind."""
+    lists = getattr(policy, "_me_device_lists", None) or {}
+    if power.kind not in lists:
+        return None
+    return next((row for row in lists[power.kind][1] if row.get("name") in power.names), None)
+
+
+def recorded_charges(policy, snapshot, power: Power) -> int:
+    """Charges of an absorption the bot observed itself (me_staff_sequence)."""
+    return absorbed_charges(policy, snapshot, power.sval) if power.kind == "staff" else 0
+
+
 def charges(policy, snapshot, power: Power) -> int:
     """The power's charges in the last list the game displayed for its kind.
 
-    Before any list of that kind was displayed in this life, the absorption
-    record (me_staff_sequence.absorbed_charges) serves a staff.
+    A list without the power's row predates its absorption (an absorbed
+    power stays listed, mind-magic-eater.cpp only adds to its count), so
+    then, as before any list of that kind was displayed in this life, the
+    absorption record serves (``recorded_charges``).
     """
-    lists = getattr(policy, "_me_device_lists", None) or {}
-    if power.kind not in lists:
-        return absorbed_charges(policy, snapshot, power.sval) if power.kind == "staff" else 0
-    row = next((row for row in lists[power.kind][1] if row.get("name") in power.names), None)
+    row = observed_row(policy, power)
     if row is None:
-        return 0
+        return recorded_charges(policy, snapshot, power)
     if power.kind == "rod":
         charging, count = row.get("charging"), row.get("max")
         return count - charging if isinstance(charging, int) and isinstance(count, int) else 0
