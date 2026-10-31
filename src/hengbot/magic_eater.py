@@ -3,11 +3,12 @@
 from hengbot.model import TVAL_WAND
 from hengbot.claim_register import claims
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, is_absorption_device
+from hengbot.policy_constants import MAGIC_MISSILE_REASON
 
 
 MAGIC_MISSILE = 15  # sv-definition/sv-wand-types.h
 ABSORB_REASON = "magic-eater:absorb"
-MISSILE_REASON = "quest-strategy:ranged-fire:magic-eater"
+MISSILE_REASON = MAGIC_MISSILE_REASON
 
 
 @claims("quest-request")

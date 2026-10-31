@@ -469,6 +469,11 @@ SWARM_LOOKAHEAD = 3  # turns of incoming damage to sum for the swarm check
 COMBAT_OUTCOME_WINDOW = 300
 BREEDER_STALEMATE_TURN_LIMIT = 3000
 COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
+# The Magic-Eater's absorbed Magic Missile (magic_eater.MISSILE_REASON).
+MAGIC_MISSILE_REASON = "quest-strategy:ranged-fire:magic-eater"
+# Attacks the town arbiter treats as survival (owner 2026-10-31
+# 「生存の扱いにして数えない」): no errand budget, no owner retirement.
+TOWN_COMBAT_REASON_PREFIXES = ("melee", "ranged:", MAGIC_MISSILE_REASON)
 RESIST_FLAG_BY_ABILITY = {
     "free_action": 46,
     "resist_acid": 48,
