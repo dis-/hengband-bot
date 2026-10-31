@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
+from hengbot import magic_eater, me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -11611,6 +11611,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         floor_power = me_powers.power_key(self, snapshot, me_powers.FLOOR)
         if floor_power is not None:
             return floor_power
+        # Class 16's device policy table: an absorb_now device is absorbed on
+        # the spot when safe (me_device_policy, owner 2026-10-31).
+        floor_absorb = magic_eater.absorb_key(self, snapshot, physical_hostiles)
+        if floor_absorb is not None:
+            return floor_absorb
 
         quest_floor_recovery = self._town_producer_entry("_kill_quest_floor_recovery_key", lambda: self._kill_quest_floor_recovery_key(snapshot))
         if quest_floor_recovery is not None:

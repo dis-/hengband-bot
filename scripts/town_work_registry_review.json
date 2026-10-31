@@ -404,5 +404,8 @@
   ],
   "need:overweight-surplus:normal:0": [
     "overweight-surplus"
+  ],
+  "purchase:me-device:policy": [
+    "optional-buy"
   ]
 }

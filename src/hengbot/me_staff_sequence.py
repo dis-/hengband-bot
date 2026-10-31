@@ -53,13 +53,15 @@ the sequence to the other visited towns' Magic shops (Morivant first), one
 after another, before it mines for the restock (``_next_search_leg``).
 
 Extras (owner 2026-10-31 18h 「岩石溶解の魔法棒を入手したあと、資金に余裕がある
-ときにMAXまでチャージして取り込む。」): ``EXTRAS`` lists devices that are not a
-stage's purchase but are absorbed once carried.  A carried extra not yet
-absorbed rides along on any Tower visit (recharged to its maximum by the
-same 'a' and absorbed after the stage's staffs), and starts a Tower trip of
-its own only when the gold above what the stage still needs
-(``_stockout_target``, or the unmet supplies once every stage is complete)
-pays the expedition (``_extras_spare``); it never starts a fundraising run.
+ときにMAXまでチャージして取り込む。」, and the device policy table, owner
+2026-10-31 night): a carried, identified device the table charges first
+(``me_device_policy.charge_first``: an ``absorb_after_charge`` row, or the
+first copy of a stage kind that is not the current stage's own) rides along
+on any Tower visit (recharged to its maximum by the same 'a' and absorbed
+after the stage's staffs), and starts a Tower trip of its own only when the
+gold above what the stage still needs (``spare_gold``: ``_stockout_target``,
+or the unmet supplies once every stage is complete) pays the expedition
+(``_extras_spare``); it never starts a fundraising run.
 """
 
 from __future__ import annotations
@@ -73,7 +75,7 @@ from hengbot.magic_eater_devices import (
 )
 from hengbot.me_powers_refresh import KIND_LETTER, SEQUENCE_READ_REASON
 from hengbot.model import (
-    STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_STAFF, TVAL_WAND,
+    STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF,
 )
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
@@ -127,16 +129,6 @@ _FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200),
 # The Tower facts (rechargeable kinds, prices, building 8, the 'a' tail) live
 # in hengbot.morivant_tower, shared with the Q2 breach recharge.
 
-
-@dataclass(frozen=True)
-class Extra:
-    key: str      # its key in the record (absorbed, attempts, pending)
-    kind: str     # the power list's kind (cmd-magiceat.cpp)
-    tval: int
-    sval: int
-
-
-EXTRAS = (Extra("stone-to-mud", "wand", TVAL_WAND, SV_WAND_STONE_TO_MUD),)
 RECHARGE_ALL_REASON = "me-staff:recharge-all"
 RUMOR_BATCH_LIMIT = 10  # 400 rumors: a visible stop instead of an endless inn
 FUNDRAISE_RUN_LIMIT = 6
@@ -266,35 +258,34 @@ def absorbed_count(policy, sval) -> int:
 
 
 def extra_charges(policy, kind: str, sval: int) -> int:
-    """The charges absorbed from an extra, as the bot observed them."""
-    extra = next((each for each in EXTRAS if (each.kind, each.sval) == (kind, sval)), None)
-    return 0 if extra is None else absorbed_count(policy, extra.key)
-
-
-def _extra_absorbed(policy, snapshot, extra: Extra) -> bool:
-    """The power is in the displayed list or the bot saw it absorbed."""
-    from hengbot.me_absorbed_substitutes import POWERS, held
-
-    return held(policy, snapshot, POWERS[(extra.kind, extra.sval)])
+    """The charges absorbed from an extra (``me_device_policy.Device.key``)."""
+    return absorbed_count(policy, f"{kind}:{sval}")
 
 
 def carried_extras(policy, snapshot) -> dict:
-    """key -> the carried identified extra whose power is not absorbed yet."""
+    """key -> the carried identified device the table charges before absorbing.
+
+    The current stage's own staffs stay ``carried_staffs``.
+    """
+    from hengbot import me_device_policy
+
+    staffs = carried_staffs(policy, snapshot)
     found = {}
-    for extra in EXTRAS:
-        item = next((item for item in snapshot.inventory
-                     if (item.tval, item.sval) == (extra.tval, extra.sval)
-                     and item.aware and item.known), None)
-        if item is not None and not _extra_absorbed(policy, snapshot, extra):
-            found[extra.key] = item
+    for item in snapshot.inventory:
+        row = me_device_policy.device(item)
+        if (row is None or not (item.aware and item.known) or row.key in found
+                or row.key in staffs):
+            continue
+        if me_device_policy.charge_first(policy, snapshot, row):
+            found[row.key] = item
     return found
 
 
 def _short_of_max(item) -> bool:
     """The Tower's 'a' would add charges (building-recharger.cpp)."""
-    if item.tval == TVAL_STAFF:
+    if item.tval == TVAL_STAFF and item.sval in SEQUENCE_SVALS:
         return item.charges < max_charges(item.sval)
-    return morivant_tower.wand_charges_after_recharge(item) > item.charges
+    return morivant_tower.charges_after_recharge(item) > item.charges
 
 
 def stage_complete(policy, stage: Stage) -> bool:
@@ -403,10 +394,14 @@ def purchase_excluded(policy, snapshot, item) -> bool:
 
 
 def retains(policy, snapshot, item) -> bool:
-    """A bought staff stays carried until it is recharged and absorbed."""
+    """A bought staff (or a device the policy table still absorbs) stays
+    carried until it is absorbed."""
+    from hengbot import me_device_policy
+
     return applies(policy, snapshot) and (
         _unread_sequence_staff(policy, snapshot, item)
-        or (is_sequence_staff(item, policy) and not absorbed(policy, item.sval)))
+        or (is_sequence_staff(item, policy) and not absorbed(policy, item.sval))
+        or me_device_policy.awaits_absorption(policy, snapshot, item))
 
 
 # -- the shop: same hook points as the opening route's purchase ------------
@@ -617,17 +612,22 @@ def _stockout_target(policy, snapshot, supplies: int, unlocked: bool) -> int:
     return estimate + expedition
 
 
-def _extras_spare(policy, snapshot, unlocked: bool) -> bool:
-    """「資金に余裕があるとき」: the gold above what the stage still needs
-    (``_stockout_target``; the unmet supplies once every stage is complete)
-    pays the Tower expedition of its own (fares, the whole-pack recharge,
-    and the rumors while Morivant is locked)."""
+def spare_gold(policy, snapshot) -> int:
+    """「資金に余裕」: the gold above what the stage still needs
+    (``_stockout_target``; the unmet supplies once every stage is complete)."""
     supplies = supply_cost(policy, snapshot)
+    unlocked = morivant_tower.morivant_unlocked(snapshot)
     needs = (supplies if complete(policy)
              else _stockout_target(policy, snapshot, supplies, unlocked))
+    return snapshot.player.gold - needs
+
+
+def _extras_spare(policy, snapshot, unlocked: bool) -> bool:
+    """The spare gold pays the Tower expedition of its own (fares, the
+    whole-pack recharge, and the rumors while Morivant is locked)."""
     trip = (_expedition_cost(snapshot, 0) if unlocked
             else _rumor_expedition_cost(snapshot, 0))
-    return snapshot.player.gold >= needs + trip
+    return spare_gold(policy, snapshot) >= trip
 
 
 def _note_searched(policy, snapshot) -> None:

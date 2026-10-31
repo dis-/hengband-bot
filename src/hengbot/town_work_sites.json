@@ -1637,7 +1637,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e548210a95018ca5e305ed13bc245a7fd32105b6ee06607fe1308d28076db64e"
+    "ast_sha256": "643f32c4a6e3c985b9735eae1b968811a7c020a909982bf958713c7f5b0cecce"
   },
   "magic_eater.py:planned_throw_key": {
     "classification": "dungeon-only",
@@ -1654,14 +1654,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "db82cad68882ca4fc9dad014cb2eaa4aaccc85732490cadbc391812f41e14d44"
-  },
-  "magic_eater_devices.py:is_absorption_device": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selector input; no independent command or success",
-    "ast_sha256": "8abfee8a4026eee1160376c339b6d976c46d193155258c4fae039948c3594696"
   },
   "magic_eater_devices.py:is_mana_food_ware": {
     "classification": "data",
@@ -1824,6 +1816,54 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "28a4034f13ca6e23997d598b65a6cab10bce72ce0593475002506b46f8ca8c7c"
+  },
+  "me_device_policy.py:Device.key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bf1ca4a31e17882ffc2baed896ef57a269638524bf7fa9bf974760f2598ec817"
+  },
+  "me_device_policy.py:Device.kind": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "7771bb3a29a9bf2bd81a1e51691527fa0a3f09659d16af0762d0cbd6f3b88dc1"
+  },
+  "me_device_policy.py:absorb_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "8f59e9291843e7d1e9ec82b2ce9c715f5e6a334274f3322493bed2d8fc51bacc"
+  },
+  "me_device_policy.py:device": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "c0ac5086d2be2f337ffc1559f5e938879c4242b81f1420493fd9dfd6cdd5bb4c"
+  },
+  "me_device_policy.py:devices": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "177b95bc1311f984c58d8a2da6e0b563620245b214e864c1181cd6c862ad790c"
+  },
+  "me_device_policy.py:purchase_wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "63ee81f2aa86bf0e1b8aa2a2dda53a9bdd1bf9c4a95b9bdebe53ed06e30d2535"
   },
   "me_powers.py:Power.key": {
     "classification": "data",
@@ -2798,7 +2838,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "97253173040fa1f3e04fc2a999e22653223dce40f6d442e904aa84704ae513ad"
+    "ast_sha256": "97bddad5a412f0ec53c7cdda83810b86eb6b25b08629d709241f8f8b35488442"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -7494,7 +7534,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "7a4764086fb4dd06faf465b33240cd04301b6fdc47f4e41279396ea86d22589c"
+    "ast_sha256": "e040d065e70d5a11110e0e70262c47b9da70ba920c4bfd81e150c1807ce52ec1"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
     "classification": "data",
@@ -7584,7 +7624,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "dac3f371b03dfd296bf5129436227833d69fe812bce41e8c148ccf7a7f96a0cf"
+    "ast_sha256": "acb7fcb502fd8bd227c5a2ae94a106da9d50c53bd93e42356466a42f1097c0ba"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.match": {
     "classification": "data",

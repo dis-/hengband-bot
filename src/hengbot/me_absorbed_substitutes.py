@@ -39,13 +39,14 @@ owner's prompts from ``POWERS`` exactly like a me_powers use.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from hengbot import me_powers
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_staff_sequence import POWER_NAMES, SV_STAFF_LITE, absorbed_count as recorded_count
 from hengbot.me_staff_sequence import cast_blocked, max_charges
-from hengbot.model import SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_STAFF
+from hengbot.me_device_policy import devices
+from hengbot.model import SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_STAFF, TVAL_WAND
 
 
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
@@ -56,9 +57,10 @@ CHARGES = "charges"
 LIGHT = me_powers.BY_KEY[("staff", SV_STAFF_LITE)]
 IDENTIFY = me_powers.Power("staff", SV_STAFF_IDENTIFY, POWER_NAMES[SV_STAFF_IDENTIFY],
                            "identify", 0, 0, ())
-# BaseitemDefinitions id 273 (岩石溶解の魔法棒); wand_effect's stone_to_mud is aimed.
-STONE_TO_MUD = me_powers.Power("wand", SV_WAND_STONE_TO_MUD, ("岩石溶解", "Stone to Mud"),
-                               "stone-to-mud", 0, 0, (), aimed=True)
+# The device policy table's row (BaseitemDefinitions id 273); wand_effect's
+# stone_to_mud is aimed.
+STONE_TO_MUD = replace(devices()[(TVAL_WAND, SV_WAND_STONE_TO_MUD)].power,
+                       effect="stone-to-mud", aimed=True)
 
 
 @dataclass(frozen=True)
