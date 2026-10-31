@@ -22,7 +22,7 @@ from unittest.mock import patch
 
 from hengbot.cli import _ExecutorInputPort
 from hengbot.input_context import (
-    INPUT_CONTEXT_SHADOW_NAME, InputContextShadow, current_input_state,
+    INPUT_CONTEXT_SHADOW_NAME, InputContextShadow, compatible_kinds, current_input_state,
     read_input_context, stop_line_fields,
 )
 from hengbot.input_executor import (
@@ -161,6 +161,34 @@ class RecordedScreensKeepTheirClassification(unittest.TestCase):
         self.assertEqual(current_input_state(with_context(confirm, None)).verdict, "no-context")
         store = with_context(command_screen(), {"kind": "command", "prompt": "", "shopping": True})
         self.assertEqual(current_input_state(store).verdict, "disagree")
+
+
+class NewContextKindsTest(unittest.TestCase):
+    """Game develop 92e9029a adds the spell, building, file and birth contexts.
+
+    DECLARED CONSTRUCTED: the published contexts (tools/bot/README.md
+    "input_context" at 92e9029a) on recorded screens of the matching kind.
+    """
+
+    def test_recorded_screens_agree_with_the_new_kinds(self):
+        screens = {}
+        for name, screen in recorded_screens():
+            screens.setdefault(classify_screen(screen).kind, (name, screen))
+        cases = (
+            (ScreenKind.BUILDING, {"kind": "building", "prompt": ""}),
+            (ScreenKind.UNKNOWN, {"kind": "spell", "prompt": "どの呪文を唱えますか?",
+                                  "first_label": "a", "last_label": "h", "list": False,
+                                  "browse": False, "menu": False}),
+            (ScreenKind.UNKNOWN, {"kind": "file",
+                                  "prompt": "[キー:(RET/スペース)↓ (-)↑ (?)ヘルプ (ESC)終了]"}),
+            (ScreenKind.UNKNOWN, {"kind": "birth", "prompt": "性別を選んで下さい", "step": "sex"}),
+        )
+        for kind, context in cases:
+            name, screen = screens[kind]
+            with self.subTest(context=context["kind"], fixture=name):
+                self.assertEqual(current_input_state(with_context(screen, context)).verdict, "agree")
+        file_context = read_input_context({"input_context": {"kind": "file", "prompt": ""}})
+        self.assertIn(ScreenKind.FILE_VIEWER, compatible_kinds(file_context))
 
 
 class ExecutorRecordsWithoutDeciding(executor_harness.ProductionHarness):
