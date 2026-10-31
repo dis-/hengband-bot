@@ -144,6 +144,19 @@ class DeathReturnRecordedTest(RecordedHarness):
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(READ_PROMPT)],
                                    following), ["r", recall.slot])
 
+    def test_blindness_is_cured_before_the_unseen_recall_walk(self):
+        policy, raw = self.replay("death-blind", 1713414)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertTrue(board.player.blind)
+        self.assertTrue(board.player.recalling)
+        key = decide(policy, raw)
+        cure = policy._find_status_cure_potion(board)
+        self.assertEqual(policy.last_reason, "item:cure-critical")
+        self.assertEqual(key, "q" + cure.slot)
+        following = self.later(raw)
+        self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(QUAFF_PROMPT)],
+                                   following), ["q", cure.slot])
+
 
 if __name__ == "__main__":
     unittest.main()

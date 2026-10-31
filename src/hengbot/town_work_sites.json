@@ -4643,7 +4643,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "755b6b4bf9c99203955af19e2cd672b9b83523e9077e5fffe0fc2c37c1b6adb7"
+    "ast_sha256": "916c2316c92fa0a7921975497d2a3b1794f09e9ad7a31905c3a301b9c2f3a512"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -9059,6 +9059,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "bc97ab02677388fcdb5b50d4d0e9675941ae45526245c950c67258cbbdc05feb"
+  },
+  "status_cure.py:status_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "f035535f6b8e133d2e7d51cba0e78aef415c62ba7425945c1eb994892f0965ad"
   },
   "summoner_wait.py:hold_key": {
     "classification": "action",
