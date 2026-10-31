@@ -23,8 +23,12 @@ floor coordinates and the game's floor seed (original-tiles.cpp floor_seed).
 else null. A cell whose terrain the map has never shown but which has a
 found_items row (an item the player detected) gets terrain 0 (NONE) and the
 first found stack; gold is absent from found_items, so such a gold-only cell
-stays empty. The Original32 tiles (tiles=3/4) select item pictures from it; the
-5-field palette entries stay unchanged for the 8x8/16x16 page code.
+stays empty. Monster races come from visible_monsters and detected_monsters
+by their own (y, x), so telepathy/detection monsters are drawn too; one on
+floor the map has never shown also gets terrain 0 (NONE). The page's screen
+glyph check stays the authority for every cell. The Original32 tiles
+(tiles=3/4) select item pictures from palette_ext; the 5-field palette
+entries stay unchanged for the 8x8/16x16 page code.
 Nothing in the decision path imports this module.
 """
 
@@ -187,9 +191,21 @@ def spectator_tiles(state: Mapping[str, object], screen: Mapping[str, object],
     cells = {(cell["y"], cell["x"]): cell
              for cell in state.get("grid_map", {}).get("cells", ())}
     item_records = _found_item_records(state.get("grid_map", {}))
-    monsters = {monster["index"]: monster for field in
-                ("visible_monsters", "detected_monsters")
-                for monster in state.get(field, ())}
+    # Monsters by their own position: a cell's "m" exists only in direct view
+    # on mapped floor, while telepathy/detection monsters (detected_monsters)
+    # and ones seen on floor the map has not recorded are drawn too.
+    listed = [monster for field in ("visible_monsters", "detected_monsters")
+              for monster in state.get(field, ())]
+    by_index = {monster.get("index"): monster for monster in listed}
+    by_position = {(monster.get("y"), monster.get("x")): monster for monster in listed}
+
+    def race_at(y, x):
+        # A record without a position is still found through the cell's "m",
+        # which the game emits only on mapped floor.
+        monster = by_position.get((y, x)) or (
+            by_index.get(cells.get((y, x), {}).get("m"), {}) if (y, x) in terrain else {})
+        race = None if hallucinated or monster.get("hallucinated") else monster.get("race_id")
+        return race if type(race) is int and race > 0 else None
     player = state.get("player", {})
     hallucinated = player.get("status", {}).get("hallucinated", False)
     player_pos = (player.get("y"), player.get("x"))
@@ -210,17 +226,16 @@ def spectator_tiles(state: Mapping[str, object], screen: Mapping[str, object],
                 # draws the item over unknown terrain (NONE, ID 0), so copy the
                 # first found stack. Gold is not listed in found_items.
                 found = item_records.get((y, x))
-                if hallucinated or found is None or not found[0]:
+                found = None if hallucinated or found is None or not found[0] else found
+                race = race_at(y, x)
+                if race is None and found is None:
                     row.append(None)
                     continue
-                row.append(index_of((UNKNOWN_TERRAIN, 0, None, found[0][0], False,
-                                     _top_item_identity(found, found[0]))))
+                row.append(index_of((UNKNOWN_TERRAIN, 0, race, found and found[0][0], False,
+                                     found and _top_item_identity(found, found[0]))))
                 continue
             cell = cells.get((y, x), {})
-            monster = monsters.get(cell.get("m"), {})
-            race = None if hallucinated or monster.get("hallucinated") else monster.get("race_id")
-            if type(race) is not int or race <= 0:
-                race = None
+            race = race_at(y, x)
             tvals = cell.get("t", ())
             tval = tvals[0] if tvals and not hallucinated else None
             identity = (None if tval is None or (y, x) not in item_records
