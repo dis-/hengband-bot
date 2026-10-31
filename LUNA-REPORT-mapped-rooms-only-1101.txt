@@ -1,0 +1,132 @@
+LUNA-REPORT mapped-rooms-only-1101（周辺感知の後は部屋だけ見て回る、#47）
+
+所有者: 「周辺感知を取り込んだあとはマップを全マス捜索する必要はまったくない。もう少し効率化できないだろうか」
+決定（2026-11-01）: 「部屋だけ見て回る」
+ブランチ: mapped-rooms-only-1101（main 04ad2c6d2 から。最後に main c326f0fd6 を取り込み済み）
+診断: LUNA-DIAG-mapped-rooms-only-1101.txt
+
+== 1. 原因 ==
+感知の後の盤面は、壁・ドア・階段が見え、床は空白のまま（map_area は床を覚えない。
+spell-kind/spells-floor.cpp）。探索の2つの目標がどちらも空白の床を「未探索」と読んでいた。
+ a. 「歩ける床を一度は踏む」: policy_navigation.py:1724-1731（main）。訪問数 0 の見えた床を全部目標にする。
+    明るい部屋の床や行き止まりの奥（隣が全部感知した壁でフロンティアでないマス）も1マスずつ踏みに行った。
+    証拠: life-080 Angband 4F ターン 560863、(3,94) から '8','8' で行き止まり (1,94) へ入り、
+    隠し扉の捜索 8 回と breakout で戻った（2回目のセッションの決定 237-248）。
+ b. 「フロンティア」: policy.py:20434-20513（main。_is_frontier と _is_remembered_frontier）。
+    隣が _marked_t に無ければ未探索。空白の通路の入口はいつもフロンティア、閉じたドアと瓦礫は隣に
+    関係なく常にフロンティア。
+ c. 経路は見えた床（_floor_t）の上だけを通るので、通路の先へ行くにも通路を1マスずつ見る必要があった。
+費用: 4F の決定 2622 回のうち探索 2082 回、そのうち 2080 回が感知の範囲の中（感知 12 回）。
+
+== 2. 部屋と通路の見分け方 ==
+盤面に CAVE_ROOM は無い。ゲームの事実として、範囲内で地図に出ないマスは歩ける床
+（REMEMBER を持たない地形は FLOOR・床に見える隠れた罠・DIRT・GRASS・GLASS_FLOOR だけで、
+すべて MOVE。lib/edit/TerrainDefinitions.jsonc）。
+「空白か見えた床」のうち、開いた隣が5つ以上のマス（me_powers.OPEN_SPACE_NEIGHBOURS、暗い部屋の
+判定と同じ読み方。部屋の縁のマスは床の隣が5つ、ダンジョンの通路は幅1）とその開いた隣を部屋、
+残りの空白を通路とする。プレイヤーが地図から読める情報だけを使う（公平）。
+記録の盤面（ターン 549703）で、行き止まり (11,98)-(11,103)、西への出口 (6,97)-(6,99) は通路、
+柱のある暗い部屋 (4,110) などは部屋と読まれることを試験で確かめた。
+
+== 3. 設計と置き場所 ==
+新しいモジュール src/hengbot/mapped_area.py（1か所に集めた）:
+ - SOURCES: この階の訪問で感知を使った位置と半径を返す関数の表。今は me_powers.mapped_areas だけ
+   （成功した map-area の使用。半径は 30、DARKNESS か不明なら 10）。巻物・ロッドを使うようになったら
+   関数を1つ足すだけ。
+ - refresh: 感知が増えた時だけ、その盤面から範囲（disc）と通路の空白を作り直す。クエストの階・地上は対象外。
+ - MappedArea.explored: 通路の空白と、範囲内のすでに見えたマス（探索済み）。
+ - MappedArea.walkable: 経路に入れてよい通路の空白（見えたマス・ぶつかって壁と分かったマスを除く）。
+航行側が見るのは3か所だけ:
+ - policy_navigation._build_grid_index: walkable を _floor_t に、explored を _marked_t に足す。
+ - policy_navigation._plan_explore_path_pass: 範囲内のマスには「一度は踏む」の目標を作らない。
+ - policy._passage_hides_ground: 範囲内の閉じたドア・瓦礫は、隣に未探索がある時だけフロンティア。
+まだ見えていない部屋の空白だけが未探索として残るので、その隣（入口か中）まで行って中を見れば終わる。
+暗い部屋は今までどおり明かりで見えるまで歩く（品物は明かりの中でしか見えない）。範囲の外へ続く
+通路の端はフロンティアのまま残るので、残りの探索は地図の外と階段へ向かう。
+降下の接近（policy_navigation._descent_step の地図の外への接近）は、盤面に無い通路の空白も
+フロンティアとして読む（_is_remembered_frontier を使う。盤面にあるマスでは今までと同じ判定）。
+これが無いと、感知の後に階段への接近がすぐ失効した（ターン 561131 で再現）。
+階段を探す判断・クエストの階・見えた品物の拾い・危険の扱いは変えていない。感知の無い階も同じ。
+
+== 4. 節約の測定（記録した階） ==
+life-080 Angband 4F、1回目の感知（ターン 549598、(6,127)）の直後の盤面（ターン 549703）から、
+main の規則と新しい規則で探索の担当（_explore_step）だけを動かして比べた。世界は、この訪問の最後の
+盤面（ターン 576283）で分かっている階と、1回目の感知の範囲の空白の床。視界は明かりの半径2で、
+部屋は全部暗いとした（明るい部屋は入口から見えるので、新しい規則に不利な条件）。敵と品物は無し。
+                         main の規則   新しい規則   差
+ 範囲の中の歩数              1388          770      -618（-45%）
+ 探索が尽きるまでの全歩数    1686         1060      -626（-37%）
+ 範囲内の未見の部屋 251 マスを見終えた歩数  417  640（新しい規則は先に地図の外へ行き、後で戻る）
+どちらも範囲内の部屋のマスを全部見た。main の規則は明るい開始の部屋も1マスずつ歩き、
+行き止まり (11,98)-(11,103) にも入った。新しい規則は開始の部屋を1列だけ通り、行き止まりに入らない。
+実際の記録では、この感知の後の 176 回の探索の大半が開始の部屋と隣の部屋の1マスずつの歩きだった。
+材料と再現の台本: C:\hengband-backups\pdca\captures\n1c-mapping-1101\life-080-4f\
+（life-080-4f-boards-and-decisions.jsonl.gz、sim.py、render.py、showtrace.py。観戦用サーバからは
+読み取りだけで取得）。
+1判断あたりの負担: 感知を足した時の作り直しは約 14 ms（5回分の範囲）、普段の判断では差が無い
+（_build_grid_index 約 7-8 ms で同じ）。
+
+== 5. コミット ==
+ - 3f62847c6 Explore only the unseen rooms of a magic-mapped area
+ - 64e79c673, 41d76e4b1 Merge main into mapped-rooms-only-1101（main の me-tower-trips と D55 を取り込み）
+ - （この報告と診断のコミット）
+
+== 6. 試験（記録した盤面、公開の choose_key と本番の executor） ==
+tests/test_mapped_rooms_1101_recorded.py（固定データ tests/fixtures/mapped-rooms-1101.json.gz、
+抽出 tests/extract_mapped_rooms_1101.py）
+ - test_mapped_dead_end_is_not_walked（ターン 560863）: 行き止まり (1,94)(2,94) へ踏み込まない。
+   executor で送れる。副試験: 感知の無い階、範囲の外の感知だけの時は今までどおり '8' で入る。
+ - test_seen_mapped_room_is_not_swept_and_unseen_room_is_looked_into（ターン 549703）:
+   見えた開始の部屋のマスを目標にせず、まだ見えていない部屋の隣（閉じたドア (8,119)）へ向かう。
+   副試験: 部屋と通路の読み分け、感知の無い時は開始の部屋を1マスずつ歩く。
+ - test_descent_approach_reads_the_mapped_corridor（ターン 561131）: 感知の後も階段 (29,40) への
+   接近が approach-descent で続き、失効しない。
+宣言した構成: 2回目のセッションは再起動（05:01:40）で感知の記録を失っていたので、記録の me-power の
+行から使用を入れた（ゲームの地図には感知した壁が残っていた）。ターン 560863 では記録の行のとおり
+降り階段を失効させた。生きていたプロセスが持っていた技能の知識を与えた。
+直しを戻すと失敗する確認:
+ - 探索の規則（_build_grid_index の追加、訪問の目標、ドアの規則）を戻す:
+   test_mapped_dead_end_is_not_walked: (2, 94) unexpectedly found in {(2, 94), (1, 94)}
+   test_seen_mapped_room...: (2, 123) unexpectedly found in {開始の部屋のマス}
+ - 降下の接近の1行を戻す:
+   test_descent_approach_reads_the_mapped_corridor: 'explore' != 'approach-descent'
+既存の試験の期待値の変更: なし。試験の壁: なし。
+
+== 7. 検査 ==
+ - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+ - checks.json の試験（82 の異なる ID）と追加の試験、main を取り込んだ後に6回に分けて実行:
+   104 + 79 + 73 + 101 + 65 + 67 = 489 件、すべて OK
+ - 探索・航行の関係の試験（test_exploration_commitment_observation, test_exploration_persistence,
+   test_floor_dwell_seen_floor_recorded, test_fundraise_upstairs_explore_recorded, test_navigation,
+   test_policy_navigation, test_return_explore_for_stairs, test_return_oscillation_explore）: 251 件、
+   失敗 3 件は test_policy_navigation.TownTravelerCombatPriorityTest（町の友好的な敵を攻撃する古い期待値）で、
+   main 04ad2c6d2 でも同じく失敗する（この変更とは無関係。checks.json には入っていない）。
+ - town-work の生産者は変えていない（town_work_review.json の追記は不要）。
+
+== 8. 保守性 ==
+ - 新しい振る舞いは mapped_area.py の1か所: 感知の範囲、部屋と通路の読み分け、探索済みと通れるマスの集合。
+   感知の出どころは表 SOURCES（巻物・ロッドは関数を1つ足すだけ）。航行側は3つの入口だけを呼ぶ。
+ - しきい値の新設なし: 部屋の判定は me_powers.OPEN_SPACE_NEIGHBOURS を使い、半径の /3 は
+   me_powers.Context.radius に引数を足して使う（写しを置かない）。効果の名前は me_powers.MAP_AREA の1つ。
+ - _is_frontier と _is_remembered_frontier に同じ隣の調べ方が2回書かれていたのを
+   _borders_unexplored の1つにまとめ、ドアと瓦礫の規則は _passage_hides_ground の1つにした。
+ - 方策に __init__ の属性を足していない（mapped_area.current は getattr の既定値 None）。
+   復元したチェックポイントは感知の無い階と同じに振る舞う。
+ - 関係のない整理はしていない。policy.py は +9 行（隣の調べ方の統合で一部相殺）。
+
+== 9. checks.json の案（編集していない） ==
+{"id": "D56-mapped-rooms", "tests": ["tests.test_mapped_rooms_1101_recorded"]}
+（今の checks.json は D53・D55 まであり D54 は無い。並行の枝の分の可能性があるので、番号は取り込み時に合わせてください）
+
+== 10. 所有者への質問 ==
+1. ボットの再起動で感知の記録が消える（me_powers の階の記録はメモリだけ）。life-080 では 05:01:40 の
+   再起動で5回分を失い、次の感知はターン 563571 だった。感知の位置を探索の台帳
+   （exploration_ledger、再起動をまたいで残る）に保存してよいか。
+2. 感知した通路の空白は、探索だけでなく全部の歩き（階段への道、資金稼ぎ、逃げる道）で通れる床として
+   使われる。階段が感知の範囲にあれば、地図の外への接近ではなく実際の道で向かう。これでよいか。
+3. 幅1の小部屋（物置）は行き止まりと読まれて覗かない。幅2の通路は部屋と読まれて今までどおり歩く。
+   これでよいか。
+4. 範囲の中の行き止まりへ行かなくなるので、そこでの隠し扉の捜索もしなくなる（4F では行き止まりで
+   8回の捜索をしていた）。階段が隠し扉の先にしか無い時は、既存の捜索の手段に任せる。これでよいか。
+5. 今の感知の出どころは魔道具術師の杖だけ（ボットは周辺感知の巻物・ロッドを使っていない）。
+   他の職業にも広げるなら、それらを使う規則を別に決める必要がある。
