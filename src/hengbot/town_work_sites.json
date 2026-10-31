@@ -2018,7 +2018,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "bfdfa3dd714c8d918751ebe3d03bf1e90fb20505a758de65e652ab9f7f8707dc"
+    "ast_sha256": "0457386e2c5775ce54c5a22a011defdbb9a55de70f57144b57f084182a6a02fe"
   },
   "me_powers.py:recorded_charges": {
     "classification": "data",
@@ -2977,7 +2977,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "97bddad5a412f0ec53c7cdda83810b86eb6b25b08629d709241f8f8b35488442"
+    "ast_sha256": "d0dd9ca6d9815b156b228bdee4b5ae4735099b6b1e3a8cc8878436ee1611c75d"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",

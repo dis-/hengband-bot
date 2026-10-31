@@ -11398,11 +11398,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # square here as well, otherwise a remembered loot target can
                 # immediately route back into it when the monster flickers out
                 # of view, producing a seek-loot/flee two-cell oscillation.
-                if self._predicted_damage(
-                    snapshot, strategic_hostiles, turns=3
-                ) >= (
-                    player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
-                ):
+                if self._is_material_threat(snapshot, strategic_hostiles):
                     self._claim_engagement_avoid_cells(
                         (snapshot.player.position,)
                     )
@@ -11564,9 +11560,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # 19F, three fast monsters at distance two were already worth 57% of
         # current HP over three turns; ordinary exploration then stepped into
         # their pack and turned them into a five-monster surround.
-        if strategic_hostiles and self._predicted_damage(
-            snapshot, strategic_hostiles, turns=3
-        ) >= player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO:
+        if strategic_hostiles and self._is_material_threat(snapshot, strategic_hostiles):
             step = self._town_producer_entry("_flee_step#3", lambda: self._flee_step(snapshot, strategic_hostiles))
             if step is not None:
                 # This is the same navigation veto as the projected-melee gate

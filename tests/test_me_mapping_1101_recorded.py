@@ -12,15 +12,24 @@ the next 5 minutes explored without mapping again, because the trigger
 ``stairs-needed-and-unknown`` counted the expired stair as known while descent
 refused it (``expired-or-ineligible-downstairs``).
 
+life-065, Yeek cave 1F (decisions 6468-6494, owner 2026-11-01 「脅威でなければ
+感知する」): an asleep level-1 monster stayed in view from the arrival, the
+common gate refused every power while a hostile was visible, and the visit
+ended without mapping.  Mapping is now cast while the visible hostiles are not
+dangerous by the combat ladder's own judgement; the other powers keep the gate.
+
 DECLARED CONSTRUCTED: the absorbed staff list (5 charges each; the recorded
 rows cast detect-evil, detect-traps, map-area and lite-area); the earlier uses
 on the floor are seeded from the recorded me-power rows; the ledger expiry of
 (16,33) is set from the recorded refusal (decision 1928 left approach-descent
-for explore) instead of replaying the 32 stalled approach decisions.
+for explore) instead of replaying the 32 stalled approach decisions; the
+dangerous case on the life-065 board wakes the recorded monster and gives its
+race a ranged attack worth the whole HP.
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
 import copy
+from dataclasses import replace
 import gzip
 import json
 from pathlib import Path
@@ -36,6 +45,7 @@ from tests import test_me_stage2_powers as stage2
 FIXTURE = Path(__file__).parent / "fixtures" / "me-mapping-1101.json.gz"
 STAIR = Position(16, 33)
 MAP_AREA = "me-power:stairs-needed-and-unknown:map-area"
+ARRIVAL_MAP = "me-power:new-floor:map-area"
 
 
 def _harness(name):
@@ -65,8 +75,8 @@ class MagicEaterMappingRecordedTest(mining.harness.ProductionHarness):
         raw["_magic_eater_power_list"] = stage2.staff_list(stage2.staff_rows())
         return raw
 
-    def policy(self, raw):
-        policy = HengbotPolicy(monrace_knowledge=dict(self.races))
+    def policy(self, raw, races=None):
+        policy = HengbotPolicy(monrace_knowledge=dict(races or self.races))
         policy.prime(parse_snapshot(raw, policy._monrace_knowledge))
         return policy
 
@@ -114,6 +124,50 @@ class MagicEaterMappingRecordedTest(mining.harness.ProductionHarness):
         self.assertPower(policy, key, mapping.letter, MAP_AREA)
         self.assertEqual(policy._usable_downstairs(board), set())
         self.cast(policy, raw, key, stage2.staff_rows())
+
+    @staticmethod
+    def floor_power(policy, snapshot):
+        """me_powers' answer on a fresh floor visit (no earlier uses)."""
+        me_powers.observe(policy, snapshot)
+        return me_powers.power_key(policy, snapshot, me_powers.FLOOR)
+
+    def test_life065_harmless_visible_monster_maps_on_arrival(self):
+        # The 1F visit: arrival (turn 4665358) to the ascent (4665638).
+        rows = [row for row in self.data["life-065"]["rows"] if 4665358 <= row["turn"] <= 4665638]
+        # Recorded: the monster in view from the arrival kept every power
+        # back; detect-evil came only when nothing was visible and the visit
+        # ended (ascend) without map-area.
+        in_view = [row for row in rows if row["visible_hostiles"]]
+        powers = [row for row in rows if row["reason"].startswith(me_powers.REASON + ":")]
+        self.assertFalse(any(row["reason"].startswith(me_powers.REASON) for row in in_view))
+        self.assertEqual([(row["decision_sequence"], row["reason"], row["visible_hostiles"]) for row in powers],
+                         [(6487, "me-power:new-floor:detect-evil", 0)])
+        self.assertEqual(rows[-1]["reason"], "fundraise:ascend")
+        raw = self.board("life-065")
+        policy = self.policy(raw)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual(len(policy._physical_hostiles(board)), 1)
+        mapping = me_powers.BY_KEY[("staff", stage2.MAPPING)]
+
+        key = self.choose(policy, raw)
+        self.assertPower(policy, key, mapping.letter, ARRIVAL_MAP)
+        self.cast(policy, raw, key, stage2.staff_rows())
+
+        with self.subTest("dangerous visible hostile: no power"):
+            dangerous = copy.deepcopy(raw)
+            for monster in dangerous["visible_monsters"]:
+                monster["asleep"] = False
+            races = dict(self.races)
+            races[21] = replace(races[21], max_ranged_damage=board.player.max_hp)
+            policy = self.policy(dangerous, races)
+            snapshot = parse_snapshot(dangerous, policy._monrace_knowledge)
+            self.assertTrue(policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)))
+            self.assertIsNone(self.floor_power(policy, snapshot))
+        with self.subTest("just hit: no power"):
+            policy = self.policy(raw)
+            self.assertEqual(self.floor_power(policy, board), mapping.key)
+            policy._took_damage = True
+            self.assertIsNone(self.floor_power(policy, board))
 
 
 if __name__ == "__main__":

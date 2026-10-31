@@ -30,7 +30,9 @@ rung, the rest rung and the secret-wall search rung).  Adding a power is one
 row; adding a condition is one predicate and its name in a row.
 
 Common rules (approved): never while a hostile is visible or the character
-was just hit, never with 0 charges (the last list the game displayed, else
+was just hit (a row marked ``beside_harmless`` is also cast while every
+visible hostile is harmless by the combat ladder's danger judgement, owner
+2026-11-01 「脅威でなければ感知する」), never with 0 charges (the last list the game displayed, else
 the absorption record), never in town or the wilderness, and a failed use is
 retried for the same trigger at the same place on the same floor until
 ``FAILURES_PER_PLACE`` failures (owner 2026-10-31 「最大5回まで同じ場所で試す」).
@@ -42,6 +44,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Callable
 
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -103,6 +106,7 @@ class Power:
     requires: tuple[str, ...] = ()
     darkness_scaled: bool = True  # radius / 3 in a DARKNESS dungeon
     aimed: bool = False           # me_device_attacks_input asks no direction
+    beside_harmless: bool = False  # also while the visible hostiles are not a threat
 
     @property
     def ident(self) -> tuple:
@@ -125,7 +129,7 @@ POWERS = (
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           "map-area", DETECT_RAD, 30, ("new-floor", "stairs-needed-and-unknown"),
-          fallback=("staff", SV_STAFF_DETECT_DOOR)),
+          fallback=("staff", SV_STAFF_DETECT_DOOR), beside_harmless=True),
     Power("staff", SV_STAFF_DETECT_DOOR, POWER_NAMES[SV_STAFF_DETECT_DOOR],
           "detect-doors-stairs", DETECT_RAD, 40, ("before-secret-search",)),
     Power("staff", SV_STAFF_LITE, POWER_NAMES[SV_STAFF_LITE],
@@ -182,6 +186,14 @@ class Context:
         if power.darkness_scaled and self.darkness():
             return power.radius // 3
         return power.radius
+
+    @cached_property
+    def hostile_visible(self) -> bool:
+        return bool(self.policy._physical_hostiles(self.snapshot))
+
+    @cached_property
+    def threat_visible(self) -> bool:
+        return visible_threat(self.policy, self.snapshot)
 
 
 def game_distance(a: Position, b: Position) -> int:
@@ -362,9 +374,23 @@ def _gate(policy, snapshot) -> bool:
         and not snapshot.in_town and not snapshot.on_open_wilderness
         and snapshot.dungeon_level > 0 and snapshot.store is None
         and not (player.blind or player.confused or player.hallucinated or player.paralyzed)
-        and not policy._physical_hostiles(snapshot)
         and not getattr(policy, "_took_damage", False)
     )
+
+
+def visible_threat(policy, snapshot) -> bool:
+    """A visible hostile the combat ladder judges dangerous: an unresisted
+    confusion/paralysis attacker (status-threat rung), a reason to flee
+    (flee rung) or a material threat (threat:reposition rung)."""
+    hostiles = policy._physical_hostiles(snapshot)
+    return bool(hostiles) and bool(
+        policy._unresisted_melee_status_threats(snapshot, hostiles)
+        or policy._should_flee(snapshot, hostiles, policy._physical_adjacent_hostiles(snapshot))
+        or policy._is_material_threat(snapshot, hostiles))
+
+
+def _hostiles_allow(ctx, power) -> bool:
+    return not ctx.hostile_visible or (power.beside_harmless and not ctx.threat_visible)
 
 
 def observe(policy, snapshot) -> None:
@@ -415,6 +441,8 @@ def power_key(policy, snapshot, occasion: str) -> str | None:
         return None
     ctx = Context(policy, snapshot, occasion, memory)
     for power in sorted(POWERS, key=lambda each: each.priority):
+        if not _hostiles_allow(ctx, power):
+            continue
         for name in power.triggers:
             trigger = TRIGGERS[name]
             if occasion not in trigger.occasions or not trigger.due(ctx, power):
