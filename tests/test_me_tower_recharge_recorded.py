@@ -96,6 +96,9 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         policy.consume_skill_knowledge(self.case["skill_knowledge"])
         policy.consume_home_knowledge(
             _parse_items(self.case["home_knowledge"]["knowledge"]["items"], protocol=3))
+        # DECLARED CONSTRUCTED: this process already read the game's staff
+        # power list (me_staff_sequence.read_powers, #47).
+        sequence.state(policy).powers_read = True
         return policy
 
     def decide(self, policy, raw):

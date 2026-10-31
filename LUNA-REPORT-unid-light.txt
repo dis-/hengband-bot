@@ -1,0 +1,96 @@
+#47 報告: 鑑定前の {並} の光源と Q34 で拾った品を付ける（n1-c life-055）
+
+結論
+- 直した。所有者の決定 2026-10-31「並なら付けて良い。加えてQ34習得品も付けて良い。」と
+  「Q34で拾った品を覚える必要があるなら銘を刻むこと」のとおり。ほかの鑑定前の装備の決まりは変えていない。
+- 記録の盤面（松明が尽きて光の半径 0、真鍮のランタン {並} を持っている）で、最適化がランタンを選び、
+  自宅を出た次の盤面で 'wf' で装備する。装備した後に外したり松明に戻したりしない。
+- Q34 の階で拾った鑑定前の装備には、ゲームの銘の命令で「Q34」と刻む。後でこの銘で見分けて、
+  鑑定せずに装備の候補にする。ボットの中に別の記録は持たない。
+- 魔道具術師（職業 16）の光源の {並} は、戦士の武器・防具と同じ重い擬似鑑定で付く。
+  Q-B の判定（C 画面に不運の突然変異が無い）はそのまま使える（詳しくは LUNA-DIAG-unid-light.txt 3）。
+
+変えた決まり（詳しくは LUNA-DIAG-unid-light.txt）
+- Q-B の判定はコードに無かった（設計 DESIGN-junk-1b-1022.md の 1b-3 は未着手）。設計の判定
+  「_mutation_signature が None でなく 92 を含まない」を
+  src/hengbot/equipment_optimizer.py:172 average_feeling_trusted() として1か所に作った。2つ目は作っていない。
+- equipment_optimizer.py:262 OwnedEquipment.unidentified_wear_allowed（新しい）:
+  鑑定前の品のうち、(a) 光源で感じが {並} で Q-B が成り立つもの、(b) 銘に Q34 があり、感じが
+  呪い・壊れ（broken/terrible/worthless/cursed）でないもの。
+  279 evaluable と 285 identification_incomplete がこれを使う（exploration_legal は evaluable に従う）。
+- equipment_optimizer.py:589 OwnedEquipmentCatalog.set_average_feeling_trusted と、品を作る3か所:
+  目録が Q-B の答えを各品に持たせる。policy.py:7563 が判断ごとに C 画面の一覧から答えを渡す。
+  568 最適化の記憶の鍵にも unidentified_wear_allowed を足した（答えが変われば探し直す）。
+- policy_equipment.py:803 取引の欄を待たせる判定と 4056 _equipment_wield の identify-first の門:
+  選ばれた鑑定前の品で、付けてよいものは通す（3508 _selected_unidentified_wearable）。
+- policy_helpers.py:285 _is_disposable_item: {並} の品でも、選ばれた組が鑑定前のまま付ける品なら
+  不要品にしない（一番よい光源の間は売らない・壊さない）。選ばれていなければ今までどおり。
+- quest_navigator.py:93 _q34_inscription_key（新しい）、265 decide から呼ぶ:
+  Q34 の階で、その階の最初の判断の時に持っていなかった鑑定前の装備に「Q34」を刻む。
+  持ち物は '{' + 文字、装備中は '{/' + 欄の文字（既存の reserved_item_command）。今の銘があれば
+  HEAVY_CURSE と同じく "\x05 " で末尾に足す。1品1回だけ送る。隣に敵がいる時は刻まない
+  （銘の命令はゲームの時間を使わないが、戦い・逃げ・回復を先にする）。
+- scripts/town_work_review.json に新しい2つの関数の点検の項を足し、scripts/town_work_manifest.py --write
+  で作り直した（zero unmapped、0 violation）。
+
+Q34 の品の見分け方と範囲
+- 見分け方: ゲームの中の銘「Q34」（item.inscription、名前の {...} にも出る）。銘は画面に出るものなので公平。
+- 「拾った」の判定: その階の最初の判断の時に持っていた鑑定前の装備は対象にしない（名前の末尾の {..} を除いた
+  種類と名前で比べる。感じが後から付いても同じ品と分かる）。外の町から持ち込んだ品に Q34 と刻まない。
+  クエストの途中でボットを再起動すると、それより前に拾って刻んでいない品は刻まれない（安全側）。
+- 範囲: 所有者の言葉は光源に限らないので、Q34 で拾った鑑定前の装備すべて。ゲームの source を確かめたところ、
+  Q34 の品は呪いにならない（固定の品と箱の中身は AM_GOOD、デスソードの落とす剣は素の剣）。
+  それでも、呪い・壊れの感じが付いた品は付けない。
+
+検査
+- 新しい検査: tests.test_unid_light_recorded（11件）
+  記録の盤面（n1-c life-055 の state-tail.jsonl 35・36 行目、自宅の中と出た後）を公開の choose_key に通し、
+  自宅を出るキーと装備のキーを本番の実行器（_send_decision_key_with_prompt_chain）で送る。
+  C 画面は同じキャラの記録（state-head.jsonl 21 行目、mutations []）。
+  Q34 の銘は 2026-10-16 の記録の Q34 の開始の盤面（q34-opening-oil-20261016、75392/75402/75413）を
+  公開の choose_key に通し、銘のキーを本番の実行器と銘の2つの問い（品の選択・「銘: 」）で送る。
+  変えた盤面はテストの中に DECLARED CONSTRUCTED と書いた。
+  - test_fixture_pins_the_dark_torch_and_the_unworn_average_lantern: 記録の固定
+  - test_average_lantern_is_worn_when_the_torch_is_out: 欠陥の検査
+  - test_selected_average_lantern_is_not_disposable: 欠陥の検査（売却・処分との整合）
+  - test_lantern_picked_up_on_q34_is_inscribed_then_worn: 欠陥の検査（銘 → 装備）
+  - test_q34_inscribed_items_are_worn_unidentified: 欠陥の検査（Q34 の銘の光源と手袋）
+  - 対照: test_control_without_a_seen_mutation_list_the_lantern_is_not_worn（C 画面を見ていない）、
+    test_control_bad_luck_mutation_keeps_the_lantern_off（不運 92）、
+    test_control_unidentified_light_without_the_average_feeling_is_not_worn（感じの無い光源）、
+    test_control_average_non_light_is_not_worn（{並} の手袋。腕の欄は空いているが付けない）、
+    test_control_q34_item_sensed_cursed_is_not_worn（Q34 の銘でも {呪い} は付けない）、
+    test_control_unidentified_item_carried_into_q34_is_not_inscribed（持ち込んだ品には刻まない）
+- 直す前に戻して流した結果（src の差分を git diff で保存、git checkout -- src、流す、git apply で戻す）:
+  1acb3b27c の src で 11件中 5件が失敗・エラー:
+  test_average_lantern_is_worn_when_the_torch_is_out（None != [('equip', 'light')]）、
+  test_selected_average_lantern_is_not_disposable（True is not false）、
+  test_lantern_picked_up_on_q34_is_inscribed_then_worn（('wd', equip-opening-lantern) != ('{dQ34\r', q34-inscribe-pickup)）、
+  test_q34_inscribed_items_are_worn_unidentified（KeyError 'light'）、
+  test_control_average_non_light_is_not_worn（KeyError 'light'。手袋の対照は通るが、同じ盤面でランタンを
+  選ぶことも確かめているため）。
+  残りの対照5件と記録の固定は直す前も後も通る。直した後は 11件とも通る。
+- 流したもの: import の確認（通過）、checks.json の検査（このブランチにある 34 モジュール）、新しい検査。
+  checks.json の 178 件と新しい検査 11 件、合わせて 189 件すべて通過（直す前の同じ 178 件も通過）。
+  town_work_manifest.py の確認も 0 violation。
+  checks.json の tests.test_q2_tower_recharge_recorded と tests.test_town_work_observer_recorded は
+  別の発注先のブランチにしか無いので流せない。
+- 期待値を変えた既存の検査は無い。壁（テストの迂回）も無い。
+- 抜き出し: tests/extract_unid_light_fixture.py -> tests/fixtures/unid-light-20261031.json.gz
+
+コミット
+- f2df445ed Wear an unidentified average light when no bad luck is seen（{並} の光源と Q-B の判定）
+- 82b718786 Inscribe Q34 pickups and wear them unidentified（Q34 の銘と見分け）
+- この報告と診断のコミット
+
+残っていること・所有者への問い
+- 鑑定前のランタンは燃料が見えない（0 と読む）。資金稼ぎの階では、油が出発の目標を下回ると光源の古い担当が
+  鑑定前のランタンを松明に替える（記録の決定 939 fundraise:wield-light）。町では最適化がランタンに戻すので、
+  1回の出発で1往復の付け替えになりうる。今回は変えていない（燃料の扱いは別の決まり）。直すなら別の発注で。
+- 最適化は光源の質（ランタン > 松明）を光の半径より先に比べるので、Q-B が成り立つ {並} のランタンは
+  燃料のある松明より先に選ばれる。所有者の「付けて良い」の範囲と考えたが、松明が尽きた時だけにしたい場合は教えてほしい。
+- Q34 の箱の中身は固定アーティファクトが理屈の上で出うる（AM_NO_FIXED_ART が無い）。呪いの感じが付く前に
+  拾った鑑定前の品は、Q34 の銘で付けてしまう。浅い階でまず出ないので、今は扱っていない。
+
+checks.json に足す項（自分では足していない）
+{"id": "UNID-LIGHT", "owner": "2026-10-31 「並なら付けて良い。加えてQ34習得品も付けて良い。」「Q34で拾った品を覚える必要があるなら銘を刻むこと」 (n1-c life-055, branch unid-light-1031)", "tests": ["tests.test_unid_light_recorded"]}

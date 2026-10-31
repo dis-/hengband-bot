@@ -799,7 +799,8 @@ class EquipmentMixin:
             if (
                 (owned.origin == "home"
                  and self._item_signature(owned.item) in self._deferred_home_items)
-                or self._equip_blocked_by_identification(owned.item)
+                or (self._equip_blocked_by_identification(owned.item)
+                    and not owned.unidentified_wear_allowed)
                 or self._needs_random_teleport_suppression(owned, selected_ids)
             )
             and owned.id != getattr(current.item_at(slot), "id", None)
@@ -3510,6 +3511,29 @@ class EquipmentMixin:
         )
         return no_worse and strictly_better
 
+    def _selected_unidentified_wearable(
+        self, item: InventoryItem | StoreItem
+    ) -> bool:
+        """Whether the optimizer's selected loadout wears this unidentified item.
+
+        Owner 2026-10-31 allows some unidentified items to be worn
+        (``OwnedEquipment.unidentified_wear_allowed``); while one is selected
+        the identify-first gate does not refuse it and it is not junk.
+        """
+        if item.known:
+            return False
+        best = getattr(getattr(
+            self._equipment_optimization_preparation, "result", None), "best", None)
+        loadout = getattr(best, "loadout", None)
+        if not isinstance(loadout, Loadout):
+            return False
+        identity = equipment_identity(item)
+        return any(
+            owned.unidentified_wear_allowed
+            and equipment_identity(owned.item) == identity
+            for _, owned in loadout.slots
+        )
+
     def _equipment_disposal_reserved(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem
     ) -> bool:
@@ -4035,6 +4059,7 @@ class EquipmentMixin:
         if (
             not quest_contract_exempt
             and self._equip_blocked_by_identification(item)
+            and not self._selected_unidentified_wearable(item)
             and not (
                 target_slot == "light"
                 and goal == "light-loadout"

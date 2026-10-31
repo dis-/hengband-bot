@@ -5,10 +5,14 @@ from __future__ import annotations
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from enum import Enum
+import re
 from typing import Any
 
+from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
+from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
 from hengbot.policy_constants import (
+    EQUIPMENT_SLOT_KEY,
     POST_CLEAR_PICKUP_ATTEMPT_LIMIT,
     QUEST_STATUS_TAKEN,
     WAIT_KEY,
@@ -39,6 +43,16 @@ RANGED_VANTAGE_DIRECTIONS = (
     (-1, -1), (-1, 0), (-1, 1), (0, -1),
     (0, 1), (1, -1), (1, 0), (1, 1),
 )
+Q34_QUEST_ID = 34
+
+
+def _unidentified_identity(item: Any) -> tuple[int, int, str]:
+    """A carried unidentified item's identity, stable when a feeling appears.
+
+    The display name gains ``{並}`` (a pseudo-ID feeling) or an inscription
+    block later; strip trailing brace blocks so the item stays the same one.
+    """
+    return (item.tval, item.sval, re.sub(r"(\s*\{[^{}]*\})+\s*$", "", item.name))
 
 
 @dataclass
@@ -48,6 +62,12 @@ class QuestFloorNavigator:
     phase: QuestPhase = QuestPhase.ENTER
     allow_deep_water: bool = False
     allow_diagonal: bool = False
+
+    # Unidentified equipment carried when the Q34 floor was first decided, and
+    # the items already sent the inscription.  Class defaults keep restored
+    # checkpoints without these attributes on the old behaviour.
+    q34_carried_before = None
+    q34_inscription_sent = frozenset()
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -67,6 +87,58 @@ class QuestFloorNavigator:
         self.sweep_turns = 0
         self.post_clear_pickups = 0
         self.opened.clear()
+        self.q34_carried_before = None
+        self.q34_inscription_sent = frozenset()
+
+    def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
+        """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.
+
+        Owner 2026-10-31: 「Q34習得品も付けて良い」 and 「Q34で拾った品を覚える
+        必要があるなら銘を刻むこと」.  The game's inscription is the record the
+        equipment optimizer reads later (``q34_item_tagged``); the bot keeps no
+        private list.  An item counts as picked up here when it was not carried
+        at the first decision on this floor (a restart mid-quest therefore
+        leaves earlier pickups untagged).  Inscribing takes no game time
+        (cmd-item.cpp do_cmd_inscribe uses no energy); it still waits while a
+        monster is adjacent.  Each item is sent the command once.
+        """
+        if self.quest_id != Q34_QUEST_ID:
+            return None
+        carried = [
+            *((item, False) for item in snapshot.inventory),
+            *((item, True) for item in snapshot.equipment),
+        ]
+        unidentified = [
+            (item, worn) for item, worn in carried
+            if item.is_equipment and not item.known and not q34_item_tagged(item)
+        ]
+        if self.q34_carried_before is None:
+            self.q34_carried_before = frozenset(
+                _unidentified_identity(item) for item, _ in unidentified
+            )
+            return None
+        if adjacent:
+            return None
+        for item, worn in unidentified:
+            identity = _unidentified_identity(item)
+            if identity in self.q34_carried_before or identity in self.q34_inscription_sent:
+                continue
+            address = EQUIPMENT_SLOT_KEY.get(item.slot) if worn else None
+            if worn and address is None:
+                continue
+            kind = "inscribe-equipped" if worn else "inscribe"
+            prefix = reserved_item_command(
+                owner, snapshot, kind, item, "quest-launcher", address=address
+            )
+            if prefix is None:
+                continue
+            self.q34_inscription_sent = self.q34_inscription_sent | {identity}
+            # An existing inscription opens in overwrite mode; Ctrl-E moves to
+            # its end in insert mode first (the heavy-curse marker does the same).
+            text = ("\x05 " if item.inscription else "") + Q34_ITEM_TAG
+            owner.last_reason = "quest-strategy:q34-inscribe-pickup"
+            return prefix + text + "\r"
+        return None
 
     @staticmethod
     def enter_from_town(owner: Any, snapshot: Snapshot, quest_id: int) -> str | None:
@@ -190,6 +262,9 @@ class QuestFloorNavigator:
             return owner._direction_key(snapshot.player.position, owner._weakest(adjacent).position)
         if completed and self.phase in {QuestPhase.ENTER, QuestPhase.EXECUTE}:
             self.phase = QuestPhase.SWEEP
+        inscription = self._q34_inscription_key(owner, snapshot, adjacent)
+        if inscription is not None:
+            return inscription
 
         if self.phase == QuestPhase.EXECUTE:
             action = owner._quest_execute_key(snapshot, hostiles, adjacent)

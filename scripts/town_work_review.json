@@ -9526,6 +9526,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_navigator.py:QuestFloorNavigator._q34_inscription_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by active quest floor predicate; see evidence.",
+    "evidence": "_choose_key obtains profile = approved_quest_strategy(snapshot.floor_key[2]); navigator.decide only runs under if profile is not None, requiring an approved nonzero quest id. decide owns _sweep/_exit and invokes _quest_execute_key; its Q2 helpers execute only under that active profile. _approved_quest_strategy_key is an uncalled compatibility probe (no production caller). Generated caller/predicate evidence pins each link. enter_from_town is a separately mapped town producer. _q34_inscription_key (owner 2026-10-31, #47) is called only from decide and returns None unless the navigator's quest_id is 34: it inscribes Q34 on unidentified equipment picked up on the Q34 floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_navigator.py:QuestFloorNavigator._static_path": {
     "classification": "data",
     "rows": [
@@ -11489,6 +11500,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "quest_navigator.py:_unidentified_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _unidentified_identity returns a (tval, sval, name) tuple used as input/observation, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
     "classification": "data",
     "rows": [
@@ -12278,10 +12300,11 @@
       "rumor",
       "cross-town",
       "fundraising",
-      "store-approach"
+      "store-approach",
+      "browse"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), extended 2026-10-31 by stage 2 (Trap, Door/Stair, Detect Evil, Enlightenment, Light staffs: same steps, shelf-by-shelf buys, one me-staff:stage<N>-complete WAIT per completed stage), delegated by the existing _opening_q34_town_key owner. Each step is a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption; failures persist a named detail and return the empty envelope.",
+    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), extended 2026-10-31 by stage 2 (Trap, Door/Stair, Detect Evil, Enlightenment, Light staffs: same steps, shelf-by-shelf buys, one me-staff:stage<N>-complete WAIT per completed stage), delegated by the existing _opening_q34_town_key owner. Each step is a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption; failures persist a named detail and return the empty envelope. #47 2026-10-31: before any staff trade a new process reads the game's staff power list with the turn-free browse 'bA' (me-staff:read-powers, bounded by ATTEMPT_LIMIT, yields to a visible hostile); while a partial-buy stage's missing staffs are off the observed shelves the carried staffs go to the Tower first (owner 「持っている分を先に取り込む」). It yields (None) while an incomplete Home equipment session exists, whose route owner refuses other shops (#47 n1-c life-054 072115).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12297,7 +12320,7 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Starts one existing fundraising run whose gold objective is the explicit target; bounded by FUNDRAISE_RUN_LIMIT.",
+    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Starts one existing fundraising run whose gold objective is the explicit target; bounded by FUNDRAISE_RUN_LIMIT. Staff-stockout runs (restock waits) are counted by neither limit (#47, owner 2026-10-31).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12663,6 +12686,39 @@
     ],
     "context": "Possible town/store context: the Q2 Tower recharge's explicit fundraising targets.",
     "evidence": "Returns int only: morivant_tower's expedition (or rumor-phase) total plus the return fare the Telmora leg needs in hand (owner 2026-10-31 「モリバントからテルモラへ直行」); does not emit commands or claim progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:status_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Status treatment (blind/confused/cut) quaffing Cure Critical Wounds or Healing via reserved_item_command; shared by the combat status-cure rung and the unseen-recall blind cure (death 1, #47); consumers in generated manifest, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_sweep_target.py:engage_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: engage_step returns Position | None (the fixed-quest sweep's route step toward its kept or newly chosen mobile target) used as input by _approved_quest_strategy_key, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_sweep_target.py:committed_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: committed_step returns Position | None toward the kept sweep target, used as input, not an independently selected game action",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

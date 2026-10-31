@@ -9,7 +9,7 @@ heuristics while the Warrior formula is being completed.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cmp_to_key
 from hashlib import sha1
 import re
@@ -156,6 +156,39 @@ ABILITY_FLAG = {
 _INSCRIPTION_BLOCK = re.compile(r"\{[^{}]*\.[^{}]*\}")
 
 
+# PlayerMutationType::BAD_LUCK (src/mutation/mutation-flag-types.h): with it a
+# pseudo-ID feeling is swapped 1 time in 13 (simple-perception.cpp
+# sense_inventory_aux), so {average} may hide a cursed item.
+MUTATION_BAD_LUCK = 92
+# Feelings that say the item is cursed or broken (pseudo_value_check_heavy and
+# _light in simple-perception.cpp); such an item is never worn unidentified.
+BAD_PSEUDO_FEELINGS = frozenset({"broken", "terrible", "worthless", "cursed"})
+# The bot's own in-game inscription on equipment it picked up on the Q34 floor
+# (owner 2026-10-31: 「Q34で拾った品を覚える必要があるなら銘を刻むこと」).
+Q34_ITEM_TAG = "Q34"
+_Q34_TAG = re.compile(r"(?<![0-9A-Za-z])Q34(?![0-9A-Za-z])")
+
+
+def average_feeling_trusted(mutation_signature: Iterable[int] | None) -> bool:
+    """Owner Q-B (2026-10-22): trust {average} only without bad luck on screen.
+
+    「戦士の重い擬似鑑定の {並} を、壊すための鑑定の代わりにしてよい（不運の
+    突然変異が無いと画面で確かめられる時だけ）」.  ``mutation_signature`` is the
+    mutation list of the last ``C`` screen; ``None`` (not seen yet) is not
+    trusted.  Owner 2026-10-31 applies the same condition to wearing an
+    unidentified {average} light (「並なら付けて良い」).
+    """
+    return (mutation_signature is not None
+            and MUTATION_BAD_LUCK not in tuple(mutation_signature))
+
+
+def q34_item_tagged(item: EquipmentItem) -> bool:
+    """Whether the item carries the bot's in-game ``Q34`` inscription."""
+    return bool(_Q34_TAG.search(item.inscription or "")
+                or any(_Q34_TAG.search(block)
+                       for block in re.findall(r"\{[^{}]*\}", item.name)))
+
+
 def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
     """Return whether the player-visible inscription contains `{.}`.
 
@@ -218,24 +251,45 @@ class OwnedEquipment:
     origin: str  # equipped, pack, home, or store-simulation
     equipped_slot: str | None = None
     random_teleport_suppressed: bool = False
+    # average_feeling_trusted() of the catalog's last C screen (owner Q-B).
+    average_feeling_trusted: bool = False
 
     @property
     def flags(self) -> frozenset[int]:
         return self.item.known_flags
 
     @property
-    def evaluable(self) -> bool:
-        if self.item.is_broken or self.item.is_cursed or not self.item.known:
+    def unidentified_wear_allowed(self) -> bool:
+        """An unidentified item the owner allows to be worn (2026-10-31).
+
+        「並なら付けて良い。加えてQ34習得品も付けて良い。」: a light source
+        sensed {average} while no bad luck is seen (Q-B), or an item inscribed
+        ``Q34`` on the Q34 floor that is not sensed cursed or broken.  Every
+        other unidentified item keeps the identify-first rule.
+        """
+        item = self.item
+        if item.known or item.pseudo_feeling in BAD_PSEUDO_FEELINGS:
             return False
-        return True
+        if (item.tval == TVAL_LITE and item.pseudo_feeling == "average"
+                and self.average_feeling_trusted):
+            return True
+        return q34_item_tagged(item)
+
+    @property
+    def evaluable(self) -> bool:
+        if self.item.is_broken or self.item.is_cursed:
+            return False
+        return self.item.known or self.unidentified_wear_allowed
 
     @property
     def identification_incomplete(self) -> bool:
         # An average pseudo-ID is intentionally not worth an Identify charge.
         # It remains illegal for exploration and is handled by the ordinary
         # sale/destruction path, but must not block optimization forever.
+        # An item the owner allows to be worn unidentified is evaluable.
         if not self.item.known:
-            return self.item.pseudo_feeling != "average"
+            return (self.item.pseudo_feeling != "average"
+                    and not self.unidentified_wear_allowed)
         return (
             not self.item.fully_known
             and (
@@ -511,11 +565,15 @@ def optimizer_item_projection(owned: OwnedEquipment) -> tuple:
         item.is_equipment,
         item.ammo_tval,
         operational_equipment_candidate(owned),
+        owned.unidentified_wear_allowed,
     )
 
 
 class OwnedEquipmentCatalog:
     """Persistent carried gear plus the authoritative ``~9`` Home list."""
+
+    # Class default: a restored checkpoint without the attribute is untrusted.
+    average_feeling_trusted = False
 
     def __init__(self) -> None:
         self._carried: dict[str, OwnedEquipment] = {}
@@ -527,6 +585,20 @@ class OwnedEquipmentCatalog:
         self._home_deposit_intents: set[tuple] = set()
         self._home_withdrawal_intents: set[tuple] = set()
         self.home_scan_complete = False
+
+    def set_average_feeling_trusted(self, trusted: bool) -> None:
+        """Apply the owner Q-B condition of the latest C screen to every item."""
+        if trusted == self.average_feeling_trusted:
+            return
+        self.average_feeling_trusted = trusted
+        self._carried = {
+            item_id: replace(owned, average_feeling_trusted=trusted)
+            for item_id, owned in self._carried.items()
+        }
+        self._home = {
+            item_id: replace(owned, average_feeling_trusted=trusted)
+            for item_id, owned in self._home.items()
+        }
 
     def refresh_carried(
         self,
@@ -550,6 +622,7 @@ class OwnedEquipmentCatalog:
                     origin,
                     equipped_slot=item.slot if origin == "equipped" else None,
                     random_teleport_suppressed=random_teleport_is_suppressed(item),
+                    average_feeling_trusted=self.average_feeling_trusted,
                 )
         self._carried = carried
 
@@ -641,6 +714,7 @@ class OwnedEquipmentCatalog:
                 item,
                 "home",
                 random_teleport_suppressed=random_teleport_is_suppressed(item),
+                average_feeling_trusted=self.average_feeling_trusted,
             )
 
     def _update_staged_home_item(
@@ -695,6 +769,7 @@ class OwnedEquipmentCatalog:
             item,
             "home",
             random_teleport_suppressed=random_teleport_is_suppressed(item),
+            average_feeling_trusted=self.average_feeling_trusted,
         )
 
     def record_home_withdrawal(
