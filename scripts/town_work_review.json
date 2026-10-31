@@ -7461,6 +7461,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy_quest.py:QuestMixin._in_flight_fixed_quests": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: _build_fixed_quest_head and _quest_strategy_for_errand_or_floor select the taken (in-flight) fixed quest from it.",
+    "evidence": "Pure static helper: returns the taken fixed quests other than the win quests from a known-quest mapping; emits no command and claims no progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._quest_strategy_route_step": {
     "classification": "data",
     "rows": [
