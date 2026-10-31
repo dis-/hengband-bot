@@ -41,6 +41,7 @@ def constructed_state():
 SCREEN = {"height": 4, "width": 20, "lines": [" " * 20, " " * 20, " " * 14 + "@" + " " * 5, " " * 20]}
 EXPECTED = {
     "origin": [1, 13],
+    "map": [10, 20, 0, 0],
     "palette": [[1, 0, None, None, False], [2, 1, None, None, False],
                 [3, 2, None, None, False], [1, 0, 42, None, False],
                 [1, 0, None, 75, False], [1, 0, 43, None, False],
@@ -58,6 +59,7 @@ class SpectatorTilesTest(unittest.TestCase):
         shifted = dict(state, panel={"row_min": 11, "col_min": 21})
         self.assertEqual(spectator_tiles(shifted, dict(SCREEN, lines=[" " * 20, " " * 13 + "@" + " " * 6, " " * 20, " " * 20])), {
             "origin": [1, 13],
+            "map": [11, 21, 0, 0],
             "palette": [[1, 0, None, None, True], [1, 0, None, None, False]],
             "rows": ["AB.....", "BB....."],
         })
@@ -187,6 +189,8 @@ class SpectatorTilesWriterTest(unittest.TestCase):
         state["player"].update(constructed_state()["player"])
         # No monster knowledge is needed for these constructed writer fields.
         snapshot = parse_snapshot(dict(state, visible_monsters=[], detected_monsters=[]), {})
+        # The recorded board's floor (dungeon level 45, no quest) seeds Original32 variants.
+        expected = dict(EXPECTED, map=[10, 20, 45, 0])
         with TemporaryDirectory() as directory:
             path = Path(directory) / "spectate.json"
             writer = SpectatorWriter(path, clock=lambda: 1000)
@@ -194,7 +198,7 @@ class SpectatorTilesWriterTest(unittest.TestCase):
                                            state_line=json.dumps(state), append_frame=True,
                                            defer_frame=True))
             written = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(written["tiles"], EXPECTED)
+            self.assertEqual(written["tiles"], expected)
             self.assertEqual(written["player"], {"race": "Zombie", "class": "Magic-Eater"})
             self.assertFalse(writer.frames_path.exists())
             # The state and screen used by the projection cannot be replaced by
@@ -207,7 +211,7 @@ class SpectatorTilesWriterTest(unittest.TestCase):
             writer.observe(snapshot, "6", "no-panel", 2, SCREEN,
                            state_line=json.dumps(state), append_frame=True)
             frame = json.loads(writer.frames_path.read_text(encoding="utf-8").splitlines()[-1])
-            self.assertEqual(frame["tiles"], EXPECTED)
+            self.assertEqual(frame["tiles"], expected)
             self.assertEqual(writer.tile_panel_counts, {"state": 1, "derived": 1})
             state["panel"] = {"row_min": 99, "col_min": 20}
             writer.observe(snapshot, "6", "mismatch", 3, SCREEN,

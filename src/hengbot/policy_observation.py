@@ -70,6 +70,9 @@ class ObservationMixin:
                 ),
                 "turn": envelope.get("turn"),
             }
+        # Viewer-only cache for the Original32 player picture (C screen title).
+        if isinstance(character.get("sex"), str):
+            self._spectator_sex_title = character["sex"]
         mutations = character.get("mutations")
         if mutations is not None:
             try:
