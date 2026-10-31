@@ -16,8 +16,7 @@ expired-or-ineligible-downstairs で断り、探索に譲る。そのため承�
 証拠: n1-c life-073 Angband 3F、決定 1880 に (7,61) で map-area、(16,33) の下り階段が見えた。1882-1927 は
 approach-descent、1928 から explore に変わった（失効）。決定 2000 まで down_stairs は [[16,33]] のまま、
 周辺感知は一度も使われなかった。
-(C:\hengband-backups\pdca\captures
-1c-mapping-1101\life-073-3f\decisions-3f.jsonl, board-510032.json)
+(C:\hengband-backups\pdca\captures\n1c-mapping-1101\life-073-3f\decisions-3f.jsonl, board-510032.json)
 直し: 降下の対象の絞り込みを policy_navigation.py の NavigationMixin._usable_downstairs に1つにまとめ、
 _descent_step と me_powers._stairs_known の両方がそれを使う（me_powers に条件の写しは置かない）。
 上りの場合: 上り階段の道筋（_nearest_goal_step(snapshot, self._is_upstairs_target)）と me_powers は
@@ -30,8 +29,7 @@ _descent_step と me_powers._stairs_known の両方がそれを使う（me_power
 証拠: n1-c life-065 Yeek cave 1F 18:16、到着（決定 6468、turn 4665358）から 6486 まで眠っている Lv1 の
 敵が1体見えていた。力は一つも使われず、6487（見えている敵 0）で邪悪存在感知だけを使い、
 6494 で上りへ戻った。この訪問では周辺感知を使っていない。
-(C:\hengband-backups\pdca\captures
-1c-mapping-1101\life-065-1foards-1f.json, decisions-1f.jsonl)
+(C:\hengband-backups\pdca\captures\n1c-mapping-1101\life-065-1f\boards-1f.json, decisions-1f.jsonl)
 直し:
 - me_powers.py の表 POWERS の Power に beside_harmless を足し、map-area の行だけ True にした。
 - me_powers.visible_threat: 見えている敵が、戦闘の梯子の既存の判定で危険かどうか。
