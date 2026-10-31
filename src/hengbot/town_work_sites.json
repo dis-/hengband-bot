@@ -3097,7 +3097,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "dea1bde0dc582223d9ffb06e948e36e00560e5e54492beb7648fc4a28fdd99f8"
+    "ast_sha256": "5ca8dc30cf2d56d21cf749611280d0fe61668697186cbc7b67f67a31393d915e"
   },
   "policy.py:HengbotPolicy._find_light": {
     "classification": "data",

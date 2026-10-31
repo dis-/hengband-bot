@@ -133,6 +133,33 @@ class Q14HealCureCriticalRecordedTest(executor_harness.ProductionHarness):
         self.post(policy, raw, key, following)
 
 
+    def test_q14_floor_heal_spends_the_carried_cure_critical_wounds(self):
+        """QUEST_14's heal_threshold_ratio heal picks from _find_heal_potion.
+
+        No Q14 floor was ever recorded (the quest was never requested), so
+        the recorded pack is DECLARED CONSTRUCTED onto the Q14 floor (Yeek
+        cave 5F, floor quest 14) at HP 100/222.  The selector is the one
+        every in-quest heal path calls (emergency:heal, item:heal).
+        """
+        policy, raw = self.recorded_policy()
+        hurt = copy.deepcopy(raw)
+        hurt["player"]["hp"] = 100
+        town = parse_snapshot(copy.deepcopy(hurt), policy._monrace_knowledge)
+        hurt["floor"].update(dungeon_id=2, level=5, quest_id=14, in_town=False)
+        quest_floor = parse_snapshot(hurt, policy._monrace_knowledge)
+        self.assertEqual(quest_floor.floor_key, (2, 5, 14))
+        # Cure Critical Wounds heals 6d8 (quaff-effects.cpp): it covers a
+        # 12-point turn and is the smallest such potion carried.
+        potion = policy._find_heal_potion(quest_floor, expected_damage=12)
+        self.assertEqual((potion.sval, potion.slot), (SV_POTION_CURE_CRITICAL, "d"))
+        # A turn above its 27 points still takes the Potion of Healing.
+        self.assertEqual(policy._find_heal_potion(quest_floor, expected_damage=40).sval,
+                         SV_POTION_HEALING)
+        # Off a Cure-Critical quest floor the heal set is unchanged.
+        self.assertEqual(policy._find_heal_potion(town, expected_damage=12).sval,
+                         SV_POTION_HEALING)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()

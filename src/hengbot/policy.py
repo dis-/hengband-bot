@@ -1250,8 +1250,10 @@ RESUME_DESCENT_BLOCK_DECISIONS = 16
 # Potion svals that restore HP (cure wounds / healing / life), from sv-potion-types.h.
 # Expected raw HP restored by the combat-healing potions.  Cure Serious is
 # 4d8; Healing and *Healing* are fixed in quaff-effects.cpp; Life restores to
-# full and is therefore capped dynamically by the current missing HP.
-HEAL_POTION_EXPECTED_HP = {35: 18, 37: 300, 38: 1200}
+# full and is therefore capped dynamically by the current missing HP.  Cure
+# Critical Wounds (6d8) heals only where a quest strategy names it as its
+# heal potion (_quest_floor_heal_svals).
+HEAL_POTION_EXPECTED_HP = {35: 18, 36: FIXED_QUEST_CURE_CRITICAL_HP, 37: 300, 38: 1200}
 TELEPORT_SCROLL_SVALS = frozenset({9, 10})  # teleport, teleport level
 
 
@@ -13039,16 +13041,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         raw = HEAL_POTION_EXPECTED_HP.get(item.sval, snapshot.player.max_hp)
         return min(raw, missing_hp)
 
+    def _quest_floor_heal_svals(self, snapshot: Snapshot) -> frozenset[int]:
+        """The heal potion the current quest floor's strategy carries.
+
+        QUEST_14 carries Cure Critical Wounds as its heal potions (owner
+        2026-10-31 「致命傷の治癒でよい」); its heal_threshold_ratio spends them.
+        """
+        profile = self.approved_quest_strategy(snapshot.floor_key[2])
+        if profile is None:
+            return frozenset()
+        return frozenset({heal_potion_sval(profile.required_force)})
+
     def _find_heal_potion(
         self, snapshot: Snapshot, *, expected_damage: int = 0
     ) -> InventoryItem | None:
+        svals = HEAL_POTION_SVALS | self._quest_floor_heal_svals(snapshot)
         candidates = [
             item
             for item in snapshot.inventory
             if item.slot
             and item.is_potion
             and item.aware
-            and item.sval in HEAL_POTION_SVALS
+            and item.sval in svals
             and self._healing_potion_effective_hp(snapshot, item)
             >= expected_damage
         ]
