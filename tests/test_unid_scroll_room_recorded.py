@@ -25,6 +25,7 @@ import copy
 from pathlib import Path
 
 from hengbot.model import STORE_ALCHEMIST, parse_snapshot
+from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 import tests.test_unid_deposit_recorded as recorded
 
 
@@ -55,16 +56,29 @@ class UnidentifiedScrollRoomRecordedTest(recorded.UnidentifiedDepositRecordedTes
         scroll = next(item for item in alchemist["items"] if item["name"] == "鑑定の巻物")
         self.assertLessEqual(scroll["price"], board.player.gold)
 
+    def beyond_recorded_pages(self, reason, key):
+        """Departure, or travel to a shop this visit never recorded a page of
+        (the constructed replies end there)."""
+        return reason.startswith(recorded.DEPARTURE) or (
+            key.startswith("\x1b`n") and len(key) > 3 and key[3] in TOWN_TRAVEL_STORE_SYMBOLS
+            and TOWN_TRAVEL_STORE_SYMBOLS.index(key[3]) not in self.pages)
+
     def test_waiting_equipment_is_shelved_and_the_scroll_bought(self):
         policy, raw = self.boundary()
-        self.drive(policy, raw, limit=60,
-                   done=lambda reason, key: any(kind == "identify" for kind, _ in self.events))
+        raw, _ = self.drive(policy, raw, limit=80, done=self.beyond_recorded_pages)
         kinds = [kind for kind, _ in self.events]
         deposited = next(name for kind, name in self.events if kind == "deposit")
         self.assertIn(deposited, WAITING)
         self.assertLess(kinds.index("deposit"), self.events.index(("buy", "鑑定の巻物")))
-        identified = next(name for kind, name in self.events if kind == "identify")
-        self.assertIn(identified, WAITING)
+        identified = [name for kind, name in self.events if kind == "identify"]
+        self.assertTrue(set(WAITING[1:]) <= set(identified), self.events)
+        # Every leaf the recorded stop failed is satisfied now (the freed
+        # slots also let Home hand back its 5-charge Identify staff).
+        board = policy.with_known_skill_exp(
+            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        failed = [name for name, ok in policy._town_departure_conjuncts(
+            board, commit=False).items() if not ok]
+        self.assertEqual(failed, [], self.events)
 
     # The inherited Identify-staff scenarios belong to the life-427 fixture.
     test_shelved_equipment_is_taken_back_and_identified_with_a_source = None
