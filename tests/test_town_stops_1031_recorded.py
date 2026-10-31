@@ -16,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _advance_town_blocked_iteration
+from hengbot import town_pack_headroom
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from tests import test_lv7_town_stop_recorded as lv7
@@ -254,6 +255,27 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         self.execute(policy, raw, key, following,
                      [executor_harness.prompt_screen(
                          "(持ち物:a-z, ESCで中断) どの薬を飲みますか?")], [raw], ["q", "c"])
+
+    def test_town3_refused_staff_purchase_shelves_surplus_at_home_first(self):
+        # n1-b life-276 09:00 (and life-274 02:34): the Magic shop sold an
+        # affordable Identify staff, but at 19/23 the non-stacking buy left
+        # fewer than four free slots; the headroom pass never began, the bot
+        # waited for a restock that changes nothing and stopped as
+        # departure-unsatisfiable.
+        policy, raw, decisions = self.replay("town3", 80, in_store=True)
+        magic = parse_snapshot(self.row("town3", 65), policy._monrace_knowledge)
+        self.assertEqual((magic.store.store_type, len(magic.inventory)), (5, 19))
+        self.assertTrue(any(item.tval == 55 and item.sval == 5
+                            for item in magic.store.items))
+        for index, (_, reason) in decisions.items():
+            with self.subTest(row=index):
+                self.assertFalse(reason.startswith("town:wait-restock"), reason)
+                self.assertNotEqual(reason, "town:blocked:departure-unsatisfiable")
+        self.assertTrue(town_pack_headroom.organizing(
+            policy, parse_snapshot(raw, policy._monrace_knowledge)))
+        key, reason = decisions[80]
+        self.assertEqual(reason, "home:atomic-deposit")
+        self.assertTrue(key.startswith("d"), key)
 
     def test_loop2_failed_torch_restore_is_not_rebuilt_from_another_stack(self):
         # n1-b life-276 06:42-06:46: the restore of the torch taken off the

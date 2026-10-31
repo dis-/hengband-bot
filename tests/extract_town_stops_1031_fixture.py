@@ -20,6 +20,11 @@ Cases:
   list), 124 and 126 (the town boards of decisions 2278 and 2279), 128 (the
   Alchemist entrance after the travel, turn 1113830) and the Alchemist pages
   129, 130 and 131 of decisions 2280-2282 (inscribe, sell, the stop).
+- ``town3``: n1-b life-276 ``20261031-090037-town-blocked-departure-unsatisfiable``.
+  Lines 51-80 (turns 1166895-1167692, the process restarted after the 09:00:19
+  stop): Home, the Magic shop page with the affordable Identify staves the pack
+  budget refused at 19/23, the Alchemist, the General store and Home again;
+  56 and 58 are the ``~f`` skill list and the Home list.
 - ``loop2``: n1-b life-276 ``20261031-064612-loop-detected``.  Lines 85-96
   (turns 540136-540240) beside Home, pack 19/23, a lantern worn and two torch
   stacks of one move identity carried.
@@ -71,6 +76,10 @@ CASES = {
     "key3": (
         "n1-a/life-447/captures/20261031-084215-no-key-exhausted",
         tuple(range(80, 91)),
+    ),
+    "town3": (
+        "n1-b/life-276/captures/20261031-090037-town-blocked-departure-unsatisfiable",
+        tuple(range(51, 81)),
     ),
     "loop2": (
         "n1-b/life-276/captures/20261031-064612-loop-detected",

@@ -9286,7 +9286,7 @@
       "store-approach"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "fc2f649f277975b5e426bf33f4f9d20fbeea5170fe1f0c20785c89ac560eb530"
+    "ast_sha256": "f8cea9dc66ec61f2ebfcff4d19d454929e1ae1b38b0ba1cbb22d074ba54c893b"
   },
   "town_pack_headroom.py:find_deposit": {
     "classification": "data",
@@ -9314,6 +9314,17 @@
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
     "ast_sha256": "dd364c0e798ed17db457ce5d5453cb8efc49e8404fad418545fbd2a7ac42fc07"
+  },
+  "town_pack_headroom.py:make_room_for_purchase": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "ac8136b770f6a8cf6643b78e85fbe27a3c2cfbd300bc6989655b4cc5df5a9320"
   },
   "town_pack_headroom.py:preservable": {
     "classification": "data",

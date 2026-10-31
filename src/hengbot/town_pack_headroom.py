@@ -230,6 +230,52 @@ def make_room_for_home_take(policy, snapshot):
         begin(policy, snapshot)
 
 
+def purchase_needing_room(policy, snapshot):
+    """The remembered supplier whose departure-blocking buy waits only on slots.
+
+    The pack budget refuses a non-stacking departure purchase at exactly the
+    reserve floor (n1-b lives 274 and 276, 2026-10-31: an affordable Identify
+    staff on the Magic shop shelf, four free slots).  The supplier counts only
+    when the same remembered page would sell that purchase once the stacks
+    this pass may shelve or sell are gone.
+    """
+    from dataclasses import replace
+    from hengbot.policy_constants import PACK_CAPACITY, MIN_TERMINAL_FREE_PACK_SLOTS
+    if (not snapshot.in_town
+            or PACK_CAPACITY - len(snapshot.inventory) != MIN_TERMINAL_FREE_PACK_SLOTS
+            or not eligible(policy, snapshot)):
+        return None
+    kept = tuple(item for item in snapshot.inventory
+                 if not preservable(policy, snapshot, item))
+    if len(kept) == len(snapshot.inventory):
+        return None
+    for store_type, stock in getattr(policy, "_town_supplier_stock", {}).items():
+        if store_type == STORE_HOME:
+            continue
+        page = replace(snapshot, store=stock)
+        if (policy._departure_blocking_page_purchase(page) is None
+                and policy._departure_blocking_page_purchase(
+                    replace(page, inventory=kept)) is not None):
+            return store_type
+    return None
+
+
+def make_room_for_purchase(policy, snapshot):
+    """Start the pass for a refused departure purchase; the supplier is re-armed.
+
+    The same pass as make_room_for_home_take (owner rule 2026-10-31 「自宅
+    にいるなら先に不要物を仕舞う」), started for a purchase instead of a take.
+    """
+    if organizing(policy, snapshot):
+        return None
+    store_type = purchase_needing_room(policy, snapshot)
+    if store_type is None:
+        return None
+    begin(policy, snapshot)
+    policy._rearm_town_store_for_new_work(store_type, release_visit_bound=True)
+    return key(policy, snapshot)
+
+
 def begin(policy, snapshot):
     """Remember the admitted inventory pass across observed transfers."""
     policy._pack_headroom_visit = (policy._town_visit_epoch, policy._effective_town_id(snapshot))
@@ -241,6 +287,9 @@ def early_key(policy, snapshot):
         return key(policy, snapshot)
     if may_begin(policy, snapshot):
         return begin_key(policy, snapshot)
+    room = make_room_for_purchase(policy, snapshot)
+    if room is not None:
+        return room
     if not policy._town_space_deposit_actionable(snapshot):
         return None
     from hengbot.policy_constants import PACK_CAPACITY
