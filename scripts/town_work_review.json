@@ -12806,7 +12806,7 @@
       "equipment-transaction"
     ],
     "context": "Dungeon-only: returns None in town and in a store (mining_loadout.rollback_key's first test); the town re-arm stays _town_restore_weapon_key.",
-    "evidence": "D45: one wield of the displaced combat weapon (remembered identity/name, cached optimizer winner, else the first usable melee weapon) through _equipment_wield with goal mining-loadout-rollback.",
+    "evidence": "D45: only while an awake hostile is in view (mining_loadout.awake, the strip's own predicate; owner 2026-10-31 a sleeper does not count), one wield of the displaced combat weapon (remembered identity/name, cached optimizer winner, else the first usable melee weapon) through _equipment_wield with goal mining-loadout-rollback.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "_equipment_wield; no independent progress"

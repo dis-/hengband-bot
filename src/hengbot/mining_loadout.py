@@ -16,14 +16,17 @@ only ever replaces a digger, and the executor refuses a combat-loadout
 request on the board the mining-loadout post left unchanged
 ("goal-already-superseded"), so an empty hand was never re-armed.
 
-This module owns both ends of that window, with one predicate (a hostile in
-view) so they can never alternate:
+This module owns both ends of that window, with one predicate (an awake
+hostile in view, ``awake``) so they can never alternate:
 
-- ``strip_allowed``: a combat hand is stripped only while no hostile is in
-  view (a mining run already waits MINING_THREAT_FREE_LIMIT quiet decisions);
-- ``rollback_key``: while a hostile is in view, an empty combat hand is
-  re-armed with the weapon the swap displaced before any fight producer takes
-  the turn.  Flight goes first (survival).  After a restart the remembered
+- ``strip_allowed``: a combat hand is stripped only while no awake hostile is
+  in view (a mining run already waits MINING_THREAT_FREE_LIMIT quiet
+  decisions, counted by the same predicate).  Owner 2026-10-31: 「眠っている
+  敵なら外してよい」 -- a hostile that is asleep does not keep the weapon on;
+- ``rollback_key``: while an awake hostile is in view, an empty combat hand
+  is re-armed with the weapon the swap displaced before any fight producer
+  takes the turn -- at once when a sleeping one wakes or one comes into view
+  awake.  Flight goes first (survival).  After a restart the remembered
   weapon is lost: the cached optimizer winner, else the first usable melee
   weapon carried (the established fallback of every re-arm), never a digger.
 
@@ -43,6 +46,11 @@ from hengbot.model import TVAL_SHIELD
 ROLLBACK_GOAL = "mining-loadout-rollback"
 REARM_REASON = "melee:rearm-empty-hand"
 STRIP_DEFERRED_REPORT = "mining-loadout:strip-deferred-hostile-in-view"
+
+
+def awake(hostiles) -> list:
+    """The hostiles that keep the combat hands on (every one not asleep)."""
+    return [monster for monster in hostiles if not monster.asleep]
 
 
 def worn_in_slot(snapshot, slot: str):
@@ -94,8 +102,8 @@ def restorable_item(policy, snapshot, slot: str, name, identity):
 
 
 def strip_allowed(policy, snapshot) -> bool:
-    """A combat hand may be emptied for the digger only with no hostile in view."""
-    return not policy._physical_hostiles(snapshot)
+    """A combat hand may be emptied for the digger only with no awake hostile in view."""
+    return not awake(policy._physical_hostiles(snapshot))
 
 
 def deferred_strip() -> EquipmentMutationResult:
@@ -137,7 +145,7 @@ def rollback_key(policy, snapshot) -> str | None:
     if snapshot.in_town or getattr(snapshot, "store", None) is not None:
         return None
     hostiles = policy._physical_hostiles(snapshot)
-    if not hostiles or not any(item.is_digging_tool for item in snapshot.inventory):
+    if not awake(hostiles) or not any(item.is_digging_tool for item in snapshot.inventory):
         return None
     target = _rearm_target(policy, snapshot)
     if target is None:

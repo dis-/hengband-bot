@@ -2127,7 +2127,7 @@
       "equipment-transaction"
     ],
     "delegation": "_equipment_wield; no independent progress",
-    "ast_sha256": "54ef09805a5e4994099a6819767df1becb5d3c440164ffba086765187cd6a9e3"
+    "ast_sha256": "a7b485535ed22c5e55fd3b8b6fbe5b4f1c71b69a7e3732dd38abc99ce6ebad11"
   },
   "mining_loadout.py:worn_in_slot": {
     "classification": "data",
