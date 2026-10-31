@@ -1,0 +1,180 @@
+LUNA-REPORT-fix-town-1031（#47、町の族の直し）2026-10-31
+ブランチ fix-town-1031（元 main 136eb3297、最後に main 8c62806a5 を取り込み済み）。push していない。
+診断: LUNA-DIAG-town.txt（町1〜3）、LUNA-DIAG-nokey.txt（鍵3）、LUNA-DIAG-loops.txt（輪2・輪4/5）、LUNA-DIAG-deaths.txt（死2）。
+
+検査項目はすべて tests/test_town_stops_1031_recorded.py（盤面は tests/fixtures/town-stops-1031.json.gz、
+作り方は tests/extract_town_stops_1031_fixture.py。記録の行をそのまま凍結し、行番号で盤面を名指しする）。
+どれも新しい方策に記録の盤面を順に公開の choose_key で通し、出したキーは本番の executor で送る
+（輪4/5 は走行側の見張りなので本番の _advance_town_blocked_iteration に記録の判断の行を通す）。
+「直す前に落ちる」確認は、その根の src の差分だけを戻して流し、戻した（下の「戻すと」）。
+
+======================================================================
+根ごとのまとめ
+======================================================================
+町1（n1-b life-276 08:44 owner-retired-burst）f7131f80e
+  根: policy_town.py の _town_result_makes_progress（元 1339-1355）。移動以外の命令は「位置を含まない指紋が
+      直近48手にあれば往復」と判定していた。自宅の2頁と外へ出る手で同じ指紋が入り、まだ一度も出していない
+      空腹の吸収 Ef が毎回 TOWN_OSCILLATION_DEFECT として錬金術師への歩きに書き換えられた。
+  直し: 各判断の始めの指紋と、その判断が最後に出したキーを組で覚え（_town_progress_command_history、
+      choose_key の出口で _town_progress_note_command）、「同じ状態から同じ命令をまた出した」時だけ往復とする。
+  検査: test_town1_first_absorb_after_home_is_not_an_oscillation（行105〜115、115で 'Ef' survival:mana-absorb）。
+      戻すと 1 件落ちる（defect:survival:mana-absorb=>approach）。
+  既存のテストの更新: test_town_progress_invariant の test_detector_fires_for_revisited_equipment_macro は
+      「指紋だけで往復」の旧仕様だったので、同じ (指紋, キー) を入れた時に検出、指紋だけなら進みと書き直した。
+
+輪4/5（n1-c life-057 08:34 / 08:45 loop-detected「town blocked … for 30 decisions」）feaeb8479
+  根: cli.py _advance_town_blocked_streak。town:blocked の1行で数え始め、以後は shop:leave 以外の全判断を +1。
+      町の '>' への44歩の歩き・逃げ回る町の敵との戦闘も数え、30 で止めた。
+  直し（数え方だけ）: 同じ claim の Reach の距離が縮む一歩と、戦闘・逃走・生存の判断（COMBAT_REASON_PREFIXES、
+      SURVIVAL_REASON_PREFIXES、town:kill-mob）は数えない。town:blocked:* と進みの無い埋め草は今まで通り数える。
+  検査: test_loops4_5_walk_and_fight_after_one_block_do_not_trip_the_fuse（記録の 3866〜3895、704〜733。
+      直した後の最大は 7 と 4）、test_repeated_blocks_between_the_recorded_walk_steps_still_trip_the_fuse
+      （town:blocked の連続と、距離の縮まない歩きは 30 で止まる）。戻すと 2 件（walk, fight）落ちる。
+
+町2（n1-b life-276 08:49 shop-required-operation-uncomposable）d0a176868
+  根: policy_instore.py _in_store_emit（元 543-552）。店の中の続きの選択（純粋な自宅の関門）が出発を止める買いを
+      選び、_shop（状態を持つ関門）が自宅優先の ESC（shop:home-first-before-purchase、自宅は再武装済み）を返した。
+      続きは shop:buy 系の ESC しか訪問の終わりと認めず、食い違いとして停止した。
+  直し: 2頁目以降では shop:home-first-before-purchase の ESC も訪問の終わり（shop:in-store-done）として受ける。
+      1頁目は今まで通り外での合成へ渡す。
+  検査: test_town2_home_first_leave_on_a_later_page_ends_the_entry（行121〜131、129 刻印・130 売却・131 で
+      in-store-done、その後の外の判断が town:blocked にならない）。戻すと 1 件落ちる。
+  再構成（明示）: 停止の記録は地下から始まるので、同じ life の前の記録（084418）の自宅の一覧（行113）と
+      錬金術師の棚（行108）を、それ以前に読んだ知識として与えた。
+
+死2 と life-050/053（n1-c の町での死）b51875db0
+  根: policy_town.py _town_kill_mob_key は友好の種族しか「勝てるか」を見ず、勝てない敵対の町の住人へ近づき、
+      最後に見た場所へも歩いた。噛まれると逃げの段が一歩離れ、次の盤面でまた近づく、の交互で死んだ。
+  直し（所有者の決定 10-31 のとおり。店への避難は入れない）:
+      1) 狩りは、決闘の見積もり（_duel_fight_viable、友好と同じ判定を _town_monster_unbeatable に一般化）で
+         勝てない町の敵には近づかず、最後に見た場所としても覚えない。
+      2) 町（出力の town_flag が真）で、回復の薬も逃げの巻物も持っていない時、逃げの段（flee）と緊急の段の
+         「階段が無い時の逃げの一歩」は、隣の攻撃者を殴る（town_last_stand.key、理由は既存の
+         flee:cornered-attack / emergency:cornered-attack）。
+  検査: test_death2_town_monster_it_cannot_beat_is_fought_not_hunted（行59〜66）、
+      test_death2_last_known_cell_of_an_unbeatable_monster_is_not_walked_to（行59〜66 と 104〜118 を続けて）。
+      戻すと 18 件（subTest）落ちる。
+  再構成（明示）: 記録に ~f と自宅の一覧が無いので、魔道具術師の初期値（ClassSkillDefinitions の class 16、
+      0/0）と空の自宅を与えた。馬（race 955）の知識は MonraceDefinitions.jsonc から凍結。
+  既存のテストの更新: test_policy_navigation の町の移動と狩りの順のテスト（TownTravelerCombatPriorityTest）は
+      武器の無い主人公と HP10 の敵で「必ず狩る」を前提にしていた。狩りは勝てる相手だけになったので、
+      剣を持たせ敵を HP1 にした（壁ではなく、正しい前提への更新）。
+  life-050/053: 記録は観戦機にしか無く、手元では確かめていない（同じ型と診断にある）。
+
+鍵3（n1-a life-447 store:entry-await-observation → no-key-exhausted）471cbb6e6
+  根: policy_shop.py _shopping_approach_key の歩きの代わり（元 6104-6106・6126-6131 と光源なしの枝）が、
+      _shopping_approach_step の返す「遠い目印そのもの」（町の移動コマンド用）を _step_toward に渡し、
+      錬金術師の入口から店の永久岩 (38,92) へ '3' を出した。時間が進まず盤面が来ず、到着待ちで止まった。
+  直し: approach_walk.walk_key。遠い目標は1マスだけ近づく方向に歩き、観測済みの通れないマスへは出さない
+      （未観測のマスは今まで通りの一歩）。あわせて、キーの無い段取り（_stage_shopping_approach_key に None）が
+      文字列 "None" を返していたのを None にした。
+  検査: test_key3_distant_store_landmark_is_never_walked_as_a_direction（行80〜90。'3' shop:approach を出さず、
+      90 の 'qc'（restore:quaff-str）を executor で送る）。戻すと 6 件落ちる。
+  未対応: 「時間の進まない一手の後、到着待ちを閉じる」側は直していない。壁へ出す一手が無くなったので今回の
+      止まりは起きないが、別の生産者が同じことをすれば同じ待ちになる（下の問い 3）。
+
+輪2（n1-b life-276 06:46 loop-detected）1ab873bdf
+  根: policy_equipment.py _abandon_blocked_equipment_transaction の絞り込み（元 1888-1901）。失敗した復元は
+      restore:<移動識別子> で覚えていたのに、絞り込みは同じ移動識別子の別の松明の山の記憶を見たので、
+      同じ復元を毎回作り直した（付けるには空き枠が要り、19/23 では町の枠の予算が必ず断る）。
+  直し: restore:<識別子> が失敗の記憶にある持ち主の品は、その訪問では復元を作り直さない。光源はランタンのまま。
+  検査: test_loop2_failed_torch_restore_is_not_rebuilt_from_another_stack（行85〜96）。戻すと 2 件落ちる。
+  再構成（明示）: 見張り機の policy-state.json の owned_items・failed_items（診断に引用の値）と、その盤面での
+      abandon の呼び出し。~f は戦士の初期値（class 0、4000/4000）、自宅は空。
+  未対応: 「今より光の半径が小さい光源へは復元しない」は入れていない（今回は上の直しで足りる）。
+
+町3（n1-b life-276 09:00 ×3、life-274 02:34 ×3 departure-unsatisfiable）根が2つ
+  (a) 6a037d02a 根: town_pack_headroom.may_begin（元 207-208）は予定の止まりが残っていると始まらず、
+      出発を止める買い（鑑定の杖）が枠の予算（空き4ちょうど）で断られても整理のパスが始まらなかった。
+      直し: purchase_needing_room / make_room_for_purchase。覚えている店の棚が「パスが預ける・売れる山を
+      除いた持ち物なら」出発を止める買いを売れる時、同じパスを始め、その店を再武装する（make_room_for_home_take と
+      同じ型、所有者の決まり 10-31「自宅では先に不要物を仕舞う」の延長）。early_key（既存の入口）から呼ぶ。
+      追加 3ca1f0325: main の取り込み後、tests.test_unid_deposit_recorded（D39）が落ちた。このパスの自宅への
+      預けが、鑑定のために自宅から出したばかりの装備を預け戻していた。持っている品を鑑定の流れが持っている間は
+      このパスを始めないようにした（D39 と町3 の検査が両方通る）。
+      検査: test_town3_refused_staff_purchase_shelves_surplus_at_home_first（行51〜80。restock 待ちも
+      departure-unsatisfiable も出さず、パスが始まり、80 の自宅で home:atomic-deposit）。戻すと 1 件落ちる。
+  (b) 3a464fb88 根: policy_supply.py _identify_staff_release_plan の4本上限の入れ替え。重なった2本の1本を売っても
+      枠は空かず、買い直しが予算で断られて回数が 11→9 に減っただけ。
+      直し: 売った後の1枠の買いが予算を通る時だけ入れ替える（売りで山が空になる時だけ1枠空くと数える）。
+      検査: test_town3_staff_swap_sells_only_when_the_rebuy_fits（090007 の行0〜30。29・30 で刻印・売りを出さない）。
+      戻すと 3 件落ちる。
+  未対応: 「枠不足で買えない時は town:wait-restock を選ばない（名前の付いた止まりにする）」は入れていない。
+      (a) でパスが始まれば待ちに来ない。預ける物も無い時は今まで通り待ってから departure-unsatisfiable になる。
+  life-274: 記録は観戦機にしか無く手元で確かめていない。診断では同じ根。
+
+======================================================================
+検査の結果（main 8c62806a5 を取り込んだ後）
+======================================================================
+- import の確認: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" 通る。
+- checks.json の全テスト（46 モジュール。tests.test_n1b_279_death_recorded はまだ main に無いので外した）
+  ＋ tests.test_town_stops_1031_recorded（10件）・tests.test_town_progress_invariant・
+  tests.test_cli.TownBlockedStreakTest・tests.test_policy_navigation.TownTravelerCombatPriorityTest:
+  Ran 337、失敗 3（すべて TownTravelerCombatPriorityTest の友好の3件。136eb3297 でも落ちる既存の失敗。
+  checks.json の項目はすべて通る）。
+- 直す前に落ちること（根ごとに src の差分だけを戻して流した）: 町1 1件、輪4/5 2件、町2 1件、死2 18件、
+  鍵3 6件、輪2 2件、町3(a) 1件、町3(b) 3件。戻した後はすべて通る。
+- 関連して流したもの（main と比べて増えた失敗なし）: 死2 で 23 モジュール（戦闘・移動・町・宣言など）、
+  輪2 で装備の8モジュール、町3(b) で鑑定の杖の10モジュール、鍵3 の absorbing_states。
+- 取り込みの後に main がさらに進んだ（2f1c0a886）。取り込み直しはしていない。
+
+既存の失敗（直す前の main にもある。私の変更とは無関係）:
+- tests.test_identify_staff_live27_recorded.test_recorded_shortfall_routes_to_magic_before_stockout_mining
+  （136eb3297 でも落ちる。Q2 の再充填の段が先に出る）
+- tests.test_mana_home_recorded（6件）・test_bounty_cashout_recorded_1025（5件）・test_s33_phase2_quest（3件）
+- test_policy_combat.test_attacks_friendly_in_town、test_policy_navigation の友好の3件（D32 の後から）、
+  test_equipment_swap_loop_incident の store_type 0-6、test_store_reentry_recorded の setUpClass
+- 全体スイート・preflight・mutation_check・fast_tier は流していない（指示どおり）。
+
+======================================================================
+checks.json に足す項目（案。checks.json は編集していない）
+======================================================================
+  {"id": "D町1", "tests": ["tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_town1_first_absorb_after_home_is_not_an_oscillation", "tests.test_town_progress_invariant"]}
+  {"id": "D輪4/5", "tests": ["tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_loops4_5_walk_and_fight_after_one_block_do_not_trip_the_fuse", "tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_repeated_blocks_between_the_recorded_walk_steps_still_trip_the_fuse", "tests.test_cli.TownBlockedStreakTest"]}
+  {"id": "D町2", "tests": ["tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_town2_home_first_leave_on_a_later_page_ends_the_entry"]}
+  {"id": "D死2", "tests": ["tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_death2_town_monster_it_cannot_beat_is_fought_not_hunted", "tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_death2_last_known_cell_of_an_unbeatable_monster_is_not_walked_to", "tests.test_policy_navigation.TownTravelerCombatPriorityTest"]}
+  {"id": "D鍵3", "tests": ["tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_key3_distant_store_landmark_is_never_walked_as_a_direction"]}
+  {"id": "D輪2", "tests": ["tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_loop2_failed_torch_restore_is_not_rebuilt_from_another_stack"]}
+  {"id": "D町3", "tests": ["tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_town3_refused_staff_purchase_shelves_surplus_at_home_first", "tests.test_town_stops_1031_recorded.TownStops1031RecordedTest.test_town3_staff_swap_sells_only_when_the_rebuy_fits"]}
+  （まとめて "tests.test_town_stops_1031_recorded" 1つでもよい。10件、約2分。）
+
+======================================================================
+保守性
+======================================================================
+制限のあるファイルの行数（main との差、git diff --numstat）:
+  policy.py      +4/-1（import の追加・出口の1行・逃げの段の2行）
+  policy_town.py +52/-3（町1 の組の履歴 約25行、死2 の _town_monster_unbeatable 一般化と狩りの絞り込み 約25行）
+  cli.py         +34/-1（輪4/5 の数え方。見張りの持ち主の関数の中）
+  policy_shop.py +7/-6（鍵3 の呼び出しの置き換え4か所と None の返し）
+  policy_combat.py +3/-1（import と1行のフック）
+  policy_quest.py・policy_home.py は変更なし
+  policy_instore.py（制限外）+8/-2、policy_equipment.py（制限外）+7/-1、policy_supply.py（制限外）+7、
+  town_pack_headroom.py（制限外）+49
+新しい論理の置き場所:
+  - town_last_stand.py（新規45行）: 町で物資が無い時の「逃げの一歩の代わりに殴る」の判定とキー。逃げの段と
+    緊急の段の2か所から1行で呼ぶ。2か所の重複（ranged→direction）を書かずに済んだ。
+  - approach_walk.py（新規29行）: 店への接近の歩きの代わり。policy_shop の4か所の _step_toward をこの1つに。
+  - town_pack_headroom.py（制限外）: 買いのための整理の開始（purchase_needing_room / make_room_for_purchase）を
+    既存の make_room_for_home_take の隣に置き、入口は既存の early_key だけ。
+  - 町1 の履歴は進みの不変条件の持ち主（policy_town）の中、輪4/5 は見張りの持ち主（cli）の中に置いた。
+改善した点: 友好専用だった「勝てるか」の判定を町の住人全体の1つの関数にし、友好の判定はそれを呼ぶだけにした。
+  キーの無い接近の段取りが文字列 "None" を返す潜在的な不具合を直した。新しい特例（クエスト番号・種族・職業の
+  直書き）は入れていない（魔道具術師の ranged 先行は町では働かないので town_last_stand には入れていない）。
+  town_work の台帳に新しい生産者（town_last_stand.key/target、approach_walk.walk_key、
+  town_pack_headroom.make_room_for_purchase）の review を足し、manifest は zero unmapped。
+
+======================================================================
+所有者への問い（実装していない部分）
+======================================================================
+1. 死2: 「物資」に所持金を数えるか。今回は持っている回復の薬と逃げの巻物だけを数えた（life-056 は 8382 金を
+   持っていたが、店で買う動きは入れていない）。
+   (A) 今のまま（持ち物だけ）【推奨: 決定の文言「本当に物資がなく」に近い】
+   (B) 所持金で回復の薬が買えるなら、殴られていない間に店で買ってから戦う
+2. 町3: 枠不足で買えず、預ける・売れる物も無い時に town:wait-restock を選ぶ。
+   (A) 名前の付いた止まり（例 town:blocked:departure-pack-space）にする【推奨】
+   (B) 今のまま（待ってから departure-unsatisfiable）
+3. 鍵3: 時間の進まない一手（壁にぶつかる等）の後に盤面が来ない時、到着待ちの請求を「届かなかった」として
+   閉じる仕組みを足すか（executor/cli 側の変更で、今回の範囲より広い）。
+   (A) 別の PR で入れる【推奨】 (B) 入れない（壁へ出さない今回の直しだけ）
+4. 死2 の狩りの判定は主手の武器の決闘の見積もりを使うので、武器を持たない職業（修行僧など）は町の敵を
+   一切狩らなくなる。今動いている3体（戦士・戦士・魔道具術師）には影響しない。修行僧を動かす時に見直すか。
