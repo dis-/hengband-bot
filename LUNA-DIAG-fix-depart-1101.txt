@@ -1,0 +1,135 @@
+LUNA-DIAG fix-depart-1101 (#47 D54) — 2026-11-01
+
+対象: build bot-f9c921d32 の昇格した停止 4 件（main 577cd246b の f097b327f・42f74f771 より前の版）。
+証拠（読み取りだけで写した）: C:\hengband-backups\pdca\captures\fix-depart-1101\<n1-x>\life-NNN\
+  incident-captures\<stamp>\{meta.json, decision-tail.jsonl, policy-state.json, snapshots\}、bot-stderr.log。
+build は decision-tail の session-start argv（bot-f9c921d32）で確かめた。f9c921d32 は f097b327f と
+42f74f771 を含まない（git merge-base --is-ancestor で確認）。
+
+再生の方法
+- 「停止盤面から」: tests/test_unid_deposit_recorded.py の既存の枠（到着盤面で prime、訪問中の店の
+  ページと知識を本番の応答処理で読ませ、停止盤面から公開 choose_key と本番 executor）。
+- 「記録の順に」: tests/test_idstaff_stockout_kit_recorded.py の replay（町への到着盤面から ring の
+  全行を本番の応答処理に通し、記録の判断盤面ごとに choose_key）。旧版は git archive f9c921d32 src を
+  作業用フォルダに展開して PYTHONPATH で切り替えた。
+
+====================================================================
+1. n1-a life-453（Lv26、20,202 金、00:57:41/00:57:53/00:58:05、3 回で昇格）
+   departure_block.failed = ["identify_staff_ready"]（空き 11、鑑定の杖 16/20 回）
+   → main で直っていない。根は 2 つ（どちらも本ブランチで直した）。
+
+ 連鎖（decision-tail の行）:
+  884428 shop:in-store-buy 'pf1' / 'pf' … 魔法店の鑑定の杖を買い切り、16/20 回。
+  884925 home:identify-staff-reserve-unavailable（自宅の杖でも 20 に届かない）
+  885285 town:travel-entrance  fundraising {"mode":"mine","planned_runs":1}（=
+         policy.py:16208 _identify_staff_stockout_key「Yeek 1F で 1 回掘ってから店を見直す」）
+  885633 descend '>\ry'
+  885634 fundraise:ascend '<'   gold 20202, mining collected 0
+         根1: policy_fundraising.py:1496（修正前 1478）の金の帰還
+           gold >= _fundraising_gold_target()(15000) and _fundraising_gold_return_applies()
+           and not self._known_treasure → 着いた盤面でそのまま階段を上る。
+           _fundraising_gold_return_applies は D35 の魔道具術師の品切れの回（mines_floor_out）
+           だけを除いていて、戦士の鑑定の杖の品切れの回（_identify_staff_mining_plan）と帰還の
+           品切れの回（_recall_stockout_mining_plan）は除いていなかった。
+           ゲーム側: store/cmd-store.cpp:94 maintain_num = (game_turn - last_visit) /
+           (TURNS_PER_TICK*STORE_TICKS) = 10,000 ゲームターン（store.h:14, gamevalue.h:13）。
+           884428 → 886075 は 1,647 ターンなので棚は入れ替わらない。
+  885635 shop:travel '&'（魔法店）→ 886075 inscribe/sell/done（杖はない）
+  886083 town:blocked:no-actionable-claim-owner  shelf_evidence_skips [store 6 identify-staff
+         observed_turn 883949 absent]
+         根2: 闇市は前の訪問（883949）の棚が再入荷の窓の中なので、必要の一覧が
+           _shelf_evidence_skips_need（policy_instore.py:1046）で飛ばす。一方、終端の
+           policy_town.py:7153 → _identify_staff_procurement_impossible（policy.py:16134）は
+           「魔法店・闇市が今回の訪問で試されたか観測された」まで待つ（_town_store_attempted は
+           品切れの回の開始で clear 済み）。闇市へ行く担当がいないのに待ち続け、
+  886291 town:blocked:departure-unsatisfiable '9'（policy_town.py:7186）
+
+ 停止盤面の再生（main、前の訪問の闇市の棚を shelf evidence として持たせた枠）:
+   修正前: key '9' town:blocked:departure-unsatisfiable（記録と同じ）
+   修正後: town:entrance-step-off:town:identify-staff-stockout-mining（品切れの回を入れ直す）
+ Yeek 1F の盤面（885634）:
+   修正前: '<' fundraise:ascend（記録と同じ）
+   修正後: 階段を離れて掘る準備（fundraise:wield-digger の静かな間を数える）、帰らない。
+ 記録の順の再生は 2 つめの判断で分かれた（この訪問の前、同じプロセスの 24,000 ターンの訪問の
+ 状態が ring の外）。そのため停止盤面の枠で確かめた。
+
+====================================================================
+2. n1-b life-284（Lv25、13,858 金、00:55:32/40/46、3 回で昇格）
+   failed = ["identify_staff_ready", "home_candidate_resolved", "identification_need_clear",
+             "departure_identification_need_clear"]（19 個・空き 4）
+   → main で直っていない（記録の順の再生で、旧版でも main でも同じ 21 の判断を再現して
+     610826 で town:blocked:departure-unsatisfiable。違いは CLI の時計で出る保存・ダンプの順だけ）。
+   f097b327f は鑑定待ちの「装備」を預けるもので、この盤面の鑑定待ちは魔道具（未鑑定の
+   金メッキのロッド・鉛メッキの魔法棒・エゾマツの杖・竹の杖、is_equipment False）なので効かない。
+
+ 連鎖:
+  1137 shop:in-store-done  shelf_evidence_skips [store 4 identification-source absent]
+       錬金術師に鑑定の巻物（85 金）はあるが、袋の予算（空き 4 = MIN_TERMINAL_FREE_PACK_SLOTS）が
+       新しい 1 枠を断る（shop_selector.pack_refusal full-pack-nonstacking）ので dry run は「何も
+       買えない」= absent。
+  policy_town.py:3467 識別の源の停止（錬金術師）はこの shelf evidence で飛ばされる。
+  policy_town.py:3553 identification_need があると必要の一覧はここで戻り、鑑定の杖の
+       供給元（policy_town.py:3673 add_identify_staff_suppliers）まで届かない。needs = []。
+  policy_town.py:4983 終端の移り変わりは錬金術師が「試された」まで待って return し、
+       識別を保留にもしない（さらに 4985 の取得可能性は袋の予算を見ないので available）。
+  _find_home_deposit = None: 預けられるのはシャベルとつるはし（掘る道具 2 本は保持の決まり）
+       だけで、未鑑定の魔道具は預け先の候補でない。
+  鑑定の杖: 持ち 3x4=12、自宅 2x5・1x4・2x0（4 本の上限で最大 18）、魔法店の杖は回数が違うと
+       重ならない（system/item/item-entity.cpp:1046-1052 STAFF は pval が同じときだけ重なる）
+       ので、買うにも新しい 1 枠が要る。
+  610826 town:blocked:departure-unsatisfiable '1'
+
+ 試したこと（取り込んでいない）: 4983 を shelf evidence で「試された」に、4985 を
+   within_pack_budget=True にすると、ロッドは保留され、必要の一覧に魔法店の identify-staff が
+   出るが、魔法店でも杖の購入は袋の予算で断られ、町を breakout で回り続ける（出発できない）。
+   出発には 1 枠が要り、今の決まりで預けられる物がない。→ 持ち主への問い Q1。
+
+====================================================================
+3. n1-b life-286（Lv17、10,127 金、01:40:11/18/25、3 回で昇格）
+   failed = ["identify_staff_ready", "equipment_departure_ready", "home_candidate_resolved",
+             "identification_need_clear", "departure_identification_need_clear"]（空き 4）
+   形は life-282（f097b327f）・life-284 と同じ: 1643 shop:in-store-done で shelf_evidence_skips
+   [store 4 identification-source absent]、鑑定待ちは {上質} のクロスボウの矢（装備）と
+   未鑑定のチタンの魔法棒 2 本、鑑定の杖 18/20。
+   再生: 記録の順の再生は 3 つめの判断（451749、記録は home:weight-overload-deposit、再生は
+   home:scan-complete-from-open-page）で分かれた（ダンジョンからの同じプロセスの状態が要る）。
+   停止盤面の枠では旧版も main も出発まで進む（新しい枠の状態では潜在の預け先＝薬が見えるため）
+   ので、旧版と main の区別にならない。f097b327f の判定（_identification_waiting_deposit）も
+   この盤面ではどちらも False（理由は未確認）。
+   → 「main で直った」とは証明できない。同じ根（life-284 の 4983/3553）と考えられるが、再現は
+     できていない。持ち主への問い Q1 の答えで一緒に扱う。
+
+====================================================================
+4. n1-a life-454（Lv8、189 金、Q34→Q1 の直後、01:01:42 departure-unsatisfiable、
+   01:01:57/02:09/02:21 owner-retired-burst、昇格）
+   failed = ["recall_departure_ready","food_ready","teleport_ready","cure_critical_ready",
+             "identify_staff_ready","home_candidate_resolved","identification_need_clear",
+             "departure_identification_need_clear"]
+   → main で直っていない。根は「掘る道具が手に入らない時の資金稼ぎ」。
+
+ 連鎖:
+  82392 Q1 から戻る（18 金）。Q1 の報酬のあと 189 金。帰還の巻物 1/9。
+  80151 雑貨屋のシャベルは 1436 金の 1 本だけ、85586/86150 は掘る道具なし。持ち物・自宅にもない
+       （ring の 75001 以降、掘る道具を持ったことがない）。
+  fundraising {"mode":"prepare","planned_runs":1,"kit_secured":false}、
+       need_attempts mining-digger 2・fundraising-digger 2、drift:general:mining-digger。
+  85608〜 town-progress-invariant:boxed-breakout-travel と shop:observe-and-leave の繰り返し、
+       stuck:wander、86884 departure-unsatisfiable、87469 owner-retired-burst。
+ 持ち主の決まり 10-23（c4-a life-016、財宝感知 10 巻・掘る道具なし）:「帰還を買えず採掘も
+  できない時は、①売れる余り物を売る ②足りなければ持っている財宝感知を使って 1F を歩いて稼ぐ」。
+  実装は town_terminal.py:776 の表（recall_departure_ready の server に fundraising）だけで、
+  fundraising は掘る道具を待つ prepare のまま。scavenge に入るのは
+  _detectionless_scavenge_allowed（policy_fundraising.py:322、財宝感知を持たない時だけ）で、
+  さらに床の上では policy_fundraising.py:1665-1674「掘る道具なし・財宝感知あり・既知の鉱脈あり
+  → 道具を町に置き忘れた採掘として帰る」がある。10-23 の②をこの 2 つとどう両立させるかは
+  決まっていない → 持ち主への問い Q2（本ブランチでは直していない）。
+
+====================================================================
+5. 現行の版の昇格していない town:blocked（直近 24 時間、events.jsonl）
+  n1-a・n1-b: 01:40 以降（bot-04ad2c6d2）に town:blocked の再起動はない（n1-b life-287 は
+    loop-detected、別の系統）。
+  n1-c life-079（bot-04ad2c6d2、魔道具術師）:
+    03:59:35 departure-unsatisfiable failed ["cure_critical_ready"]（致命傷の治癒の薬 4/10、
+      no-actionable-supplier、空き 11）→ 上の 4 つのどれとも違う形（供給元なし）。
+    04:26:06 owner-retired-burst（掘る道具 1/2、鑑定の杖 0/20）→ 違う形。
+    どちらも n1-c（魔道具術師、同じ回の別の実装役の系統）なので報告だけ。

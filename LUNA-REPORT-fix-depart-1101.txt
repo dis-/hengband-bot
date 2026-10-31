@@ -1,0 +1,108 @@
+LUNA-REPORT fix-depart-1101 (#47 D54) — 2026-11-01
+
+依頼: 直近 24 時間の停止のうち、build bot-f9c921d32 の昇格した 4 件
+（town:blocked:departure-unsatisfiable 3 件・town:blocked:owner-retired-burst 1 件）を、
+main 577cd246b の直し（f097b327f 鑑定待ちの装備を預ける、42f74f771 Q34 の持ち物）で直って
+いるか確かめ、直っていない根を直す。詳しい連鎖は LUNA-DIAG-fix-depart-1101.txt。
+ブランチ: fix-depart-1101（main 31306b6a8 から）。push・取り込みはしていない。
+
+== 結論（件ごと） ==
+1. n1-a life-453（Lv26、failed ["identify_staff_ready"]）: main で直っていない。根 2 つを直した。
+   根1 鑑定の杖の品切れの回（1F で 1 回掘って時間を進める）が、所持金が資金稼ぎの目標
+     15,000 を超えていたため、Yeek 1F に着いた盤面でそのまま上った（885633 descend →
+     885634 fundraise:ascend）。店の棚は 10,000 ゲームターンたたないと入れ替わらない
+     （store/cmd-store.cpp:94）ので、次の訪問でも魔法店は品切れ。
+     → 品切れを待つための回（戦士の鑑定の杖・帰還、魔道具術師の杖）は金の目標で帰らない。
+       D35（魔道具術師の品切れの回）と同じ決まりを、同じ型の残りの 2 つに広げた（根の直し）。
+   根2 次の訪問で、闇市は前の訪問の棚（883949、再入荷の窓の中）を理由に必要の一覧から
+     飛ばされるのに、終端の「鑑定の杖は手に入らない」の判定は闇市が今回試されるのを待つ。
+     担当のいない停止を待ち続けて departure-unsatisfiable。
+     → 棚の証拠で飛ばされた停止は「試された」として読む（policy_instore._shelf_stop_tried）。
+       品切れの回が入れ直される。
+2. n1-b life-284（Lv25、failed identify_staff_ready ほか 3 つ、空き 4）: main で直っていない
+   （記録の順の再生で、旧版でも main でも同じ判断の列で停止を再現）。直していない
+   （持ち主の決まりが要る、問い Q1）。袋が出発の予備（空き 4）で、預けられる物がない
+   （掘る道具 2 本は保持、未鑑定の魔道具 4 つは預け先の候補でない）。鑑定の巻物も魔法店の
+   鑑定の杖も新しい 1 枠が要る。f097b327f は装備だけを預けるので効かない。
+3. n1-b life-286（Lv17、life-282 と同じ形＋equipment_departure_ready）: 直ったとは証明できない。
+   記録の順の再生は前の状態（同じプロセスのダンジョン）が ring の外で分かれ、停止盤面の枠では
+   旧版でも出発まで進むので区別にならない。life-284 と同じ識別の源の止まり方（錬金術師が
+   棚の証拠で飛ばされ、識別の必要が他の必要を止める）と考えられる。Q1 で一緒に扱う。
+4. n1-a life-454（Lv8、Q1 直後、189 金、owner-retired-burst）: main で直っていない。直していない
+   （問い Q2）。掘る道具が店にない・高すぎる（1436 金の 1 本だけ）ので資金稼ぎが prepare の
+   まま止まる。10-23 の決まり（売れる物を売る→持っている財宝感知で 1F を歩いて稼ぐ）の②が、
+   今の「財宝感知を持たない時だけあさる」「掘る道具なし・財宝感知あり・既知の鉱脈ありなら
+   帰る」と食い違う。
+5. 現行の版（bot-04ad2c6d2）の昇格していない town:blocked: n1-a・n1-b は 01:40 以降なし。
+   n1-c life-079 の 03:59 departure-unsatisfiable（致命傷の治癒の薬 4/10、供給元なし）と
+   04:26 owner-retired-burst（掘る道具 1/2）は上のどれとも違う形で、魔道具術師（同じ回の別の
+   実装役の系統）なので報告だけ。
+
+== 直し（コミット） ==
+- b4ba8b0db「Count a supplier skipped on its shelf evidence as tried」（根2）
+  src/hengbot/policy_instore.py: _shelf_stop_tried を足した（試された or 必要の一覧が
+  _shelf_evidence_skips_need で飛ばす、と同じ呼び出し）。
+  src/hengbot/policy.py: _identify_staff_procurement_impossible の最後の判定がこれを読む。
+- 6889b8629「Keep restock time-pass runs mining past the gold target」（根1）
+  src/hengbot/policy_fundraising.py: _restock_time_pass_run を足し、
+  _fundraising_gold_return_applies がこれを読む（町の側の _end_fundraising_set_at_gold_target は
+  もとからこの 2 つの回を金の終わりから外していた。ダンジョンの側だけ漏れていた）。
+- scripts/town_work_manifest.json.gz を --write で作り直した（zero unmapped、review の追加なし。
+  変えた関数は町の仕事の生産者に入っていない）。
+
+== テスト ==
+新規: tests.test_idstaff_stockout_run_recorded（3 件）
+  fixture: tests/fixtures/idstaff-stockout-run-20261101.json.gz
+  抽出: tests/extract_idstaff_stockout_run_fixture.py（停止の訪問、前の訪問の闇市のページ、
+  Yeek 1F の盤面、記録の descend / fundraise:ascend）。
+  - test_recorded_stop: 記録の停止・failed・Yeek の 2 つの判断を固定。
+  - test_stop_board_installs_the_stockout_run_again（根2）: 停止盤面で公開 choose_key →
+    品切れの回を入れ直し、本番 executor で送る。
+  - test_stockout_run_mines_instead_of_returning_on_the_gold_target（根1）: Yeek 1F の盤面で
+    fundraise:ascend にならず、帰りの判定（fundraising_run_verdict）も帰らない、本番 executor で送る。
+戻して確かめた（patch を git diff で保存→ git checkout → 実行 → git apply）:
+  根1 を戻す: test_stockout_run_mines_... が FAIL（('fundraise:ascend', '<')）、他は ok。
+  根2 を戻す: test_stop_board_installs_... が FAIL（town:blocked:departure-unsatisfiable、
+    記録と同じ key '9'）、他は ok。
+  戻した後: 3 件 OK。
+
+== 検査 ==
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok
+- checks.json の検査（この worktree に無い tests.test_me_disarm_powers・
+  tests.test_me_tower_trips_recorded の 2 つは別の枝のもので除いた）: 77 個の指定、459 件 OK（1361 秒）。
+- 自分のテスト: tests.test_idstaff_stockout_run_recorded 3 件 OK。
+- 全体テスト・preflight・mutation_check・fast_tier は流していない。
+
+== checks.json に足す案（編集はしていない） ==
+  {"id": "D54", "defect": "D54",
+   "owner": "2026-11-01 「直近24hの停止原因を集計して修正されていないものに着手」",
+   "tests": ["tests.test_idstaff_stockout_run_recorded"]}
+
+== 持ち主への問い ==
+Q1（life-284、たぶん life-286 も）: 袋が出発の予備（空き 4）で預けられる物がなく、鑑定待ちが
+  未鑑定の魔道具（ロッド・魔法棒・杖）で、鑑定の巻物も鑑定の杖も新しい 1 枠が要る時、どうするか。
+  (a) 鑑定待ちの魔道具も装備と同じく自宅に預ける（10-31「鑑定待ちの装備は預ける　極力持ち
+      歩かない」を魔道具に広げる）。4 枠空き、巻物・杖が買える。【推奨】
+  (b) 鑑定の巻物（買ってすぐ読む）だけ予備の 1 枠を使ってよい。杖の 1 枠は別に要る。
+  (c) 魔道具の鑑定はあきらめて保留し、杖の分だけ何か（2 本目の掘る道具など）を預ける。
+  あわせて、識別の必要がある間は他の必要（鑑定の杖の供給元）を一覧に出さない
+  （policy_town.py:3553）・錬金術師が棚の証拠で飛ばされても識別を保留しない（4983）点も、
+  答えに合わせて直す（試した変更だけでは出発できなかった、DIAG 2 を参照）。
+Q2（life-454）: 掘る道具が店にも自宅にもなく、買える値の物もない時の資金稼ぎ。
+  (a) 10-23 の②どおり、持っている財宝感知を 1F で読み、床の金と品を拾って階段で帰る
+      （1 万ゲームターン）。掘れない鉱脈は無視し、「道具を置き忘れた採掘として帰る」は
+      道具が手に入る時だけにする。【推奨】
+  (b) 道具の入荷を待つ（今のまま。owner-retired-burst で止まる）。
+  (c) 道具の値になるまで、持っている物（Q34 の品など）を売れるだけ売ってから買う。
+
+== 保守性 ==
+- 新しい判断は持ち主のモジュールに置いた: 「棚の証拠で飛ばされた停止は試された」は棚の
+  証拠を持つ policy_instore.py（_shelf_stop_tried、_shelf_evidence_skips_need と同じ呼び出しを
+  使い、判定を二重に持たない）。「品切れを待つための回」は資金稼ぎの policy_fundraising.py
+  （_restock_time_pass_run）に 1 つの述語としてまとめ、D35 の mines_floor_out もその中で読む。
+- 共通の判断に場面の特例（クエスト番号・店の名前・職業）を書いていない。品切れの回の種類は
+  既存の状態（_identify_staff_mining_plan・_recall_stockout_mining_plan・mines_floor_out）だけで決まる。
+- _identify_staff_procurement_impossible は同じ offer pages を 2 回作っていたのを、すでに作った
+  supplier_pages から読むようにした（振る舞いは同じ）。
+- テストは既存の枠（test_unid_deposit_recorded の停止盤面の枠、test_me_stockout_run_recorded の
+  ダンジョンの方策の作り方）をそのまま使い、新しい枠を作っていない。テストの壁はない。
