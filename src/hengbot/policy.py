@@ -16194,12 +16194,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (page := supplier_pages.get(store_type)) is not None
         ):
             return False
-        observed_suppliers = {
-            page.store_type for page in self._identify_staff_offer_pages(snapshot)
-        }
+        # A supplier the need registry skips on its earlier shelf (the restock
+        # window) is tried as well: n1-a life-453 (2026-11-01 00:57) waited
+        # for a Black Market stop no owner would make and stopped.
+        observed_suppliers = set(supplier_pages)
         return all(
-            store_type in self._town_store_attempted
-            or store_type in observed_suppliers
+            store_type in observed_suppliers
+            or self._shelf_stop_tried(snapshot, store_type, "identify-staff")
             for store_type in (STORE_MAGIC, STORE_BLACK)
         )
 
