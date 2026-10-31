@@ -511,7 +511,8 @@ from hengbot.quest_knowledge import (
     QuestInfo,
 )
 from hengbot.quest_strategies import (
-    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, torch_throw_output,
+    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, heal_potion_sval,
+    torch_throw_output,
 )
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
@@ -1249,8 +1250,10 @@ RESUME_DESCENT_BLOCK_DECISIONS = 16
 # Potion svals that restore HP (cure wounds / healing / life), from sv-potion-types.h.
 # Expected raw HP restored by the combat-healing potions.  Cure Serious is
 # 4d8; Healing and *Healing* are fixed in quaff-effects.cpp; Life restores to
-# full and is therefore capped dynamically by the current missing HP.
-HEAL_POTION_EXPECTED_HP = {35: 18, 37: 300, 38: 1200}
+# full and is therefore capped dynamically by the current missing HP.  Cure
+# Critical Wounds (6d8) heals only where a quest strategy names it as its
+# heal potion (_quest_floor_heal_svals).
+HEAL_POTION_EXPECTED_HP = {35: 18, 36: FIXED_QUEST_CURE_CRITICAL_HP, 37: 300, 38: 1200}
 TELEPORT_SCROLL_SVALS = frozenset({9, 10})  # teleport, teleport level
 
 
@@ -11400,11 +11403,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # square here as well, otherwise a remembered loot target can
                 # immediately route back into it when the monster flickers out
                 # of view, producing a seek-loot/flee two-cell oscillation.
-                if self._predicted_damage(
-                    snapshot, strategic_hostiles, turns=3
-                ) >= (
-                    player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
-                ):
+                if self._is_material_threat(snapshot, strategic_hostiles):
                     self._claim_engagement_avoid_cells(
                         (snapshot.player.position,)
                     )
@@ -11566,9 +11565,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # 19F, three fast monsters at distance two were already worth 57% of
         # current HP over three turns; ordinary exploration then stepped into
         # their pack and turned them into a five-monster surround.
-        if strategic_hostiles and self._predicted_damage(
-            snapshot, strategic_hostiles, turns=3
-        ) >= player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO:
+        if strategic_hostiles and self._is_material_threat(snapshot, strategic_hostiles):
             step = self._town_producer_entry("_flee_step#3", lambda: self._flee_step(snapshot, strategic_hostiles))
             if step is not None:
                 # This is the same navigation veto as the projected-melee gate
@@ -13041,16 +13038,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         raw = HEAL_POTION_EXPECTED_HP.get(item.sval, snapshot.player.max_hp)
         return min(raw, missing_hp)
 
+    def _quest_floor_heal_svals(self, snapshot: Snapshot) -> frozenset[int]:
+        """The heal potion the current quest floor's strategy carries.
+
+        QUEST_14 carries Cure Critical Wounds as its heal potions (owner
+        2026-10-31 「致命傷の治癒でよい」); its heal_threshold_ratio spends them.
+        """
+        profile = self.approved_quest_strategy(snapshot.floor_key[2])
+        if profile is None:
+            return frozenset()
+        return frozenset({heal_potion_sval(profile.required_force)})
+
     def _find_heal_potion(
         self, snapshot: Snapshot, *, expected_damage: int = 0
     ) -> InventoryItem | None:
+        svals = HEAL_POTION_SVALS | self._quest_floor_heal_svals(snapshot)
         candidates = [
             item
             for item in snapshot.inventory
             if item.slot
             and item.is_potion
             and item.aware
-            and item.sval in HEAL_POTION_SVALS
+            and item.sval in svals
             and self._healing_potion_effective_hp(snapshot, item)
             >= expected_damage
         ]
@@ -13074,6 +13083,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for item in snapshot.inventory
             if item.is_potion and item.aware and item.sval == sval
         )
+
+    def _strategy_heal_potion_count(self, snapshot: Snapshot, force: dict) -> int:
+        """Carried potions counted as ``force``'s ``heal_potions``."""
+        return self._exact_potion_count(snapshot, heal_potion_sval(force))
 
     def _find_low_value_potion(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
@@ -17644,6 +17657,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 weapon,
                 reference_ac,
                 self._validated_character_calibration(snapshot),
+                current_proficiency=True,  # readiness: the worn weapon now (D50)
             )
             if weapon is not None else 0.0
         )
@@ -17687,7 +17701,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for name in force.get("resists", ())
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
-        healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
+        healing = self._strategy_heal_potion_count(snapshot, force)
         details = {
             "reference_ac": reference_ac,
             "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id)},

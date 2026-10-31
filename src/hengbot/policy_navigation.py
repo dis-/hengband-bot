@@ -1213,6 +1213,38 @@ class NavigationMixin:
         self._rubble_t = rubble
         self._marked_t = marked
 
+    def _usable_downstairs(self, snapshot: Snapshot) -> set[Position]:
+        """Downstairs the descent owner may still route to on this floor visit.
+
+        Eligible visible stairs and the remembered ones the board no longer
+        shows, minus every stair the navigation ledger expired.  Empty means
+        descent refuses (``expired-or-ineligible-downstairs`` or
+        ``no-known-downstairs``) and exploration must find another stair.
+        """
+        expired = self._nav_ledger.expired_targets("descend")
+        visible_descent_positions = {
+            g.position
+            for g in snapshot.grids.values()
+            if g.is_descent
+        }
+        targets = {
+            g.position
+            for g in snapshot.grids.values()
+            if self._is_descent_target(snapshot, g)
+            and not self._is_downstairs_expired(g.position)
+        }
+        if (
+            snapshot.dungeon_level > 0
+            and self._fundraising_mode not in {"mine", "scavenge"}
+            and not self._missing_required_abilities(
+                snapshot, snapshot.dungeon_level + 1
+            )
+        ):
+            targets.update(
+                self._remembered_downstairs - visible_descent_positions - expired
+            )
+        return targets
+
     @claims(ClaimOwner.DEPARTURE)
     def _descent_step(self, snapshot: Snapshot) -> Position | None:
         """Follow the ledger-owned route to one committed descent target.
@@ -1229,30 +1261,7 @@ class NavigationMixin:
         # seek/approach/breakout handed the same unreachable remembered stair
         # to each other forever (the 2026-07-17 starvation incident).
         expired = self._nav_ledger.expired_targets("descend")
-        visible_descent_positions = {
-            g.position
-            for g in snapshot.grids.values()
-            if g.is_descent
-        }
-        visible_targets = {
-            g.position
-            for g in snapshot.grids.values()
-            if self._is_descent_target(snapshot, g)
-            and not self._is_downstairs_expired(g.position)
-        }
-        targets = set(visible_targets)
-        forgotten_targets: set[Position] = set()
-        if (
-            snapshot.dungeon_level > 0
-            and self._fundraising_mode not in {"mine", "scavenge"}
-            and not self._missing_required_abilities(
-                snapshot, snapshot.dungeon_level + 1
-            )
-        ):
-            forgotten_targets = (
-                self._remembered_downstairs - visible_descent_positions - expired
-            )
-            targets.update(forgotten_targets)
+        targets = self._usable_downstairs(snapshot)
         origin = snapshot.player.position
         # Reaching a route target ends that commitment.  If descent handling
         # deliberately falls through to routing while standing on a stair,

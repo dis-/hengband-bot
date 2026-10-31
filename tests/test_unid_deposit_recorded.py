@@ -36,7 +36,9 @@ from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _consume_response_sequence,
     _send_decision_key_with_prompt_chain,
 )
-from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF, parse_snapshot
+from hengbot.model import (
+    SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_STAFF_IDENTIFY, TVAL_STAFF, parse_snapshot,
+)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_HOME, TOWN_TRAVEL_STORE_SYMBOLS
 from tests import test_lv7_town_stop_recorded as lv7
@@ -57,9 +59,11 @@ class UnidentifiedDepositRecordedTest(executor_harness.ProductionHarness):
     shelf_screen = staticmethod(lv7.Lv7TownStopRecordedTest.shelf_screen)
     shop_post = lv7.Lv7TownStopRecordedTest.post
 
+    fixture = FIXTURE
+
     @classmethod
     def setUpClass(cls):
-        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
+        with gzip.open(cls.fixture, "rt", encoding="utf-8") as stream:
             cls.case = json.load(stream)
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
@@ -186,13 +190,30 @@ class UnidentifiedDepositRecordedTest(executor_harness.ProductionHarness):
         elif re.match(r"r[a-z][a-z]", key) and store is None:
             scroll = next(it for it in following["inventory"] if it["slot"] == key[1])
             target = next(it for it in following["inventory"] if it["slot"] == key[2])
-            if scroll["sval"] == 13:  # *Identify*
+            if scroll["sval"] == SV_SCROLL_STAR_IDENTIFY:
                 target["fully_known"] = target["known"] = True
+                self.events.append(("identify", target["name"]))
+            elif scroll["sval"] == SV_SCROLL_IDENTIFY:
+                # spells-perception.cpp ident_spell -> identify_item.
+                target.update(self.identified(following, target))
                 self.events.append(("identify", target["name"]))
             scroll["count"] -= 1
             following["inventory"] = [it for it in following["inventory"] if it["count"]]
             self.relabel(following["inventory"])
         return following
+
+    @staticmethod
+    def identified(following, target):
+        """DECLARED CONSTRUCTED: the known fields Identify reveals (plain, +0)."""
+        template = next(it for it in following["inventory"]
+                        if it["known"] and it["is_equipment"] == target["is_equipment"])
+        known = {key: value for key, value in template.items()
+                 if key not in ("name", "slot", "tval", "sval", "weight", "count", "inscription",
+                                "weapon_proficiency", "weapon_proficiency_rank")}
+        known.update(aware=True, known=True, fully_known=False, ac=0, pval=0, to_h=0,
+                     to_d=0, to_a=0, known_flags=[], damage_dice={"num": 0, "sides": 0},
+                     sval=target.get("sval", 0))
+        return known
 
     def after_staff(self, following):
         """Hook for the second test's constructed identification source."""
@@ -280,8 +301,11 @@ class UnidentifiedDepositRecordedTest(executor_harness.ProductionHarness):
             return self.execute(policy, raw, key, following, screens,
                                 [raw] * len(screens), expected)
         if re.match(r"r[a-z][a-z]", key) and store is None:
-            target = ("どのアイテムを*鑑定*しますか?" if policy.last_reason.startswith("identify:")
-                      else "どのアイテムを強化しますか?")
+            # spells-perception.cpp ident_spell / identify_fully prompts.
+            scroll = next(it for it in raw["inventory"] if it["slot"] == key[1])
+            target = {SV_SCROLL_IDENTIFY: "どのアイテムを鑑定しますか?",
+                      SV_SCROLL_STAR_IDENTIFY: "どのアイテムを*鑑定*しますか?"}.get(
+                          scroll.get("sval"), "どのアイテムを強化しますか?")
             screens = [
                 executor_harness.prompt_screen("(持ち物:a-z, ESCで中断) どの巻物を読みますか?"),
                 executor_harness.prompt_screen(f"(持ち物:a-z, ESCで中断) {target}"),

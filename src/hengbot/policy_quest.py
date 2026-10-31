@@ -4264,8 +4264,13 @@ class QuestMixin(OpeningRouteMixin):
         # evaluates readiness -> departure -> Home deposits -> retention and
         # recursively returns here.  Supplies belong to the earliest approved
         # pending/taken quest regardless of whether departure is ready yet.
+        # A taken quest is the work in flight, as for the fixed-quest head:
+        # Q1 and Q34 tie on (level, id), and choosing Q1's five torches for
+        # a taken Q34 shelved its twenty (n1-b life-283, 2026-10-31).
+        known = self._known_fixed_quests(snapshot)
         candidates = [
-            quest for quest in self._known_fixed_quests(snapshot).values()
+            quest for quest in (self._in_flight_fixed_quests(known)
+                                or known.values())
             if quest.id in FIXED_QUEST_ALLOWLIST
             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
             and self.approved_quest_strategy(quest.id) is not None
@@ -4274,6 +4279,16 @@ class QuestMixin(OpeningRouteMixin):
             return None
         quest = min(candidates, key=self._fixed_quest_order)
         return self.approved_quest_strategy(quest.id)
+
+    @staticmethod
+    def _in_flight_fixed_quests(known_quests) -> list[QuestState]:
+        """Taken fixed quests other than the birth-time win quests."""
+        return [
+            quest for quest in known_quests.values()
+            if quest.fixed
+            and quest.status == QUEST_STATUS_TAKEN
+            and quest.id not in WIN_QUEST_IDS
+        ]
 
     @claims(ClaimOwner.QUEST_REQUEST)
     def _fixed_quest_key(
@@ -4872,12 +4887,7 @@ class QuestMixin(OpeningRouteMixin):
         # Never accept or prepare another fixed quest while real work is in
         # flight. The birth-time win quests are the only intentional exception.
         known_quests = self._known_fixed_quests(snapshot)
-        taken = [
-            quest for quest in known_quests.values()
-            if quest.fixed
-            and quest.status == QUEST_STATUS_TAKEN
-            and quest.id not in WIN_QUEST_IDS
-        ]
+        taken = self._in_flight_fixed_quests(known_quests)
         supported_taken = [quest for quest in taken if supported(quest)]
         if supported_taken:
             return min(supported_taken, key=self._fixed_quest_order)

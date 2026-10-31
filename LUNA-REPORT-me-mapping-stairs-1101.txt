@@ -1,0 +1,105 @@
+LUNA-REPORT me-mapping-stairs-1101（魔道具術師の周辺感知の再使用・無害な敵の前での感知）
+
+所有者の観察: 「魔道具術師が未知領域を探索するときに周辺感知するときとしないときがある。調査して」
+追加の決定（2026-11-01）: 「脅威でなければ感知する」
+
+ブランチ: me-mapping-stairs-1101（main 4cd4e9e6d の上。main は動いておらず git merge main は Already up to date）
+前の実装役の未コミットの変更（_usable_downstairs と me_powers の差し替え、life-073 の試験と固定データ）は
+正しかったのでそのまま残し、コミットした。life-065 の試験と所有者の追加の決定は今回実装した。
+
+== 1. 階段が失効した後に周辺感知を使い直さない ==
+原因: me_powers._stairs_known は、下りが必要なとき policy._remembered_downstairs が空でなければ「既知」とした。
+一方、降下（policy_navigation._descent_step）は失効した階段と条件を満たさない階段を除き、残りが無ければ
+expired-or-ineligible-downstairs で断り、探索に譲る。そのため承認済みの契機 stairs-needed-and-unknown
+（下り階段が要るのに使える階段を知らない・以前の使用地点から30マス以上）は、失効した階段を覚えている間は
+決して成立しなかった。
+証拠: n1-c life-073 Angband 3F、決定 1880 に (7,61) で map-area、(16,33) の下り階段が見えた。1882-1927 は
+approach-descent、1928 から explore に変わった（失効）。決定 2000 まで down_stairs は [[16,33]] のまま、
+周辺感知は一度も使われなかった。
+(C:\hengband-backups\pdca\captures\n1c-mapping-1101\life-073-3f\decisions-3f.jsonl, board-510032.json)
+直し: 降下の対象の絞り込みを policy_navigation.py の NavigationMixin._usable_downstairs に1つにまとめ、
+_descent_step と me_powers._stairs_known の両方がそれを使う（me_powers に条件の写しは置かない）。
+上りの場合: 上り階段の道筋（_nearest_goal_step(snapshot, self._is_upstairs_target)）と me_powers は
+すでに同じ判定 policy._is_upstairs_target（航行台帳の ascend の失効を含む）を使っているので変更なし。
+コミット: 702b9e19c
+
+== 2. 無害な敵が見えている間も周辺感知する（所有者の決定） ==
+原因: me_powers の共通の関門が、敵が1体でも見えていればすべての力を拒んでいた。到着した階に無害な敵が
+見えていると周辺感知が遅れるか、使われなかった。
+証拠: n1-c life-065 Yeek cave 1F 18:16、到着（決定 6468、turn 4665358）から 6486 まで眠っている Lv1 の
+敵が1体見えていた。力は一つも使われず、6487（見えている敵 0）で邪悪存在感知だけを使い、
+6494 で上りへ戻った。この訪問では周辺感知を使っていない。
+(C:\hengband-backups\pdca\captures\n1c-mapping-1101\life-065-1f\boards-1f.json, decisions-1f.jsonl)
+直し:
+- me_powers.py の表 POWERS の Power に beside_harmless を足し、map-area の行だけ True にした。
+- me_powers.visible_threat: 見えている敵が、戦闘の梯子の既存の判定で危険かどうか。
+  状態異常の脅威（_unresisted_melee_status_threats）、逃げる判定（_should_flee）、
+  実質的な脅威（_is_material_threat）のどれか。新しいしきい値は無い。
+- me_powers._hostiles_allow: 敵が見えていなければ許し、見えていれば beside_harmless の行で visible_threat が
+  偽のときだけ許す。直前に殴られた（_took_damage）ときは今までどおり共通の関門ですべて拒む。
+- 梯子の「3ターンで現在の HP の半分」の判定を policy_combat.py の _is_material_threat にまとめ、
+  policy.py の2か所（threat:reposition の段と逃走の段の回避マス）と me_powers が同じものを使う。
+他の感知の力について: 邪悪存在感知・トラップ感知・ドア/階段感知・光は今は従来どおり拒む。
+邪悪存在感知とトラップ感知も同じ扱いにしてよいと考える（見えている敵が無害なら、到着の直後に使う意味は
+周辺感知と同じ）。ただし所有者の指示は周辺感知だけなので、beside_harmless=True を足すかどうかは質問として残す
+（足すなら表の1語で済む）。
+コミット: e9de0984a
+
+== 試験（記録した盤面、公開の choose_key と本番の executor） ==
+tests/test_me_mapping_1101_recorded.py（固定データ tests/fixtures/me-mapping-1101.json.gz、
+抽出 tests/extract_me_mapping_1101.py）
+- MagicEaterMappingRecordedTest.test_life073_expired_stair_remaps_the_far_floor
+  階段が使える間は approach-descent、失効させると me-power:stairs-needed-and-unknown:map-area（mAj）を
+  送り、executor で詠唱まで通る。
+  直しを戻すと失敗: ('7', 'explore') != ('mAj', 'me-power:stairs-needed-and-unknown:map-area')
+- MagicEaterMappingRecordedTest.test_life065_harmless_visible_monster_maps_on_arrival
+  見えている無害な敵がいる到着の盤面で me-power:new-floor:map-area（mAj）を送り executor を通る。
+  副試験: 危険な敵（同じ敵を起こし、HP 全部に当たる遠隔攻撃を持たせる）では power_key が None、
+  直前に殴られた場合も None（同じ盤面で殴られていなければ mAj を返すことも確かめる）。
+  me_powers.py の直しだけを戻すと失敗: ('7', 'seek-loot') != ('mAj', 'me-power:new-floor:map-area')
+既存の試験の期待値: test_me_stage2_powers の「visible yeek」は隣で起きているヤックに梯子の攻撃の段
+（quest-strategy:ranged-fire:magic-eater）が先に答えるので、期待値（力を使わない）は正しいまま変更なし。
+試験の壁: なし。
+
+== 検査 ==
+- PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+- checks.json の試験（71 の異なる ID、4回に分けて実行）と追加の試験、test_me_powers_refresh:
+  144 + 114 + 97 + 76 = 431 件、すべて OK
+- me_powers の関連の試験（test_me_stage2_powers, test_me_kind_menu_context, test_me_nokey_1031_recorded,
+  test_me_powerful_activation, test_me_powers_refresh）: 42 件 OK
+- scripts/town_work_manifest.py --write: 1049 candidates, zero unmapped。検査モードで 0 violation(s)。
+  分類は変わらないので town_work_review.json の追記は不要（ast の要約だけ更新）。
+
+== 階段の失効について（直していない） ==
+規則: src/hengbot/navigation.py:31 NAV_TARGET_STALL_LIMIT = 32 と navigation.py:54-78 NavigationLedger.observe。
+目標までの最良の距離が32回続けて縮まらないと、その階の訪問の間は失効する。
+life-073 3F の (16,33) は「約6歩」ではなく、approach-descent が 1882-1927 の46回続いた後、1928 で失効した。
+この階段は既知のマスでは届かず、フロンティア経由の接近だった。接近の途中で、決定 1897-1912 は東へ
+（x 47 から 58 へ）戻る回り道、1918-1927 は y 14 と 15 を交互にする進み方だった。
+同じ記録の項目に2種類の距離が入っている:
+  policy_navigation.py:1327 は約束した道の残りの長さ（フロンティアまでの道）、
+  policy_navigation.py:1410 は最良のフロンティアから階段までの直線距離。
+一方の値が小さいと、もう一方で実際に近づいていても「縮んでいない」と数えられることがある。
+失効の時、プレイヤーは (15,45) にいて、階段まで約12マス（出発時は約32マス）だった。まだ近づいている途中の
+失効に見えるので、誤りの可能性が高い。ただし判断ごとの盤面が手元に無く、再生しては確かめていない。
+別の直しとして調べることを提案する。
+
+== 保守性 ==
+- 「使える下り階段」の判定は航行側の1か所（NavigationMixin._usable_downstairs）にまとめた。
+  _descent_step の中に書かれていた絞り込みを切り出したもので、me_powers は写しを持たず、それを呼ぶ。
+- 「実質的な脅威」（3ターンの予測ダメージ >= HP x ENGAGEMENT_AVOID_DAMAGE_RATIO）は、梯子の2か所に
+  同じ式が書かれていた。これを policy_combat._is_material_threat にまとめ、梯子の2か所と me_powers が
+  共有する。
+- 無害な敵の前で使ってよいかは表 POWERS の行の属性（beside_harmless）にした。力ごとの特例を関門の
+  コードに書いていない。他の力に広げるときも表の1語で済む。危険の判定は me_powers.visible_threat の
+  1か所で、梯子の既存の判定を呼ぶだけ（しきい値の写しは無い）。
+- 関係のない整理はしていない。
+
+== checks.json の案（編集していない） ==
+{"id": "D51-me-mapping", "tests": ["tests.test_me_mapping_1101_recorded"]}
+
+== 所有者への質問 ==
+1. 邪悪存在感知とトラップ感知（到着時の new-floor）も「脅威でなければ感知する」にするか。
+   ドア/階段感知（隠し扉の捜索前）と光は今のまま拒むのでよいか。
+2. 階段の失効（上記）を別の直しとして調べてよいか（フロンティア接近で2種類の距離を1つの記録に混ぜている）。
+3. 30マスの半径と、見えている敵の関門の他の条件は、指示どおり変えていない。

@@ -1,0 +1,129 @@
+LUNA-REPORT-n1b-town-stops-1031（観戦の戦士 n1-b の 10-31 夜の町の止まり）2026-11-01
+ブランチ n1b-town-stops-1031（元 main 13e2f14d0、最後に main f9c921d32 を取り込み済み aa9c6401f）。push していない。
+前の実装役が途中で終わったので、その2コミットを点検して残し、life-282 の検査を強め、main を取り込んで検査した。
+証拠: C:\hengband-backups\pdca\captures\n1b-1031-2323\life-281,life-282,life-283（サーバから scp、サーバは読むだけ）。
+
+======================================================================
+止まりの種類ごとのまとめ
+======================================================================
+1. town:blocked:departure-unsatisfiable（life-282 Lv17、bot-404e73286、23:23:22/23:23:30/23:23:37 → 3回で新キャラ）
+   直した: f097b327f（直し）、fc6195da5（検査を出発の条件まで強めた）、f3b782269（既存の2検査の期待値）
+   根: policy_home.py _identification_waiting_deposit が、鑑定待ちの装備を自宅に預けるかを
+       policy_identification.py _identification_source_obtainability だけで決めていた。錬金術師の棚に
+       鑑定の巻物が所持金内で並んでいれば「available」とされ装備を持ち続けるが、持ち物は19個（空き4＝
+       MIN_TERMINAL_FREE_PACK_SLOTS）で、town_pack_budget.permits は巻物の5つ目の空きを断る
+       （shop_selector.pack_refusal "full-pack-nonstacking"）。持ち物の空けの処理（town_pack_headroom
+       purchase_needing_room / _room_can_be_made）は「鑑定の流れが持つ品があれば先に鑑定」を待つ。
+       鑑定は巻物を待ち、巻物は空きを待ち、空きは鑑定を待つ三すくみで、どの担当も空きを作れなかった。
+   証拠: life-282/incident-captures/20261031-232319-departure-unsatisfiable の decision-tail 最終行
+       （turn 345239）departure_block.failed = ["identify_staff_ready","home_candidate_resolved",
+       "identification_need_clear","departure_identification_need_clear"]、home_candidate_waiting true、
+       identification_need "normal"、inventory used 19 free 4、所持金 8,645。鑑定待ちは 赤めのうの指輪（未知）・
+       硬革よろい {高級品}・サーベル {特別製}。同じ訪問の錬金術師の棚に 鑑定の巻物。
+   identify_staff_ready について（「戦士に鑑定の杖は要らないはず」）: _identify_staff_ready は職業によらず、
+       予定の深さ 10 階以上（STAFF_IDENTIFY_MIN_DEPTH）で鑑定の杖の合計 20 回分（STAFF_IDENTIFY_MIN_CHARGES）を
+       求める既存の決まり。戦士も杖を使える。life-282 は 18 回分の杖で 20 に足りず、自宅の 5 回分の杖を
+       取り出す空きが無かったので落ちていた（同じ三すくみの一部）。直した後は空きができて自宅の 5 回分を取り出し
+       23 回分になり、この条件も満たす（検査で確認）。
+   預ける・取り出して鑑定するの直し（38bcb0240）との関係: 38bcb0240 は「棚に手段が無い」時だけ預けるので、
+       「棚にあるが持ち物に入らない」時に預けず、上の三すくみになった。直しはこの隙間を埋めるだけで、
+       取り出して鑑定する側（Home の候補の走査）は変えていない。
+   直し: _identification_source_obtainability に within_pack_budget を足し、棚の巻物は
+       town_pack_budget.permits(incoming_slots(...)) が通る時だけ「手に入る」とする。預けるかの判断だけが
+       within_pack_budget=True で聞く（ほかの呼び手は今のまま）。預けると空きが1つでき、巻物を買って鑑定できる
+       （owner 10-31「鑑定待ちの装備は預ける　極力持ち歩かない」）。新しい振る舞い・閾値は無い。
+   life-281（Lv33、bot-141f78afd、22:46:06 / 22:46:21 の2回、22:47 に新キャラ）: 依頼文の「22:46 ごろ」は
+       life-282 ではなく直前の life-281。22:46:06 は同じ形（failed が同じ4つ、identification_need "full"、
+       *鑑定*の巻物 2,145 が所持金 12,447 の内で棚にあり、空き4、full-pack-nonstacking）。この盤面を凍結して
+       通すと、直した後は最初に預けるのが鑑定待ちの ☆皮ジャケット『トゥアデロス』に変わる（直す前は巻物の
+       束）。22:46:21 は再起動後で failed は identify_staff_ready だけ（13 回分の杖、21 回分の杖の購入が5つ目の
+       空きで断られる）。ただし自宅に 144 品あり、検査の作った自宅の返事（1頁 52 品まで）を超えるので、
+       出発まで通して確かめることはできなかった。life-281 は同じ根と見ているが、記録の検査は付けていない。
+
+2. loop-detected（life-283 Lv1、bot-404e73286 23:29:27、bot-13e2f14d0 23:42:55）と
+   town:blocked:owner-retired-burst（life-283、bot-404e73286 23:34:52）
+   直した: 42f74f771
+   根: policy_quest.py _quest_strategy_for_errand_or_floor（町の持ち物の担当 _carry_procurement_strategy が読む）
+       は、受けたクエストがあっても (level, id) の順で一番早いクエストを選んでいた。Q1 と Q34 は同じ 5 階で並び、
+       Q34 を受けた後も Q1 の「松明5本」を持ち物の目標にした。買った松明 15 本は余りとされ、装備の取引が自宅に
+       預けた。Q34 の入場の準備は 20 本を求め続け、店の計画はどれも松明を欲しがらず、町は雑貨屋の入荷を待ち
+       （town:wait-restock:general）、松明を買い直しては預け直して所持金が 1 になった。
+   証拠: life-283/incident-captures/20261031-232924-loop-detected（Q34 の受諾 turn 75210 で松明 20 本、
+       turn 75416 で自宅へ、turn 75692 で持ち物 5 本・自宅 15 本）、最終行 fixedquest_readiness quest 34
+       carries throwing_items.lit_torch measured 10 required 20、quest_strategy 34。
+       20261031-233448-town-blocked-owner-retired-burst（同じ形、所持金 1、wait-restock:general の連続）、
+       20261031-234250-loop-detected（bot-13e2f14d0、measured 2 required 20）。
+   直し: 受けた（進行中の）固定クエストがあれば、固定クエストの頭（_build_fixed_quest_head）と同じくそれを
+       選ぶ。両方が新しい1つの関数 _in_flight_fixed_quests を読む（重複していた判定を1か所にした）。
+
+======================================================================
+検査項目（新しいもの）
+======================================================================
+tests.test_unid_scroll_room_recorded（盤面 tests/fixtures/unid-scroll-room-20261031.json.gz、
+  作り方 tests/extract_unid_scroll_room_fixture.py。検査の器は D29-unid の tests/test_unid_deposit_recorded.py）
+  - test_recorded_stop: 記録の止まり（turn 345239、failed の4つ、空き4、棚の巻物が所持金内）を確かめる。
+  - test_waiting_equipment_is_shelved_and_the_scroll_bought: 記録の盤面から公開の choose_key と本番の executor で
+    進め、出発か「この訪問で頁を記録していない店」への移動まで。鑑定待ちの装備を先に預けて巻物を買い、
+    高級品・特別製を鑑定し、最後の盤面で _town_departure_conjuncts の失敗が無い。
+    戻すと: f097b327f の src（policy_home.py・policy_identification.py）だけ戻すと 1 件落ちる
+    （town:blocked:departure-unsatisfiable、'shop:travel','town-progress-invariant:continue-observed-shop' の後）。
+tests.test_q34_taken_torches_recorded（盤面 tests/fixtures/q34-taken-torches-20261031.json.gz、
+  作り方 tests/extract_q34_taken_torches_fixture.py）
+  - test_recorded_stop: 受諾の盤面で持ち物の担当が Q34（松明 20 本）を選ぶ。turn 75692 で持ち物 5 本・自宅 15 本。
+  - test_taken_quest_restores_its_torches_before_the_entrance: turn 75692 から入口へ踏み込むまで進め、
+    預けず 20 本を持っている。
+    戻すと: 42f74f771 の src（policy_quest.py）だけ戻すと 2 件とも落ちる（1 != 34、
+    quest:enter:approach の繰り返し → livelock:exhausted、記録の loop-detected と同じ形）。
+既存の検査の更新: tests/test_unid_deposit_recorded.py に鑑定の巻物の返事と問いを足した（*鑑定* の sval 13 を
+  定数に）。抽出の器 tests/extract_unid_deposit_fixture.py は freeze() に分けて2つの盤面で使う。壁は足していない。
+既存の検査の期待値の更新（f3b782269、どちらも記録の行を順に流す検査で、直し1 の規則が効く行から分かれる）:
+  - D34 tests.test_store_exit_observed_recorded: n1-b life-256 のテルモラ、空き4 で 虹色のヘヴィ・フレイル が
+    *鑑定* 待ち、棚の *鑑定*の巻物 は5つ目の空きが要る。直した後はフレイルが自宅に預ける候補になり、
+    同じ宿への一歩 '9' を出す担当が town:cross-town-shopping:travel-2 から fixedquest:q2-teleport
+    （Q2 の後の帰り）に替わった。守っている不具合（店を出た後の外の盤面でキーを送る・leave を放す）は同じ。
+  - D41-D44-TOWN tests.test_town_stops_1031_recorded の town3swap: 持ち物 21（空き2）で 凍結のギザルム が
+    *鑑定* 待ち。直した後は行28 で杖を売らず（d0y）魔法店を出て自宅へ向かう（\x1b shop:observe-and-leave）。
+    行29・30 で売り・銘刻みをしない、解放の計画が {} は同じ。
+  どちらも「鑑定待ちの装備は預ける　極力持ち歩かない」に沿う動きと判断したが、記録の後の盤面は記録のままなので、
+  預けた後まで通した確認ではない（下の問い）。
+
+======================================================================
+検査の実行
+======================================================================
+1. PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" … 通る
+2. checks.json の全テスト（62 項目・73 モジュール。D50 の tests.test_me_weapon_proficiency_recorded は
+   main にまだ無いので除いた）＋ 上の新しい2モジュール（tests.test_unid_deposit_recorded は D29-unid で含む）。
+   4 つに分けて流し 595 件、落ちたのは 2 件だけ（どちらも直し1 の src だけ戻すと通る＝直し1 の影響）:
+   - tests.test_store_exit_observed_recorded …test_outside_board_after_the_exit_posts_its_key（D34）
+   - tests.test_town_stops_1031_recorded …test_town3_staff_swap_sells_only_when_the_rebuy_fits（D41-D44-TOWN）
+   期待値を新しい動きへ直した（f3b782269、下の「既存の検査の更新」）。直した後この2モジュール 13 件は通る。
+   壁は足していない。
+3. scripts/town_work_manifest.py --write: 1055 candidates, 29554 sites, zero unmapped。--write なしで 0 violation(s)。
+   取り込みの衝突（scripts/town_work_manifest.json.gz）は main の版を取ってから --write で作り直した。
+
+======================================================================
+保守性
+======================================================================
+- 直し1 は新しい判定を作らず、持ち物の空きの唯一の判断 town_pack_budget.permits / incoming_slots を、
+  手段が手に入るかの唯一の関数 _identification_source_obtainability の中でキーワード1つで使う。
+  預けるかの判断（_identification_waiting_deposit）だけがそれを求め、ほかの呼び手の答えは変わらない。
+- 直し2 は _build_fixed_quest_head の中に書かれていた「受けた固定クエスト（勝利のクエストを除く）」の判定を
+  _in_flight_fixed_quests に出し、町の持ち物の担当と固定クエストの頭が同じ1つを読む。クエスト番号の特例は
+  書いていない（Q1/Q34 の名前は注釈だけ）。
+- 検査は D29-unid の器を引き継ぎ（返事と問いの作りを1か所に）、抽出は freeze() を共有。*鑑定* の 13 を
+  SV_SCROLL_STAR_IDENTIFY に置き換えた。
+
+======================================================================
+checks.json に足す案（checks.json は編集していない）
+======================================================================
+{"id": "N1B-1031-TOWN", "tests": ["tests.test_unid_scroll_room_recorded", "tests.test_q34_taken_torches_recorded"]}
+
+======================================================================
+持ち主への問い
+======================================================================
+- 問い1: 直し1 で「棚の巻物が持ち物に入らない」時も鑑定待ちの装備を先に自宅へ預ける。その結果、店の中の
+  作業（town3swap の杖の売り）より自宅へ預けに行くのが先になり、テルモラでは預けたい品がある間は他の町への
+  買い物より Q2 の帰りの転移が先になった。この順でよいか（よくなければ、預けるのを店の作業の後に回す等の
+  決め直しが要る）。
+- 参考: 鑑定の杖の要求（深さ 10 階以上で 20 回分）は職業によらない既存の決まり。戦士で外すかは別の判断になる。
+- 参考（別の族）: life-283 の手続きに真鍮のランタン・油の不足（lamp_fuel の担当）が出ているが触っていない。
