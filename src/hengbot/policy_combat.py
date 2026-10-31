@@ -385,6 +385,9 @@ class CombatMixin:
         self._detected_threat_hold_position = None
         if self._choke_plan_active(snapshot):
             self._release_choke_plan("immobile-summoner")
+        if return_yield.latched_return_owns(self, snapshot):
+            # Even beside a hostile (owner 10-31, death 1, #47).
+            return return_yield.latched_return_key(self, snapshot)
         other_hostiles = [m for m in hostiles if not self._summoner_never_approaches(snapshot, m)]
         adjacent = [m for m in other_hostiles if m.distance <= 1]
         if (
@@ -396,8 +399,6 @@ class CombatMixin:
                 return ranged
             self.last_reason = "melee"
             return self._step_toward(snapshot, self._weakest(adjacent).position)
-        if return_yield.latched_return_owns(self, snapshot):
-            return None  # the return owner reads Recall or walks out (death 1, #47)
         if snapshot.player.position not in cells:
             loot = self._town_producer_entry(
                 "_normal_loot_key",
