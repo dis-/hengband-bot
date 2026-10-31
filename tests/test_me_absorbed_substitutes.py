@@ -395,5 +395,46 @@ class StoneToMudSpareGoldTest(unittest.TestCase):
                         (key, policy.last_reason))
 
 
+# --- rule 4 ---
+class StoneToMudBreachTownTest(TownBoards):
+    """「岩石溶解を取り込んでいるとき、クエストの魔法棒要求の代替にできる。」"""
+
+    def test_absorbed_charges_meet_the_q2_wall_breach(self):
+        raw = self.me_board("outpost_board")
+        policy = self.policy(raw)
+        all_stages_absorbed(policy, **{"stone-to-mud": 12})
+        _, _, status = self.carry(policy, raw)
+        # The recorded wand's one charge and the absorbed 12: 13 // 5 walls.
+        self.assertEqual(status["utility_tools.wall_breach"],
+                         {"measured": 2, "required": 1, "ready": True})
+        key = self.decide(policy, raw)
+        # Unfixed: the wall_breach carry is short and the Q2 travel waits.
+        self.assertEqual(policy.last_reason.removesuffix("-step-off"), "fixedquest:q2-travel")
+        self.post(policy, raw, key, self.moved(raw, key))
+
+
+class StoneToMudBreachOnTheQ2FloorTest(Q2FloorReplay):
+    """Where Q2 aims the wand at the breach wall, the absorbed power is aimed."""
+
+    @staticmethod
+    def convert(raw):
+        raw = without(raw, STONE_TO_MUD)
+        raw["player"]["class_id"] = 16
+        raw["_magic_eater_power_list"] = {"kind": "wand", "rows": [
+            {"name": "岩石溶解", "current": 12, "max": 12, "fail": 20, "success": 80}]}
+        return raw
+
+    def test_breach_aims_the_absorbed_stone_to_mud(self):
+        self.assertEqual((self.recorded(179)["reason"], self.recorded(179)["key"]),
+                         ("quest-strategy:q2-breach-wand", "ai2"))
+        policy, raw, key = self.replay(self.convert, 179)
+        self.assertEqual((key, policy.last_reason),
+                         ("mBg2", "quest-strategy:q2-breach-wand" + substitutes.CAST_SUFFIX))
+        game, _ = self.post(policy, raw, key, [
+            prompt(TYPE_PROMPT), power_screen("wand", [("g", "岩石溶解", 12, 12, 20)]),
+            prompt("方向 ('*'でターゲット選択, ESCで中断)? ", "direction", can_choose_target=True)])
+        self.assertEqual(game.accepted, ["m", "B", "g", "2"])
+
+
 if __name__ == "__main__":
     unittest.main()

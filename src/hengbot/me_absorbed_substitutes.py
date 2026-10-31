@@ -5,6 +5,8 @@ Owner, for class 16 (魔道具術師):
     (19h: 「Q2→取り込んだ光の杖で受諾、クエスト内部で巻物要求のとき、代わりに杖で
     照らす」「光の巻物→購入を抑制」)
  2. 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない。持ち物の要求からも外す。」
+ 4. 「岩石溶解を取り込んでいるとき、クエストの魔法棒要求の代替にできる。」
+(3, absorbing a carried Stone to Mud wand, is a me_staff_sequence extra.)
 
 Every fact is one the player saw: the power's row in the last list the game
 displayed for its kind (``me_powers.observed_row``, cmd-magiceat.cpp), or,
@@ -14,10 +16,12 @@ before a list shows it, the absorption the bot observed itself
 ``SUBSTITUTES`` is the table: one row per quest carry (``required_force``
 category and name) that an absorbed power replaces, and how --
 ``WAIVE``: holding the power meets the requirement whatever its charges (it
-regenerates).  The quest carry count (policy_quest ``_quest_carry_count``)
-asks ``carry_waived``, so acceptance and entry agree; a waived carry also
-claims no item (``_quest_carry_target_for_item``), so it is neither bought,
-withdrawn from Home nor reserved for the quest.
+regenerates); ``CHARGES``: the power's charges count as a carried device's.
+The quest carry count (policy_quest ``_quest_carry_count`` and
+``_quest_named_item_count``) asks ``carry_waived`` / ``carry_charges``, so
+acceptance and entry agree; a waived carry also claims no item
+(``_quest_carry_target_for_item``), so it is neither bought, withdrawn from
+Home nor reserved for the quest.
 
 Identify (2): once the power's count (the list's ``max``; a staff's first
 absorption sets it to the staff's charges, mind-magic-eater.cpp) reaches a
@@ -47,6 +51,7 @@ from hengbot.model import SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_STAFF
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
 CAST_SUFFIX = ":absorbed-power"
 WAIVE = "waive"
+CHARGES = "charges"
 
 LIGHT = me_powers.BY_KEY[("staff", SV_STAFF_LITE)]
 IDENTIFY = me_powers.Power("staff", SV_STAFF_IDENTIFY, POWER_NAMES[SV_STAFF_IDENTIFY],
@@ -66,6 +71,8 @@ class Substitute:
 
 SUBSTITUTES = (
     Substitute("required_scrolls", "light", LIGHT, WAIVE),
+    # Q2's wall_breach: one Stone to Mud charge per breach wall, like a wand's.
+    Substitute("utility_tools", "wall_breach", STONE_TO_MUD, CHARGES),
 )
 # The powers read here, and cast in place of an item (me_device_attacks_input).
 POWERS = {power.ident: power for power in (LIGHT, STONE_TO_MUD)}
@@ -115,6 +122,14 @@ def carry_waived(policy, snapshot, category: str, name: str) -> bool:
     return row is not None and held(policy, snapshot, row.power)
 
 
+def carry_charges(policy, snapshot, category: str, name: str) -> int:
+    """The charges a held power adds to this quest carry's device count."""
+    row = _substitute(category, name, CHARGES)
+    if row is None or not held(policy, snapshot, row.power):
+        return 0
+    return me_powers.charges(policy, snapshot, row.power)
+
+
 def owns(owner) -> bool:
     return isinstance(owner, str) and owner.endswith(CAST_SUFFIX)
 
@@ -127,6 +142,8 @@ def cast_key(policy, snapshot, power, direction: str = "") -> str | None:
     return power.key + (direction if power.aimed else "")
 
 
-def light_key(policy, snapshot) -> str | None:
-    """The absorbed Light where a quest reads a Scroll of Light."""
-    return cast_key(policy, snapshot, LIGHT)
+def carry_cast_key(policy, snapshot, category: str, name: str,
+                   direction: str = "") -> str | None:
+    """The substitute power where a quest reads or aims this carry's item."""
+    row = next((row for row in SUBSTITUTES if (row.category, row.name) == (category, name)), None)
+    return None if row is None else cast_key(policy, snapshot, row.power, direction)

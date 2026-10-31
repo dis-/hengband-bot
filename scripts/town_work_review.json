@@ -13061,18 +13061,18 @@
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Composes m + kind + I2A(sval) (+ direction) for an absorbed class-16 power with a charge; None in a store or when blind/confused/hallucinating/paralyzed; emitted only through light_key by the Q2/Q22/Q31 quest light sites (dungeon quest floors).",
+    "evidence": "Composes m + kind + I2A(sval) (+ direction) for an absorbed class-16 power with a charge; None in a store or when blind/confused/hallucinating/paralyzed; emitted only through carry_cast_key by the Q2/Q22/Q31 quest light and Q2 breach sites (dungeon quest floors).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "me_absorbed_substitutes.py:light_key": {
+  "me_absorbed_substitutes.py:carry_cast_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "The absorbed Light where a quest reads a Scroll of Light: cast_key's key; emitted only by QuestMixin._quest_light_key on the quest floor.",
+    "evidence": "Looks up the SUBSTITUTES row of a quest carry and returns cast_key's key; emitted only by QuestMixin._quest_light_key and _q2_breach_key on the quest floor.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

@@ -8,7 +8,7 @@ from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
 from hengbot import me_q1_torch, quest_sweep_target
 from hengbot.me_absorbed_substitutes import (
-    CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_waived, light_key as absorbed_light_key,
+    CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key, carry_charges, carry_waived,
 )
 
 from collections import Counter, deque
@@ -798,6 +798,9 @@ class QuestMixin(OpeningRouteMixin):
                 if it.tval == TVAL_WAND and it.sval == SV_WAND_STONE_TO_MUD
                 and self._is_quest_wall_breach_item(it)
             )
+            # Owner 2026-10-31 「岩石溶解を取り込んでいるとき、クエストの魔法棒
+            # 要求の代替にできる」: class 16's absorbed charges count alike.
+            charges += carry_charges(self, snapshot, "utility_tools", "wall_breach")
             return diggers + charges // Q2_BREACH_WALL_COUNT
         return 0
 
@@ -817,7 +820,7 @@ class QuestMixin(OpeningRouteMixin):
         where the quest reads a scroll, a charged absorbed Light lights the
         area instead (me_absorbed_substitutes).  Sets ``last_reason``.
         """
-        key = absorbed_light_key(self, snapshot)
+        key = carry_cast_key(self, snapshot, "required_scrolls", "light")
         if key is not None:
             self.last_reason = reason + ABSORBED_CAST_SUFFIX
             return key
@@ -2002,6 +2005,12 @@ class QuestMixin(OpeningRouteMixin):
             self._q2_breach_attempts += 1
             self.last_reason = "quest-strategy:q2-breach-wand"
             return reserved_item_command(self, snapshot, "wand", wand, suffix=direction)
+        cast = carry_cast_key(self, snapshot, "utility_tools", "wall_breach", direction)
+        if cast is not None:
+            # The absorbed Stone to Mud aims where the wand would.
+            self._q2_breach_attempts += 1
+            self.last_reason = "quest-strategy:q2-breach-wand" + ABSORBED_CAST_SUFFIX
+            return cast
 
         equipped = self._equipped_digging_tool(snapshot)
         if equipped is None or equipped.pval < Q2_BREACH_MIN_DIGGING:

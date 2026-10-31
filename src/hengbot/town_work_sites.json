@@ -1752,6 +1752,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "005d0eab5e18d6f04fd51714a18d1e6ac89d2eddea58414cb7bfd4ffad4a1037"
   },
+  "me_absorbed_substitutes.py:carry_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e0fa2f3a6014ef7cdf1bc45a9480a76b2f8071011dfe7dd8b9b8ba22c4971838"
+  },
   "me_absorbed_substitutes.py:cast_key": {
     "classification": "data",
     "rows": [
@@ -1759,14 +1767,6 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "c723ebc3c4bb41e44b07065db0bc58edafa3382cea37b71dbb716302fe3d154e"
-  },
-  "me_absorbed_substitutes.py:light_key": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "fa5285259394902b8721cb80ae7741742ce89bcede86293d5c24375f908a04e9"
   },
   "me_device_attacks.py:Power.letter": {
     "classification": "data",
@@ -6958,7 +6958,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d783b52104b983a8a6047513a196d383d40d8ec38df8aed012d9a121e9b26a49"
+    "ast_sha256": "bb57cfecc499d49a0855501ab7cb28649ea793ee18fc5acf18c7d4b2d8e7da92"
   },
   "policy_quest.py:QuestMixin._q2_encounter_key": {
     "classification": "dungeon-only",
@@ -7110,7 +7110,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5edb5c41240c9ae73faf33dd473e57eceea718ac4c2c5f55e6b504accbb84f2a"
+    "ast_sha256": "2d91cd5065fb30c21bd9cfd457bd52fb8465c0121fdcc8ba11e5d907d1e64517"
   },
   "policy_quest.py:QuestMixin._quest_named_item_count": {
     "classification": "data",
@@ -7118,7 +7118,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "9b0b25c7595c55b5ec3669112d688478375c16020149d29e074161c98fc0e5e7"
+    "ast_sha256": "66e15a3aa3f4d6aa5a9594e47cdffb559ae4b425e56fbb893be7c53fe501d170"
   },
   "policy_quest.py:QuestMixin._quest_never_move_races": {
     "classification": "data",
