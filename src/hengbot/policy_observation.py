@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, dark_recall, summoner_wait
+from hengbot import blind_strike, dark_recall, lamp_fuel, summoner_wait
 import json
 
 from hengbot.claim_goal_typing import (
@@ -1056,6 +1056,7 @@ class ObservationMixin:
         )
         blind_strike.observe(self, snapshot)
         dark_recall.observe(self, snapshot)
+        lamp_fuel.observe(self, snapshot)
         self._took_curse_damage = self._took_damage and any(
             " drains HP from you!" in message
             or " drains life from you!" in message

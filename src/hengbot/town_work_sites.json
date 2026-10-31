@@ -1556,6 +1556,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "d4908081f204a3b4de0914aab32d924e23a14c5313855b3fdcf2fc20ca5c85fc"
   },
+  "lamp_fuel.py:_lantern_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "3dd260485bedb7b882126897d1cb0b13ccabf0d77359f34afc8b5cce549d916a"
+  },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
     "rows": [
@@ -3150,6 +3158,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "46030093aaa1c17b723df50906360e06706f94fda006afa0c39eae3045aaf39b"
   },
+  "policy.py:HengbotPolicy._exact_potion_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "01786928c4a0d039c4074af7978d6a1d2e04567bf2871ff398af10f8f76d01fe"
+  },
   "policy.py:HengbotPolicy._find_cure_critical_potion": {
     "classification": "data",
     "rows": [
@@ -3172,7 +3188,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "dea1bde0dc582223d9ffb06e948e36e00560e5e54492beb7648fc4a28fdd99f8"
+    "ast_sha256": "5ca8dc30cf2d56d21cf749611280d0fe61668697186cbc7b67f67a31393d915e"
   },
   "policy.py:HengbotPolicy._find_light": {
     "classification": "data",
@@ -4062,6 +4078,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "6cf79bf5973d2c017a93fd6700ac2e35c705d2e6bf59a0eac91f9dc4fea9fba0"
   },
+  "policy.py:HengbotPolicy._strategy_heal_potion_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "068f2ca610d9f2c4c019396e7b1e24bf53e35ac4284044fc760cc5b1b75c8560"
+  },
   "policy.py:HengbotPolicy._summoner_ranged_kill_key": {
     "classification": "producer",
     "rows": [
@@ -4631,7 +4655,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "bc3aefefc21184e04afc632146f4e688058b1b36345f51e675d78914a2c536ab"
+    "ast_sha256": "758ce25c64ea5e8550d461b1e974b061a6edb61ca17a3cd9b00fe4cb5bde1548"
   },
   "policy.py:HengbotPolicy._unprofitable_unique_disengage_key": {
     "classification": "producer",
@@ -7657,7 +7681,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6c6ba5648dbed565202fef9278222985c4acf3f80feecbcc1c3d93f49c4cfe2e"
+    "ast_sha256": "55cdf2adf5ba206202007ea4e97a67703d89a0aef0dca1045e7ed1c5e7a8204f"
   },
   "policy_shop.py:ShopMixin._identify_staff_purchase_room_count": {
     "classification": "data",
@@ -7697,7 +7721,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "c978db4912f072062c74847c502647dbfd18c035adf33301daccbd995b9fe22f"
+    "ast_sha256": "ef45610579e1f2c308f3ef94fcb83bdda6a547b508bfeb8428ea02ebbe036929"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
     "classification": "data",
@@ -7787,7 +7811,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "acb7fcb502fd8bd227c5a2ae94a106da9d50c53bd93e42356466a42f1097c0ba"
+    "ast_sha256": "c20a68a4b0880f1efb5c0224c35ed11f2dc09e14af006e8e46f0559417a80dca"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.match": {
     "classification": "data",
@@ -7833,7 +7857,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e95da6f87911f7aa70c805477a97d63cb9e7bbf901757f2b5e6d70d38a8094fb"
+    "ast_sha256": "1b48ab5492325b2f901bd995857c389c20478b243a03468478e5dd5c7c0db45f"
   },
   "policy_shop.py:ShopMixin._required_remove_curse_purchase": {
     "classification": "data",
@@ -8030,6 +8054,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "4977a9d45b4cdcc42109762c74bf01db0fc86c449b55af753b46f13d441c7199"
   },
+  "policy_shop.py:ShopMixin._strategy_potion_needs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "f4ac29131ee11401b33b2d872715712ab6a7ca84d366f74dd98e0d6bdd787544"
+  },
   "policy_shop.py:_ShoppingApproachEmission.__new__": {
     "classification": "adapter",
     "rows": [
@@ -8221,7 +8253,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "92943134f6f06b295d0e62efd84b3b70e94e2f40c26e931592ce6e0f5a72c2da"
+    "ast_sha256": "9cb7e99934d8e35600b0a8d97f4f62e7ee65228c7ee8a5c23b9d0bdddb8096ee"
   },
   "policy_supply.py:SupplyMixin._mana_food_device_target": {
     "classification": "data",
@@ -9432,6 +9464,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "dff2687dcb18cd6b923d723a67f6f0f92bf95f57a86a051b7b6c66dc1f14c40b"
+  },
+  "quest_strategies.py:heal_potion_sval": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "48f751c401f256fa3a773b2b9208a1f97cb7a1f01bfe480ce1f6482f5b69d626"
+  },
+  "quest_strategies.py:is_heal_potion_for": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "b734dfa1ac8e652bcd5edd566aaf73e2c83d03280d584fd74d46d1cbe13a7995"
   },
   "quest_strategies.py:lower_carries": {
     "classification": "data",
