@@ -27,6 +27,7 @@ from hengbot.flight_recorder import policy_state
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from tests import test_input_executor as harness
+from tests import test_lv7_town_stop_recorded as lv7
 from tests.test_input_executor import FaithfulHookGame, command_screen
 
 
@@ -38,6 +39,20 @@ with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
 def staff_board(index):
     """Ring row 104 + index of the 061452 capture."""
     return copy.deepcopy(CASE["staff"]["boards"][index])
+
+
+def new_policy(raw):
+    """A new process's policy primed on ``raw``, with the frozen race facts."""
+    from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
+    policy = ConservativePolicy()
+    for race, facts in CASE["monraces"].items():
+        facts = copy.deepcopy(facts)
+        for name in ("flags", "abilities"):
+            facts[name] = frozenset(facts[name])
+        facts["blows"] = tuple(MonsterBlow(**row) for row in facts["blows"])
+        policy._monrace_knowledge[int(race)] = MonraceKnowledge(**facts)
+    policy.prime(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+    return policy
 
 
 def skill_for(raw):
@@ -52,8 +67,7 @@ def skill_for(raw):
 
 
 def staff_policy(raw, *, record=True, **changes):
-    policy = ConservativePolicy()
-    policy.prime(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+    policy = new_policy(raw)
     policy.consume_skill_knowledge(skill_for(raw))
     if record:
         # DECLARED RECONSTRUCTED (module docstring); ``changes`` override.
@@ -361,6 +375,55 @@ class HomeEquipmentSessionTest(PostedKey):
         board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertEqual(sequence._phase(policy, board), "buy")
         self.assertEqual(policy.last_reason, "equipment-transaction:travel-home", key)
+        self.post(policy, raw, key)
+
+
+class Q1TorchForceTest(PostedKey):
+    """鍵2: Q1's Magic-Eater gate measured melee (life-058 084721, Lv7, 223 gold).
+
+    Melee 3.08 < 3.6 failed both tiers, so the route asked two Healing and one
+    Speed potion (7,450 gold with the torch) and stopped unaffordable.  The
+    owner's plan (2026-10-30 「松明を購入して松明で戦う。魔法は補助。」) fights
+    with thrown torches: the force is their output, and the one missing torch
+    (3 gold) is bought.  The opening policy is new on ring row 207 and is
+    driven over the recorded boards 207-222 (Home and ~f rows from the ring).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        lv7.Lv7TownStopRecordedTest.setUpClass()
+
+    def drive(self):
+        # The production policy of the recorded opening-route tests (town map,
+        # quest knowledge and strategies), primed on this capture's boards.
+        opening = CASE["opening"]
+        boards = opening["boards"]
+        policy, _ = lv7.Lv7TownStopRecordedTest().boundary(dict(
+            monraces=CASE["monraces"], snapshot=boards[0],
+            knowledge=[opening["skill"], opening["home"]], state={"modes_and_latches": {}}))
+        for raw in boards:
+            key = decide(policy, raw, opening["skill"])
+        return policy, boards[-1], key
+
+    def test_capture_pins_the_melee_gate(self):
+        readiness = CASE["opening"]["stop"]["fixedquest_readiness"]
+        self.assertEqual(readiness["strategy_force"]["dps"], {"measured": 3.08, "required": 3.6})
+        self.assertEqual(readiness["strategy_force"]["lit_torch"], {"measured": 19, "required": 20})
+        player = CASE["opening"]["boards"][-1]["player"]
+        self.assertEqual((player["class_id"], player["level"], player["max_hp"], player["gold"]),
+                         (16, 7, 116, 223))
+
+    def test_torch_output_is_the_force_and_the_missing_torch_is_bought(self):
+        from hengbot.model import STORE_GENERAL
+        policy, raw, key = self.drive()
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertIsNone(getattr(policy, "_opening_q1_failure", None), policy.last_reason)
+        self.assertNotEqual(key, "")
+        self.assertEqual([row[1:3] for row in policy._opening_q1_requirements(board)],
+                         [(20, 19), (0, 0), (0, 0)])
+        self.assertEqual(policy._opening_q1_plan(board)[:2], ("quest-throwing-items", STORE_GENERAL))
+        force = policy.fixed_quest_readiness_state()["strategy_force"]
+        self.assertEqual((force["dps"]["measured"], force["melee_dps"]), (16.76, 3.08))
         self.post(policy, raw, key)
 
 

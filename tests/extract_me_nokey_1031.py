@@ -32,7 +32,11 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+from dataclasses import asdict
 from pathlib import Path
+
+from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
+from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 
 
 ROOT = Path("C:/hengband-backups/pdca/captures/latest-12h-1031/n1-c")
@@ -76,12 +80,24 @@ def main():
     assert opening[181]["knowledge"]["category"] == "skill_exp"
     assert opening[192]["knowledge"]["category"] == "home"
     assert equipment[0]["turn"] == 2418523
+    # The races on the frozen boards and Q1's roster (its readiness reads them),
+    # from the repository's MonraceDefinitions (run from the bot-client root).
+    race_path = find_monrace_definitions(Path.cwd(), None)
+    races = load_monrace_knowledge(race_path)
+    boards = [*staff[104:115], equipment[0], *opening[207:223]]
+    race_ids = {row["race_id"] for board in boards
+                for field in ("visible_monsters", "detected_monsters")
+                for row in board.get(field, [])}
+    race_ids.update(race for race, _ in load_quest_knowledge(
+        find_quest_definitions(Path.cwd()))[1].threat_roster)
     case = dict(
         source="n1-c life-054 (build b6d47db93) and life-058 (build ba0d425a9) captures",
         sources={f"{path.parent.parent.name}/{path.name}/{name}": hashlib.sha256(
             (path / name).read_bytes()).hexdigest()
             for path in (STAFF, EQUIPMENT, OPENING)
             for name in ("state.jsonl.gz", "bot-decisions.jsonl.gz")},
+        monrace_source_sha256=hashlib.sha256(race_path.read_bytes()).hexdigest(),
+        monraces={str(race): asdict(races[race]) for race in sorted(race_ids)},
         recorded_sequence=RECORDED_SEQUENCE,
         staff=dict(skill=staff[83], boards=staff[104:115],
                    stop=decision(STAFF, staff[114]["turn"], "quest:blocked:me-staff")),
@@ -92,7 +108,7 @@ def main():
                      stop=decision(OPENING, opening[222]["turn"], "quest:blocked:opening-route")),
     )
     with gzip.open(OUTPUT, "wt", encoding="utf-8", newline="\n") as stream:
-        json.dump(case, stream, ensure_ascii=False, separators=(",", ":"))
+        json.dump(case, stream, ensure_ascii=False, separators=(",", ":"), default=sorted)
     print(OUTPUT, OUTPUT.stat().st_size)
 
 
