@@ -237,6 +237,12 @@ def absorbed(policy, sval: int) -> bool:
     return record is not None and sval in record.absorbed
 
 
+def absorbed_count(policy, sval: int) -> int:
+    """The recorded count: the list's ``max`` (``read_powers``) or the charges absorbed."""
+    record = getattr(policy, "_me_staff_sequence", None)
+    return record.absorbed.get(sval, 0) if record is not None else 0
+
+
 def stage_complete(policy, stage: Stage) -> bool:
     """「1本取り込めたら次の段階に進む」: one absorption of each, any charges."""
     return all(absorbed(policy, sval) for sval in stage.svals)

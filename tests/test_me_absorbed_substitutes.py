@@ -243,5 +243,45 @@ class LightCastOnTheQ2FloorTest(Q2FloorReplay):
                          ("rh", "quest-strategy:q2-light-after-opening"))
 
 
+# --- rule 2 ---
+class IdentifyStaffReplacedTest(unittest.TestCase):
+    """「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない。持ち物の要求からも外す。」"""
+    raw = mining.MagicEaterMiningDeathRecordedTest.raw
+    recorded_policy = mining.MagicEaterMiningDeathRecordedTest.policy
+    choose = mining.MagicEaterMiningDeathRecordedTest.choose
+
+    @classmethod
+    def setUpClass(cls):
+        mining.MagicEaterMiningDeathRecordedTest.setUpClass.__func__(cls)
+        _q2().setUpClass()
+        # The recorded Identify staff row of the D24 pack (slot f, 9 charges).
+        cls.identify_staff = next(
+            it for it in parse_snapshot(copy.deepcopy(_q2().me["approach"]), _q2().monraces).inventory
+            if (it.tval, it.sval) == (55, sequence.SV_STAFF_IDENTIFY))
+
+    def board(self, count):
+        """DECLARED CONSTRUCTED: the staff list displayed with 鑑定 count/count."""
+        raw = self.raw("life-016", 94171)
+        raw["visible_monsters"] = []
+        raw["_magic_eater_power_list"] = {"kind": "staff", "rows": [
+            {"name": "鑑定", "current": count, "max": count, "fail": 10, "success": 90}]}
+        return raw
+
+    def test_a_full_staff_count_replaces_the_staff(self):
+        for count, replaced in ((21, True), (20, False)):
+            with self.subTest(count=count):
+                raw = self.board(count)
+                policy = self.recorded_policy("life-016", raw)
+                self.choose(policy, raw)  # the decision observes the displayed list
+                board = parse_snapshot(raw, policy._monrace_knowledge)
+                # This new process's record is empty: only the list says so.
+                self.assertFalse(sequence.absorbed(policy, sequence.SV_STAFF_IDENTIFY))
+                self.assertEqual(substitutes.identify_staff_replaced(policy, board), replaced)
+                self.assertEqual(
+                    substitutes.purchase_excluded(policy, board, self.identify_staff), replaced)
+                if replaced:
+                    self.assertTrue(policy._identify_staff_ready(board))
+
+
 if __name__ == "__main__":
     unittest.main()

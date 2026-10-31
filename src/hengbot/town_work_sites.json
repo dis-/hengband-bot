@@ -1758,7 +1758,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8a76c59e08a857e156a3436e2975a5df9472f3e11204fcff79a1cd73983bac08"
+    "ast_sha256": "c723ebc3c4bb41e44b07065db0bc58edafa3382cea37b71dbb716302fe3d154e"
   },
   "me_absorbed_substitutes.py:light_key": {
     "classification": "data",
@@ -7494,7 +7494,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "5ce1f3baf6f21a0e4e34715d741dd6ce714ce0a635aa565800930ecdfb02db28"
+    "ast_sha256": "7a4764086fb4dd06faf465b33240cd04301b6fdc47f4e41279396ea86d22589c"
   },
   "policy_shop.py:ShopMixin._mana_survival_sale_candidate": {
     "classification": "data",
@@ -7978,7 +7978,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "b517933ecdc4974e5198ad39d101544cc3120a0baee4c4b51c96f1a1e3692dc8"
+    "ast_sha256": "ccdbbf5761bd05a1ae306f10e158eacf1a3b18a564f3f6303c20c6185bdce577"
   },
   "policy_supply.py:SupplyMixin._identify_staff_release_plan": {
     "classification": "data",
