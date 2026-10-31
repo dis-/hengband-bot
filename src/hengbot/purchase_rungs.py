@@ -74,6 +74,7 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "tail:launcher-enchant": CONSUMED_ON_USE,
     # The class-16 staff sequence keeps it until absorbed (me_staff_sequence).
     "me-staff:buy": "me-staff:absorb",
+    "me-device:policy": "me-staff:absorb",
 }
 
 

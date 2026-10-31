@@ -1,8 +1,13 @@
-"""O3: reserve the birth wand, absorb it safely, and use it at Q34's stands."""
+"""O3: reserve the birth wand, absorb it safely, and use it at Q34's stands.
+
+``absorb_key`` absorbs whatever the device policy table absorbs on the spot
+(me_device_policy.absorb_candidate), the birth Magic Missile wand included.
+"""
 
 from hengbot.model import TVAL_WAND
 from hengbot.claim_register import claims
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, is_absorption_device
+from hengbot.me_device_policy import absorb_candidate
 from hengbot.policy_constants import MAGIC_MISSILE_REASON
 
 
@@ -19,11 +24,13 @@ def absorb_key(policy, snapshot, hostiles):
             or player.stunned or player.paralyzed or player.hallucinated
             or player.hp < player.max_hp):
         return None
-    candidate = next((item for item in snapshot.inventory
-                      if is_absorption_device(player.class_id, item)
-                      and item.tval == TVAL_WAND and item.sval == MAGIC_MISSILE
-                      and item.charges > 0 and not item.charging
-                      and not (item.timeout or 0)), None)
+    # The device policy table's absorb_now rows; me_device_policy keeps the
+    # conditions.  「その場で取り込む」 is on the floor where the device was
+    # found: in town only the birth Magic Missile wand (O3).
+    candidate = absorb_candidate(
+        policy, snapshot, only=((TVAL_WAND, MAGIC_MISSILE),) if snapshot.in_town else None)
+    if candidate is not None and not is_absorption_device(player.class_id, candidate):
+        candidate = None
     if candidate is None:
         return None
     policy.last_reason = ABSORB_REASON
