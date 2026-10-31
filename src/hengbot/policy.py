@@ -17729,7 +17729,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _telmora_q2_travel_key(
         self, snapshot: Snapshot, quest: QuestState
     ) -> str | None:
-        """Use the inn service for the approved Q2 errand, never wilderness."""
+        """Use the inn service for the approved Q2 errand, never wilderness.
+
+        The inn exists only in a town.  On a dungeon floor the game still
+        exports the last town as ``town_id`` (0 for the Outpost), so without
+        this guard the errand read the floor as the Outpost and answered a
+        short fare with a standing wait that displaced the floor's mining
+        and return owners (#47 n1-c life-065: 33 x
+        fixedquest:q2-travel-needs-funds on Yeek cave 1F, loop-detected).
+        """
+        if not snapshot.in_town:
+            return None
         if self._defer_town_errand(
                 "quest-request", "q2-travel", preserve_home_hold=False):
             return None

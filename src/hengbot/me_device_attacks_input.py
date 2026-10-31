@@ -8,7 +8,9 @@ prompt.  The list under the power prompt is recorded on the board
 (``magic_eater_power_list``); an empty or still-charging power closes the
 prompt with ESC (``select_magic_eater`` returns nullopt and the energy is
 reset), so a stale remembered row costs no game time.  The utility powers
-(me_powers, reasons ``me-power:...``) are answered the same way.
+(me_powers, reasons ``me-power:...``) and a quest's absorbed-power
+substitutes (me_absorbed_substitutes, reasons ending ``:absorbed-power``) are
+answered the same way.
 """
 
 from dataclasses import dataclass, replace
@@ -21,7 +23,7 @@ from hengbot.magic_eater_input import (
     kind_menu_wait, observed_power_list,
 )
 from hengbot.me_device_attacks import DEVICE_REASON, POWERS
-from hengbot import me_powers
+from hengbot import me_absorbed_substitutes, me_powers
 
 
 CHARGING = ("その魔法はまだ充填している最中だ。", "The magic is still charging.")
@@ -40,16 +42,20 @@ _KEY = re.compile(r"m(?P<kind>[ABC])(?P<letter>[a-z0-9])(?P<direction>[1-9]?)")
 
 
 def _table(owner):
-    """The attack table, or the utility table (me_powers) for its reasons."""
+    """The attack table, the utility table (me_powers) for its reasons, or a
+    quest's absorbed-power substitutes (me_absorbed_substitutes) for theirs."""
     if owner == DEVICE_REASON:
         return POWERS
     if isinstance(owner, str) and owner.startswith(me_powers.REASON + ":"):
         return me_powers.BY_KEY
+    if me_absorbed_substitutes.owns(owner):
+        return me_absorbed_substitutes.POWERS
     return None
 
 
 def _power(kind, sval):
-    return POWERS.get((kind, sval)) or me_powers.BY_KEY[(kind, sval)]
+    return (POWERS.get((kind, sval)) or me_powers.BY_KEY.get((kind, sval))
+            or me_absorbed_substitutes.POWERS[(kind, sval)])
 
 
 def compile_device(key, owner):

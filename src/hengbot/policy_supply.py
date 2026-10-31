@@ -538,11 +538,15 @@ class SupplyMixin:
         )
         charges = self._total_identify_staff_charges(snapshot)
         from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+        from hengbot.me_absorbed_substitutes import identify_staff_replaced
         from hengbot.me_staff_sequence import absorbed as staff_absorbed
         if (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
-                and staff_absorbed(self, SV_STAFF_IDENTIFY)):
+                and staff_absorbed(self, SV_STAFF_IDENTIFY)) or identify_staff_replaced(
+                    self, snapshot):
             # 「以降、鑑定と財宝感知は取り込みで賄う」: the absorbed power is
-            # the Magic-Eater's Identify staff (it regenerates and refills).
+            # the Magic-Eater's Identify staff (it regenerates and refills);
+            # 「鑑定の杖を21回取り込んだあとは…持ち物の要求からも外す」 also
+            # from the displayed list alone (me_absorbed_substitutes).
             return True
         if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
             if not quest_requires_identify:
