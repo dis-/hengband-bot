@@ -28,34 +28,35 @@ from tests.extract_recall_dungeon_prompt_fixture import ring_rows
 
 CAPTURE = Path("C:/hengband-backups/pdca/captures/unfixed-24h-1031/n1-a/life-427/"
                "incident-captures/20261030-083722-departure-unsatisfiable")
-RING = CAPTURE / "snapshots" / "snapshots-current.jsonl.gz"
-TAIL = CAPTURE / "decision-tail.jsonl"
 OUTPUT = Path(__file__).with_name("fixtures") / "unid-deposit-20261030.json.gz"
 ARRIVAL_TURN, STOP_TURN = 404797, 406215
 
 
-def main():
-    rows = ring_rows(RING.read_bytes())
+def freeze(capture, output, arrival_turn, stop_turn, source):
+    """Freeze one recorded departure-unsatisfiable visit in the shape the test reads."""
+    ring = capture / "snapshots" / "snapshots-current.jsonl.gz"
+    tail = capture / "decision-tail.jsonl"
+    rows = ring_rows(ring.read_bytes())
     # The copied ring repeats an older member; keep the final ascending run.
     start = max(i for i, row in enumerate(rows) if i == 0 or row["turn"] < rows[i - 1]["turn"])
     rows = rows[start:]
     arrival = next(i for i, row in enumerate(rows)
-                   if row["turn"] >= ARRIVAL_TURN and row["type"] == "player_turn")
+                   if row["turn"] >= arrival_turn and row["type"] == "player_turn")
     stop = max(i for i, row in enumerate(rows) if row["type"] == "player_turn")
-    assert rows[stop]["turn"] == STOP_TURN, rows[stop]["turn"]
+    assert rows[stop]["turn"] == stop_turn, rows[stop]["turn"]
     observations = [row for row in rows[arrival + 1:stop] if row["type"] in ("store", "knowledge")]
     decision = None
-    for line in TAIL.read_text(encoding="utf-8").splitlines():
+    for line in tail.read_text(encoding="utf-8").splitlines():
         try:
             row = json.loads(line)
         except json.JSONDecodeError:
             continue  # The bounded tail starts in the middle of a JSON record.
         if row.get("reason") == "town:blocked:departure-unsatisfiable":
             decision = row
-    assert decision is not None and decision["turn"] == STOP_TURN
+    assert decision is not None and decision["turn"] == stop_turn
     case = dict(
-        source="incident-20261030-083722-departure-unsatisfiable (n1-a life-427)",
-        sources={path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (RING, TAIL)},
+        source=source,
+        sources={path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (ring, tail)},
         arrival=rows[arrival],
         observations=observations,
         # The last ~9 Home answer before the stop: the shape of the replies
@@ -69,9 +70,14 @@ def main():
                       procurement_requirements=decision["procurement_requirements"],
                       shop_selector=decision["shop_selector"], inventory=decision["inventory"]),
     )
-    with gzip.open(OUTPUT, "wt", encoding="utf-8", newline="\n") as stream:
+    with gzip.open(output, "wt", encoding="utf-8", newline="\n") as stream:
         json.dump(case, stream, ensure_ascii=False, separators=(",", ":"))
-    print(OUTPUT, OUTPUT.stat().st_size, len(observations), "observations")
+    print(output, output.stat().st_size, len(observations), "observations")
+
+
+def main():
+    freeze(CAPTURE, OUTPUT, ARRIVAL_TURN, STOP_TURN,
+           "incident-20261030-083722-departure-unsatisfiable (n1-a life-427)")
 
 
 if __name__ == "__main__":
