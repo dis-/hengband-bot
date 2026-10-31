@@ -13054,5 +13054,38 @@
     "delegation": "selected child; no independent success",
     "context": "Possible town/store context: the visited towns with an inn teleport (cross-town shopping and the staff search).",
     "evidence": "Returns tuple[int] only: visited town ids other than the current one that have an inn teleport; does not emit commands or claim progress."
+  },
+  "me_absorbed_substitutes.py:cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Composes m + kind + I2A(sval) (+ direction) for an absorbed class-16 power with a charge; None in a store or when blind/confused/hallucinating/paralyzed; emitted only through carry_cast_key by the Q2/Q22/Q31 quest light and Q2 breach sites (dungeon quest floors).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_absorbed_substitutes.py:carry_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Looks up the SUBSTITUTES row of a quest carry and returns cast_key's key; emitted only by QuestMixin._quest_light_key and _q2_breach_key on the quest floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._quest_light_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Read key of a carried Scroll of Light, else the absorbed Light cast (reason + ':absorbed-power'); called only by the quest-floor light sites (q2-light-area / ranged-light-area, q2-light-after-opening, q2-light-phase, post-wave-light).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

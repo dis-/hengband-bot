@@ -32,7 +32,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import approach_walk, me_staff_sequence
+from hengbot import approach_walk, me_absorbed_substitutes, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
@@ -3332,6 +3332,8 @@ class ShopMixin(InStoreMixin):
             # 「2本目は買わない」: after Q1 class 16 buys these two staffs
             # only through me_staff_sequence.purchase (_next_purchase).
             and not me_staff_sequence.purchase_excluded(self, snapshot, item)
+            # 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない」.
+            and not me_absorbed_substitutes.purchase_excluded(self, snapshot, item)
         )
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}
