@@ -18,8 +18,9 @@ from hengbot.model import parse_snapshot
 class PowerGame(inputs.FaithfulHookGame):
     """cmd-magiceat.cpp non-menu choices: reject unknown/empty slot selection."""
 
-    def __init__(self, board, charges):
+    def __init__(self, board, charges, direction="6"):
         super().__init__()
+        self.direction = direction
         self.state = board
         self.charges = charges
         self.wait = "command"
@@ -59,7 +60,7 @@ class PowerGame(inputs.FaithfulHookGame):
                 self.wait = "aim"
                 screen = prompt("Direction?", "direction", can_choose_target=True)
         else:
-            assert self.wait == "aim" and raw == "6", (self.wait, raw)
+            assert self.wait == "aim" and raw == self.direction, (self.wait, raw)
             self.fired += 1
             self.charges -= 1
             self.wait = "command"

@@ -20,6 +20,7 @@ from hengbot.policy_constants import (
     STORE_STUCK_LIMIT,
     TOWN_CYCLE_BREAK_LIMIT,
     TOWN_STOP_PASS_LIMIT,
+    TOWN_COMBAT_REASON_PREFIXES,
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.policy_types import (
@@ -299,6 +300,12 @@ class TownTurnArbiter:
             "town:descend": "departure",
         }
         if normalized in {"no-wait:escape-scroll", "no-wait:flee"}:
+            return "survival"
+        if normalized.startswith(TOWN_COMBAT_REASON_PREFIXES):
+            # Town combat is survival (owner 2026-10-31 「生存の扱いにして数え
+            # ない」): it fights until the enemy dies or leaves and never
+            # spends or retires an errand's budget (D49 n1-c life-067:
+            # eleven missed melee blows retired misc, owner-retired-burst).
             return "survival"
         if normalized.startswith("magic-eater:absorb"):
             return "quest-request"
