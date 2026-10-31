@@ -631,6 +631,13 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     """Sole non-emergency town owner while the sequence is unfinished."""
     if not snapshot.in_town or snapshot.store is not None or not applies(policy, snapshot):
         return None
+    session = policy._equipment_transaction_session
+    if session is not None and not session.complete and session.required_context == "home":
+        # The Home equipment session owns the route to Home and refuses
+        # every other shop's (policy_shop _shopping_approach_key ->
+        # equipment_route_handoff WAIT): the sequence waits for it (#47 n1-c
+        # life-054 072115: 82 x shop:approach '5', then no-progress:buy).
+        return None
     record = state(policy)
     if not read_powers(policy, snapshot):
         # Read what the game has absorbed before buying, selling or

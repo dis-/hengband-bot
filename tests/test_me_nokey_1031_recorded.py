@@ -40,10 +40,21 @@ def staff_board(index):
     return copy.deepcopy(CASE["staff"]["boards"][index])
 
 
+def skill_for(raw):
+    """The recorded life-054 ~f reply (Lv14, ring row 83) for this board.
+
+    DECLARED CONSTRUCTED for the 072115 board (Lv17, no ~f row in its ring):
+    the same reply with the board's level and turn.
+    """
+    skill = copy.deepcopy(CASE["staff"]["skill"])
+    skill["player"] = dict(skill["player"], level=raw["player"]["level"])
+    return dict(skill, turn=raw["turn"])
+
+
 def staff_policy(raw, *, record=True, **changes):
     policy = ConservativePolicy()
     policy.prime(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
-    policy.consume_skill_knowledge(copy.deepcopy(CASE["staff"]["skill"]))
+    policy.consume_skill_knowledge(skill_for(raw))
     if record:
         # DECLARED RECONSTRUCTED (module docstring); ``changes`` override.
         recorded = {**CASE["recorded_sequence"], "failure": None, **changes}
@@ -304,6 +315,53 @@ class RestartForgetsAbsorptionsTest(PostedKey):
         self.assertTrue(shelf and all(sequence.purchase_excluded(policy, board, item)
                                       for item in shelf))
         self.assertIsNone(sequence.purchase(policy, board))
+
+
+class HomeEquipmentSessionTest(PostedKey):
+    """鍵1c: the staff sequence took the board from a Home equipment session.
+
+    life-054 072115: the optimizer's 24-action Home transaction (context home)
+    refused every other shop's route, and the sequence's Magic-shop approach
+    waited for it: 82 x shop:approach '5', then no-progress:buy.
+    DECLARED RECONSTRUCTED: the captures omit session objects; the session is
+    the decision row's next action (deposit of the pack item it names), as in
+    test_lv7_town_stop_recorded.  The sequence record is RECORDED_SEQUENCE in
+    stage 2 with the stage-2 staffs not yet bought (the 07:18 restart).
+    """
+
+    def boundary(self):
+        from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
+        from hengbot.equipment_transaction_planner import (
+            EquipmentTransaction, EquipmentTransactionPlan,
+        )
+        from hengbot.equipment_transaction_session import EquipmentTransactionSession
+        raw = copy.deepcopy(CASE["equipment"]["board"])
+        policy = staff_policy(raw, bought=[5, 10], fundraise_runs=0, reached_runs=0,
+                              fundraise_why=None)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        action = CASE["equipment"]["decision"]["equipment_optimization"]["transaction_next"]
+        item = next(it for it in board.inventory
+                    if equipment_identity(it) == action["item_id"].split(":")[1])
+        transaction = EquipmentTransaction(**action, item_identity=equipment_identity(item),
+                                           move_identity=equipment_move_identity(item))
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((transaction,), (), len(raw["inventory"])))
+        return policy, raw
+
+    def test_capture_pins_the_home_session_and_the_waiting_approach(self):
+        row = CASE["equipment"]["decision"]
+        self.assertEqual((row["reason"], row["key"]), ("shop:approach", "5"))
+        self.assertEqual(row["equipment_optimization"]["transaction_context"], "home")
+        self.assertEqual(row["equipment_optimization"]["transaction_actions"], 24)
+        self.assertEqual(CASE["equipment"]["stop"]["reason"], "quest:blocked:me-staff")
+
+    def test_staff_sequence_yields_to_the_home_session(self):
+        policy, raw = self.boundary()
+        key = decide(policy, raw)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(sequence._phase(policy, board), "buy")
+        self.assertEqual(policy.last_reason, "equipment-transaction:travel-home", key)
+        self.post(policy, raw, key)
 
 
 if __name__ == "__main__":

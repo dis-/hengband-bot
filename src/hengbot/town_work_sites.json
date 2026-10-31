@@ -2055,7 +2055,7 @@
       "browse"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1ed13b0d5f95dba60389ff0b3db66744b8bf1811cd9828d6bf1ebf4a8b6cc0fc"
+    "ast_sha256": "1efb335b8c275023ef0fb343b50ec8869b514a05ab33bd39dfc1827995def84e"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
