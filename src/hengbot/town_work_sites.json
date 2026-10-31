@@ -9431,7 +9431,7 @@
       "store-approach"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "f8cea9dc66ec61f2ebfcff4d19d454929e1ae1b38b0ba1cbb22d074ba54c893b"
+    "ast_sha256": "ba5c1cd19401a47d06b4f81b2e17c15eca567fcb956c786a0d71e84a1a6df603"
   },
   "town_pack_headroom.py:find_deposit": {
     "classification": "data",

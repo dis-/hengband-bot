@@ -767,6 +767,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:shop-required-operation-uncomposable": "a required operation on the observed shop page could not be completed within its existing transaction budget",
         "town:blocked:survival-mana-no-charges": "MANA survival has no reachable Home device charge",
         "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
+        "town:blocked:pack-full-no-room": "a departure purchase is refused only by the pack, and no carried stack can be shelved at Home, sold or destroyed",
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
         "town:blocked:walk-in-entrance-unavailable": "the mining plan refuses recall, and this town has no entrance the walk can use",
         "town:blocked:outpost-fare-no-sale": "no legal surplus or releasable reserved sale remains available to fund the Outpost return fare",

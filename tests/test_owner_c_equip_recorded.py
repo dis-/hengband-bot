@@ -11,12 +11,20 @@ are posted through the production executor.
   leaves); the Monk control is the same boards with class 8 (DECLARED
   CONSTRUCTED).  The executor's reply to the wield is the board with the
   weapon back in the hand (DECLARED CONSTRUCTED).
+- Full pack with no room (owner 「名前付きで止まる」): the recorded ``town3``
+  boards (n1-b life-276 09:00, the Magic shop shelving affordable Identify
+  staves the pack budget refuses at 19/23) with every stack the headroom pass
+  could shelve or sell recorded as bought on this visit (DECLARED
+  CONSTRUCTED: ``_town_visit_purchases``, which keeps a purchase from being
+  shelved or sold again), so no carried stack can make room.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import string
 
+from hengbot import town_pack_headroom
+from hengbot.cli import _policy_final_stop_banner, _policy_final_stop_required
 from hengbot.model import parse_snapshot
 from tests import test_town_stops_1031_recorded as town_stops
 import tests.test_input_executor as executor_harness
@@ -24,6 +32,8 @@ import tests.test_input_executor as executor_harness
 
 RESTORE = "town:restore-combat-weapon"
 MONK = 8  # player-info/class-types.h; mining_loadout.MARTIAL_ARTS_CLASS_IDS
+PACK_FULL_NO_ROOM = "town:blocked:pack-full-no-room"
+AFTER_MAGIC = 66  # the first outside board after the Magic shop page (65)
 FIRST_DECISION = 59  # the first town3 board after the ~f (56) and Home list (58) rows
 
 
@@ -106,6 +116,30 @@ class OwnerCEquipRecordedTest(executor_harness.ProductionHarness):
         for index, (key, reason) in decisions.items():
             with self.subTest(row=index):
                 self.assertNotEqual(reason, RESTORE)
+
+    def test_refused_purchase_with_no_room_to_make_stops_named(self):
+        def nothing_releasable(policy):
+            # DECLARED CONSTRUCTED (module docstring).
+            first = parse_snapshot(self.row("town3", 51), policy._monrace_knowledge)
+            releasable = [item for item in first.inventory
+                          if town_pack_headroom.preservable(policy, first, item)]
+            self.assertTrue(releasable)
+            policy._town_visit_purchases.update(
+                policy._item_signature(item) for item in releasable)
+
+        policy, raw, decisions = self.replay(
+            "town3", AFTER_MAGIC, in_store=True, prepare=nothing_releasable)
+        magic = parse_snapshot(self.row("town3", 65), policy._monrace_knowledge)
+        self.assertEqual((magic.store.store_type, len(magic.inventory)), (5, 19))
+        for index, (_, reason) in decisions.items():
+            with self.subTest(row=index):
+                self.assertFalse(reason.startswith("town:wait-restock"), reason)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertFalse(any(town_pack_headroom.preservable(policy, board, item)
+                             for item in board.inventory))
+        self.assertEqual(decisions[AFTER_MAGIC][1], PACK_FULL_NO_ROOM)
+        self.assertTrue(_policy_final_stop_required(policy))
+        self.assertIn("refused only by the pack", _policy_final_stop_banner(PACK_FULL_NO_ROOM))
 
 
 if __name__ == "__main__":
