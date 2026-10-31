@@ -35,11 +35,17 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             cls.cases = json.load(stream)
 
-    def replay(self, case, last):
+    def row(self, case, wanted):
+        return next(row for index, row in self.cases[case]["rows"] if index == wanted)
+
+    def replay(self, case, last, *, skip=(), in_store=False, prepare=None):
         """Feed the recorded rows through the public chooser up to ``last``."""
         policy, _ = round2.OpeningRouteR2RecordedTest().case("1")
+        policy._in_store_ops_enabled = in_store
         primed, decisions = False, {}
         for index, row in self.cases[case]["rows"]:
+            if index in skip:
+                continue
             if row.get("type") == "knowledge":
                 knowledge = row["knowledge"]
                 if knowledge["category"] == "skill_exp":
@@ -51,6 +57,10 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
             if not primed:
                 policy.prime(board)
                 primed = True
+                if prepare is not None:
+                    prepare(policy)
+            if in_store:
+                policy.observe_store_screen(board.store is not None)
             decisions[index] = (policy.choose_key(board), policy.last_reason)
             if index == last:
                 return policy, row, decisions
@@ -115,3 +125,38 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
                                for row in rows[1:] if row["goal_kind"] == "Reach"]
         stalled += [stalled[-1]] * (TOWN_BLOCKED_STOP_LIMIT - len(stalled))
         self.assertEqual(self.fuse(stalled)[0], TOWN_BLOCKED_STOP_LIMIT)
+
+    def test_town2_home_first_leave_on_a_later_page_ends_the_entry(self):
+        # n1-b life-276 08:49: after an inscribe and a sale on the Alchemist
+        # page, the continuation selected a departure-blocking buy, _shop sent
+        # it Home first (ESC, shop:home-first-before-purchase), and the entry
+        # called that mismatch shop-required-operation-uncomposable and stopped.
+        home = self.row("town1", 113)
+        alchemist = parse_snapshot(self.row("town1", 108), None).store
+
+        def prepare(policy):
+            # DECLARED RECONSTRUCTED: the process had read Home (turn 1092865)
+            # and the Alchemist's shelf (turn 1092564) earlier in this life; the
+            # capture of the stop starts in the dungeon, so both come from the
+            # same life's previous capture (fixture case town1).
+            policy.consume_home_knowledge(_parse_items(home["knowledge"]["items"], protocol=3))
+            policy._town_supplier_stock[4] = alchemist
+
+        policy, raw, decisions = self.replay(
+            "town2", 131, skip={128}, in_store=True, prepare=prepare)
+        self.assertEqual(decisions[129], ("{h@0\r", "shop:in-store-inscribe"))
+        self.assertEqual(decisions[130], ("d0y", "shop:in-store-sell"))
+        self.assertEqual(policy.in_store_decision_telemetry()["fallback"]["shop_reason"],
+                         "shop:home-first-before-purchase")
+        self.assertEqual(decisions[131], ("\x1b", "shop:in-store-done"))
+        self.assertNotIn("required-page-continuation", policy._shop_selector_diagnostics)
+        # DECLARED CONSTRUCTED: the engine's reply to the leave is the recorded
+        # Alchemist entrance board with the post-sale pack and gold.
+        outside = copy.deepcopy(self.row("town2", 128))
+        outside.update(turn=raw["turn"] + 1, messages=[],
+                       inventory=copy.deepcopy(raw["inventory"]))
+        outside["player"]["gold"] = raw["player"]["gold"]
+        self.post(policy, raw, "\x1b", outside)
+        policy.choose_key(parse_snapshot(outside, policy._monrace_knowledge))
+        self.assertFalse((policy.last_reason or "").startswith("town:blocked:"),
+                         policy.last_reason)

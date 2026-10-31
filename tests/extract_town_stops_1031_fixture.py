@@ -14,6 +14,12 @@ Cases:
   (Home entrance, hungry, 1092876: recorded decision 12349, whose absorb was
   rewritten).  The duplicate frames 106, 107, 110, 111 carry no decision of
   their own (the decision rows of turns 1092301-1092865 are 12344-12348).
+- ``town2``: n1-b life-276
+  ``20261031-084905-town-blocked-shop-required-operation-uncomposable``.
+  Lines 121 (arrival in town by recall, turn 1113555), 123 (``~f`` skill
+  list), 124 and 126 (the town boards of decisions 2278 and 2279), 128 (the
+  Alchemist entrance after the travel, turn 1113830) and the Alchemist pages
+  129, 130 and 131 of decisions 2280-2282 (inscribe, sell, the stop).
 - ``fuse``: the decision rows (``bot-decisions.jsonl.gz``) of n1-c life-057
   ``20261031-083408-loop-detected`` 3866-3895 and ``20261031-084544-loop-
   detected`` 704-733, both stopped by the runner's town-block fuse, trimmed to
@@ -38,6 +44,11 @@ CASES = {
     "town1": (
         "n1-b/life-276/captures/20261031-084418-town-blocked-owner-retired-burst",
         (85, 95, 105, 108, 109, 112, 113, 114, 115),
+    ),
+    "town2": (
+        "n1-b/life-276/captures/"
+        "20261031-084905-town-blocked-shop-required-operation-uncomposable",
+        (121, 123, 124, 126, 128, 129, 130, 131),
     ),
 }
 
@@ -81,6 +92,8 @@ def _case(source: Path, relative: str, indices: tuple[int, ...]) -> dict:
 
 def main(source: Path) -> None:
     document = {name: _case(source, *spec) for name, spec in CASES.items()}
+    town2 = dict(document["town2"]["rows"])
+    assert [town2[index]["store"]["store_type"] for index in (129, 130, 131)] == [4, 4, 4]
     document["fuse"] = {name: _fuse_rows(source, *spec) for name, spec in FUSE.items()}
     assert document["fuse"]["walk"][0]["reason"].startswith("town:blocked:")
     assert document["fuse"]["fight"][0]["reason"].startswith("town:blocked:")

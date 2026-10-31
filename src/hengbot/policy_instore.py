@@ -540,13 +540,19 @@ class InStoreMixin:
         """
         store = snapshot.store
         key = self._shop(snapshot)
-        if key == LEAVE_STORE_KEY and (self.last_reason or "").startswith(
-                ("shop:buy", "shop:in-store-buy")):
+        if key == LEAVE_STORE_KEY and (
+                (self.last_reason or "").startswith(("shop:buy", "shop:in-store-buy"))
+                or (not first
+                    and self.last_reason == "shop:home-first-before-purchase")):
             # The stateful selector may discover after the pure preflight that
             # the purchase is no longer wanted. Preserve that leave as the end
             # of this visit instead of handing it off with a stale buy reason.
             # A leave with its own reason (a refusal or defect) keeps the
             # first-page fallback so the outside composition still sees it.
+            # The stateful Home gate can send a later page's required buy Home
+            # first after the pure gate admitted it; _shop has already re-armed
+            # Home for that one detour, so the leave ends this entry (n1-b
+            # life-276 2026-10-31 08:49, shop-required-operation-uncomposable).
             self._in_store_note("fallback", {
                 "shop_key": key, "shop_reason": self.last_reason,
             })
