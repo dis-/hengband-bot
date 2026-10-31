@@ -25,7 +25,7 @@ from pathlib import Path
 
 from hengbot.control_client import raw_keys_to_macro_notation
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.spectator_tiles import spectator_player, spectator_tiles
+from hengbot.spectator_tiles import spectator_player, spectator_tile_player, spectator_tiles
 
 # Owner request 2026-10-23: the last 20 messages,
 # and one stderr line per hour at most for a failing write.
@@ -331,6 +331,8 @@ class SpectatorWriter:
                     self.magic_eater_powers)
                 content["magic_eater_powers_observed_at"] = dict(
                     self.magic_eater_powers.get("observed_at", {}))
+            content["tile_player"] = spectator_tile_player(
+                player.class_id, getattr(policy, "_spectator_sex_title", None))
             if policy is not None:
                 destination = spectator_recall_destination(policy, snapshot)
                 if destination is not None:
