@@ -1,0 +1,140 @@
+LUNA-DIAG-fix-deaths-1101.txt  (D55 / #47、ブランチ fix-deaths-1101、main 31306b6a8 から)
+
+証拠: C:\hengband-backups\pdca\captures\fix-deaths-1101\n1-<x>\life-NNN\
+  （観戦サーバーから scp で写した。incident-captures の player-death、bot-std*.log、game.log、user\playrecord-SOAK.txt）
+再現の道具（作業用）: 記録の盤面（snapshots-current のリング）を新しい policy に順に渡し、公開の choose_key の
+  キーと理由を記録と比べた。main 31306b6a8 で行った。
+
+各ケースの表の見方: 判断番号 ゲームターン HP 位置 キー 理由（見えている敵）
+
+======================================================================
+1. n1-a life-450（10-31 14:47、Lv24 戦士、迷宮 16階、版 2f1c0a886）
+   死因: playrecord「16階で麻痺状態でランゴスタに殺された」。HP 213/419 から麻痺の連続で死亡。
+   持っていた脱出・回復: テレポートの巻物 12、致命傷の治癒の薬 10、帰還の詔 9（読んで発動待ち）。
+   麻痺知らず（free_action）は無い（depth_safety の has に無い）。
+
+   6695 1268303 HP219 (2,2)  'rd' emergency:teleport（狼3・チーターマン『アポロ』）
+   6699 1268337 HP191 (2,43) 'rd' emergency:teleport（疫病人間・アリ）
+   6700 1268346 HP193 (18,57) 're' return:recall
+   6701-6715 1268357-1268495 HP194→212 '5' return:wait-recall（6715 でアイス・コボルドが距離2）
+   6716 1268509 HP213 (18,57) '6' melee  ← 致命
+        アイス・コボルド（race 1112）距離1、ランゴスタ（race 1252、速さ +10 = 120、
+        攻撃 STING/CRUSH 効果 PARALYZE、lib/edit/MonraceDefinitions.jsonc id 1252）距離2。
+   この後、ランゴスタは1回の行動の間に2回動ける（120 と 110 のエネルギー比 20:10）ので、隣に来て刺し、麻痺が続いて死亡。
+
+   使わなかった理由（main 31306b6a8）:
+   - 麻痺の敵の処理 _paralyzer_prevention_key（policy_combat.py:2606-2610）は「隣にいる」（distance <= 1）
+     麻痺の敵しか見ない。距離2のランゴスタは対象外で、テレポートを読まない。
+   - その下の状態異常の段（policy.py:11299-11311）は、別の敵と隣接して戦っている時、近づいてくるだけの
+     麻痺の敵を外す（「Finish the fight already in contact」、2f8fecf53 08-17）。
+   - そのため combat の melee（コボルドを殴る）になった。
+   main で再現: 記録の 22 盤面（1268300-1268509）を新しい policy に渡し、22 判断すべてが記録と同じ
+   （最後は '6' melee）。→ main は直っていない。
+
+   根: 「隣にいるか」で麻痺の敵の接触を判定していたこと。速い敵は、こちらの次の行動の前に近づいて殴れる。
+   ゲームの仕組み: 毎ゲームターン、プレイヤーも敵も speed_to_energy(速さ) ずつ溜まり
+   （core/player-processor.cpp:133、monster/monster-processor.cpp:677）、1回の行動に ENERGY_NEED() =
+   randnor(100,25)（core/speed-table.h:6）。こちらの1回の行動の間に敵は平均で エネルギー比 回動く。
+   path 歩先の敵は path-1 歩と1回の攻撃が要る。
+
+======================================================================
+2. n1-c life-077（11-01 03:25、Lv8 ゾンビの魔道具術師、町（アウトポスト）、版 577cd246b）
+   死因: playrecord「地上で見習戦士に殺された」。見習戦士（race 43、lv2、9d4、SLASH 1d8・1d8・1d7）。
+   持っていた物: 帰還の詔 9、謎の魔法棒（24、乱数の効果のため狙わない決まり、me_ranged_first.py の
+   ATTACK_WAND_SVALS）、トラップ解除の魔法棒、ドア/階段感知の杖、点火した松明 16本（光源はランタン）、
+   取り込んだマジック・ミサイル。回復薬なし。テレポートは直前に使い切った。
+
+   1339 440894 HP52 'rb' emergency:teleport（ワタリガラス）
+   1371 441388 HP54 'rb' emergency:teleport（ワタリガラス）
+   1398 441783 HP58 'rb' emergency:teleport（見習戦士）  「もうテレポートの巻物を持っていない」
+   1437-1438 442429 店で ドア/階段感知の杖 を買う
+   1439-1442 442438-442464 移動の中断（見習戦士が近づく）「道筋が見つかりません！」
+   1443 442488 HP56 '2' emergency:cornered-attack
+   1444 442499 HP43 '2' emergency:cornered-attack
+   1445 442504 HP43 '2' emergency:cornered-attack
+   1446 442514 HP29 '2' emergency:cornered-attack
+   1447 442524 HP13 '2' emergency:cornered-attack
+   1448 442533 HP0  '2' emergency:cornered-attack  ← 死亡
+   近接の命中は main_hand_to_h -63（マン・ゴーシュと折れたダガーの二刀流）。6回でほぼ全部外れ。
+
+   使わなかった理由（main 31306b6a8）:
+   - 緊急の段で上り階段が無い時、town_last_stand.key（policy_combat.py:2407）が先に答える。
+     town_last_stand.key は直接 近接のキーを返す（town_last_stand.py:44）。
+   - ダンジョンの同じ場面（policy_combat.py:2417-2423）は me_ranged_first.attack_key（取り込んだ攻撃、
+     マジック・ミサイル、攻撃の魔法棒、予備の松明を投げる）を先に試すが、町の最後の抵抗はそれを通らない。
+   - オーナー決定 10-31「近接以外の攻撃手段も街で使う」と食い違う（me_ranged_first.py の説明にも
+     「Town fights use the same order」とある）。
+   退行: town_last_stand は b51875db0（10-31）で入り、緊急の段・逃げる段で me_ranged_first の前に置かれた。
+   main で再現: 記録の盤面 442464-442533 を新しい policy（杖の記録・技能・自宅の知識つき）に渡し、
+   6 盤面すべて '2' emergency:cornered-attack。→ main は直っていない。
+
+   付記（直さない・別の話題）: 二刀流の -63 は装備の最適化が較正なし（calibration-required、
+   unavailable_reason equipment-stat-modifiers-unknown）で止まっているため。n1-c は --dump-name を
+   外した運転（メモリ「n1-c の --dump-name は D40 の直しまで外す」）。ロング・ソード (2d5)(+5,+1) を
+   持っていても替えない。運転の設定の話なので、ここでは直さない。
+
+======================================================================
+3. n1-a life-451（10-31 18:24、Lv32 戦士、鉄獄 38階、版 ebd9051d2）
+   死因: playrecord「38階でリザードキングに殺された」。
+   持っていた物: 階に着いた時 テレポートの巻物 14、致命傷の治癒の薬 10、帰還の詔 9。
+   死ぬ時: テレポート 0、致命傷の治癒 10（6d8 = 平均27 回復、object-use/quaff/quaff-effects.cpp:126-127）、
+   帰還（発動待ち）、スターライトの杖 0回分。
+
+   この階はランダムクエスト 45（『カルバノグの殺人兎』 race 1347、lv40、速さ +25、AC 220、20d100）の階。
+   クエストの敵は一度も見えていない（判断の threat_prediction に race 1347 は無い）。
+
+   180  1656599 38階に下りる
+   204  1656855 HP447 emergency:teleport（サイクロプス）      dive_emergencies 0
+   259  1657796 HP509 emergency:teleport（『クッパ大王』）      1
+   448  1659784 HP416 emergency:teleport（エア・ハウンド）      2
+   492-1002 … ほかに 10 回の emergency:teleport（大天使・ドリード・半魔のオーク・海トロル など）
+   1027 1671475 HP556 'rc' emergency:teleport（泡の群れ 10）  最後の1巻
+   1028 1671484 HP558 'rc' return:recall（last_return_trigger escape-kit-empty）
+   1029-1033 return:wait-recall
+   1034 1671546 HP566 '3' unseen-recall:move（「何かがサンダー・ボールの呪文を唱えた」）
+   1035-1037 HP483→345 emergency:seek-upstairs（上り階段 [5,112] まで 24 歩、
+        リザードキング・半魔のオーク×6・グレーター・ファルメル・スクルカー など速さ +10〜+20 が隣）
+   1038-1039 HP261→81 melee → 死亡
+
+   帰らなかった理由（main 31306b6a8）:
+   - 2回目の緊急脱出で帰る決まり（EMERGENCY_RETURN_COUNT = 2、policy_constants.py:517。
+     ユーザー 10-02「逃走も緊急脱出に数える」）で、着地のたびに _returning_to_town が立つ
+     （policy_combat.py:2437-2442）。
+   - ところが帰還の処理 _return_to_town_key は、クエストの出口の鍵がかかっていると帰りを取り消す
+     （policy_town.py:7970-7976、_return_exit_locked → _quest_floor_exit_locked）。
+   - ランダムクエストの鍵（policy_quest.py:4742-4778）は、(a) 最深階で脱出の巻物が0（4752）、
+     (b) HP が PANIC 以下で脱出の巻物なし、(c) 飢え、(d) 60 回続けて進まない（4777）の時だけ外れる。
+     テレポートを 14 回使っても外れない。外れたのは巻物が 0 になってから。
+   - 確認: 38階の 4 盤面で _quest_floor_exit_locked = True（テレポート 14・12・2・1 の時）。
+   - その結果、脱出手段が 0 の状態で帰還の発動（15〜35 ターン）を待ち、群れに囲まれて死んだ。
+   - ユーザー 07-26 の決まり（メモリ bot-random-quest-teleport-giveup）は「クエストの敵と 30回以上
+     テレポートし合うのは普通。進展（クエストの敵を見る・傷つける）がある限り戦い続ける。本当に進まない
+     時だけ諦める」。この階ではクエストの敵を一度も見ていないので、テレポートはすべてクエストと無関係。
+   main で再現: 同じ（鍵の判定は main でも同じ。4 盤面で locked）。→ main は直っていない。
+
+   根: ランダムクエストの階の出口の鍵が、「2回目の緊急脱出で帰る」決まりより強い。どちらもユーザーの
+   決まりで、どちらを優先するかは新しい決まりになる。→ 実装せず、問いにする（REPORT の問い1）。
+
+======================================================================
+4. n1-b life-285（11-01 00:58、Lv8 ゾンビの戦士、イークの洞窟 1階、版 f9c921d32）
+   死因: playrecord「1階で巨大ハツカネズミに殺された」。増える敵（巨大ハツカネズミ、MULTIPLY）の群れ。
+   持っていた物: テレポート 0、致命傷の治癒 0、帰還 0（procurement_requirements で Teleport 0/15、
+   CCW 0/10）。未鑑定の薬（金斑の薬）1、杖 (18回分) 1、松明、財宝感知の巻物 6。
+   Q34 → Q1 → 採掘キットを買って最初の採掘（出発時の所持金 12、死ぬ時 2729 は採掘で得た分）。
+
+   1056 219785 HP191 巨大ハツカネズミが現れる（採掘中）
+   1069-1077 HP191→182 return:seek-upstairs（上り階段 [23,86] へ）
+   1078-1092 melee / ranged:throw-torch（群れ）
+   1095-1112 HP140→118 fundraise:seek-upstairs と melee:choke
+   1124-1136 HP114→96 fundraise:seek-upstairs が 2 マスの間を往復（(13,76)⇔(14,75)、(13,75)⇔(14,74)、
+        (13,76)⇔(14,77)）。道の計算（_nearest_goal_route、policy_supply.py:2057）の最初の一歩が、
+        ネズミが動くたびに入れ替わる。
+   1137-1343 HP94→5 melee と rest を繰り返し、群れが増えて死亡（最後の 25 判断はすべて melee）。
+   main で再現: 1500 盤面の再生で 265 一致・24 不一致（新しい policy の記憶の差）。終わりの melee は一致。
+
+   扱い: ユーザー決定 10-30（メモリ first-mining-supply-accept）「初回採掘の話であれば物資が不足するのは
+   どうしようもないので、通常行動で対処できない死は受け入れる」に当たる。脱出も回復も持たない初回の
+   採掘。ただし 1124-1136 の往復は通常の行動の誤り（13 判断・HP 約20 を失った）。往復は道の計算が
+   動く敵のいるマスを壁として扱うため（D31 の階の往復の系統）。これだけでは死は避けられなかった
+   （往復の後も 2500 ゲームターン以上、増え続ける群れと戦った）ので、このブランチでは直さない
+   （REPORT の問い2）。
