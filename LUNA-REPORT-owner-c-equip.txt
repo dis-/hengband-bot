@@ -1,0 +1,102 @@
+LUNA-REPORT-owner-c-equip（#47、2026-10-31 15時の所有者の答え、装備・町の系統）
+枝 owner-c-equip-1031（main 0f2266ae6 から。取り込み直前に main を確かめたが進んでいなかった）。
+診断は LUNA-DIAG-owner-c-equip.txt（file:line）。前任の実装役のセッションが途中で終わったので引き継いだ。
+
+======================================================================
+コミット
+======================================================================
+1. 61efb29f8 Let a sleeping hostile in view allow the mining strip (#47)  （前任。内容を確かめて残した）
+   「眠っている敵なら外してよい」。mining_loadout.awake が、外す判定（strip_allowed）、持ち直し（rollback_key）、
+   採掘の静かな手数（policy_fundraising.py）の1つの判定。眠っている敵では外し、起きている敵が見えたら
+   （眠っていた敵が起きた時も、起きた敵が来た時も）すぐ持ち直す。同じ判定なので交互にならない。
+   掘り抜け（breakout）も strip_allowed を通るので同じ。
+2. a80192777 Re-arm an empty main hand in town before departure (#47)
+   「町でも持たせる」。利き手が空・掘る道具を装備していない・使える近接武器を持っている時、町の持ち直し
+   （_town_restore_weapon_key）が装備し、出発の準備（_combat_weapon_ready）はそれを待つ。武器の選び方は
+   mining_loadout.main_hand_weapon（覚えている武器→最適化の結果→最初の近接武器。前任が未コミットで
+   切り出していたものを、正しく振る舞いが同じなので残した）。素手で戦う職業は手を空のままにする
+   （mining_loadout.MARTIAL_ARTS_CLASS_IDS = 修行僧8・練気術師20・狂戦士23。
+   player-status.cpp:1390-1397 is_martial_arts_mode）。
+3. b12dd7de4 Stop named when a refused purchase has no room to make (#47)
+   「名前付きで止まる」。出発を止める買いが枠だけで断られ、預ける・売る・壊す山も、鑑定の流れが持っている
+   品も無い時、town:blocked:pack-full-no-room（POLICY_FINAL_STOP_REASONS と cli のバナーに1回ずつ登録）で
+   止まる。入荷待ちには行かない。「枠だけで断られた」は、覚えている店の棚に同じ問い
+   （_departure_blocking_page_purchase）を、観測どおりと、枠があるものとして（town_pack_budget.assuming_room）
+   の2回聞いて見分ける。棚の証拠のキャッシュのキーにもこの区別を入れた（入れないと枠の無い答えが返る）。
+   _policy_final_stop_kind は理由をそのまま種類にするので変更不要だった。
+
+======================================================================
+止まりごと
+======================================================================
+- 1: 記録 n1-c life-065（D45 と同じ取り込み、build aa56fccb0）。構成した眠りの敵（Blue yeek, race 52）の盤面。修正済み。
+- 2: 記録には町で空の手のまま出発した盤面は無い。n1-b life-276 の town3 の盤面で利き手の武器を荷物に移した
+  構成の盤面で確かめた。修正済み。
+- 3: n1-b life-274（latest-12h-1031\n1-b\life-274）dec の行 172・187 town:wait-restock:magic、
+  158・173・188 departure-unsatisfiable（×3）。今の main（町3(a) 6a037d02a の後）でこの記録を流すと、
+  預けられる山が8つあり行 52 で home:atomic-deposit が始まる＝この記録は町3(a) で解決済み。
+  預ける物も無い場合は記録に無いので、town3 の盤面に「預け・売りのできる山はこの訪問で買った物」
+  （_town_visit_purchases、構成）を入れて再現した。修正済み。
+
+======================================================================
+検査
+======================================================================
+新しいテスト（tests/test_owner_c_equip_recorded.py、公開の choose_key と本番の executor を通す。
+固定の記録は既存の fixtures/town-stops-1031.json.gz を使い、新しい抜き出しは無い）:
+- test_town_empty_main_hand_is_rearmed_before_departure（2）
+- test_martial_arts_class_keeps_its_main_hand_empty（2 の対照、修行僧）
+- test_refused_purchase_with_no_room_to_make_stops_named（3）
+変えたテスト（前任）: tests/test_barehand_mining_recorded.py の
+  test_sleeping_hostile_in_view_strips_then_rearms_when_it_wakes（新）と test_strip_waits_while_a_hostile_is_in_view（追記）。
+
+直す前に落ちること（src の差分だけを戻して流し、戻した。git stash は使っていない）:
+- 1: test_barehand_mining_recorded で3件落ちる（眠りの2件の subTest と strip_waits）。戻すと9件すべて通る。
+- 2: test_town_empty_main_hand_is_rearmed_before_departure が落ちる（出発の準備が空の手で True）。
+  修行僧の対照は直す前も通る（振る舞いを変えないことの確認）。
+- 3: test_refused_purchase_with_no_room_to_make_stops_named が落ちる（行 66 で shop:travel）。
+
+流したもの:
+- import の確認: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" 通る。
+- checks.json の全テスト（50 項目、すべて main にある）＋上の2モジュール: Ran 346、OK（失敗なし、約24分）。
+- 関係: tests.test_town_stops_1031_recorded と tests.test_town_pack_headroom（32件）通る。
+- scripts/town_work_manifest.py --write: zero unmapped（2 で mining_loadout の2関数の review 項目を足し、
+  _town_restore_weapon_key の evidence を更新）。
+- 全体スイート・preflight・mutation_check・fast_tier は流していない（指示どおり）。
+
+======================================================================
+checks.json に足す項目（案。checks.json は編集していない）
+======================================================================
+  {"id": "D-owner-c-1", "tests": ["tests.test_barehand_mining_recorded"]}
+  （D45 の項目に既にあればそのまま。眠りの2件が加わった）
+  {"id": "D-owner-c-2", "tests": ["tests.test_owner_c_equip_recorded.OwnerCEquipRecordedTest.test_town_empty_main_hand_is_rearmed_before_departure", "tests.test_owner_c_equip_recorded.OwnerCEquipRecordedTest.test_martial_arts_class_keeps_its_main_hand_empty"]}
+  {"id": "D-owner-c-3", "tests": ["tests.test_owner_c_equip_recorded.OwnerCEquipRecordedTest.test_refused_purchase_with_no_room_to_make_stops_named"]}
+  （まとめて "tests.test_owner_c_equip_recorded" 1つでもよい。3件、約15秒）
+
+======================================================================
+保守性
+======================================================================
+- 1・2 の判定はどちらも mining_loadout（戦闘の手の持ち主の1モジュール）にある。awake は外す・持ち直す・
+  静かな手数の1つの判定。main_hand_weapon は地下の持ち直しと町の持ち直しの1つの選び方（前は
+  _rearm_target の中に書かれていた）。empty_main_hand_weapon は町の持ち直しと出発の準備が読む1つの判定なので、
+  準備が「持ち直せない武器」を待って止まることが無い。素手の職業は表（MARTIAL_ARTS_CLASS_IDS、出典つき）で、
+  共有の判断の中に職業の比較を書いていない。
+- 3 の判定は town_pack_headroom（枠を空ける持ち主）にあり、make_room_for_purchase と同じ入口（early_key）から
+  呼ぶ。「枠があるものとして聞く」は town_pack_budget の1つの文脈（ContextVar、方策の属性を足さないので
+  復元チェックポイントに影響しない）で、_store_purchase_fits_pack と棚の証拠のキャッシュが読む。
+  止まりの名前は定数 PACK_FULL_NO_ROOM の1か所。
+- 残した重複: _town_restore_weapon_key の後半の武器の選び方（覚えている名前→最初の近接武器）は
+  main_hand_weapon とほぼ同じだが、掘る道具を外す時とテレポート阻害の入れ替えの振る舞いを変えないため
+  今回は置き換えていない（空の手の時だけ main_hand_weapon の答えを使う）。保守性の回で1つにまとめられる。
+- 共有ファイルの差分: policy.py +4/-1（import と準備の2行）、policy_equipment.py +5/-2、policy_shop.py +3/-1、
+  policy_instore.py +3、cli.py +1、policy_constants.py +1。
+
+======================================================================
+所有者への問い
+======================================================================
+1. 狂戦士（23）はゲームの is_martial_arts_mode で利き手が空なら格闘になるので「素手で戦う職業」に入れた。
+   is_martial_arts_pro は修行僧と練気術師だけ。狂戦士は武器を持たせる側にするか。
+   (A) 今のまま（ゲームの格闘の判定に合わせる） (B) 狂戦士には武器を持たせる
+2. 2 で、使える近接武器を荷物に何も持っていない時は今までどおり出発する（準備は待たない）。自宅の武器を
+   取りに行くかは既存の自宅の持ち直し（policy_town.py の safe-weapon / combat-weapon の需要）に任せ、
+   今回は変えていない。荷物に武器が無く空の手の時に、自宅の武器を必ず取りに行くようにするか。
+3. 3 の止まりは、枠が足りない時に棚が買えるのに断られ、空けられる物が無いと分かった最初の盤面で止まる
+   （別の店＝闇市を見に行く前）。闇市の買いも同じく1枠要るので結果は変わらないと判断した。

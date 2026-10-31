@@ -15,7 +15,9 @@ Frozen: the boards of turns 778659 (sword worn, nothing in view), 778665
 (hand empty, the worm mass in view two cells away), 778697 (hand empty, the
 worm masses adjacent) and 791632 (the last recorded board, a worm mass
 adjacent), the skill-proficiency knowledge row, the recorded decision rows of
-those turns, and the race knowledge of race 31 (lib/edit/
+those turns, and the race knowledge of race 31 and of the non-breeding
+Yeek cave 1F race 52 (Blue yeek, the constructed sleeper of the owner rule
+2026-10-31 「眠っている敵なら外してよい」) (lib/edit/
 MonraceDefinitions.jsonc, read from the hengband checkout; run with
 PYTHONPATH=src from C:/hengband).  Only this extraction tool reads the
 capture; the committed test reads the frozen fixture alone.
@@ -39,6 +41,7 @@ DECISIONS = (CAPTURE / "decisions-window.jsonl", CAPTURE / "decisions-latest.jso
 OUTPUT = Path(__file__).with_name("fixtures") / "me-barehand-mining-20261031.json.gz"
 BOARDS = {"worn": 778659, "sighted": 778665, "adjacent": 778697, "latest": 791632}
 WORM_MASS = 31
+BLUE_YEEK = 52
 DECISION_FIELDS = ("turn", "reason", "key", "player", "floor", "position", "mining", "fundraising")
 
 
@@ -77,7 +80,7 @@ def main():
         boards=boards,
         knowledge=skill,
         decisions=decisions,
-        monraces={str(WORM_MASS): asdict(races[WORM_MASS])},
+        monraces={str(race): asdict(races[race]) for race in (WORM_MASS, BLUE_YEEK)},
     )
     OUTPUT.parent.mkdir(exist_ok=True)
     with gzip.open(OUTPUT, "wt", encoding="utf-8", newline="\n") as stream:
