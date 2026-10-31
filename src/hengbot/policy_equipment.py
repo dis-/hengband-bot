@@ -3826,9 +3826,12 @@ class EquipmentMixin:
         replacing_no_teleport = self._no_teleport_rearm_pending or (
             blocked_weapon_in_pack and not safe_weapon_equipped
         )
+        # Owner 2026-10-31 「町でも持たせる」: an empty main hand is re-armed.
+        empty_hand_weapon = mining_loadout.empty_main_hand_weapon(self, snapshot)
         if (
             self._equipped_digging_tool(snapshot) is None
             and not replacing_no_teleport
+            and empty_hand_weapon is None
         ):
             self._offer_execution_no_step(
                 producer="equipment-txn", work_id="restore-combat-weapon",
@@ -3840,8 +3843,8 @@ class EquipmentMixin:
         # exact weapon we swapped out (recorded when the digger went on); but a fresh bot
         # process that inherited an already-wielded digger has no such record, so fall
         # back to ANY melee weapon in the pack. Anything beats recalling on a pickaxe.
-        weapon = None
-        if self._normal_weapon_name is not None:
+        weapon = empty_hand_weapon
+        if weapon is None and self._normal_weapon_name is not None:
             weapon = self._first_item(
                 snapshot,
                 lambda it: it.is_equipment

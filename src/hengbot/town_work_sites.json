@@ -2105,6 +2105,22 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "f01f42a8fe7c816b28406a11086c8bd529224f3f115c143cf48cd0e6da3db6c6"
   },
+  "mining_loadout.py:empty_main_hand_weapon": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5b4ba79187a9b057947e765089e4efd101988db2c738a27c79d479c266335b5d"
+  },
+  "mining_loadout.py:main_hand_weapon": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "c8ca43b8440c56d2973790856fe1ba82c930bd80077dc4311e8a6a4919449a4d"
+  },
   "mining_loadout.py:restorable_item": {
     "classification": "data",
     "rows": [
@@ -5319,7 +5335,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d5e3bc41349eca1fe1e8ef8512a9cb2c9c5d3f5c67c2d1a6c639e3a12a24058a"
+    "ast_sha256": "a3b55cbfc5124861090fd947ac3d5dc4cf2a8715ba498d5e6dab60be0137621b"
   },
   "policy_equipment.py:EquipmentMixin._wield_digging_tool_key": {
     "classification": "producer",

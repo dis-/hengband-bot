@@ -32,6 +32,13 @@ hostile in view, ``awake``) so they can never alternate:
 
 A digger in a hand keeps the approved mining-combat spec (ranged first,
 re-arm after MINING_COMBAT_CONTACT_LIMIT contact decisions).
+
+In town the emptied main hand is re-armed too (owner 2026-10-31 「町でも持た
+せる」): ``empty_main_hand_weapon`` is the one choice both the town re-arm
+(``_town_restore_weapon_key``) and the departure readiness
+(``_combat_weapon_ready``) read, so readiness never waits on a weapon the
+re-arm cannot wield.  The classes the game gives martial arts fight with the
+main hand empty and are left as they are.
 """
 
 from __future__ import annotations
@@ -46,6 +53,10 @@ from hengbot.model import TVAL_SHIELD
 ROLLBACK_GOAL = "mining-loadout-rollback"
 REARM_REASON = "melee:rearm-empty-hand"
 STRIP_DEFERRED_REPORT = "mining-loadout:strip-deferred-hostile-in-view"
+# player-status.cpp is_martial_arts_mode: Monk (8), Force-trainer (20) and
+# Berserker (23) fight with martial arts while the main hand is empty
+# (player-info/class-types.h).
+MARTIAL_ARTS_CLASS_IDS = frozenset({8, 20, 23})
 
 
 def awake(hostiles) -> list:
@@ -110,33 +121,57 @@ def deferred_strip() -> EquipmentMutationResult:
     return EquipmentMutationResult(None, STRIP_DEFERRED_REPORT)
 
 
+def main_hand_weapon(policy, snapshot):
+    """The carried weapon an empty main hand takes, or None.
+
+    The displaced weapon, else (a restart lost it) the cached optimizer
+    winner, else any usable melee weapon carried (owner 2026-10-31:
+    「最適化の結果→最初の近接武器」 「これでよい」).
+    """
+    loadout = cached_optimal_loadout(policy)
+    optimal = loadout.item_at("main_hand") if loadout is not None else None
+    choices = tuple(
+        choice for choice in (
+            (policy._normal_weapon_name, policy._normal_weapon_identity),
+            (None, equipment_identity(optimal.item) if optimal is not None else None),
+        ) if choice != (None, None)
+    ) + ((None, None),)
+    for name, identity in choices:
+        item = restorable_item(policy, snapshot, "main_hand", name, identity)
+        if item is not None:
+            return item
+    return None
+
+
+def empty_main_hand_weapon(policy, snapshot):
+    """The carried weapon an empty main hand takes, or None (no digger held).
+
+    Owner 2026-10-31 「町でも持たせる」; a martial-arts class keeps its hand
+    empty (MARTIAL_ARTS_CLASS_IDS).
+    """
+    if (snapshot.player.class_id in MARTIAL_ARTS_CLASS_IDS
+            or worn_in_slot(snapshot, "main_hand") is not None
+            or any(item.is_digging_tool for item in snapshot.equipment)):
+        return None
+    return main_hand_weapon(policy, snapshot)
+
+
 def _rearm_target(policy, snapshot):
     """(slot, item) the rollback wields next, main hand first, or None."""
     main = worn_in_slot(snapshot, "main_hand")
     for slot, name, identity, _optimal in remembered_hands(policy):
         if worn_in_slot(snapshot, slot) is not None:
             continue
-        if slot == "sub_hand":
+        if slot == "main_hand":
+            item = main_hand_weapon(policy, snapshot)
+        elif main is None or main.is_digging_tool or (name is None and identity is None):
             # An empty off hand is an ordinary loadout unless the swap
             # displaced an item from it; it never goes beside a digger.
-            if main is None or main.is_digging_tool or (name is None and identity is None):
-                continue
-            choices = ((name, identity),)
+            continue
         else:
-            # The displaced weapon, else (a restart lost it) the cached
-            # optimizer winner, else any usable melee weapon carried.
-            loadout = cached_optimal_loadout(policy)
-            optimal = loadout.item_at("main_hand") if loadout is not None else None
-            choices = tuple(
-                choice for choice in (
-                    (name, identity),
-                    (None, equipment_identity(optimal.item) if optimal is not None else None),
-                ) if choice != (None, None)
-            ) + ((None, None),)
-        for choice_name, choice_identity in choices:
-            item = restorable_item(policy, snapshot, slot, choice_name, choice_identity)
-            if item is not None:
-                return slot, item
+            item = restorable_item(policy, snapshot, slot, name, identity)
+        if item is not None:
+            return slot, item
     return None
 
 

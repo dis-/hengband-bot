@@ -5398,7 +5398,7 @@
       "equipment-transaction"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress. Owner 2026-10-31 「町でも持たせる」: an empty main hand with a carried usable melee weapon (mining_loadout.empty_main_hand_weapon) is re-armed by the same wield.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12810,6 +12810,28 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "_equipment_wield; no independent progress"
+  },
+  "mining_loadout.py:empty_main_hand_weapon": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-10-31 「町でも持たせる」: main_hand_weapon when the main hand is empty, no digger is worn and the class is not a martial-arts class (MARTIAL_ARTS_CLASS_IDS); read by _town_restore_weapon_key and _combat_weapon_ready; pure selection.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "mining_loadout.py:main_hand_weapon": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Selects the carried weapon an empty main hand takes (the remembered weapon, the cached optimizer winner, else the first usable melee weapon; never a digger); shared by rollback_key's _rearm_target and empty_main_hand_weapon; pure selection.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   },
   "mining_loadout.py:restorable_item": {
     "classification": "data",
