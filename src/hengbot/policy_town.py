@@ -17,7 +17,9 @@ from hengbot.claim_goal_typing import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     GOAL_NOTE_LAST_KNOWN as CLAIM_GOAL_NOTE_LAST_KNOWN,
     GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
+    goal_typing as claim_goal_typing,
 )
+from hengbot.claim_register import GOAL_REACH as CLAIM_GOAL_REACH
 
 # Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
 # the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
@@ -380,6 +382,14 @@ class TownMixin:
                         "locomotion", owner, snapshot.floor_key, route.target,
                         route.remaining_edges,
                     ),)
+        elif owner == "quest-request" and (
+            walk := self._declared_walk_part(snapshot, owner, reason)
+        ) is not None:
+            # A quest-request walk whose typing row is Reach and whose
+            # producer declared its cell on this board (the Tower trips'
+            # teleport walks and Tower approach): measured by the remaining
+            # route to that cell like every other walk here (D49).
+            return durable + (walk,)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
@@ -673,6 +683,28 @@ class TownMixin:
         if consume:
             self._town_inn_accounting = state if visit is not None else None
         return receipt
+
+    def _declared_walk_part(
+        self, snapshot: Snapshot, owner: str, reason: str | None
+    ) -> tuple[object, ...] | None:
+        """The locomotion part of this decision's own declared Reach walk.
+
+        Only the decision being judged (``reason`` is the last one), a Reach
+        typing row of ``owner`` and a cell slot that ``owner`` wrote on this
+        board: the claim ledger records the same goal.
+        """
+        if (reason or self.last_reason) != self.last_reason:
+            return None
+        row = claim_goal_typing(owner, self.last_reason)
+        slot = getattr(self, "_decision_goal", None)
+        if (row is None or row.kind != CLAIM_GOAL_REACH or not isinstance(slot, tuple)
+                or slot[0] != owner or getattr(slot[1], "cell", None) is None):
+            return None
+        goal = Position(*slot[1].cell)
+        route = self._town_map_goal_route(snapshot, goal)
+        if route is None:
+            return self._locomotion_part(snapshot, owner, goal)
+        return ("locomotion", owner, snapshot.floor_key, route.target, route.remaining_edges)
 
     def _fixed_quest_teleport_walk_reason(
         self, snapshot: Snapshot, reason: str | None

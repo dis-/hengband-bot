@@ -121,6 +121,7 @@ FUNDRAISE_RUN_LIMIT = 6
 ATTEMPT_LIMIT = 3
 
 REASON = "me-staff:"
+PRODUCER = "quest-request"  # the claim family of every sequence key
 STOP_REASON = "quest:blocked:me-staff"
 IDENTIFY_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_IDENTIFY]
 DETECT_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_DETECT_GOLD]
@@ -633,7 +634,7 @@ def _settle_pending(policy, snapshot) -> None:
 
 def _travel(policy, snapshot, destination: int, step: str) -> str:
     key = policy._town_teleport_key(
-        snapshot, destination, producer="quest-request", reason=f"{REASON}{step}")
+        snapshot, destination, producer=PRODUCER, reason=f"{REASON}{step}")
     if key is None:
         return _stop(policy, f"{step}-unavailable:{policy.last_reason}")
     return key
@@ -655,7 +656,7 @@ def _recharge_key(policy, snapshot) -> str:
         # Return with the reserved fare; the Outpost travel gate funds
         # the recharge with one explicit-target run.
         return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
-    step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY)
+    step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY, family=PRODUCER)
     if step is None:
         return _stop(policy, "tower-of-sorcery-route-unavailable")
     if not enters:

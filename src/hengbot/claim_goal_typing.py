@@ -502,6 +502,30 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("quest:regen:descend", O, FLOOR_CHANGE),
         ("opening-q34:", T, EFFECT),
         ("me-staff:", T, EFFECT),
+        # The Tower trips' walks (me_staff_sequence / q2_tower_recharge
+        # ``_travel`` through _town_teleport_key, and the Tower approach
+        # through morivant_tower.building_step) declare their cell like
+        # ``fixedquest:q2-teleport``; Terminal left every step uncounted as
+        # progress (D49 n1-c life-067/068: owner-retired-burst two steps into
+        # the walk to the inn, loop-detected 15 steps into the Tower walk).
+        ("me-staff:travel-morivant", R, ENTRANCE),
+        ("me-staff:travel-morivant-step-off", T, EFFECT),
+        ("me-staff:return-to-shop", R, ENTRANCE),
+        ("me-staff:return-to-shop-step-off", T, EFFECT),
+        ("me-staff:search-staff", R, ENTRANCE),
+        ("me-staff:search-staff-step-off", T, EFFECT),
+        ("me-staff:return-for-funds", R, ENTRANCE),
+        ("me-staff:return-for-funds-step-off", T, EFFECT),
+        ("me-staff:return-outpost", R, ENTRANCE),
+        ("me-staff:return-outpost-step-off", T, EFFECT),
+        ("me-staff:approach-tower", R, ENTRANCE),
+        ("fixedquest:q2-recharge:travel-morivant", R, ENTRANCE),
+        ("fixedquest:q2-recharge:travel-morivant-step-off", T, EFFECT),
+        ("fixedquest:q2-recharge:travel-telmora", R, ENTRANCE),
+        ("fixedquest:q2-recharge:travel-telmora-step-off", T, EFFECT),
+        ("fixedquest:q2-recharge:return-for-funds", R, ENTRANCE),
+        ("fixedquest:q2-recharge:return-for-funds-step-off", T, EFFECT),
+        ("fixedquest:q2-recharge:approach-tower", R, ENTRANCE),
         ("magic-eater:absorb", O, EFFECT),
         ("bounty:", T, EFFECT),
         ("bounty:cashout", T, EFFECT),
