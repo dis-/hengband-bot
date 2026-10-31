@@ -45,6 +45,12 @@ missing one is bought when it is stocked; the mining runs that wait for its
 restock are not counted against the run limit.  Completing
 a stage is decided once as ``me-staff:stage<N>-complete`` (WAIT; owner
 2026-10-31 「次の目標は3キャラ連続で第二段階のクリアとする」).
+
+Other towns (owner 2026-10-31 「資金に余力が出来たら他の街も見て回ることで時短を
+図る」): while a stage's staff is out of stock at the Outpost, the gold above
+the stock-out run's own target (``_stockout_target``) that pays a trip sends
+the sequence to the other visited towns' Magic shops (Morivant first), one
+after another, before it mines for the restock (``_next_search_leg``).
 """
 
 from __future__ import annotations
@@ -150,6 +156,8 @@ class MeStaffSequence:
     completed_stages: dict = field(default_factory=dict)
     # The game's staff power list was read in this process (``read_powers``).
     powers_read: bool = False
+    # town -> turn its observed Magic shelf lacked the stage's missing staffs.
+    searched_towns: dict = field(default_factory=dict)
 
 
 _device_definitions = morivant_tower.device_definitions
@@ -530,6 +538,70 @@ def _rumor_expedition_cost(snapshot, supplies: int) -> int:
     return morivant_tower.rumor_expedition_cost(snapshot, supplies, _FALLBACK_KINDS)
 
 
+# -- other towns' Magic shops ---------------------------------------------
+
+def _stockout_target(policy, snapshot, supplies: int, unlocked: bool) -> int:
+    """Gold the stage still needs anyway: the missing staffs' base estimate and
+    the rumor/travel/recharge expedition (D35: never gold + 1)."""
+    estimate = sum(_base_definitions()[sval][1] * 2 for sval in _needed(policy, snapshot))
+    expedition = (_expedition_cost(snapshot, supplies) if unlocked
+                  else _rumor_expedition_cost(snapshot, supplies))
+    return estimate + expedition
+
+
+def _note_searched(policy, snapshot) -> None:
+    """Remember this town's observed Magic shelf lacking the missing staffs."""
+    if _stocked_out(policy, snapshot):
+        state(policy).searched_towns[policy._effective_town_id(snapshot)] = snapshot.turn
+
+
+def _searched(policy, town: int) -> bool:
+    """Whether ``town``'s shelf lacked them since the restock wait began."""
+    record = state(policy)
+    return town in record.searched_towns and record.searched_towns[town] >= record.shelf_after_turn
+
+
+def _searching(policy, snapshot) -> bool:
+    """In another town during an Outpost stock-out, its shelf not yet seen."""
+    town = policy._effective_town_id(snapshot)
+    return (town != OUTPOST_TOWN_ID and _searched(policy, OUTPOST_TOWN_ID)
+            and not _searched(policy, town))
+
+
+def _search_town(policy, snapshot, supplies: int, unlocked: bool) -> int | None:
+    """The next visited town to look in, when the spare gold pays the trip.
+
+    余力 is the gold above ``_stockout_target`` (the staffs' estimate, the
+    kit, both fares to Morivant and the Tower recharge).  The trip is the
+    inn fare there and the one back (_town_teleport_key asks two fares for a
+    destination other than the Outpost).
+    """
+    spare = snapshot.player.gold - _stockout_target(policy, snapshot, supplies, unlocked)
+    if spare < 2 * TOWN_TELEPORT_COST:
+        return None
+    towns = [town for town in policy._cross_town_candidate_order(snapshot)
+             if town != OUTPOST_TOWN_ID and not _searched(policy, town)]
+    # Morivant first: its Tower recharges and absorbs what is bought there.
+    return min(towns, key=lambda town: (town != MORIVANT_TOWN_ID, town), default=None)
+
+
+def _next_search_leg(policy, snapshot, supplies: int, unlocked: bool) -> str:
+    """The next town to search, else home to the Outpost, else the restock run."""
+    town = _search_town(policy, snapshot, supplies, unlocked)
+    if town is not None:
+        return _travel(policy, snapshot, town, "search-staff")
+    if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID:
+        return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-to-shop")
+    return _fundraise(policy, snapshot, _stockout_target(policy, snapshot, supplies, unlocked),
+                      STOCKOUT_WHY)
+
+
+def _give_up_town(policy, snapshot, supplies: int, unlocked: bool) -> str:
+    """This town cannot serve the search: note it and take the next leg."""
+    state(policy).searched_towns[policy._effective_town_id(snapshot)] = snapshot.turn
+    return _next_search_leg(policy, snapshot, supplies, unlocked)
+
+
 def _attempt(policy, step: str, sval: int) -> bool:
     record = state(policy)
     count = record.attempts.get((step, sval), 0) + 1
@@ -663,6 +735,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         return WAIT_KEY
     if record.failure:
         return _stop(policy, record.failure)
+    _note_searched(policy, snapshot)
     phase = _phase(policy, snapshot)
     if phase == "done":
         return None
@@ -690,28 +763,30 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     visited = snapshot.visited_town_ids
     unlocked = visited is not None and MORIVANT_TOWN_ID in visited
     if phase == "buy":
-        if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID:
+        searching = _searching(policy, snapshot)
+        if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID and not searching:
+            if _searched(policy, OUTPOST_TOWN_ID):
+                return _next_search_leg(policy, snapshot, supplies, unlocked)
             return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-to-shop")
         target = buy_target(policy, snapshot)
         if target is None:
             if STORE_MAGIC not in _fresh_pages(policy, snapshot):
                 step = policy._shopping_approach_step(
                     snapshot, store_type=STORE_MAGIC, requester="quest-request")
+                if step is None and searching:
+                    return _give_up_town(policy, snapshot, supplies, unlocked)
                 if step is None:
                     return _stop(policy, "magic-shop-route-unavailable")
                 policy.last_reason = "shop:approach"
                 key = policy._shopping_approach_key(snapshot, step, "shop:travel")
                 return key if key is not None else _stop(policy, "magic-shop-operation-unavailable")
-            # Observed shelf without one of the staffs: one ordinary mining
-            # run passes the restock time (mines_floor_out).  Its target is
-            # what the sequence still needs anyway: the staffs' base estimate
-            # and the rumor/travel/recharge expedition (D35: never gold + 1).
-            estimate = sum(_base_definitions()[sval][1] * 2
-                           for sval in _needed(policy, snapshot))
-            expedition = (_expedition_cost(snapshot, supplies) if unlocked
-                          else _rumor_expedition_cost(snapshot, supplies))
-            return _fundraise(policy, snapshot, estimate + expedition, STOCKOUT_WHY)
+            # Observed shelf without one of the staffs: the other towns'
+            # shelves when the spare gold pays the trip, else one ordinary
+            # mining run passes the restock time (mines_floor_out).
+            return _next_search_leg(policy, snapshot, supplies, unlocked)
         if gold < target + supplies:
+            if searching:
+                return _give_up_town(policy, snapshot, supplies, unlocked)
             return _fundraise(policy, snapshot, target + supplies, "staffs")
         offer = next(offer for sval, offer in sorted(offers(policy, snapshot).items()))
         step = policy._shopping_approach_step(snapshot, store_type=offer[0], requester="quest-request")

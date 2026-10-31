@@ -1,0 +1,108 @@
+LUNA-REPORT-owner-b-me（#47、持ち主の答え 2026-10-31 15時の 5・6・7 と、ゲーム develop 92e9029a への追従 3件）2026-10-31
+作業ツリー .worktrees/owner-b-me-1031（ブランチ owner-b-me-1031、元 main 0f2266ae6、最後に main b5fee1070 を取り込み）。
+前任の実装役が途中で止まったのを引き継いだ（引き継ぎ時点でコミット・変更・LUNA-DIAG は無し）。
+診断: LUNA-DIAG-owner-b-me.txt（各項目の場所 file:line）。
+
+== 件ごと ==
+1. 杖の品切れ → 他の町の魔法の店（持ち主「資金に余力が出来たら他の街も見て回ることで時短を図る」） commit 801b413d2
+  根: me_staff_sequence.py の buy の段は、アウトポストの魔法の店が足りない杖を売っていないと、品切れ待ちの採掘
+      （staff-stockout）だけをしていた。アウトポスト以外の町では必ずアウトポストへ戻った。
+  直し: 品切れ待ちの間、観測した魔法の店の棚に足りない杖が無かった町を記録する（searched_towns、待ちの採掘の
+      開始 shelf_after_turn より後の観測だけ有効）。「余力」は品切れ待ちの採掘の目標そのもの（_stockout_target =
+      足りない杖の基準値の見積り＋出発の物資＋モリバントへの往復の運賃＋塔の充填。既存の _expedition_cost /
+      _rumor_expedition_cost と supply_cost を使う。新しい数は作っていない）を超える金額。それが宿の運賃2回分
+      （行きと帰り。_town_teleport_key がアウトポスト以外へは2回分を求めるのと同じ）以上なら、まだ見ていない
+      訪問済みの町へ宿の転移で行く（モリバントを先に。そこで買えばその場で充填・取り込みができる）。着いた町では
+      その町の魔法の店を見て、売っていれば既存の購入の仕組みで買い、無ければ次の町へ、全部見たらアウトポストへ
+      戻って今までどおり採掘で入荷を待つ。経路が無い・買えない町は見たことにして次へ（停止しない）。
+  検査: tests.test_me_staff_search_towns_recorded（5件。life-054 061452 の記録の盤面、4本を取り込み済みにした盤面）。
+      余力あり → me-staff:search-staff でモリバント(2)へ、executor に送る／モリバントを見た後 → テルモラ(1)／
+      全部見た後 → 今までどおり staff-stockout の採掘／待ちの前に見た町はもう一度見る／余力が運賃2回分に1足りない → 採掘。
+  既存の検査の更新: tests.test_me_nokey_1031_recorded の StaffStockoutTest.test_stockout_wait_is_not_counted_toward_the_run_limit
+      （上限の数え方の検査）は、他の町を全部見た後の待ちとして DECLARED CONSTRUCTED に searched_towns を入れた。
+      期待値は今の決定どおり（壁ではない）。
+  注意: 他の町の盤面（町2の地図・宿）は手元の記録に無いので、着いた後の町での動き（棚を見る・買う・次の町へ）は
+      公開の choose_key と executor の検査では確かめていない（アウトポストの地図に町2の番号を付けた盤面では
+      宿の経路が無く意味がない）。実機での確認が要る。
+
+2. Q1 の要求を買える分まで下げる（持ち主「Q1の要求値を下げ、受注可能にする」） commit 7aa5cc078
+  根: policy_opening.py _opening_q1_plan は、Q1 の携行品（松明・治癒・加速の薬）の合計が所持金を超えると
+      stop:unaffordable-quest-reserve で止まった。下げる下限がどこにも無かった。
+      記録: n1-c life-058 084721・084733・084745（223 金で 7,450 金を要求）。9d63514f0 の後は同じ盤面は松明1本だけになるが、
+      合計が所持金を超えれば同じ道で止まる。
+  直し: 作戦の表 QUEST_1.jsonc の required_force に carry_floor を足した（既定は松明5本・薬0本、魔道具術師は松明9本。
+      どちらも同じ表の導出にある「必要数」、薬は no_healing_tier と同じ消費ゼロの算術。HP・DPS の下限は下げない）。
+      quest_strategies.carry_floor / lower_carries で読む（職業の分岐はコードに書かない）。計画は、全部が買えない時だけ
+      下限まで買い、残りの金で全数に向けて安い順に買い足す数を決め、_quest_carry_lowered に残す。
+      _strategy_force_for_snapshot がその数で force を下げるので、受注の判定・入口・クエストの中（松明の回収）が
+      同じ数を読む。下限も買えなければ今までどおり名前付きで止まる。
+  検査: tests.test_q1_affordable_kit_recorded（3件。life-058 の記録の盤面、所持金を2金にした DECLARED CONSTRUCTED。
+      松明19本・必要20本・1本3金）→ 止まらずに要求を19本に下げ、受注の判定が通り、fixedquest:request:approach を
+      executor に送る／223金なら下げない／松明8本（下限9未満）で2金なら名前付きの停止のまま。
+
+3. 取り込んだ力の失敗は同じ場所で5回まで（持ち主「最大5回まで同じ場所で試す」） commit 5302560ba
+  根: me_powers.py FloorMemory.failed が集合で、1回の失敗でその場所・その条件の使用をやめていた。
+  直し: 失敗を (力, 条件, 場所) ごとに数え、表の値 FAILURES_PER_PLACE = 5 に達したらその場所ではやめる。
+  検査: tests.test_me_stage2_powers の1件を新しい決定に直した（5回失敗するまで同じ場所で mAp を executor に送り、
+      6回目は次の力、1歩動けばまた使う）。
+
+4a. 魔道具術師の種類のメニューが command_char で公開される（ゲーム 8efed08ef7） commit 0d75ad5b0
+  直し: magic_eater_input.kind_menu_wait を1つ作り、3か所（使う・道具の攻撃と感知・一覧の読み取り）が null と
+      command_char のどちらの文脈でもメニューを受ける（メニューの全体の照合は今のまま）。
+  検査: tests.test_me_kind_menu_context（3件、公開の choose_key → executor、返事は command_char のメニュー）。
+4b. 入力の文脈の種類 spell・building・file・birth を対応表に足した commit 504eeadb8
+  （building→建物のメニュー、file→ファイル表示と未分類、spell・birth→未分類。記録するだけで判断は変えない）
+  検査: tests.test_input_context.NewContextKindsTest（記録の画面で agree になる）。
+4c. 売値の知識の名前の末尾の空白（ゲーム 664240d477） commit 693fc07d0
+  直し: store_sale._named_definition で名前の前後の空白を除いて比べる。生成スクリプトも名前を strip して出す
+      （JSON は作り直していない）。
+  検査: tests.test_store_sale_names（『死神ももえ』・チーターマン『アリエス』の像、The Orb of Fate の価値）。
+
+== 直しを戻すと落ちることの確認（src の差分を戻して実行し、元に戻した） ==
+  4a: 3件とも FAIL（stuck-prompt … unowned Magic-Eater type/browse prompt）
+  4b: NewContextKindsTest FAIL（4つの種類が disagree）
+  4c: 2件 FAIL（名前が見つからない）
+  3 : FAIL（5回目まで試すはずが2回目で次の力 mAm）
+  2 : test_unaffordable_torch_lowers_the_kit_and_takes_q1 FAIL（stop:unaffordable-quest-reserve）、
+      test_full_kit_is_kept… ERROR（属性が無い）
+  1 : test_spare_gold_searches_morivant_first FAIL（me-staff:fundraise:staff-stockout のまま）、他の4件は ERROR（属性が無い）
+
+== 検査の結果 ==
+- 取り込みの検査: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" … OK（main 取り込み後）
+- checks.json の全項目＋この変更の検査（main b5fee1070 取り込み後の木 b50d6ce25）: 425件、失敗0、エラー1。
+  エラーは checks.json に先に入った tests.test_owner_a_survival_recorded（未取り込みの owner-a-survival-1031 の枝にしか無い）の import だけ。
+- scripts/town_work_manifest.py --write → zero unmapped（新しい関数の確認の文を town_work_review.json に足した）。
+- main に元からある失敗（この変更と無関係、戻しても同じ）: tests.test_input_context_structure の1件
+  （me_powers_refresh.py の periodic_magic_eater_powers_key）、tests.test_junk_scope_recorded の2件、
+  tests.test_quest_carry_town_block の1件。tests.test_unaffordable_claim_tour_recorded と tests.test_town_work_contract は
+  400秒・115秒で終わらず（どちらも checks.json に無い）、結果を確かめていない。
+
+== 保守性 ==
+新しい処理の置き場所:
+- 他の町の探索は me_staff_sequence.py の1つの節「other towns' Magic shops」に短い関数で置いた（_stockout_target・
+  _note_searched・_searched・_searching・_search_town・_next_search_leg・_give_up_town）。品切れ待ちの採掘の目標は
+  以前 town_key の中に書いてあった式を _stockout_target に移し、待ちの目標と余力の判定で同じ関数を使う（重複なし）。
+  町の候補は既存の _cross_town_candidate_order、移動は既存の _travel / _town_teleport_key、棚は既存の _fresh_pages。
+- Q1 の下限は作戦の表（QUEST_1.jsonc carry_floor）に置き、読む関数は quest_strategies に置いた。計画の予算の計算は
+  以前の _opening_q1_plan の中のループを _q1_reserve に出し、下げる計算 _q1_affordable_targets とともに短い関数にした。
+  force を下げるのは _strategy_force_for_snapshot の1か所だけ（読む側は変えていない）。
+- 失敗の回数は me_powers の表の値 FAILURES_PER_PLACE。
+- メニューの文脈の判定は kind_menu_wait の1か所（以前は3か所に同じ条件）。
+行数（main 0f2266ae6 → 今、この変更の分）: me_staff_sequence.py 742→817、policy_opening.py 375→453、
+  policy_observation.py 1479→1495、quest_strategies.py 151→181、me_powers.py 413→418。policy.py・cli.py・policy_town.py・
+  policy_shop.py はこの変更では触っていない。
+
+== checks.json に足す案（checks.json は編集していない） ==
+  {"id": "D-owner-b-me", "owner": "2026-10-31 15時の答え 5「資金に余力が出来たら他の街も見て回ることで時短を図る」・6「Q1の要求値を下げ、受注可能にする」・7「最大5回まで同じ場所で試す」と develop 92e9029a への追従 (branch owner-b-me-1031)",
+   "tests": ["tests.test_me_staff_search_towns_recorded", "tests.test_q1_affordable_kit_recorded",
+             "tests.test_me_kind_menu_context", "tests.test_input_context.NewContextKindsTest",
+             "tests.test_store_sale_names"]}
+  （tests.test_me_stage2_powers と tests.test_me_nokey_1031_recorded は既に checks.json にある）
+
+== 持ち主への問い ==
+問1 Q1 の松明の下限: 魔道具術師は「松明20本はキープ」（10-30）だが、全部は買えない時だけ表の必要数 9 本まで下げた。
+    (A) 9 本まで下げてよい（今の実装）【推奨】 (B) 20 本は下げず薬だけ下げる
+問2 他の町の探索で、品切れ待ちの採掘を1回終えるたびに（入荷の時間が過ぎたので）余力があればまた町を回る。
+    運賃は1回の巡回で最大 500×(町の数＋1)。(A) 今のまま【推奨】 (B) 1回の品切れにつき巡回は1回だけ
+問3 第1段階（鑑定・財宝感知、2本を同じ店で買う決まり）の品切れは探索の対象にしていない（品切れの判定 _stocked_out が
+    部分買いの段階だけのため）。第1段階も他の町を見るか。

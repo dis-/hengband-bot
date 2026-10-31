@@ -1,0 +1,47 @@
+LUNA-DIAG-owner-b-me (#47, owner answers 2026-10-31 15h, Magic-Eater / opening family + develop 92e9029a compatibility)
+Worktree .worktrees/owner-b-me-1031, branch owner-b-me-1031, base main 0f2266ae6. Taken over from a stopped implementer:
+no commits, no tracked changes, no earlier LUNA-DIAG-owner-b-me file. Line numbers are at 0f2266ae6.
+
+1. Staff out of stock -> other towns (owner 「資金に余力が出来たら他の街も見て回ることで時短を図る」)
+   - src/hengbot/me_staff_sequence.py:417-422 _stocked_out: partial-buy stage, a fresh Magic page, no offer.
+   - :425-451 _phase: carried + stocked out -> travel/recharge/absorb (fd4df391a); otherwise "buy".
+   - :689-713 town_key "buy": outside the Outpost always _travel(OUTPOST, "return-to-shop") (:693-694);
+     no Magic page -> approach it (:697-705); stocked out -> _fundraise(estimate + expedition, STOCKOUT_WHY) (:706-713).
+     estimate = sum(base cost * 2) of the missing staffs (:710-711); expedition = morivant_tower.expedition_cost
+     (2 fares + Tower recharge + supply_cost, morivant_tower.py:106-108) or rumor_expedition_cost (:111-114).
+   - :341-354 _fresh_pages: the remembered shelf is policy._town_supplier_stock / _observations (store -> page,
+     (town, turn)), so a page is fresh only in the town where it was seen after record.shelf_after_turn.
+   - Inter-town travel and fare: policy_town.py:7549 _town_teleport_key / :7564-7599 (fare 500 one way,
+     2*500 required for a non-Outpost destination); candidates policy_town.py:4867-4875 _cross_town_candidate_order
+     (visited towns with an inn teleport, TOWN_TELEPORT_BUILDING_TYPES policy_constants.py:766).
+   - Nothing visits another town's Magic shop for a missing staff: the sequence only waits (mines) at the Outpost.
+
+2. Q1 requirement when the kit cannot be afforded (owner 「Q1の要求値を下げ、受注可能にする」)
+   - src/hengbot/policy_opening.py:46-79 _opening_q1_requirements(_uncached): targets = force throwing_items.lit_torch
+     (class 16: 20, throwing_items_by_class), heal_potions 2 / speed_potions 1 unless the no_healing_tier passes.
+   - :137-244 _opening_q1_plan: prices the missing units on the observed shelves (:191-200) and returns
+     "stop:unaffordable-quest-reserve" when the total exceeds the gold (:192-193) -> _opening_q1_stop
+     (quest:blocked:opening-route, named stop; fix-me-nokey-1031 bac1d9917 made it a final stop).
+   - Readiness at acceptance/entry reads the same force: policy.py:17611-17718 _approved_strategy_force_ready
+     (carries via _quest_carry_status, heal/speed counts), force from policy_observation.py:1392-1412
+     _strategy_force_for_snapshot (also policy_quest.py:4141, policy_supply.py:1280-1311).
+   - Data: strategy/quests/QUEST_1.jsonc required_force (torch derivation: expected need 9 for class 16 is
+     "その内側の下限"; default/class 0 need 5 = 4 thieves + 1 spare; no_healing_tier heal 0 / speed 0).
+   - Evidence: n1-c life-058 084721/084733/084745 (C:\hengband-backups\pdca\captures\latest-12h-1031\n1-c\life-058\):
+     223 gold, 7,450 needed (heal 2 + speed 1 + 1 torch) -> stop. After 9d63514f0 the same boards need one torch
+     (3 gold); the reserve path itself still stops whenever the kit exceeds the gold (no lower floor exists).
+
+3. Absorbed power retry (owner 「最大5回まで同じ場所で試す」)
+   - src/hengbot/me_powers.py:150 FloorMemory.failed is a set of (used ident, trigger, position);
+     :363-364 observe adds one entry on a "failed..." refusal; :376 _usable refuses any recorded failure,
+     i.e. one failure ends the trigger at that place. Test: tests/test_me_stage2_powers.py:148-163.
+
+4. Compatibility with game develop 92e9029a
+   a. Game 8efed08ef7 publishes the use_menu kind menu as command_char (prompt = the menu line).
+      magic_eater_input.py:166-172, me_device_attacks_input.py:89-95, me_powers_refresh_input.py:43-48 accept that
+      menu only with reading.source == "null" -> the new context raises "unowned Magic-Eater type prompt".
+   b. input_context.py:106-119 _COMPATIBLE_KINDS lacks spell / building / file / birth (game bot-control-server.cpp
+      :169-176, tools/bot/README.md:276-279, 338, 367-383); those contexts are recorded as "disagree" in the shadow.
+   c. store_sale_knowledge.json names with a trailing space (artifacts[244] "The Orb of Fate ", monraces[1166]
+      「チーターマン『アリエス』 」, monraces[1336] 「『死神ももえ』 」); game 664240d477 removed the spaces, so
+      store_sale.py:94-108 _named_definition ("label in name") no longer matches e.g. 「『死神ももえ』の像」.

@@ -238,6 +238,11 @@ class StaffStockoutTest(PostedKey):
         absorbed = {**CASE["recorded_sequence"]["absorbed"],
                     **{str(sval): 9 for sval in (8, 9, 12, 13)}}
         policy = staff_policy(staff_board(0), absorbed=absorbed)
+        # DECLARED CONSTRUCTED: the other towns' Magic shelves were already
+        # seen without Detect Evil in this restock wait, so the spare gold
+        # has nowhere left to search (test_me_staff_search_towns_recorded).
+        sequence.state(policy).searched_towns.update(
+            {town: staff_board(0)["turn"] for town in (1, 2, 3)})
         key = drive_staff_boards(policy, 4, absorbed=(8, 9, 12, 13))
         record = sequence.state(policy)
         self.assertIsNone(record.failure)

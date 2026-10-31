@@ -18,7 +18,7 @@ from hengbot.input_context import read_input_view
 from hengbot.input_executor import Continuation, ScreenKind
 from hengbot.magic_eater_input import (
     EMPTY, FAILURES, MENU_PROMPTS, TYPE_PROMPTS, _owns_power_prompt, _wand_menu_answer,
-    observed_power_list,
+    kind_menu_wait, observed_power_list,
 )
 from hengbot.me_device_attacks import DEVICE_REASON, POWERS
 from hengbot import me_powers
@@ -90,7 +90,7 @@ def _answer(step, reading, lines, operation):
     if step.stage == "kind":
         if reading.kind == "command_char" and prompt in TYPE_PROMPTS:
             return me_powers.KIND_LETTER[step.kind], "power"
-        if reading.source == "null" and row0 in MENU_PROMPTS:
+        if kind_menu_wait(reading, row0, MENU_PROMPTS):
             answer = _wand_menu_answer(lines, _KINDS.index(step.kind))
             return answer, "power" if answer == "\r" else "kind"
         raise ValueError("unowned Magic-Eater type prompt")

@@ -12304,7 +12304,7 @@
       "browse"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), extended 2026-10-31 by stage 2 (Trap, Door/Stair, Detect Evil, Enlightenment, Light staffs: same steps, shelf-by-shelf buys, one me-staff:stage<N>-complete WAIT per completed stage), delegated by the existing _opening_q34_town_key owner. Each step is a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption; failures persist a named detail and return the empty envelope. #47 2026-10-31: before any staff trade a new process reads the game's staff power list with the turn-free browse 'bA' (me-staff:read-powers, bounded by ATTEMPT_LIMIT, yields to a visible hostile); while a partial-buy stage's missing staffs are off the observed shelves the carried staffs go to the Tower first (owner 「持っている分を先に取り込む」). It yields (None) while an incomplete Home equipment session exists, whose route owner refuses other shops (#47 n1-c life-054 072115).",
+    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), extended 2026-10-31 by stage 2 (Trap, Door/Stair, Detect Evil, Enlightenment, Light staffs: same steps, shelf-by-shelf buys, one me-staff:stage<N>-complete WAIT per completed stage), delegated by the existing _opening_q34_town_key owner. Each step is a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption; failures persist a named detail and return the empty envelope. #47 2026-10-31: before any staff trade a new process reads the game's staff power list with the turn-free browse 'bA' (me-staff:read-powers, bounded by ATTEMPT_LIMIT, yields to a visible hostile); while a partial-buy stage's missing staffs are off the observed shelves the carried staffs go to the Tower first (owner 「持っている分を先に取り込む」). It yields (None) while an incomplete Home equipment session exists, whose route owner refuses other shops (#47 n1-c life-054 072115). During an Outpost staff stock-out the buy phase searches the other visited towns' Magic shops when the spare gold pays the trip (_next_search_leg, owner 2026-10-31 「資金に余力が出来たら他の街も見て回ることで時短を図る」).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12956,5 +12956,103 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_observation.py:ObservationMixin._strategy_force_unlowered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the fixed-quest force before the kit owner's lowering.",
+    "evidence": "Returns dict only: the profile's required_force resolved for the class and the defensive tier (the former body of _strategy_force_for_snapshot); does not emit commands or claim progress."
+  },
+  "quest_strategies.py:carry_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the Q1 route's lower carry counts.",
+    "evidence": "Returns dict only: the strategy's carry_floor with its class row (QUEST_1, owner 2026-10-31 「Q1の要求値を下げ、受注可能にする」); does not emit commands or claim progress."
+  },
+  "quest_strategies.py:lower_carries": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the fixed-quest force with the lowered carries.",
+    "evidence": "Returns dict only: a copy of the force whose lit_torch / heal / speed counts are at most the lowered ones; does not emit commands or claim progress."
+  },
+  "me_staff_sequence.py:_stockout_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the staff sequence's stock-out run target and spare-gold reserve.",
+    "evidence": "Returns int only: the missing staffs' base estimate plus the (rumor) expedition cost; does not emit commands or claim progress."
+  },
+  "me_staff_sequence.py:_search_town": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the next visited town whose Magic shop the stock-out search visits.",
+    "evidence": "Returns a town id or None only: spare gold above _stockout_target pays two inn fares, Morivant first, towns not searched this wait (owner 2026-10-31 「資金に余力が出来たら他の街も見て回ることで時短を図る」); does not emit commands."
+  },
+  "me_staff_sequence.py:_next_search_leg": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-10-31 「資金に余力が出来たら他の街も見て回ることで時短を図る」: delegates _travel to the next unsearched visited town (search-staff), else _travel back to the Outpost, else the existing staff-stockout _fundraise run."
+  },
+  "me_staff_sequence.py:_give_up_town": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Notes the current town as searched (no Magic shop route, or an unaffordable offer) and delegates _next_search_leg."
+  },
+  "policy_town.py:TownMixin._cross_town_candidate_order": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the visited towns with an inn teleport (cross-town shopping and the staff search).",
+    "evidence": "Returns tuple[int] only: visited town ids other than the current one that have an inn teleport; does not emit commands or claim progress."
   }
 }
