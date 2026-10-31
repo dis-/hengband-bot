@@ -1,0 +1,155 @@
+LUNA-REPORT fix-dungeon-1031（#47、10-31 直近12時間の死1・輪1・輪3・輪6 の直し）
+基点 main 136eb3297、取り込み前に main aa56fccb0 をマージ（cafdf4435）。
+
+======================================================================
+まとめ
+======================================================================
+| 件 | 根（直す前の場所） | 直し | コミット | 検査（直す前→後） |
+|---|---|---|---|---|
+| 死1 (1) | policy_combat.py _immobile_summoner_key（帰還が立っても拾う・探索の一歩を先に返す） | 帰還が立っている（立つ）間は帰還の担当に譲る | f16a6f784 | explore:avoid-immobile-summoner → return:recall 'rd' |
+| 死1 (2) | policy_combat.py unseen-recall の枝（盲目＝見えない敵と見なして歩く） | 盲目なら先に状態治療の薬 | 4e0268f11 | unseen-recall:move '4' → item:cure-critical 'qa' |
+| 輪1 | policy_quest.py sweep-engage-mobile（毎判断で相手を選び直す） | 選んだ相手を種族と最後に見た位置で持ち越す | d5d3d7633 | (11,14) で '4' が交互 → 出ない |
+| 輪6 (荒野にいた理由) | policy.py _up_stairs_exit_to_wilderness（坑道の2階分を数えない） | 上りの坑道は2階分として判定 | f5ad42980 | 2階の坑道へ seek-upstairs/'<' → 出さない |
+| 輪3 | policy_town.py _return_to_town_key の帰還の段（WALK_OUT_MAX_DEPTH より浅いと読まない） | 上り階段が荒野へ出る階では深さに関係なく帰還 | 634818ec8 | return:search-upstairs 's' → return:recall 'rd' |
+| 輪6 (断られた時) | policy_supply.py _wilderness_survival_key（断られても同じ '<'） | 断りの文言を見たら帰還を読み、発動を待つ | ab0f75dfc | wilderness:enter-global '<' → wilderness:recall 'rfa' |
+
+======================================================================
+死1  n1-a life-446（鉄獄48階、10-31 06:07、版 bot-b6d47db93）
+======================================================================
+記録: latest-12h-1031/n1-a/life-446/incident-captures/20261031-060729-player-death
+（観戦サーバーから写したものを、診断の作業領域からこの場所へ置いた）。
+(1) turn 1712410 の2回目の緊急脱出で帰還が立った（1712415 の観測で emergency-repeat）。
+    _immobile_summoner_key は帰還の担当（_return_to_town_key#3）より先に呼ばれ、
+    逃げ道がある時は拾う物・探索の一歩を先に返していた。記録の盤面 1712380〜1712415 を
+    順に choose_key に通すと 1712415 は explore:avoid-immobile-summoner '9'（記録と一致）。
+    直し: return_yield.latched_return_owns（帰還が立っている／立つ、発動待ちでない、
+    固定クエストの出口の鍵が無い）なら None を返し、帰還の担当に任せる。避けるマスは
+    そのまま残るので、帰還の担当の歩きも避ける。発動待ちの間は今どおり避けて歩く。
+    直した後: 1712415 で return:recall 'rd'（巻物13枚・HP 605 の時点）。
+(2) turn 1713414 で盲目（耐盲目なし）。見える敵が 0 になり unseen-recall の枝が
+    '4' を5回（隣の敵を殴っていた）。致命傷の治癒は HP 15 まで飲まなかった。
+    直し: 枝の中で盲目なら status_cure.status_cure_key（既存の状態治療と同じ薬・理由
+    item:cure-critical）を先に返す。既存の状態治療の段も同じ関数を使うようにした（重複を消した）。
+    直した後: 1713414 で 'qa'。
+    残り: 治す薬が無い盲目の時に、直前に隣にいた敵のマスへ歩かない処理は入れていない
+    （前の盤面の敵の位置を覚える仕組みが無く、新しい記憶が要る。今回の記録では薬があった）。
+
+======================================================================
+輪1  n1-a life-447（クエスト22 オークのキャンプ、07:53、版 bot-b6d47db93）
+======================================================================
+記録: latest-12h-1031/n1-a/life-447/captures/20261031-075341-loop-detected の状態行 85〜99。
+根: policy_quest.py の sweep-engage-mobile が毎判断 priority_targets の順で相手を選び直す。
+(11,14) では眠ったオーク・キャプテン [14,6] が見えて選ばれ西へ、(11,13) では見えず
+ブラック・オークが選ばれ東へ。
+直し: quest_sweep_target.py に選び方を移し、選んだ相手（階・種族・最後に見た位置）を
+持ち越す（Q2 の q2-breeder-recommit と同じ型）。同じ種族が見えれば最後の位置に近い方を追い、
+見えなければ最後に見た位置へ歩く。そのマスが空と確かめられた時・階が変わった時・道が無い時に
+手放し、承認済みの順で選び直す。作戦の順位は変えていない。
+既存テストの期待値の更新（壁ではない）: tests/test_policy_quest.py
+test_q22_reads_light_at_first_reveal_after_two_sweep_steps は、見えなくなった後続の波の
+最後の位置へ sweep-engage-mobile で歩き（同じ '6'）、そこで空と確かめて placement-sweep に
+戻る、と新しい振る舞いを確かめる形にした。
+
+======================================================================
+輪3  n1-c life-055（鉄獄1階、08:12〜08:13、版 bot-b6d47db93）
+======================================================================
+記録: latest-12h-1031/n1-c/life-055/captures/20261031-081258-loop-detected（観戦サーバーから
+写したものをここへ置いた）と 20261031-081315-loop-detected。
+診断の見立ての訂正: 「見えていない階段を目標にしない（in_view）」はこの件の原因ではない。
+2つの階段は ascend の期限切れでも未確認でもなく、_is_upstairs_target を偽にしていたのは
+_up_stairs_exit_to_wilderness（鉄獄1階の '<' は荒野の入口へ出る）。これは 70a27080b の
+「荒野へは出ず帰還で帰る」決まりどおりで正しい。
+本当の根: 帰還の担当の帰還の段は dungeon_level > WALK_OUT_MAX_DEPTH の時だけで、1階では
+読まない。#81 の「光が無ければ帰還」は探索の一歩がある時だけなので、探索し尽くした階では
+壁探し（return:search-upstairs / seek-secret-wall）と dark:backtrack の往復になった。
+直し: 歩いて出られない階（全部の '<' が荒野へ出る）は深さに関係なく帰還の段を使う。
+検査: 081258 の状態行 0（(18,122)、読める明るさ）。記録の探索し尽くした地図の記憶は再現
+できないので、探索の一歩を無しにした（DECLARED RECONSTRUCTED）。直す前は記録と同じ
+return:search-upstairs 's'、直した後は return:recall 'rd'。
+残り: 081315（再起動後、暗い階段の上）は暗くて読めない。主の f2df445ed（未鑑定の {並} の
+光源を付ける）は装備の最適化（較正つき）経由で、この再生（較正なし）では 081315 はまだ
+return:search-upstairs のまま。帰還の担当の暗闇の回復（_empty_lantern_to_restore 等）は
+未鑑定のランタンを使わない。光源の担当（unid-light の系統）で確かめてほしい。
+D36（観戦 n1-c life-053、イークの洞窟1階）は今回確かめていない。イークの洞窟の入口は町なので
+荒野の判定は効かず、in_view の見立てが当たっている可能性は残る。D36 は未修正のまま。
+
+======================================================================
+輪6  n1-c life-059（荒野、09:01〜09:02、版 bot-ba0d425a9）
+======================================================================
+記録: latest-12h-1031/n1-c/life-059/captures/20261031-090148-loop-detected。
+荒野にいた理由（所有者「そもそも荒野にいることがおかしい」）: 鉄獄4階のクエストから
+emergency:stairs で2階へ戻り、return:explore → return:seek-upstairs → return:ascend '<'
+（decision 5555、2階の [5,62]）。この地形は terrain 13 = SHAFT_UP（坑道）で2階分上がる
+（floor-leaver.cpp の FloorChangeMode::SHAFT、move_num *= 2）。2階から2つ上がると鉄獄の
+mindepth 1 を下回り、荒野の入口へ出た（decision 5556 で dungeon 0）。鉄獄2階へ来たのも
+2階の下りの坑道（decision 5381 '>' で2階→4階）。
+_up_stairs_exit_to_wilderness は level - 1 と mindepth しか比べず、坑道を普通の階段と見ていた。
+直し: 判定を wilderness_exit.py に移し、上りの坑道は2階分として比べる（SHAFT の地形番号は
+lib/edit/TerrainDefinitions.jsonc と一致することをテストで確かめる）。2階の普通の階段は
+今どおり目標。直した後: 2階の記録の盤面で seek-upstairs も '<' も坑道へ向かわない。
+断られた時（所有者「帰還を読む」）: change_wild_mode（floor/wild.cpp）は見えない起きた敵が
+20マス以内にいると断り、ターンを使わない。断りの文言を見たら帰還を読み（地上なので行き先の
+文字つき 'rfa'）、発動待ちの間は '5' で待つ（断られる '<' ではターンが進まず発動しない）。
+理由名 wilderness:recall / wilderness:wait-recall は claim_goal_typing と town_arbiter の
+survival に登録（wait-recall は cli の STATIONARY_REASONS に既にある）。
+
+======================================================================
+検査
+======================================================================
+新しいテスト: tests/test_dungeon_1031_recorded.py（12件）
+  DeathReturnRecordedTest（3）、Q22SweepRecordedTest（3）、AngbandTopFloorReturnRecordedTest（2）、
+  WildernessRecordedTest（4）。固定データ tests/fixtures/dungeon-1031.json.gz
+  （tests/extract_dungeon_1031_fixture.py）。キーは本番の executor（_ExecutorInputPort）で送る。
+直す前に戻して失敗することを確かめた（各コミットの src の部分だけ戻した）:
+  test_latched_town_return_outranks_the_summoner_avoidance: FAIL 'explore:avoid-immobile-summoner' != 'return:recall'
+  test_blindness_is_cured_before_the_unseen_recall_walk: FAIL 'unseen-recall:move' != 'item:cure-critical'
+  test_the_chosen_sweep_target_is_kept_across_the_view_swap: FAIL (14,'4') が出る（13 回の交互）
+  test_a_confirmed_empty_last_seen_cell_releases_the_target: ERROR（持ち越しの属性が無い）
+  test_the_up_shaft_on_the_second_floor_is_not_taken: FAIL 'return:seek-upstairs'
+  test_return_reads_recall_where_the_stairs_leave_for_the_wilderness: FAIL 'return:search-upstairs' != 'return:recall'
+  test_refused_global_map_reads_recall_then_waits: FAIL 'wilderness:enter-global' != 'wilderness:recall'
+取り込み後の確認: import の確認 OK、checks.json の全テスト＋上の新しいテスト＋
+tests.test_policy_quest.Q22Q31StrategyExecutionTest で 244 件すべて OK（取り込み後の cafdf4435 で実行）。
+checks.json の全テストのモジュールはこの木にあり、飛ばしたものは無い。
+ほかに流したもの（関係する既存テスト）: test_immobile_summoner_recorded、
+test_two_cell_oscillation_recorded、test_castle_top_floor_exit_recorded、
+test_policy_town.WildernessSafetyTest、test_q31_survey_sweep_recorded、test_quest_sweep_hold_recorded、
+test_policy_combat ほか（test_policy_combat.CombatTest.test_attacks_friendly_in_town は基点でも失敗、
+10-31 の友好の敵を攻撃しない決定の後の古い期待値）。
+test_ownership_* の構造の検査は基点で7件失敗しており、今回の変更で増やしたのは理由名の登録漏れ
+（直した）だけ。
+town work manifest: 新しい関数の review を scripts/town_work_review.json に足し、--write で
+zero unmapped。
+
+checks.json に足す案:
+  {"id": "D-DEATH1-446", "owner": "2026-10-31 n1-a life-446 鉄獄48階の死（帰還の上書き・盲目）", "tests": ["tests.test_dungeon_1031_recorded.DeathReturnRecordedTest"]}
+  {"id": "LOOP1-Q22", "tests": ["tests.test_dungeon_1031_recorded.Q22SweepRecordedTest", "tests.test_policy_quest.Q22Q31StrategyExecutionTest"]}
+  {"id": "LOOP3-A1F", "tests": ["tests.test_dungeon_1031_recorded.AngbandTopFloorReturnRecordedTest"]}
+  {"id": "LOOP6-WILD", "owner": "2026-10-31 「帰還を読む。ただし、そもそも荒野にいることがおかしい。」", "tests": ["tests.test_dungeon_1031_recorded.WildernessRecordedTest"]}
+
+======================================================================
+保守性
+======================================================================
+行数（基点 136eb3297 → 今）: policy.py 20598 → 20577、policy_combat.py 4505 → 4501、
+policy_quest.py 6184 → 6173、policy_town.py 8466 → 8469、policy_shop.py・cli.py・policy_home.py は変更なし。
+新しいロジックの置き場:
+- return_yield.py: 帰還が立っている間に避ける担当が譲るかの判定（1か所）。
+- status_cure.py: 状態治療の薬の段。前は policy_combat.py の段に直書きで、今回の盲目の段と
+  同じ処理が2つになるところを1つの関数にまとめた。
+- quest_sweep_target.py: 掃討の相手の選び方と持ち越し（policy_quest.py から移した）。
+- wilderness_exit.py: '<' が荒野へ出るかの判定（policy.py から本体を移し、坑道を足した）と、
+  広域マップの断りの文言。
+capped ファイルには1〜2行の呼び出しだけを残した（policy_town.py の帰還の段の条件に1行と注記）。
+
+======================================================================
+所有者への問い（実装していない）
+======================================================================
+1. 治す薬が無い盲目の時、unseen-recall の枝で直前に隣にいた敵のマスへ歩かないようにするか
+   （前の盤面の敵の位置を覚える新しい記憶が要る）。
+   案 A（推奨）: 前の盤面で見えた敵のマスを、盲目の間だけ一歩の候補から外す。
+   案 B: 盲目で治す手段が無ければその場で待つ。
+   案 C: 今のまま（逃げる一歩を続ける）。
+2. 暗くて帰還が読めない、歩いて出られない階（鉄獄1階の暗い階段の上、輪3 081315）で、
+   光源が戻らない時の動き。
+   案 A（推奨）: 覚えている明るいマス（部屋）まで歩いて帰還を読む。
+   案 B: 今のまま（光源の担当が {並} のランタンを付けるのを待つ）。
