@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.town_pack_budget import incoming_slots, permits
+from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key
 from hengbot.town_pack_headroom import acquisition_waits
@@ -2488,6 +2488,8 @@ class ShopMixin(InStoreMixin):
 
     def _store_purchase_fits_pack(self, snapshot: Snapshot, item: StoreItem) -> bool:
         """Apply the common town budget and conservative carry estimate."""
+        if room_assumed():
+            return True
         quantity = min(item.count, max(1, self._purchase_quantity(snapshot, item)))
         slots = incoming_slots(snapshot, item, quantity)
         return permits(snapshot, slots) and (len(snapshot.inventory) < PACK_CAPACITY or slots == 0)

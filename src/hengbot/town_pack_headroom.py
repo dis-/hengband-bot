@@ -7,6 +7,9 @@ identification, Home and store executors, including their refusal bounds.
 from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD
 from hengbot.policy_constants import FOOD_TYPE_MANA
 
+# Owner 2026-10-31 「名前付きで止まる」 (town:blocked:<this>, a policy final stop).
+PACK_FULL_NO_ROOM = "pack-full-no-room"
+
 
 def preservable(policy, snapshot, item):
     """A whole unneeded consumable/device, independent of current free slots."""
@@ -279,6 +282,44 @@ def make_room_for_purchase(policy, snapshot):
     return key(policy, snapshot)
 
 
+def _room_can_be_made(policy, snapshot):
+    """Whether this pass, or the identification it waits for, can free a slot."""
+    return (any(preservable(policy, snapshot, item)
+                or policy._identification_flow_owns(item) for item in snapshot.inventory)
+            or policy._find_home_deposit(snapshot) is not None
+            or policy._find_town_organization_surplus(snapshot) is not None
+            or policy._find_worthless_junk(snapshot) is not None)
+
+
+def pack_full_no_room(policy, snapshot):
+    """The remembered supplier whose departure buy only the pack refuses, with no room to make.
+
+    Owner 2026-10-31 「名前付きで止まる」: when no stack can be shelved at Home,
+    sold or destroyed, a restock never changes the refusal (n1-b lives 274
+    and 276 waited town:wait-restock:magic, then stopped as
+    departure-unsatisfiable), so the caller stops with a named final stop.
+    """
+    from dataclasses import replace
+    from hengbot.policy_constants import PACK_CAPACITY, MIN_TERMINAL_FREE_PACK_SLOTS
+    from hengbot.town_pack_budget import assuming_room
+    if (not snapshot.in_town or snapshot.store is not None
+            # The budget refuses a one-slot buy only at or below the floor.
+            or PACK_CAPACITY - len(snapshot.inventory) > MIN_TERMINAL_FREE_PACK_SLOTS
+            or organizing(policy, snapshot) or not eligible(policy, snapshot)
+            or _room_can_be_made(policy, snapshot)):
+        return None
+    for store_type, stock in getattr(policy, "_town_supplier_stock", {}).items():
+        if store_type == STORE_HOME:
+            continue
+        page = replace(snapshot, store=stock)
+        if policy._departure_blocking_page_purchase(page) is not None:
+            continue
+        with assuming_room():
+            if policy._departure_blocking_page_purchase(page) is not None:
+                return store_type
+    return None
+
+
 def begin(policy, snapshot):
     """Remember the admitted inventory pass across observed transfers."""
     policy._pack_headroom_visit = (policy._town_visit_epoch, policy._effective_town_id(snapshot))
@@ -293,6 +334,9 @@ def early_key(policy, snapshot):
     room = make_room_for_purchase(policy, snapshot)
     if room is not None:
         return room
+    if pack_full_no_room(policy, snapshot) is not None:
+        policy._town_blocked_reason = PACK_FULL_NO_ROOM
+        return policy._town_blocked_key(snapshot)
     if not policy._town_space_deposit_actionable(snapshot):
         return None
     from hengbot.policy_constants import PACK_CAPACITY

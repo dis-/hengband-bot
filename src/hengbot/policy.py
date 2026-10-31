@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import town_pack_headroom
+from hengbot import mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
 
@@ -17263,6 +17263,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         if weapon is not None and weapon.is_melee_weapon:
             return True
+        if mining_loadout.empty_main_hand_weapon(self, snapshot) is not None:
+            # Owner 2026-10-31 「町でも持たせる」: the town re-arm wields it first.
+            return False
         if self._equipped_digging_tool(snapshot) is None:
             return True
         return self._weapon_block_streak >= WEAPON_BLOCK_LIMIT

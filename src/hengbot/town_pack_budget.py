@@ -4,8 +4,32 @@ Credits are observed inventory removals, never a promise to sell later. A
 zero-cost operation may repair an already over-budget pack.
 """
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 from hengbot.policy_constants import MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY
 from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
+
+
+_ROOM_ASSUMED = ContextVar("town_pack_room_assumed", default=False)
+
+
+@contextmanager
+def assuming_room():
+    """Ask a purchase question as if the pack had room for it.
+
+    Only town_pack_headroom.pack_full_no_room asks it, to tell a purchase the
+    pack alone refuses from one the shelf, the price or the need refuses.
+    """
+    token = _ROOM_ASSUMED.set(True)
+    try:
+        yield
+    finally:
+        _ROOM_ASSUMED.reset(token)
+
+
+def room_assumed() -> bool:
+    return _ROOM_ASSUMED.get()
 
 
 def permits(snapshot, slots: int) -> bool:

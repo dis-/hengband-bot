@@ -2105,6 +2105,22 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "f01f42a8fe7c816b28406a11086c8bd529224f3f115c143cf48cd0e6da3db6c6"
   },
+  "mining_loadout.py:empty_main_hand_weapon": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5b4ba79187a9b057947e765089e4efd101988db2c738a27c79d479c266335b5d"
+  },
+  "mining_loadout.py:main_hand_weapon": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "c8ca43b8440c56d2973790856fe1ba82c930bd80077dc4311e8a6a4919449a4d"
+  },
   "mining_loadout.py:restorable_item": {
     "classification": "data",
     "rows": [
@@ -2127,7 +2143,7 @@
       "equipment-transaction"
     ],
     "delegation": "_equipment_wield; no independent progress",
-    "ast_sha256": "54ef09805a5e4994099a6819767df1becb5d3c440164ffba086765187cd6a9e3"
+    "ast_sha256": "a7b485535ed22c5e55fd3b8b6fbe5b4f1c71b69a7e3732dd38abc99ce6ebad11"
   },
   "mining_loadout.py:worn_in_slot": {
     "classification": "data",
@@ -5319,7 +5335,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d5e3bc41349eca1fe1e8ef8512a9cb2c9c5d3f5c67c2d1a6c639e3a12a24058a"
+    "ast_sha256": "a3b55cbfc5124861090fd947ac3d5dc4cf2a8715ba498d5e6dab60be0137621b"
   },
   "policy_equipment.py:EquipmentMixin._wield_digging_tool_key": {
     "classification": "producer",
@@ -9415,7 +9431,7 @@
       "store-approach"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "f8cea9dc66ec61f2ebfcff4d19d454929e1ae1b38b0ba1cbb22d074ba54c893b"
+    "ast_sha256": "ba5c1cd19401a47d06b4f81b2e17c15eca567fcb956c786a0d71e84a1a6df603"
   },
   "town_pack_headroom.py:find_deposit": {
     "classification": "data",

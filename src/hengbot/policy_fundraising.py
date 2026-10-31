@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import mining_loadout
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
@@ -586,10 +587,12 @@ class FundraisingMixin:
             self._mining_combat_contact_streak = 0
             self._mining_threat_free_streak = 0
             return
-        if any(not monster.asleep for monster in adjacent):
+        if mining_loadout.awake(adjacent):
             self._mining_combat_contact_streak += 1
             self._mining_threat_free_streak = 0
-        elif not hostiles:
+        elif not mining_loadout.awake(hostiles):
+            # A sleeping hostile does not keep the weapon on (the strip and
+            # its rollback read the same predicate, mining_loadout.awake).
             self._mining_combat_contact_streak = 0
             self._mining_threat_free_streak += 1
         else:

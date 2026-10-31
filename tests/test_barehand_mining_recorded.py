@@ -25,7 +25,9 @@ board (the recorded 778665 board with the sword worn); the digger-in-hand
 control (the recorded Shovel moved into the main hand); the quiet control
 (the recorded 778665 board without its monsters); the restart choice (the
 last recorded board with a Dagger carried ahead of the sword, and a cached
-optimizer winner naming the sword).
+optimizer winner naming the sword); the sleeper (owner 2026-10-31 「眠って
+いる敵なら外してよい」: the recorded 778665 board with its worm mass replaced
+by a Blue yeek, race 52 of the fixture, asleep or awake in the same cell).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -52,7 +54,7 @@ from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_s
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-barehand-mining-20261031.json.gz"
 SWORD, SHOVEL, LEATHER_SHIELD, DAGGER = "ショート・ソード", "シャベル", "Small Leather Shield", "ダガー"
-WORM_MASS = 31
+WORM_MASS, BLUE_YEEK = 31, 52
 STRIP = "fundraise:wield-digging-tool"
 # hengbot.mining_loadout.REARM_REASON / STRIP_DEFERRED_REPORT, spelled out so
 # the revert check (the module absent) runs every test instead of an import error.
@@ -101,6 +103,15 @@ def taken_off(raw, slot):
     after["turn"] += 10
     after["messages"] = []
     return reletter(after)
+
+
+def sleeper(raw, asleep):
+    """The board with each visible monster replaced by a Blue yeek (DECLARED CONSTRUCTED)."""
+    board = copy.deepcopy(raw)
+    board["visible_monsters"] = [dict(monster, race_id=BLUE_YEEK, name="ブルー・イーク",
+                                      asleep=asleep)
+                                 for monster in board["visible_monsters"]]
+    return board
 
 
 def carrying(raw, item):
@@ -302,6 +313,38 @@ class BarehandMiningRecordedTest(harness.ProductionHarness):
         self.assertEqual(policy._equipment_mutation_result.report, STRIP_DEFERRED_REPORT)
         quiet = parse_snapshot(self.board("worn"), policy._monrace_knowledge)
         self.assertEqual(policy._wield_digging_tool_key(quiet, "breakout:wield-digging-tool"), "ta")
+        # Owner 2026-10-31 「眠っている敵なら外してよい」: a sleeper does not defer it.
+        asleep = parse_snapshot(sleeper(board, True), policy._monrace_knowledge)
+        self.assertTrue(asleep.visible_monsters)
+        self.assertEqual(policy._wield_digging_tool_key(asleep, "breakout:wield-digging-tool"), "ta")
+
+    def test_sleeping_hostile_in_view_strips_then_rearms_when_it_wakes(self):
+        # Owner 2026-10-31 「眠っている敵なら外してよい」.  DECLARED CONSTRUCTED:
+        # the sleeper boards (module docstring); the last quiet decision of
+        # the streak is the one with the sleeper in view.
+        bare = sleeper(self.board("sighted"), True)
+        worn = wielded(bare, SWORD, "main_hand")
+        worn["turn"] -= 10
+        for wakes in (False, True):
+            with self.subTest(wakes=wakes):
+                policy = self.policy(worn)
+                policy._mining_threat_free_streak = MINING_THREAT_FREE_LIMIT - 1
+                key = self.decide(policy, worn)
+                self.assertEqual((key, policy.last_reason), ("ta", STRIP))
+                self.post(policy, worn, key, bare)
+                board = sleeper(bare, not wakes)
+                key = self.decide(policy, board)
+                if not wakes:
+                    # Asleep: the swap continues with the digger.
+                    self.assertEqual((key, policy.last_reason),
+                                     ("w" + letter_of(board, SHOVEL), STRIP))
+                    continue
+                # Awake: the emptied hand is re-armed before any fight.
+                self.assertEqual((key, policy.last_reason),
+                                 ("w" + letter_of(board, SWORD), REARM_REASON))
+                armed = wielded(board, SWORD, "main_hand")
+                self.post(policy, board, key, armed)
+                self.assert_fights(policy, armed)
 
     def test_control_digger_in_hand_keeps_the_approved_mining_combat_order(self):
         # Approved spec (2026-07-29): the diggers stay on while a missile

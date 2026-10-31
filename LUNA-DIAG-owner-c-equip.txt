@@ -1,0 +1,47 @@
+LUNA-DIAG-owner-c-equip (#47, 2026-10-31 owner answers 15h, equipment / town family)
+Branch owner-c-equip-1031, base main 0f2266ae6.  Line numbers are of the unfixed base unless marked "now".
+
+1. 眠っている敵がいる時の採掘の持ち替え（「眠っている敵なら外してよい」）
+   - base src/hengbot/mining_loadout.py:96-98 strip_allowed: `not policy._physical_hostiles(snapshot)` --
+     眠っている敵が1体見えるだけで戦闘の手を外さない（採掘・階段への掘り抜けの両方。_wield_digging_tool_key が
+     deferred_strip を返す）。
+   - base mining_loadout.py:139-141 rollback_key: 見えている敵が1体でもいれば空の手を持ち直す。眠っている敵で
+     外させるなら、持ち直しも同じ判定（起きている敵）にしないと「外す→持ち直す」が交互になる。
+   - base src/hengbot/policy_fundraising.py:589-596: 採掘の静かな手数（MINING_THREAT_FREE_LIMIT）は
+     `elif not hostiles` で数えるので、眠っている敵が見えている間は採掘が始まらない。
+   - 前任の実装（61efb29f8）で mining_loadout.awake（now :62）を1つの判定にし、strip_allowed（now :115）、
+     rollback_key（now :178）、静かな手数（policy_fundraising.py now :590-597）が同じ判定を読む。確認した。
+
+2. 町で空の利き手を持たせる（「町でも持たせる」）
+   - base src/hengbot/policy_equipment.py:3826-3837 _town_restore_weapon_key: 利き手に掘る道具が無く、
+     テレポート阻害の武器の入れ替えでもなければ cause="no-restoration-required" で何もしない。空の手は対象外。
+   - base src/hengbot/policy_shop.py:6474-6545 _restore_mining_combat_hand_key: 掘る道具を外す時だけ
+     （`if equipped is None or not equipped.is_digging_tool: continue`）。空の手は mining_loadout.rollback_key
+     が持つが、rollback_key は町では None（base mining_loadout.py:136）。
+   - base src/hengbot/policy.py:17242-17269 _combat_weapon_ready: 利き手が空でも掘る道具が無ければ True
+     （出発の準備が通る）。そのため、掘る道具の入れ替えの途中や外したまま帰還すると、武器を背負ったまま
+     素手で次の階へ出る。
+   - 素手で戦う職業: C:\hengband\src\player\player-status.cpp:1390-1397 is_martial_arts_mode
+     （MONK / FORCETRAINER / BERSERKER、利き手が空で副手で攻撃しない時）、class-types.h の値 8 / 20 / 23。
+     is_martial_arts_pro（player-class.cpp:352-357）は MONK と FORCETRAINER だけ。
+   - 選び方: 前任の未コミットの変更が rollback の主手の選び方（覚えている武器→最適化の結果→最初の近接武器）を
+     mining_loadout.main_hand_weapon に切り出していた。振る舞いは同じで、町の持ち直しが同じ選び方を使える。残した。
+
+3. 枠が足りず買えず、預ける・売る物も無い（「名前付きで止まる」）
+   - 記録: n1-b life-274（C:\hengband-backups\pdca\captures\latest-12h-1031\n1-b\life-274\dec.jsonl.gz）
+     行 172 / 187 town:wait-restock:magic 'R300\r'、行 158 / 173 / 188 town:blocked:departure-unsatisfiable。
+     state.jsonl.gz の行 54（turn 938144）の持ち物 19/23。
+   - 今の main（fix-town 6a037d02a の後）でこの記録を流すと、預けられる山（巻物・ロッド8山）があるので
+     行 52 で home:atomic-deposit が始まる（町3(a) の直しで解決済み）。預ける・売る物が無い時の止まりは
+     記録に無く、所有者の決まりに従って入れる。
+   - 根: src/hengbot/town_pack_headroom.py:250-299 purchase_needing_room / make_room_for_purchase は、
+     預ける・売れる山（preservable）が無いと None を返し、early_key はそのまま他の持ち主へ回す。
+     出発を止める買い（鑑定の杖）は _store_purchase_fits_pack（policy_shop.py:2489-2493）で断られ続け、
+     棚の証拠（policy_instore.py:1043 _shelf_evidence_skips_need）がその店の需要を消す。
+     その後 _town_terminal_transitions（policy_town.py:5038-5049）の不足の表から
+     _retry_after_store_restock（policy_shop.py:991-1027）が入荷待ちを据える。入荷しても枠は空かない。
+   - 「枠だけで断られた」の見分け: 同じ問い（_departure_blocking_page_purchase）を、枠があるものとして
+     もう一度聞く。棚の証拠のキャッシュ（policy_instore.py:1005-1019 の pack の組）にこの区別を入れないと、
+     枠の無い答え（absent）がそのまま返る。
+   - 再現: 記録の town3（n1-b life-276 09:00）の行 51-66 に、預ける・売れる山をこの訪問で買った物として
+     記録したもの（構成）。直す前は行 66 で shop:travel（入荷待ち・止まりへ向かう）。

@@ -48,6 +48,7 @@ from hengbot.policy_constants import (
     STORE_STUCK_LIMIT,
 )
 from hengbot.policy_types import ProcurementHomeGate, StoreVisitPhase
+from hengbot.town_pack_budget import room_assumed
 
 
 _INSCRIPTION = re.compile(r"\s*\{[^{}]*\}")
@@ -1014,6 +1015,8 @@ class InStoreMixin:
             repr(getattr(self, "_equipment_transaction_owned_items", ())),
             repr(getattr(self, "_unsellable_items", ())),
             repr(getattr(self, "_deferred_device_items", ())),
+            # A question asked as if the pack had room has its own answer.
+            room_assumed(),
         )
         cache_key = (town, store_type, record["signature"], tuple(record["trades"]),
                      pack, category)
