@@ -103,7 +103,7 @@ class OpeningRouteR2RecordedTest(executor_harness.ProductionHarness):
         inside["turn"] += 1
         self.post(policy, accepted, key, inside)
 
-    def test_both_actual_stops_equip_a_fuelled_torch_request_and_enter_q1(self):
+    def test_both_actual_stops_keep_the_lantern_request_and_enter_q1(self):
         for tag, gold, hp in (("1", 5, 179), ("2", 11, 104)):
             with self.subTest(seed=tag):
                 policy, raw = self.case(tag)
@@ -117,11 +117,12 @@ class OpeningRouteR2RecordedTest(executor_harness.ProductionHarness):
                 failure = self.stops[tag]["before"]["fixedquest_readiness"]["opening_route_failure"]
                 self.assertIn("light-oil" if tag == "1" else "no-progress:observe:fundraising-digger", failure)
                 # No supplier census is seeded: these purses cannot fund a kit.
+                # D48 (owner 2026-10-31 「Q1の段階でランタンを松明に持ち替えている」):
+                # the worn lantern is never swapped for a torch; the carried
+                # torches already satisfy Q1's light gate.
+                following = raw
                 key = str(policy.choose_key(board))
-                self.assertEqual((key, policy.last_reason), ("wd", "opening-q1:equip-light"))
-                following = self.equip_reply(raw, key)
-                self.post(policy, raw, key, following)
-                key = str(policy.choose_key(parse_snapshot(following, policy._monrace_knowledge)))
+                self.assertNotEqual(policy.last_reason, "opening-q1:equip-light", key)
                 if tag == "2":
                     self.assertEqual(policy.last_reason, "town:kill-mob-approach", key)
                     # DECLARED CONSTRUCTED: posted step brings the recorded cat adjacent.

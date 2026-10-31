@@ -340,6 +340,30 @@ class OpeningRouteMixin:
         # An empty envelope cannot activate a building beneath the player.
         return ""
 
+    def _opening_q1_light_to_wield(self, snapshot):
+        """The light to wear before Q1, or None to keep the worn one.
+
+        The Q1 visit-fuel estimate only asks whether a change is wanted; the
+        light to wear is the one light-quality rule's (_light_to_wield), so a
+        burning lantern is never swapped for a torch.  An unidentified lantern
+        shows no fuel (D48, n1-c life-069 2026-10-31 19:42: 真鍮のランタン
+        {並, Q34} gave way to a torch; owner 「Q1の段階でランタンを松明に持ち
+        替えている」).  A torch kept for Q1's throwing carry is not worn.
+        """
+        judgment = self._light_judgment(snapshot)
+        worn = judgment.worn
+        if judgment.one_shot_quest_entry_ready or (
+                worn is not None and worn.known
+                and worn.fuel >= self._q1_visit_light_fuel(snapshot)):
+            return None
+        light = self._light_to_wield(snapshot)
+        if light is None or light.is_cursed or light.is_broken:
+            return None
+        torch_reserve = self._opening_q1_requirements(snapshot)[0][1]
+        if light.is_torch and self._count_throwing_torches(snapshot) <= torch_reserve:
+            return None
+        return light
+
     @claims(ClaimOwner.QUEST_REQUEST, census_only=True)
     def _opening_q1_town_key(self, snapshot, hostiles):
         if not self._opening_q1_active(snapshot) or not snapshot.in_town:
@@ -410,22 +434,11 @@ class OpeningRouteMixin:
             key = self._shopping_approach_key(snapshot, step, "shop:travel")
             return key if key is not None else self._opening_q1_stop("supplier-operation-unavailable:" + stage)
         self._opening_q1_kit_bought = True
-        light = self._light_judgment(snapshot)
-        fuel_required = self._q1_visit_light_fuel(snapshot)
-        if (not light.one_shot_quest_entry_ready
-                and not (light.worn is not None and light.worn.known
-                         and light.worn.fuel >= fuel_required)):
-            torch_reserve = self._opening_q1_requirements(snapshot)[0][1]
-            candidates = [item for item in snapshot.inventory
-                          if item.is_light and item.known and item.fuel >= fuel_required
-                          and not item.is_cursed and not item.is_broken
-                          and (not item.is_torch
-                               or self._count_throwing_torches(snapshot) > torch_reserve)]
-            if candidates:
-                item = max(candidates, key=lambda item: item.fuel)
-                self.last_reason = "opening-q1:equip-light"
-                key = self._equipment_wield(snapshot, "light-loadout", item, "light")
-                return key if key is not None else self._opening_q1_stop("light-equip-unavailable")
+        light = self._opening_q1_light_to_wield(snapshot)
+        if light is not None:
+            self.last_reason = "opening-q1:equip-light"
+            key = self._equipment_wield(snapshot, "light-loadout", light, "light")
+            return key if key is not None else self._opening_q1_stop("light-equip-unavailable")
         if snapshot.player.hp < snapshot.player.max_hp:
             if hostiles:
                 combat = self._town_kill_mob_key(snapshot)
