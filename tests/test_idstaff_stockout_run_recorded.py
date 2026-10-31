@@ -14,14 +14,19 @@ _identify_staff_procurement_impossible still waited for the Black Market to
 be attempted or observed in this visit; no owner was left and the visit
 stopped with departure_block.failed ["identify_staff_ready"] three times.
 
-Root (stop board): a supplier the need registry skips on its shelf
+Root 1 (stop board): a supplier the need registry skips on its shelf
 evidence counts as tried (policy_instore._shelf_stop_tried), so the stock-out
-run is installed again.
+run is installed again.  Root 2 (Yeek board): a restock time-pass is not
+ended by the gold target (policy_fundraising._restock_time_pass_run, the D35
+rule of the Magic-Eater's stock-out run).
 
 The stop board test attaches the recorded visit to the established harness
 of tests/test_unid_deposit_recorded.py (DECLARED RECONSTRUCTED boundary; the
 earlier Black Market page is filed as this process's shelf evidence, as the
-recorded process had observed it).  Every key comes from
+recorded process had observed it).  The Yeek board test builds the dungeon
+policy as tests/test_me_stockout_run_recorded.py does (DECLARED
+RECONSTRUCTED: the town decision's stock-out plan, the mining mode the
+departure sets and the cross-area purpose it posts).  Every key comes from
 the public chooser and goes through the production executor; the replies are
 constructed.  Fixture: tests/extract_idstaff_stockout_run_fixture.py.
 """
@@ -30,8 +35,15 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 from pathlib import Path
 
+from hengbot.cli import _ExecutorInputPort, SendResult, _transport_key
 from hengbot.model import STORE_BLACK, parse_snapshot
+from hengbot.policy_fundraising import (
+    FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
+    fundraising_run_verdict,
+)
+from tests.test_esp_threat_rest_recorded import _policy
 import tests.test_unid_deposit_recorded as recorded
+from tests.test_input_executor import FaithfulHookGame, command_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "idstaff-stockout-run-20261101.json.gz"
@@ -83,6 +95,64 @@ class IdstaffStockoutRunRecordedTest(recorded.UnidentifiedDepositRecordedTest):
         self.assertTrue(policy._identify_staff_mining_plan)
         self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs), ("prepare", 1))
         self.post(policy, raw, key, self.reply(raw, key))
+
+    # ------------------------------------------------------------ Yeek 1F
+    def dungeon_policy(self):
+        raw = copy.deepcopy(self.case["yeek_board"])
+        policy = _policy(self.directory, self.monrace)
+        policy._crossarea_fundraising_enforced = True
+        policy._in_store_ops_enabled = True
+        policy.prime(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        # DECLARED RECONSTRUCTED (module docstring): the stock-out plan of
+        # _identify_staff_stockout_key and the departure's mining mode and
+        # cross-area purpose (fundraising mine, one planned run, none done).
+        policy._identify_staff_mining_plan = True
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs, policy._mining_runs_completed = 1, 0
+        policy._fundraising_runs_started = 1
+        purpose = FundraisingPurpose(1, "mine", False)
+        policy._fundraising_run_purpose = purpose
+        policy._fundraising_purpose_record = FundraisingPurposeRecord(
+            purpose, child=FundraisingTransportChild(
+                purpose.identity, "depart", (0, 0, 0), 1, state="complete"))
+        # As the stop board's harness: this process has read the skill list.
+        policy._skill_exp_cache = (0, 0, raw["player"]["level"], policy._town_visit_epoch)
+        return policy, raw
+
+    def post_dungeon_key(self, policy, raw, key):
+        """DECLARED CONSTRUCTED: the board unchanged, ten game turns later."""
+        following = copy.deepcopy(raw)
+        following["turn"] += 10
+        following["messages"] = []
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = command_screen(raw["turn"])
+        game.screens = [command_screen(following["turn"])]
+        game.states = [following]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        self.assertEqual(port(key, decision={"reason": policy.last_reason,
+                                            "sequence": policy._decision_sequence}),
+                         SendResult.SENT, port.last_result.reason)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual("".join(game.accepted), _transport_key(key, True))
+
+    def test_stockout_run_mines_instead_of_returning_on_the_gold_target(self):
+        policy, raw = self.dungeon_policy()
+        board = policy.with_known_skill_exp(
+            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        self.assertGreater(board.player.gold, policy._fundraising_gold_target())
+        key = str(policy.choose_key(board))
+        # The run stays on the floor: the arrival board's first decision walks
+        # off the stairs while the mining loadout's quiet streak builds
+        # (fundraise:wield-digger), instead of fundraise:ascend.
+        self.assertNotEqual((policy.last_reason, key), ("fundraise:ascend", "<"))
+        self.assertFalse(policy._returning_to_town)
+        verdict = fundraising_run_verdict(policy._fundraising_facts(board),
+                                          policy._fundraising_run_purpose)
+        self.assertEqual((verdict.must_return, verdict.may_continue), (False, True))
+        self.post_dungeon_key(policy, raw, key)
 
     # The inherited Identify-staff scenarios belong to the life-427 fixture.
     test_shelved_equipment_is_taken_back_and_identified_with_a_source = None

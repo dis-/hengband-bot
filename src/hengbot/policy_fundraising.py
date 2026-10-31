@@ -156,13 +156,29 @@ class FundraisingMixin:
     def _fundraising_gold_return_applies(self) -> bool:
         """Whether reaching the gold target is a return trigger for this run.
 
-        A no-safe-destination set has no gold objective (2026-10-19), and the
-        staff sequence's stockout run mines its floor out (D35, 2026-10-31).
+        A no-safe-destination set has no gold objective (2026-10-19), and a
+        restock time-pass mines its floor out (``_restock_time_pass_run``).
         """
         if getattr(self, "_no_safe_destination_set", False):
             return False
+        return not self._restock_time_pass_run()
+
+    def _restock_time_pass_run(self) -> bool:
+        """Whether this run exists to pass a shop's restock time, not for gold.
+
+        The Identify-staff and recall stock-out runs ("one Yeek Cave 1F mining
+        run, then retry") and the Magic-Eater staff sequence's stock-out run
+        (D35, me_staff_sequence.mines_floor_out) are ordinary mining runs: a
+        shelf restocks only after 10,000 game turns (store/cmd-store.cpp:94,
+        STORE_TICKS), so a run that returns on the gold target as it lands
+        passes no time.  n1-a life-453 (2026-11-01 00:57, 20,202 gold) took
+        the Identify-staff run's stairs down and straight back up, found Magic
+        still sold out and stopped as town:blocked:departure-unsatisfiable.
+        """
         from hengbot.me_staff_sequence import mines_floor_out
-        return not mines_floor_out(self)
+        return bool(getattr(self, "_identify_staff_mining_plan", False)
+                    or getattr(self, "_recall_stockout_mining_plan", False)
+                    or mines_floor_out(self))
 
     def _post_fundraising_transport(
         self, snapshot: Snapshot, direction: str
