@@ -200,6 +200,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         # The class-16 staff sequence: its stage, remaining staffs and the
         # completed stages' turns (owner 2026-10-31).
         "_me_staff_sequence",
+        # The class-16 utility powers' uses on this floor (me_powers, #47).
+        "_me_power_floor",
         # The Q2 Stone to Mud recharge trip to Morivant (owner 2026-10-31).
         "_q2_tower_recharge",
     )

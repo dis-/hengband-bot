@@ -684,7 +684,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d05958ddf45f6a57b9c25a21f10a7a117e54e93a9891c0bf3854e33d30b9f126"
+    "ast_sha256": "d563ecddba67bac2b3b4058a54919392a54fde9e371d78e51735c1a8e003d8cc"
   },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
@@ -1777,6 +1777,46 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "28a4034f13ca6e23997d598b65a6cab10bce72ce0593475002506b46f8ca8c7c"
   },
+  "me_powers.py:Power.key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "adfcf4152be0d7dd03991ca05a4ab823f134a31ef394d72509943b5bd4e43695"
+  },
+  "me_powers.py:Power.letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bb5ea9e634a5cd13307f1c889e1e59389a5d9f9a0533de0698bb547683a3f9dc"
+  },
+  "me_powers.py:_serving": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "204596a035aefb16596fff1889ede9ca8e4ab912a6433237ba581e69e69c87c6"
+  },
+  "me_powers.py:encode_letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "70efa4361e1fe7d805e290cbea3110b46953e775f241d66dfb5392b18d67e7d2"
+  },
+  "me_powers.py:power_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "bfdfa3dd714c8d918751ebe3d03bf1e90fb20505a758de65e652ab9f7f8707dc"
+  },
   "me_powers_refresh.py:periodic_magic_eater_powers_key": {
     "classification": "producer",
     "rows": [
@@ -2619,7 +2659,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2774b307b5866dbbbb7e17d229e12a3966bc37ce537297348732255e6bef1a42"
+    "ast_sha256": "d136522c6a7b639e0beae0d2145b97448084c5203e1a10f541961968d316c475"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4434,7 +4474,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e96a6a62b626230527e488c800c75a4beb8b3ea8ffb05c6febec6b9a09d3e734"
+    "ast_sha256": "52cc16dfd07fe52cfe68a60b23886b31fcee004bc07d0db6b8a73b2ea6528d62"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
