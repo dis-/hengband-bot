@@ -42,9 +42,13 @@ class NoRefusalDeclarationTest(unittest.TestCase):
                    "home-errand-knowledge", "home-full-knowledge", "home-knowledge-after-exit",
                    "_town_order_step4_key#1", "_town_order_step4_key#2", "town-progress-committed-loot"}
         round15 = {'_chest_processing_key#1', '_kill_quest_floor_recovery_key', '_start_kill_quest_regeneration', '_normal_loot_key#2', '_normal_loot_key#1', '_chest_processing_key#2'}
-        self.assertEqual(set(tt.NO_REFUSAL_REASONS), EXPECTED | round12 | round13 | round14 | round15)
+        # 2026-10-31 dungeon-only rungs: the Greater Hell-Beast mining abort and
+        # the D45 re-arm of a combat hand the digger swap left empty.
+        dungeon_1031 = {'_mining_unbeatable_unique_abort_key', '_mining_loadout_rollback_key'}
+        classified = EXPECTED | round12 | round13 | round14 | round15 | dungeon_1031
+        self.assertEqual(set(tt.NO_REFUSAL_REASONS), classified)
         self.assertEqual({name for name, decl in tt.TERMINALS.items()
-                          if decl.mode == tt.NO_REFUSAL}, EXPECTED | round12 | round13 | round14 | round15)
+                          if decl.mode == tt.NO_REFUSAL}, classified)
         self.assertEqual(len(tt.SHADOW_RUNGS), 0)
         self.assertTrue(EXPECTED.isdisjoint(tt.SHADOW_RUNGS))
         for name in EXPECTED:

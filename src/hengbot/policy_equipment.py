@@ -7,6 +7,7 @@ from hengbot.town_pack_budget import home_take_fits
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
+from hengbot import mining_loadout
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -4123,6 +4124,10 @@ class EquipmentMixin:
         macro = self._equipment_wield(snapshot, "combat-loadout", weapon, "main_hand")
         return macro
 
+    def _mining_loadout_rollback_key(self, snapshot: Snapshot) -> str | None:
+        """D45: re-arm a combat hand the digger swap left empty (mining_loadout)."""
+        return mining_loadout.rollback_key(self, snapshot)
+
     def _wield_digging_tool_key(
         self, snapshot: Snapshot, reason: str
     ) -> str | None:
@@ -4133,26 +4138,15 @@ class EquipmentMixin:
         prompt tail from the last observed hand state.
         """
         self._equipment_mutation_result = EquipmentMutationResult(None)
-        main_hand = next(
-            (it for it in snapshot.equipment if it.slot == "main_hand"), None
-        )
-        sub_hand = next(
-            (it for it in snapshot.equipment if it.slot == "sub_hand"), None
-        )
+        main_hand = mining_loadout.worn_in_slot(snapshot, "main_hand")
+        sub_hand = mining_loadout.worn_in_slot(snapshot, "sub_hand")
         if not self._mining_combat_loadout_remembered:
-            preparation = self._equipment_optimization_preparation
-            result = getattr(preparation, "result", None)
-            best = getattr(result, "best", None)
-            loadout = getattr(best, "loadout", None)
+            loadout = mining_loadout.cached_optimal_loadout(self)
             optimal_main = (
-                loadout.item_at("main_hand")
-                if loadout is not None and hasattr(loadout, "item_at")
-                else None
+                loadout.item_at("main_hand") if loadout is not None else None
             )
             optimal_sub = (
-                loadout.item_at("sub_hand")
-                if loadout is not None and hasattr(loadout, "item_at")
-                else None
+                loadout.item_at("sub_hand") if loadout is not None else None
             )
             # An optimizer winner makes an empty sub hand authoritative.  An
             # absent main-hand choice cannot: retain the observed weapon so a
@@ -4168,7 +4162,7 @@ class EquipmentMixin:
                 self._normal_weapon_name = main_hand.name
                 self._normal_weapon_identity = equipment_identity(main_hand)
                 self._normal_weapon_is_optimal = False
-            if loadout is not None and hasattr(loadout, "item_at"):
+            if loadout is not None:
                 self._normal_sub_hand_name = (
                     optimal_sub.item.name if optimal_sub is not None else None
                 )
@@ -4189,6 +4183,11 @@ class EquipmentMixin:
             if item is not None and not item.is_digging_tool
         ]
         if combat_hands:
+            # D45: an emptied combat hand while a hostile is in view would be
+            # re-armed at once (mining_loadout.rollback_key); never start it.
+            if not mining_loadout.strip_allowed(self, snapshot):
+                self._equipment_mutation_result = mining_loadout.deferred_strip()
+                return None
             blocked = next(
                 (
                     item
