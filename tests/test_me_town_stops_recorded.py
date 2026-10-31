@@ -49,6 +49,9 @@ class MagicEaterTownStopsRecordedTest(executor_harness.ProductionHarness):
         policy, raw = lv7.Lv7TownStopRecordedTest().boundary(dict(
             monraces=case["monraces"], snapshot=case["board"], knowledge=case["knowledge"],
             state={"modes_and_latches": case["state"]}), kit_bought=kit_bought)
+        # DECLARED CONSTRUCTED: this process already read the game's staff
+        # power list (me_staff_sequence.read_powers, #47).
+        me_staff_sequence.state(policy).powers_read = True
         target = case["supply_stockout_gold_target"]
         if target is not None:
             # DECLARED RECONSTRUCTED: the capture keeps the fundraising mode

@@ -594,6 +594,13 @@ def _policy_final_stop_required(policy) -> bool:
                                   "ownership:contract-conflict:fundraising:")))
 
 
+def _policy_final_stop_kind(reason: str) -> str:
+    """The incident kind of a policy-declared final stop."""
+    if reason == "town:blocked:departure-unsatisfiable":
+        return "departure-unsatisfiable"
+    return reason
+
+
 def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
     """The single driver retirement entrance, before polls and final stops."""
     _observe_owner_retired_progress(policy, snapshot, key, observed_visit)
@@ -766,6 +773,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
         "quest:blocked:q2-breach-tool": "the Q2 breach corridor still has walls and no Stone to Mud charge or qualifying digger is carried",
         "quest:blocked:q2-tower-recharge": "the Q2 Stone to Mud recharge trip to Morivant's Tower cannot continue; inspect _q2_tower_recharge.failure in the policy checkpoint",
+        "quest:blocked:me-staff": "the Magic-Eater staff sequence cannot continue; inspect _me_staff_sequence.failure in the policy checkpoint",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
     }
@@ -4801,6 +4809,12 @@ def _run_follow(
                         print(f"<no-key:{policy.last_reason}>", flush=True)
                         if _declaration_requires_no_send(key, policy.last_reason):
                             return incident_stop("declaration-invalid", snapshot)
+                        if _policy_final_stop_required(policy):
+                            # A named final stop sends nothing; it is not an
+                            # empty decision to retry (#47 n1-c 10-31).
+                            print(_policy_final_stop_banner(policy.last_reason), flush=True)
+                            return incident_stop(
+                                _policy_final_stop_kind(policy.last_reason), snapshot)
                         no_key_streak = (
                             getattr(policy, "_cli_no_key_streak", 0) + 1
                         )
@@ -4934,13 +4948,8 @@ def _run_follow(
                             _policy_final_stop_banner(policy.last_reason),
                             flush=True,
                         )
-                        if policy.last_reason == (
-                            "town:blocked:departure-unsatisfiable"
-                        ):
-                            return incident_stop(
-                                "departure-unsatisfiable", snapshot
-                            )
-                        return incident_stop(policy.last_reason, snapshot)
+                        return incident_stop(
+                            _policy_final_stop_kind(policy.last_reason), snapshot)
                     recorder.after_decision(policy, snapshot)
                     starving_position_changed = (
                         starving_last_position is not None

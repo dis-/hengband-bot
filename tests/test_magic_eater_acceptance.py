@@ -57,14 +57,19 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                 self.assertTrue(ready, details)
                 self.assertEqual(details["dps"]["required"], floor)
                 self.assertGreaterEqual(details["dps"]["measured"], floor)
-                self.assertLess(details["dps"]["measured"], warrior_floor)
+                # #47 (2026-10-31): Q1's class 16 is measured by its thrown
+                # torches (16.76/action, QUEST_1 torch_throw_output_by_class);
+                # the same melee stays below the warrior's floor.
+                melee = details.get("melee_dps", details["dps"]["measured"])
+                self.assertEqual(details["dps"]["measured"], 16.76 if quest_id == 1 else melee)
+                self.assertLess(melee, warrior_floor)
                 warrior = replace(board, player=replace(board.player, class_id=0))
                 ready, unchanged = self.readiness(warrior, quest_id)
                 self.assertFalse(ready)
                 # Bad-luck HP floors (2026-10-30): the Q1 class-16 floor 96 is above the warrior's 88.
                 self.assertEqual(unchanged["failed"], ["dps"])
                 self.assertEqual(unchanged["dps"]["required"], warrior_floor)
-                self.assertEqual(unchanged["dps"]["measured"], details["dps"]["measured"])
+                self.assertEqual(unchanged["dps"]["measured"], melee)
 
     def test_magic_eater_no_healing_tier_uses_its_class_floor(self):
         for quest_id in (34, 1):
@@ -82,6 +87,12 @@ class MagicEaterAcceptanceTest(unittest.TestCase):
                     board = self.board(quest_id, no_healing=no_healing)
                     board = replace(board, player=replace(board.player, main_hand_to_d=0))
                     ready, details = self.readiness(board, quest_id)
+                    if quest_id == 1:
+                        # #47: Q1's class 16 fights with its carried torches;
+                        # weak melee (its fallback) is no gate.
+                        self.assertTrue(ready, details)
+                        self.assertLess(details["melee_dps"], 3.6)
+                        continue
                     self.assertFalse(ready)
                     self.assertIn("dps", details["failed"])
 

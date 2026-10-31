@@ -24,6 +24,11 @@ def acceptance_hp_floor(force: dict[str, Any], class_id: int) -> int:
     return int(overrides.get(str(class_id), force.get("min_hp", 0)) or 0)
 
 
+def torch_throw_output(force: dict[str, Any], class_id: int) -> float:
+    """A reviewed class's per-action thrown lit-torch output (QUEST_1 class 16), else 0."""
+    return float(force.get("torch_throw_output_by_class", {}).get(str(class_id), 0) or 0)
+
+
 def class_throwing_items(force: dict[str, Any], class_id: int) -> dict[str, Any]:
     """Resolve a reviewed class-specific throwing plan (QUEST_1 class 16)."""
     overrides = force.get("throwing_items_by_class", {}).get(str(class_id))

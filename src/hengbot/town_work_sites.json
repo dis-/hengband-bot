@@ -193,7 +193,7 @@
       "plan-routing"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "253a8a103eb166ee88d4c7e9cd9cb4e058bb6f79208bc85e380fd34b84387ace"
+    "ast_sha256": "f7ef91f56bc1adda747dc9d117d9706cf95954276cf193c19cae0f701c7a95ab"
   },
   "cli.py:_send_decision_key_with_prompt_chain": {
     "classification": "driver",
@@ -684,7 +684,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d05958ddf45f6a57b9c25a21f10a7a117e54e93a9891c0bf3854e33d30b9f126"
+    "ast_sha256": "66fa274359c8e6f059bbf6fab0291808ec0ba7c439fb0a7cf526a0d0583896a8"
   },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
@@ -1890,7 +1890,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "07d343b445e75ce969ab82344bfe1274dc0d285983d0c2372e18da3caa544e7c"
+    "ast_sha256": "a185871532a2265712743e2869c0a5b1c1cc5948070f134052a5c05a9224a6c5"
   },
   "me_staff_sequence.py:_needed": {
     "classification": "data",
@@ -1906,7 +1906,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "92bc77bf4e306ab04b0ce88988516e9fde88b0e231eddb1015f7de87ebeb2e16"
+    "ast_sha256": "f4d50a0c76b14c242416cdf1bf73dff0dd7d685fc17c633e4bd0c0118d70126d"
   },
   "me_staff_sequence.py:_phase": {
     "classification": "data",
@@ -1914,7 +1914,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "060dcf9aefdd8a25fcca6dd7e67eb1f94027b05f88965b516f54e102a3fd4828"
+    "ast_sha256": "0f8bd1ab5731e5c22a5fc4bca6c717bb9d9376c05f43433e86c064f60a0d338c"
   },
   "me_staff_sequence.py:_recharge_key": {
     "classification": "producer",
@@ -2051,10 +2051,11 @@
       "rumor",
       "cross-town",
       "fundraising",
-      "store-approach"
+      "store-approach",
+      "browse"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "66e3126e5da85a1021e3b9f3c362ad016ffc6fa90a0df2fe45e0b3ef47a8ce4e"
+    "ast_sha256": "f01f42a8fe7c816b28406a11086c8bd529224f3f115c143cf48cd0e6da3db6c6"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
