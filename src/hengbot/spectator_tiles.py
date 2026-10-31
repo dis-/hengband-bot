@@ -20,7 +20,10 @@ floor coordinates and the game's floor seed (original-tiles.cpp floor_seed).
 ``palette_ext`` (present only when some entry has one) is parallel to
 ``palette``: for an entry whose top visible item has a found_item_ids record,
 [sval, flavor_id, artifact_id] (each null when the game did not print it),
-else null. The Original32 tiles (tiles=3/4) select item pictures from it; the
+else null. A cell whose terrain the map has never shown but which has a
+found_items row (an item the player detected) gets terrain 0 (NONE) and the
+first found stack; gold is absent from found_items, so such a gold-only cell
+stays empty. The Original32 tiles (tiles=3/4) select item pictures from it; the
 5-field palette entries stay unchanged for the 8x8/16x16 page code.
 Nothing in the decision path imports this module.
 """
@@ -95,6 +98,7 @@ def _terrain_on_screen(state, y0, x0, height, width):
 
 
 GOLD_TVAL = 127
+UNKNOWN_TERRAIN = 0  # TerrainDefinitions "NONE": what the map shows under a detected item
 
 
 def _top_item_identity(found_records, tvals):
@@ -190,11 +194,27 @@ def spectator_tiles(state: Mapping[str, object], screen: Mapping[str, object],
     hallucinated = player.get("status", {}).get("hallucinated", False)
     player_pos = (player.get("y"), player.get("x"))
     palette, extensions, indices, rows = [], [], {}, []
+
+    def index_of(entry):
+        if entry not in indices:
+            indices[entry] = len(palette)
+            palette.append(list(entry[:5]))
+            extensions.append(None if entry[5] is None else list(entry[5]))
+        return indices[entry]
+
     for y in range(y0, y0 + height):
         row = []
         for x in range(x0, x0 + width):
             if (y, x) not in terrain:
-                row.append(None)
+                # Detected items on floor the map never showed: the map still
+                # draws the item over unknown terrain (NONE, ID 0), so copy the
+                # first found stack. Gold is not listed in found_items.
+                found = item_records.get((y, x))
+                if hallucinated or found is None or not found[0]:
+                    row.append(None)
+                    continue
+                row.append(index_of((UNKNOWN_TERRAIN, 0, None, found[0][0], False,
+                                     _top_item_identity(found, found[0]))))
                 continue
             cell = cells.get((y, x), {})
             monster = monsters.get(cell.get("m"), {})
@@ -205,12 +225,7 @@ def spectator_tiles(state: Mapping[str, object], screen: Mapping[str, object],
             tval = tvals[0] if tvals and not hallucinated else None
             identity = (None if tval is None or (y, x) not in item_records
                         else _top_item_identity(item_records[y, x], tvals))
-            entry = (*terrain[y, x], race, tval, (y, x) == player_pos, identity)
-            if entry not in indices:
-                indices[entry] = len(palette)
-                palette.append(list(entry[:5]))
-                extensions.append(None if identity is None else list(identity))
-            row.append(indices[entry])
+            row.append(index_of((*terrain[y, x], race, tval, (y, x) == player_pos, identity)))
         rows.append(row)
     index_width = 1
     while len(palette) > 64 ** index_width:
