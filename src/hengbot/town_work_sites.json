@@ -1962,7 +1962,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "57ec07b4b75d0329ff4037b28d3c2f9ffcc9e9f026c833c774a3173ade77206f"
+    "ast_sha256": "3560db72d501def7a9eb1c609df7490b85fac4571c5f74ee651adbb3698e794b"
   },
   "me_powers.py:Power.key": {
     "classification": "data",

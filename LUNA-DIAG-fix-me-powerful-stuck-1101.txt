@@ -1,0 +1,67 @@
+LUNA-DIAG-fix-me-powerful-stuck-1101 (#47, D53)
+
+Stop family: stuck-prompt:me-powerful:* on the viewing Magic-Eater n1-c (last 24 h)
+  life-072  23:56-23:56  build bot-13e2f14d0  me-powerful:uncurse   key UAg    x3 -> escalate
+  life-074  01:45-01:46  build bot-577cd246b  me-powerful:identify  key UAfm   x3 -> escalate
+  life-075  02:09-02:09  build bot-577cd246b  me-powerful:identify  key UAf/a  x3 -> escalate
+  life-076  03:03-03:03  build bot-577cd246b  me-powerful:identify  key UAfq   x3 -> escalate
+  (events.jsonl lines 432-434, 452-454, 457-459, 468-470; no me-powerful stop on n1-a / n1-b.)
+  Every restart re-chose the same work 5 s later (the attempts memory is per process), so each
+  life burned its three restarts on one board.  No me-powerful stop predates
+  37c6d6ec0 (the feature); no change to the two powerful modules between 13e2f14d0 / 577cd246b
+  and main 31306b6a8.
+
+Evidence (copied read-only to C:\hengband-backups\pdca\captures\fix-me-powerful-stuck-1101\):
+  life-07N/captures/<stamp>-stuck-prompt-me-powerful-*/{bot-stderr.log, control-at-stop.json.gz,
+  bot-decisions.jsonl.gz, bot-posted-characters.jsonl.gz, state.jsonl.gz} and
+  life-07N/incident-captures/<first stuck-prompt>/{policy-state.json, snapshots/}.
+
+One root, all four lives (identical stop line):
+  <stuck-prompt> owner=me-powerful:<effect> phase=magic-eater-powerful transport=accepted
+    ctx=spell ctx_prompt="(特殊能力 a-c, '*'で一覧, '/'で閲覧, ESCで中断) どの能力を使いますか？"
+    reason=unowned racial power prompt
+
+Chain (life-076, decision 188 of the stop process; the others are the same):
+  1. policy.choose_key -> policy_quest.py:_opening_q34_town_key (staff sequence and Q2 tower
+     yield) -> me_powerful_activation.py:185 town_key -> returns UAfq (effect IDENTIFY, target
+     pack q = an ego item known but not *identified*), reason me-powerful:identify.
+     Decision rows: life-076 bot-decisions rows -3..-1 =
+       (1003516 inventory:destroy-worthless-junk 01kq), (1003523 ... 01ks),
+       (1003527 me-powerful:identify UAfq).  life-074: (917786 identify:normal mAfm),
+       (917796 me-powerful:identify UAfm).  life-075: (518611 town:remove-curse rj),
+       (518624 me-powerful:identify UAf/a).  life-072: (1657801 me-powerful:uncurse UAg).
+  2. observed_input.py:119 compile_powerful -> prefix "U", one PowerfulStep(stage="racial").
+     bot-posted-characters: the last character posted is 'U' (composed U) in every life.
+  3. Game (upstream develop ff6b1932, protocol 4): cmd-action/cmd-racial.cpp:336
+     racial_power_process_input asks with input_spell_choice(...) =
+     core/asking-player.cpp:396 input_command_with_context({InputKind::SPELL, prompt,
+     {first_label a, last_label c, list, browse, menu}}).  control-at-stop.json: input_context
+     {kind: spell, first_label: a, last_label: c, list: true, menu: false, browse: false},
+     the list rows a) 魔力の取り込み / b) 強力発動 10 11 0% / c) 経験値復活 drawn at x=11;
+     state row type power_list kind racial.
+  4. input_executor.py:1419 -> me_powerful_activation_input.py:140 advance_powerful ->
+     _answer stage "racial" -> :59 _racial_answer: `reading.kind != "command_char"` -> raises
+     ValueError("unowned racial power prompt").
+  5. The except branch (:161-172) cancels with ESC only for an owned prompt, and its racial test
+     again required kind == "command_char" -> executor._terminal("magic-eater-powerful") with
+     the prompt still open -> the driver's stuck-prompt stop.  (The kind and power prompts after
+     it are right: the kind prompt is input_command = command_char, cmd-magiceat.cpp:161; the
+     power prompt is input_spell_choice = spell, cmd-magiceat.cpp:304, already accepted by
+     magic_eater_input._owns_power_prompt.)
+  Why the tests missed it: tests/test_me_powerful_activation.py racial_screen() built the racial
+  prompt with the default kind command_char (constructed, never the game's kind).
+
+Fix (one root): the racial prompt is owned when published as spell (and, as before, as the
+  pre-context command_char), through one predicate _owns_racial_prompt used by both the answer
+  and the clean-exit branch; the kind set is shared with the power prompt's predicate
+  (magic_eater_input.LIST_CHOICE_KINDS).  After that the chain is U, b, A, f, <target>, viewer
+  pages (identify) or U, b, A, g (uncurse), as the constructed tests already assumed.
+
+Reproduction on main through the public choose_key (fresh process + recorded facts):
+  life-076 board 1003527 -> UAfq me-powerful:identify (= recorded);
+  life-075 board 518624 -> UAf/a me-powerful:identify (= recorded);
+  life-074 board 917796 -> me-staff:travel-morivant (the staff sequence's Stone-to-Mud extra trip:
+    process memory not in the capture), life-072 board 1657801 -> quest:blocked:me-staff via the
+    town-progress invariant; these two are not used as decision fixtures (the executor step they
+    hit is the same racial prompt; 072's uncurse chain is pinned by the constructed tests with
+    the game's spell kind).

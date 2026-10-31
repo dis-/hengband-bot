@@ -144,8 +144,14 @@ def observed_power_list(lines, kind=None):
     return {"kind": kind or ("rod" if rod else "wand"), "rows": rows}
 
 
+# The kinds a list-choice prompt is published as: the game asks every power
+# list with input_spell_choice (core/asking-player.cpp, InputKind::SPELL);
+# builds before that context published the same wait as command_char.
+LIST_CHOICE_KINDS = frozenset({"spell", "command_char"})
+
+
 def _owns_power_prompt(reading):
-    return (reading.kind in {"spell", "command_char"}
+    return (reading.kind in LIST_CHOICE_KINDS
             and reading.prompt.rstrip() in POWER_PROMPTS)
 
 
