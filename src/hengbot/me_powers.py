@@ -53,7 +53,7 @@ from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
     SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges, extra_charges,
 )
-from hengbot.model import Position
+from hengbot.model import Position, game_distance
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
 
@@ -194,22 +194,6 @@ class Context:
     @cached_property
     def threat_visible(self) -> bool:
         return visible_threat(self.policy, self.snapshot)
-
-
-def game_distance(a: Position, b: Position) -> int:
-    """Grid::calc_distance (system/grid-type-definition.cpp:19-38)."""
-    dy, dx = abs(a.y - b.y), abs(a.x - b.x)
-    distance = max(dy, dx) + min(dy, dx) // 2
-    if dy == 0 or dx == 0:
-        return distance
-    squared = dy * dy + dx * dx
-    while True:
-        # C++ integer division truncates toward zero (Python's // floors).
-        numerator = squared - distance * distance
-        error = abs(numerator) // (2 * distance) * (1 if numerator >= 0 else -1)
-        if error == 0:
-            return distance
-        distance += error
 
 
 # -- triggers: one named predicate each ---------------------------------------

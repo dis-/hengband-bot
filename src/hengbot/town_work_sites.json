@@ -1790,7 +1790,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "4fc377cbc3136da511c755a1252d4b8d0d1514f5079a911579363a53142a7a27"
+    "ast_sha256": "9f1b8b0c3f9e4aa80657f3b6f313a8264e063230f075d0f6205087c0f8782015"
   },
   "me_device_attacks_input.py:advance_device": {
     "classification": "driver",
@@ -2099,7 +2099,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "902b8beb6c51064983660bfb643216ad5c37a22a1d1e667e02a1ae32db8b302b"
+    "ast_sha256": "83d43565620a5c4c1d3123c8065a7db6427ffedbaaca49b3a71c8ad5440344e9"
   },
   "me_staff_sequence.py:_absorb_key": {
     "classification": "producer",
