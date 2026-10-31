@@ -1718,7 +1718,7 @@
       "bookkeeping"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Executor-owned answers of Powerful Activation (racial letter or menu cursor from the observed racial list, kind letter or menu, power letter from the observed staff list, *Identify* item area and label, screen_object pages; ESC when the observed row is empty or charging); no independent policy decision.",
+    "evidence": "Executor-owned answers of Powerful Activation (racial letter or menu cursor from the observed racial list, owned as the game publishes it: input_spell_choice kind spell, #47 D53 n1-c lives 072-076; kind letter or menu, power letter from the observed staff list, *Identify* item area and label, screen_object pages; ESC when the observed row is empty or charging); no independent policy decision.",
     "delegation": "selected child; no independent success",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)"
@@ -13028,7 +13028,7 @@
       "survival"
     ],
     "context": "Town only: requires the emitter's town flag and dungeon level 0.",
-    "evidence": "USER DECISION 2026-10-31 (死2): melee the weakest adjacent attacker instead of a flee step when no healing potion and no escape scroll is carried; returns a direction key from _direction_key or None; called only by the flee rung (flee:cornered-attack) and the emergency ladder (emergency:cornered-attack) before their flee step.",
+    "evidence": "USER DECISION 2026-10-31 (死2): fight the weakest adjacent attacker instead of a flee step when no healing potion and no escape scroll is carried; D55 (owner 2026-10-31 「近接以外の攻撃手段も街で使う」): the Magic-Eater ranged order (me_ranged_first.attack_key: absorbed attack power, Magic Missile, attack wand, spare lit torch) first, else a direction key from _direction_key; returns None when no attacker is adjacent; called only by the flee rung (flee:cornered-attack) and the emergency ladder (emergency:cornered-attack) before their flee step.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

@@ -1994,7 +1994,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "57ec07b4b75d0329ff4037b28d3c2f9ffcc9e9f026c833c774a3173ade77206f"
+    "ast_sha256": "3560db72d501def7a9eb1c609df7490b85fac4571c5f74ee651adbb3698e794b"
   },
   "me_powers.py:Context.aim": {
     "classification": "data",
@@ -5284,7 +5284,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "255fb78b007769dae651d54d0adf3cbf630cbba05f7347b1db766eae26498cf4"
+    "ast_sha256": "278b2e5c6c5f6ee130a0956448c6071d71ff31452f6b23ef6a449aa1195a00cd"
   },
   "policy_combat.py:CombatMixin._paralyzing_monsters": {
     "classification": "data",
@@ -9826,7 +9826,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "aabbddd4128d6c1d3b2bd45a5020cddf963dc14535088c6e601fe4cfd09eaf92"
+    "ast_sha256": "90908425a4aecaf3e331e542fba9e009ac4eb4e58c9663cfa8b86305ce526267"
   },
   "town_last_stand.py:target": {
     "classification": "data",
