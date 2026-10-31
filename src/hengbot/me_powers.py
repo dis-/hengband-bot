@@ -217,10 +217,11 @@ def _needed_stairs(ctx):
 
 
 def _stairs_known(ctx, needed):
-    policy, grids = ctx.policy, ctx.snapshot.grids.values()
+    """A stair the navigation owner would still walk to (its own predicate)."""
+    policy, snapshot = ctx.policy, ctx.snapshot
     if needed == "down":
-        return bool(policy._remembered_downstairs) or any(g.has_down_stairs for g in grids)
-    return any(policy._is_upstairs_target(g) for g in grids)
+        return bool(policy._usable_downstairs(snapshot))
+    return any(policy._is_upstairs_target(g) for g in snapshot.grids.values())
 
 
 def _stairs_needed_and_unknown(ctx, power):

@@ -6737,7 +6737,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "146697bfcba6a12a8a91ed91fa0f0af496799a5845cde7457c5dd3e199e6b55f"
+    "ast_sha256": "edcb63370a533a8471073cbd07075a44758964115893c8396f3017d393e25732"
   },
   "policy_navigation.py:NavigationMixin._disengage_move_or_escalate": {
     "classification": "producer",
