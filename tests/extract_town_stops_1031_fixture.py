@@ -20,6 +20,12 @@ Cases:
   list), 124 and 126 (the town boards of decisions 2278 and 2279), 128 (the
   Alchemist entrance after the travel, turn 1113830) and the Alchemist pages
   129, 130 and 131 of decisions 2280-2282 (inscribe, sell, the stop).
+- ``death2``: n1-c life-056 ``20261031-082432-exit-no-marker`` (the town death
+  of 08:24).  Lines 59-66 (turns 222253-222326: a Scruffy-looking horse three
+  cells away, then adjacent, then three cells away again) and 104-118 (turns
+  223052-223304: the horse adjacent, then out of sight at HP 5).
+- ``monraces``: the lore of the races on those boards, read from
+  ``lib/edit/MonraceDefinitions.jsonc`` by the production loader.
 - ``fuse``: the decision rows (``bot-decisions.jsonl.gz``) of n1-c life-057
   ``20261031-083408-loop-detected`` 3866-3895 and ``20261031-084544-loop-
   detected`` 704-733, both stopped by the runner's town-block fuse, trimmed to
@@ -31,15 +37,19 @@ Usage: python tests/extract_town_stops_1031_fixture.py [captures directory]
 
 from __future__ import annotations
 
+import dataclasses
 import gzip
 import hashlib
 import json
 import sys
 from pathlib import Path
 
+from hengbot.monrace_knowledge import load_monrace_knowledge
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "tests" / "fixtures" / "town-stops-1031.json.gz"
 DEFAULT_SOURCE = Path(r"C:\hengband-backups\pdca\captures\latest-12h-1031")
+MONRACES = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
 CASES = {
     "town1": (
         "n1-b/life-276/captures/20261031-084418-town-blocked-owner-retired-burst",
@@ -49,6 +59,10 @@ CASES = {
         "n1-b/life-276/captures/"
         "20261031-084905-town-blocked-shop-required-operation-uncomposable",
         (121, 123, 124, 126, 128, 129, 130, 131),
+    ),
+    "death2": (
+        "n1-c/life-056/captures/20261031-082432-exit-no-marker",
+        tuple(range(59, 67)) + tuple(range(104, 119)),
     ),
 }
 
@@ -94,6 +108,18 @@ def main(source: Path) -> None:
     document = {name: _case(source, *spec) for name, spec in CASES.items()}
     town2 = dict(document["town2"]["rows"])
     assert [town2[index]["store"]["store_type"] for index in (129, 130, 131)] == [4, 4, 4]
+    races = sorted({
+        monster["race_id"]
+        for _, row in document["death2"]["rows"]
+        for name in ("visible_monsters", "detected_monsters")
+        for monster in row.get(name) or ()
+    })
+    lore = load_monrace_knowledge(MONRACES)
+    document["monraces"] = {
+        str(race): json.loads(json.dumps(dataclasses.asdict(lore[race]), default=sorted))
+        for race in races
+    }
+    assert "955" in document["monraces"], races
     document["fuse"] = {name: _fuse_rows(source, *spec) for name, spec in FUSE.items()}
     assert document["fuse"]["walk"][0]["reason"].startswith("town:blocked:")
     assert document["fuse"]["fight"][0]["reason"].startswith("town:blocked:")

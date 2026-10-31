@@ -5243,6 +5243,19 @@ class TownMixin:
             monster.friendly or (knowledge is not None and knowledge.friendly)
         ):
             return False
+        return self._town_monster_unbeatable(snapshot, monster)
+
+    def _town_monster_unbeatable(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Whether this character cannot defeat ``monster`` in a duel now.
+
+        The same race-lore duel projection as ``_town_friendly_unbeatable``,
+        for any town monster that is not a pet.
+        """
+        if monster.pet:
+            return False
+        knowledge = self._monrace_knowledge.get(monster.race_id)
         opponent = monster
         if knowledge is not None:
             hp = knowledge.average_hp or knowledge.max_hp
@@ -5294,6 +5307,15 @@ class TownMixin:
         # town after this hunt angered him and then re-approached him between
         # flee steps).  An angered one is still answered by the survival
         # rungs when it attacks; this hunt only stops chasing it.
+        # USER DECISION 2026-10-31 (死2): 「本当に物資がなく、街の敵にも勝てない
+        # くらい弱いなら…諦めて戦闘を試みる」 -- the same holds for a hostile
+        # town monster: the hunt never walks toward one this character cannot
+        # defeat (n1-c lives 050, 053, 056 approached a Scruffy-looking horse
+        # or a Battle-scarred veteran between flee steps until they died).
+        unbeatable = {
+            monster.index for monster in snapshot.visible_monsters
+            if self._town_monster_unbeatable(snapshot, monster)
+        }
         targets = sorted(
             (
                 monster for monster in snapshot.visible_monsters
@@ -5304,14 +5326,14 @@ class TownMixin:
                         self._monrace_knowledge.get(monster.race_id), "flags", ()
                     )
                 )
-                and not self._town_friendly_unbeatable(snapshot, monster)
+                and monster.index not in unbeatable
             ),
             key=lambda monster: monster.distance,
         )
         if any(
             monster.hostile
             and player.position.distance_to(monster.position) <= 1
-            and self._town_friendly_unbeatable(snapshot, monster)
+            and monster.index in unbeatable
             for monster in snapshot.visible_monsters
         ):
             # An angered one beside the player is attacking: the survival

@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _advance_town_blocked_iteration
 from hengbot.model import _parse_items, parse_snapshot
+from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_opening_route_r2_recorded as round2
 import tests.test_input_executor as executor_harness
@@ -38,13 +39,19 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
     def row(self, case, wanted):
         return next(row for index, row in self.cases[case]["rows"] if index == wanted)
 
-    def replay(self, case, last, *, skip=(), in_store=False, prepare=None):
+    def replay(self, case, last, *, first=None, skip=(), in_store=False, prepare=None):
         """Feed the recorded rows through the public chooser up to ``last``."""
         policy, _ = round2.OpeningRouteR2RecordedTest().case("1")
         policy._in_store_ops_enabled = in_store
+        for race, values in self.cases["monraces"].items():
+            facts = dict(values)
+            for name in ("flags", "abilities"):
+                facts[name] = frozenset(facts[name])
+            facts["blows"] = tuple(MonsterBlow(**blow) for blow in facts["blows"])
+            policy._monrace_knowledge[int(race)] = MonraceKnowledge(**facts)
         primed, decisions = False, {}
         for index, row in self.cases[case]["rows"]:
-            if index in skip:
+            if index in skip or (first is not None and index < first):
                 continue
             if row.get("type") == "knowledge":
                 knowledge = row["knowledge"]
@@ -160,3 +167,61 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         policy.choose_key(parse_snapshot(outside, policy._monrace_knowledge))
         self.assertFalse((policy.last_reason or "").startswith("town:blocked:"),
                          policy.last_reason)
+
+    @staticmethod
+    def unsupplied_magic_eater(policy):
+        """DECLARED CONSTRUCTED knowledge the town death's capture lacks.
+
+        The capture holds neither the ``~f`` skill list nor a Home list, so
+        both requests would own every board.  The skill list carries the
+        Magic-Eater's starting TWO_WEAPON/SHIELD experience (0, 0:
+        lib/edit/ClassSkillDefinitions.jsonc class 16) at the board's level,
+        and Home is taken as empty: the bot carried no healing potion and no
+        escape scroll, the condition of the owner decision.
+        """
+        skill = copy.deepcopy(round2.OpeningRouteR2RecordedTest.stops["1"]["skill"])
+        for row in skill["knowledge"]["skills"]:
+            row["exp"] = 0
+        skill["player"]["level"] = 8
+        policy.consume_skill_knowledge(skill)
+        policy.consume_home_knowledge(())
+
+    def test_death2_town_monster_it_cannot_beat_is_fought_not_hunted(self):
+        # n1-c life-056 08:24 (and lives 050, 053 the same way): HP 37/129, no
+        # potion, no escape scroll, near-useless melee.  The town hunt walked to
+        # a Scruffy-looking horse it could not beat, fled a step when bitten,
+        # walked back, and so on until it died.  Owner 2026-10-31: no refuge,
+        # no approach/flee alternation; when attacked with nothing left, fight.
+        policy, raw, decisions = self.replay(
+            "death2", 66, prepare=self.unsupplied_magic_eater)
+        horse = parse_snapshot(raw, policy._monrace_knowledge).visible_monsters[0]
+        self.assertEqual((horse.race_id, horse.distance), (955, 3))
+        for index in (59, 60, 62, 66):
+            with self.subTest(row=index):
+                self.assertNotEqual(decisions[index][1], "town:kill-mob-approach")
+        for index in (61, 63, 64, 65):
+            # The horse is adjacent and biting: attack it, never a flee step.
+            with self.subTest(row=index):
+                self.assertIn(decisions[index][1],
+                              {"flee:cornered-attack", "emergency:cornered-attack"})
+        attack = decisions[65][0]
+        bitten = self.row("death2", 65)
+        # DECLARED CONSTRUCTED: the engine's reply to the attack.
+        following = copy.deepcopy(bitten)
+        following["turn"] += 10
+        following["messages"] = []
+        self.post(policy, bitten, attack, following)
+
+    def test_death2_last_known_cell_of_an_unbeatable_monster_is_not_walked_to(self):
+        # 223052-223304 after the earlier chase: whenever the horse left sight
+        # (HP 15 down to 5) the hunt walked toward the cell where it had last
+        # been seen, and bitten again the bot fled a step.
+        policy, raw, decisions = self.replay(
+            "death2", 118, prepare=self.unsupplied_magic_eater)
+        self.assertEqual(parse_snapshot(raw, policy._monrace_knowledge).visible_monsters, [])
+        for index in (104, 105, 106, 111, 113, 118):
+            with self.subTest(row=index):
+                self.assertNotEqual(decisions[index][1], "town:kill-mob-approach")
+        for index in (107, 108, 109, 110):
+            with self.subTest(row=index):
+                self.assertEqual(decisions[index][1], "emergency:cornered-attack")

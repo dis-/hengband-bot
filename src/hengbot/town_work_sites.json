@@ -2619,7 +2619,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2774b307b5866dbbbb7e17d229e12a3966bc37ce537297348732255e6bef1a42"
+    "ast_sha256": "df6743fa43c9a762d93a33454dbf70ae433161a90b03323f93274c626976a808"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4434,7 +4434,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e96a6a62b626230527e488c800c75a4beb8b3ea8ffb05c6febec6b9a09d3e734"
+    "ast_sha256": "506000f81df8159ec3b58f0bfa84f6f7ddb9db8ceb508e856886ef61d4342abb"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4643,7 +4643,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "755b6b4bf9c99203955af19e2cd672b9b83523e9077e5fffe0fc2c37c1b6adb7"
+    "ast_sha256": "3a6f2a9bb00b273f264ad9ad7d8822cb34eb548d21c22925a308284605d876a5"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -6252,7 +6252,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6facee2992108ea2fefe17c091295170b8f40f64a201f8d41215c007632a8c33"
+    "ast_sha256": "1633e7bbe8719db2072eb5bfe032bf3064d8f40e1a8334c11180d65a6d75fa46"
   },
   "policy_instore.py:InStoreMixin._in_store_entry_key": {
     "classification": "adapter",
@@ -8311,7 +8311,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a2949dcc82e5e74108448d749365a1c9b40334452435ebf79b8ff68241c71415"
+    "ast_sha256": "c9782e2826731d37122252d70643659042cb37e0b06b3303ea66208999e23a18"
   },
   "policy_town.py:TownMixin._town_map_active": {
     "classification": "data",
@@ -9179,6 +9179,22 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "a266312e8ce493463739d5bd8a49717199fa924b28861fa36b3ddad3cce44599"
+  },
+  "town_last_stand.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "aabbddd4128d6c1d3b2bd45a5020cddf963dc14535088c6e601fe4cfd09eaf92"
+  },
+  "town_last_stand.py:target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "1753208d4e97e348a381719a60a4ef53e86c37b595bad603aa90e61b49e9d3d6"
   },
   "town_maps.py:TownMap.building_position": {
     "classification": "data",
