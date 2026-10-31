@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.town_pack_budget import permits
+from hengbot.town_pack_budget import incoming_slots, permits
 
 from collections import deque
 import json
@@ -992,7 +992,7 @@ class IdentificationMixin:
         )
 
     def _identification_source_obtainability(
-        self, snapshot: Snapshot, *, full: bool
+        self, snapshot: Snapshot, *, full: bool, within_pack_budget: bool = False
     ) -> str:
         """Return ``available``, ``unavailable``, or ``unknown`` for this visit.
 
@@ -1000,6 +1000,8 @@ class IdentificationMixin:
         usable only when the Alchemist page was observed in the current town
         visit, for the current town, and no later than this snapshot.  Older
         checkpoints and pages retained across travel are therefore unknown.
+        With ``within_pack_budget`` a shelf scroll the town pack budget refuses
+        to carry (town_pack_budget.permits) is not obtainable either.
         """
         if self._find_identification_source(
             snapshot,
@@ -1024,6 +1026,8 @@ class IdentificationMixin:
                 item.tval == TVAL_SCROLL
                 and item.sval == wanted_sval
                 and item.price <= snapshot.player.gold
+                and (not within_pack_budget
+                     or permits(snapshot, incoming_slots(snapshot, item, 1)))
                 for item in page.items
             )
             else "unavailable"

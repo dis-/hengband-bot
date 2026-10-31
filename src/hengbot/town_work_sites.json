@@ -6246,7 +6246,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "72cf445f56ad6a17e28a5170db515e5356b8fc7b2e0dbe6290643af50e07c683"
+    "ast_sha256": "d6d7f1e64c13f9d5a558dde89dd318173cd823ce265fcd2095869de5aaa67877"
   },
   "policy_home.py:HomeMixin._inventory_weight_limit": {
     "classification": "data",
@@ -6509,7 +6509,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2de8c328ffd48aeddbd54b02ef0af84fade8acbcf04b6bd4385127484f9e90c4"
+    "ast_sha256": "42cf32c28326d76427f08c44d6511bb67478020456bdc7fd934042591faffc46"
   },
   "policy_identification.py:IdentificationMixin._identify_carried_item_key": {
     "classification": "producer",
@@ -6938,7 +6938,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "abf7dedc80eed38390cc44fb4ca729abb701e35bd5e161c3f2ba590ba9ce11e4"
+    "ast_sha256": "e40a33e1aac5f08b6c79982fdd3ade31cfdbb63d034008a4c9678df27fe0e3f2"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head.supported": {
     "classification": "data",
@@ -7100,6 +7100,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "986fdcfb185acfa3594fa8f9ef4622c3f54ba68b5dfd77f458cffe4fb12fee39"
+  },
+  "policy_quest.py:QuestMixin._in_flight_fixed_quests": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "4c690d3bd47200777d8b8070bae21f220183fd3a0f31ffef0f989ba2850e23e7"
   },
   "policy_quest.py:QuestMixin._kill_quest_descent_allowed": {
     "classification": "data",
@@ -7377,7 +7385,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "08c52e78096429bd1aebbfc860ba5a92f46b640adf0dc586522dc69476f97819"
+    "ast_sha256": "674f5f4b88a948a679155b0a404f965bcb46595ed410352ec58c559ec631da3e"
   },
   "policy_quest.py:QuestMixin._quest_strategy_route_step": {
     "classification": "data",

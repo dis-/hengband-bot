@@ -93,7 +93,12 @@ class StoreExitObservedRecordedTest(executor_harness.ProductionHarness):
         self.assertIsNone(board.store)
         self.assertEqual(inflight[2], STORE_ALCHEMIST)
         self.assertGreater(board.turn, inflight[1])
-        self.assertEqual((key, policy.last_reason), ("9", "town:cross-town-shopping:travel-2"))
+        # The recorded owner was town:cross-town-shopping:travel-2.  Since the
+        # n1-b life-282 fix the carried ego flail waiting for *Identify* is a
+        # Home deposit candidate (the shelf scroll needs a fifth slot the pack
+        # budget refuses at 4 free), and the same first step to the inn ('9')
+        # is now the Q2 return teleport's walk (fixedquest:q2-teleport).
+        self.assertEqual((key, policy.last_reason), ("9", "fixedquest:q2-teleport"))
         # Before the fix the leave stays in flight across the decision and
         # the driver suppresses the key (nothing posted, run stops).
         self.assertIsNone(policy._store_leave_inflight)
