@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import me_ranged_first, return_yield, status_cure, town_last_stand
+from hengbot import blind_strike, me_ranged_first, return_yield, status_cure, town_last_stand
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -2012,6 +2012,9 @@ class CombatMixin:
                 if potion is not None:
                     self.last_reason = "unseen-recall:heal"
                     return reserved_item_command(self, snapshot, "quaff", potion)
+            if player.blind:
+                # No cure: strike the unseen attacker instead of walking blind.
+                return blind_strike.key(self, snapshot)
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None and (
                 self._is_oscillating() and step in set(self._recent)

@@ -91,3 +91,52 @@ class LatchedReturnBesideAHostileTest(SurvivalHarness):
         self.assertEqual(key, "r" + recall.slot)
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(READ_PROMPT)],
                                    self.later(raw)), ["r", recall.slot])
+
+
+class BlindWithoutCureTest(SurvivalHarness):
+    def without_cure(self, policy, raw):
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        cure = policy._find_status_cure_potion(board)
+        self.assertIsNotNone(cure)  # the recorded board carried one
+        raw = copy.deepcopy(raw)
+        raw["inventory"] = [item for item in raw["inventory"] if item["slot"] != cure.slot]
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertIsNone(policy._find_status_cure_potion(board))
+        return raw, board
+
+    def test_recorded_rows(self):
+        rows = self.recorded("blind")
+        self.assertEqual((rows[1713405]["reason"], rows[1713405]["key"]), ("melee", "6"))
+        self.assertEqual((rows[1713414]["reason"], rows[1713414]["key"]),
+                         ("unseen-recall:move", "4"))
+
+    def test_blind_without_cure_attacks_the_remembered_attacker(self):
+        policy, raw = self.replay(("blind",), 1713414)
+        raw, board = self.without_cure(policy, raw)
+        self.assertTrue(board.player.blind)
+        self.assertTrue(board.player.recalling)
+        self.assertEqual(board.visible_monsters, [])
+        key = decide(policy, raw)
+        # Unfixed: ("unseen-recall:move", "4"), a step away from the drake.
+        self.assertEqual((policy.last_reason, key), ("unseen-recall:blind-strike", "+6"))
+        self.assertEqual(board.player.position.distance_to(DRAKE_CELL), 1)
+        self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(DIRECTION_PROMPT)],
+                                   self.later(raw)), ["+", "6"])
+
+    def test_control_nothing_remembered_stays(self):
+        policy, raw = self.replay(("blind",), 1713414)
+        raw, _board = self.without_cure(policy, raw)
+        policy._blind_strike_memory = None  # DECLARED CONSTRUCTED: never saw it
+        # The player stays; at HP 250/703 the low-HP walk gate relabels the
+        # same WAIT (emergency:wait).
+        self.assertEqual(decide(policy, raw), WAIT_KEY)
+        self.assertIn(policy.last_reason, {"unseen-recall:blind-stay", "emergency:wait"})
+
+    def test_control_cure_carried_is_quaffed_first(self):
+        policy, raw = self.replay(("blind",), 1713414)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        key = decide(policy, raw)
+        cure = policy._find_status_cure_potion(board)
+        self.assertEqual((policy.last_reason, key), ("item:cure-critical", "q" + cure.slot))
+        self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(QUAFF_PROMPT)],
+                                   self.later(raw)), ["q", cure.slot])

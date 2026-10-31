@@ -16,7 +16,7 @@ from hengbot.input_executor import Continuation, RECALL_DUNGEON_PROMPTS, ScreenK
 from hengbot.morivant_tower import RECHARGE_ALL_REASONS
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
 from hengbot.policy_constants import (
-    CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO, STORE_HOME,
+    ALTER_KEY, CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO, STORE_HOME,
     IN_STORE_BUY_REASON,
 )
 
@@ -195,6 +195,10 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     if command in "Do" and owner in {"chest:disarm", "chest:open"} and re.fullmatch(r"[1-9]", tail):
         # get_rep_dir may infer the sole adjacent chest (easy_open/disarm).
         # Otherwise release the direction only at the observed question.
+        return command, [_answer(ScreenKind.DIRECTION, tail, optional=True), *continuations]
+    if command == ALTER_KEY and re.fullmatch(r"[1-9]", tail):
+        # cmd-others.cpp exe_alter: get_rep_dir asks the direction, then a
+        # monster there is attacked, seen or not (no-wait:attack, blind strike).
         return command, [_answer(ScreenKind.DIRECTION, tail, optional=True), *continuations]
 
     if command == "~" and tail in {"9", "f"} and continuations:
