@@ -8,11 +8,15 @@ keeps actuation unchanged in this slice. Nothing reads that verdict to pick keys
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import lru_cache, wraps
+from inspect import CO_OPTIMIZED
 import json
+import opcode
 from pathlib import Path
 import sys
+import threading
 from weakref import WeakKeyDictionary
 
 UNMAPPED = 'town:blocked:work-contract:unmapped-producer'
@@ -126,6 +130,163 @@ def observe_offer(policy, key, work_id):
     active['offers'].append(receipt)
 
 
+def _note_return(state, frame, site, entry, value):
+    """The observer's per-frame filter, shared by both collectors."""
+    policy = state['policy']
+    if entry or frame.f_locals.get('self') is policy:
+        caller = frame.f_back
+        state['returns'].append(dict(site=site, key=str(value), line=frame.f_lineno,
+                                     caller=frame_site(caller) if caller else None,
+                                     policy_reason=getattr(policy, 'last_reason', None)))
+
+
+@contextmanager
+def _profile_returns(state):
+    """The original observer: a per-thread sys.setprofile hook on every call.
+
+    It runs a Python callback for every call and return of every function,
+    including C functions, which made town decisions 2-4 times slower (D39).
+    It is kept only as the fallback when no sys.monitoring tool id is free,
+    and as the reference the equivalence check compares _monitor_returns with.
+    """
+    previous = sys.getprofile()
+
+    def profile(frame, event, value):
+        if previous:
+            previous(frame, event, value)
+        if event != 'return' or not isinstance(value, str) or not value:
+            return
+        if not str(frame.f_globals.get('__name__', '')).startswith('hengbot.'):
+            return
+        site = frame_site(frame)
+        if site is None or site.startswith('town_work.py:'):
+            return
+        entry = manifest().get(site)
+        # Known observational helpers cannot mint a work record, even if
+        # their incidental string value happens to equal a command byte.
+        if entry and entry['classification'] == 'data':
+            return
+        _note_return(state, frame, site, entry, value)
+
+    sys.setprofile(profile)
+    try:
+        yield
+    finally:
+        sys.setprofile(previous)
+
+
+_MONITORING = getattr(sys, 'monitoring', None)
+_RETURN_EVENTS = (_MONITORING.events.PY_RETURN | _MONITORING.events.PY_YIELD
+                  if _MONITORING else 0)
+_RETURN_CONST = opcode.opmap.get('RETURN_CONST')
+_TOOL_NAME = 'hengbot-town-work'
+_tool = None
+_observing = []
+_targets = {}
+
+
+def _return_target(code, frame, policy):
+    """(site, manifest entry) when a return of this code can be recorded.
+
+    This is the profile hook's filter without its per-event checks (value,
+    module, 'self'). It depends only on the code and the policy's class, so
+    the observer disables a location whose returns can never be recorded.
+    """
+    site = code_site(code)
+    if site is None or site.startswith('town_work.py:'):
+        return None
+    entry = manifest().get(site)
+    if entry:
+        return None if entry['classification'] == 'data' else (site, entry)
+    # An unknown site is recorded only when its frame's 'self' is the
+    # policy. An optimized frame has no 'self' unless its code names it, and
+    # a method (or closure) of a class the policy is not an instance of gets
+    # the policy as 'self' only when called explicitly as Class.method(policy).
+    if (code.co_flags & CO_OPTIMIZED and 'self' not in code.co_varnames
+            and 'self' not in code.co_cellvars and 'self' not in code.co_freevars):
+        return None
+    owner = frame.f_globals.get(code.co_qualname.split('.', 1)[0])
+    if isinstance(owner, type) and not isinstance(policy, owner):
+        return None
+    return site, entry
+
+
+def _on_return(code, offset, value):
+    # Keyed by id: hashing a code object hashes its bytecode and constants.
+    # The entry keeps the code alive, so its id cannot be reused.
+    target = _targets.get(id(code))
+    if target is None:
+        state = _deciding_state()
+        if state is None:
+            return None
+        found = _return_target(code, sys._getframe(1), state['policy'])
+        target = _targets[id(code)] = (code, *found, code.co_code) if found else (code, None)
+    if target[1] is None:
+        return _MONITORING.DISABLE
+    if not isinstance(value, str) or not value:
+        # A constant return location returns this same value every time.
+        return _MONITORING.DISABLE if target[3][offset] == _RETURN_CONST else None
+    frame = sys._getframe(1)
+    if not str(frame.f_globals.get('__name__', '')).startswith('hengbot.'):
+        return None
+    thread = threading.get_ident()
+    for state in _observing:
+        # sys.setprofile observed only the deciding thread; so does this.
+        if state['thread'] == thread:
+            _note_return(state, frame, target[1], target[2], value)
+    return None
+
+
+def _deciding_state():
+    thread = threading.get_ident()
+    return next((state for state in reversed(_observing) if state['thread'] == thread), None)
+
+
+def _monitoring_tool():
+    """A free sys.monitoring tool id for the observer, or None."""
+    global _tool
+    if _tool is not None:
+        return _tool
+    if _MONITORING is None:
+        return None
+    for tool in (3, 4):
+        if _MONITORING.get_tool(tool) is None:
+            _MONITORING.use_tool_id(tool, _TOOL_NAME)
+            _MONITORING.register_callback(tool, _MONITORING.events.PY_RETURN, _on_return)
+            _MONITORING.register_callback(tool, _MONITORING.events.PY_YIELD, _on_return)
+            _tool = tool
+            return tool
+    return None
+
+
+@contextmanager
+def _monitor_returns(state):
+    """Record the same returns as _profile_returns with sys.monitoring.
+
+    Only PY_RETURN and PY_YIELD (the profile hook's 'return' event) are
+    watched, and locations that can never be recorded are disabled, so the
+    observer does not pay for every call, C call and helper return.
+    """
+    tool = _monitoring_tool()
+    if tool is None:
+        with _profile_returns(state) as observed:
+            yield observed
+        return
+    state['thread'] = threading.get_ident()
+    _observing.append(state)
+    if len(_observing) == 1:
+        _MONITORING.set_events(tool, _RETURN_EVENTS)
+    try:
+        yield
+    finally:
+        _observing.remove(state)
+        if not _observing:
+            _MONITORING.set_events(tool, 0)
+
+
+_collect_returns = _monitor_returns
+
+
 def town_work_decision(function):
     @wraps(function)
     def run(policy, board):
@@ -135,34 +296,10 @@ def town_work_decision(function):
             return function(policy, board)
         state = dict(policy=policy, board=board, returns=[], offers=[])
         token = _active.set(state)
-        previous = sys.getprofile()
-
-        def profile(frame, event, value):
-            if previous:
-                previous(frame, event, value)
-            if event != 'return' or not isinstance(value, str) or not value:
-                return
-            if not str(frame.f_globals.get('__name__', '')).startswith('hengbot.'):
-                return
-            site = frame_site(frame)
-            if site is None or site.startswith('town_work.py:'):
-                return
-            entry = manifest().get(site)
-            # Known observational helpers cannot mint a work record, even if
-            # their incidental string value happens to equal a command byte.
-            if entry and entry['classification'] == 'data':
-                return
-            if entry or frame.f_locals.get('self') is policy:
-                caller = frame.f_back
-                state['returns'].append(dict(site=site, key=str(value), line=frame.f_lineno,
-                                              caller=frame_site(caller) if caller else None,
-                                              policy_reason=getattr(policy, 'last_reason', None)))
-
-        sys.setprofile(profile)
         try:
-            key = function(policy, board)
+            with _collect_returns(state):
+                key = function(policy, board)
         finally:
-            sys.setprofile(previous)
             _active.reset(token)
         matching = [r for r in state['returns'] if r['key'] == str(key)]
         unknown = [r for r in matching if r['site'] not in manifest()
