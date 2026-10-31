@@ -140,3 +140,43 @@ class BlindWithoutCureTest(SurvivalHarness):
         self.assertEqual((policy.last_reason, key), ("item:cure-critical", "q" + cure.slot))
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(QUAFF_PROMPT)],
                                    self.later(raw)), ["q", cure.slot])
+
+
+class DarkWildernessExitFloorTest(SurvivalHarness):
+    def policy(self, raw):
+        policy = build_policy()
+        policy.prime(parse_snapshot(raw, policy._monrace_knowledge))
+        policy._returning_to_town = True  # DECLARED RECONSTRUCTED
+        policy._explore_step = lambda snapshot: None  # DECLARED RECONSTRUCTED
+        policy._floor_key = parse_snapshot(raw, policy._monrace_knowledge).floor_key
+        return policy
+
+    @staticmethod
+    def without_light(raw):
+        raw = copy.deepcopy(raw)  # DECLARED CONSTRUCTED: no lantern, no oil
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if "ランタン" not in item["name"] and "油" not in item["name"]]
+        return raw
+
+    def test_recorded_rows(self):
+        # The stop board has no decision row of its own; the stop's log shows
+        # return:search-upstairs 's' on the stair (LUNA-REPORT-fix-dungeon-1031).
+        room = self.cases["dark-room"]["decisions"]
+        self.assertEqual([(row["reason"], row["key"]) for row in room],
+                         [("return:seek-secret-wall", "1"), ("dark:backtrack", "7")])
+
+    def test_dark_stair_wears_the_carried_average_lantern(self):
+        raw = self.boards("dark-stair")[0]
+        policy = self.policy(raw)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertFalse(policy._can_read_scrolls(board))
+        self.assertTrue(policy._up_stairs_exit_to_wilderness())
+        worn = next(item for item in board.equipment if item.is_light)
+        self.assertEqual((worn.is_torch, worn.fuel), (True, 0))
+        lantern = next(item for item in board.inventory if item.is_lantern)
+        self.assertEqual((lantern.known, lantern.pseudo_feeling), (False, "average"))
+        key = decide(policy, raw)
+        # Unfixed: ("return:search-upstairs", "s") in the dark for 114 boards.
+        self.assertEqual((policy.last_reason, key), ("wield-light", "w" + lantern.slot))
+        self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(WIELD_PROMPT)],
+                                   self.later(raw)), ["w", lantern.slot])
