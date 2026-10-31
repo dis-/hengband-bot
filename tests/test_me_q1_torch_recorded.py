@@ -81,11 +81,7 @@ class MagicEaterQ1TorchRecordedTest(executor_harness.ProductionHarness):
             following["turn"] += 1
             self.post(policy, raw, key, following)
             return
-        self.assertEqual((key[0], policy.last_reason), ("w", "opening-q1:equip-light"))
-        following = lv7.Lv7TownStopRecordedTest.equip_reply(raw, key)
-        self.post(policy, raw, key, following)
-        raw = following
-        key = str(policy.choose_key(self.board(policy, raw)))
+        # D48: the worn Brass Lantern {average} is kept, not swapped for a torch.
         self.assertEqual(policy.last_reason, "fixedquest:request:approach", key)
         following = copy.deepcopy(raw)
         following["turn"] += 1

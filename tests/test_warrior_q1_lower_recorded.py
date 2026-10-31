@@ -56,7 +56,7 @@ class WarriorQ1LowerRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual((player["class_id"], player["race_id"], player["level"], player["max_hp"]),
                          (0, 25, 7, 177))
 
-    def test_census_board_equips_light_and_requests_q1(self):
+    def test_census_board_keeps_the_lantern_and_requests_q1(self):
         # DECLARED CONSTRUCTED: the optional mining-kit survey of shelves this
         # capture never observed is marked done, so the drive reaches Q1.
         policy, raw = self.boundary(kit_bought=True)
@@ -71,11 +71,7 @@ class WarriorQ1LowerRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual(force["hp"], {"measured": 177, "required": 88})
         self.assertEqual([row[1] for row in policy._opening_q1_requirements(board)], [5, 0, 0])
         key = str(policy.choose_key(board))
-        self.assertEqual((key[0], policy.last_reason), ("w", "opening-q1:equip-light"))
-        following = self.equip_reply(raw, key)
-        self.post(policy, raw, key, following)
-        raw = following
-        key = str(policy.choose_key(self.board(policy, raw)))
+        # D48: the worn Brass Lantern is kept, not swapped for a torch.
         self.assertEqual(policy.last_reason, "fixedquest:request:approach", key)
         following = copy.deepcopy(raw)
         following["turn"] += 1

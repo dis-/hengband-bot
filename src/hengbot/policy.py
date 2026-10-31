@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
+from hengbot import magic_eater, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -11612,6 +11612,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         floor_power = me_powers.power_key(self, snapshot, me_powers.FLOOR)
         if floor_power is not None:
             return floor_power
+        # Class 16's device policy table: an absorb_now device is absorbed on
+        # the spot when safe (me_device_policy, owner 2026-10-31).
+        floor_absorb = magic_eater.absorb_key(self, snapshot, physical_hostiles)
+        if floor_absorb is not None:
+            return floor_absorb
 
         quest_floor_recovery = self._town_producer_entry("_kill_quest_floor_recovery_key", lambda: self._kill_quest_floor_recovery_key(snapshot))
         if quest_floor_recovery is not None:
@@ -17733,7 +17738,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _telmora_q2_travel_key(
         self, snapshot: Snapshot, quest: QuestState
     ) -> str | None:
-        """Use the inn service for the approved Q2 errand, never wilderness."""
+        """Use the inn service for the approved Q2 errand, never wilderness.
+
+        The inn exists only in a town.  On a dungeon floor the game still
+        exports the last town as ``town_id`` (0 for the Outpost), so without
+        this guard the errand read the floor as the Outpost and answered a
+        short fare with a standing wait that displaced the floor's mining
+        and return owners (#47 n1-c life-065: 33 x
+        fixedquest:q2-travel-needs-funds on Yeek cave 1F, loop-detected).
+        """
+        if not snapshot.in_town:
+            return None
         if self._defer_town_errand(
                 "quest-request", "q2-travel", preserve_home_hold=False):
             return None

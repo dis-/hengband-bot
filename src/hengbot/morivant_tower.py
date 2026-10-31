@@ -90,12 +90,13 @@ def recharge_cost(snapshot, fallback: dict | None = None) -> int:
                if item.tval in RECHARGEABLE_TVALS and not item.is_equipment)
 
 
-def wand_charges_after_recharge(item) -> int:
-    """building-recharger.cpp: a wand stack is filled to number * base pval."""
+def charges_after_recharge(item) -> int:
+    """building-recharger.cpp: a staff is filled to its base pval, a wand
+    stack to number * base pval (a rod has no charges to fill)."""
     kind = device_definitions().get((item.tval, item.sval))
-    if kind is None:
+    if kind is None or item.tval == TVAL_ROD:
         return item.charges
-    return max(item.charges, max(1, item.count) * kind[0])
+    return max(item.charges, kind[0] * (max(1, item.count) if item.tval == TVAL_WAND else 1))
 
 
 def morivant_unlocked(snapshot) -> bool:
@@ -121,8 +122,12 @@ def rumor_key(policy, snapshot):
     return key, policy.last_reason == "town:rumor-batch"
 
 
-def building_step(policy, snapshot, building: int):
-    """(first step, whether that step enters the building)."""
+def building_step(policy, snapshot, building: int, *, family: str):
+    """(first step, whether that step enters the building).
+
+    ``family`` is the caller's claim family: the walk's Reach slot is its own,
+    not the family of whatever reason an earlier producer left (D49).
+    """
     here = snapshot.grid_at(snapshot.player.position)
     if here is not None and here.building_type == building:
         # player-move.cpp enters a building only by moving onto it: step off
@@ -144,7 +149,7 @@ def building_step(policy, snapshot, building: int):
         step = policy._town_map_goal_step(snapshot, position)
     if step is None:
         return None, False
-    policy._declare_reach(position if position is not None else target)
+    policy._declare_reach(position if position is not None else target, family=family)
     enters = step == position or (
         snapshot.grid_at(step) is not None
         and snapshot.grid_at(step).building_type == building)

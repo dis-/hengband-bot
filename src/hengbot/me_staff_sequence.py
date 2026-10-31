@@ -51,6 +51,17 @@ Other towns (owner 2026-10-31 「資金に余力が出来たら他の街も見�
 the stock-out run's own target (``_stockout_target``) that pays a trip sends
 the sequence to the other visited towns' Magic shops (Morivant first), one
 after another, before it mines for the restock (``_next_search_leg``).
+
+Extras (owner 2026-10-31 18h 「岩石溶解の魔法棒を入手したあと、資金に余裕がある
+ときにMAXまでチャージして取り込む。」, and the device policy table, owner
+2026-10-31 night): a carried, identified device the table charges first
+(``me_device_policy.charge_first``: an ``absorb_after_charge`` row, or the
+first copy of a stage kind that is not the current stage's own) rides along
+on any Tower visit (recharged to its maximum by the same 'a' and absorbed
+after the stage's staffs), and starts a Tower trip of its own only when the
+gold above what the stage still needs (``spare_gold``: ``_stockout_target``,
+or the unmet supplies once every stage is complete) pays the expedition
+(``_extras_spare``); it never starts a fundraising run.
 """
 
 from __future__ import annotations
@@ -63,10 +74,12 @@ from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, staple_food, staple_needs_recharge,
 )
 from hengbot.me_powers_refresh import KIND_LETTER, SEQUENCE_READ_REASON
-from hengbot.model import STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF
+from hengbot.model import (
+    STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF,
+)
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
-    MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
+    FIXED_QUEST_TOWNS, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED, REST_MACRO, STORE_STUCK_LIMIT, TOWN_TELEPORT_COST,
     WAIT_KEY,
 )
@@ -115,12 +128,14 @@ _FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200),
                   SV_STAFF_LITE: (19, 250)}
 # The Tower facts (rechargeable kinds, prices, building 8, the 'a' tail) live
 # in hengbot.morivant_tower, shared with the Q2 breach recharge.
+
 RECHARGE_ALL_REASON = "me-staff:recharge-all"
 RUMOR_BATCH_LIMIT = 10  # 400 rumors: a visible stop instead of an endless inn
 FUNDRAISE_RUN_LIMIT = 6
 ATTEMPT_LIMIT = 3
 
 REASON = "me-staff:"
+PRODUCER = "quest-request"  # the claim family of every sequence key
 STOP_REASON = "quest:blocked:me-staff"
 IDENTIFY_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_IDENTIFY]
 DETECT_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_DETECT_GOLD]
@@ -237,6 +252,43 @@ def absorbed(policy, sval: int) -> bool:
     return record is not None and sval in record.absorbed
 
 
+def absorbed_count(policy, sval) -> int:
+    """The recorded count: the list's ``max`` (``read_powers``) or the charges absorbed."""
+    record = getattr(policy, "_me_staff_sequence", None)
+    return record.absorbed.get(sval, 0) if record is not None else 0
+
+
+def extra_charges(policy, kind: str, sval: int) -> int:
+    """The charges absorbed from an extra (``me_device_policy.Device.key``)."""
+    return absorbed_count(policy, f"{kind}:{sval}")
+
+
+def carried_extras(policy, snapshot) -> dict:
+    """key -> the carried identified device the table charges before absorbing.
+
+    The current stage's own staffs stay ``carried_staffs``.
+    """
+    from hengbot import me_device_policy
+
+    staffs = carried_staffs(policy, snapshot)
+    found = {}
+    for item in snapshot.inventory:
+        row = me_device_policy.device(item)
+        if (row is None or not (item.aware and item.known) or row.key in found
+                or row.key in staffs):
+            continue
+        if me_device_policy.charge_first(policy, snapshot, row):
+            found[row.key] = item
+    return found
+
+
+def _short_of_max(item) -> bool:
+    """The Tower's 'a' would add charges (building-recharger.cpp)."""
+    if item.tval == TVAL_STAFF and item.sval in SEQUENCE_SVALS:
+        return item.charges < max_charges(item.sval)
+    return morivant_tower.charges_after_recharge(item) > item.charges
+
+
 def stage_complete(policy, stage: Stage) -> bool:
     """「1本取り込めたら次の段階に進む」: one absorption of each, any charges."""
     return all(absorbed(policy, sval) for sval in stage.svals)
@@ -304,11 +356,16 @@ def absorbed_charges(policy, snapshot, sval: int) -> int:
     return record.absorbed[sval]
 
 
+def cast_blocked(snapshot) -> bool:
+    """Whether no absorbed power may be cast on this board."""
+    player = snapshot.player
+    return (snapshot.store is not None or player.blind or player.confused
+            or player.hallucinated or player.paralyzed)
+
+
 def power_key(policy, snapshot, sval: int) -> str | None:
     """``m A <letter>`` for an absorbed power that may serve this board."""
-    player = snapshot.player
-    if (absorbed_charges(policy, snapshot, sval) <= 0 or snapshot.store is not None
-            or player.blind or player.confused or player.hallucinated or player.paralyzed):
+    if absorbed_charges(policy, snapshot, sval) <= 0 or cast_blocked(snapshot):
         return None
     return "mA" + POWER_LETTER[sval]
 
@@ -338,10 +395,14 @@ def purchase_excluded(policy, snapshot, item) -> bool:
 
 
 def retains(policy, snapshot, item) -> bool:
-    """A bought staff stays carried until it is recharged and absorbed."""
+    """A bought staff (or a device the policy table still absorbs) stays
+    carried until it is absorbed."""
+    from hengbot import me_device_policy
+
     return applies(policy, snapshot) and (
         _unread_sequence_staff(policy, snapshot, item)
-        or (is_sequence_staff(item, policy) and not absorbed(policy, item.sval)))
+        or (is_sequence_staff(item, policy) and not absorbed(policy, item.sval))
+        or me_device_policy.awaits_absorption(policy, snapshot, item))
 
 
 # -- the shop: same hook points as the opening route's purchase ------------
@@ -436,16 +497,19 @@ def _phase(policy, snapshot) -> str:
     unlocked = visited is not None and MORIVANT_TOWN_ID in visited
     stage = current_stage(policy)
     carried = carried_staffs(policy, snapshot)
+    extras = carried_extras(policy, snapshot)
     missing = _needed(policy, snapshot)
     if (stage is not None and (not missing or (carried and _stocked_out(policy, snapshot)))) or (
-            unlocked and town == MORIVANT_TOWN_ID and carried):
+            unlocked and town == MORIVANT_TOWN_ID and (carried or extras)) or (
+            extras and _extras_spare(policy, snapshot, unlocked)):
         # Every staff of the stage in hand (or every one the shelf sells:
-        # 「持っている分を先に取り込む」), or some already at Morivant.
+        # 「持っている分を先に取り込む」), some already at Morivant, or an
+        # extra the spare gold takes there.
         if not unlocked:
             return "rumor"
         if town != MORIVANT_TOWN_ID:
             return "travel"
-        if (any(item.charges < max_charges(sval) for sval, item in carried.items())
+        if (any(_short_of_max(item) for item in (*carried.values(), *extras.values()))
                 or staple_needs_recharge(snapshot)):
             return "recharge"
         return "absorb"
@@ -549,6 +613,24 @@ def _stockout_target(policy, snapshot, supplies: int, unlocked: bool) -> int:
     return estimate + expedition
 
 
+def spare_gold(policy, snapshot) -> int:
+    """「資金に余裕」: the gold above what the stage still needs
+    (``_stockout_target``; the unmet supplies once every stage is complete)."""
+    supplies = supply_cost(policy, snapshot)
+    unlocked = morivant_tower.morivant_unlocked(snapshot)
+    needs = (supplies if complete(policy)
+             else _stockout_target(policy, snapshot, supplies, unlocked))
+    return snapshot.player.gold - needs
+
+
+def _extras_spare(policy, snapshot, unlocked: bool) -> bool:
+    """The spare gold pays the Tower expedition of its own (fares, the
+    whole-pack recharge, and the rumors while Morivant is locked)."""
+    trip = (_expedition_cost(snapshot, 0) if unlocked
+            else _rumor_expedition_cost(snapshot, 0))
+    return spare_gold(policy, snapshot) >= trip
+
+
 def _note_searched(policy, snapshot) -> None:
     """Remember this town's observed Magic shelf lacking the missing staffs."""
     if _stocked_out(policy, snapshot):
@@ -618,7 +700,8 @@ def _settle_pending(policy, snapshot) -> None:
     record.pending = None
     for sval, charges in before:
         item = (staple_food(snapshot) if sval == STAPLE
-                else carried_staffs(policy, snapshot).get(sval))
+                else {**carried_staffs(policy, snapshot),
+                      **carried_extras(policy, snapshot)}.get(sval))
         if step == "recharge" and item is not None and item.charges > charges:
             record.attempts.pop(("recharge", sval), None)
         if step == "absorb" and item is None:
@@ -631,9 +714,27 @@ def _settle_pending(policy, snapshot) -> None:
                 record.fundraise_runs = record.reached_runs = 0
 
 
-def _travel(policy, snapshot, destination: int, step: str) -> str:
+def _quest_holds_town(policy, snapshot) -> bool:
+    """The fixed-quest head is an approved quest of this town, not yet done.
+
+    Its own errand travels here and back (FIXED_QUEST_TOWNS, _fixed_quest_key
+    / _telmora_q2_travel_key): the sequence's leg out of the town would undo
+    its trip (D47 n1-c life-065: Q2 TAKEN, five Outpost <-> Telmora fares
+    under fixedquest:q2-travel and me-staff:return-outpost, 5772 -> 272 gold).
+    """
+    head = policy._fixed_quest_head(snapshot)
+    return (head is not None
+            and head.status not in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+            and FIXED_QUEST_TOWNS.get(head.id) == policy._effective_town_id(snapshot)
+            and policy.approved_quest_strategy(head.id) is not None)
+
+
+def _travel(policy, snapshot, destination: int, step: str) -> str | None:
+    """The inn teleport leg, or None while a quest errand holds this town."""
+    if destination != policy._effective_town_id(snapshot) and _quest_holds_town(policy, snapshot):
+        return None
     key = policy._town_teleport_key(
-        snapshot, destination, producer="quest-request", reason=f"{REASON}{step}")
+        snapshot, destination, producer=PRODUCER, reason=f"{REASON}{step}")
     if key is None:
         return _stop(policy, f"{step}-unavailable:{policy.last_reason}")
     return key
@@ -655,14 +756,14 @@ def _recharge_key(policy, snapshot) -> str:
         # Return with the reserved fare; the Outpost travel gate funds
         # the recharge with one explicit-target run.
         return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
-    step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY)
+    step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY, family=PRODUCER)
     if step is None:
         return _stop(policy, "tower-of-sorcery-route-unavailable")
     if not enters:
         policy.last_reason = f"{REASON}approach-tower"
         return policy._step_toward(snapshot, step)
-    before = [(sval, item.charges) for sval, item in sorted(carried_staffs(policy, snapshot).items())
-              if item.charges < max_charges(sval)]
+    before = [(key, item.charges) for key, item in _absorbable(policy, snapshot)
+              if _short_of_max(item)]
     if staple_needs_recharge(snapshot):
         before.append((STAPLE, staple_food(snapshot).charges))
     for sval, _charges in before:
@@ -673,13 +774,19 @@ def _recharge_key(policy, snapshot) -> str:
     return policy._step_toward(snapshot, step, tail=RECHARGE_ALL_TAIL)
 
 
+def _absorbable(policy, snapshot) -> list:
+    """(key, item) to absorb: the stage's staffs by sval, then the extras."""
+    return [*sorted(carried_staffs(policy, snapshot).items()),
+            *carried_extras(policy, snapshot).items()]
+
+
 def _absorb_key(policy, snapshot) -> str:
     player = snapshot.player
     if (player.hp < player.max_hp or player.blind or player.confused
             or player.poisoned or player.cut or player.stunned or player.hallucinated):
         policy.last_reason = f"{REASON}recover"
         return REST_MACRO
-    sval, item = sorted(carried_staffs(policy, snapshot).items())[0]
+    sval, item = _absorbable(policy, snapshot)[0]
     if not _attempt(policy, "absorb", sval):
         return _stop(policy, f"absorb-no-progress:{sval}")
     state(policy).pending = ("absorb", ((sval, item.charges),))
